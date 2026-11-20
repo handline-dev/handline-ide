@@ -71,10 +71,11 @@ func TestNothingStartsInAWorkspaceBeingDeleted(t *testing.T) {
 		t.Fatal("free")
 	}
 	defer release()
+	annIn(t, r)
 	if g := refused(c.call("session.start", map[string]any{"agent": "ann", "request_id": rid("x1")})); g != "state" {
 		t.Errorf("session.start: gate %q", g)
 	}
-	if g := refused(c.call("agent.create", map[string]any{"name": "ann.new", "role": "r", "repo": testfiles.GitCheckout(t), "parent": "ann", "request_id": rid("x2")})); g != "state" {
+	if g := refused(c.call("agent.create", map[string]any{"workspace": "ann", "name": "new", "role": "r", "request_id": rid("x2")})); g != "state" {
 		t.Errorf("agent.create: gate %q", g)
 	}
 	if len(r.ctl.calls) != 0 {

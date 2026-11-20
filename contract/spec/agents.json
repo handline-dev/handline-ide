@@ -1901,8 +1901,8 @@
   },
   {
    "name": "agent.create",
-   "summary": "Register a new agent, give it a worktree on a branch of a repo, and start it there, as hl spawn does. The call answers only once the operation ended: done, with the operation id and the start's words in said, or refused (gate state) with the reason, the operation id and whether the agent was registered. The operations topic sends operation.progress along the way, and other calls on the connection are answered meanwhile. A create still running after 10 minutes cannot be undone half way: the call is refused naming the step it reached and the operation id, and the operation goes on to done or failed. Founder only. Parameters are checked before anything is looked up, in this order: request_id, name, role, effort, account, then the repo, the parent, the name against its parent, and whether the name is used.",
-   "description": "The operation has kind agent.create and its agent is the new name from the first event. steps_total may be null while it is unknown; a client shows step as the daemon sent it and invents none. When it is done, result is {agent, registered: true}. When it failed, result is {agent, registered}: registered says whether the agent was added to the team before the failure, so a failed operation can leave a registered agent that is not started; nothing is cleaned up. A name already used by an agent is refused (gate state) and no operation starts. A name with a parent must be '<parent>.<rest>'; anything else is bad_request, field name. base omitted means the daemon's default branch name, which is main today; a client that knows the repo's default_branch sends it. The older shape, a dotted name with parent and repo, is still taken without workspace.",
+   "summary": "Register a new agent in a workspace, give it a worktree on a branch of one of its folders (or the plain folder itself), and start it there, as hl spawn does. The call answers only once the operation ended: done, with the operation id and the start's words in said, or refused (gate state) with the reason, the operation id and whether the agent was registered. The operations topic sends operation.progress along the way, and other calls on the connection are answered meanwhile. A create still running after 10 minutes cannot be undone half way: the call is refused naming the step it reached and the operation id, and the operation goes on to done or failed. Founder only. Parameters are checked before anything is looked up, in this order: request_id, name, role, effort, account, workspace; then the workspace is looked up, the folder, and whether the name is used.",
+   "description": "The operation has kind agent.create and its agent is the new name from the first event. steps_total may be null while it is unknown; a client shows step as the daemon sent it and invents none. When it is done, result is {agent, registered: true}. When it failed, result is {agent, registered}: registered says whether the agent was added to the team before the failure, so a failed operation can leave a registered agent that is not started; nothing is cleaned up. A name already used by an agent is refused (gate state) and no operation starts. base omitted means the daemon's default branch name, which is main today; a client that knows the repo's default_branch sends it.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -1910,7 +1910,7 @@
      "required": true,
      "schema": {
       "type": "string",
-      "description": "With workspace, its plain name there (a dot is bad_request, field name); without, the dotted name."
+      "description": "Its plain name in the workspace; a dot is bad_request, field name."
      }
     },
     {
@@ -1923,7 +1923,7 @@
     },
     {
      "name": "workspace",
-     "required": false,
+     "required": true,
      "schema": {
       "type": "string",
       "description": "The workspace's key (w3) or name. An unknown one is not_found, what workspace; one with no folder is refused (gate state)."
@@ -1934,15 +1934,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "With workspace: the folder of it the agent works in, as workspaces.list gives its path; absent, the default. One the workspace does not hold is bad_request, field folder. In a git folder the agent gets a worktree of it; in a plain folder it works in the folder itself, on no branch. It reads the workspace's other folders."
-     }
-    },
-    {
-     "name": "repo",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "description": "Without workspace: a directory, as repos.list gives it in path. An unknown one is not_found, what repo. With workspace it is not read."
+      "description": "The folder of the workspace the agent works in, as workspaces.list gives its path; absent, the default. One the workspace does not hold is bad_request, field folder. In a git folder the agent gets a worktree of it; in a plain folder it works in the folder itself, on no branch. It reads the workspace's other folders."
      }
     },
     {
@@ -1972,13 +1964,6 @@
        "xhigh",
        "max"
       ]
-     }
-    },
-    {
-     "name": "parent",
-     "required": false,
-     "schema": {
-      "$ref": "#/components/schemas/Who"
      }
     },
     {

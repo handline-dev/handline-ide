@@ -1,11 +1,13 @@
-// The first task offered on the agent step: what the repo itself suggests, and the agent's name from its folder.
+// The first task offered on the agent step: what the repo itself suggests, and the workspace's name from its folder.
 
-/** The agent's name from its folder's: lower case, anything else a dash. */
-export const agentNameOf = (folder: string): string =>
+/** The workspace's name from its folder's, as workspace.create takes one: lower case, anything else a dash, from its first letter, at most 32. */
+export const workspaceNameOf = (folder: string): string =>
   folder
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'agent';
+    .replace(/^[^a-z]+/, '')
+    .slice(0, 32)
+    .replace(/-$/, '') || 'project';
 type Card = { title: string; note: string; task: string };
 /** What the repo itself offers to do first: its tests, its newest open issues, its TODOs, its uncommitted changes. */
 export function factCards(

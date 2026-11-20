@@ -66,10 +66,20 @@ func startedByKey(t *testing.T, r *rig, name, repo string) {
 	}
 }
 
+// annIn gives workspace ann a git checkout as its folder, the one its new agents work in.
+func annIn(t *testing.T, r *rig) string {
+	t.Helper()
+	repo := testfiles.GitCheckout(t)
+	if _, err := r.e.DB.Exec("UPDATE workspaces SET folder = ? WHERE name = 'ann'", repo); err != nil {
+		t.Fatal(err)
+	}
+	return repo
+}
+
 func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	r, sn, c := createRig(t)
-	repo := testfiles.GitCheckout(t)
-	got := result(t, c.call("agent.create", map[string]any{"name": "ann.new", "role": "worker", "repo": repo, "parent": "ann", "effort": "high", "request_id": rid("c1")}))
+	repo := annIn(t, r)
+	got := result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": "new", "role": "worker", "effort": "high", "request_id": rid("c1")}))
 	op, _ := got["operation"].(string)
 	if got["accepted"] != true || op == "" || got["said"] != "done" || operations.Live(op) {
 		t.Fatalf("answered once the agent is up, with the start's words: %v", got)
@@ -89,7 +99,7 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	if res := last["result"].(map[string]any); res["agent"] != "ann.new" || res["registered"] != true || last["agent"] != "ann.new" {
 		t.Fatalf("%v", last)
 	}
-	again := result(t, c.call("agent.create", map[string]any{"name": "ann.new", "role": "worker", "repo": repo, "parent": "ann", "effort": "high", "request_id": rid("c1")}))
+	again := result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": "new", "role": "worker", "effort": "high", "request_id": rid("c1")}))
 	if again["replayed"] != true || again["operation"] != op || len(r.ctl.calls) != 1 {
 		t.Fatalf("a retry starts nothing twice: %v %v", again, r.ctl.calls)
 	}
@@ -99,20 +109,20 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 func TestCreateWhoseStartFailsIsRefusedAndLeavesTheAgentRegistered(t *testing.T) {
 	r, sn, c := createRig(t)
 	r.ctl.ok, r.ctl.said = false, "diverged"
-	repo := testfiles.GitCheckout(t)
-	m := c.call("agent.create", map[string]any{"name": "solo", "role": "worker", "repo": repo, "request_id": rid("c2")})
+	annIn(t, r)
+	m := c.call("agent.create", map[string]any{"workspace": "ann", "name": "solo", "role": "worker", "request_id": rid("c2")})
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
-	if e["message"] != "solo is registered; starting it failed: diverged" || d["registered"] != true || d["operation"] == nil {
+	if e["message"] != "ann.solo is registered; starting it failed: diverged" || d["registered"] != true || d["operation"] == nil {
 		t.Fatalf("refused with how far it got: %v", m)
 	}
 	if last := sn.got[len(sn.got)-1]; last["state"] != "failed" {
 		t.Fatalf("the operations topic says the same: %v", last)
 	}
-	if _, err := team.NewRoster(r.e.Home).Read("solo"); err != nil {
+	if _, err := team.NewRoster(r.e.Home).Read("ann.solo"); err != nil {
 		t.Fatalf("nothing is cleaned up: %v", err)
 	}
-	again := c.call("agent.create", map[string]any{"name": "solo", "role": "worker", "repo": repo, "request_id": rid("c2")})
+	again := c.call("agent.create", map[string]any{"workspace": "ann", "name": "solo", "role": "worker", "request_id": rid("c2")})
 	if e2, _ := again["error"].(map[string]any); e2 == nil || e2["message"] != e["message"] || len(r.ctl.calls) != 1 {
 		t.Fatalf("a retry gets the same refusal and starts nothing: %v %v", again, r.ctl.calls)
 	}
@@ -123,11 +133,12 @@ func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 	r, _, c := createRig(t)
 	r.ctl.hold = make(chan struct{})
 	r.e.Wait = time.Second // past registering, which asks git for the folder's checkout
-	m := c.call("agent.create", map[string]any{"name": "slow", "role": "worker", "repo": testfiles.GitCheckout(t), "request_id": rid("c3")})
+	annIn(t, r)
+	m := c.call("agent.create", map[string]any{"workspace": "ann", "name": "slow", "role": "worker", "request_id": rid("c3")})
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
 	op, _ := d["operation"].(string)
-	if msg, _ := e["message"].(string); op == "" || !strings.Contains(msg, "not finished in time (starting slow): nothing was undone, it goes on") {
+	if msg, _ := e["message"].(string); op == "" || !strings.Contains(msg, "not finished in time (starting ann.slow): nothing was undone, it goes on") {
 		t.Fatalf("refused at the limit with what it reached: %v", m)
 	}
 	close(r.ctl.hold)
@@ -139,8 +150,11 @@ func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 
 func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 	r, _, c := createRig(t)
-	repo := testfiles.GitCheckout(t)
-	ok := map[string]any{"name": "x", "role": "worker", "repo": repo}
+	annIn(t, r)
+	if _, err := r.e.Roster.Register("ann.taken", team.RegisterOpts{Role: "worker"}); err != nil {
+		t.Fatal(err)
+	}
+	ok := map[string]any{"workspace": "ann", "name": "x", "role": "worker"}
 	with := func(k string, v any, id string) map[string]any {
 		p := map[string]any{"request_id": rid(id)}
 		for a, b := range ok {
@@ -149,11 +163,11 @@ func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 		p[k] = v
 		return c.call("agent.create", p)
 	}
-	if g := refused(with("name", "ann", "u1")); g != "state" {
+	if g := refused(with("name", "taken", "u1")); g != "state" {
 		t.Fatalf("a used name: %q", g)
 	}
-	if f := badField(with("parent", "ann", "u2")); f != "name" {
-		t.Fatalf("a name outside its parent: %q", f)
+	if f := badField(with("name", "ann.x", "u2")); f != "name" {
+		t.Fatalf("a dotted name: %q", f)
 	}
 	if f := badField(with("effort", "extreme", "u3")); f != "effort" {
 		t.Fatalf("%q", f)
@@ -164,11 +178,11 @@ func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 	if f := badField(with("name", "a/b", "u5")); f != "name" {
 		t.Fatalf("%q", f)
 	}
-	if m := with("repo", "/no/such/repo", "u6"); m["error"].(map[string]any)["data"].(map[string]any)["what"] != "repo" {
+	if m := with("workspace", "nowhere", "u6"); m["error"].(map[string]any)["data"].(map[string]any)["what"] != "workspace" {
 		t.Fatalf("%v", m)
 	}
-	if m := with("parent", "nobody", "u7"); m["error"].(map[string]any)["data"].(map[string]any)["what"] != "agent" {
-		t.Fatalf("%v", m)
+	if f := badField(with("workspace", nil, "u7")); f != "workspace" {
+		t.Fatalf("a workspace is needed: %q", f)
 	}
 	if len(r.ctl.calls) != 0 {
 		t.Fatalf("nothing started: %v", r.ctl.calls)
@@ -177,12 +191,13 @@ func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 
 func TestCreateRefusesASecondOfTheNameWhileTheFirstRuns(t *testing.T) {
 	r, _, c := createRig(t)
-	if _, err := r.e.DB.Exec("INSERT INTO operations(id, kind, state, steps_done, agent, created_at, updated_at) VALUES('held', 'agent.create', 'running', 0, 'busy', 0, 0)"); err != nil {
+	if _, err := r.e.DB.Exec("INSERT INTO operations(id, kind, state, steps_done, agent, created_at, updated_at) VALUES('held', 'agent.create', 'running', 0, 'ann.busy', 0, 0)"); err != nil {
 		t.Fatal(err)
 	}
 	operations.Begin("held")
 	defer operations.End("held")
-	if g := refused(c.call("agent.create", map[string]any{"name": "busy", "role": "worker", "repo": testfiles.GitCheckout(t), "request_id": rid("b1")})); g != "state" {
+	annIn(t, r)
+	if g := refused(c.call("agent.create", map[string]any{"workspace": "ann", "name": "busy", "role": "worker", "request_id": rid("b1")})); g != "state" {
 		t.Fatalf("%q", g)
 	}
 }
@@ -199,7 +214,8 @@ func TestCreatePrunesOnlyItsOwnOldOperations(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	op := result(t, c.call("agent.create", map[string]any{"name": "fresh", "role": "worker", "repo": testfiles.GitCheckout(t), "request_id": rid("p1")}))["operation"].(string)
+	annIn(t, r)
+	op := result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": "fresh", "role": "worker", "request_id": rid("p1")}))["operation"].(string)
 	waitEnded(t, r, op)
 	var n int
 	r.e.DB.QueryRow("SELECT count(*) FROM operations WHERE kind = 'send'").Scan(&n)
@@ -214,7 +230,7 @@ func TestCreatePrunesOnlyItsOwnOldOperations(t *testing.T) {
 
 func TestCreateChecksTheNameBeforeEffortAndAccount(t *testing.T) {
 	_, _, c := createRig(t)
-	got := c.call("agent.create", map[string]any{"name": "a/b", "role": "worker", "repo": "/x", "effort": "extreme", "account": "a1", "request_id": rid("n1")})
+	got := c.call("agent.create", map[string]any{"name": "a/b", "role": "worker", "workspace": "nowhere", "effort": "extreme", "account": "a1", "request_id": rid("n1")})
 	if f := badField(got); f != "name" {
 		t.Fatalf("field %q", f)
 	}

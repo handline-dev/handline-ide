@@ -2,7 +2,7 @@
 import { classify, Hooks, sentence, useRepos, useWrite } from '@handline/app-data';
 import { FolderGit2, Link, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { agentNameOf } from '#src/onboarding/firstTask.ts';
+import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { Block } from '#src/settings/Meter.tsx';
 import { ProjectWorktrees } from '#src/settings/ProjectWorktrees.tsx';
 import { ProjectSetup, setupSummary } from '#src/settings/ProjectSetup.tsx';
@@ -14,15 +14,15 @@ import { toast } from '#src/ui/toast.tsx';
 
 const nameOf = (p: string) => p.replace(/\/+$/, '').split('/').pop() ?? p;
 
-/** Starts an agent in `path`, which is what makes it a project. */
+/** Makes a workspace on `path` and starts its lead there, which is what makes it a project. */
 function useStartIn() {
-  const create = useWrite('agent.create');
+  const create = useWrite('workspace.create');
   return {
     pending: create.isPending,
     error: create.error,
     start: (path: string) =>
       create.mutate(
-        { name: agentNameOf(nameOf(path)), role: 'developer', repo: path },
+        { name: workspaceNameOf(nameOf(path)), folder: path },
         { onSuccess: () => toast(`${nameOf(path)} is added: an agent is starting in it.`) },
       ),
   };
