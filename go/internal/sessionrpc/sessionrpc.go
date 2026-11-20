@@ -335,7 +335,7 @@ func (e *Env) switchNow(c *rpc.Conn, params map[string]any) (any, error) {
 }
 
 // unstall is agent.unstall: a stalled agent goes to queued (Unstall); one that is not is refused with the action's own words. When the
-// daemon then owes it a session, the call answers once that start has begun, or with why it has not; the stall stays cleared either way.
+// daemon then owes it a session, the call answers once that start has begun, or is refused with why it failed; the stall stays cleared.
 func (e *Env) unstall(c *rpc.Conn, params map[string]any) (any, error) {
 	return e.run(c, "agent.unstall", params, func(_ Call, agent string) (map[string]any, error) {
 		before, err := e.lastEventID()
@@ -363,7 +363,7 @@ func (e *Env) unstall(c *rpc.Conn, params map[string]any) (any, error) {
 		case why == "" || err != nil:
 			return done(true, said+"; its start has not begun yet", nil)
 		}
-		return done(true, said+"; not started - "+why, nil)
+		return done(false, said+", but it did not start - "+why, nil)
 	})
 }
 

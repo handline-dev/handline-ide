@@ -80,7 +80,7 @@ Start an agent waiting at its usage limit on the account a person chose, or the 
 
 ### `agent.unstall`
 
-Clear a STALLED agent: it goes to queued with its failure counters reset, as hl unstall does. When a start is then owed, the call answers once it has begun, or with why it has not (failed, or held back); other calls on the connection are answered meanwhile. Refused (gate state) when the agent is not stalled.
+Clear a STALLED agent: it goes to queued with its failure counters reset, as hl unstall does. When a start is then owed, the call answers once it has begun, or is refused (gate state) with why it failed or is held back, the stall still cleared; other calls on the connection are answered meanwhile. Refused (gate state) when the agent is not stalled.
 
 ### `agent.force_start`
 

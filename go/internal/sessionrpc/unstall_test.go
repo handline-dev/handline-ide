@@ -3,6 +3,8 @@ package sessionrpc
 import (
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/db"
 )
 
 // unstallRig is a stalled ann the daemon owes a session once cleared.
@@ -22,13 +24,16 @@ func TestUnstallAnswersOnceTheStartHasBegun(t *testing.T) {
 	}
 }
 
-// A start that fails, or one the tick holds back, is answered with the stall cleared and why: the clear is what the call did.
-func TestUnstallWhoseStartFailsSaysWhy(t *testing.T) {
+// A start that fails, or one the tick holds back, is refused with why, as force_start's is; the stall stays cleared.
+func TestUnstallWhoseStartFailsIsRefusedWithWhy(t *testing.T) {
 	r, c := unstallRig(t)
 	r.eventSoon("wake_failed", `{"why": "no account free"}`)
-	got := result(t, c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u2")}))
-	if got["said"] != r.ann+": STALLED -> QUEUED; not started - no account free" {
-		t.Fatalf("failed: %v", got)
+	m := c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u2")})
+	if refused(m) != "state" || m["error"].(map[string]any)["message"] != r.ann+": STALLED -> QUEUED, but it did not start - no account free" {
+		t.Fatalf("failed: %v", m)
+	}
+	if row, _ := db.GetAgentState(r.e.DB, r.ann); row.State != "QUEUED" {
+		t.Fatalf("the stall came back: %+v", row)
 	}
 	r, c = unstallRig(t)
 	r.e.Now = func() time.Time { return time.Unix(500, 0) }
@@ -38,9 +43,12 @@ func TestUnstallWhoseStartFailsSaysWhy(t *testing.T) {
 		}
 		return "could not be started - Waiting: new work is paused"
 	}
-	got = result(t, c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u3")}))
-	if got["said"] != r.ann+": STALLED -> QUEUED; not started - could not be started - Waiting: new work is paused" {
-		t.Fatalf("held: %v", got)
+	m = c.call("agent.unstall", map[string]any{"agent": "ann", "request_id": rid("u3")})
+	if refused(m) != "state" || m["error"].(map[string]any)["message"] != r.ann+": STALLED -> QUEUED, but it did not start - could not be started - Waiting: new work is paused" {
+		t.Fatalf("held: %v", m)
+	}
+	if row, _ := db.GetAgentState(r.e.DB, r.ann); row.State != "QUEUED" {
+		t.Fatalf("the stall came back: %+v", row)
 	}
 }
 
