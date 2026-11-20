@@ -137,7 +137,7 @@ func TestADraftKeepsItsBriefAndAsksNobody(t *testing.T) {
 		"SELECT COUNT(*) FROM requests WHERE state = 'queued'":                                         0, // the owner is not asked
 		"SELECT COUNT(*) FROM agent_state WHERE current_task IS NOT NULL":                              0,
 		fmt.Sprintf("SELECT COUNT(*) FROM tasks WHERE id = %d AND queued_by IS NULL", tid):             1,
-		"SELECT COUNT(*) FROM events WHERE kind = 'task_new' AND json_extract(payload, '$.draft') = 1": 1, // what the plans setting asks about
+		"SELECT COUNT(*) FROM events WHERE kind = 'task_new' AND json_extract(payload, '$.draft') = 1": 1, // a story's sub-task (db.OpenedAsDraft)
 	} {
 		if got := count(t, d, q); got != want {
 			t.Errorf("%s: %d, want %d", q, got, want)

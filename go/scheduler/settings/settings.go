@@ -54,21 +54,11 @@ const (
 	BlockerAlarmOpenerS   = 4 * 3600
 )
 
-// Plans: auto, the default, asks a draft's assignee for its plan as soon as the draft has one and no plan; manual waits for someone to ask
-// (task.plan_ask). A plan costs the assignee a turn of reading.
-const (
-	PlansKey    = "plans"
-	PlansAuto   = "auto"
-	PlansManual = "manual"
-)
+// ReviewFlowKey is team.ReviewFlowKey, kept here beside the other settings.
+const ReviewFlowKey = team.ReviewFlowKey
 
-// Plans is the plans setting, auto unless config.yaml says manual.
-func (s *Settings) Plans() string {
-	if s.config()[PlansKey] == PlansManual {
-		return PlansManual
-	}
-	return PlansAuto
-}
+// ReviewFlow is whether the review flow is on (team.ReviewFlow).
+func (s *Settings) ReviewFlow() bool { return team.ReviewFlow(s.Home) }
 
 // BlockerAlarm is whether the blocker alarm is on and its two thresholds.
 func (s *Settings) BlockerAlarm() (on bool, holderS, openerS int64) {

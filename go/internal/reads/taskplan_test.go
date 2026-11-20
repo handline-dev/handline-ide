@@ -40,11 +40,6 @@ func TestATaskGetCarriesItsPlanItsOKAndTheAsksForThem(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	run(t, e, "INSERT INTO token_calls(account, session, req, ts, model, cwd, inp, cc, cr, out, thinking, agent) "+
-		"VALUES('g', 's', 'r1', 150, 'claude-haiku-5-5', '/w', 2000000, 0, 0, 0, 0, 'bob'), ('g', 's', 'r2', 300, 'claude-haiku-5-5', '/w', 5000000, 0, 0, 0, 0, 'bob')")
-	if cost, err := e.planCost(); err != nil || cost != 2.0 {
-		t.Fatalf("plan cost %v %v", cost, err)
-	}
 	p, _ := db.TaskPlan(e.DB, 2)
 	if err := db.MarkPlan(e.DB, 2, "p1", p.Current().ID, true); err != nil {
 		t.Fatal(err)

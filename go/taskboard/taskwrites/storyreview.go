@@ -18,7 +18,7 @@ import (
 // readyFor is the land_by agent an agent's handoff of task tid to `to` is held back from, as a Ready for the founder; "" for a handoff
 // that goes as asked. The land_by is the one of the task's owner's workspace, whoever hands it on, and only the agent working the task
 // finishes it so. An agent's handoff of a task that is Ready now is refused: only the founder's verdict moves it on.
-func readyFor(tx *sql.Tx, tid int64, by, to string) (string, error) {
+func readyFor(tx *sql.Tx, tid int64, by, to string, reviewFlow bool) (string, error) {
 	t, err := getTask(tx, tid)
 	if err != nil || t == nil || actor.IsPerson(by) {
 		return "", err // no task: handOff refuses it
@@ -42,12 +42,12 @@ func readyFor(tx *sql.Tx, tid int64, by, to string) (string, error) {
 	if !landBy {
 		return "", nil
 	}
-	if due, err := db.ReadyDue(tx, tid); err != nil || !due {
+	if due, err := db.ReadyDue(tx, tid, reviewFlow); err != nil || !due {
 		return "", err
 	}
 	if t.Acting != by {
-		return "", refusal(fmt.Sprintf("T%d is a story's sub-task: %s, who works it, finishes it, and it goes to the founder before %s",
-			tid, addr.Ref(t.Acting), addr.Ref(to)))
+		return "", refusal(fmt.Sprintf("T%d goes to the founder before %s: %s, who works it, finishes it",
+			tid, addr.Ref(to), addr.Ref(t.Acting)))
 	}
 	return to, nil
 }

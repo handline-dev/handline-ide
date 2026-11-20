@@ -22,7 +22,7 @@ const KEYS = [
   'push_only_away',
   'push_sound',
   'account_split',
-  'plans',
+  'review_flow',
   'pace_target_pct',
   'pace_burst_pct',
   'host_active_cap',

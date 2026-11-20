@@ -232,7 +232,7 @@ func UnsentAsks(q Q) ([]*TaskAsk, error) {
 	return out, nil
 }
 
-// OpenedAsDraft is whether the task was opened as a draft (task.new draft), the only drafts the plans setting asks about on its own.
+// OpenedAsDraft is whether the task was opened as a draft (task.new draft): a story's sub-task.
 func OpenedAsDraft(q Q, tid int64) (bool, error) {
 	var n int
 	err := q.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'task_new' AND "+eventTask+" = ? AND json_extract(payload, '$.draft') = 1", tid).Scan(&n)
@@ -271,7 +271,7 @@ func WritingPlan(q Q, agent string, since int64) (bool, error) {
 	return false, nil
 }
 
-// PlanBase is the newest event that makes the task's plan due again: its opening, a change of its brief, or of who works it.
+// PlanBase is the newest event that clears a plan's OK: the task's opening, a change of its brief, or of who works it.
 func PlanBase(q Q, tid int64) (int64, error) {
 	var id sql.NullInt64
 	err := q.QueryRow("SELECT MAX(id) FROM events WHERE "+planBaseSQL+" AND "+eventTask+" = ?", tid).Scan(&id)
@@ -306,60 +306,6 @@ func PlanState(q Q, tid int64) (string, *Plan, *TaskAsk, error) {
 		return "written", p, nil, nil
 	}
 	return "none", nil, nil, nil
-}
-
-// PlanDue is whether the task needs its plan asked for: none written since its brief or assignee last changed, and no ask out since.
-func PlanDue(q Q, tid int64) (bool, error) {
-	base, err := PlanBase(q, tid)
-	if err != nil {
-		return false, err
-	}
-	p, err := TaskPlan(q, tid)
-	if err != nil {
-		return false, err
-	}
-	if p != nil && p.Current().ID > base {
-		return false, nil
-	}
-	asks, err := TaskAsks(q, PlanAskKind, tid)
-	if err != nil {
-		return false, err
-	}
-	for _, a := range asks {
-		if a.ID > base || a.Sent == 0 {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-// PlanWrite is one plan written to answer a sent ask: its agent, when the ask was sent and when the plan came.
-type PlanWrite struct {
-	Agent        string
-	Sent, Answer int64
-}
-
-// PlanWrites are the newest n plans written to answer a sent ask, newest first.
-func PlanWrites(q Q, n int) ([]PlanWrite, error) {
-	rows, err := q.Query("SELECT json_extract(a.payload, '$.to'), s.ts, (SELECT p.ts FROM events p WHERE p.kind = ? "+
-		"AND CASE WHEN json_valid(p.payload) THEN json_extract(p.payload, '$.task_id') END = json_extract(s.payload, '$.task_id') "+
-		"AND p.id > s.id AND p.agent = json_extract(a.payload, '$.to') ORDER BY p.id LIMIT 1) AS answer "+
-		"FROM events s JOIN events a ON a.id = json_extract(s.payload, '$.ask') AND a.kind = ? "+
-		"WHERE s.kind = ? AND json_extract(s.payload, '$.request_id') != 0 AND answer IS NOT NULL ORDER BY s.id DESC LIMIT ?",
-		PlanKind, PlanAskKind, AskSentKind, n)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []PlanWrite
-	for rows.Next() {
-		var w PlanWrite
-		if err := rows.Scan(&w.Agent, &w.Sent, &w.Answer); err != nil {
-			return nil, err
-		}
-		out = append(out, w)
-	}
-	return out, rows.Err()
 }
 
 // PlanSentKind records that a task's delivery (request_id) carried its plan at a version, so its tell shows that delivery whole.

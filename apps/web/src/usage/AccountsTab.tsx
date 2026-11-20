@@ -39,25 +39,6 @@ function SplitSetting() {
   );
 }
 
-/** Plans for a story's drafts: auto asks each draft's agent for its plan once it is free, manual only when asked; with what a plan costs. */
-function PlansSetting() {
-  const settings = useSettings();
-  const save = useWrite('settings.set');
-  const manual = settings.data?.values.plans === 'manual';
-  const cost = settings.data?.plan_cost_usd;
-  const each = cost == null ? 'A plan costs its agent a turn of reading.' : `A plan costs about ${'$'}${cost.toFixed(2)}.`;
-  return (
-    <AutoManual
-      name="Plans"
-      manual={manual}
-      about={`${manual ? 'A draft gets a plan when you ask for one.' : 'Each draft gets a plan as soon as its agent is free.'} ${each}`}
-      ready={settings.isSuccess}
-      save={save}
-      pick={(v) => save.mutate({ changes: { plans: v } })}
-    />
-  );
-}
-
 /** A setting of two choices, Auto and Manual: its name, what the choice made does, and the two. */
 function AutoManual({
   name,
@@ -142,7 +123,6 @@ export function AccountsTab({ focus }: { focus?: string }) {
           <AiToolsCard />
           <h2 className="pt-4 text-sm font-medium text-fg">Splitting work</h2>
           <SplitSetting />
-          <PlansSetting />
           <h2 className="pt-4 text-sm font-medium text-fg">Claude accounts</h2>
           {q.isPending && <RowsLoading rows={6} />}
           {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}

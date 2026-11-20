@@ -9,6 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -108,6 +109,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		if toFounder && said == "" {
 			return nil, badParam("a handoff to the founder says what they decide, and what you recommend", "note")
 		}
+		reviewFlow := team.ReviewFlow(home)
 		store := attachments.New(home)
 		files, err := store.AddFiles(c.Server().DB, home, me, false, paths) // read before the write: a video is large; one never linked is swept
 		if err != nil {
@@ -118,7 +120,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			asked  *Asked
 			msg    string
 			memo   int64
-			landBy string // a story's sub-task held back from it: Ready for the founder
+			landBy string // a finish held back from it: Ready for the founder
 			skip   bool   // ... or not held back: its review level lets it go on without the founder
 			level  string
 		)
@@ -127,11 +129,11 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return nil, err
 			}
 			var err error
-			if landBy, err = readyFor(tx, tid, me, to); err != nil {
+			if landBy, err = readyFor(tx, tid, me, to, reviewFlow); err != nil {
 				return nil, err
 			}
 			if landBy != "" && said == "" {
-				return nil, refusal(fmt.Sprintf("T%d is a story's sub-task: it goes to the founder before %s, so say in note what you did; they read it as its result",
+				return nil, refusal(fmt.Sprintf("T%d goes to the founder before %s, so say in note what you did; they read it as its result",
 					tid, addr.Ref(landBy)))
 			}
 			maySkip := false

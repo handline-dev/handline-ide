@@ -1818,18 +1818,6 @@
        "$ref": "#/components/schemas/Who"
       },
       "description": "Without settings.get `agent`: the agents whose row sets a handoff prompt of their own, which the global one does not reach."
-     },
-     "plan_cost_usd": {
-      "oneOf": [
-       {
-        "type": "number",
-        "minimum": 0
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "What a plan has cost: the mean, over the newest 20 plans written to answer a sent ask, of what the assignee's calls cost from the ask's delivery to the plan. null before any. Shown beside the plans setting."
      }
     },
     "required": [
@@ -1838,8 +1826,7 @@
      "listener",
      "trust_folders",
      "hooks",
-     "values",
-     "plan_cost_usd"
+     "values"
     ]
    },
    "Row": {
@@ -2177,14 +2164,10 @@
       "default": "auto",
       "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart."
      },
-     "plans": {
-      "type": "string",
-      "enum": [
-       "auto",
-       "manual"
-      ],
-      "default": "auto",
-      "description": "Plans for drafts: auto, the default, asks a draft's assignee for its plan as soon as the draft is opened, and again when its brief or assignee changes; manual asks only when someone presses for it (task.plan_ask). A plan costs its assignee a turn of reading (Settings.plan_cost_usd)."
+     "review_flow": {
+      "type": "boolean",
+      "description": "With it on, a task that serves the founder (in a founder request's tree, or the founder's own) is Ready for the founder when its assignee finishes it to its land_by agent, as a story's sub-task is; the founder's OK lands it and Redo sends it back. Off by default.",
+      "default": false
      },
      "usage_move_before_pct": {
       "type": "integer",
@@ -2666,20 +2649,9 @@
       ],
       "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default)."
      },
-     "plans": {
-      "oneOf": [
-       {
-        "type": "string",
-        "enum": [
-         "auto",
-         "manual"
-        ]
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "Plans for drafts: auto, the default, asks a draft's assignee for its plan as soon as the draft is opened, and again when its brief or assignee changes; manual asks only when someone presses for it (task.plan_ask). A plan costs its assignee a turn of reading (Settings.plan_cost_usd). null removes the key (back to the default)."
+     "review_flow": {
+      "type": "boolean",
+      "description": "With it on, a task that serves the founder (in a founder request's tree, or the founder's own) is Ready for the founder when its assignee finishes it to its land_by agent, as a story's sub-task is; the founder's OK lands it and Redo sends it back. Off by default."
      },
      "usage_move_before_pct": {
       "oneOf": [
