@@ -9,7 +9,6 @@ import { Hand } from 'lucide-react';
 import { taskOf } from '#src/layout/kinds.tsx';
 import type { TaskEvent, TaskEventKind } from '#src/chat/TaskActivity.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { useOpenTab } from '#src/layout/openTab.tsx';
 import { spring } from '#src/motion.ts';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -33,15 +32,6 @@ export function taskCards(entries: Entry[]): Entry[] {
   });
 }
 
-/** Opens the task beside the chat, at the founder's turn, with the comment box ready to write in. */
-function useAnswerInTask() {
-  const open = useOpenTab();
-  return (task: number) => {
-    goToTurnOf(task, true);
-    open(taskOf(task), 'side');
-  };
-}
-
 const firstLine = (body: string) =>
   noteText(body)
     .split('\n')
@@ -63,7 +53,8 @@ export function TaskCommentCard({ last, change, fade }: { last: Said; change?: T
   const t = useTask(task).data;
   const me = useMe();
   const nameOf = useNameOf();
-  const answer = useAnswerInTask();
+  // Answer in task opens where the title does, at the founder's turn with the comment box ready to write in.
+  const answer = useOpenable(taskOf(task), { onOpen: () => goToTurnOf(task, true) });
   const open = useOpenable(taskOf(task));
   const yours = !!t && foundersTurn(t, me);
   const s = t ? look(t) : null;
@@ -114,7 +105,7 @@ export function TaskCommentCard({ last, change, fade }: { last: Said; change?: T
               </div>
               <p className="mt-0.5 line-clamp-2 text-fg">{firstLine(last.task_comment.text)}</p>
               <div className="mt-2 flex justify-end">
-                <Button variant="primary" onClick={() => answer(task)}>
+                <Button variant="primary" {...answer}>
                   Answer in task
                 </Button>
               </div>

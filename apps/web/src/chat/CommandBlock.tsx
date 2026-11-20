@@ -35,6 +35,7 @@ export function CommandRunBar({
   const block = `${of.owner}:${n}`;
   const run = of.runs?.find((r) => r.block === block);
   const open = useWrite('shell.open', of.agent);
+  // eslint-disable-next-line no-restricted-syntax -- the terminal is known only once shell.open answers, after the click
   const openTab = useOpenTab();
   const now = useNow(run?.state === 'running' ? 1000 : null);
   // From the click until the chat shows the new run (or the call fails): a second click would start it again.

@@ -12,24 +12,31 @@ const message = 'Use a design token from src/styles.css (color role, text-*, rou
 // opens the same ways. This catches the usual slip, openTab or startTabDrag called in an element's own handler.
 const openable = 'Spread useOpenable(opens) from src/layout/openable.tsx on it instead.';
 const onHandler = 'JSXAttribute[name.name=/^on(Click|AuxClick|KeyDown|DragStart|ContextMenu)$/]';
+// useOpenTab outside src/layout opens with no gesture of its own: only an opener with no click (a command, a call's answer) may, and says why.
+const openTabCall = {
+  selector: "CallExpression[callee.name='useOpenTab']",
+  message: 'Open through useOpenable (src/layout/openable.tsx); an opener with no click says why on an eslint-disable line.',
+};
 const openOutsideOpenable = [
   { selector: `${onHandler} CallExpression[callee.name='openTab']`, message: openable },
   { selector: `${onHandler} CallExpression[callee.name='startTabDrag']`, message: openable },
 ];
-const noHardcodedColor = {
-  files: ['src/**/*.{ts,tsx}'],
+const rules = (layout) => ({
+  files: layout ? ['src/layout/**/*.{ts,tsx}'] : ['src/**/*.{ts,tsx}'],
+  ...(layout ? {} : { ignores: ['src/layout/**'] }),
   rules: {
     'no-restricted-syntax': [
       'error',
       RELATIVE_CALL,
       ...openOutsideOpenable,
+      ...(layout ? [] : [openTabCall]),
       ...[colorLiteral, paletteClass, arbitraryValue].flatMap((re) => [
         { selector: `Literal[value=/${re}/]`, message },
         { selector: `TemplateElement[value.raw=/${re}/]`, message },
       ]),
     ],
   },
-};
+});
 
 // legacy/ is the old web, frozen until it is removed: it is not linted.
-export default [{ ignores: ['legacy/**'] }, ...react(import.meta.dirname), noHardcodedColor, ...test];
+export default [{ ignores: ['legacy/**'] }, ...react(import.meta.dirname), rules(false), rules(true), ...test];
