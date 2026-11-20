@@ -327,7 +327,7 @@ export const SEEDS: Record<string, Seed> = {
   },
 
   /** The architect's account switch at each phase: what the working line draws from limit to the new session. */
-  'switch-saving': (d) => switching(d, { phase: 'saving', to: null }),
+  'switch-saving': (d) => switching(d, { phase: 'saving', to: null, waits: 'background: shell: vite dev' }),
   'switch-switching': (d) => switching(d, { phase: 'switching', to: 'beta' }),
   'switch-starting': (d) => switching(d, { phase: 'starting', to: 'beta' }),
   'switch-waiting': (d) => switching(d, { phase: 'waiting', to: null, until: inTwoHours() }),
@@ -386,7 +386,10 @@ export const SEEDS: Record<string, Seed> = {
 const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();
 
 /** Puts the architect, on alpha at its 5-hour limit, in an account switch. */
-function switching(d: FakeDaemon, sw: { phase: 'saving' | 'switching' | 'starting' | 'waiting'; to: string | null; until?: string }): void {
+function switching(
+  d: FakeDaemon,
+  sw: { phase: 'saving' | 'switching' | 'starting' | 'waiting'; to: string | null; until?: string; waits?: string },
+): void {
   const s = d.sessions.get(ARCH)!;
   const since = new Date(Date.now() - 20_000).toISOString();
   s.fx.account = sw.to === 'beta' && sw.phase === 'starting' ? 'beta' : 'alpha';
