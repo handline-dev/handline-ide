@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -149,10 +150,75 @@ func TestAFailedSummaryLeavesTheRecordAsItWas(t *testing.T) {
 		if len(logs) != 1 || !strings.Contains(logs[0], "no handoff note written") {
 			t.Errorf("%s: logs %q", name, logs)
 		}
-		// Tried once: the next fresh start does not wait for a second call.
-		if fromTranscript(t, w) {
-			t.Errorf("%s: tried twice", name)
+	}
+}
+
+// A failed call is tried again SummaryRetryS later, and the fresh start waits for it meanwhile; the note it then writes is the record's.
+func TestAFailedSummaryIsTriedAgainAndWritten(t *testing.T) {
+	calls := 0
+	w := summarized(t, func(context.Context, string, string) (string, error) {
+		calls++
+		if calls == 1 {
+			return "", errors.New("no account has room")
 		}
+		return "(4) next: none", nil
+	})
+	fromTranscript(t, w)
+	w.now += SummaryRetryS - 1
+	if !fromTranscript(t, w) || calls != 1 {
+		t.Fatalf("before the backoff: calls %d, or the start did not wait", calls)
+	}
+	w.now++
+	if !fromTranscript(t, w) || calls != 2 {
+		t.Fatalf("after the backoff: calls %d", calls)
+	}
+	if got := recordOf(t, w); !strings.HasSuffix(got, SummaryMarker+":\n  (4) next: none") {
+		t.Fatalf("record %q", got)
+	}
+	if fromTranscript(t, w) || calls != 2 {
+		t.Errorf("tried after the note was in: %d calls", calls)
+	}
+}
+
+func TestSummaryTriesStopAtTheCap(t *testing.T) {
+	calls := 0
+	w := summarized(t, func(context.Context, string, string) (string, error) { calls++; return "", errors.New("timeout") })
+	var logs []string
+	w.Summary.Log = func(f string, a ...any) { logs = append(logs, fmt.Sprintf(f, a...)) }
+	for i := 0; i < SummaryTries; i++ {
+		if !fromTranscript(t, w) {
+			t.Fatalf("try %d not started", i+1)
+		}
+		w.now += SummaryRetryS
+	}
+	if fromTranscript(t, w) || calls != SummaryTries {
+		t.Fatalf("past the cap: %d calls", calls)
+	}
+	if last := logs[len(logs)-1]; !strings.Contains(last, fmt.Sprintf("after %d tries", SummaryTries)) {
+		t.Errorf("the last log %q", last)
+	}
+}
+
+// A newer session's record gets its own tries, whatever the last one used.
+func TestANewSessionGetsItsOwnSummaryTries(t *testing.T) {
+	w := summarized(t, func(context.Context, string, string) (string, error) { return "", errors.New("timeout") })
+	if err := db.SetMeta(w.DB, summaryKey("a"), fmt.Sprintf("s0 %d %d", SummaryTries, w.now)); err != nil {
+		t.Fatal(err)
+	}
+	if !fromTranscript(t, w) {
+		t.Fatal("s1 was not tried")
+	}
+}
+
+// A value from before the tries were counted is a session done.
+func TestAnOldSummaryValueReadsAsDone(t *testing.T) {
+	called := false
+	w := summarized(t, func(context.Context, string, string) (string, error) { called = true; return "x", nil })
+	if err := db.SetMeta(w.DB, summaryKey("a"), "s1"); err != nil {
+		t.Fatal(err)
+	}
+	if fromTranscript(t, w) || called {
+		t.Fatal("a done session was tried again")
 	}
 }
 
@@ -201,6 +267,9 @@ func TestANoteForARecordThatChangedIsDropped(t *testing.T) {
 	fromTranscript(t, w)
 	if got := recordOf(t, w); got != "a newer record" {
 		t.Fatalf("record %q", got)
+	}
+	if v, _, _ := db.Meta(w.DB, summaryKey("a")); v != "s1" {
+		t.Fatalf("a taken record did not end the tries: %q", v)
 	}
 	w = summarized(t, func(context.Context, string, string) (string, error) {
 		db.ClearHandoff(w.DB, "a")

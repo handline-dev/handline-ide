@@ -67,7 +67,7 @@ func newMoveRigOn(m *Manager, l *moveLaunch) *moveRig {
 		Windows:         func(string) Windows { return Windows{} },
 		ColdStartPct:    func(db.Q) *float64 { return nil },
 		AtLimit:         func(db.Q, string) (int64, bool) { return 0, false },
-		NoteHold:        func(db.Q, string, int64) bool { return false },
+		NoteHold:        func(db.Q, string, string, int64) bool { return false },
 		BackgroundWork:  func(db.Q, string) string { return rig.bg },
 		LimitDialogOpen: func(string) bool { return false },
 		ContextUse:      func(db.Q, string) (int, int) { return 190000, 200000 },
@@ -94,7 +94,7 @@ func TestADeferredHandoffThreeTicksRunningLeavesTheCountersAtZero(t *testing.T) 
 		setup func()
 	}{
 		{"mid-turn", func() { g.run.status = "busy" }},
-		{"note hold", func() { g.run.status = "idle"; g.v.E.NoteHold = func(db.Q, string, int64) bool { return true } }},
+		{"note hold", func() { g.run.status = "idle"; g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true } }},
 	} {
 		c.setup()
 		for i := 0; i < 3; i++ {
