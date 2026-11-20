@@ -128,7 +128,7 @@ func (e *Env) settingsValues() map[string]any {
 		settings.BlockerAlarmKey:       s.Flag(settings.BlockerAlarmKey, false),
 		settings.BlockerAlarmHoldKey:   s.ConfigSeconds(settings.BlockerAlarmHoldKey, settings.BlockerAlarmHoldS),
 		settings.BlockerAlarmOpenerKey: s.ConfigSeconds(settings.BlockerAlarmOpenerKey, settings.BlockerAlarmOpenerS),
-		settings.PlansKey:              s.Plans(),
+		settings.ReviewFlowKey:         s.ReviewFlow(),
 		handoff.PromptKey:              handoffPrompt(s.TextSetting("", handoff.PromptKey)),
 		// Whether each notifications event raises a notice on the founder's devices; the event is on the topic either way.
 		"push_prompt_asked": s.Flag("push_prompt_asked", true), "push_task_done": s.Flag("push_task_done", true),
@@ -215,9 +215,6 @@ func (e *Env) settingsGet(_ *rpc.Conn, params map[string]any) (any, error) {
 		"trust_folders": folders,
 		"hooks":         map[string]any{"installed": installed, "accounts": accounts},
 		"values":        values,
-	}
-	if out["plan_cost_usd"], err = e.planCost(); err != nil {
-		return nil, err
 	}
 	if agent != "" {
 		cfg, _ := team.NewRoster(e.Home).Read(agent)

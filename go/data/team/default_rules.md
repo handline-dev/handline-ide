@@ -44,7 +44,7 @@ Never end a turn holding a task you are not working on: it blocks the tasks queu
 To change a task you gave that is not yet done, write a memo on it (`hl task comment T<n> add "..."`), never a message behind it.
 
 ## review
-A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff.
+A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff. Ask the founder for a look by finishing the task, never by an "OK?" comment: the daemon puts a finish before them when it is theirs to see. A goal too big for one task is split into a story's drafts, and that split is what the founder reads before Run.
 
 ## founder
 When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<first line: the decision and what you recommend; then why>" --turn human`, with `--attach <screenshot>` when it is about something visible, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn. An `@human` or `--turn human` comment already shows in the founder's chat with you; do not repeat it with `hl say`. A question to the founder carries its content: put a file on with `--attach`, never a bare path, which they cannot open. Work you open from the founder's comment that another agent passed to you serves his request: `hl task new ... --request T<the task he commented on>`.

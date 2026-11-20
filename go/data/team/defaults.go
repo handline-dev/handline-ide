@@ -50,11 +50,29 @@ func NewAgentDefaultsOf(cfg map[string]any, vendor string) (model, effort string
 
 // NewAgentDefaults is NewAgentDefaultsOf home's config.yaml; one that cannot be read sets nothing.
 func NewAgentDefaults(home, vendor string) (model, effort string) {
-	var cfg map[string]any
-	if b, err := os.ReadFile(paths.ConfigFile(home)); err == nil {
-		if v, err := yamlcompat.Parse(string(b)); err == nil {
-			cfg, _ = v.(map[string]any)
-		}
+	return NewAgentDefaultsOf(config(home), vendor)
+}
+
+// ReviewFlowKey: with it on, a task that serves the founder is Ready for them when it is finished, as a story's sub-task is (db.ReadyDue).
+// Off by default until the founder has tried it.
+const ReviewFlowKey = "review_flow"
+
+// ReviewFlow is whether home's review flow is on.
+func ReviewFlow(home string) bool {
+	on, _ := config(home)[ReviewFlowKey].(bool)
+	return on
+}
+
+// config is home's config.yaml, nil when it cannot be read.
+func config(home string) map[string]any {
+	b, err := os.ReadFile(paths.ConfigFile(home))
+	if err != nil {
+		return nil
 	}
-	return NewAgentDefaultsOf(cfg, vendor)
+	v, err := yamlcompat.Parse(string(b))
+	if err != nil {
+		return nil
+	}
+	m, _ := v.(map[string]any)
+	return m
 }

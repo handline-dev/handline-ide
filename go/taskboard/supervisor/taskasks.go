@@ -6,29 +6,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
-	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// SweepTaskAsks asks for plans and sends the asks for a plan or for core logic. With auto (the plans setting), every task opened as a draft
-// that an agent is to work and that needs a plan (none written since its brief or assignee last changed, and none asked since) gets an
-// ask. An ask waits until its agent is no longer doing the task it was doing when asked, and while a plan it was sent in the last
-// PlanWaitS is unanswered; then it goes out as a say, one per agent per sweep. An ask that no longer applies is dropped unsent: its task
+// SweepTaskAsks sends the asks for a plan or for core logic someone made (task.plan_ask, task.core_ask); no draft is asked by itself. An
+// ask waits until its agent is no longer doing the task it was doing when asked, and while a plan it was sent in the last PlanWaitS is
+// unanswered; then it goes out as a say, one per agent per sweep. An ask that no longer applies is dropped unsent: its task
 // ended or changed hands, a plan ask whose task is no longer a draft or that a plan has answered, a core ask whose task the agent is doing.
-func (e *Env) SweepTaskAsks(auto bool) (err error) {
+func (e *Env) SweepTaskAsks() (err error) {
 	defer Catch(&err)
 	q := db.Q(e.DB)
-	if auto {
-		for _, t := range must(db.OpenTasks(q)) {
-			if actor.IsPerson(t.Owner) || t.Owner == db.Gate || !must(db.OpenedAsDraft(q, t.ID)) || must(db.TaskState(q, t)) != "draft" ||
-				!must(db.PlanDue(q, t.ID)) {
-				continue
-			}
-			check(taskwrites.AskPlan(q, t.ID, db.NoticeRequester))
-			e.log("  %s: draft T%d has no plan - asked for one", t.Owner, t.ID)
-		}
-	}
 	held := map[string]bool{}
 	for _, a := range must(db.UnsentAsks(q)) {
 		if held[a.To] {

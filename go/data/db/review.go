@@ -65,14 +65,30 @@ func TaskReview(q Q, tid int64) (*Review, error) {
 	return r, nil
 }
 
-// ReadyDue is whether a finish of the task goes to the founder first: it was opened as a draft (a story's sub-task) and the founder has
-// not said OK since it was last sent back.
-func ReadyDue(q Q, tid int64) (bool, error) {
-	if draft, err := OpenedAsDraft(q, tid); err != nil || !draft {
+// servesFounderSQL walks up from a task through its parents (a move to a new parent keeps the task's own request) to one that serves a
+// founder's request (tasks.request, set when it was opened) or that the founder owns.
+const servesFounderSQL = "WITH RECURSIVE up(id) AS (SELECT ? UNION SELECT t.parent_task FROM tasks t JOIN up ON t.id = up.id " +
+	"WHERE t.parent_task IS NOT NULL) SELECT EXISTS(SELECT 1 FROM tasks WHERE id IN (SELECT id FROM up) AND (request IS NOT NULL OR owner = ?))"
+
+// ServesFounder is whether the task, or a task above it, serves a founder's request or is the founder's own.
+func ServesFounder(q Q, tid int64) (bool, error) {
+	var yes bool
+	err := q.QueryRow(servesFounderSQL, tid, actor.OwnerKey).Scan(&yes)
+	return yes, err
+}
+
+// ReadyDue is whether a finish of the task goes to the founder first: it was opened as a draft (a story's sub-task), or, with the review
+// flow on, it serves the founder; and the founder has not said OK since it was last sent back.
+func ReadyDue(q Q, tid int64, reviewFlow bool) (bool, error) {
+	due, err := OpenedAsDraft(q, tid)
+	if err == nil && !due && reviewFlow {
+		due, err = ServesFounder(q, tid)
+	}
+	if err != nil || !due {
 		return false, err
 	}
 	var verdict string
-	err := q.QueryRow("SELECT COALESCE(json_extract(payload, '$.verdict'), '') FROM events WHERE kind = ? AND "+eventTask+" = ? ORDER BY id DESC LIMIT 1",
+	err = q.QueryRow("SELECT COALESCE(json_extract(payload, '$.verdict'), '') FROM events WHERE kind = ? AND "+eventTask+" = ? ORDER BY id DESC LIMIT 1",
 		VerdictKind, tid).Scan(&verdict)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, nil

@@ -54,24 +54,3 @@ func askJSON(a *db.TaskAsk) map[string]any {
 	}
 	return out
 }
-
-// planCostShown is how many of the newest plans planCost averages.
-const planCostShown = 20
-
-// planCost is settings.get's plan_cost_usd: what the newest plans cost on average, each what its agent spent from the ask's delivery to the
-// plan; nil before any plan answered a sent ask.
-func (e *Env) planCost() (any, error) {
-	writes, err := db.PlanWrites(e.DB, planCostShown)
-	if err != nil || len(writes) == 0 {
-		return nil, err
-	}
-	u, sum := e.usageEnv(), 0.0
-	for _, w := range writes {
-		usd, err := u.AgentUSD(e.DB, w.Agent, w.Sent, w.Answer)
-		if err != nil {
-			return nil, err
-		}
-		sum += usd
-	}
-	return sum / float64(len(writes)), nil
-}

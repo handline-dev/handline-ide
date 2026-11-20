@@ -192,6 +192,63 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	}
 }
 
+// With the review flow on, any task that serves the founder is Ready for them when its assignee finishes it to the land_by agent, as a
+// story's sub-task is: OK hands it on, Redo sends it back. Off, it goes as asked; a task of agents only goes as asked either way.
+func TestWithTheReviewFlowAFinishOfTheFoundersWorkIsReady(t *testing.T) {
+	home := t.TempDir()
+	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.lander")
+	homes.Store(d, home)
+	k := func(n string) string { return teamtest.Key(t, home, n) }
+	worker, lander := k("gp.worker"), k("gp.lander")
+	gp, _, _ := team.WorkspaceID(d, "gp")
+	if err := team.SetRule(d, gp, team.RuleLandBy, lander, "p1", 1); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(1, 'asked', 'gp.worker', 'p1', NULL, 1), "+
+		"(2, 'part', 'gp.worker', 'gp', 1, 1), (3, 'below it', 'gp.worker', 'gp', 2, 1), (4, 'agents only', 'gp.worker', 'gp', NULL, 1)")
+	for tid := range int64(4) {
+		if err := db.SetTaskRequest(d, tid+1); err != nil { // the request task.new gives each
+			t.Fatal(err)
+		}
+	}
+	as := writesAs(t, d, home, &fakeTeller{db: d})
+	hand := func(task int) string {
+		t.Helper()
+		r := as(worker, "task.handoff", fmt.Sprintf(`"task":%d,"to":%q,"note":"done",`, task, lander))
+		res, _ := r["result"].(map[string]any)
+		if res == nil {
+			t.Fatalf("%v", r)
+		}
+		return named(d, res["said"].(string))
+	}
+
+	if got := hand(2); !strings.HasPrefix(got, "T2 handed to gp.lander") {
+		t.Fatalf("with the flow off the founder's work goes as asked: %q", got)
+	}
+	cfg, err := os.OpenFile(paths.ConfigFile(home), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.WriteString("\n" + team.ReviewFlowKey + ": true\n"); err != nil || cfg.Close() != nil {
+		t.Fatal(err)
+	}
+	if got := hand(3); !strings.HasPrefix(got, "T3 is Ready for the founder") {
+		t.Fatalf("a task below the founder's request: %q", got)
+	}
+	if got := named(d, as("", "task.ok", `"task":3,`)["result"].(map[string]any)["said"].(string)); got != "T3 is OK: handed to gp.lander to merge" {
+		t.Fatalf("%q", got)
+	}
+	if got := hand(1); !strings.HasPrefix(got, "T1 is Ready for the founder") {
+		t.Fatalf("the founder's own request: %q", got)
+	}
+	if got := named(d, as("", "task.redo", `"task":1,"note":"not yet",`)["result"].(map[string]any)["said"].(string)); got != "T1 sent back to gp.worker: Redo 1" {
+		t.Fatalf("%q", got)
+	}
+	if got := hand(4); !strings.HasPrefix(got, "T4 handed to gp.lander") {
+		t.Fatalf("a task of agents only goes as asked: %q", got)
+	}
+}
+
 // writesAs calls one task write as an agent ("" is the founder) on a server of its own over d, each call with a request id of its own.
 func writesAs(t *testing.T, d *sql.DB, home string, f Teller) func(agent, method, params string) map[string]any {
 	n := 0
