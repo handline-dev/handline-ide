@@ -63,7 +63,7 @@ var usages = map[string][2]string{
 	"init":             {`hl init`, `hl init`},
 	"launch":           {launchUsage, `hl launch shop.sea`},
 	"sandbox-repo":     {sandboxRepoUsage, `hl sandbox-repo /code/sea npm`},
-	"device":           {`hl device pair [--name N]`, `hl device pair --name phone`},
+	"device":           {`hl device pair [--name N] [--host ADDR]`, `hl device pair --name phone --host 192.168.0.5`},
 	"workspace":        {`hl workspace <new|rename|delete> ... (the founder's; an agent proposes a team)`, `hl workspace new shop --folder ~/code/shop`},
 	"workspace new":    {`hl workspace new <name> [--folder PATH] (default: this folder's git checkout)`, `hl workspace new shop --folder ~/code/shop`},
 	"workspace rename": {`hl workspace rename <workspace> --to <new name>`, `hl workspace rename shop --to store`},
