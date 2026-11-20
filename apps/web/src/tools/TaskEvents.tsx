@@ -3,7 +3,7 @@ import { Face, Name } from '#src/ui/Face.tsx';
 // An Activity line's parts: its round mark, its hover row, a comment (the founder's open turn among them), and a change in words.
 import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { isPerson, noteText } from '@handline/app-core';
+import { addressText, isPerson, noteText } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useNameOf } from '@handline/app-data';
 import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
@@ -181,7 +181,7 @@ export function CommentRow({
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           <div className="min-w-0">
             <Markdown
-              text={i.toFounder ? noteText(i.note) : i.note}
+              text={i.toFounder ? noteText(i.note) : to && to !== 'you' ? addressText(i.note, [to, nameOf(to)]) : i.note}
               lead={to && <span className="mr-1.5 rounded bg-accent/10 px-1 text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>}
             />
           </div>

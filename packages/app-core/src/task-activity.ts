@@ -73,8 +73,13 @@ function requestLine(e: Entry, nameOf: NameOf): string {
 
 /** A comment to the founder that passes no turn: its first word is @human. */
 export const isNote = (text: string): boolean => /^\s*@human\b/.test(text);
+/** A comment's words without a leading @mention of any of `to` (id or name), which the app draws as a chip. */
+export const addressText = (text: string, to: readonly string[] = ['human']): string => {
+  const m = /^\s*@([\w.-]+)[:,]?\s*/.exec(text);
+  return m && to.some((n) => n.toLowerCase() === m[1].toLowerCase()) ? text.slice(m[0].length) : text;
+};
 /** A note's words without its leading @human. */
-export const noteText = (text: string): string => text.replace(/^\s*@human\s*/, '');
+export const noteText = (text: string): string => addressText(text);
 
 /** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you", and every
  * other who in a line is written out by `nameOf`. */
