@@ -5,9 +5,11 @@ import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import { addressText, isPerson, noteText, toldOf } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
-import { useNameOf } from '@handline/app-data';
+import { useNameOf, useWrite } from '@handline/app-data';
+import { IconButton } from '#src/ui/IconButton.tsx';
+import { confirm } from '#src/ui/modal.tsx';
 import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Reference } from '#src/chat/ChatLine.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
@@ -119,6 +121,10 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
   );
 }
 
+/** The founder's own comment on a task can be edited, and deleted unless it passed a turn (the daemon's rule); null for any other. */
+export const ownComment = (i: Pick<ActivityItem, 'memo' | 'turn'>, mine: boolean, task?: number) =>
+  mine && task != null && i.memo != null ? { task, memo: i.memo, deletable: !i.turn } : null;
+
 /** A comment as a chat line, headed by its writer and time; whom it went to is an @mention before the text. While the founder's turn
  * passed with it is open, it sits on a soft warm ground marked Waiting for you. */
 export function CommentRow({
@@ -128,7 +134,10 @@ export function CommentRow({
   quoted,
   onReply,
   onEdited,
+  task,
 }: {
+  /** The task it is on; with it, the founder's own comment can be edited and deleted. */
+  task?: number;
   i: ActivityItem;
   fresh: string;
   turn: boolean;
@@ -145,6 +154,25 @@ export function CommentRow({
   // Whom the comment went to: whom the daemon told it to (its readers), never worked out here.
   const told = mine ? toldOf(i, me) : [];
   const to = toYou ? ['you'] : told;
+  const [editing, setEditing] = useState(false);
+  const edit = useWrite('task.comment.edit');
+  const del = useWrite('task.comment.delete');
+  const own = ownComment(i, mine, task);
+  const remove = () =>
+    own &&
+    void confirm({
+      title: 'Delete this comment?',
+      message: told.length
+        ? `${told.map(nameOf).join(', ')} ${told.length > 1 ? 'were' : 'was'} told; ${told.length > 1 ? 'they' : 'it'} will be told it was deleted.`
+        : undefined,
+      confirmText: 'Delete',
+      danger: true,
+      run: () => del.mutateAsync({ task: own.task, memo: own.memo }),
+    });
+  const save = (text: string) => {
+    setEditing(false);
+    if (own && text.trim() && text !== i.note) edit.mutate({ task: own.task, memo: own.memo, text });
+  };
   return (
     <div
       data-memo={i.memo}
@@ -178,25 +206,29 @@ export function CommentRow({
             {turn && <span className="text-xs font-medium text-warning">{word}</span>}
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
-          <div className="min-w-0">
-            <Markdown
-              text={
-                i.toFounder
-                  ? noteText(i.note)
-                  : told.length
-                    ? addressText(
-                        i.note,
-                        told.flatMap((a) => [a, nameOf(a)]),
-                      )
-                    : i.note
-              }
-              lead={to.map((a) => (
-                <span key={a} className="mr-1.5 rounded bg-accent/10 px-1 text-accent">
-                  @{a === 'you' ? 'You' : nameOf(a)}
-                </span>
-              ))}
-            />
-          </div>
+          {editing ? (
+            <EditBox text={i.note} onSave={save} onCancel={() => setEditing(false)} />
+          ) : (
+            <div className="min-w-0">
+              <Markdown
+                text={
+                  i.toFounder
+                    ? noteText(i.note)
+                    : told.length
+                      ? addressText(
+                          i.note,
+                          told.flatMap((a) => [a, nameOf(a)]),
+                        )
+                      : i.note
+                }
+                lead={to.map((a) => (
+                  <span key={a} className="mr-1.5 rounded bg-accent/10 px-1 text-accent">
+                    @{a === 'you' ? 'You' : nameOf(a)}
+                  </span>
+                ))}
+              />
+            </div>
+          )}
           {i.images && i.images.length > 0 && (
             <div className="mt-2">
               <MessageImages images={i.images} small={turn && ready} />
@@ -208,8 +240,41 @@ export function CommentRow({
           className={`absolute ${turn ? 'top-1.5 right-3' : 'top-0 right-0'} flex items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100`}
         >
           <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+          {own && (
+            <IconButton className="size-6!" label="Edit" onClick={() => setEditing(true)}>
+              <Pencil size={14} />
+            </IconButton>
+          )}
+          {own?.deletable && (
+            <IconButton className="size-6!" label="Delete" onClick={remove}>
+              <Trash2 size={14} />
+            </IconButton>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** A comment's text, edited in place: Enter saves, Shift+Enter breaks the line, Esc cancels. */
+function EditBox({ text, onSave, onCancel }: { text: string; onSave: (text: string) => void; onCancel: () => void }) {
+  const [draft, setDraft] = useState(text);
+  return (
+    <textarea
+      autoFocus
+      aria-label="Edit comment"
+      value={draft}
+      rows={Math.min(8, draft.split('\n').length + 1)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={onCancel}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel();
+        else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          onSave(draft);
+        }
+      }}
+      className="mt-1 w-full resize-none rounded-md border border-border bg-bg px-2 py-1 text-sm outline-none focus:border-accent"
+    />
   );
 }
