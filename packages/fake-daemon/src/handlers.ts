@@ -111,9 +111,11 @@ const BASE: Record<string, (h: Call) => unknown> = {
     const { actor, script, agent } = h;
     const s = agent();
     if (s.state !== 'stalled') throw refused('state', `${s.fx.name} is ${s.state}, not stalled`);
-    // The daemon answers once the start it owes has begun; the fake starts it at once.
-    script.setState(s, 'running', actor);
-    return script.accepted(`${s.fx.name}: stalled -> queued; it has started`);
+    // As the daemon after T9318: it answers once the agent has started, its stall gone.
+    s.fx.view = { ...s.fx.view, status: undefined, needs_you: null };
+    if (s.open) script.setState(s, 'running', actor);
+    else script.startSession(s, true, actor);
+    return script.accepted(`${s.fx.name}: started`);
   },
   'agent.force_start': (h) => {
     const { actor, script, agent } = h;

@@ -29,6 +29,13 @@ export function useVerbRun(agent: string) {
   };
 }
 
+/** Clears the agent's stall (Wake it) and resolves with the daemon's answer, which comes once its start has begun or failed. A promise,
+ * not mutate's callbacks: the stall clearing can close the screen that asked before the answer lands. */
+export function useUnstall(agent: string) {
+  const unstall = useWrite('agent.unstall', agent);
+  return () => unstall.mutateAsync({ agent });
+}
+
 /** Retires the agent (the founder's Delete agent): the daemon refuses while it has a running session or others hang under it, and says why.
  * A worktree that holds work refuses it too (gate dirty, Failure.held) until the call says what to do with it. */
 export function useRetireAgent(agent: string) {

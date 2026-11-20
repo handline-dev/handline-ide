@@ -299,6 +299,11 @@ export const SEEDS: Record<string, Seed> = {
       "Won't start",
       'The last 3 starts failed: the claude binary exited with status 1 before it printed its prompt, after the vendor folder-trust screen timed out while the account was switching to beta, and the retry found the worktree locked by another process.',
     ),
+  /** stall-wake whose Wake it is held unanswered: the button's running state stays to be seen. */
+  'stall-wake-held': (d) => {
+    SEEDS['stall-wake'](d);
+    d.knobs.hold('agent.unstall');
+  },
   'stall-wake': (d) =>
     stall(d, 'no_session', "Woke but didn't start", 'It was woken 3 times and no session started: the terminal never came up.'),
   'stall-trust': (d) =>

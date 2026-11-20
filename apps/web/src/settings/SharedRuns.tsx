@@ -4,10 +4,9 @@ import { classify, hooks, sentence, useNameOf, useWrite } from '@handline/app-da
 import { Clock, Bot } from 'lucide-react';
 import { useState } from 'react';
 import { Block } from '#src/settings/Meter.tsx';
-import { Button } from '#src/ui/Button.tsx';
+import { Button, useAction } from '#src/ui/Button.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
 import { ModalFrame, confirm, openModal, type Close } from '#src/ui/modal.tsx';
-import { toast } from '#src/ui/toast.tsx';
 
 type Run = NonNullable<ReturnType<typeof hooks.useRunList>['data']>['runs'][number];
 type Draft = { name: string; scope: string; cmds: string; at_once: number; why: string };
@@ -27,14 +26,9 @@ export function SharedRuns() {
   const runs = list.data?.runs ?? [];
   const scopes = [MAC, ...new Set([...named.keys(), ...runs.map((r) => r.scope).filter((x) => x !== MAC)])];
   const target = (scope: string) => (scope === MAC ? { scope: 'mac' as const } : { scope: 'workspace' as const, workspace: scope });
-  const fail = (what: string) => (e: unknown) => toast(`Did not ${what}: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' });
-  const edit = async (run?: Run) => {
-    const d = await openModal<Draft>((close) => (
-      <RunForm run={run} scopes={scopes} scopeWord={scopeWord} presets={list.data?.presets ?? []} close={close} />
-    ));
-    if (!d) return;
-    set.mutate(
-      {
+  const edit = (run?: Run) => {
+    const save = (d: Draft) =>
+      set.mutateAsync({
         ...target(d.scope),
         name: d.name,
         cmds: d.cmds
@@ -43,19 +37,19 @@ export function SharedRuns() {
           .filter(Boolean),
         at_once: d.at_once,
         why: d.why,
-      },
-      { onError: fail('save') },
-    );
+      });
+    void openModal<Draft>((close) => (
+      <RunForm run={run} scopes={scopes} scopeWord={scopeWord} presets={list.data?.presets ?? []} save={save} close={close} />
+    ));
   };
-  const drop = async (run: Run) => {
-    const sure = await confirm({
+  const drop = (run: Run) =>
+    confirm({
       title: `Remove ${run.name}?`,
       message: 'Turns held now run to their end; nothing waits for it again.',
       confirmText: 'Remove',
       danger: true,
+      run: () => remove.mutateAsync({ ...target(run.scope), name: run.name }),
     });
-    if (sure) remove.mutate({ ...target(run.scope), name: run.name }, { onError: fail('remove') });
-  };
   return (
     <Block title="Shared runs">
       {list.data && !runs.length && <p className="text-sm text-muted">None.</p>}
@@ -112,14 +106,18 @@ function RunForm({
   scopes,
   scopeWord,
   presets,
+  save,
   close,
 }: {
   run?: Run;
   scopes: string[];
   scopeWord: (scope: string) => string;
   presets: string[];
+  /** Saves the run; the window closes once the daemon has it, and stays open with the refusal if not. */
+  save: (d: Draft) => Promise<unknown>;
   close: Close<Draft>;
 }) {
+  const saving = useAction();
   const [d, setD] = useState<Draft>({
     name: run?.name ?? '',
     scope: run?.scope ?? MAC,
@@ -135,13 +133,19 @@ function RunForm({
       footer={
         <>
           <Button onClick={() => close()}>Cancel</Button>
-          <Button variant="primary" disabled={!ok} onClick={() => close(d)}>
+          <Button
+            variant="primary"
+            disabled={!ok}
+            busy={saving.busy}
+            onClick={() => void saving.go(() => save(d)).then((done) => done && close(d))}
+          >
             Save
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-3 text-sm">
+        {!!saving.error && <p className="text-danger">{sentence(classify(saving.error))}</p>}
         <label className="flex flex-col gap-1">
           Name
           <Input value={d.name} disabled={!!run} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="ios-build" />

@@ -2,7 +2,8 @@ import { Dialog } from '@base-ui/react/dialog';
 import { ArrowLeft, X } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
-import { Button } from '#src/ui/Button.tsx';
+import { classify, sentence } from '@handline/app-data';
+import { Button, useAction } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useBackCloses } from '#src/ui/backCloses.ts';
@@ -185,14 +186,41 @@ export function confirm({
   confirmText = modalText.ok,
   cancelText = modalText.cancel,
   danger = false,
+  run,
 }: {
   title: ReactNode;
   message?: ReactNode;
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
+  /** The call the confirm makes: the window stays, its button turning, until the daemon answers; a refusal stays in it. */
+  run?: () => Promise<unknown>;
 }): Promise<boolean> {
-  return openModal<boolean>((close) => (
+  return openModal<boolean>((close) => <Confirm {...{ title, message, confirmText, cancelText, danger, run }} close={close} />).then(
+    (v) => v === true,
+  );
+}
+
+function Confirm({
+  title,
+  message,
+  confirmText,
+  cancelText,
+  danger,
+  run,
+  close,
+}: {
+  title: ReactNode;
+  message?: ReactNode;
+  confirmText: string;
+  cancelText: string;
+  danger: boolean;
+  run?: () => Promise<unknown>;
+  close: Close<boolean>;
+}) {
+  const call = useAction();
+  const yes = () => (run ? void call.go(run).then((ok) => ok && close(true)) : close(true));
+  return (
     <ModalFrame
       title={title}
       description={message}
@@ -200,13 +228,15 @@ export function confirm({
       footer={
         <>
           <Button onClick={() => close(false)}>{cancelText}</Button>
-          <Button variant={danger ? 'danger' : 'primary'} autoFocus onClick={() => close(true)}>
+          <Button variant={danger ? 'danger' : 'primary'} autoFocus busy={call.busy} onClick={yes}>
             {confirmText}
           </Button>
         </>
       }
-    />
-  )).then((v) => v === true);
+    >
+      {!!call.error && <p className="text-sm text-danger">{sentence(classify(call.error))}</p>}
+    </ModalFrame>
+  );
 }
 
 export function alert({
