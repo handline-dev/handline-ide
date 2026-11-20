@@ -11,7 +11,7 @@ import {
   useChat,
   useChatActions,
   useDirectory,
-  hooks,
+  Hooks,
   usePending,
   useWrite,
   writes,
@@ -367,7 +367,7 @@ describe('a decided write, against the fake daemon with latency and a refusal', 
 describe('workspace writes, against the fake daemon', () => {
   it('a rename shows in the directory, and a delete with an agent running is refused with the reason', async () => {
     const { store, daemon } = await connected();
-    const v = probe(() => ({ dir: useDirectory(), rename: hooks.useWorkspaceSet(), remove: hooks.useWorkspaceDelete() }));
+    const v = probe(() => ({ dir: useDirectory(), rename: Hooks.useWorkspaceSet(), remove: Hooks.useWorkspaceDelete() }));
     await mount(store, v.node);
     await until(() => v.get().dir.workspaces.some((w) => w.name === 'handline'), 'the workspaces');
     for (const s of daemon.sessions.values()) s.open = false;

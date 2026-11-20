@@ -1,10 +1,10 @@
 // A task waiting in line for a machine resource (lease.get): which kind, and who uses it now, said in one line.
-import { hooks, useNameOf } from '@handline/app-data';
+import { Hooks, useNameOf } from '@handline/app-data';
 
 /** A lease kind in a sentence: a port, or a turn at a shared run (scope:name). */
 const noun = (kind: string) => (kind === 'port' ? 'a port' : `a turn at ${kind.slice(kind.indexOf(':') + 1)}`);
 
-type Kinds = NonNullable<ReturnType<typeof hooks.useLeaseGet>['data']>['kinds'];
+type Kinds = NonNullable<ReturnType<typeof Hooks.useLeaseGet>['data']>['kinds'];
 
 export type LeaseWait = { kind: string; text: string };
 
@@ -27,5 +27,5 @@ export function leaseWaits(kinds: Kinds, nameOf: (key: string) => string): Map<n
 
 export function useLeaseWaits(): Map<number, LeaseWait> {
   const nameOf = useNameOf();
-  return leaseWaits(hooks.useLeaseGet().data?.kinds ?? [], nameOf);
+  return leaseWaits(Hooks.useLeaseGet().data?.kinds ?? [], nameOf);
 }

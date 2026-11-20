@@ -1,6 +1,6 @@
 // Settings > Devices: the paired devices (the one this page runs on marked `current`) and revoking one.
 import type { Device } from '@handline/client';
-import { hooks } from '@handline/app-data';
+import { Hooks } from '@handline/app-data';
 import { useThisDevice } from '@handline/app-react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
@@ -9,9 +9,9 @@ export const isStale = (d: Pick<Device, 'last_seen' | 'connected'>, now = Date.n
   !d.connected && d.last_seen !== null && now - Date.parse(d.last_seen) > STALE_DAYS * 86_400_000;
 
 export function useDevices() {
-  const list = hooks.useDevicesList();
+  const list = Hooks.useDevicesList();
   const me = useThisDevice();
-  const revoke = hooks.useDeviceRevoke();
+  const revoke = Hooks.useDeviceRevoke();
   const { pending, run } = useKeyed();
   return {
     loading: list.isPending,

@@ -2,7 +2,7 @@ import { Ago } from '#src/ui/Ago.tsx';
 // A story's sub-task opened from its node: back to the Plan, the next one for you, and its Plan, Code and Result with the founder's verdicts.
 import type { MemoFile, TaskDetail } from '@handline/client';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
-import { hooks, useAttachmentUrl, useNameOf, useWrite } from '@handline/app-data';
+import { Hooks, useAttachmentUrl, useNameOf, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Check, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -21,9 +21,11 @@ type Tab = 'plan' | 'code' | 'result';
 const CLOSED = ['done', 'discarded'];
 
 export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; onPick: (id: number | null) => void }) {
-  const t = hooks.useTaskGet({ task: sub.id }).data;
+  const t = Hooks.useTaskGet({ task: sub.id }).data;
   const me = useMe();
   const [tab, setTab] = useTabState<Tab | null>(`subtab:${sub.id}`, null);
+  // Every hook before the early return: a render after the load must call the same ones.
+  const code = !!Hooks.useTaskChanges({ task: sub.id }).data?.commits.length;
   if (!t) return <div className="flex-1" />;
   const open = new Set(story.subtasks.filter((x) => !CLOSED.includes(x.state)).map((x) => x.id));
   const word = wordOf(t, sub, me, open);
@@ -31,7 +33,6 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
   const rest = story.subtasks.filter((x) => x.id !== sub.id);
   const after = [...rest.filter((x) => x.id > sub.id), ...rest.filter((x) => x.id < sub.id)];
   const next = after.find((x) => x.review?.ready || (x.state === 'draft' && x.plan_state === 'written')) ?? after[0];
-  const code = !!hooks.useTaskChanges({ task: sub.id }).data?.commits.length;
   const first: Tab = t.review ? 'result' : 'plan';
   const shown: Tab = tab === 'code' && !code ? first : (tab ?? first);
   return (

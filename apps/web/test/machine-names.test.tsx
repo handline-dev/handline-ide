@@ -18,7 +18,7 @@ vi.mock('@handline/app-data', () => ({
   useWrite: () => ({ mutate: vi.fn() }),
   classify: (e: unknown) => e,
   sentence: String,
-  hooks: {
+  Hooks: {
     useRunList: () => ({ data: { runs: [run], presets: [] } }),
     useWorkspacesList: () => ({ data: { workspaces: [{ key: 'w1', name: 'handline' }] } }),
   },

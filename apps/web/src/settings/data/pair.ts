@@ -1,17 +1,17 @@
 // The pair sheet: the addresses this machine can be reached on, and a one-time code for the one picked.
-import { hooks } from '@handline/app-data';
+import { Hooks } from '@handline/app-data';
 import { useState } from 'react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
 export function usePairAddresses() {
-  const q = hooks.useConnectionAddresses();
+  const q = Hooks.useConnectionAddresses();
   return { addresses: q.data?.addresses ?? [], loading: q.isPending, error: q.isError };
 }
 
 /** Makes sure an address is served: network_addresses becomes the hosts listening now plus this one. A no-op when it already listens. */
 export function useOpenAddress() {
-  const set = hooks.useSettingsSet();
-  const q = hooks.useConnectionAddresses();
+  const set = Hooks.useSettingsSet();
+  const q = Hooks.useConnectionAddresses();
   return async (host: string) => {
     const now = q.data?.addresses ?? [];
     if (now.find((a) => a.host === host)?.listening) return;
@@ -28,7 +28,7 @@ export interface Pairing {
 }
 
 export function usePair() {
-  const pair = hooks.useDevicePair();
+  const pair = Hooks.useDevicePair();
   const { pending, run } = useKeyed();
   const [error, setError] = useState<string | null>(null);
   return {

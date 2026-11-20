@@ -1,5 +1,5 @@
 // Settings > Projects: the git folders agents work in, each with its worktree setup, and the ones found on this Mac. A project is listed once an agent works in it, so every way to add one starts an agent.
-import { classify, hooks, sentence, useRepos, useWrite } from '@handline/app-data';
+import { classify, Hooks, sentence, useRepos, useWrite } from '@handline/app-data';
 import { FolderGit2, Link, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { agentNameOf } from '#src/onboarding/firstTask.ts';
@@ -30,7 +30,7 @@ function useStartIn() {
 
 export function ProjectsTab() {
   const repos = useRepos();
-  const recent = hooks.useReposRecent();
+  const recent = Hooks.useReposRecent();
   const open = repos.data?.repos ?? [];
   const found = (recent.data?.folders ?? []).filter((f) => !open.some((r) => r.path === f.path));
   const here = useStartIn();

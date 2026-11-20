@@ -1,5 +1,5 @@
 // The last step: what the first agent does, which AI tool it runs on, and starting it.
-import { classify, hooks, sentence, useCreateProgress, useRepos, useWrite } from '@handline/app-data';
+import { classify, Hooks, sentence, useCreateProgress, useRepos, useWrite } from '@handline/app-data';
 import { LoaderCircle, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { usePicked } from '#src/onboarding/data/picked.ts';
@@ -18,7 +18,7 @@ export function AgentStep() {
   const ready = ai.rows.filter((r): r is AiRow & { account: string } => r.state === 'ready' && !!r.account);
   const [vendor, setVendor] = useState<string | null>(null);
   const on = ready.find((r) => r.vendor === vendor) ?? ready[ready.length - 1];
-  const facts = hooks.useRepoFacts({ path: folder?.path ?? '' }, { enabled: !!folder });
+  const facts = Hooks.useRepoFacts({ path: folder?.path ?? '' }, { enabled: !!folder });
   const cards = [
     { title: 'Look around and propose 3 tasks', note: 'Reads only; nothing is changed.', task: LOOK_AROUND },
     ...factCards(facts.data).slice(0, 1),

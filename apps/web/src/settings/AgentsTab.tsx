@@ -1,6 +1,6 @@
 // Settings > Agents: the model and effort a new agent starts with, for Claude Code and for Codex (agents already made keep theirs), and
 // the founder's preferences (removable), and each agent with its review level, opening its page (AgentPage).
-import { classify, hooks, sentence, useAgents, useNameOf, useSettings, useWrite } from '@handline/app-data';
+import { classify, Hooks, sentence, useAgents, useNameOf, useSettings, useWrite } from '@handline/app-data';
 import type { SettingsChanges } from '@handline/client';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
@@ -22,7 +22,7 @@ export function AgentsTab({ open }: { open?: string }) {
 
 function AgentsList({ pick }: { pick: (agent: string) => void }) {
   const settings = useSettings();
-  const options = hooks.useAgentOptions();
+  const options = Hooks.useAgentOptions();
   const save = useWrite('settings.set');
   const put = (key: Key, value: string | null) => save.mutate({ changes: { [key]: value } as SettingsChanges });
   const values = settings.data?.values;

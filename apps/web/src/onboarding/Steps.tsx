@@ -1,5 +1,5 @@
 // The five steps' bodies. Each has one button that does the step; what is true on the machine already shows as done.
-import { classify, hooks, sentence, useRead, useRepos, useStatus } from '@handline/app-data';
+import { classify, Hooks, sentence, useRead, useRepos, useStatus } from '@handline/app-data';
 import { Bell, Check, Copy, Folder, FolderGit2, GitBranch, LoaderCircle, Terminal } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { shell } from '#src/shell.ts';
@@ -266,7 +266,7 @@ const folderName = (p: string) => p.replace(/\/+$/, '').split('/').pop() ?? p;
 
 export function ProjectStep() {
   const nav = useStepNav();
-  const recent = hooks.useReposRecent();
+  const recent = Hooks.useReposRecent();
   const repos = useRepos().data?.repos ?? [];
   const chosen = usePicked();
   const folders = [

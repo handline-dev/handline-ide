@@ -1,12 +1,12 @@
 // A caller of a generated hook is a typecheck: a spec method removed or renamed breaks it here, and one added needs its hook.
 import { describe, expect, it } from 'vitest';
-import { hooks, type StateWord, type StatusReason, type StatusState } from '#src/index.ts';
+import { Hooks, type StateWord, type StatusReason, type StatusState } from '#src/index.ts';
 import { reads } from '#src/reads.ts';
 import { EVENT_REQUIRED } from '#src/generated/reads.ts';
 
 describe('the generated hooks', () => {
   it('each read and cached write of the spec has a hook named from the method', () => {
-    const callers = [hooks.useAgentGet, hooks.useAgentsList, hooks.useTaskNew, hooks.useTaskGet, hooks.useTaskCommentAdd];
+    const callers = [Hooks.useAgentGet, Hooks.useAgentsList, Hooks.useTaskNew, Hooks.useTaskGet, Hooks.useTaskCommentAdd];
     expect(callers.every((h) => typeof h === 'function')).toBe(true);
     for (const m of Object.keys(reads)) {
       const name =
@@ -15,7 +15,7 @@ describe('the generated hooks', () => {
           .split(/[._]/)
           .map((w) => w[0]!.toUpperCase() + w.slice(1))
           .join('');
-      expect(typeof (hooks as Record<string, unknown>)[name], name).toBe('function');
+      expect(typeof (Hooks as Record<string, unknown>)[name], name).toBe('function');
     }
   });
   it('the spec enums are literal unions', () => {

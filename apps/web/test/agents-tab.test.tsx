@@ -12,7 +12,7 @@ const values: Record<string, string> = {
 };
 vi.mock('@handline/app-data', () => ({
   useSettings: () => ok({ values }),
-  hooks: { useAgentOptions: () => ok({ models: ['sonnet', 'opus', 'haiku'], efforts: ['low', 'medium', 'high', 'xhigh', 'max'] }) },
+  Hooks: { useAgentOptions: () => ok({ models: ['sonnet', 'opus', 'haiku'], efforts: ['low', 'medium', 'high', 'xhigh', 'max'] }) },
   useWrite: () => ({ mutate, isPending: false, error: null }),
   classify: (e: unknown) => e,
   sentence: String,
