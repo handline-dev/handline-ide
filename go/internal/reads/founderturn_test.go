@@ -437,8 +437,9 @@ func TestALostBashLineWarnsToLookBeforeRunningItAgain(t *testing.T) {
 	}
 }
 
-// A notice no agent could be given is a warning until it is over: a task's once the task moves or ends, an agent's once its stall is cleared.
-func TestAFounderNoticeIsAWarningUntilItsTaskMovesOrItsAgentIsMended(t *testing.T) {
+// A notice no agent could be given lasts until it is over: a task's (a note) once the task moves or ends, an agent's (the founder's turn)
+// once its stall is cleared.
+func TestAFounderNoticeStaysUntilItsTaskMovesOrItsAgentIsMended(t *testing.T) {
 	t.Parallel()
 	for name, over := range map[string]string{
 		"commented": "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(7, 'bob', 'on it', 300)",
@@ -450,8 +451,11 @@ func TestAFounderNoticeIsAWarningUntilItsTaskMovesOrItsAgentIsMended(t *testing.
 			t.Fatal(err)
 		}
 		r := answerRow(t, e, "machine", "notice:T7")
-		if r == nil || r["task"] != int64(7) || r["ask"] != "T7: amy was told" || r["warning"].(map[string]any)["kind"] != "notice" {
+		if r == nil || r["task"] != int64(7) || r["ask"] != "T7: amy was told" || r["warning"].(map[string]any)["kind"] != "notice" || r["kind"] != "note" {
 			t.Fatalf("%s: %v", name, r)
+		}
+		if c := pending(t, e)["counts"].(map[string]any); c["answer"] != 0 || c["notes"] != 1 { // bob holds T7: news to the founder, not their turn
+			t.Fatalf("%s: counts %v", name, c)
 		}
 		run(t, e, over)
 		if r := answerRow(t, e, "machine", "notice:T7"); r != nil {
@@ -463,8 +467,8 @@ func TestAFounderNoticeIsAWarningUntilItsTaskMovesOrItsAgentIsMended(t *testing.
 	if err := db.NoteFounderNotice(e.DB, db.FounderNotice{Agent: "bob", Reason: "start_stall", Text: "bob is STALLED", At: 200}); err != nil {
 		t.Fatal(err)
 	}
-	if answerRow(t, e, "machine", "notice:bob:start_stall") == nil {
-		t.Fatal("a stalled agent with no task is a warning")
+	if r := answerRow(t, e, "machine", "notice:bob:start_stall"); r == nil || r["kind"] != "warning" || pending(t, e)["counts"].(map[string]any)["answer"] != 1 {
+		t.Fatalf("a stalled agent with no task is the founder's turn: %v", r)
 	}
 	run(t, e, "UPDATE agent_state SET state = 'IDLE' WHERE agent = 'bob'")
 	if r := answerRow(t, e, "machine", "notice:bob:start_stall"); r != nil {

@@ -90,7 +90,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	for _, w := range warnings {
 		warningOf[w.id] = w
 	}
-	rank := map[string]int{"comment": 0, "warning": 1, "ask": 2, "decide": 3, "allow": 4}
+	rank := map[string]int{"note": -1, "comment": 0, "warning": 1, "ask": 2, "decide": 3, "allow": 4}
 	answer, byTask := []map[string]any{}, map[int64]map[string]any{}
 	for _, it := range forYou {
 		if _, deferred := it["later"]; deferred {
@@ -118,6 +118,9 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		case "machine":
 			w := warningOf[id]
 			tid, warning, ask = w.task, w.view, "warning"
+			if tid != 0 && w.view["kind"] == "notice" { // news of a task: its holder or opener acts on it, not the founder
+				ask = "note"
+			}
 			if tid != 0 { // the row's title is the task's, so the warning's words go here
 				line = w.title
 			}
@@ -194,7 +197,6 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	noted := 0
 	for _, m := range notes {
 		tid := m.i("task_id")
 		if byTask[tid] != nil || !db.ToPerson(m.str("body")) {
@@ -204,7 +206,12 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(m.str("body")))
 		byTask[tid] = out
 		answer = append(answer, out)
-		noted++
+	}
+	noted := 0
+	for _, r := range answer {
+		if r["kind"] == "note" {
+			noted++
+		}
 	}
 	sort.SliceStable(answer, func(i, j int) bool { return answer[i]["last_at"].(string) > answer[j]["last_at"].(string) })
 
