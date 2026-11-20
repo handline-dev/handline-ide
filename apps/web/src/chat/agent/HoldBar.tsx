@@ -1,21 +1,19 @@
-import { classify, sentence, useAccounts, useAgents, useVerbRun } from '@handline/app-data';
-import { useState } from 'react';
-import { VERBS } from '@handline/app-core';
+import { classify, sentence, useAccounts, useAgents, useUnstall } from '@handline/app-data';
 import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { Button } from '#src/ui/Button.tsx';
+import { Button, useAction } from '#src/ui/Button.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { Page } from '#src/ui/Page.tsx';
-import { Refs } from '#src/ui/refs.tsx';
+import { toast } from '#src/ui/toast.tsx';
 
 /** At the chat's top while the agent stands still: the sidebar's mark, why in full, and the one button that gets it going. */
 export function HoldBar({ agent }: { agent: string }) {
   const a = useAgents().data?.agents.find((x) => x.key === agent);
   const accounts = useAccounts().data?.accounts;
-  const run = useVerbRun(agent);
+  const unstall = useUnstall(agent);
   const terminal = useOpenable('shell');
-  const [refused, setRefused] = useState<string | null>(null);
+  const wake = useAction();
   const line = a && !restarting(a) && holdLine(a); // a restart shows at the chat's foot, in the turn's row
   const need = a?.needs_you?.source === 'daemon' ? a.needs_you : null;
   if (!a || (!line && !need)) return null;
@@ -25,10 +23,9 @@ export function HoldBar({ agent }: { agent: string }) {
   const button =
     need?.kind === 'start_failed' || need?.kind === 'no_session' ? (
       <Button
-        onClick={() => {
-          setRefused(null);
-          run(VERBS.clear_stall, undefined, { onError: (e) => setRefused(sentence(classify(e))) });
-        }}
+        busy={wake.busy}
+        // A refused wake has cleared the stall all the same, so this bar may be gone by the answer: the reason is a toast.
+        onClick={() => void wake.go(() => unstall().catch((e: unknown) => toast(sentence(classify(e)), { tone: 'warning' })))}
       >
         Try again
       </Button>
@@ -51,11 +48,6 @@ export function HoldBar({ agent }: { agent: string }) {
             </>
           ) : (
             line
-          )}
-          {refused && (
-            <div className="text-danger">
-              <Refs text={refused} />
-            </div>
           )}
           {button && <div className="mt-2 flex justify-end">{button}</div>}
         </div>

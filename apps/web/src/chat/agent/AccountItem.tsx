@@ -1,11 +1,12 @@
 import { since } from '#src/format/time.ts';
-import { useAccounts, useServes, useWrite } from '@handline/app-data';
-import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, TriangleAlert, UserRound } from 'lucide-react';
+import { classify, sentence, useAccounts, useServes, useWrite } from '@handline/app-data';
+import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, LoaderCircle, TriangleAlert, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { CardAction, chip, MenuFact, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
 import { focusIn } from '#src/layout/focus.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
+import { useAction } from '#src/ui/Button.tsx';
 import { FIVE_HOURS, HIGH, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 import { Refs } from '#src/ui/refs.tsx';
 
@@ -74,12 +75,20 @@ function MoveTo({ agent, account }: { agent: string; account: string }) {
   const [open, setOpen] = useState(false);
   const accounts = useAccounts().data?.accounts ?? [];
   const move = useWrite('agent.move', agent);
+  const moving = useAction();
+  const [to, setTo] = useState<string | null>(null);
   const served = useServes('agent.move').served;
   const others = accounts.filter((a) => a.name !== account && a.login_state !== 'needs_login');
   if (!served || !others.length) return null;
   return (
     <>
-      <CardAction icon={open ? <ChevronDown size={14} /> : <ChevronRight size={14} />} onClick={() => setOpen(!open)}>
+      <CardAction
+        icon={open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        onClick={() => {
+          setOpen(!open);
+          moving.reset();
+        }}
+      >
         Move to another account
       </CardAction>
       {open &&
@@ -87,13 +96,24 @@ function MoveTo({ agent, account }: { agent: string; account: string }) {
           <button
             key={a.name}
             type="button"
-            onClick={() => move.mutate({ agent, account: a.name })}
+            disabled={moving.busy}
+            aria-busy={moving.busy && to === a.name}
+            onClick={() => {
+              setTo(a.name);
+              void moving.go(() => move.mutateAsync({ agent, account: a.name }));
+            }}
             className="flex h-7 w-full items-center justify-between gap-6 rounded-sm pr-2 pl-8 text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
           >
             {a.label}
-            <span className="text-xs text-muted tabular-nums">{a.five_hour ? `${100 - Math.round(a.five_hour.used_pct)}% left` : ''}</span>
+            <span className="grid text-xs text-muted tabular-nums">
+              <span className={`col-start-1 row-start-1 ${moving.busy && to === a.name ? 'invisible' : ''}`}>
+                {a.five_hour ? `${100 - Math.round(a.five_hour.used_pct)}% left` : ''}
+              </span>
+              {moving.busy && to === a.name && <LoaderCircle size={12} className="col-start-1 row-start-1 animate-spin justify-self-end" />}
+            </span>
           </button>
         ))}
+      {open && !!moving.error && <p className="pl-8 text-xs text-danger">{sentence(classify(moving.error))}</p>}
     </>
   );
 }

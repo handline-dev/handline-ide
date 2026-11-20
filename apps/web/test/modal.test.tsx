@@ -43,6 +43,23 @@ describe('modal', () => {
     expect(await p).toBe(false);
   });
 
+  it('confirm with a call stays open, its button busy, until the call answers; a refusal stays in it', async () => {
+    let fail!: (e: Error) => void;
+    let p!: Promise<boolean>;
+    await act(async () => void (p = m.confirm({ title: 'Sure', run: () => new Promise((_, j) => (fail = j)) })));
+    await flush();
+    await act(async () => button('OK').click());
+    const ok = [...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-busy') === 'true');
+    expect(ok?.disabled).toBe(true);
+    expect(dialogs()).toHaveLength(1);
+    await act(async () => fail(new Error('no')));
+    await flush();
+    expect(dialogs()).toHaveLength(1);
+    expect(document.querySelector('.text-danger')).not.toBeNull();
+    await act(async () => button('Cancel').click());
+    expect(await p).toBe(false);
+  });
+
   it('Escape resolves undefined', async () => {
     let p!: Promise<string | undefined>;
     await act(async () => void (p = m.openModal<string>(() => <m.ModalFrame title="T" />)));
