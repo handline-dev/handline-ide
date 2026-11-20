@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net"
 	"net/url"
 	"strings"
@@ -37,8 +38,16 @@ type Device struct {
 	Push     *Push  // nil until the device gives a push token
 	Kind     string // what the client said it is at device.redeem (ios, android, web, desktop); "" when it did not say
 	Client   string // the client its last hello named; "" before one
-	Person   string // the person's key it belongs to; "" from MemStore, which keeps none: the owner's
+	Person   string // the person's key it belongs to: whose pairing code it redeemed; "" for the owner's
+	Node     string // a mac's or a server's node id, the machine it lends; "" for a phone or a browser
+	Lending  string // the node's run, pause or off; "" with no node
 }
+
+// Lendings are the states a lent machine is in: run starts new work there, pause lets what runs finish, off is not lent.
+var Lendings = map[string]bool{"run": true, "pause": true, "off": true}
+
+// ErrAlreadyJoined is a redeem with a node id this master already has.
+var ErrAlreadyJoined = errors.New("this machine has already joined")
 
 // Push is where a notification for a device goes: the token its OS gave, for APNs or FCM.
 type Push struct {
@@ -55,6 +64,7 @@ type Store interface {
 	List() ([]Device, error)
 	Touch(id string, ts int64) error
 	SetClient(id, client string) error
+	SetLending(id, lending, person string) (bool, error) // only while the device is still person's
 	SetPush(id string, p Push) (bool, error)
 	DropPush(id, token string) error // only while token is still the device's: a newer one it gave since stays
 }
@@ -63,6 +73,7 @@ type code struct {
 	expires time.Time
 	wrong   int
 	host    string // the host the pairing names, kept on the device it makes
+	person  string // who made it: the device it makes is theirs
 }
 
 // Door is one address a pairing can name: host:port, whether it is TLS and its certificate's fingerprint, and whether the web page is
@@ -136,16 +147,16 @@ func (m *Manager) Pair(ttl time.Duration) (c string, expires time.Time, fingerpr
 	if m.Doors != nil {
 		door, _, _ = m.Doors("")
 	}
-	return m.PairAt(ttl, door)
+	return m.PairAt(ttl, door, "")
 }
 
-// PairAt makes a one-time code that lives ttl and a handline://pair uri naming door.
-func (m *Manager) PairAt(ttl time.Duration, door Door) (c string, expires time.Time, fingerprint, uri string) {
+// PairAt makes a one-time code that lives ttl and a handline://pair uri naming door; the device it pairs is person's ("" the owner's).
+func (m *Manager) PairAt(ttl time.Duration, door Door, person string) (c string, expires time.Time, fingerprint, uri string) {
 	c = newCode()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	expires = m.now().Add(ttl)
-	m.codes[hashOf(c)] = &code{expires: expires, host: hostOf(door.Addr)}
+	m.codes[hashOf(c)] = &code{expires: expires, host: hostOf(door.Addr), person: person}
 	q := url.Values{"host": {door.Addr}, "code": {c}}
 	if door.TLS {
 		q.Set("fp", door.Fingerprint) // a plain door has no certificate to pin
@@ -173,9 +184,9 @@ func pairingRefused() *rpc.Error {
 	return rpc.Refused("that pairing code is not valid", "pairing_code", "")
 }
 
-// Redeem trades a code for a device token, once. kind is what the client says it is, "" for nothing. remote is the caller's host: wrong
-// tries are counted per host.
-func (m *Manager) Redeem(c, name, kind, remote string) (token string, d Device, err error) {
+// Redeem trades a code for a device token, once. kind is what the client says it is, "" for nothing; node is a mac's or a server's node
+// id, whose node row the device makes on Off. remote is the caller's host: wrong tries are counted per host.
+func (m *Manager) Redeem(c, name, kind, node, remote string) (token string, d Device, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()
@@ -196,8 +207,13 @@ func (m *Manager) Redeem(c, name, kind, remote string) (token string, d Device, 
 		return "", Device{}, pairingRefused()
 	}
 	token = "hld_" + random(32)
-	d = Device{ID: "dev_" + random(6), Name: name, Created: now.Unix(), Address: live.host, Kind: kind}
-	if err := m.store.Add(d, hashOf(token)); err != nil {
+	d = Device{ID: "dev_" + random(6), Name: name, Created: now.Unix(), Address: live.host, Kind: kind, Person: live.person, Node: node}
+	if node != "" {
+		d.Lending = "off"
+	}
+	if err := m.store.Add(d, hashOf(token)); errors.Is(err, ErrAlreadyJoined) {
+		return "", Device{}, rpc.Refused(err.Error(), "already_joined", "")
+	} else if err != nil {
 		return "", Device{}, err
 	}
 	delete(m.codes, h)
@@ -246,6 +262,33 @@ func (m *Manager) Revoke(id string) (bool, error) {
 	return found, err
 }
 
+// SetLending sets a lent machine's run, pause or off, for its own person only (person is the caller's key).
+func (m *Manager) SetLending(id, lending, person string) (Device, error) {
+	ds, err := m.store.List()
+	if err != nil {
+		return Device{}, err
+	}
+	for _, d := range ds {
+		if d.ID != id {
+			continue
+		}
+		if d.Node == "" {
+			return Device{}, rpc.Refused("only a Mac or a server that joined has Run, Pause and Off", "kind", "")
+		}
+		if person == "" || person != d.Person {
+			return Device{}, rpc.Refused("only the person whose device it is sets it", "person", "")
+		}
+		if found, err := m.store.SetLending(id, lending, person); err != nil {
+			return Device{}, err
+		} else if !found {
+			break // revoked or given to another person since
+		}
+		d.Lending = lending
+		return d, nil
+	}
+	return Device{}, rpc.NotFoundError("no such device: " + id)
+}
+
 // SetPush keeps the push token a device gave, in place of any it gave before. false when it is not paired.
 func (m *Manager) SetPush(id string, p Push) (bool, error) { return m.store.SetPush(id, p) }
 
@@ -283,7 +326,7 @@ func (m *Manager) row(d Device) map[string]any {
 	}
 	return map[string]any{"id": d.ID, "name": d.Name, "role": "owner",
 		"created": time.Unix(d.Created, 0).UTC().Format("2006-01-02T15:04:05Z"), "last_seen": seen, "connected": len(m.conns[d.ID]) > 0,
-		"push": d.Push != nil, "kind": orNil(d.Kind), "client": orNil(d.Client), "current": false}
+		"push": d.Push != nil, "kind": orNil(d.Kind), "client": orNil(d.Client), "current": false, "lending": orNil(d.Lending)}
 }
 
 func orNil(s string) any {

@@ -183,8 +183,25 @@ func Start(cfg Config) (*Daemon, error) {
 	if (cfg.CertFile == "") != (cfg.KeyFile == "") {
 		return nil, errors.New("the network listener takes -cert and -key together, or neither (plain HTTP, no certificate)")
 	}
+	single := lock.TakeSingleton(cfg.Home, daemonLock)
+	if single == nil {
+		return nil, errors.New("another daemon holds this home: not starting a second")
+	}
+	held := false
+	defer func() {
+		if !held {
+			single.Release()
+		}
+	}()
+	if err := setBoardAside(cfg.Home, cfg.DBFile, time.Now()); err != nil {
+		return nil, fmt.Errorf("set the board aside for the master: %w", err)
+	}
 	db, err := store.Open(cfg.DBFile)
 	if err != nil {
+		return nil, err
+	}
+	if err := markJoined(cfg.Home, db); err != nil {
+		db.Close()
 		return nil, err
 	}
 	if err := ensureOwner(db, ownerName); err != nil {
@@ -260,10 +277,7 @@ func Start(cfg Config) (*Daemon, error) {
 		return (&settings.Settings{Home: cfg.Home}).ConfigSeconds("input_hold_idle_s", inputhold.DefaultIdleS)
 	}}
 	d.tchan.Holds = d.holds
-	if d.single = lock.TakeSingleton(cfg.Home, daemonLock); d.single == nil {
-		db.Close()
-		return nil, errors.New("another daemon holds this home: not starting a second")
-	}
+	d.single, held = single, true
 	// The stored leases come back before the spool, so a turn that ended while no daemon ran frees its holds.
 	if err := d.leases.Adopt(); err != nil {
 		cfg.Log("  leases: adopting: %v", err)

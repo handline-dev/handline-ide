@@ -78,6 +78,17 @@ func (s *MemStore) SetClient(id, client string) error {
 	return nil
 }
 
+func (s *MemStore) SetLending(id, lending, person string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.byID[id]
+	if ok = ok && d.Node != "" && d.Person == person; ok {
+		d.Lending = lending
+		s.byID[id] = d
+	}
+	return ok, nil
+}
+
 func (s *MemStore) SetPush(id string, p Push) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -90,7 +90,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [accounts](gen/accounts.md): 14 methods
 - [agents](gen/agents.md): 36 methods
 - [chat](gen/chat.md): 20 methods
-- [devices](gen/devices.md): 6 methods
+- [devices](gen/devices.md): 7 methods
 - [repos](gen/repos.md): 18 methods
 - [tasks](gen/tasks.md): 40 methods
 - [team](gen/team.md): 14 methods
@@ -175,7 +175,7 @@ The `accounts` topic's account.changed: the daemon looks at the accounts every 5
 | `notifications` | `task_done` ({task, task_title?, result?, reporter?, from_founder?}), `prompt_asked` (Prompt), `stall` ({agent, title?, text?}), `account_out` ({account}), `disk_low` ({free_bytes, total_bytes}) | `events.feed` |
 | `chat` | `chat.message` (ChatMessage), `chat.transcript` (TranscriptItem), `chat.working` (Working), `attachment.removed` (AttachmentRemoved) | `chat.transcript` |
 | `operations` | `operation.progress` (Operation) | `operation.get` |
-| `devices` | `device.paired` (Device), `device.revoked` ({device}) | `devices.list` |
+| `devices` | `device.paired` (Device), `device.changed` (Device), `device.revoked` ({device}) | `devices.list` |
 | `proposals` | `proposal.raised` ({proposal}), `proposal.settled` ({proposal}) | `proposal.list` |
 | `prefs` | `prefs.changed` (Prefs) | `prefs.get` |
 | `requests` | `request.changed` (RequestRow) | `requests.list` |

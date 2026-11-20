@@ -251,7 +251,7 @@ func TestDevicePairNamesTheChosenHostWithAnAppURIAndAWebLinkAndRefusesAnyOther(t
 	if res["web_link"] != "https://mac.local:"+port+"/#pair="+res["code"].(string) {
 		t.Fatalf("web link %v", res["web_link"])
 	}
-	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "10.0.0.9"); err != nil || dev.Address != "mac.local" {
+	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "10.0.0.9"); err != nil || dev.Address != "mac.local" {
 		t.Fatalf("%v %v", dev, err)
 	}
 	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "mac.local") {
