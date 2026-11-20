@@ -24,6 +24,10 @@ A task serves the founder when it is in a founder request's tree (`requestTreeSQ
 The founder's comment on a task waiting for a review is a message to the assignee, as on a Ready task today; only OK or Redo ends the wait.
 Agents stop asking "OK?" in comments. Off by default (setting `review_flow`) until the founder has tried it.
 
+Work the founder does with an agent in chat makes no task (16 of his 224 chat messages since 11-13 became one), so it has no review flow:
+the conversation is the review. A task an agent opens from that chat, to hand work on or keep it past the conversation, takes the flow
+(T9325 8060, 8064).
+
 **What each shows.** A plan: what changes, the core logic (a few lines of code or the rule), and a picture for a screen change. A result:
 pictures or video first (before and after), then the code, the tests, and the check's findings.
 
