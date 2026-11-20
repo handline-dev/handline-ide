@@ -26,7 +26,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
-import { PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
+import { MoveSteps, PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { restarting } from '#src/layout/agentList.ts';
@@ -419,7 +419,15 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           {view?.pending_move ? (
             <PendingMove agent={agent} />
           ) : (
-            <FootRow busy={busy} hold={hold} restart={restart} held={held} doing={doing} turn={turnMinutes(chat.working.since, now)} />
+            <FootRow
+              busy={busy}
+              hold={hold}
+              restart={restart}
+              move={!compacting && switching ? <MoveSteps agent={agent} /> : undefined}
+              held={held}
+              doing={doing}
+              turn={turnMinutes(chat.working.since, now)}
+            />
           )}
           <PauseCard agent={agent} />
           <PromptCard agent={agent} />

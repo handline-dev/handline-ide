@@ -23,3 +23,5 @@ describe('compactionLabel', () => {
     expect(compactionLabel({})).toBe('Compacted');
   });
 });
+
+it('a start on a wake gives no reason', () => expect(compactionLabel({ cause: 'wake' })).toBe('Compacted'));

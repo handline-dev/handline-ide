@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { roomRows, switchWords } from '#src/index.ts';
+import { moveSteps, roomRows, switchWords } from '#src/index.ts';
 
 const w = (used_pct: number, resets_at: string | null = '2026-11-10T21:30:00Z') => ({ used_pct, resets_at, source: 'measured' });
 
@@ -61,4 +61,19 @@ test('the box is locked while saving, switching, writing the note and starting, 
   assert.equal(switchWords({ phase: 'switching', to: 'beta' }), 'Switching to beta…');
   assert.equal(switchWords({ phase: 'note', to: 'beta' }), 'Switching to beta… · writing its handoff note');
   assert.equal(switchWords({ phase: 'waiting', to: null }), null);
+});
+
+test("a move's four steps: the phase's step is now, those before done, those after next", () => {
+  const m = moveSteps({ phase: 'note', from: 'alpha', to: 'sigma' })!;
+  assert.equal(m.title, 'Moving to sigma');
+  assert.equal(m.at, 2);
+  assert.deepEqual(
+    m.steps.map((s) => `${s.state}:${s.name}`),
+    ['done:Finish turn', 'done:Close on alpha', 'now:Write handoff note', 'next:Start on sigma'],
+  );
+  assert.equal(
+    moveSteps({ phase: 'saving', from: 'alpha', to: null, waits: 'the turn to end' })!.steps[0].name,
+    'Finish turn after this turn',
+  );
+  assert.equal(moveSteps({ phase: 'waiting', from: 'alpha', to: null }), null);
 });

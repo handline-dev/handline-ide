@@ -14,6 +14,33 @@ export function switchWords(s: { phase: SwitchPhase; to: string | null; waits?: 
   return null;
 }
 
+/** One step of a move: done, under way (the current one) or still to come. */
+export type MoveStep = { name: string; state: 'done' | 'now' | 'next' };
+
+const ORDER = ['saving', 'switching', 'note', 'starting'] as const;
+
+/** A move's four steps, in the order the daemon goes through them; null for a wait, which is not a move. The current step is the one
+ * its phase names, so a long step shows where it is and never looks stopped. */
+export function moveSteps(s: { phase: SwitchPhase; from: string; to: string | null; waits?: string | null }): {
+  title: string;
+  steps: MoveStep[];
+  at: number;
+} | null {
+  const at = ORDER.indexOf(s.phase as (typeof ORDER)[number]);
+  if (at < 0) return null;
+  const names = [
+    s.waits ? `Finish turn ${waitsWords(s.waits)}` : 'Finish turn',
+    `Close on ${s.from}`,
+    'Write handoff note',
+    `Start on ${s.to ?? 'the new account'}`,
+  ];
+  return {
+    title: s.to ? `Moving to ${s.to}` : 'Moving to another account',
+    steps: names.map((name, i) => ({ name, state: i < at ? 'done' : i === at ? 'now' : 'next' })),
+    at,
+  };
+}
+
 /** What a saving switch waits for, from the daemon's words: the turn to end, its handoff note, or background: <jobs>. */
 const waitsWords = (w: string): string =>
   w === 'the turn to end' ? 'after this turn' : w.startsWith('background: ') ? `after ${w.slice(12)} ends` : `after ${w}`;

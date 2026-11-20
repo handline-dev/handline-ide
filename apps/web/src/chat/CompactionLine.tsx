@@ -13,9 +13,9 @@ import { textKey } from '#src/tools/TextTab.tsx';
 
 /** Why a conversation began or restarted, as the line says it; a word the daemon adds later shows as it is. */
 const causes: Record<string, string> = {
+  wake: '', // a wake gives no reason; an expired cache is recorded as idle_close or fresh close
   launch: 'first start',
   start: 'new work arrived',
-  wake: 'cache expired',
   restart: 'restarted',
   'fresh close': 'cache expired',
   idle_close: 'cache expired',
