@@ -103,13 +103,13 @@ func main() {
 	allowReal := flag.Bool("allow-real-home", false, "with no -home, use the default home, which a running install uses")
 	db := flag.String("db", "", "database file (default: <home>/db.sqlite)")
 	sock := flag.String("socket", "", "local socket (default: <home>/daemon.sock)")
-	listen := flag.String("listen", "", "address for the network listener; off when empty. With no -cert, :PORT binds the Tailscale address")
-	cert := flag.String("cert", "", "certificate for the network listener (with -key); with neither it serves plain HTTP on Tailscale or loopback")
+	listen := flag.String("listen", "", "address for the network listener; off when empty. With no -cert, :PORT binds the VPN interface address (100.64.0.0/10)")
+	cert := flag.String("cert", "", "certificate for the network listener (with -key); with neither it serves plain HTTP, on a VPN interface or loopback only")
 	key := flag.String("key", "", "private key for the network listener")
 	serveFDs := flag.String("serve-fds", "", "comma-separated file descriptors of connections already open (socketpairs "+
 		"made by the parent, for a run where no socket can be bound); each is served and no socket file is made")
 	web := flag.String("web", "", "the built web UI to serve on the listener's own origin; empty serves none")
-	advertise := flag.String("advertise", "", "the host:port a pairing code names, when it differs from -listen (a Tailscale host name)")
+	advertise := flag.String("advertise", "", "the host:port a pairing code names, when it differs from -listen (a host name, or a proxy in front)")
 	serveNetFDs := flag.String("serve-net-fds", "", "like -serve-fds, but each connection is served as one of the network listener's "+
 		"(past TLS), so it is unpaired until a device token says otherwise; needs -listen")
 	claude := flag.String("claude", "", "the claude binary the usage poll and the plan reads run: with it the daemon builds its agent side (the lifecycle, the session methods, the supervisor's ports, and with -terminal-tick the policy tick); empty runs none")
