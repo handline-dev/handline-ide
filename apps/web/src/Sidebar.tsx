@@ -8,7 +8,7 @@ import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
-import { ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
@@ -141,15 +141,20 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
 }
 
 /** A sidebar section under a full-width line: a heading (with an optional action), then its rows. */
-function Section({
+export function Section({
   title,
   icon,
   action,
   accepts,
   onAgentDrop,
+  folded,
+  onFold,
   children,
 }: {
   title: string;
+  /** Folded: header only. onFold adds the chevron. */
+  folded?: boolean;
+  onFold?: () => void;
   icon?: ReactNode;
   action?: ReactNode;
   /** Whether an agent dragged from another section may land here, and what landing does. */
@@ -169,12 +174,23 @@ function Section({
       {/* Its buttons show while the pointer is on the heading or one has focus; their room is kept, so nothing moves. */}
       <div className="group flex h-7 items-center justify-between pl-2">
         <h2 className="flex items-center gap-1.5 text-xs font-medium text-muted">
+          {onFold && (
+            <button
+              type="button"
+              aria-label={folded ? `Unfold ${title}` : `Fold ${title}`}
+              aria-expanded={!folded}
+              onClick={onFold}
+              className="-ml-1 rounded text-muted outline-none hover:text-fg focus-visible:text-fg"
+            >
+              {folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+            </button>
+          )}
           {icon}
           {title}
         </h2>
-        <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100">{action}</span>
+        <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">{action}</span>
       </div>
-      {children}
+      {!folded && children}
     </section>
   );
 }
@@ -182,7 +198,7 @@ function Section({
 /** The agents in sections: Pinned (when any are), then a flat list per workspace. */
 function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew: (ws: Workspace) => void }) {
   const list = useAgents();
-  const { nav, change, togglePin } = useNav();
+  const { nav, change, togglePin, toggleFold } = useNav();
   const first = list.data?.agents[0]?.key;
   // Nothing picked yet, neither agent nor page (a first visit): the first agent's workspace.
   useEffect(() => {
@@ -212,6 +228,8 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           // Dragging a pinned agent down here unpins it.
           accepts={(name) => nav.pins.includes(name)}
           onAgentDrop={togglePin}
+          folded={!!workspace && nav.folded.includes(workspace.key)}
+          onFold={workspace ? () => toggleFold(workspace.key) : undefined}
           action={
             workspace && (
               <IconButton label="New agent" onClick={() => onNew(workspace)}>
@@ -237,14 +255,16 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} />
         </Section>
       ))}
-      <button
-        type="button"
-        onClick={newWorkspace}
-        className="-mx-2 mt-1 flex h-9 items-center gap-1.5 border-t border-border px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
-      >
-        <Plus size={14} />
-        Add workspace
-      </button>
+      <div className="-mx-2 mt-1 border-t border-border">
+        <button
+          type="button"
+          onClick={newWorkspace}
+          className="flex h-9 w-full items-center gap-1.5 px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
+        >
+          <Plus size={14} />
+          Add workspace
+        </button>
+      </div>
     </>
   );
 }

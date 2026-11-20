@@ -1,5 +1,5 @@
 import { classify, sentence, useOperation, useWrite } from '@handline/app-data';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
@@ -8,10 +8,11 @@ import { shell } from '#src/shell.ts';
 /** The create the daemon started: its step while it runs, then closed once done, or its failure. */
 function Progress({ operation, close }: { operation: string; close: Close<string> }) {
   const op = useOperation(operation).data;
-  if (op?.state === 'done') {
-    queueMicrotask(() => close(operation));
-    return null;
-  }
+  const done = op?.state === 'done';
+  useEffect(() => {
+    if (done) close(operation);
+  }, [done, close, operation]);
+  if (done) return null;
   return op?.state === 'failed' ? (
     <div className="flex flex-col gap-2 pb-4">
       <p className="text-danger">{op.message ?? 'The workspace was not made.'}</p>
