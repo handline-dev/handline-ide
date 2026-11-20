@@ -5,6 +5,7 @@ import type { FakeAdmin } from '#src/admin.ts';
 import { TERMINAL_CAPS, TEXT_CAPS, type Conn } from '#src/conn.ts';
 import { badRequest, refused } from '#src/errors.ts';
 import type { EventLog } from '#src/eventlog.ts';
+import type { ReviewLevel, ReviewWork } from '#src/tasks.ts';
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakePairing } from '#src/pairing.ts';
 import { OWNER, PEOPLE } from '#src/names.ts';
@@ -14,7 +15,7 @@ import { detail, loadReply, statusReply, view, type Session, type TaskCounter } 
 /** What these methods need of the daemon that hosts them. */
 export interface CoreHost {
   readonly sessions: Map<string, Session>;
-  readonly tasks: TaskCounter & { reviewOf(agent: string): { level: 'every' | 'one_in_three' | 'auto' } };
+  readonly tasks: TaskCounter & { reviewSummary(agent: string): { level: ReviewLevel; work: ReviewWork | null } };
   readonly inbox: FakeInbox;
   readonly admin: FakeAdmin;
   readonly accounts: FakeAccounts;
@@ -100,7 +101,12 @@ export function coreCall(
       return {
         agents: [...d.sessions.values()]
           .map((s) => view(s, d.tasks))
-          .map((v) => ({ ...v, review_level: d.tasks.reviewOf(v.key).level, folder: d.spaces.folderFor(v.key) })),
+          .map((v) => ({
+            ...v,
+            review_level: d.tasks.reviewSummary(v.key).level,
+            review_work: d.tasks.reviewSummary(v.key).work,
+            folder: d.spaces.folderFor(v.key),
+          })),
       };
     case 'people.list':
       return { people: PEOPLE };

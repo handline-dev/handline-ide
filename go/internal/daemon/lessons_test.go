@@ -26,14 +26,14 @@ func TestTheDaemonServesLessons(t *testing.T) {
 	}
 }
 
-// The daemon serves review levels: the founder sets one and reads it back with its record.
+// The daemon serves review levels: the founder sets one at a kind of work and reads it back with its record.
 func TestTheDaemonServesReviewLevels(t *testing.T) {
 	_, c := startDoors(t, false)
-	if r := call(t, c, "agent.review_set", `{"agent":"a1","level":"auto"}`); r["result"] == nil {
+	if r := call(t, c, "agent.review_set", `{"agent":"a1","work":"screen","level":"never"}`); r["result"] == nil {
 		t.Fatal(fmt.Sprint(r))
 	}
 	got := call(t, c, "agent.review", `{"agent":"a1"}`)["result"].(map[string]any)
-	if got["level"] != "auto" || got["looks"] != float64(0) {
+	if fmt.Sprint(got["ladder"]) != "[map[level:never looks:0 record:[] suggested:<nil> work:screen]]" {
 		t.Fatalf("%v", got)
 	}
 }

@@ -45,25 +45,6 @@ type taskCommit struct {
 	added, deleted int
 }
 
-// names is whether subject's last parenthesis names task tid as a whole token: "(T9201)" or "(T9139, T9140)".
-func names(subject string, tid int64) bool {
-	open := strings.LastIndex(subject, "(")
-	if open < 0 {
-		return false
-	}
-	end := strings.Index(subject[open:], ")")
-	if end < 0 {
-		return false
-	}
-	want := "T" + strconv.FormatInt(tid, 10)
-	for _, part := range strings.Split(subject[open+1:open+end], ",") {
-		if strings.TrimSpace(part) == want {
-			return true
-		}
-	}
-	return false
-}
-
 // taskChanges is task.changes: the task's commits found by their subject, landed or on any local branch, and the files and diff of
 // the one asked for or of them all.
 func (e *Env) taskChanges(_ *rpc.Conn, params map[string]any) (any, error) {
@@ -177,7 +158,7 @@ func commitsNaming(root string, tid int64, kn known) ([]*taskCommit, error) {
 		}
 		for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
 			f := strings.SplitN(line, "\x1f", 4)
-			if len(f) != 4 || !names(f[3], tid) {
+			if len(f) != 4 || !gitrun.Names(f[3], tid) {
 				continue
 			}
 			at, _ := strconv.ParseInt(f[2], 10, 64)

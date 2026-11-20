@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -75,4 +78,64 @@ func PointOriginHeadAtMain(cwd string) bool {
 		return false
 	}
 	return Run(cwd, "remote", "set-head", "origin", IntegrationBranch).RC == 0
+}
+
+// Names is whether subject's last parenthesis names task tid as a whole token: "(T9201)" or "(T9139, T9140)".
+func Names(subject string, tid int64) bool {
+	open := strings.LastIndex(subject, "(")
+	if open < 0 {
+		return false
+	}
+	end := strings.Index(subject[open:], ")")
+	if end < 0 {
+		return false
+	}
+	want := "T" + strconv.FormatInt(tid, 10)
+	for _, part := range strings.Split(subject[open+1:open+end], ",") {
+		if strings.TrimSpace(part) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// TaskFile is one file the commits naming a task changed, and whether each of them that touched it deleted it.
+type TaskFile struct {
+	Path    string
+	Deleted bool
+}
+
+// TaskFiles are the files changed by repo's commits that name task tid (Names), landed on its default branch or on any local branch,
+// sorted by path.
+func TaskFiles(repo string, tid int64) ([]TaskFile, error) {
+	revs := []string{"--branches"}
+	if def := DefaultBranch(repo); Run(repo, "rev-parse", "--verify", "--quiet", "origin/"+def+"^{commit}").RC == 0 {
+		revs = append(revs, "origin/"+def)
+	}
+	r := RunTimeout(repo, 20*time.Second, append([]string{"--no-optional-locks", "-c", "core.quotePath=false", "log", "--no-merges", "-F", "--grep=T" + strconv.FormatInt(tid, 10),
+		"--format=%x1e%s", "--name-status", "--no-renames"}, revs...)...)
+	if r.RC != 0 {
+		return nil, fmt.Errorf("git log in %s: %s", repo, strings.TrimSpace(r.Stderr))
+	}
+	deleted := map[string]bool{}
+	for _, c := range strings.Split(r.Stdout, "\x1e")[1:] {
+		subject, files, _ := strings.Cut(c, "\n")
+		if !Names(subject, tid) {
+			continue
+		}
+		for _, l := range strings.Split(files, "\n") {
+			status, p, ok := strings.Cut(l, "\t")
+			if !ok {
+				continue
+			}
+			d, seen := deleted[p]
+			deleted[p] = (d || !seen) && status == "D"
+		}
+	}
+	out := make([]TaskFile, 0, len(deleted))
+	for p, d := range deleted {
+		out = append(out, TaskFile{p, d})
+	}
+	slices.SortFunc(out, func(a, b TaskFile) int { return strings.Compare(a.Path, b.Path) })
+	return out, nil
 }

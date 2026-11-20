@@ -25,7 +25,8 @@ export interface Pending {
     account?: string;
     agent?: string;
     line?: string;
-    level?: 'one_in_three' | 'auto';
+    level?: 'one_in_two' | 'one_in_three' | 'one_in_five' | 'never';
+    work?: 'contract' | 'screen' | 'daemon' | 'docs';
   } | null;
   items: number[];
   unread: number;

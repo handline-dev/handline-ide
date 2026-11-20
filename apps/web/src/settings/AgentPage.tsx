@@ -11,22 +11,39 @@ import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
-export type Level = Methods['agent.review']['result']['level'];
-export const LEVEL_WORD: Record<Level, string> = { every: 'Every task', one_in_three: '1 in 3', auto: 'Auto-merge' };
-const LEVELS: Level[] = ['every', 'one_in_three', 'auto'];
+type Rung = Methods['agent.review']['result']['ladder'][number];
+export type Level = Rung['level'];
+export const LEVEL_WORD: Record<Level, string> = {
+  every: 'Every task',
+  one_in_two: '1 in 2',
+  one_in_three: '1 in 3',
+  one_in_five: '1 in 5',
+  never: 'Never',
+};
+const LEVELS: Level[] = ['every', 'one_in_two', 'one_in_three', 'one_in_five', 'never'];
+const WORK_WORD: Record<Rung['work'], string> = {
+  contract: 'Contract and data',
+  screen: 'Screen',
+  daemon: 'Daemon',
+  docs: 'Docs and cleanup',
+};
+
+const sample = (n: string): string[] => [
+  `One in ${n} finished tasks waits for your OK or Redo`,
+  'The others merge once the check and tests pass',
+  'Any Redo moves it back to Every task',
+];
 
 /** What each level does, said under the levels for the one picked. */
 const MEANS: Record<Level, string[]> = {
   every: ['Every finished task waits for your OK or Redo'],
-  one_in_three: [
-    'One in three finished tasks waits for your OK or Redo',
-    'The other two merge once the check and tests pass',
-    'Any Redo moves it back to Every task',
-  ],
-  auto: [
+  one_in_two: sample('two'),
+  one_in_three: sample('three'),
+  one_in_five: sample('five'),
+  never: [
     'Finished tasks merge once the check and tests pass',
     'You can still Redo a task after it merged',
-    'Any Redo moves it back to 1 in 3',
+    'Any Redo moves it back to Every task',
   ],
 };
 
@@ -115,19 +132,27 @@ export function Lessons({ agent, founder = false }: { agent: string; founder?: b
 
 function Review({ agent }: { agent: string }) {
   const review = useAgentReview(agent);
+  return (
+    <>
+      {review.data?.ladder.map((rung) => (
+        <ReviewRung key={rung.work} agent={agent} rung={rung} />
+      ))}
+    </>
+  );
+}
+
+function ReviewRung({ agent, rung: r }: { agent: string; rung: Rung }) {
   const pending = Hooks.useRequestsPending();
   const set = useWrite('agent.review_set');
   const dismiss = useWrite('warning.dismiss');
-  const r = review.data;
   const [picked, pick] = useState<Level | null>(null);
-  if (!r) return null;
   const chosen = picked ?? r.suggested ?? r.level;
   const ok = r.record.filter((x) => x.ok_first).length;
-  // The notice in Requests, while it stands: Not now dismisses it.
-  const notice = pending.data?.answer.find((p) => p.warning?.kind === 'review' && p.warning.agent === agent);
+  // The offer in Requests, while it stands: Not now dismisses it.
+  const notice = pending.data?.answer.find((p) => p.warning?.kind === 'review' && p.warning.agent === agent && p.warning.work === r.work);
   const fail = (what: string) => (e: unknown) => toast(`Did not ${what}: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' });
   return (
-    <Block title="Review">
+    <Block title={`Review: ${WORK_WORD[r.work]}`}>
       <div className="flex items-center gap-3">
         <span className="flex gap-1" aria-hidden>
           {Array.from({ length: 10 }, (_, i) => {
@@ -142,7 +167,7 @@ function Review({ agent }: { agent: string }) {
         </span>
       </div>
       <div role="radiogroup" aria-label="Review level" className="flex gap-0.5 self-start rounded-md bg-surface p-0.5">
-        {LEVELS.map((l) => (
+        {(r.work === 'contract' ? LEVELS.slice(0, 1) : LEVELS).map((l) => (
           <button
             key={l}
             type="button"
@@ -175,7 +200,7 @@ function Review({ agent }: { agent: string }) {
           <Button
             variant="primary"
             disabled={chosen === r.level || set.isPending}
-            onClick={() => set.mutate({ agent, level: chosen }, { onSuccess: () => pick(null), onError: fail('change it') })}
+            onClick={() => set.mutate({ agent, work: r.work, level: chosen }, { onSuccess: () => pick(null), onError: fail('change it') })}
           >
             Change to {LEVEL_WORD[chosen]}
           </Button>

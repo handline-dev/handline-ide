@@ -39,8 +39,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `access.grant` | owner | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
 | `access.revoke` | owner | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
 | `access.list` | owner |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
-| `agent.review_set` | owner | yes | `agent`, `level`, `request_id` | `Accepted` | `bad_request` |  | decided: set a review level |
-| `agent.review` | member |  | `agent` | `{agent, level, record, looks, suggested, lessons}` |  |  | not cached |
+| `agent.review_set` | owner | yes | `agent`, `work`, `level`, `request_id` | `Accepted` | `refused`, `bad_request` |  | decided: set a review level |
+| `agent.review` | member |  | `agent` | `{agent, ladder, lessons}` |  |  | not cached |
 
 ### `agents.list`
 
@@ -180,9 +180,9 @@ The paths the founder granted an agent, newest first. See x-access. Only grants:
 
 ### `agent.review_set`
 
-The founder sets how many of an agent's finished story sub-tasks come to them: every (the default), one_in_three (the others take an automatic OK and go to the land_by agent) or auto (none, unless it must). Each change is kept with who and when; a Redo moves it up one step by itself, and the daemon never lowers it. Only a finish whose check passed with no misses, whose tests passed and that was never sent back may skip the founder (task.handoff checked, misses, tests); at one_in_three every third of those still comes.
+The founder sets how many of an agent's finished tasks of one kind of work come to them: every (the default), one_in_two, one_in_three, one_in_five (the others take an automatic OK and go to the land_by agent) or never (none, unless it must). contract work stays at every. Each change is kept with who and when; a Redo puts every kind of the task back to every by itself, and the daemon never lowers a level. Only a finish whose check passed with no misses, whose tests passed and that was never sent back may skip the founder (task.handoff checked, misses, tests); at 1 in n the first of those since the level was set, and every n-th after, still comes. A task of several kinds is looked at as the strictest of their levels. contract below every is refused. A level holds only while the agent runs the model it was set under.
 
 ### `agent.review`
 
-How the founder checks an agent's story work: its level, its record at that level (the founder's first verdict on each task it finished, the last ten, newest last), the level the record suggests, and its lesson count.
+How the founder checks an agent's work, per kind of work it has done: each kind's level, its record at that level (the founder's first verdict on each task of that kind it finished, the last ten, newest last), the level the record offers, and its lesson count.
 
