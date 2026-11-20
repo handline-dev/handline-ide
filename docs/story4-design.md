@@ -66,10 +66,11 @@ own person. It comes in Off; Run lends the machine. The master's own Mac is on R
    a runner. The master picks among the accounts on the agent's device by the one-machine rule (5-hour
    window, week, sessions already on it); an account logged in on two devices is one account, known by its
    email, and its sessions on both count.
-4. **Heartbeat:** every few seconds the runner sends its load (cores, memory, free slots, free leases), its
+4. **Heartbeat:** every 15 seconds the runner sends its load (cores, memory, free slots, free leases), its
    accounts and their sessions, the sessions it runs, what it has (agent CLIs, MCP programs, folders outside
-   the repo, Xcode and simulators) and its Handline version. A runner on another version than the master
-   takes no work until it is updated.
+   the repo, Xcode and simulators) and its Handline version. One at a time: the next goes only after the
+   master answered the last, so a slow network never stacks them. A runner on another version than the
+   master takes no work until it is updated.
 5. **Pause and Off:** Pause starts nothing new there; its sessions finish what they are doing. Off also ends
    them: each agent finishes its turn, writes its handoff and goes on on another device (section 3).
 6. **How much it lends:** the memory the agents may use, `agents_memory_max_gb`, which This Mac has today, is
