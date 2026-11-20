@@ -121,7 +121,7 @@ func (v *Mover) RunPendingMove(agent string) (acted bool, err error) {
 	why := "it broke off; the daemon log says why"
 	defer func() {
 		if why != "" {
-			v.moveFailed(agent, s.To, why)
+			v.M.moveFailed(agent, s.To, why)
 		}
 	}()
 	if why = v.moveRefused(agent, s.To, row); why == "" {
@@ -131,14 +131,6 @@ func (v *Mover) RunPendingMove(agent string) (acted bool, err error) {
 		}
 	}
 	return true, nil
-}
-
-// moveFailed is the chat's line for a person's move that will not happen; it is not tried again.
-func (v *Mover) moveFailed(agent, to, why string) {
-	m := v.M
-	_, _ = db.AddEvent(m.Q, agent, db.MoveFailedKind, db.KV{K: "to", V: to}, db.KV{K: "reason", V: why})
-	m.refreshView(agent)
-	v.log("  %s: the move to %s did not happen - %s", agent, to, why)
 }
 
 // turnOver is whether the agent's turn has ended for a move: idle, or stopped at the usage limit (its dialog up, or quiet since).
@@ -203,7 +195,12 @@ func (v *Mover) moveIdle(agent, dest, by string, row *db.AgentState) (bool, stri
 	if _, err := v.performHandoff(agent, HandoffTrigger{Kind: "forced", Reason: fmt.Sprintf("forced by %s: %s -> %s", by, here, dest)}, dest); err != nil {
 		return false, err.Error()
 	}
-	if landed := must(db.GetAgentState(m.Q, agent)); landed == nil || landed.Account.String != dest {
+	landed := must(db.GetAgentState(m.Q, agent))
+	if s := m.noteMove(landed); s != nil && s.To == dest {
+		must(db.AddEvent(m.Q, agent, "forced_move", db.KV{K: "from", V: here}, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))
+		return true, fmt.Sprintf("%s moves %s -> %s once its handoff note is in (forced by %s)", addr.Ref(agent), here, dest, addr.Ref(by))
+	}
+	if landed == nil || landed.Account.String != dest {
 		return false, fmt.Sprintf("%s did not move (mid-turn, or the new session did not start on %s) - it stays on %s", addr.Ref(agent), dest, here)
 	}
 	must(db.AddEvent(m.Q, agent, "forced_move", db.KV{K: "from", V: here}, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))

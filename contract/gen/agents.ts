@@ -117,8 +117,8 @@ export type AgentView = {
   account_switch?: {
     /** Why it is switching, in the words of handoff.cause: `usage`, `usage_7d`, `usage_early`, `move` for a person's order, `login`, `ended`, `pinned`. An open set. */
     cause: string;
-    /** `saving`: the limit was reached and its progress is being saved; `to` is not decided. `switching`: the old session is closing for `to`. `starting`: the session on `to` is launching. `waiting`: it stays on `from` until `until`, because the account resets soon or no account has room. */
-    phase: "saving" | "switching" | "starting" | "waiting";
+    /** `saving`: the limit was reached and its progress is being saved; `to` is not decided. `switching`: the old session is closing for `to`. `note`: the old session has closed and the start on `to` waits for the handoff note written from its transcript. `starting`: the session on `to` is launching. `waiting`: it stays on `from` until `until`, because the account resets soon or no account has room. */
+    phase: "saving" | "switching" | "note" | "starting" | "waiting";
     /** The account it is leaving, or waits on. */
     from: string;
     /** The account it goes to, null while saving or waiting. */
