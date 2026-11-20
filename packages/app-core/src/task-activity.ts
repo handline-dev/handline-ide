@@ -75,8 +75,10 @@ function requestLine(e: Entry, nameOf: NameOf): string {
 export const isNote = (text: string): boolean => /^\s*@human\b/.test(text);
 /** A comment's words without a leading @mention of any of `to` (id or name), which the app draws as a chip. */
 export const addressText = (text: string, to: readonly string[] = ['human']): string => {
-  const m = /^\s*@([\w.-]+)[:,]?\s*/.exec(text);
-  return m && to.some((n) => n.toLowerCase() === m[1].toLowerCase()) ? text.slice(m[0].length) : text;
+  // A picked mention is stored as <@key>, a typed one as @name.
+  const m = /^\s*(?:<@([\w.-]+)>|@([\w.-]+))[:,]?\s*/.exec(text);
+  const who = m?.[1] ?? m?.[2];
+  return m && who && to.some((n) => n.toLowerCase() === who.toLowerCase()) ? text.slice(m[0].length) : text;
 };
 /** Whom the founder's own comment went to: the agents the daemon told it to (its readers), never the founder. */
 export const toldOf = (i: Pick<ActivityItem, 'readers'>, me: string): string[] =>
