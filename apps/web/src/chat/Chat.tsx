@@ -32,7 +32,7 @@ import { useOpenTab } from '#src/layout/openTab.tsx';
 import { restarting } from '#src/layout/agentList.ts';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
-import { HoldBar } from '#src/chat/agent/HoldBar.tsx';
+import { FootRow, HoldCard, useHoldLine } from '#src/chat/agent/HoldBar.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
@@ -45,7 +45,6 @@ import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { TaskCommentCard, taskCards } from '#src/chat/TaskCommentCard.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
-import { Dots } from '#src/chat/Dots.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
 import { Boundary } from '#src/ui/Boundary.tsx';
@@ -108,7 +107,6 @@ export function Chat({ agent }: { agent: string }) {
   return (
     // Files dropped anywhere on the chat go with the next message.
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <HoldBar agent={agent} />
       {served ? (
         <Boundary
           loading={loading}
@@ -129,6 +127,8 @@ export function Chat({ agent }: { agent: string }) {
         loading
       )}
       <Page>
+        {/* Outside the stream's loading and failure, so its button is there whatever the chat shows. */}
+        <HoldCard agent={agent} />
         <SwitchWait agent={agent} />
         <Composer
           agent={agent}
@@ -304,6 +304,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const restart =
     (compacting ? COMPACTING_WORDS[compacting] : switching) ?? (view?.handoff && restarting(view) ? restartingLine(view.handoff) : null);
   const busy = chat.working.turn_running || !!restart;
+  const hold = useHoldLine(agent);
   const now = useNow();
   const stream = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -418,23 +419,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           {view?.pending_move ? (
             <PendingMove agent={agent} />
           ) : (
-            <div className={`h-5 transition-opacity ${busy ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!busy}>
-              <span className="flex items-center gap-2">
-                <Dots />
-                {/* The held task, this turn's minutes, then its newest tool call (AgentView.task, .doing). */}
-                <span className="min-w-0 truncate text-xs text-muted">
-                  {restart && <span className="font-medium text-fg">{restart}</span>}
-                  {restart && (held || doing) && ' · '}
-                  {held && (
-                    <span className="font-medium text-fg">
-                      T{held.id} · {turnMinutes(chat.working.since, now)}
-                    </span>
-                  )}
-                  {held && doing && ' · '}
-                  {doing}
-                </span>
-              </span>
-            </div>
+            <FootRow busy={busy} hold={hold} restart={restart} held={held} doing={doing} turn={turnMinutes(chat.working.since, now)} />
           )}
           <PauseCard agent={agent} />
           <PromptCard agent={agent} />
