@@ -5,8 +5,8 @@ import { setup, until } from '#src/helpers.ts';
 
 const make = (name: string, more: Record<string, unknown> = {}) => ({
   name,
+  workspace: 'handline',
   role: 'worker',
-  repo: '/work/handline',
   base: 'main',
   request_id: `req-${name}`,
   ...more,
@@ -18,16 +18,16 @@ test('agent.create replies with an operation that runs to done, and the agent ap
   const seen: Event[] = [];
   client.onEvent((e) => e.topic === 'operations' && seen.push(e));
   await client.subscribe(['operations', 'agents']);
-  const r = await client.call('agent.create', make('conf.made'));
+  const r = await client.call('agent.create', make('made'));
   assert.equal(r.accepted, true);
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'done'), 'done');
   const steps = seen.map((e) => (e.data as { step: string | null }).step);
   assert.deepEqual(steps, ['registering the agent', 'making its worktree', 'starting the agent', null]);
   const op = await client.call('operation.get', { operation: r.operation });
-  assert.deepEqual([op.state, op.agent, op.result], ['done', 'conf.made', { agent: 'conf.made', registered: true }]);
-  assert.equal(daemon.sessions.get('conf.made')?.state, 'idle');
+  assert.deepEqual([op.state, op.agent, op.result], ['done', 'handline.made', { agent: 'handline.made', registered: true }]);
+  assert.equal(daemon.sessions.get('handline.made')?.state, 'idle');
   assert.equal(
-    daemon.admin.worktrees.rows.some((w) => w.owner === 'conf.made' && w.repo === 'handline'),
+    daemon.admin.worktrees.rows.some((w) => w.owner === 'handline.made' && w.repo === 'handline'),
     true,
   );
   client.close();
@@ -39,11 +39,14 @@ test('a base the repo does not have fails the operation and leaves the agent reg
   const seen: Event[] = [];
   client.onEvent((e) => e.topic === 'operations' && seen.push(e));
   await client.subscribe(['operations']);
-  const r = await client.call('agent.create', make('conf.bad', { base: 'nope' }));
+  const r = await client.call('agent.create', make('bad', { base: 'nope' }));
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'failed'), 'failed');
   const op = await client.call('operation.get', { operation: r.operation });
-  assert.deepEqual([op.state, op.message, op.result], ['failed', 'no branch nope in handline', { agent: 'conf.bad', registered: true }]);
-  assert.equal(daemon.sessions.get('conf.bad')?.state, 'parked');
+  assert.deepEqual(
+    [op.state, op.message, op.result],
+    ['failed', 'no branch nope in handline', { agent: 'handline.bad', registered: true }],
+  );
+  assert.equal(daemon.sessions.get('handline.bad')?.state, 'parked');
   client.close();
 });
 
@@ -53,13 +56,14 @@ test('agent.create checks its params in order and starts nothing when one is wro
   const bad = async (p: Record<string, unknown>, code: string, key: 'field' | 'what' | 'gate', value: string) =>
     await assert.rejects(client.call('agent.create', p as never), (e: RpcError) => e.code === code && e.data?.[key] === value);
   await bad(make('x/y'), 'bad_request', 'field', 'name');
-  await bad(make('ok.one', { effort: 'extreme', repo: '/nope' }), 'bad_request', 'field', 'effort');
-  await bad(make('ok.one', { account: 'nowhere', repo: '/nope' }), 'not_found', 'what', 'account');
-  await bad(make('ok.one', { repo: '/nope' }), 'not_found', 'what', 'repo');
-  await bad(make('ok.one', { parent: 'no.one' }), 'not_found', 'what', 'agent');
-  await bad(make('other', { parent: 'handline.architect' }), 'bad_request', 'field', 'name');
-  await bad(make('handline.auditor'), 'refused', 'gate', 'state');
-  assert.equal(daemon.sessions.has('ok.one'), false);
+  await bad(make('ok.one'), 'bad_request', 'field', 'name');
+  await bad(make('one', { effort: 'extreme', workspace: 'nowhere' }), 'bad_request', 'field', 'effort');
+  await bad(make('one', { account: 'beta', workspace: 'nowhere' }), 'bad_request', 'field', 'account');
+  await bad(make('one', { workspace: undefined }), 'bad_request', 'field', 'workspace');
+  await bad(make('one', { workspace: 'nowhere' }), 'not_found', 'what', 'workspace');
+  await bad(make('one', { folder: '/nope' }), 'bad_request', 'field', 'folder');
+  await bad(make('auditor'), 'refused', 'gate', 'state');
+  assert.equal(daemon.sessions.has('handline.one'), false);
   client.close();
 });
 
@@ -90,15 +94,14 @@ test('agent.options lists the repos, roles, models, efforts, accounts with their
   agent.client.close();
 });
 
-test('agent.create keeps the account it is given, and a name taken leaves the free names', async () => {
-  const { client, daemon } = setup();
+test('a name taken leaves the free names', async () => {
+  const { client } = setup();
   await client.start();
   const seen: Event[] = [];
   client.onEvent((e) => e.topic === 'operations' && seen.push(e));
   await client.subscribe(['operations']);
-  await client.call('agent.create', make('handline.new-builder', { account: 'beta' }));
+  await client.call('agent.create', make('new-builder'));
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'done'), 'done');
-  assert.equal(daemon.sessions.get('handline.new-builder')?.fx.account, 'beta');
   assert.equal((await client.call('agent.options', {})).free_names.includes('handline.new-builder'), false);
   client.close();
 });
@@ -106,7 +109,7 @@ test('agent.create keeps the account it is given, and a name taken leaves the fr
 test('only a founder creates an agent; a daemon that does not list it refuses it', async () => {
   const member = setup({ role: 'member' });
   await member.client.start();
-  await assert.rejects(member.client.call('agent.create', make('conf.m')), (e: RpcError) => e.gate === 'role');
+  await assert.rejects(member.client.call('agent.create', make('m')), (e: RpcError) => e.gate === 'role');
   member.client.close();
   const { client, daemon } = setup();
   daemon.knobs.unserve('agent.create');

@@ -34,13 +34,16 @@ func createdThroughTheRealStart(t *testing.T, p *Parts, ft *fakeTerminals, param
 	return key, ft.opened[0]
 }
 
-// agent.create through the real start: a new agent given by its dotted name is launched and given its desk by its key, the only
+// agent.create through the real start: a new agent, registered by its dotted name, is launched and given its desk by its key, the only
 // names `hl launch` and the desk pool resolve.
 func TestACreatedAgentIsLaunchedAndGivenItsDeskByItsKey(t *testing.T) {
 	ft := newFakeTerminals()
 	p, _, _, _ := wiredWith(t, ft)
 	repo, _ := filepath.EvalSymlinks(gitRepo(t))
-	key, opened := createdThroughTheRealStart(t, p, ft, map[string]any{"name": "alice.town", "repo": repo}, "alice.town")
+	if _, err := p.db.Exec("UPDATE workspaces SET folder = ? WHERE name = 'alice'", repo); err != nil {
+		t.Fatal(err)
+	}
+	key, opened := createdThroughTheRealStart(t, p, ft, map[string]any{"workspace": "alice", "name": "town"}, "alice.town")
 	if !strings.HasSuffix(opened, "|"+key+"|"+lifecycle.CommandFor("", "", "", key)) {
 		t.Fatalf("launched by its key: %q", opened)
 	}

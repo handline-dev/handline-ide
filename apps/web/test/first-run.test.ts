@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { agentNameOf, factCards } from '#src/onboarding/firstTask.ts';
+import { factCards, workspaceNameOf } from '#src/onboarding/firstTask.ts';
 
-describe('agentNameOf', () => {
-  it('names the agent for its folder', () => {
-    expect(agentNameOf('My App_2')).toBe('my-app-2');
-    expect(agentNameOf('handline-ide')).toBe('handline-ide');
-    expect(agentNameOf('日本語')).toBe('agent');
+describe('workspaceNameOf', () => {
+  it('names the workspace for its folder, as workspace.create takes a name', () => {
+    expect(workspaceNameOf('My App_2')).toBe('my-app-2');
+    expect(workspaceNameOf('handline-ide')).toBe('handline-ide');
+    expect(workspaceNameOf('2048-game')).toBe('game');
+    expect(workspaceNameOf('a'.repeat(40))).toBe('a'.repeat(32));
+    expect(workspaceNameOf('日本語')).toBe('project');
   });
 });
 

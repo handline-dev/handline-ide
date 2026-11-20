@@ -87,38 +87,32 @@ export class FakeWork {
   }
 
   private create(p: Record<string, unknown>, accepted: Accepted) {
-    const { role, base, parent } = p;
-    if (typeof p.name !== 'string' || !/^[^./\s][^/\s]*$/.test(p.name))
-      throw invalidParams('name is plain text: no /, no leading . and no spaces', 'name');
-    const placed = p.workspace === undefined ? undefined : this.host.spaces.place(p.name, p.workspace, p.folder);
-    const name = placed?.name ?? p.name;
+    const { role, base } = p;
+    if (typeof p.name !== 'string' || !/^[^./\s]+$/.test(p.name))
+      throw invalidParams('name is a plain name in its workspace: no dot, no / and no spaces', 'name');
     if (typeof role !== 'string' || !role) throw invalidParams('role is the agent’s role, a string', 'role');
-    for (const k of ['model', 'base', 'parent', 'repo'] as const)
+    for (const k of ['model', 'base'] as const)
       if (p[k] !== undefined && typeof p[k] !== 'string') throw invalidParams(`${k} is a string`, k);
     if (p.effort !== undefined && !EFFORTS.includes(String(p.effort)))
       throw invalidParams(`effort is one of ${EFFORTS.join(', ')}`, 'effort');
-    if (p.account !== undefined && typeof p.account !== 'string') throw invalidParams('account is a string', 'account');
-    if (p.account !== undefined && !this.host.accounts.list().accounts.some((a) => a.name === p.account))
-      throw notFound(`no account ${p.account}`, 'account');
-    const found = placed?.repo ?? this.host.admin.worktrees.repos.find((r) => r.path === p.repo);
-    if (!found) throw notFound(`no repo ${String(p.repo)}`, 'repo');
-    if (parent !== undefined && !this.host.sessions.has(String(parent))) throw notFound(`no agent ${String(parent)}`, 'agent');
-    if (parent !== undefined && !name.startsWith(`${String(parent)}.`))
-      throw invalidParams(`under ${String(parent)} the name is ${String(parent)}.<name>`, 'name');
+    if (p.account !== undefined) throw invalidParams('a new agent’s account is chosen when it starts; none can be named yet', 'account');
+    if (p.workspace === undefined) throw invalidParams('workspace is the one the agent is made in', 'workspace');
+    const placed = this.host.spaces.place(p.name, p.workspace, p.folder);
+    const { name, repo: found } = placed;
     if (this.host.sessions.has(name)) throw refused('state', `${name} is already an agent`);
     const fx: AgentFixture = {
       ...AGENTS[0]!,
       name,
       role,
       state: 'parked',
-      account: typeof p.account === 'string' ? p.account : null,
+      account: null,
       task: null,
       // a plain folder is no repo: the agent works in the folder itself, on no branch
-      worktree: placed?.git === false ? found.path : `${found.path}.${name}`,
-      branch: placed?.git === false ? '' : `agent/${name}`,
+      worktree: placed.git ? `${found.path}.${name}` : found.path,
+      branch: placed.git ? `agent/${name}` : '',
       session: null,
     };
-    if (placed) this.host.spaces.settle(name, found.path);
+    this.host.spaces.settle(name, found.path);
     const id = this.launch('agent.create', fx, typeof base === 'string' ? base : found.default_branch, found);
     return accepted(`Creating ${name}.`, { operation: id });
   }

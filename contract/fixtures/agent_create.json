@@ -25,9 +25,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "conf.new",
+       "name": "new",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "/no/such/repo",
        "request_id": "conf-ac-1"
       }
      },
@@ -66,9 +66,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "conf.new",
-       "role": "worker",
-       "repo": "/no/such/repo"
+       "name": "new",
+       "workspace": "{{create_workspace}}",
+       "role": "worker"
       }
      },
      "error": {
@@ -84,7 +84,7 @@
   {
    "name": "agent.create.needs_a_name",
    "spec": "agent.create",
-   "about": "No name is bad_request naming it, before the repo is looked up.",
+   "about": "No name is bad_request naming it, before the workspace is looked up.",
    "as": "founder",
    "steps": [
     {
@@ -107,7 +107,7 @@
       "method": "agent.create",
       "params": {
        "role": "worker",
-       "repo": "/no/such/repo",
+       "workspace": "{{create_workspace}}",
        "request_id": "conf-ac-3"
       }
      },
@@ -124,7 +124,7 @@
   {
    "name": "agent.create.needs_a_role",
    "spec": "agent.create",
-   "about": "No role is bad_request naming it, before the repo is looked up.",
+   "about": "No role is bad_request naming it, before the workspace is looked up.",
    "as": "founder",
    "steps": [
     {
@@ -146,8 +146,8 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "conf.new",
-       "repo": "/no/such/repo",
+       "name": "new",
+       "workspace": "{{create_workspace}}",
        "request_id": "conf-ac-4"
       }
      },
@@ -164,7 +164,7 @@
   {
    "name": "agent.create.effort_is_one_of_five",
    "spec": "agent.create",
-   "about": "An effort outside low, medium, high, xhigh and max is bad_request naming it, before the repo is looked up.",
+   "about": "An effort outside low, medium, high, xhigh and max is bad_request naming it, before the workspace is looked up.",
    "as": "founder",
    "steps": [
     {
@@ -186,9 +186,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "conf.new",
+       "name": "new",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "/no/such/repo",
        "effort": "extreme",
        "request_id": "conf-ac-5"
       }
@@ -206,7 +206,7 @@
   {
    "name": "agent.create.an_account_is_not_served",
    "spec": "agent.create",
-   "about": "A named account is bad_request naming account, never dropped, before the repo is looked up.",
+   "about": "A named account is bad_request naming account, never dropped, before the workspace is looked up.",
    "as": "founder",
    "steps": [
     {
@@ -228,9 +228,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "conf.new",
+       "name": "new",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "/no/such/repo",
        "account": "alpha",
        "request_id": "conf-ac-6"
       }
@@ -246,9 +246,9 @@
    ]
   },
   {
-   "name": "agent.create.an_unknown_repo_is_not_found",
+   "name": "agent.create.an_unknown_workspace_is_not_found",
    "spec": "agent.create",
-   "about": "A repo directory the daemon does not know is not_found, what repo; nothing is registered.",
+   "about": "A workspace the daemon does not know is not_found, what workspace; nothing is registered.",
    "as": "founder",
    "steps": [
     {
@@ -270,9 +270,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "conf.new",
+       "name": "new",
+       "workspace": "no-such-workspace",
        "role": "worker",
-       "repo": "/no/such/repo",
        "request_id": "conf-ac-7"
       }
      },
@@ -280,16 +280,16 @@
       "code": -32001,
       "data": {
        "code": "not_found",
-       "what": "repo"
+       "what": "workspace"
       }
      }
     }
    ]
   },
   {
-   "name": "agent.create.an_unknown_parent_is_not_found",
+   "name": "agent.create.a_folder_not_of_the_workspace_is_bad_request",
    "spec": "agent.create",
-   "about": "A parent that is not an agent is not_found, what agent. Needs --var create_repo.",
+   "about": "A folder the workspace does not hold is bad_request naming folder. Needs --var create_workspace: a workspace with a folder.",
    "as": "founder",
    "steps": [
     {
@@ -311,28 +311,28 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "no.such.parent.child",
+       "name": "new",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "main",
-       "parent": "no.such.parent",
-       "request_id": "conf-ac-8"
+       "request_id": "conf-ac-8",
+       "folder": "/no/such/folder"
       }
      },
      "error": {
-      "code": -32001,
+      "code": -32602,
       "data": {
-       "code": "not_found",
-       "what": "agent"
+       "code": "bad_request",
+       "field": "folder"
       }
      }
     }
    ]
   },
   {
-   "name": "agent.create.a_child_name_starts_with_its_parent",
+   "name": "agent.create.a_dotted_name_is_bad_request",
    "spec": "agent.create",
-   "about": "Under a parent the name must be <parent>.<rest>: any other is bad_request naming name. Needs --var create_repo and create_parent: an agent.",
+   "about": "A name is plain in its workspace: one with a dot is bad_request naming name.",
    "as": "founder",
    "steps": [
     {
@@ -354,11 +354,10 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "wrongprefix",
+       "name": "w.child",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "main",
-       "parent": "{{create_parent}}",
        "request_id": "conf-ac-9"
       }
      },
@@ -375,7 +374,7 @@
   {
    "name": "agent.create.a_used_name_is_refused",
    "spec": "agent.create",
-   "about": "A name an agent already has is refused, gate state; no operation starts. Needs --var create_repo and create_parent: an agent.",
+   "about": "A name an agent of the workspace already has is refused, gate state; no operation starts. Needs --var create_workspace and create_taken: an agent's plain name there.",
    "as": "founder",
    "steps": [
     {
@@ -397,9 +396,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "{{create_parent}}",
+       "name": "{{create_taken}}",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "main",
        "request_id": "conf-ac-10"
       }
@@ -417,7 +416,7 @@
   {
    "name": "agent.create.runs_to_done",
    "spec": "agent.create",
-   "about": "A good call answers once the agent is registered and started, with the operation id and the start's words; the operations topic sent operation.progress along the way, and operation.get then says done. Needs --var create_repo, create_name (a name no agent has).",
+   "about": "A good call answers once the agent is registered and started, with the operation id and the start's words; the operations topic sent operation.progress along the way, and operation.get then says done. Needs --var create_workspace, create_name (a name no agent has).",
    "as": "founder",
    "steps": [
     {
@@ -457,8 +456,8 @@
       "method": "agent.create",
       "params": {
        "name": "{{create_name}}",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "main",
        "request_id": "conf-ac-11"
       }
@@ -487,7 +486,9 @@
       "id": "{{op_id}}",
       "kind": "agent.create",
       "state": "done",
-      "agent": "{{create_name}}"
+      "agent": {
+       "$type": "string"
+      }
      }
     }
    ]
@@ -495,7 +496,7 @@
   {
    "name": "agent.create.runs_to_failed",
    "spec": "agent.create",
-   "about": "A base that does not exist fails the operation, and the call answers with it: refused (gate state) with the reason, the operation id and whether the agent was registered; nothing is cleaned up, and operation.get says failed. Needs --var create_repo, create_name.",
+   "about": "A base that does not exist fails the operation, and the call answers with it: refused (gate state) with the reason, the operation id and whether the agent was registered; nothing is cleaned up, and operation.get says failed. Needs --var create_workspace, create_name.",
    "as": "founder",
    "steps": [
     {
@@ -534,9 +535,9 @@
       "id": 3,
       "method": "agent.create",
       "params": {
-       "name": "{{create_name}}.bad",
+       "name": "{{create_name}}-bad",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "conf/no-such-base",
        "request_id": "conf-ac-12"
       }
@@ -577,7 +578,7 @@
   {
    "name": "agent.create.a_retried_request_id_starts_nothing_twice",
    "spec": "agent.create",
-   "about": "The same request_id again replies with the same operation id and replayed true; no second operation. Needs --var create_repo, create_name.",
+   "about": "The same request_id again replies with the same operation id and replayed true; no second operation. Needs --var create_workspace, create_name.",
    "as": "founder",
    "steps": [
     {
@@ -599,9 +600,9 @@
       "id": 2,
       "method": "agent.create",
       "params": {
-       "name": "{{create_name}}.again",
+       "name": "{{create_name}}-again",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "main",
        "request_id": "conf-ac-13"
       }
@@ -620,9 +621,9 @@
       "id": 3,
       "method": "agent.create",
       "params": {
-       "name": "{{create_name}}.again",
+       "name": "{{create_name}}-again",
+       "workspace": "{{create_workspace}}",
        "role": "worker",
-       "repo": "{{create_repo}}",
        "base": "main",
        "request_id": "conf-ac-13"
       }

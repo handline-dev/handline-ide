@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePicked } from '#src/onboarding/data/picked.ts';
 import { closeOnboarding, useAiTools } from '#src/onboarding/data/progress.ts';
 import type { AiRow } from '#src/onboarding/data/steps.ts';
-import { agentNameOf, factCards, LOOK_AROUND } from '#src/onboarding/firstTask.ts';
+import { factCards, LOOK_AROUND, workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { StepView } from '#src/onboarding/StepView.tsx';
 import { Mark, vendorOf } from '#src/onboarding/Steps.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -26,14 +26,14 @@ export function AgentStep() {
   const [card, setCard] = useState(0);
   const [own, setOwn] = useState('');
   const task = own.trim() || (cards[card] ?? cards[0]).task;
-  const create = useWrite('agent.create');
+  const create = useWrite('workspace.create');
   const [operation, setOperation] = useState<string | null>(null);
   const [startFailed, setStartFailed] = useState(false);
   const start = () =>
     folder &&
     on &&
     create.mutate(
-      { name: agentNameOf(folder.name), role: 'developer', repo: folder.path, account: on.account },
+      { name: workspaceNameOf(folder.name), folder: folder.path, account: on.account },
       { onSuccess: (r) => setOperation((r as { operation: string }).operation) },
     );
   const line = folder ? 'It works on its own branch, so your checkout stays as you left it.' : 'Pick a project first: go back one step.';

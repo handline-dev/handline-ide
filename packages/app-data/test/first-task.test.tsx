@@ -13,9 +13,10 @@ async function creating() {
   const store = new Store(s.client);
   await store.start();
   const { operation } = (await store.client.call('agent.create', {
+    workspace: 'handline',
     name: 'fresh',
     role: 'reviewer',
-    repo: '/work/docs-site',
+    folder: '/work/docs-site',
     base: 'master',
   } as never)) as { operation: string };
   const watch = async () => {
@@ -34,7 +35,7 @@ describe('the first task of a new agent', () => {
     const spy = vi.spyOn(store.client, 'call');
     const v = await watch();
     await until(() => sent(spy).length === 1, 'the task', 4000);
-    expect(sent(spy)[0]).toMatchObject({ owner: 'fresh', title: 'Read the docs', time_box: '3h' });
+    expect(sent(spy)[0]).toMatchObject({ owner: 'handline.fresh', title: 'Read the docs', time_box: '3h' });
     expect(v.get().done).toBe(true);
     await new Promise((r) => setTimeout(r, 200));
     expect(sent(spy)).toHaveLength(1);

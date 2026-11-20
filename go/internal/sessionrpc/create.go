@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -42,8 +40,11 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.Contains(name, "/") || strings.HasPrefix(name, ".") || textsafe.HasUnsafe(name) || !yamlcompat.IsPlainText(name) {
+	if strings.Contains(name, "/") || textsafe.HasUnsafe(name) || !yamlcompat.IsPlainText(name) {
 		return nil, bad("name is an agent's name, plain text", "name")
+	}
+	if strings.Contains(name, ".") {
+		return nil, bad("name is a plain name in its workspace, with no dot", "name")
 	}
 	role, err := createText(params, "role", true)
 	if err != nil {
@@ -59,11 +60,7 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if params["account"] != nil {
 		return nil, bad("a new agent's account is chosen when it starts; none can be named yet", "account")
 	}
-	workspace, err := createText(params, "workspace", false)
-	if err != nil {
-		return nil, err
-	}
-	repo, err := createText(params, "repo", workspace == "")
+	workspace, err := createText(params, "workspace", true)
 	if err != nil {
 		return nil, err
 	}
@@ -79,38 +76,12 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	parent, err := createText(params, "parent", false)
+	name, repo, err := e.inWorkspace(workspace, name, folder)
 	if err != nil {
 		return nil, err
 	}
-	if workspace != "" { // the new shape: a plain name in that workspace, working in one of its folders
-		if strings.Contains(name, ".") {
-			return nil, bad("name is a plain name in its workspace, with no dot", "name")
-		}
-		if parent != "" {
-			return nil, bad("parent is the older shape: with workspace, name the workspace only", "parent")
-		}
-		if name, repo, err = e.inWorkspace(workspace, name, folder); err != nil {
-			return nil, err
-		}
-	} else if st, serr := os.Stat(repo); serr != nil || !st.IsDir() {
-		return nil, notFound("repo", repo, "no repo "+repo)
-	}
-	if parent != "" { // parent is a key (a who param); name is the new agent's dotted name
-		if k, err := paths.AgentKeyIn(e.DB, parent); err != nil {
-			return nil, err
-		} else if k != parent {
-			return nil, notFound("agent", parent, "no agent "+parent)
-		}
-		if paths.AgentKey(e.Home, team.ParentName(name)) != parent {
-			return nil, bad("name is <parent>.<something> under that parent", "name")
-		}
-	}
 	if paths.AgentKey(e.Home, name) != "" {
 		return nil, rpc.Refused(name+" is already an agent", "state", "")
-	}
-	if abs, aerr := filepath.Abs(repo); aerr == nil {
-		repo = abs
 	}
 
 	opts := team.RegisterOpts{Role: role, Repo: repo}

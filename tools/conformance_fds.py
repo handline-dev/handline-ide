@@ -105,10 +105,11 @@ def wait_served(conn: socket.socket, daemon: subprocess.Popen) -> None:
     conn.close()
 
 
-# What agent_create.json needs: a repo (a git directory with a commit), an agent that works in it, and the
+# What agent_create.json needs: a repo (a git directory with a commit), workspace w on it, an agent there that works in it, and the
 # repo's path as that agent's worktree. create_name is not seeded: a new agent is started in a terminal, which this run has none of, so
-# the done, failed and retry fixtures are named in go/conformance-needvar.txt and the Go tests play them over a fake host.
+# the done, failed and retry fixtures are named in go/conformance-needvar.txt.
 WORKROOM = {"create_repo": "", "create_parent": "w.parent"}
+WORKROOM["create_workspace"], _, WORKROOM["create_taken"] = WORKROOM["create_parent"].partition(".")
 
 
 def seed_account(home: Path, name: str) -> Path:
