@@ -128,6 +128,10 @@ func (e *Env) agentsList(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 		v["review_level"] = l.Level
+		v["folder"] = nil // the folder of its workspace it works in
+		if f := roster.RepoOf(n); f != "" {
+			v["folder"] = f
+		}
 		agents = append(agents, v)
 	}
 	return map[string]any{"agents": agents}, nil

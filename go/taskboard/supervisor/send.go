@@ -246,17 +246,6 @@ func (e *Env) FailedReason(agent string, now int64) string {
 	return ""
 }
 
-// FailedSince is why the agent's latest wake or start failed, when that was noted at since or later; "" otherwise.
-func (e *Env) FailedSince(agent string, since int64) string {
-	e.init()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if f, ok := e.failed[agent]; ok && f.at >= since {
-		return f.why
-	}
-	return ""
-}
-
 // HeldReason is (why, contestable) the agent's work was not typed on its latest try; ok false when that is not recent.
 func (e *Env) HeldReason(agent string, now int64) (why string, contestable, ok bool) {
 	e.init()

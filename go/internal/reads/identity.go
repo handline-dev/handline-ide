@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -67,7 +69,7 @@ func (e *Env) peopleList(c *rpc.Conn, params map[string]any) (any, error) {
 	return map[string]any{"people": people}, rs.Err()
 }
 
-// workspacesList is workspaces.list: every workspace, by key, with its lead's key.
+// workspacesList is workspaces.list: every workspace, by key, with its lead's key and its folders, the default first.
 func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
 	rs, err := e.DB.Query("SELECT id, name, folder, added_folders, lead FROM workspaces ORDER BY id")
 	if err != nil {
@@ -90,7 +92,14 @@ func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
 		if lead.Valid {
 			l = actor.Key(actor.Agent, lead.Int64)
 		}
-		out = append(out, map[string]any{"key": actor.Key(actor.Workspace, id), "name": name, "folder": folder, "added_folders": folders, "lead": l})
+		each := []any{}
+		for i, f := range append([]string{folder}, folders...) {
+			if f != "" {
+				each = append(each, map[string]any{"path": f, "name": filepath.Base(f), "git": team.IsGit(f), "default": i == 0})
+			}
+		}
+		out = append(out, map[string]any{"key": actor.Key(actor.Workspace, id), "name": name, "folder": folder, "added_folders": folders,
+			"folders": each, "lead": l})
 	}
 	return map[string]any{"workspaces": out}, rs.Err()
 }

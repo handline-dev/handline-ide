@@ -116,7 +116,7 @@ func TestOnlyTheLeadMovesTheWorkspaceFolder(t *testing.T) {
 	if _, err := r.Register("shop.ui", RegisterOpts{Repo: one}); err != nil {
 		t.Fatalf("a workspace with no folder yet takes one from any agent: %v", err)
 	}
-	if _, err := r.Register("shop.ui", RegisterOpts{Repo: two}); err == nil || !strings.Contains(err.Error(), "set it on its lead") {
+	if _, err := r.Register("shop.ui", RegisterOpts{Repo: two}); err == nil || !strings.Contains(err.Error(), "set the default on its lead") {
 		t.Fatalf("%v", err)
 	}
 	if _, err := r.Register("shop", RegisterOpts{Repo: two}); err != nil {

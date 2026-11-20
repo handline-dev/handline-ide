@@ -46,7 +46,6 @@ func TestWorkspaceCreateRefusesBeforeAnyOperation(t *testing.T) {
 		check        func(map[string]any) bool
 	}{
 		{"shop.x", testfiles.GitCheckout(t), func(m map[string]any) bool { return badField(m) == "name" }},
-		{"shop", plain, func(m map[string]any) bool { return refused(m) == "not_git" }},
 		{"shop", filepath.Join(plain, "gone"), func(m map[string]any) bool {
 			e, _ := m["error"].(map[string]any)
 			return e["message"] != nil && refused(m) == "" && badField(m) == ""
@@ -81,4 +80,12 @@ func TestNothingStartsInAWorkspaceBeingDeleted(t *testing.T) {
 	if len(r.ctl.calls) != 0 {
 		t.Fatalf("%v", r.ctl.calls)
 	}
+}
+
+// A plain folder is a workspace's folder as it is: its lead starts there.
+func TestWorkspaceCreateOnAPlainFolder(t *testing.T) {
+	r, _, c := createRig(t)
+	plain := t.TempDir()
+	result(t, c.call("workspace.create", map[string]any{"name": "notes", "folder": plain, "request_id": rid("wp")}))
+	startedByKey(t, r, "notes", filepath.Clean(plain))
 }

@@ -13,6 +13,10 @@ interface Host {
   tasks: TaskCounter;
   admin: { worktrees: FakeWorktrees };
   accounts: { list(): { accounts: { name: string; login_state: string }[] } };
+  spaces: {
+    place(name: string, workspace: unknown, folder: unknown): { name: string; repo: Repo; git: boolean };
+    settle(agent: string, folder: string): void;
+  };
 }
 type Accepted = (said: string, extra?: object) => unknown;
 
@@ -83,9 +87,11 @@ export class FakeWork {
   }
 
   private create(p: Record<string, unknown>, accepted: Accepted) {
-    const { name, role, repo, base, parent } = p;
-    if (typeof name !== 'string' || !/^[^./\s][^/\s]*$/.test(name))
+    const { role, base, parent } = p;
+    if (typeof p.name !== 'string' || !/^[^./\s][^/\s]*$/.test(p.name))
       throw invalidParams('name is plain text: no /, no leading . and no spaces', 'name');
+    const placed = p.workspace === undefined ? undefined : this.host.spaces.place(p.name, p.workspace, p.folder);
+    const name = placed?.name ?? p.name;
     if (typeof role !== 'string' || !role) throw invalidParams('role is the agent’s role, a string', 'role');
     for (const k of ['model', 'base', 'parent', 'repo'] as const)
       if (p[k] !== undefined && typeof p[k] !== 'string') throw invalidParams(`${k} is a string`, k);
@@ -94,8 +100,8 @@ export class FakeWork {
     if (p.account !== undefined && typeof p.account !== 'string') throw invalidParams('account is a string', 'account');
     if (p.account !== undefined && !this.host.accounts.list().accounts.some((a) => a.name === p.account))
       throw notFound(`no account ${p.account}`, 'account');
-    const found = this.host.admin.worktrees.repos.find((r) => r.path === repo);
-    if (!found) throw notFound(`no repo ${String(repo)}`, 'repo');
+    const found = placed?.repo ?? this.host.admin.worktrees.repos.find((r) => r.path === p.repo);
+    if (!found) throw notFound(`no repo ${String(p.repo)}`, 'repo');
     if (parent !== undefined && !this.host.sessions.has(String(parent))) throw notFound(`no agent ${String(parent)}`, 'agent');
     if (parent !== undefined && !name.startsWith(`${String(parent)}.`))
       throw invalidParams(`under ${String(parent)} the name is ${String(parent)}.<name>`, 'name');
@@ -107,11 +113,13 @@ export class FakeWork {
       state: 'parked',
       account: typeof p.account === 'string' ? p.account : null,
       task: null,
-      worktree: `${found.path}.${name}`,
-      branch: `agent/${name}`,
+      // a plain folder is no repo: the agent works in the folder itself, on no branch
+      worktree: placed?.git === false ? found.path : `${found.path}.${name}`,
+      branch: placed?.git === false ? '' : `agent/${name}`,
       session: null,
     };
-    const id = this.launch('agent.create', fx, typeof base === 'string' ? base : 'main', found);
+    if (placed) this.host.spaces.settle(name, found.path);
+    const id = this.launch('agent.create', fx, typeof base === 'string' ? base : found.default_branch, found);
     return accepted(`Creating ${name}.`, { operation: id });
   }
 
@@ -149,7 +157,7 @@ export class FakeWork {
     await this.wait();
     if (base !== repo.default_branch)
       return report({ state: 'failed', message: `no branch ${base} in ${repo.name}`, result: { agent: fx.name, registered: true } });
-    this.addRow(fx, repo);
+    if (fx.branch) this.addRow(fx, repo);
     report({ steps_done: 2, step: STEPS[2] });
     await this.wait();
     const up = newSession({ ...fx, state: 'idle', session: `s-${fx.name}` }, this.now());

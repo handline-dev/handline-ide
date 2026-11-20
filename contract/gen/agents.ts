@@ -318,7 +318,10 @@ export interface AgentsMethods {
   /** Add the status-line fields of each agent (started, has_repo, has_terminal, screen_word, screen_detail, unreached, task_waits, wake_wait_reason), read at the call; screen_word and screen_detail may be as old as the stored view. Default false. */
   status?: boolean;
 }; result: {
-    agents: AgentView[];
+    agents: (AgentView & {
+      /** The folder of its workspace it works in, a path workspaces.list gives in folders; null when its workspace has none. */
+      folder: string | null;
+    })[];
   } & ReadCursor };
   "agent.get": { params: {
   agent: Who;
@@ -375,11 +378,16 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "agent.create": { params: {
+  /** With workspace, its plain name there (a dot is bad_request, field name); without, the dotted name. */
   name: string;
   /** A free string today. */
   role: string;
-  /** A directory, as repos.list gives it in path. An unknown one is not_found, what repo. */
-  repo: string;
+  /** The workspace's key (w3) or name. An unknown one is not_found, what workspace; one with no folder is refused (gate state). */
+  workspace?: string;
+  /** With workspace: the folder of it the agent works in, as workspaces.list gives its path; absent, the default. One the workspace does not hold is bad_request, field folder. In a git folder the agent gets a worktree of it; in a plain folder it works in the folder itself, on no branch. It reads the workspace's other folders. */
+  folder?: string;
+  /** Without workspace: a directory, as repos.list gives it in path. An unknown one is not_found, what repo. With workspace it is not read. */
+  repo?: string;
   /** The branch to start from; absent, the repo's default branch. The worktree takes the side, local or origin/, that leads, and the operation fails when they have diverged. */
   base?: string;
   model?: string;
