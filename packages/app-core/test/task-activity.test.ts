@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activityOf } from '#src/task-activity.ts';
+import { activityOf, addressText, noteText } from '#src/task-activity.ts';
 
 const e = (kind: string, who: string, text: string, at: string, memo: number | null = null) =>
   ({ at, who, kind, text, memo, edited_at: null }) as Parameters<typeof activityOf>[1][number];
@@ -84,4 +84,12 @@ test("the person's comment that gives the turn back is headed with whom it went 
     'human',
   );
   assert.deepEqual([c!.turn, c!.turnTo, rest.length], ['pop', 'handline.ui', 0]);
+});
+
+test('addressText drops a leading mention of whom the comment went to, by id or name, and keeps others', () => {
+  assert.equal(addressText('@architect what is it?', ['a2', 'architect']), 'what is it?');
+  assert.equal(addressText('@a2 what is it?', ['a2', 'architect']), 'what is it?');
+  assert.equal(addressText('@lead ask @architect', ['a2', 'architect']), '@lead ask @architect');
+  assert.equal(addressText('see @architect', ['architect']), 'see @architect');
+  assert.equal(noteText('@human OK?'), 'OK?');
 });
