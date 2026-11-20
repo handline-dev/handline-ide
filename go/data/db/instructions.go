@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+
+	"github.com/handline/handline/go/kit/actor"
 )
 
 // The instructions a launch gives an agent that people write: its role and standing context, and its workspace's rules. Each is kept as
@@ -96,4 +98,17 @@ func LastInstructionID(q Q, at int64) (int64, error) {
 	}
 	err := q.QueryRow(query, args...).Scan(&id)
 	return id.Int64, err
+}
+
+// InstructionOwner is the key that keeps agent's part: agent itself, or for rules its workspace.
+func InstructionOwner(q Q, agent, part string) (string, error) {
+	if part != PartRules {
+		return agent, nil
+	}
+	_, id, _ := actor.Parse(agent)
+	var ws int64
+	if err := q.QueryRow("SELECT workspace FROM agents WHERE id = ?", id).Scan(&ws); err != nil {
+		return "", err
+	}
+	return actor.Key(actor.Workspace, ws), nil
 }

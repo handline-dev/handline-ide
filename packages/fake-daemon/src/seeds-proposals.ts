@@ -38,6 +38,40 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
     });
   },
 
+  /** A context change with its file before and after, and a bundle whose steps each carry their change. */
+  'proposal-context': (d) => {
+    const book = d.script.proposals;
+    const before = '# architect\nDesigns the daemon.\n- Review every plan.';
+    const after = '# architect\nDesigns the daemon and the app.\n- Review every plan.\n- Keep briefs short.';
+    book.raise({
+      id: 909,
+      kind: 'context',
+      agent: ARCH,
+      title: `context ${ARCH}`,
+      diff: `replace ROLE.md of ${ARCH}`,
+      changes: [{ kind: 'context', agent: ARCH, file: 'ROLE.md', diff: `replace ROLE.md of ${ARCH}`, before, after }],
+      reason: 'The role now covers the app too.',
+    });
+    book.raise({
+      id: 910,
+      kind: 'bundle',
+      agent: '2 changes',
+      title: 'bundle 2 changes',
+      diff: `set model of ${AUD} to opus\nreplace base.md of ${AUD}`,
+      changes: [
+        { kind: 'settings', agent: AUD, diff: `set model of ${AUD} to opus` },
+        {
+          kind: 'context',
+          agent: AUD,
+          file: 'base.md',
+          diff: `replace base.md of ${AUD}`,
+          before: 'Audit each land.',
+          after: 'Audit each land and each release.',
+        },
+      ],
+    });
+  },
+
   /** Two agents set their own handoff prompt, so the global one is ignored by them. */
   'handoff-own': (d) => {
     d.admin.handoffOwn.push('handline.auditor', 'handline.term-build');

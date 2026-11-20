@@ -8,6 +8,9 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 func putProposal(t *testing.T, e *Env, id, body string) {
@@ -248,5 +251,41 @@ func TestAProposalWhoseIdLooksLikeAnExponentIsListed(t *testing.T) {
 	}
 	if _, err := scalar("1.5"); err == nil {
 		t.Fatal("a float is still no field value")
+	}
+}
+
+func TestAContextChangeCarriesItsFileTextBeforeAndAfterWhileItWaits(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "w", "Old role.")
+	ctx := "kind: context\nagent: w\nset.ROLE.md: \"\\\"New role.\\\\n\\\"\"\n"
+	putProposal(t, e, "0000000a", "id: \"0000000a\"\nrequested_by: boss\ncreated: 1\nstate: proposed\n"+ctx)
+	putProposal(t, e, "0000000b", "id: \"0000000b\"\nrequested_by: boss\ncreated: 1\nstate: applied\napplied: 2\n"+ctx)
+	putProposal(t, e, "0000000c", "id: \"0000000c\"\nkind: bundle\nagent: x\nrequested_by: boss\ncreated: 1\nstate: proposed\n"+
+		"i1.kind: context\ni1.agent: w\ni1.set.ROLE.md: \"\\\"New role.\\\"\"\ni2.kind: retire\ni2.agent: old\n")
+	key := teamtest.Key(t, e.Home, "w")
+	rules, _ := db.InstructionOwner(e.DB, key, db.PartRules)
+	if _, err := db.SetInstruction(e.DB, rules, db.PartRules, "Old rules.", "p1", "", 1); err != nil {
+		t.Fatal(err)
+	}
+	putProposal(t, e, "0000000d", "id: \"0000000d\"\nkind: context\nagent: w\nrequested_by: boss\ncreated: 1\nstate: proposed\nset.rules: \"\\\"New rules.\\\"\"\n")
+	got := map[int64][]any{}
+	for _, v := range e.ProposalList() {
+		got[v["id"].(int64)] = v["changes"].([]any)
+	}
+	open := map[string]any{"kind": "context", "agent": "w", "file": "ROLE.md", "diff": "replace ROLE.md of w", "before": "Old role.", "after": "New role."}
+	if !reflect.DeepEqual(got[10], []any{open}) {
+		t.Errorf("open: %v", got[10])
+	}
+	settled := map[string]any{"kind": "context", "agent": "w", "file": "ROLE.md", "diff": "replace ROLE.md of w", "after": "New role."}
+	if !reflect.DeepEqual(got[11], []any{settled}) {
+		t.Errorf("settled: no before, the file now is its after: %v", got[11])
+	}
+	retire := map[string]any{"kind": "retire", "agent": "old", "diff": "retire old"}
+	if !reflect.DeepEqual(got[12], []any{retire, open}) {
+		t.Errorf("bundle, in the order it is applied: %v", got[12])
+	}
+	if c := got[13][0].(map[string]any); c["before"] != "Old rules." || c["after"] != "New rules." {
+		t.Errorf("rules are the workspace's: %v", c)
 	}
 }
