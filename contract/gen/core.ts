@@ -636,7 +636,7 @@ export type Resources = {
   start_hold: string | null;
 };
 
-/** How the person's agent list and dock show agents, the same on every device. */
+/** How the person's agent list and dock show agents and workspaces, the same on every device. */
 export type NavPrefs = {
   /** Pinned agents in the person's order: the dock shows them first and the list on top. No name twice. */
   pins: Who[];
@@ -648,6 +648,8 @@ export type NavPrefs = {
   layout: "tree" | "flat";
   /** The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice. */
   order: Who[];
+  /** The workspaces whose section the list shows folded, by key (Workspace.key). No key twice. */
+  folded: string[];
   /** For you items the founder put off, by `kind:id` (ForYouItem.kind and id, such as `task:42`). prefs.set merges this key entry by entry: an entry sets or replaces one item, null clears it; the other entries stay, so two devices deferring different items lose nothing. An entry whose time passed or whose task ended is dead and the daemon drops it at the next prefs.set that changes later. Absent entries mean not deferred. */
   later?: { [key: string]: Later | null };
 };
@@ -664,6 +666,8 @@ export type NavPrefsChanges = {
   layout?: "tree" | "flat";
   /** The person's order for the tree layout: agents under one parent, and the top-level agents, stand in this order; one not listed (a new agent) comes after the listed ones, by name. The flat layout ignores it. No name twice. */
   order?: Who[];
+  /** The workspaces whose section the list shows folded, by key (Workspace.key). No key twice. */
+  folded?: string[];
   /** Entries to set or clear in NavPrefs.later: an entry sets or replaces one item's deferral, null clears it; the other items stay. A key is `kind:id` of a For you item (kind task, comment or machine: a prompt or a proposal cannot be put off); an entry has exactly one of until and after_task. */
   later?: { [key: string]: Later | null };
 };

@@ -11,7 +11,7 @@ export interface PrefsHost {
 }
 
 export class FakePrefs {
-  private nav: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', order: [], later: {} };
+  private nav: NavPrefs = { pins: [], unread_only: false, hidden: [], layout: 'tree', order: [], folded: [], later: {} };
   private host: PrefsHost;
 
   constructor(host: PrefsHost) {
@@ -28,7 +28,7 @@ export class FakePrefs {
 
   private get = (): Prefs => ({ nav: { ...this.nav } });
 
-  /** A retired agent leaves the pins, the folds and the order. */
+  /** A retired agent leaves the pins and the order. */
   forget(agent: string): void {
     const drop = (names: string[]) => names.filter((n) => n !== agent);
     const { pins, order } = this.nav;
@@ -36,7 +36,7 @@ export class FakePrefs {
     this.store({ pins: drop(pins), order: drop(order) });
   }
 
-  /** Every key is checked as the contract types it; a pin, a fold or an order entry must name a known agent, once. */
+  /** Every key is checked as the contract types it; a pin or an order entry must name a known agent, once. */
   private set(nav: NavPrefsChanges | undefined): void {
     if (!nav || typeof nav !== 'object' || Array.isArray(nav)) throw invalidParams('changes.nav is required', 'changes.nav');
     const extra = Object.keys(nav).find((k) => !(k in this.nav));
@@ -52,6 +52,10 @@ export class FakePrefs {
       const unknown = names.find((n) => !this.host.sessions.has(n));
       if (unknown) throw invalidParams(`no agent named ${unknown}`, `changes.nav.${field}`);
     }
+    const { folded } = nav;
+    if (folded !== undefined && (!Array.isArray(folded) || folded.some((k) => typeof k !== 'string' || !k)))
+      throw invalidParams('folded is a list of workspace keys', 'changes.nav.folded');
+    if (folded && new Set(folded).size !== folded.length) throw invalidParams('folded names a workspace twice', 'changes.nav.folded');
     this.store(nav);
   }
 

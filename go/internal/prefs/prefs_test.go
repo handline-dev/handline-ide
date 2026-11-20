@@ -33,19 +33,19 @@ func set(t *testing.T, d *sql.DB, person string, changes map[string]any, agents 
 
 func TestAPersonsPrefsStartAsTheDefaultsAndEachKeyGivenReplacesItsOwn(t *testing.T) {
 	d := storetest.Open(t)
-	if n, _ := navOf(d, "human"); n.Layout != "tree" || len(n.Pins) != 0 || n.UnreadOnly || n.Order == nil || len(n.Order) != 0 {
+	if n, _ := navOf(d, "human"); n.Layout != "tree" || len(n.Pins) != 0 || n.UnreadOnly || n.Order == nil || len(n.Order) != 0 || n.Folded == nil || len(n.Folded) != 0 {
 		t.Fatalf("defaults: %+v", n)
 	}
 	agents := []string{"a", "b"}
 	if err := set(t, d, "human", map[string]any{"pins": []any{"b", "a"}, "layout": "flat"}, agents); err != nil {
 		t.Fatal(err)
 	}
-	if err := set(t, d, "human", map[string]any{"unread_only": true, "hidden": []any{"idle"}, "order": []any{"b", "a"}}, agents); err != nil {
+	if err := set(t, d, "human", map[string]any{"unread_only": true, "hidden": []any{"idle"}, "order": []any{"b", "a"}, "folded": []any{"w2"}}, agents); err != nil {
 		t.Fatal(err)
 	}
 	n, _ := navOf(d, "human")
 	if !slices.Equal(n.Pins, []string{"b", "a"}) || n.Layout != "flat" || !n.UnreadOnly || !slices.Equal(n.Hidden, []string{"idle"}) ||
-		!slices.Equal(n.Order, []string{"b", "a"}) {
+		!slices.Equal(n.Order, []string{"b", "a"}) || !slices.Equal(n.Folded, []string{"w2"}) {
 		t.Fatalf("%+v", n)
 	}
 }
@@ -62,6 +62,8 @@ func TestABadChangeIsRefusedNamingItsFieldAndKeepsNothing(t *testing.T) {
 		{map[string]any{"order": []any{"ghost"}}, "changes.nav.order"},
 		{map[string]any{"order": []any{"a", "a"}}, "changes.nav.order"},
 		{map[string]any{"order": "a"}, "changes.nav.order"},
+		{map[string]any{"folded": []any{"w1", "w1"}}, "changes.nav.folded"},
+		{map[string]any{"folded": "w1"}, "changes.nav.folded"},
 		{map[string]any{"hidden": []any{"asleep"}}, "changes.nav.hidden"},
 		{map[string]any{"layout": "grid"}, "changes.nav.layout"},
 		{map[string]any{"unread_only": "yes"}, "changes.nav.unread_only"},
