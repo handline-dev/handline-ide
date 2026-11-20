@@ -137,7 +137,7 @@ func TestQueueReasonSaysTheHeadsOwnTaskIsBlocked(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', ?, 'p1', 1), (2, 'u', ?, 'p1', 1)", bobKey(t, e), bobKey(t, e))
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1)")
-	if got, _ := e.QueueReason(bobKey(t, e), 1); got != "its own task is blocked" {
+	if got, _ := e.QueueReason(bobKey(t, e), 1); got != "its own task waits on another" {
 		t.Errorf("the blocked head: %q", got)
 	}
 	if got, _ := e.QueueReason(bobKey(t, e), 2); got != "waiting for the agent" {
@@ -157,7 +157,7 @@ func TestQueueReasonSaysABlockedRequestIsHeldByItsOwnTaskWhereverItSits(t *testi
 	}
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(9, 'first', 'amy', 'amy', 1)")
 	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 9, 1), (2, 9, 1)")
-	for id, want := range map[int64]string{1: "its own task is blocked", 2: "its own task is blocked", 3: "waiting for the agent"} {
+	for id, want := range map[int64]string{1: "its own task waits on another", 2: "its own task waits on another", 3: "waiting for the agent"} {
 		if got, err := e.QueueReason(bobKey(t, e), id); err != nil || got != want {
 			t.Errorf("#%d: %q %v, want %q", id, got, err, want)
 		}

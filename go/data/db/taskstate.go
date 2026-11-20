@@ -58,7 +58,7 @@ func HoldsCurrent(q Q, t *Task) (bool, error) {
 	return wayFree(q, t.Acting)
 }
 
-// wayFree: agent holds no open, unblocked task.
+// wayFree: agent holds no open task that does not wait (TaskWaits).
 func wayFree(q Q, agent string) (bool, error) {
 	held, ok, err := CurrentTask(q, agent)
 	if err != nil || !ok {
@@ -68,8 +68,7 @@ func wayFree(q Q, agent string) (bool, error) {
 	if err != nil || cur == nil || cur.Ended() {
 		return err == nil, err
 	}
-	bs, err := TaskBlockers(q, held)
-	return len(bs) > 0, err
+	return TaskWaits(q, held)
 }
 
 func isCurrent(q Q, t *Task) (bool, error) {
@@ -225,13 +224,13 @@ func BlockWait(q Q, agent string) (string, error) {
 }
 
 // CurrentTaskStillAsking is actions._current_task_still_asking: the agent's current task still has its own request out, the one thing left
-// to deliver. A begun task always does, until it is done; a blocked one never does, so its owner moves on.
+// to deliver. A begun task always does, until it is done; one that waits (TaskWaits) never does, so its owner moves on.
 func CurrentTaskStillAsking(q Q, agent string) (bool, error) {
 	t, err := currentOpen(q, agent)
 	if err != nil || t == nil {
 		return false, err
 	}
-	if bs, err := TaskBlockers(q, t.ID); len(bs) > 0 || err != nil {
+	if waits, err := TaskWaits(q, t.ID); waits || err != nil {
 		return false, err
 	}
 	if b, err := Begun(q, t.ID); b || err != nil {
@@ -257,7 +256,7 @@ type WaitingTask struct {
 }
 
 // WaitingTasks is actions._waiting_tasks: the agent's open tasks that could become current, by priority then age. Skips one blocked,
-// still a draft, or with nothing of its own left to deliver.
+// still a draft, or with nothing of its own left to deliver. Blocked counts a task waiting on a child of its own (TaskWaits).
 func WaitingTasks(q Q, agent string) ([]WaitingTask, error) {
 	open, err := OpenTasks(q)
 	if err != nil {
@@ -268,11 +267,11 @@ func WaitingTasks(q Q, agent string) ([]WaitingTask, error) {
 		if t.Acting != agent || t.DoneEvidence.String != "" {
 			continue
 		}
-		bs, err := TaskBlockers(q, t.ID)
+		waits, err := TaskWaits(q, t.ID)
 		if err != nil {
 			return nil, err
 		}
-		if len(bs) > 0 {
+		if waits {
 			continue
 		}
 		sent := t.SentAt.Valid

@@ -94,11 +94,12 @@ func (e *Env) newestWaiting(whose string) (int64, error) {
 }
 
 func (e *Env) agentQueue(whose string, newest int64, all bool) (any, error) {
-	out := map[string]any{"whose": whose, "newest": newest, "head": nil}
-	first, err := db.EffectiveHead(e.DB, whose) // a request whose task is blocked does not hold the queue
-	if err == nil && first == nil {
-		first, err = db.HeadOfQueue(e.DB, whose, 0) // nothing it can act on yet: the oldest still shows
+	held, err := e.heldRequests(whose)
+	if err != nil {
+		return nil, err
 	}
+	out := map[string]any{"whose": whose, "newest": newest, "head": nil, "on_hold": held}
+	first, err := db.EffectiveHead(e.DB, whose) // a request whose task waits on another does not hold the queue
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +108,7 @@ func (e *Env) agentQueue(whose string, newest int64, all bool) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		depth -= len(held)
 		closes := "`hl say " + first.Requester + " --parent <id> \"<answer>\"` answers it"
 		if first.Kind.String == "task" {
 			if closes, err = states.AnswerVerb(e.DB, first); err != nil {
@@ -127,6 +129,48 @@ func (e *Env) agentQueue(whose string, newest int64, all bool) (any, error) {
 				"chain_depth": r.i("chain_depth"), "line": head(oneline(r.str("body")), lineShown)})
 		}
 		out["history"] = history
+	}
+	return out, nil
+}
+
+// heldRequests are the agent's routed requests whose task waits (db.HeadTaskBlocked), oldest first, each with the task that waits and the
+// open tasks it waits on (none when it waits on an ask the agent sent).
+func (e *Env) heldRequests(whose string) ([]any, error) {
+	rows, err := db.QueuedFor(e.DB, whose)
+	if err != nil {
+		return nil, err
+	}
+	out := []any{}
+	for _, r := range rows {
+		if r.Kind.String == "say" || r.EdgeOK.Int64 == 0 {
+			continue
+		}
+		if waits, err := db.HeadTaskBlocked(e.DB, whose, r); err != nil || !waits {
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
+		tasks, err := db.TasksForRequest(e.DB, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		task, on := int64(0), []any{}
+		for _, t := range tasks {
+			ids, err := db.TaskWaitsOn(e.DB, t.ID)
+			if err != nil {
+				return nil, err
+			}
+			if task == 0 || len(ids) > 0 && len(on) == 0 {
+				task = t.ID
+			}
+			if len(on) == 0 {
+				for _, id := range ids {
+					on = append(on, id)
+				}
+			}
+		}
+		out = append(out, map[string]any{"id": r.ID, "name": r.Name(e.DB), "task": task, "on": on})
 	}
 	return out, nil
 }

@@ -50,7 +50,7 @@ func (e *Env) QueueReason(agent string, rid int64) (string, error) {
 	}
 	if req != nil {
 		if blocked, err := db.HeadTaskBlocked(e.DB, agent, req); err != nil || blocked {
-			return "its own task is blocked", err
+			return "its own task waits on another", err
 		}
 	}
 	head, err := db.EffectiveHead(e.DB, agent)

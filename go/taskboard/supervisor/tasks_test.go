@@ -743,3 +743,27 @@ func TestSayNowWithNoticesCarriesTheWaitingNoticesAndMarksThemDigested(t *testin
 		t.Fatal("the carried notices stay pending")
 	}
 }
+
+// A story waits on an open child of its own as on a blocker: its agent is moved on to the child, and back to the story once the child ends.
+func TestAStoryWaitingOnItsOwnChildGivesItsAgentTheChild(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	story := r.newTask("bob", "alice", "the story")
+	_, _, err := r.AdvanceCurrentTask(r.DB, r.k("bob"))
+	r.must(err)
+	child, err := db.NewTask(r.DB, "a part", r.k("bob"), r.k("bob"), story, db.DefaultPriority, "", 0, "")
+	r.must(err)
+	_, err = db.SetTaskQueued(r.DB, child, r.k("bob"))
+	r.must(err)
+	r.must(r.SweepTaskQueue(r.clock))
+	if cur, ok, _ := db.CurrentTask(r.DB, r.k("bob")); !ok || cur != child {
+		t.Fatalf("bob holds T%d, not the child T%d", cur, child)
+	}
+	_, err = db.MarkTaskDone(r.DB, child, "sha", "done")
+	r.must(err)
+	_, _, err = r.AdvanceCurrentTask(r.DB, r.k("bob"))
+	r.must(err)
+	if cur, ok, _ := db.CurrentTask(r.DB, r.k("bob")); !ok || cur != story {
+		t.Fatalf("bob holds T%d, not the story T%d again", cur, story)
+	}
+}

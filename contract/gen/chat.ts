@@ -495,7 +495,7 @@ export interface ChatMethods {
     whose: string;
     /** The number of the newest thing waiting in this inbox, 0 for nothing: for an agent a request no state has settled, for the founder a mailbox row. */
     newest: number;
-    /** The head of an agent's queue; null when the queue is empty and for the founder's mailbox. */
+    /** The head of an agent's queue: the first request it can act on; null when there is none and for the founder's mailbox. */
     head: {
       id: number;
       requester: string;
@@ -508,6 +508,15 @@ export interface ChatMethods {
       /** What the agent does to close it: the reply that answers it, or for a task the hand-on and done commands. */
       how_to_close: string;
     } | null;
+    /** An agent's queued requests whose task waits on another task or on an ask it sent, oldest first; absent for the founder. */
+    on_hold?: {
+      id: number;
+      name: string;
+      /** The task it delivers, 0 for none. */
+      task: number;
+      /** The open tasks it waits on: blockers, then children; empty when it waits on an ask. */
+      on: number[];
+    }[];
     /** An agent's inbox with `all`: every request sent to it, oldest first. */
     history?: {
       id: number;

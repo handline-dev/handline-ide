@@ -139,8 +139,13 @@ func inbox(c *hlclient.Client, args []string) (int, bool) {
 		return 0, true
 	}
 	head, _ := got["head"].(map[string]any)
+	held := heldLines(list(got, "on_hold"))
 	if head == nil {
-		fmt.Printf("%s: inbox empty\n", agent)
+		if held == "" {
+			fmt.Printf("%s: inbox empty\n", agent)
+		} else {
+			fmt.Printf("%s: nothing to act on now\n%s", agent, held)
+		}
 		return 0, true
 	}
 	fmt.Printf("%s from %s  depth=%d\n\n", str(head, "name"), str(head, "requester"), num(head, "chain_depth"))
@@ -151,6 +156,9 @@ func inbox(c *hlclient.Client, args []string) (int, bool) {
 	fmt.Println(textsafe.Text(body))
 	if more := str(head, "more_waiting_line"); more != "" {
 		fmt.Printf("\n%s\n", textsafe.Oneline(more))
+	}
+	if held != "" {
+		fmt.Printf("\n%s", held)
 	}
 	fmt.Printf("\n%s. `hl inbox --all` shows the whole queue and its history.\n", textsafe.Oneline(str(head, "how_to_close")))
 	// Only a look at one's own queue counts as being told.
@@ -413,4 +421,25 @@ func doing(line map[string]any) string {
 		state += " · no terminal yet"
 	}
 	return state
+}
+
+// heldLines are the queued requests whose task waits on another, a line each: they come to the head once that ends.
+func heldLines(rows []obj) string {
+	var b strings.Builder
+	for _, w := range rows {
+		on := []string{}
+		for _, v := range anyList(w["on"]) {
+			on = append(on, fmt.Sprintf("T%v", v))
+		}
+		what := str(w, "name")
+		if t := num(w, "task"); t != 0 {
+			what += fmt.Sprintf(" (T%d)", t)
+		}
+		if len(on) == 0 {
+			fmt.Fprintf(&b, "%s waits on an ask of yours\n", what)
+		} else {
+			fmt.Fprintf(&b, "%s waits on %s\n", what, strings.Join(on, ", "))
+		}
+	}
+	return b.String()
 }
