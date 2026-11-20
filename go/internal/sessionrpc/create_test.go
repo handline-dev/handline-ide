@@ -219,3 +219,30 @@ func TestCreateChecksTheNameBeforeEffortAndAccount(t *testing.T) {
 		t.Fatalf("field %q", f)
 	}
 }
+
+// agent.create in a workspace: a plain name, working in the folder of it asked for, or its default.
+func TestCreateInAWorkspaceWorksInTheFolderAskedFor(t *testing.T) {
+	r, _, c := createRig(t)
+	web, api := testfiles.GitCheckout(t), testfiles.GitCheckout(t)
+	ws := paths.WorkspaceKey(r.e.Home, "ann")
+	r.e.DB.Exec("UPDATE workspaces SET folder = ? WHERE id = ?", web, ws[1:])
+	if err := r.e.Roster.AddFolder(ws, api); err != nil {
+		t.Fatal(err)
+	}
+	result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": "server", "folder": api, "role": "worker", "request_id": rid("f1")}))
+	startedByKey(t, r, "ann.server", api)
+	result(t, c.call("agent.create", map[string]any{"workspace": ws, "name": "ui", "role": "worker", "request_id": rid("f2")}))
+	startedByKey(t, r, "ann.ui", web)
+	if r.e.Roster.RepoOf("ann.server") != api {
+		t.Fatalf("it works in that folder from now on: %q", r.e.Roster.RepoOf("ann.server"))
+	}
+	for i, p := range []map[string]any{
+		{"workspace": "ann", "name": "a.b", "role": "worker"},
+		{"workspace": "ann", "name": "x", "folder": testfiles.GitCheckout(t), "role": "worker"},
+	} {
+		p["request_id"] = rid("f" + string(rune('3'+i)))
+		if f := badField(c.call("agent.create", p)); f != []string{"name", "folder"}[i] {
+			t.Errorf("%v: field %q", p, f)
+		}
+	}
+}

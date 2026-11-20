@@ -449,14 +449,14 @@
      },
      "folder": {
       "type": "string",
-      "description": "The project folder its agents' worktrees are made from."
+      "description": "Its default folder, the first of folders; \"\" when it has none."
      },
      "added_folders": {
       "type": "array",
       "items": {
        "type": "string"
       },
-      "description": "Further folders its agents may read and write."
+      "description": "Its other folders, in the order they were added."
      },
      "lead": {
       "oneOf": [
@@ -468,6 +468,13 @@
        }
       ],
       "description": "The key of its lead agent; null before it has one."
+     },
+     "folders": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/WorkspaceFolder"
+      },
+      "description": "Every folder of the workspace, the default first. Each agent works in one of them (agents.list folder) and reads the others."
      }
     },
     "required": [
@@ -475,6 +482,7 @@
      "name",
      "folder",
      "added_folders",
+     "folders",
      "lead"
     ]
    },
@@ -526,6 +534,33 @@
      "source",
      "set_by",
      "set_at"
+    ]
+   },
+   "WorkspaceFolder": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "The folder, an absolute path: a git checkout's top, or a plain folder."
+     },
+     "name": {
+      "type": "string",
+      "description": "The folder's own name, the last part of its path."
+     },
+     "git": {
+      "type": "boolean",
+      "description": "Whether it is a git checkout: an agent there works in a worktree of it, on its own branch; in a plain folder it works in the folder itself."
+     },
+     "default": {
+      "type": "boolean",
+      "description": "Whether it is the workspace's default folder, where a new agent works unless told another."
+     }
+    },
+    "required": [
+     "path",
+     "name",
+     "git",
+     "default"
     ]
    }
   }
@@ -727,7 +762,7 @@
   },
   {
    "name": "workspace.create",
-   "summary": "Make a workspace on the top of the git checkout folder is in, with its lead (reporting to the owner, its rules seeded), and start the lead: one operation, answered as agent.create's. Refused before any operation starts: a folder in no checkout (gate not_git), a missing one (not_found, what folder), a name a workspace has (gate state). Owner only; an agent proposes a team instead.",
+   "summary": "Make a workspace on folder (the top of the git checkout it is in, or the plain folder itself), with its lead (reporting to the owner, its rules seeded), and start the lead: one operation, answered as agent.create's. Refused before any operation starts: a missing one (not_found, what folder), a name a workspace has (gate state). Owner only; an agent proposes a team instead.",
    "description": "The operation has kind workspace.create and its agent is the workspace's name (its lead); its steps and result are agent.create's. A folder another workspace's shares, or a name the rules refuse, fails it with the reason. A start that fails leaves the workspace and its lead registered, so its name is in use: start the lead with session.start (hl wake), or remove it with workspace.delete.",
    "paramStructure": "by-name",
    "params": [
@@ -744,7 +779,7 @@
      "required": true,
      "schema": {
       "type": "string",
-      "description": "The project folder, an absolute path (~ is the home folder)."
+      "description": "The workspace's first folder, its default: an absolute path (~ is the home folder), a git checkout or a plain folder."
      }
     },
     {
@@ -788,13 +823,12 @@
     }
    ],
    "x-gates": [
-    "state",
-    "not_git"
+    "state"
    ]
   },
   {
    "name": "workspace.set",
-   "summary": "Rename a workspace: its name is the one thing this changes. Keys never change; the dotted form of each agent's name (workspace.agent) follows the new name, and the old one no longer resolves. Refused (gate state) while one of its agents has a session running, while an open proposal names one by its dotted name, or for a name the rules refuse or a workspace or person's handle has. The same name is no change. Owner only.",
+   "summary": "Rename a workspace, add a folder to it or take one away. Keys never change; the dotted form of each agent's name (workspace.agent) follows a new name, and the old one no longer resolves. A rename is refused (gate state) while one of its agents has a session running, while an open proposal names one by its dotted name, or for a name the rules refuse or a workspace or person's handle has; the same name is no change. A folder is added after the others (one it has is no change) and refused (gate state) when it is not there or another workspace's folder holds it or is in it; taking one is refused (gate state) while an agent works in it, and taking the default makes the next folder the default. Owner only.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -807,10 +841,26 @@
     },
     {
      "name": "name",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
-      "description": "The new name: lowercase letters, digits and -, 1 to 32 long, starting with a letter."
+      "description": "A new name: lowercase letters, digits and -, 1 to 32 long, starting with a letter."
+     }
+    },
+    {
+     "name": "add_folder",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "A folder to add, an absolute path: a git checkout (kept as its top) or a plain folder."
+     }
+    },
+    {
+     "name": "remove_folder",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "A folder to take away, as workspaces.list gives its path."
      }
     },
     {
@@ -847,7 +897,8 @@
    ],
    "x-gates": [
     "state"
-   ]
+   ],
+   "description": "At least one of name, add_folder and remove_folder; none is bad_request, field name."
   },
   {
    "name": "workspace.delete",

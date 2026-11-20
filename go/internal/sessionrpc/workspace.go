@@ -16,7 +16,7 @@ import (
 
 const workspaceCreateKind = "workspace.create"
 
-// workspaceCreate is workspace.create: a workspace on a folder (the top of its git checkout) and its lead, started there, as one
+// workspaceCreate is workspace.create: a workspace on a folder (the top of its git checkout, or a plain folder) and its lead, started there, as one
 // operation like agent.create's. What can be told at once (the name, the folder, a workspace of that name) is refused before any
 // operation starts; the rest is the operation's.
 func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
@@ -31,13 +31,9 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	top, err := team.Toplevel(folder)
+	top, _, err := team.Folder(folder)
 	if err != nil {
-		var ng *team.NotGit
-		switch {
-		case errors.As(err, &ng):
-			return nil, rpc.Refused(err.Error(), "not_git", "")
-		case team.IsRefusal(err):
+		if team.IsRefusal(err) {
 			return nil, notFound("folder", folder, err.Error())
 		}
 		return nil, err

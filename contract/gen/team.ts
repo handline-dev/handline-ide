@@ -151,12 +151,14 @@ export type Workspace = {
   /** w<n>. */
   key: string;
   name: string;
-  /** The project folder its agents' worktrees are made from. */
+  /** Its default folder, the first of folders; "" when it has none. */
   folder: string;
-  /** Further folders its agents may read and write. */
+  /** Its other folders, in the order they were added. */
   added_folders: string[];
   /** The key of its lead agent; null before it has one. */
   lead: string | null;
+  /** Every folder of the workspace, the default first. Each agent works in one of them (agents.list folder) and reads the others. */
+  folders: WorkspaceFolder[];
 };
 
 /** A kept rule in force for a workspace (docs/design/people-workspaces.md "Workspace rules"): its value, and whether the workspace or the machine default sets it. */
@@ -173,6 +175,17 @@ export type WorkspaceRule = {
   set_by: string;
   /** When, unix seconds. */
   set_at: number;
+};
+
+export type WorkspaceFolder = {
+  /** The folder, an absolute path: a git checkout's top, or a plain folder. */
+  path: string;
+  /** The folder's own name, the last part of its path. */
+  name: string;
+  /** Whether it is a git checkout: an agent there works in a worktree of it, on its own branch; in a plain folder it works in the folder itself. */
+  git: boolean;
+  /** Whether it is the workspace's default folder, where a new agent works unless told another. */
+  default: boolean;
 };
 
 export interface TeamMethods {
@@ -197,7 +210,7 @@ export interface TeamMethods {
   "workspace.create": { params: {
   /** The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name. */
   name: string;
-  /** The project folder, an absolute path (~ is the home folder). */
+  /** The workspace's first folder, its default: an absolute path (~ is the home folder), a git checkout or a plain folder. */
   folder: string;
   /** An account to pin the lead to: it runs that account's vendor and never moves off it. Needed for a codex account, which the pick never places an unpinned agent on. Omitted: the lead is placed as any agent. An unknown account is not_found, what account; one not logged in is accepted, and the lead waits for its login as any agent pinned to a logged-out account does. */
   account?: string;
@@ -206,8 +219,12 @@ export interface TeamMethods {
   "workspace.set": { params: {
   /** The workspace's key (w3) or its name, as workspaces.list gives them. An unknown one is not_found, what workspace. */
   workspace: string;
-  /** The new name: lowercase letters, digits and -, 1 to 32 long, starting with a letter. */
-  name: string;
+  /** A new name: lowercase letters, digits and -, 1 to 32 long, starting with a letter. */
+  name?: string;
+  /** A folder to add, an absolute path: a git checkout (kept as its top) or a plain folder. */
+  add_folder?: string;
+  /** A folder to take away, as workspaces.list gives its path. */
+  remove_folder?: string;
   request_id: RequestId;
 }; result: Accepted };
   "workspace.delete": { params: {

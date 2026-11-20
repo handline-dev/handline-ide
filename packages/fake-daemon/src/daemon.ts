@@ -56,9 +56,10 @@ export class FakeDaemon {
   readonly accounts: FakeAccounts;
   readonly admin: FakeAdmin;
   /** The repos, worktrees and the agent.create operation; `work.stepMs` slows its steps. */
-  readonly work = new FakeWork(this, () => this.iso());
+  // typed out: work and spaces read each other through this, which inference cannot settle
+  readonly work: FakeWork = new FakeWork(this, () => this.iso());
   /** workspaces.list and the owner's workspace.create, workspace.set and workspace.delete. */
-  readonly spaces = new FakeWorkspaces(this);
+  readonly spaces: FakeWorkspaces = new FakeWorkspaces(this);
   /** The kept rules: workspace.rules and the owner's workspace.rule.set. */
   readonly rules = new FakeRules(this);
   /** hello's capabilities.transcript: chat.send takes parent_item. */

@@ -18,6 +18,7 @@ export interface CoreHost {
   readonly inbox: FakeInbox;
   readonly admin: FakeAdmin;
   readonly accounts: FakeAccounts;
+  readonly spaces: { folderFor(key: string): string | null };
   readonly replyItems: boolean;
   readonly pairing: FakePairing;
   readonly log: EventLog;
@@ -97,7 +98,9 @@ export function coreCall(
       return loadReply(d.sessions, d.iso(), p);
     case 'agents.list':
       return {
-        agents: [...d.sessions.values()].map((s) => view(s, d.tasks)).map((v) => ({ ...v, review_level: d.tasks.reviewOf(v.key).level })),
+        agents: [...d.sessions.values()]
+          .map((s) => view(s, d.tasks))
+          .map((v) => ({ ...v, review_level: d.tasks.reviewOf(v.key).level, folder: d.spaces.folderFor(v.key) })),
       };
     case 'people.list':
       return { people: PEOPLE };

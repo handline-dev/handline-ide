@@ -65,22 +65,29 @@ type NotRegistered struct{ Name string }
 
 func (e *NotRegistered) Error() string { return fmt.Sprintf("agent '%s' is not registered", e.Name) }
 
-// IsRefusal is whether err is a Roster's answer to the caller (a refused value or name, a missing agent, a folder that is no checkout),
-// not a failure.
+// IsRefusal is whether err is a Roster's answer to the caller (a refused value or name, a missing agent), not a failure.
 func IsRefusal(err error) bool {
 	var r *names.Refusal
 	var n *NotRegistered
-	var g *NotGit
-	return errors.As(err, &r) || errors.As(err, &n) || errors.As(err, &g)
+	return errors.As(err, &r) || errors.As(err, &n)
 }
 
 func refuse(format string, a ...any) error { return &names.Refusal{Msg: fmt.Sprintf(format, a...)} }
 
-// row is where an agent is: its id (0 when there is none yet) and its workspace's id (0 when there is none), name and folder.
+// row is where an agent is: its id (0 when there is none yet), its workspace's id (0 when there is none), name and default folder, and
+// own, the folder of its workspace it works in ("" for the default).
 type row struct {
-	id, ws         int64
-	wsName, folder string
-	lead           bool
+	id, ws              int64
+	wsName, folder, own string
+	lead                bool
+}
+
+// works is the folder the agent works in: its own, else its workspace's default.
+func (r row) works() string {
+	if r.own != "" {
+		return r.own
+	}
+	return r.folder
 }
 
 // find is where who's agent is: who is its key or its old dotted name.
@@ -88,8 +95,8 @@ func find(q db.Q, who string) (row, error) {
 	if k, id, ok := actor.Parse(who); ok && k == actor.Agent {
 		var r row
 		var lead sql.NullInt64
-		err := q.QueryRow(`SELECT a.id, w.id, w.name, w.folder, w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).
-			Scan(&r.id, &r.ws, &r.wsName, &r.folder, &lead)
+		err := q.QueryRow(`SELECT a.id, w.id, w.name, w.folder, COALESCE(a.folder, ''), w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace
+			WHERE a.id = ?`, id).Scan(&r.id, &r.ws, &r.wsName, &r.folder, &r.own, &lead)
 		if errors.Is(err, sql.ErrNoRows) {
 			return row{}, nil
 		}
@@ -108,9 +115,12 @@ func find(q db.Q, who string) (row, error) {
 	}
 	if agent == "" {
 		r.id, r.lead = lead.Int64, lead.Valid
-		return r, nil
+		if r.lead {
+			err = q.QueryRow("SELECT COALESCE(folder, '') FROM agents WHERE id = ?", r.id).Scan(&r.own)
+		}
+		return r, err
 	}
-	err = q.QueryRow("SELECT id FROM agents WHERE workspace = ? AND name = ?", r.ws, agent).Scan(&r.id)
+	err = q.QueryRow("SELECT id, COALESCE(folder, '') FROM agents WHERE workspace = ? AND name = ?", r.ws, agent).Scan(&r.id, &r.own)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, nil
 	}
@@ -118,7 +128,7 @@ func find(q db.Q, who string) (row, error) {
 	return r, err
 }
 
-// Read is the agent's settings: a key only when its column is set, repo its workspace's folder.
+// Read is the agent's settings: a key only when its column is set, repo the folder of its workspace it works in.
 func (r *Roster) Read(name string) (Config, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -138,8 +148,8 @@ func (r *Roster) Read(name string) (Config, error) {
 		return nil, err
 	}
 	cfg := Config{"name": name}
-	if at.folder != "" {
-		cfg["repo"] = at.folder
+	if f := at.works(); f != "" {
+		cfg["repo"] = f
 	}
 	for i, k := range settingKeys {
 		v := *(vals[i].(*any))
@@ -155,8 +165,8 @@ func (r *Roster) Read(name string) (Config, error) {
 	return cfg, nil
 }
 
-// SetKeys sets settings of the agent (a nil value goes back to the default). repo sets its workspace's folder, which only the lead
-// may change. The founder's session only.
+// SetKeys sets settings of the agent (a nil value goes back to the default). repo is the folder it works in (setFolder). The founder's
+// session only.
 func (r *Roster) SetKeys(name string, set []yamlcompat.Pair) error {
 	if err := requireFounder(); err != nil {
 		return err
@@ -178,25 +188,7 @@ func (r *Roster) set(q db.Q, at row, set []yamlcompat.Pair) error {
 	for _, kv := range set {
 		if kv.Key == "repo" {
 			folder, _ := kv.Val.(string)
-			if folder == at.folder || (folder != "" && at.folder != "" && real(folder) == real(at.folder)) {
-				continue // unchanged: a settings save sends the folder back as it is
-			}
-			if !at.lead && at.folder != "" {
-				return refuse("repo is the folder of workspace %s (%s): set it on its lead", at.wsName, at.folder)
-			}
-			if folder != "" {
-				top, err := Toplevel(folder)
-				if err != nil {
-					return err
-				}
-				if folder = top; folder == at.folder {
-					continue
-				}
-				if err := sharing(q, folder, at.ws); err != nil {
-					return err
-				}
-			}
-			if _, err := q.Exec("UPDATE workspaces SET folder = ? WHERE id = ?", folder, at.ws); err != nil {
+			if err := setFolder(q, at, folder); err != nil {
 				return err
 			}
 			continue
@@ -259,7 +251,26 @@ func column(key string, kind byte, v any) (any, error) {
 	return nil, refuse("%s cannot be %v", key, v)
 }
 
-// RepoOf is the folder this agent works in, its workspace's; "" when it has none.
+// OtherFolders are the folders of this agent's workspace it does not work in, which its session gets beside its own.
+func (r *Roster) OtherFolders(name string) []string {
+	if r.err != nil {
+		return nil
+	}
+	at, err := find(r.DB, name)
+	if err != nil || at.id == 0 {
+		return nil
+	}
+	fs, _ := Folders(r.DB, at.ws) // unreadable, it reads none
+	var out []string
+	for _, f := range fs {
+		if real(f) != real(at.works()) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// RepoOf is the folder of its workspace this agent works in; "" when it has none.
 func (r *Roster) RepoOf(name string) string {
 	if r.err != nil {
 		return ""
@@ -268,7 +279,7 @@ func (r *Roster) RepoOf(name string) string {
 	if err != nil || at.id == 0 {
 		return ""
 	}
-	return at.folder
+	return at.works()
 }
 
 // RegisterOpts is what Register is asked to set; a nil field is left as it is.

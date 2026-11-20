@@ -250,24 +250,29 @@ func TestConcurrentOpensOfANewDatabaseMakeItOnce(t *testing.T) {
 }
 
 func TestTheLeaseMaxRuleIsDropped(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "db.sqlite")
-	db, err := Open(p)
+	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer db.Close()
+	ms, err := migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var step migration
+	for _, m := range ms {
+		if m.version == 115 {
+			step = m
+		}
+	}
 	for _, q := range []string{
 		"INSERT INTO workspace_settings(workspace, key, value, set_by, set_at) VALUES(0, 'lease_max.simulator', '1', 'p1', 1), (0, 'agent_cap', '3', 'p1', 1)",
-		"DELETE FROM schema_version WHERE version = 115", // as before the step
+		step.sql, // the step, run again on rows from before it
 	} {
 		if _, err := db.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	db.Close()
-	if db, err = Open(p); err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
 	var keys []string
 	rows, err := db.Query("SELECT key FROM workspace_settings ORDER BY key")
 	if err != nil {

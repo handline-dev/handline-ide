@@ -57,29 +57,75 @@ func (e *Env) workspaceOf(params map[string]any) (workspaceAt, error) {
 	return w, rows.Err()
 }
 
-// workspaceSet is workspace.set: a workspace's name, the one thing it changes. Its agents keep their keys, folders and sessions.
+// workspaceSet is workspace.set: a workspace's name, and a folder added to it or taken from it. Its agents keep their keys, folders and
+// sessions; a folder one of them works in is not taken.
 func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 	w, err := e.workspaceOf(params)
 	if err != nil {
 		return nil, err
 	}
-	name, _ := params["name"].(string)
-	if strings.TrimSpace(name) == "" {
-		return nil, rpc.BadRequestError("name is the workspace's new name", "name", rpc.InvalidParams)
+	var name, add, remove string
+	for _, f := range []struct {
+		k string
+		v *string
+	}{{"name", &name}, {"add_folder", &add}, {"remove_folder", &remove}} {
+		if params[f.k] == nil {
+			continue
+		}
+		s, ok := params[f.k].(string)
+		if !ok || strings.TrimSpace(s) == "" {
+			return nil, rpc.BadRequestError(f.k+" is a non-empty string", f.k, rpc.InvalidParams)
+		}
+		*f.v = s
 	}
-	if name != w.name {
+	if name == "" && add == "" && remove == "" {
+		return nil, rpc.BadRequestError("name, add_folder or remove_folder says what changes", "name", rpc.InvalidParams)
+	}
+	if add != "" { // git is asked here, outside the write's transaction
+		kept, _, err := team.Folder(add)
+		if team.IsRefusal(err) {
+			return nil, rpc.Refused(err.Error(), "state", "")
+		} else if err != nil {
+			return nil, err
+		}
+		add = kept
+	}
+	if name != "" && name != w.name {
 		if err := e.refuseRename(w); err != nil {
 			return nil, err
 		}
 	}
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-		if err := team.NewRosterOn(tx, e.Home).RenameWorkspace(w.key, name); err != nil {
+		r := team.NewRosterOn(tx, e.Home)
+		var said []string
+		err := func() error {
+			if name != "" {
+				if err := r.RenameWorkspace(w.key, name); err != nil {
+					return err
+				}
+				said = append(said, fmt.Sprintf("workspace %s is %s", w.name, name))
+			}
+			if add != "" {
+				if err := r.AddFolder(w.key, add); err != nil {
+					return err
+				}
+				said = append(said, "added "+add)
+			}
+			if remove != "" {
+				if err := r.RemoveFolder(w.key, remove); err != nil {
+					return err
+				}
+				said = append(said, "took "+remove+" away")
+			}
+			return nil
+		}()
+		if err != nil {
 			if team.IsRefusal(err) {
 				return nil, rpc.Refused(err.Error(), "state", "")
 			}
 			return nil, err
 		}
-		return map[string]any{"accepted": true, "said": fmt.Sprintf("workspace %s is %s", w.name, name)}, nil
+		return map[string]any{"accepted": true, "said": strings.Join(said, "; ")}, nil
 	})
 }
 
