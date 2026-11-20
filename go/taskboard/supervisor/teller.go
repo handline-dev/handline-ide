@@ -24,15 +24,20 @@ func (e *Env) MemoChanged(tid, mid int64, by, what, text string, now bool, skip 
 }
 
 // MemoRecipients is whom a comment by `by` on task tid would be told to, by the rule TellMemoSkipping applies; false when there is no such task.
-func (e *Env) MemoRecipients(tid int64, by, text string, now bool) ([]taskwrites.Recipient, bool) {
-	row, err := db.GetTask(e.DB, tid)
-	if err != nil || row == nil {
+func (e *Env) MemoRecipients(tid int64, by, text string, now bool) (out []taskwrites.Recipient, found bool) {
+	var err error
+	defer func() {
+		if err != nil {
+			out, found = nil, false
+		}
+	}()
+	defer Catch(&err)
+	row := must(db.GetTask(e.DB, tid))
+	if row == nil {
 		return nil, false
 	}
-	if err := toldBelow(e.DB, row, by); err != nil {
-		return nil, false
-	}
-	return e.memoRecipients(row, by, text, "", now), true
+	check(toldBelow(e.DB, row, by)) // the founder's comment passes their turn before it is told, so it goes to the holder below
+	return e.memoRecipients(e.DB, row, by, text, "", now), true
 }
 
 // QueueDelivered is what queuing does after its write commits: the task goes out now if its owner is free. It answers the sentence the reply

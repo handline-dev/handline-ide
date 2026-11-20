@@ -3,6 +3,9 @@ import type { Memo, MemoFile, MemoReader } from '@handline/contract';
 import { refs } from '#src/attachments.ts';
 import { TaskFailure, TaskStore, type Row } from '#src/taskstore.ts';
 
+/** Why task.comment.recipients names an agent. */
+type Why = 'asked' | 'assignee' | 'owner' | 'last_writer';
+
 /** `@human` in a comment: at the start or after a character that is not part of a name. */
 const NAMES_HUMAN = /(?:^|[^A-Za-z0-9._@-])@human(?:[^A-Za-z0-9_-]|$)/;
 
@@ -38,20 +41,25 @@ export class TaskComments extends TaskStore {
 
   /**
    * task.comment.recipients: who the daemon tells of a comment, and why, by its one rule. An agent named with `@` is asked and the assignee (the
-   * holder) is always told; who the task answers to is told when it is sent now, or when the founder wrote it on a task no agent holds. Never the writer.
+   * holder) is always told; who the task answers to is told when it is sent now, or when the founder wrote it on a task no agent holds. The founder's
+   * comment naming no one on a task they hold goes to the last agent that commented there. Never the writer.
    */
-  recipients(p: Record<string, unknown>, person: string): { recipients: { agent: string; why: 'asked' | 'assignee' | 'owner' }[] } {
+  recipients(p: Record<string, unknown>, person: string): { recipients: { agent: string; why: Why }[] } {
     const t = this.find(p.task);
     const named = [...String(p.text).matchAll(NAMED)].map((m) => m[1]!.replace(/[.-]+$/, '')).filter((n) => this.isAgent(n));
     const aimed = p.now === true || (!this.isAgent(person) && !this.isAgent(t.to));
+    const last =
+      named.length === 0 && !this.isAgent(person) && t.to === person
+        ? ([...(t.memos ?? [])].reverse().find((m) => m.author !== person && this.isAgent(m.author))?.author ?? '')
+        : '';
     const seen = new Set<string>(['', person, 'human']);
-    const recipients: { agent: string; why: 'asked' | 'assignee' | 'owner' }[] = [];
-    for (const agent of [t.from, t.to, ...named]) {
+    const recipients: { agent: string; why: Why }[] = [];
+    for (const agent of [t.from, t.to, ...named, last]) {
       if (seen.has(agent)) continue;
       seen.add(agent);
       const asked = named.includes(agent);
-      if (!asked && !aimed && agent !== t.to) continue;
-      recipients.push({ agent, why: asked ? 'asked' : agent === t.to ? 'assignee' : 'owner' });
+      if (!asked && !aimed && agent !== t.to && agent !== last) continue;
+      recipients.push({ agent, why: asked ? 'asked' : agent === last ? 'last_writer' : agent === t.to ? 'assignee' : 'owner' });
     }
     return { recipients };
   }

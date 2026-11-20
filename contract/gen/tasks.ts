@@ -826,7 +826,7 @@ export interface TasksMethods {
 }; result: {
     recipients: {
       agent: string;
-      why: "asked" | "assignee" | "owner";
+      why: "asked" | "assignee" | "owner" | "last_writer";
     }[];
   } };
   "task.comment.edit": { params: {

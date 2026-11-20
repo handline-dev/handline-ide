@@ -61,7 +61,7 @@ type Teller interface {
 	Notified(told []db.Notice)
 }
 
-// Recipient is an agent a comment is told to, and why: asked (named with @), assignee or owner (sent now, or the founder's comment on a task no agent holds).
+// Recipient is an agent a comment is told to, and why: asked (named with @), last_writer, assignee or owner (Teller.MemoRecipients).
 type Recipient struct {
 	Agent string `json:"agent"`
 	Why   string `json:"why"`
