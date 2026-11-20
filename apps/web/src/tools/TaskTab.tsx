@@ -91,7 +91,6 @@ export function TaskTab({ id }: { id: number }) {
       task={t.id}
       open={mine ? openTurnRow(t, me) : undefined}
       turn={turn}
-      holder={t.to}
       onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
       items={activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
     />
@@ -221,7 +220,6 @@ export function TaskChat({ id }: { id: number }) {
                 task={t.id}
                 open={mine ? openTurnRow(t, me) : undefined}
                 turn={t.turns?.at(-1)}
-                holder={t.to}
                 onReply={(m) => setReplyTo(t.memos.find((x) => x.id === m) ?? null)}
                 items={items}
               />
@@ -330,10 +328,8 @@ function Activity({
   open,
   turn,
   onReply,
-  holder,
   bare,
 }: {
-  holder?: string;
   /** No Activity heading: the story's chat is only this. */
   bare?: boolean;
   task: number;
@@ -365,7 +361,6 @@ function Activity({
               turn={isOpen(i)}
               quoted={i.replyTo != null ? items.find((r) => r.memo === i.replyTo)?.note : undefined}
               onReply={onReply}
-              holder={holder}
               onEdited={
                 i.memo != null && earlierOf(i.memo).length
                   ? () =>

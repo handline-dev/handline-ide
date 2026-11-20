@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activityOf, addressText, noteText } from '#src/task-activity.ts';
+import { activityOf, addressText, noteText, toldOf } from '#src/task-activity.ts';
 
 const e = (kind: string, who: string, text: string, at: string, memo: number | null = null) =>
   ({ at, who, kind, text, memo, edited_at: null }) as Parameters<typeof activityOf>[1][number];
@@ -92,4 +92,12 @@ test('addressText drops a leading mention of whom the comment went to, by id or 
   assert.equal(addressText('@lead ask @architect', ['a2', 'architect']), '@lead ask @architect');
   assert.equal(addressText('see @architect', ['architect']), 'see @architect');
   assert.equal(noteText('@human OK?'), 'OK?');
+});
+
+const told = (agent: string) => ({ agent, request: 1, state: 'sent' as const, at: '2026-11-21T00:00:00Z' });
+test("the founder's own comment is addressed to whom the daemon told, never the founder", () => {
+  assert.deepEqual(toldOf({ readers: [told('human'), told('architect')] }, 'ron'), ['architect']);
+  assert.deepEqual(toldOf({ readers: [told('ron')] }, 'ron'), []);
+  assert.deepEqual(toldOf({}, 'ron'), []);
+  assert.equal(addressText('@architect here', toldOf({ readers: [told('architect')] }, 'ron')), 'here');
 });

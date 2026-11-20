@@ -3,7 +3,7 @@ import { Face, Name } from '#src/ui/Face.tsx';
 // An Activity line's parts: its round mark, its hover row, a comment (the founder's open turn among them), and a change in words.
 import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { addressText, isPerson, noteText } from '@handline/app-core';
+import { addressText, isPerson, noteText, toldOf } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useNameOf } from '@handline/app-data';
 import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
@@ -128,9 +128,7 @@ export function CommentRow({
   quoted,
   onReply,
   onEdited,
-  holder,
 }: {
-  holder?: string;
   i: ActivityItem;
   fresh: string;
   turn: boolean;
@@ -144,8 +142,9 @@ export function CommentRow({
   const word = ready ? 'Ready for you' : 'Waiting for you';
   const mine = isPerson(i.who, me);
   const toYou = !mine && (i.toFounder || (!!i.turn && isPerson(i.turnTo ?? '', me)));
-  // Whom the comment went to: the turn passed with it, or the task's holder.
-  const to = toYou ? 'you' : mine ? i.turnTo || holder : undefined;
+  // Whom the comment went to: whom the daemon told it to (its readers), never worked out here.
+  const told = mine ? toldOf(i, me) : [];
+  const to = toYou ? ['you'] : told;
   return (
     <div
       data-memo={i.memo}
@@ -181,8 +180,21 @@ export function CommentRow({
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           <div className="min-w-0">
             <Markdown
-              text={i.toFounder ? noteText(i.note) : to && to !== 'you' ? addressText(i.note, [to, nameOf(to)]) : i.note}
-              lead={to && <span className="mr-1.5 rounded bg-accent/10 px-1 text-accent">@{to === 'you' ? 'You' : nameOf(to)}</span>}
+              text={
+                i.toFounder
+                  ? noteText(i.note)
+                  : told.length
+                    ? addressText(
+                        i.note,
+                        told.flatMap((a) => [a, nameOf(a)]),
+                      )
+                    : i.note
+              }
+              lead={to.map((a) => (
+                <span key={a} className="mr-1.5 rounded bg-accent/10 px-1 text-accent">
+                  @{a === 'you' ? 'You' : nameOf(a)}
+                </span>
+              ))}
             />
           </div>
           {i.images && i.images.length > 0 && (

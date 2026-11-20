@@ -110,7 +110,18 @@ export const TURN_SEEDS: Record<string, Seed> = {
       decided: { at: iso(5), ask: 'Which sound should the bell play?', answer: 'The soft one.' },
       created: iso(20),
       body: 'The bell needs a sound for a pause.',
-      memos: [{ id: 15, at: iso(5), author: ME, text: 'The soft one.', task: 8831 }],
+      memos: [
+        { id: 15, at: iso(5), author: ME, text: 'The soft one.', task: 8831 },
+        // On a task the founder holds, his own comment is addressed to whom it was told, not to him.
+        {
+          id: 16,
+          at: iso(2),
+          author: ME,
+          text: '@architect Put the pause at the bottom right.',
+          task: 8831,
+          readers: [{ agent: ARCH, request: 2, state: 'read' as const, at: iso(1) }],
+        },
+      ],
       handoffLog: [{ at: iso(15), who: `${ARCH} → ${ME}`, text: 'Three sounds are in the attached file. Pick the one the bell plays.' }],
     });
   },

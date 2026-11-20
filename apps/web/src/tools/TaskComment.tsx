@@ -250,8 +250,8 @@ export function CommentBox({
             ? `Comment and assign to ${nameOf(to)}`
             : answering
               ? `Your answer to ${nameOf(turn.by)}`
-              : t.to
-                ? `Reply to ${nameOf(t.to)} on T${t.id}`
+              : reach.length
+                ? `Reply to ${reach.map(nameOf).join(', ')} on T${t.id}`
                 : `Comment on T${t.id}`
         }
         draft={draft}

@@ -78,6 +78,9 @@ export const addressText = (text: string, to: readonly string[] = ['human']): st
   const m = /^\s*@([\w.-]+)[:,]?\s*/.exec(text);
   return m && to.some((n) => n.toLowerCase() === m[1].toLowerCase()) ? text.slice(m[0].length) : text;
 };
+/** Whom the founder's own comment went to: the agents the daemon told it to (its readers), never the founder. */
+export const toldOf = (i: Pick<ActivityItem, 'readers'>, me: string): string[] =>
+  (i.readers ?? []).map((r) => r.agent).filter((a) => !isPerson(a, me));
 /** A note's words without its leading @human. */
 export const noteText = (text: string): string => addressText(text);
 
