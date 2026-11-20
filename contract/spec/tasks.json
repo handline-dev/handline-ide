@@ -1103,7 +1103,7 @@
           "properties": {
            "text": {
             "type": "string",
-            "description": "The plan as it stands, Markdown: what will change, in which files, how it will be shown done, what is left out, what it starts after."
+            "description": "The plan as it stands, Markdown: what changes for the founder, the core logic that decides it, a choice only the founder can make, what is left out and what it starts after."
            },
            "by": {
             "type": "string"
