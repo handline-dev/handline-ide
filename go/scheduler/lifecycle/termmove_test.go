@@ -185,11 +185,11 @@ func TestAnAgentOnAnEndedAccountFinishesItsTurnAndNoteBeforeItMoves(t *testing.T
 		t.Fatalf("an ended account still answers, so a live turn is not cut off: %v %v %v", ok, err, g.pane.handles)
 	}
 	g.run.status = "idle"
-	g.v.E.NoteHold = func(db.Q, string, int64) bool { return true }
+	g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true }
 	if ok, err := g.v.PerformHandoff("a", ended, "beta"); !ok || err != nil || len(g.pane.handles) != 0 {
 		t.Fatalf("it writes its note first: %v %v %v", ok, err, g.pane.handles)
 	}
-	g.v.E.NoteHold = func(db.Q, string, int64) bool { return false }
+	g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return false }
 	if ok, err := g.v.PerformHandoff("a", ended, "beta"); !ok || err != nil {
 		t.Fatalf("%v %v", ok, err)
 	}
@@ -497,7 +497,7 @@ func TestAWallMoveGoesPastBackgroundWorkNothingWaitsOnAndSaysWhatItWaitsFor(t *t
 func TestASwitchWaitingForTheNoteSaysSoAndTheMoveClearsIt(t *testing.T) {
 	g := newTermMoveRig(t)
 	hold := true
-	g.v.E.NoteHold = func(db.Q, string, int64) bool { return hold }
+	g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return hold }
 	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
 	if s, _ := db.GetSwitch(g.m.Q, "a"); s == nil || s.Waits != "its handoff note" {
 		t.Fatalf("%+v", s)
@@ -506,5 +506,26 @@ func TestASwitchWaitingForTheNoteSaysSoAndTheMoveClearsIt(t *testing.T) {
 	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
 	if s, _ := db.GetSwitch(g.m.Q, "a"); s == nil || s.Waits != "" {
 		t.Fatalf("%+v", s)
+	}
+}
+
+// An early move past background work nothing waits on asks for the agent's note under its own kind, waits for it, then goes.
+func TestAnEarlyMovePastBackgroundWorkWaitsForTheNote(t *testing.T) {
+	g := newTermMoveRig(t)
+	g.run.status, g.run.bgIdle, g.d.owesNothing, g.bg = "busy", true, true, "shell: vite dev"
+	hold, kinds := true, []string{}
+	g.v.E.NoteHold = func(_ db.Q, _, kind string, _ int64) bool { kinds = append(kinds, kind); return hold }
+	early := HandoffTrigger{Kind: states.EarlyUsageTrigger, Reason: "wall"}
+	g.v.PerformHandoff("a", early, "")
+	if s, _ := db.GetSwitch(g.m.Q, "a"); s == nil || s.Waits != "its handoff note" || len(g.sp.startedIn) != 0 {
+		t.Fatalf("did not wait for the note: %+v", s)
+	}
+	if len(kinds) != 1 || kinds[0] != states.EarlyUsageTrigger {
+		t.Fatalf("asked as %q", kinds)
+	}
+	hold = false
+	g.v.PerformHandoff("a", early, "")
+	if len(g.sp.startedIn) != 1 {
+		t.Fatal("did not move once the note was in")
 	}
 }

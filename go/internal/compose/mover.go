@@ -17,7 +17,7 @@ import (
 func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.Env) *lifecycle.Mover {
 	tu := tickUsage{p: p, u: uenv}
 	ho := func() interface {
-		Hold(agent string, now int64) (bool, error)
+		Hold(agent, kind string, now int64) (bool, error)
 		NoteText(agent string) (string, error)
 	} {
 		return p.LC.Handoff
@@ -44,8 +44,8 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 		AtLimit: func(q db.Q, agent string) (int64, bool) {
 			return tu.limitAt(q, agent)
 		},
-		NoteHold: func(_ db.Q, agent string, at int64) bool {
-			hold, _ := ho().Hold(agent, at)
+		NoteHold: func(_ db.Q, agent, kind string, at int64) bool {
+			hold, _ := ho().Hold(agent, kind, at)
 			return hold
 		},
 		NoteWritten: func(agent string) bool {

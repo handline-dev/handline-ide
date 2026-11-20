@@ -605,7 +605,7 @@ func (h tickHandoff) PerformHandoff(_ db.Q, agent string, t tick.Trigger, dest s
 	return ok && err == nil
 }
 func (h tickHandoff) NoteHold(_ db.Q, agent string, now int64) bool {
-	hold, _ := h.ho.Hold(agent, now)
+	hold, _ := h.ho.Hold(agent, "close", now)
 	return hold
 }
 func (h tickHandoff) NoteAtCacheEdge(_ db.Q, agent string, now int64, st tick.Status) {

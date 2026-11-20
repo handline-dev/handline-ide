@@ -112,7 +112,7 @@ func (v *Mover) RunPendingMove(agent string) (acted bool, err error) {
 			return false, nil // a session ending or starting: it is judged when it is one or the other
 		case s.Phase == db.SwitchScheduled && !v.turnOver(agent):
 			return false, nil
-		case s.Phase == db.SwitchStopping && now-s.Since <= db.NoteWaitStaleS && (m.sessionBusy(agent) || v.E.NoteHold(m.Q, agent, now)):
+		case s.Phase == db.SwitchStopping && now-s.Since <= db.NoteWaitStaleS && (m.sessionBusy(agent) || v.E.NoteHold(m.Q, agent, "forced", now)):
 			return false, nil
 		}
 	}

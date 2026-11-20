@@ -26,8 +26,12 @@ const SummaryMarker = "written by Handline from the transcript"
 const (
 	// SummaryBudget is how much of the transcript the call is given, in bytes: the user turns first, then the newest part of the rest.
 	SummaryBudget = 32 << 10
-	// SummaryTimeout bounds the one call; a wake waits for a note in flight no longer than this.
+	// SummaryTimeout bounds one call; a wake waits for a note in flight no longer than this.
 	SummaryTimeout = 90 * time.Second
+	// SummaryTries is how many calls a session's note gets before its fresh start goes on without one, SummaryRetryS the wait
+	// between them.
+	SummaryTries  = 3
+	SummaryRetryS = 60
 	// turnMax is what one user turn or one reply keeps of its text.
 	turnMax = 2000
 	// lineMax is the longest transcript line read; a longer one (a huge tool result) is skipped.
@@ -287,8 +291,36 @@ var noteHeadingRE = regexp.MustCompile(`(?m)^(` + regexp.QuoteMeta(agentNoteHead
 // recordSessionRE is the record's session line (sessionLines).
 var recordSessionRE = regexp.MustCompile(`(?m)^previous session: (\S+), recorded at (.+)$`)
 
+// summaryTry is the summary key's value: "<session>" once the session is done (its note written, or its record taken), and
+// "<session> <failed calls> <last call unix>" while it may be tried again.
+type summaryTry struct {
+	session string
+	done    bool
+	failed  int
+	last    int64
+}
+
+func readSummaryTry(v string) summaryTry {
+	f := strings.Fields(v)
+	if len(f) == 3 {
+		t := summaryTry{session: f[0]}
+		if _, err := fmt.Sscan(f[1]+" "+f[2], &t.failed, &t.last); err == nil {
+			return t
+		}
+	}
+	return summaryTry{session: v, done: v != ""}
+}
+
+func (t summaryTry) String() string {
+	if t.done {
+		return t.session
+	}
+	return fmt.Sprintf("%s %d %d", t.session, t.failed, t.last)
+}
+
 // NoteFromTranscript is whether a fresh start should wait for the note Handline is writing into the agent's record: true while one is
-// being written, starting it when the record has no note and its session was not tried yet. Each session is tried once.
+// being written or a failed one is due another call, starting it when the record has no note. A session gets SummaryTries calls,
+// SummaryRetryS apart; it is done with a written note, a record taken from under it, or the last failed call.
 func (e *Env) NoteFromTranscript(agent string) bool {
 	s := e.Summary
 	if s == nil || s.Run == nil {
@@ -306,22 +338,40 @@ func (e *Env) NoteFromTranscript(agent string) bool {
 		return false
 	}
 	session, path := m[1], m[2]
-	if tried, _, err := db.Meta(e.DB, summaryKey(agent)); err != nil || tried == session {
+	v, _, err := db.Meta(e.DB, summaryKey(agent))
+	if err != nil {
 		return false
+	}
+	try := readSummaryTry(v)
+	if try.session != session {
+		try = summaryTry{session: session}
+	}
+	if try.done || try.failed >= SummaryTries {
+		return false
+	}
+	if try.failed > 0 && e.now().Unix()-try.last < SummaryRetryS {
+		return true
 	}
 	return s.start(agent, func(ctx context.Context) {
 		err := e.WriteSummary(ctx, agent, record, path)
 		if errors.Is(ctx.Err(), context.Canceled) {
 			return // stopped with the daemon: the next one tries again
 		}
-		if err := db.SetMeta(e.DB, summaryKey(agent), session); err != nil {
+		next := summaryTry{session: session, done: err == nil || errors.Is(err, errTaken)}
+		if !next.done {
+			next.failed, next.last = try.failed+1, e.now().Unix()
+		}
+		if err := db.SetMeta(e.DB, summaryKey(agent), next.String()); err != nil {
 			s.log("  %s: the transcript note's try was not recorded: %v", agent, err)
 		}
-		if err != nil {
-			s.log("  %s: no handoff note written from its transcript: %v", agent, err)
-			return
+		switch {
+		case err == nil:
+			s.log("  %s: handoff note written from its transcript", agent)
+		case next.failed >= SummaryTries:
+			s.log("  %s: no handoff note written from its transcript after %d tries: %v", agent, next.failed, err)
+		default:
+			s.log("  %s: no handoff note written from its transcript (try %d of %d): %v", agent, next.failed, SummaryTries, err)
 		}
-		s.log("  %s: handoff note written from its transcript", agent)
 	})
 }
 

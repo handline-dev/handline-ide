@@ -1122,7 +1122,7 @@ func TestAFreshWakeWaitsForTheNoteWrittenFromTheTranscript(t *testing.T) {
 		db.SetTerminal(m.Q, "a", "t1", "/wt")
 		db.SetClosed(m.Q, "a", "sess-1")
 		ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true})
-		if err != nil || ok == full || full && !strings.Contains(said, "waiting for the handoff note Handline is writing") {
+		if err != nil || ok == full || full && !strings.Contains(said, "waiting for the handoff note Handline writes") {
 			t.Fatalf("full=%v: %v %q %v %q", full, ok, said, err, tm.relaunched)
 		}
 		if !full {

@@ -1040,7 +1040,7 @@ func (m *Manager) wakeDropped(agent, why string) {
 // waitForNote is what a start waiting for its transcript note says. held lets go of the slot it reserved and moving of the switch it
 // shows, neither of which the next wake uses.
 func (m *Manager) waitForNote(agent string, held, moving bool) string {
-	why := "waiting for the handoff note Handline is writing from its transcript"
+	why := "waiting for the handoff note Handline writes from its transcript"
 	if held {
 		must(db.AddEvent(m.Q, agent, usage.HoldDroppedKind, db.KV{K: "why", V: why}))
 	}
