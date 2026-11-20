@@ -367,8 +367,9 @@ function Activity({
               i={i}
               fresh={fresh(i)}
               turn={isOpen(i)}
-              quoted={i.replyTo != null ? items.find((r) => r.memo === i.replyTo)?.note : undefined}
+              quoted={i.replyTo != null ? (items.find((r) => r.memo === i.replyTo)?.note ?? '(deleted)') : undefined}
               onReply={onReply}
+              task={task}
               onEdited={
                 i.memo != null && earlierOf(i.memo).length
                   ? () =>
