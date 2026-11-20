@@ -223,6 +223,15 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "connected",
     "push"
   ],
+  "device.changed": [
+    "id",
+    "name",
+    "role",
+    "created",
+    "last_seen",
+    "connected",
+    "push"
+  ],
   "device.revoked": [
     "device"
   ],

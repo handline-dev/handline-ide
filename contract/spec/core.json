@@ -242,6 +242,7 @@
    "snapshot": "devices.list",
    "data": {
     "device.paired": "Device",
+    "device.changed": "Device",
     "device.revoked": "{device}"
    }
   },

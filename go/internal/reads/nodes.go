@@ -3,16 +3,17 @@ package reads
 import (
 	"database/sql"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// nodeStatus is node.status: the machines of this master, its own first. This daemon is the master, so its own row is master, self and
-// online; no other machine is online until runners report.
+// nodeStatus is node.status: the machines of this master on run or pause, its own first. This daemon is the master, so its own row is
+// master, self and online; no other machine is online until runners report.
 func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
-	self := db.NodeIDOf(e.Home)
-	rs, err := e.DB.Query("SELECT id, person, name, joined_at, last_seen, master_number FROM nodes ORDER BY id != ?, joined_at, id", self)
+	self := joined.NodeIDOf(e.Home)
+	rs, err := e.DB.Query(`SELECT id, person, name, joined_at, last_seen, master_number, lending FROM nodes
+		WHERE lending IN ('run', 'pause') ORDER BY id != ?, joined_at, id`, self)
 	if err != nil {
 		return nil, err
 	}
@@ -20,10 +21,10 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 	nodes := []any{}
 	number := int64(1)
 	for rs.Next() {
-		var id, name string
+		var id, name, lending string
 		var person, seen sql.NullInt64
 		var joined, master int64
-		if err := rs.Scan(&id, &person, &name, &joined, &seen, &master); err != nil {
+		if err := rs.Scan(&id, &person, &name, &joined, &seen, &master, &lending); err != nil {
 			return nil, err
 		}
 		var who, last any
@@ -37,7 +38,7 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 			number = master
 		}
 		nodes = append(nodes, map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
-			"master_number": master, "master": id == self, "self": id == self, "online": id == self})
+			"master_number": master, "master": id == self, "self": id == self, "online": id == self, "lending": lending})
 	}
 	return map[string]any{"master": map[string]any{"id": self, "number": number}, "nodes": nodes}, rs.Err()
 }

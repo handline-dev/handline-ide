@@ -12,15 +12,17 @@ export type Device = {
   connected: boolean;
   /** Whether the device gave a push token (device.push_token) that the daemon still holds. */
   push: boolean;
-  /** What the client said it is at device.redeem; null when it did not say. Absent on a daemon that does not serve it. */
-  kind?: ("ios" | "android" | "web" | "desktop") | null;
+  /** What the client said it is at device.redeem; null when it did not say. A mac or a server lends its machine. Absent on a daemon that does not serve it. */
+  kind?: ("ios" | "android" | "web" | "desktop" | "mac" | "server") | null;
   /** True in devices.list for the caller's own device; false in events. Absent on a daemon that does not serve it. */
   current?: boolean;
   /** The client its last hello named (hello's client); null before one. Absent on a daemon that does not serve it. */
   client?: string | null;
+  /** A mac's or a server's Run · Pause · Off (device.set): run starts new work on that machine, pause starts nothing new and lets what runs there finish, off is not lent. null for a phone or a browser. Absent on a daemon that does not serve it. */
+  lending?: ("run" | "pause" | "off") | null;
 };
 
-/** A machine of this master: its own, and later the ones people lend it. */
+/** A machine of this master: its own, and the ones people lend it. */
 export type Node = {
   /** The machine's node id (DaemonStatus.machine.id on that machine). */
   id: string;
@@ -39,6 +41,8 @@ export type Node = {
   self: boolean;
   /** The master hears from it now; always true for the master's own row. */
   online: boolean;
+  /** run: the master starts new work there; pause: it starts nothing new there and what runs finishes. The master's own row is always run; a machine on off is not listed. */
+  lending: "run" | "pause";
 };
 
 export interface DevicesMethods {
@@ -67,8 +71,10 @@ export interface DevicesMethods {
   "device.redeem": { params: {
   code: string;
   name: string;
-  /** What the client is: ios, android, web or desktop, kept as Device.kind. Any other value is kept as null, so a newer client still pairs. */
+  /** What the client is: ios, android, web, desktop, or mac or server for a machine that lends itself, kept as Device.kind. Any other value is kept as null, so a newer client still pairs. */
   kind?: string;
+  /** The machine's node id: required with kind mac or server, refused with any other. The device comes with that machine's node row, on off. */
+  node?: string;
   request_id: RequestId;
 }; result: Accepted & {
     token: string;
@@ -76,6 +82,11 @@ export interface DevicesMethods {
   } };
   "device.revoke": { params: {
   device: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "device.set": { params: {
+  device: string;
+  lending: "run" | "pause" | "off";
   request_id: RequestId;
 }; result: Accepted };
   "device.push_token": { params: {
@@ -100,6 +111,7 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.pair": { role: "owner", callers: null, write: true, since: 1 },
   "device.redeem": { role: "anonymous", callers: null, write: true, since: 1 },
   "device.revoke": { role: "owner", callers: null, write: true, since: 1 },
+  "device.set": { role: "owner", callers: null, write: true, since: 1 },
   "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
 };
@@ -111,9 +123,10 @@ export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status"]: { resou
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
+export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.set" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
   "device.pair": {"kind": "decided", "label": "pair"},
   "device.redeem": false,
   "device.revoke": {"kind": "decided", "label": "revoke"},
+  "device.set": {"kind": "decided", "label": "set"},
   "device.push_token": false,
 };
