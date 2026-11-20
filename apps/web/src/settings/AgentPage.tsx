@@ -1,6 +1,6 @@
 // Settings › Agents › one agent: what it learned (its lessons, each removable) and how its finished work is reviewed (its level, its
 // record, and the level the record suggests, which only the founder sets).
-import { classify, hooks, sentence, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
+import { classify, Hooks, sentence, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { ArrowLeft, Check, ChevronDown, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -115,7 +115,7 @@ export function Lessons({ agent, founder = false }: { agent: string; founder?: b
 
 function Review({ agent }: { agent: string }) {
   const review = useAgentReview(agent);
-  const pending = hooks.useRequestsPending();
+  const pending = Hooks.useRequestsPending();
   const set = useWrite('agent.review_set');
   const dismiss = useWrite('warning.dismiss');
   const r = review.data;

@@ -1,5 +1,5 @@
 // The sidebar's status row: the machine's level and line, the pause switch, keep-awake, the inbox count and the week's Usage %.
-import { hooks, useAccounts } from '@handline/app-data';
+import { Hooks, useAccounts } from '@handline/app-data';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
@@ -12,13 +12,13 @@ export const weekUsagePct = (accounts: { weekly: { used_pct: number } | null }[]
 };
 
 export function useStatusRow() {
-  const status = hooks.useDaemonStatus();
+  const status = Hooks.useDaemonStatus();
   // The machine's own name: its name.local without .local (terminal_host is the terminal kind, not the machine).
-  const mdns = hooks.useConnectionAddresses().data?.addresses.find((a) => a.kind === 'mdns')?.host;
+  const mdns = Hooks.useConnectionAddresses().data?.addresses.find((a) => a.kind === 'mdns')?.host;
   const machine = useMachine();
   const accounts = useAccounts();
-  const pause = hooks.useDaemonPause();
-  const resume = hooks.useDaemonResume();
+  const pause = Hooks.useDaemonPause();
+  const resume = Hooks.useDaemonResume();
   const { pending, run } = useKeyed();
   const s = status.data;
   const paused = s?.paused ?? null;

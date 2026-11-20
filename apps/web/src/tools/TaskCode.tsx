@@ -1,6 +1,6 @@
 // A task's code: its commits with All changes first, and the files of what is picked, each opening its diff in the look of the agent's
 // Changes. In a tab of its own (code:<id>, CodeTab) and in a story sub-task's Code tab; the task's change size opens the tab (ChangeSize).
-import { hooks } from '@handline/app-data';
+import { Hooks } from '@handline/app-data';
 import { useState } from 'react';
 import { byFile, File } from '#src/changes/Changes.tsx';
 import { codeOf } from '#src/layout/kinds.tsx';
@@ -13,7 +13,7 @@ import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 /** Files listed before the rest fold into "Show N more files". */
 const FIRST = 20;
 
-type Changes = NonNullable<ReturnType<typeof hooks.useTaskChanges>['data']>;
+type Changes = NonNullable<ReturnType<typeof Hooks.useTaskChanges>['data']>;
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 const sum = (rows: { added: number; deleted: number }[]) => ({
@@ -31,7 +31,7 @@ function Lines({ added, deleted }: { added: number; deleted: number }) {
 
 /** The task's change size, "+280 −72 · 26 files", which opens its Code tab by the app's one scheme; nothing while it has no commits. */
 export function ChangeSize({ task }: { task: number }) {
-  const all = hooks.useTaskChanges({ task }).data;
+  const all = Hooks.useTaskChanges({ task }).data;
   const open = useOpenable(codeOf(task));
   if (!all?.commits.length) return null;
   const { added, deleted } = sum(all.files);
@@ -59,8 +59,8 @@ export function CodeTab({ id }: { id: number }) {
 /** Commits on top, the picked one's files under them. */
 export function TaskCode({ task }: { task: number }) {
   const [commit, pick] = useState<string | null>(null);
-  const all = hooks.useTaskChanges({ task });
-  const one = hooks.useTaskChanges({ task, commit: commit ?? undefined }, { enabled: !!commit });
+  const all = Hooks.useTaskChanges({ task });
+  const one = Hooks.useTaskChanges({ task, commit: commit ?? undefined }, { enabled: !!commit });
   if (all.isPending) return <LinesLoading label="Loading the changes" />;
   if (all.isError || !all.data) return <p className="p-4 text-sm text-danger">The changes did not load.</p>;
   const commits = all.data.commits;

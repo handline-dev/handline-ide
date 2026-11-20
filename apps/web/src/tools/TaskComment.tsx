@@ -3,7 +3,7 @@ import { foundersTurn, refsIn, renderRefs, toRefs, withImages } from '@handline/
 import type { TaskDetail } from '@handline/client';
 import {
   classify,
-  hooks,
+  Hooks,
   knownAttachments,
   sentence,
   useAgents,
@@ -132,7 +132,7 @@ export function CommentBox({
     .map((k) => `<@${k}>`)
     .join(' ');
   const served = useServes('task.comment.recipients').served;
-  const told = hooks.useTaskCommentRecipients({ task: t.id, text: named }, { enabled: served && !to }).data?.recipients;
+  const told = Hooks.useTaskCommentRecipients({ task: t.id, text: named }, { enabled: served && !to }).data?.recipients;
   const reach = !to && told ? told.map((r) => r.agent) : readers(to ?? t.to, sent, known);
   const done = useWrite('task.done');
   const discard = useWrite('task.discard');

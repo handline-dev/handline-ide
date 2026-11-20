@@ -1,4 +1,4 @@
-import { hooks, useAgents, useTask } from '@handline/app-data';
+import { Hooks, useAgents, useTask } from '@handline/app-data';
 import { Pause, Play } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
@@ -14,9 +14,9 @@ export function PauseCard({ agent }: { agent: string }) {
 
 function Card({ task, more }: { task: number; more: number }) {
   const title = useTask(task).data?.title;
-  const machine = hooks.useDaemonStatus().data?.paused?.machine?.name;
-  const resume = hooks.useDaemonResume();
-  const sendNow = hooks.useTaskSendNow();
+  const machine = Hooks.useDaemonStatus().data?.paused?.machine?.name;
+  const resume = Hooks.useDaemonResume();
+  const sendNow = Hooks.useTaskSendNow();
   const [busy, setBusy] = useState(false);
   const act = (run: () => Promise<unknown>, failed: string) => {
     setBusy(true);

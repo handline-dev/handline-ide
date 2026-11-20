@@ -1,6 +1,6 @@
 // Settings: the shared runs of This Mac or of one workspace. A shared run is a set of commands only N agents run at once; the others
 // wait their turn (hl use). Agents set them; the founder sees them here and may add, change or remove any.
-import { classify, hooks, sentence, useNameOf, useWrite } from '@handline/app-data';
+import { classify, Hooks, sentence, useNameOf, useWrite } from '@handline/app-data';
 import { Clock, Bot } from 'lucide-react';
 import { useState } from 'react';
 import { Block } from '#src/settings/Meter.tsx';
@@ -8,7 +8,7 @@ import { Button, useAction } from '#src/ui/Button.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
 import { ModalFrame, confirm, openModal, type Close } from '#src/ui/modal.tsx';
 
-type Run = NonNullable<ReturnType<typeof hooks.useRunList>['data']>['runs'][number];
+type Run = NonNullable<ReturnType<typeof Hooks.useRunList>['data']>['runs'][number];
 type Draft = { name: string; scope: string; cmds: string; at_once: number; why: string };
 
 const MAC = 'mac';
@@ -17,11 +17,11 @@ const MAC = 'mac';
 export function SharedRuns() {
   const nameOf = useNameOf();
   // No event carries an agent's hl use add or a turn taken: read again every 10 s, as This Mac's leases are.
-  const list = hooks.useRunList({}, { refetchMs: 10_000 });
+  const list = Hooks.useRunList({}, { refetchMs: 10_000 });
   const set = useWrite('run.set');
   const remove = useWrite('run.remove');
   // A run's scope is mac or a workspace's key (w3); the key is sent back, the name shown.
-  const named = new Map((hooks.useWorkspacesList().data?.workspaces ?? []).map((w) => [w.key, w.name]));
+  const named = new Map((Hooks.useWorkspacesList().data?.workspaces ?? []).map((w) => [w.key, w.name]));
   const scopeWord = (scope: string) => (scope === MAC ? 'This Mac' : (named.get(scope) ?? scope));
   const runs = list.data?.runs ?? [];
   const scopes = [MAC, ...new Set([...named.keys(), ...runs.map((r) => r.scope).filter((x) => x !== MAC)])];

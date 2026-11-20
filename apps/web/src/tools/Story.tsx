@@ -1,6 +1,6 @@
 // A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with Run in a tab of its own (PlanTab).
 import { taskGraph, type GraphNode } from '@handline/app-core';
-import { hooks, useNameOf, useTasks, useWrite } from '@handline/app-data';
+import { Hooks, useNameOf, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
@@ -23,7 +23,7 @@ const BOX = { w: 200, h: 128 };
 /** A task's sub-tasks as a graph in a tab of its own (plan:<id>), opened from the task's Plan box; a node opens that sub-task beside
  * its own chat. */
 export function PlanTab({ id }: { id: number }) {
-  const t = hooks.useTaskGet({ task: id }).data;
+  const t = Hooks.useTaskGet({ task: id }).data;
   const [picked, setPicked] = useTabState<number | null>('sub', null);
   if (!t) return <div className="flex-1" />;
   const sub = t.subtasks.find((x) => x.id === picked) ?? null;

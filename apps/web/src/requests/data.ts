@@ -1,5 +1,5 @@
 import { laterHolds, laterKey, navOf, type LaterAt } from '@handline/app-core';
-import { hooks, useFeed, usePrefs } from '@handline/app-data';
+import { Hooks, useFeed, usePrefs } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { useNow } from '#src/format/time.ts';
 
@@ -11,10 +11,10 @@ export type TaskRequest = RequestRow & { task: number };
 /** The founder's requests in the sections of the Requests view and the bell: their turn, notes to them, in progress, finished. `count` is
  * the one number the bell and the sidebar's Requests show: the Your turn rows, without notes or rows put off. */
 export function useRequests() {
-  const pending = hooks.useRequestsPending();
+  const pending = Hooks.useRequestsPending();
   // The daemon's warnings reach requests.pending only through the for_you topic's events.
   useFeed('for_you', true);
-  const list = hooks.useRequestsList({ limit: 100 });
+  const list = Hooks.useRequestsList({ limit: 100 });
   const rows = (list.data?.items ?? []).filter((r): r is TaskRequest => r.task !== null);
   // A row put off for later leaves the founder's turn until its time comes, and the count with it.
   const later = (navOf(usePrefs().data).later ?? {}) as Record<string, LaterAt>;
