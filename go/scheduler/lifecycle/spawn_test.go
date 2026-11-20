@@ -218,9 +218,12 @@ func TestSpawnWithSaysWhyItCannotAndWhatItWouldDo(t *testing.T) {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
 	h.missing = ""
-	if ok, said, err := s.Spawn("a", t.TempDir()); ok || said == "" && err == nil {
-		t.Fatalf("a directory that is no repo has nothing to branch from: %v %q %v", ok, said, err)
+	plain, _ := filepath.EvalSymlinks(t.TempDir()) // the pool keeps a folder by its real path
+	if ok, said, err := s.Spawn("a", plain); !ok || err != nil || !strings.HasPrefix(said, "a: folder "+plain+" (plain folder)") ||
+		len(h.opened) != 1 || !strings.Contains(h.opened[0], plain) {
+		t.Fatalf("a plain folder is no desk: the agent starts in it, on no branch: %v %q %v %v", ok, said, err, h.opened)
 	}
+	h.opened = nil
 	ok, said, err := s.SpawnWith("a", repo, SpawnOpts{DryRun: true})
 	if err != nil || !ok || !strings.HasPrefix(said, "would take a desk of "+repo) || len(h.opened) != 0 {
 		t.Fatalf("%v %q %v %v", ok, said, err, h.opened)

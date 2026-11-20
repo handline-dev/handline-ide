@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/wslock"
+	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
 // bobWithKid is the rig with bob.kid in bob's workspace, and the keys of both.
@@ -57,6 +58,36 @@ func TestWorkspaceSetRenamesOnlyAndItsAgentsFollow(t *testing.T) {
 	}
 	if m := r.call("workspace.set", `{"workspace":"shop","request_id":"s6"}`); m["error"] == nil {
 		t.Fatalf("a name is needed: %v", m)
+	}
+}
+
+// workspace.set adds a folder and takes one away; a folder an agent works in stays.
+func TestWorkspaceSetAddsAndTakesAFolder(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	_, kid := bobWithKid(t, r)
+	home, more := t.TempDir(), t.TempDir()
+	r.db.Exec("UPDATE workspaces SET folder = ? WHERE name = 'bob'", home)
+	if m := r.call("workspace.set", `{"workspace":"bob","add_folder":"`+more+`","request_id":"f1"}`); m["result"] == nil {
+		t.Fatalf("%v", m)
+	}
+	if g := gate(r.call("workspace.set", `{"workspace":"bob","add_folder":"/nowhere/at/all","request_id":"f2"}`)); g != "state" {
+		t.Fatalf("a folder that is not there: %q", g)
+	}
+	if err := team.NewRoster(r.home).SetKeys(kid, []yamlcompat.Pair{{Key: "repo", Val: more}}); err != nil {
+		t.Fatal(err)
+	}
+	if g := gate(r.call("workspace.set", `{"workspace":"bob","remove_folder":"`+more+`","request_id":"f3"}`)); g != "state" {
+		t.Fatalf("a folder an agent works in stays: %q", g)
+	}
+	team.NewRoster(r.home).SetKeys(kid, []yamlcompat.Pair{{Key: "repo", Val: home}})
+	if m := r.call("workspace.set", `{"workspace":"bob","remove_folder":"`+more+`","request_id":"f4"}`); m["result"] == nil {
+		t.Fatalf("%v", m)
+	}
+	var added string
+	r.db.QueryRow("SELECT added_folders FROM workspaces WHERE name = 'bob'").Scan(&added)
+	if added != "[]" {
+		t.Fatalf("%s", added)
 	}
 }
 

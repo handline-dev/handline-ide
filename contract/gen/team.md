@@ -9,8 +9,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `proposal.withdraw` | agent | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: withdraw |
 | `people.list` | agent |  | none | `{people}` | `bad_request` |  | `people`, fed by people |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
-| `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state, not_git | decided: create workspace |
-| `workspace.set` | owner | yes | `workspace`, `name`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
+| `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create workspace |
+| `workspace.set` | owner | yes | `workspace`, `name?`, `add_folder?`, `remove_folder?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
 | `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty, worktree | decided: delete workspace |
 | `workspace.rules` | agent |  | `workspace?`, `agent?` | `{rules, text_bytes, limit_bytes}` | `not_found`, `bad_request` |  | not cached |
 | `workspace.rule.set` | owner | yes | `workspace?`, `key`, `value`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set workspace rule |
@@ -38,11 +38,11 @@ Every workspace, so a client writes out a workspace key by name and groups agent
 
 ### `workspace.create`
 
-Make a workspace on the top of the git checkout folder is in, with its lead (reporting to the owner, its rules seeded), and start the lead: one operation, answered as agent.create's. Refused before any operation starts: a folder in no checkout (gate not_git), a missing one (not_found, what folder), a name a workspace has (gate state). Owner only; an agent proposes a team instead. The operation has kind workspace.create and its agent is the workspace's name (its lead); its steps and result are agent.create's. A folder another workspace's shares, or a name the rules refuse, fails it with the reason. A start that fails leaves the workspace and its lead registered, so its name is in use: start the lead with session.start (hl wake), or remove it with workspace.delete.
+Make a workspace on folder (the top of the git checkout it is in, or the plain folder itself), with its lead (reporting to the owner, its rules seeded), and start the lead: one operation, answered as agent.create's. Refused before any operation starts: a missing one (not_found, what folder), a name a workspace has (gate state). Owner only; an agent proposes a team instead. The operation has kind workspace.create and its agent is the workspace's name (its lead); its steps and result are agent.create's. A folder another workspace's shares, or a name the rules refuse, fails it with the reason. A start that fails leaves the workspace and its lead registered, so its name is in use: start the lead with session.start (hl wake), or remove it with workspace.delete.
 
 ### `workspace.set`
 
-Rename a workspace: its name is the one thing this changes. Keys never change; the dotted form of each agent's name (workspace.agent) follows the new name, and the old one no longer resolves. Refused (gate state) while one of its agents has a session running, while an open proposal names one by its dotted name, or for a name the rules refuse or a workspace or person's handle has. The same name is no change. Owner only.
+Rename a workspace, add a folder to it or take one away. Keys never change; the dotted form of each agent's name (workspace.agent) follows a new name, and the old one no longer resolves. A rename is refused (gate state) while one of its agents has a session running, while an open proposal names one by its dotted name, or for a name the rules refuse or a workspace or person's handle has; the same name is no change. A folder is added after the others (one it has is no change) and refused (gate state) when it is not there or another workspace's folder holds it or is in it; taking one is refused (gate state) while an agent works in it, and taking the default makes the next folder the default. Owner only. At least one of name, add_folder and remove_folder; none is bad_request, field name.
 
 ### `workspace.delete`
 

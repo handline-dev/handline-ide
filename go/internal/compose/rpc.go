@@ -17,7 +17,7 @@ func (p *Parts) SessionRPC(cfg Config) *sessionrpc.Env {
 	c := controls{p: p, lc: p.LC}
 	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow),
 		MoveNow: c.moveNow, CancelMove: c.cancelMove, Now: cfg.Now, Roster: p.LC.roster,
-		ForceStart: c.ForceStart, Unpass: c.Unpass, StartOwed: c.StartOwed, StartFailed: p.LC.Env.FailedSince, Launch: p.LC.prepareLaunch}
+		ForceStart: c.ForceStart, Unpass: c.Unpass, Launch: p.LC.prepareLaunch}
 }
 
 // prepareLaunch is session.launch_prepare: lifecycle.Launcher.Prepare for the terminal that asked.
@@ -66,17 +66,6 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 		return false, "", err
 	}
 	return true, "Starting " + addr.Ref(agent) + " now, even though " + loadgate.Cause(why) + ".", nil
-}
-
-// StartOwed is whether the daemon owes agent a session now (lifecycle StartOrWakeNeeded).
-func (c controls) StartOwed(agent string) bool {
-	m := c.lc.Manager
-	row, err := db.GetAgentState(m.Q, agent)
-	if err != nil {
-		return false
-	}
-	kind, _, err := m.StartOrWakeNeeded(agent, row)
-	return err == nil && kind != ""
 }
 
 // Unpass takes back what ForceStart let past, for a start that has not come by the time its caller stopped waiting.

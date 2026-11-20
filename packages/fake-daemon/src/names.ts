@@ -23,20 +23,28 @@ export function identOf(key: string): { key: string; name: string; workspace: st
   return { key, name: key === seg ? 'lead' : key.slice(seg.length + 1), workspace: workspaceKey(seg), owner: OWNER };
 }
 
-/** workspaces.list over the agents' keys; a workspace renamed or made at a folder has its name or folder by segment. */
+/** workspaces.list over the agents' keys; a workspace renamed or made at a folder has its name, folder or added folders by segment. */
 export function workspacesOf(
   agents: readonly string[],
   names: ReadonlyMap<string, string> = new Map(),
   folders: ReadonlyMap<string, string> = new Map(),
+  added: ReadonlyMap<string, readonly string[]> = new Map(),
+  plain: (path: string) => boolean = () => false,
 ): Workspace[] {
   const segs = [...new Set(agents.map(segment))];
   return segs
-    .map((seg) => ({
-      key: workspaceKey(seg),
-      name: names.get(seg) ?? seg,
-      folder: folders.get(seg) ?? `/fake/${seg}`,
-      added_folders: [],
-      lead: agents.includes(seg) ? seg : null,
-    }))
+    .map((seg) => {
+      const folder = folders.get(seg) ?? `/fake/${seg}`;
+      const more = [...(added.get(seg) ?? [])];
+      const all = [folder, ...more].filter((f) => f !== '');
+      return {
+        key: workspaceKey(seg),
+        name: names.get(seg) ?? seg,
+        folder,
+        added_folders: more,
+        folders: all.map((path, i) => ({ path, name: path.split('/').pop()!, git: !plain(path), default: i === 0 })),
+        lead: agents.includes(seg) ? seg : null,
+      };
+    })
     .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));
 }

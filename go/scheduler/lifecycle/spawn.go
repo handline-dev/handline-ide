@@ -341,6 +341,9 @@ func (s *Spawns) SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error
 		shown = "unknown"
 	}
 	lines := []string{fmt.Sprintf("%s: desk %s (%s, branch %s)", addr.Ref(agent), wt, t.How, t.Branch)}
+	if t.Branch == "" {
+		lines[0] = fmt.Sprintf("%s: folder %s (%s)", addr.Ref(agent), wt, t.How)
+	}
 	for _, said := range t.Said {
 		lines = append(lines, "  "+said)
 	}
