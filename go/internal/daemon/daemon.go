@@ -191,6 +191,10 @@ func Start(cfg Config) (*Daemon, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := keepOwnNode(db, cfg.Home); err != nil {
+		db.Close()
+		return nil, err
+	}
 	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}
 	if cfg.Turns != nil {
 		cfg.Turns.Agent = func(handle string) string { a, _ := dbpkg.AgentOfTerminal(db, handle); return a }
@@ -355,7 +359,7 @@ func Start(cfg Config) (*Daemon, error) {
 			}()
 		}
 		w := &watcher.Watcher{DB: db, Emit: emit, Log: cfg.Log, Signature: func() string { return proposalSignature() + "/" + watcher.ForYouSignature(db) },
-			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{}, watcher.People(), watcher.Workspaces(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
+			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Proposals{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.ForYou{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Prefs{}, &watcher.Requests{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns, Tail: d.paneTail}}}
@@ -839,4 +843,13 @@ func ensureOwner(db *sql.DB, ownerName func() string) error {
 		return fmt.Errorf("the owner of this home is %s, not %s: this daemon writes the person as %s, so it does not start here", k, actor.OwnerKey, actor.OwnerKey)
 	}
 	return nil
+}
+
+// keepOwnNode writes this machine's row in nodes at start, under its node id (made the first time).
+func keepOwnNode(db *sql.DB, home string) error {
+	id, err := dbpkg.NodeID(home, db)
+	if err != nil {
+		return fmt.Errorf("node id: %w", err)
+	}
+	return dbpkg.KeepOwnNode(db, id, sysres.MachineName(), time.Now().Unix())
 }

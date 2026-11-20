@@ -90,10 +90,9 @@ func (e *Env) paused() any {
 	return map[string]any{"since": ts(p.Since), "until": until, "machine": e.machine()}
 }
 
-// machine is DaemonStatus.machine: the machine this daemon runs on, its id kept in the database.
+// machine is DaemonStatus.machine: the machine this daemon runs on, by its node id.
 func (e *Env) machine() map[string]any {
-	id, _ := db.MachineID(e.DB)
-	return map[string]any{"id": id, "name": sysres.MachineName()}
+	return map[string]any{"id": db.NodeIDOf(e.Home), "name": sysres.MachineName()}
 }
 
 // machineNeeds are the items daemon.status carries: what the machine needs of the founder, oldest first.
