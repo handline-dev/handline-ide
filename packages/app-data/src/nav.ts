@@ -1,6 +1,6 @@
 // The person's nav prefs (the daemon's, on every device).
 import { useRef } from 'react';
-import { movePin, navOf, togglePin } from '@handline/app-core';
+import { movePin, navOf, toggleIn, togglePin } from '@handline/app-core';
 import { useQueryClient } from '@tanstack/react-query';
 import type { NavPrefs, NavPrefsChanges, Prefs } from '@handline/client';
 import { useData } from '#src/provider.ts';
@@ -15,6 +15,7 @@ export function useNav(): {
   change: (changes: NavPrefsChanges) => void;
   togglePin: (agent: string) => void;
   movePin: (agent: string, index: number) => void;
+  toggleFold: (workspace: string) => void;
 } {
   const prefs = usePrefs();
   const qc = useQueryClient();
@@ -44,5 +45,7 @@ export function useNav(): {
     change,
     togglePin: (agent) => pin((p) => togglePin(p, agent)),
     movePin: (agent, index) => pin((p) => movePin(p, agent, index)),
+    // From the latest prefs, so two quick folds both count.
+    toggleFold: (workspace) => change({ folded: toggleIn(navOf(qc.getQueryData<Prefs>(qk.prefs(daemon))).folded, workspace) }),
   };
 }

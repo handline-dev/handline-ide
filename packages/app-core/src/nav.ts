@@ -5,9 +5,11 @@ export const DEFAULT_NAV: NavPrefs = { pins: [], unread_only: false, hidden: [],
 
 export const navOf = (p: Prefs | undefined): NavPrefs => ({ ...DEFAULT_NAV, ...p?.nav });
 
-/** The pins with `name` added at the end, or taken out. */
-export const togglePin = (pins: readonly string[], name: string): string[] =>
-  pins.includes(name) ? pins.filter((n) => n !== name) : [...pins, name];
+/** The list with `name` added at the end, or taken out. */
+export const toggleIn = (list: readonly string[], name: string): string[] =>
+  list.includes(name) ? list.filter((n) => n !== name) : [...list, name];
+
+export const togglePin = toggleIn;
 
 /** The pins with `name` moved to `index`. */
 export function movePin(pins: readonly string[], name: string, index: number): string[] {
