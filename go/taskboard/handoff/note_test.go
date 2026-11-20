@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/data/states"
 )
 
 func (w *world) writeNote(agent, text string) {
@@ -28,7 +30,12 @@ func (w *world) asked(agent string) (int64, int, bool) {
 
 func (w *world) hold(agent string) bool {
 	w.t.Helper()
-	ok, err := w.Hold(agent, w.now)
+	return w.holdFor(agent, "close")
+}
+
+func (w *world) holdFor(agent, kind string) bool {
+	w.t.Helper()
+	ok, err := w.Hold(agent, kind, w.now)
 	if err != nil {
 		w.t.Fatal(err)
 	}
@@ -287,6 +294,28 @@ func TestAnIdleSessionIsAskedOnceInTheLastTenthOfItsCacheLife(t *testing.T) {
 	}
 	if got, _ := w.AnsweredTurn("a"); got {
 		t.Error("answered before any turn")
+	}
+}
+
+// An early move starts the agent fresh whatever runs behind its prompt, so it asks for the note with background work running.
+func TestAnEarlyMoveAsksForTheNoteWithBackgroundWork(t *testing.T) {
+	w := newWorld(t)
+	w.agent("a", "IDLE", "alpha", "")
+	w.telling.accept = true
+	w.longCache("a", "s1", 100)
+	w.telling.busy["a"] = true
+	if w.hold("a") || len(w.telling.typed) != 0 {
+		t.Fatal("a close asked with background work")
+	}
+	if !w.holdFor("a", states.EarlyUsageTrigger) || len(w.telling.typed) != 1 {
+		t.Fatalf("an early move did not ask and hold: typed %d", len(w.telling.typed))
+	}
+	w2 := newWorld(t)
+	w2.agent("a", "IDLE", "alpha", "")
+	w2.telling.accept = true
+	w2.telling.busy["a"] = true
+	if w2.holdFor("a", states.EarlyUsageTrigger) {
+		t.Error("an early move asked with nothing cheap to go by")
 	}
 }
 

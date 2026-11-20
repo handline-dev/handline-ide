@@ -72,8 +72,8 @@ type MoveEnv struct {
 	ColdStartPct func(q db.Q) *float64
 	// AtLimit is when the agent's last turn ended on a usage limit, ok false when it did not.
 	AtLimit func(q db.Q, agent string) (at int64, ok bool)
-	// NoteHold is handoff_note.hold: the ask is out and the note not yet in.
-	NoteHold func(q db.Q, agent string, now int64) bool
+	// NoteHold is handoff_note.hold for a move of this trigger kind: the ask is out and the note not yet in.
+	NoteHold func(q db.Q, agent, kind string, now int64) bool
 	// NoteWritten is whether the agent wrote its handoff note for this stretch; nil for never.
 	NoteWritten func(agent string) bool
 	// LimitDialogOpen is whether the usage-limit dialog is on the agent's screen: the turn behind it is over, whatever the session says.
@@ -399,7 +399,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	}
 	// The agent writes its own part of the record first, one turn while its cache is warm. A person's order is not held for it, and a
 	// session at the wall cannot take a turn.
-	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, now) {
+	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, t.Kind, now) {
 		v.log("  %s: %s fired - waiting for its handoff note", agent, t.Kind)
 		check(db.MarkNoteWait(m.Q, agent, t.Kind, now))
 		v.saving(agent, t.Kind, "its handoff note")

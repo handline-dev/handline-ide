@@ -126,7 +126,7 @@ func TestF2MoveNowWaitsForTheNoteThenMoves(t *testing.T) {
 		t.Fatal("a second move replaced one that is stopping")
 	}
 	hold, written := true, false
-	g.v.E.NoteHold = func(db.Q, string, int64) bool { return hold }
+	g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return hold }
 	g.v.E.NoteWritten = func(string) bool { return written }
 	g.run.status = "idle" // the Esc ended the turn; the ask is out
 	if runPending(t, g) {
@@ -149,7 +149,7 @@ func TestF2MoveNowWaitsForTheNoteThenMoves(t *testing.T) {
 // F2: a note that never comes does not hang the move: past the note wait it moves on the daemon's own record and says so.
 func TestF2AHangingNoteDoesNotHangTheMove(t *testing.T) {
 	g, clock := newReserveRig(t)
-	g.v.E.NoteHold = func(db.Q, string, int64) bool { return true }
+	g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true }
 	if ok, _, _ := g.v.MoveNow("a", "beta", "human", noStop(t)); !ok {
 		t.Fatal("not kept")
 	}

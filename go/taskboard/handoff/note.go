@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -266,14 +267,17 @@ func (e *Env) CacheLeft(agent string, now float64) (left float64, ok bool, err e
 	return float64(last) + PromptCacheS - now, true, nil
 }
 
-// eligible is whether a close or move may ask now: the agent writes notes, nothing runs behind its prompt, and a turn would still
-// be cheap: its cache has a life over five minutes and it is not nearly over.
-func (e *Env) eligible(agent string, now int64) (bool, error) {
+// eligible is whether a close or move of this kind may ask now: the agent writes notes, nothing runs behind its prompt, and a turn
+// would still be cheap: its cache has a life over five minutes and it is not nearly over. An early move asks with background work
+// running: that work does not end with the turn, and the move starts the agent fresh anyway.
+func (e *Env) eligible(agent, kind string, now int64) (bool, error) {
 	if !e.Enabled(agent) {
 		return false, nil
 	}
-	if busy, err := e.Note.HasBackgroundWork(e.DB, agent); err != nil || busy {
-		return false, err
+	if kind != states.EarlyUsageTrigger {
+		if busy, err := e.Note.HasBackgroundWork(e.DB, agent); err != nil || busy {
+			return false, err
+		}
 	}
 	clock, err := e.CacheClock(agent, "")
 	if err != nil {
@@ -356,16 +360,16 @@ func (e *Env) AtCacheEdge(agent string, now int64, transcriptPath string) (bool,
 	return e.Ask(agent, "cache")
 }
 
-// Hold is whether the close or move this agent is due should wait for its note. It asks once per stretch and holds while the ask's
+// Hold is whether the close or move of kind this agent is due should wait for its note. It asks once per stretch and holds while the ask's
 // turn has not begun, for at most AskWaitS. False means go on, with the note if it was written and without it otherwise: never a
 // block.
-func (e *Env) Hold(agent string, now int64) (bool, error) {
+func (e *Env) Hold(agent, kind string, now int64) (bool, error) {
 	when, prompts, asked, err := e.Asked(agent)
 	if err != nil {
 		return false, err
 	}
 	if !asked {
-		ok, err := e.eligible(agent, now)
+		ok, err := e.eligible(agent, kind, now)
 		if err != nil || !ok {
 			return false, err
 		}
