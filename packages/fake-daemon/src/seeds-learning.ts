@@ -35,17 +35,29 @@ export const LEARNING_SEEDS: Record<string, Seed> = {
       FOUNDER,
       PREFERENCES.map(([text, task], i) => ({ id: 101 + i, agent: FOUNDER, text, task, created_at: at(5 - i), created_by: ARCH })),
     );
-    const verdicts = [false, true, true, true, false, true, true, true, true, true];
-    d.tasks.reviews.set(ARCH, { level: 'every', record: verdicts.map((ok_first, i) => ({ task: 9150 + i, ok_first, at: at(10 - i) })) });
+    const record = (from: number, oks: boolean[]) => oks.map((ok_first, i) => ({ task: from + i, ok_first, at: at(10 - i) }));
+    d.tasks.reviews.set(
+      ARCH,
+      new Map([
+        ['screen', { level: 'every', record: record(9150, Array<boolean>(10).fill(true)) }],
+        ['daemon', { level: 'one_in_two', record: record(9170, [true, false, true, true]) }],
+      ]),
+    );
     d.tasks.warnings.push({
       task: null,
-      title: 'architect has learned enough to be checked less',
+      title: "architect's screen results: look at 1 in 2?",
       kind: 'warning',
       source: 'machine',
-      id: `review:${ARCH}`,
+      id: `review:${ARCH}:screen`,
       agent: null,
       ask: null,
-      warning: { kind: 'review', agent: ARCH, line: '6 lessons. 8 of its last 10 tasks were OK at first look.', level: 'one_in_three' },
+      warning: {
+        kind: 'review',
+        agent: ARCH,
+        work: 'screen',
+        line: 'Its last 10 screen results were OK at first look.',
+        level: 'one_in_two',
+      },
       items: [],
       unread: 0,
       first_unread: null,

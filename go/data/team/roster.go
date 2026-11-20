@@ -128,6 +128,19 @@ func find(q db.Q, who string) (row, error) {
 	return r, err
 }
 
+// Model is the model the agent runs, its vendor's default when none is set; "" for an agent not registered.
+func (r *Roster) Model(name string) (string, error) {
+	cfg, err := r.Read(name)
+	if _, ok := errors.AsType[*NotRegistered](err); ok {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	_, model, _ := Parts(cfg)
+	return model, nil
+}
+
 // Read is the agent's settings: a key only when its column is set, repo the folder of its workspace it works in.
 func (r *Roster) Read(name string) (Config, error) {
 	if r.err != nil {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
 )
 
@@ -19,15 +20,12 @@ type founderWarning struct {
 	task      int64  // the task it is about; 0 for none
 	worse     string // login: why the account cannot be used, so a warning grown worse is not hidden by its dismissal
 	view      map[string]any
-	// review: a "learned enough" notice, the level row it is about and the looks at that level; its dismissal hides it for reviewAgain
-	// more looks at that level
+	// review: a step-down offer at a level row under a model, with its looks there; Not now hides it for db.StepAfter more looks
 	review bool
 	level  int64
+	model  string
 	looks  int
 }
-
-// reviewAgain is how many more looks at its level bring a dismissed "learned enough" notice back.
-const reviewAgain = 5
 
 // founderWarnings is PendingWarning's rows, less those the founder dismissed (warning.dismiss).
 func (e *Env) founderWarnings() ([]founderWarning, error) {
@@ -44,10 +42,12 @@ func (e *Env) founderWarnings() ([]founderWarning, error) {
 		if !ok || !w.review {
 			return ok && kept == sinceKey(w)
 		}
-		var level int64
-		var looks int
-		_, err := fmt.Sscanf(kept, "review %d %d", &level, &looks)
-		return err == nil && level == w.level && w.looks < looks+reviewAgain
+		at := strings.SplitN(kept, " ", 4) // review <level row> <looks> <model>
+		if len(at) != 4 || at[0] != "review" || at[1] != strconv.FormatInt(w.level, 10) || at[3] != w.model {
+			return false
+		}
+		looks, err := strconv.Atoi(at[2])
+		return err == nil && w.looks < looks+db.StepAfter
 	}), nil
 }
 
@@ -67,7 +67,7 @@ func (e *Env) dismissed() (map[string]string, error) {
 // sinceKey is what a dismissal keeps of the warning it hides: its since, and how bad it is; for a review notice, its level and looks.
 func sinceKey(w founderWarning) string {
 	if w.review {
-		return fmt.Sprintf("review %d %d", w.level, w.looks)
+		return fmt.Sprintf("review %d %d %s", w.level, w.looks, w.model)
 	}
 	return fmt.Sprint(w.since, " ", w.worse)
 }
@@ -117,39 +117,50 @@ func (e *Env) allFounderWarnings() ([]founderWarning, error) {
 	return append(append(append(append(out, lost...), refused...), notices...), reviews...), nil
 }
 
-// reviewNotices is, for each agent whose record says it has learned enough (db.LearnedEnough), the founder's notice that it could be
-// checked less. Only the founder lowers a level (agent.review_set).
+// reviewNotices is, for each agent and kind of work whose record says it has learned enough (db.LearnedEnough), the founder's offer to
+// look at it one step less: Yes is agent.review_set with the offered level, Not now its dismissal. Only the founder lowers a level.
 func (e *Env) reviewNotices() ([]founderWarning, error) {
 	agents, err := query(e.DB, "SELECT DISTINCT agent FROM events WHERE kind = ? ORDER BY agent", db.ReadyKind)
 	if err != nil {
 		return nil, err
 	}
+	roster := team.NewRoster(e.Home)
 	var out []founderWarning
 	for _, r := range agents {
 		a := r.str("agent")
-		l, err := db.ReviewLevel(e.DB, a)
+		model, err := roster.Model(a)
 		if err != nil {
 			return nil, err
 		}
-		rec, err := db.ReviewRecord(e.DB, a, l)
+		works, err := db.AgentWorks(e.DB, a)
 		if err != nil {
 			return nil, err
 		}
-		yes, ok := db.LearnedEnough(l.Level, rec)
-		if !yes {
-			continue
+		for _, w := range works {
+			l, err := db.ReviewLevel(e.DB, a, w, model)
+			if err != nil {
+				return nil, err
+			}
+			rec, err := db.ReviewRecord(e.DB, a, model, l)
+			if err != nil {
+				return nil, err
+			}
+			if yes, _ := db.LearnedEnough(l, rec); !yes {
+				continue
+			}
+			next := db.LevelDown(l.Level)
+			line := fmt.Sprintf("Its last %d %s results were OK at first look.", db.StepAfter, w)
+			out = append(out, founderWarning{id: "review:" + a + ":" + w, title: fmt.Sprintf("%s's %s results: look at %s?", addr.Ref(a), w, levelWords[next]),
+				since: ts(rec[len(rec)-1].At), review: true, level: l.Row, model: model, looks: len(rec),
+				view: map[string]any{"kind": "review", "agent": a, "work": w, "line": line, "level": next}})
 		}
-		lessons, err := db.LiveLessons(e.DB, a)
-		if err != nil {
-			return nil, err
-		}
-		line := fmt.Sprintf("%d lessons. %d of its last 10 tasks were OK at first look.", len(lessons), ok)
-		out = append(out, founderWarning{id: "review:" + a, title: addr.Ref(a) + " has learned enough to be checked less",
-			since: ts(rec[len(rec)-1].At), review: true, level: l.Row, looks: len(rec),
-			view: map[string]any{"kind": "review", "agent": a, "line": line, "level": db.LevelDown(l.Level)}})
 	}
 	return out, nil
 }
+
+// levelWords are the levels as the founder reads them.
+var levelWords = map[string]string{db.LevelEvery: "every one", db.LevelOneInTwo: "1 in 2", db.LevelOneInThree: "1 in 3",
+	db.LevelOneInFive: "1 in 5", db.LevelNever: "none"}
 
 // loginWarnings is each account the login watch says wants a login or stands stalled, from its rows alone: a read asks no keychain.
 func (e *Env) loginWarnings() ([]founderWarning, error) {

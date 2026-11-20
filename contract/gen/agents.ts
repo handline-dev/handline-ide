@@ -151,8 +151,10 @@ export type AgentView = {
   founder_seen?: number;
   /** What it is doing and why (x-status). Absent from a daemon that does not send it. */
   status?: Status;
-  /** agents.list only: how many of the agent's finished story sub-tasks come to the founder (agent.review). Absent from a daemon that does not send it. */
-  review_level?: "every" | "one_in_three" | "auto";
+  /** agents.list only: the least looked-at of the agent's review levels, one per kind of work it has done (agent.review); every when it has done none. Absent from a daemon that does not send it. */
+  review_level?: "every" | "one_in_two" | "one_in_three" | "one_in_five" | "never";
+  /** agents.list only: the kind of work review_level is at; null at every. Absent from a daemon that does not send it. */
+  review_work?: ("contract" | "screen" | "daemon" | "docs") | null;
 };
 
 export type AgentDetail = AgentView & {
@@ -576,24 +578,29 @@ export interface AgentsMethods {
   } };
   "agent.review_set": { params: {
   agent: Who;
-  level: "every" | "one_in_three" | "auto";
+  work: "contract" | "screen" | "daemon" | "docs";
+  level: "every" | "one_in_two" | "one_in_three" | "one_in_five" | "never";
   request_id: RequestId;
 }; result: Accepted };
   "agent.review": { params: {
   agent: Who;
 }; result: {
     agent: string;
-    level: "every" | "one_in_three" | "auto";
-    record: {
-      task: number;
-      /** The founder's first verdict on it was OK. */
-      ok_first: boolean;
-      at: Timestamp;
+    /** One per kind of work the agent has finished a task of or has a level at, in the order contract, screen, daemon, docs. */
+    ladder: {
+      work: "contract" | "screen" | "daemon" | "docs";
+      level: "every" | "one_in_two" | "one_in_three" | "one_in_five" | "never";
+      record: {
+        task: number;
+        /** The founder's first verdict on it was OK. */
+        ok_first: boolean;
+        at: Timestamp;
+      }[];
+      /** Every look at this level; record holds the last ten. */
+      looks: number;
+      /** The level one step less looked at when the last 10 were all OK at first look (the founder's offer says so); null otherwise, and always for contract. */
+      suggested: ("one_in_two" | "one_in_three" | "one_in_five" | "never") | null;
     }[];
-    /** Every look at this level; record holds the last ten. */
-    looks: number;
-    /** The level one step less checked when 8 of the last 10 were OK at first look (the founder's notice says so); null otherwise. */
-    suggested: ("one_in_three" | "auto") | null;
     /** Its live lessons (lessons.list). */
     lessons: number;
   } };

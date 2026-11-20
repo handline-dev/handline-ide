@@ -508,10 +508,12 @@ export type PendingWarning = {
   agent?: string;
   /** delivery: the message. */
   ref?: RequestRef;
-  /** review: the notice's second line (its lessons and its record). */
+  /** review: the offer's second line (its record). */
   line?: string;
-  /** review: the level it could be checked at (agent.review_set). */
-  level?: "one_in_three" | "auto";
+  /** review: the level offered (agent.review_set with work); Not now is warning.dismiss, and the offer comes back after 10 more looks. */
+  level?: "one_in_two" | "one_in_three" | "one_in_five" | "never";
+  /** review: the kind of work the offer is about. */
+  work?: "contract" | "screen" | "daemon" | "docs";
 };
 
 /** One thing an agent learned, carried in its launch prompt. Kept with who and when; a removed or merged one is no longer listed. */

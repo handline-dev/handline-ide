@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -211,7 +212,7 @@ func TestTheTaskInASubjectIsItsLastParenthesisToken(t *testing.T) {
 		{"Fix (T7)", true}, {"Fix (T5, T7)", true}, {"Fix (T5,T7 )", true}, {"Fix (T71)", false}, {"Fix (T70)", false},
 		{"Fix (T7) and more (notes)", false}, {"Fix T7", false}, {"Fix (T7", false}, {"Fix (XT7)", false},
 	} {
-		if got := names(c.subject, 7); got != c.want {
+		if got := gitrun.Names(c.subject, 7); got != c.want {
 			t.Errorf("%q: %v", c.subject, got)
 		}
 	}

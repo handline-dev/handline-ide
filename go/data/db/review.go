@@ -103,12 +103,13 @@ func AddReady(q Q, tid int64, by, landBy string, memo int64, more ...KV) error {
 	return err
 }
 
-// MaySkipCount is how many of agent's finishes since its level was set (after event `after`) could have gone on without the founder:
-// one_in_three sends every third of them to the founder.
-func MaySkipCount(q Q, agent string, after int64) (int, error) {
+// MaySkipCount is how many of agent's finishes judged at its level at work under model (the Ready's judged_by), since that level was set
+// (after event `after`), could have gone on without the founder: at 1 in n, the first of them and every n-th after go to the founder.
+func MaySkipCount(q Q, agent, work, model string, after int64) (int, error) {
 	var n int
-	err := q.QueryRow("SELECT COUNT(*) FROM events WHERE kind = ? AND agent = ? AND id > ? AND json_extract(payload, '$.may_skip') = 1",
-		ReadyKind, agent, after).Scan(&n)
+	err := q.QueryRow("SELECT COUNT(*) FROM events r WHERE r.kind = ? AND r.id > ? AND json_extract(r.payload, '$.may_skip') = 1 AND "+
+		"r.agent = ? AND json_extract(r.payload, '$.model') = ? AND json_extract(r.payload, '$.judged_by') = ?",
+		ReadyKind, after, agent, model, work).Scan(&n)
 	return n, err
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -173,7 +174,7 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			if err := db.AddVerdict(tx, tid, me, db.VerdictRedo, memo); err != nil {
 				return nil, err
 			}
-			if err := redoLevelUp(tx, r.By, tid, me); err != nil {
+			if err := redoToEvery(tx, home, r.By, tid, me); err != nil {
 				return nil, err
 			}
 			told := fmt.Sprintf("T%d 대표님 Redo %d (댓글 %d): %s\n\nFirst keep one lesson from this note, what to do differently from now on: "+
@@ -234,14 +235,62 @@ func skippedTask(tx *sql.Tx, tid int64, by string) (*db.Review, error) {
 	return r, nil
 }
 
-// redoLevelUp moves the review level of the agent that finished the task one step toward every on a Redo, at once, with the task on
-// the row.
-func redoLevelUp(tx *sql.Tx, agent string, tid int64, by string) error {
-	l, err := db.ReviewLevel(tx, agent)
-	if err != nil || l.Level == db.LevelEvery {
+// taskWorks are the kinds of work agent's commits naming task tid are, in the repo it works in: none when they cannot be read, which is
+// looked at every time.
+func taskWorks(home, agent string, tid int64) []string {
+	cfg, err := team.NewRoster(home).Read(agent)
+	repo, _ := cfg["repo"].(string)
+	if err != nil || repo == "" {
+		return nil
+	}
+	files, err := gitrun.TaskFiles(repo, tid)
+	if err != nil {
+		return nil
+	}
+	return db.WorksOf(files)
+}
+
+// redoToEvery puts the agent that finished the task back to every at each kind of work the task is, at once, with the task on the row.
+func redoToEvery(tx *sql.Tx, home, agent string, tid int64, by string) error {
+	model, err := team.NewRosterOn(tx, home).Model(agent)
+	if err != nil {
 		return err
 	}
-	return db.SetReviewLevel(tx, agent, db.LevelUp(l.Level), by, "redo", tid)
+	works, err := readyWorks(tx, tid)
+	if err != nil {
+		return err
+	}
+	for _, w := range works {
+		l, err := db.ReviewLevel(tx, agent, w, model)
+		if err != nil {
+			return err
+		}
+		if l.Level != db.LevelEvery {
+			if err := db.SetReviewLevel(tx, agent, w, model, db.LevelEvery, by, "redo", tid); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// readyWorks are the kinds of work task tid's newest Ready says it is.
+func readyWorks(tx *sql.Tx, tid int64) ([]string, error) {
+	var works []string
+	rows, err := tx.Query("SELECT j.value FROM events r, json_each(r.payload, '$.works') j WHERE r.id = "+
+		"(SELECT MAX(id) FROM events WHERE kind = ? AND json_extract(payload, '$.task_id') = ?)", db.ReadyKind, tid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var w string
+		if err := rows.Scan(&w); err != nil {
+			return nil, err
+		}
+		works = append(works, w)
+	}
+	return works, rows.Err()
 }
 
 // checkReport is what the assignee's handoff of a finished sub-task says of its own check: the lessons it checked, what the fresh look
@@ -268,9 +317,9 @@ func reportOf(p map[string]any) (checkReport, error) {
 	return r, nil
 }
 
-// fields are the report as the Ready event keeps it, with whether this finish could skip the founder.
-func (r checkReport) fields(maySkip bool) []db.KV {
-	out := []db.KV{{K: "may_skip", V: maySkip}}
+// fields are the report as the Ready event keeps it, with what the record and the sampling count by.
+func (r checkReport) fields(maySkip bool, works []string, model, judgedBy string) []db.KV {
+	out := []db.KV{{K: "may_skip", V: maySkip}, {K: "works", V: works}, {K: "model", V: model}, {K: "judged_by", V: judgedBy}}
 	for _, f := range [][2]string{{"checked", r.checked}, {"misses", r.misses}, {"tests", r.tests}} {
 		if f[1] != "" {
 			out = append(out, db.KV{K: f[0], V: f[1]})
@@ -279,25 +328,31 @@ func (r checkReport) fields(maySkip bool) []db.KV {
 	return out
 }
 
-// skipsFounder is whether agent's finish of task tid goes on to its land_by agent without the founder, by its review level. Only a finish
-// with a clean check, passing tests and no Redo may (maySkip); at one_in_three the first of those since the level was set, and every
-// third after, still goes to the founder.
-func skipsFounder(tx *sql.Tx, tid int64, agent string, rep checkReport) (maySkip, skip bool, level string, err error) {
+// skipsFounder is whether agent's finish of task tid goes on without the founder, by the strictest of its levels at works (judged, its
+// kind). Only a clean check, passing tests and no Redo may (maySkip); at 1 in n the first since the level and every n-th after still go.
+func skipsFounder(tx *sql.Tx, tid int64, agent string, rep checkReport, works []string, model string) (maySkip, skip bool, level, judged string, err error) {
 	r, err := db.TaskReview(tx, tid)
 	if err != nil {
-		return false, false, "", err
+		return false, false, "", "", err
 	}
 	maySkip = rep.checked != "" && rep.misses == "" && rep.tests == "pass" && (r == nil || r.Redo == 0)
-	l, err := db.ReviewLevel(tx, agent)
-	if err != nil || !maySkip {
-		return maySkip, false, l.Level, err
+	levels := make([]db.LevelAt, len(works))
+	for i, w := range works {
+		if levels[i], err = db.ReviewLevel(tx, agent, w, model); err != nil {
+			return false, false, "", "", err
+		}
 	}
-	switch l.Level {
-	case db.LevelAuto:
-		return true, true, l.Level, nil
-	case db.LevelOneInThree:
-		n, err := db.MaySkipCount(tx, agent, l.After)
-		return true, n%3 != 0, l.Level, err
+	l := db.Strictest(levels)
+	if !maySkip {
+		return false, false, l.Level, l.Work, nil
 	}
-	return true, false, l.Level, nil
+	n := db.LevelEach(l.Level)
+	switch n {
+	case 0:
+		return true, true, l.Level, l.Work, nil
+	case 1:
+		return true, false, l.Level, l.Work, nil
+	}
+	done, err := db.MaySkipCount(tx, agent, l.Work, model, l.After)
+	return true, done%n != 0, l.Level, l.Work, err
 }

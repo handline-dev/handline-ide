@@ -591,10 +591,29 @@
       "type": "string",
       "enum": [
        "every",
+       "one_in_two",
        "one_in_three",
-       "auto"
+       "one_in_five",
+       "never"
       ],
-      "description": "agents.list only: how many of the agent's finished story sub-tasks come to the founder (agent.review). Absent from a daemon that does not send it."
+      "description": "agents.list only: the least looked-at of the agent's review levels, one per kind of work it has done (agent.review); every when it has done none. Absent from a daemon that does not send it."
+     },
+     "review_work": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "contract",
+         "screen",
+         "daemon",
+         "docs"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "agents.list only: the kind of work review_level is at; null at every. Absent from a daemon that does not send it."
      }
     },
     "required": [
@@ -3487,7 +3506,7 @@
   },
   {
    "name": "agent.review_set",
-   "summary": "The founder sets how many of an agent's finished story sub-tasks come to them: every (the default), one_in_three (the others take an automatic OK and go to the land_by agent) or auto (none, unless it must). Each change is kept with who and when; a Redo moves it up one step by itself, and the daemon never lowers it.",
+   "summary": "The founder sets how many of an agent's finished tasks of one kind of work come to them: every (the default), one_in_two, one_in_three, one_in_five (the others take an automatic OK and go to the land_by agent) or never (none, unless it must). contract work stays at every. Each change is kept with who and when; a Redo puts every kind of the task back to every by itself, and the daemon never lowers a level.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3498,14 +3517,30 @@
      }
     },
     {
+     "name": "work",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "contract",
+       "screen",
+       "daemon",
+       "docs"
+      ]
+     },
+     "description": "The kind of work, read from the files a task's commits change: contract (the contract, migrations, a store's schema), screen (apps/, packages/), docs (docs/, *.md, or only deletions), daemon (the rest)."
+    },
+    {
      "name": "level",
      "required": true,
      "schema": {
       "type": "string",
       "enum": [
        "every",
+       "one_in_two",
        "one_in_three",
-       "auto"
+       "one_in_five",
+       "never"
       ]
      }
     },
@@ -3532,14 +3567,17 @@
    "x-since": 1,
    "errors": [
     {
+     "$ref": "#/components/errors/refused"
+    },
+    {
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Only a finish whose check passed with no misses, whose tests passed and that was never sent back may skip the founder (task.handoff checked, misses, tests); at one_in_three every third of those still comes."
+   "description": "Only a finish whose check passed with no misses, whose tests passed and that was never sent back may skip the founder (task.handoff checked, misses, tests); at 1 in n the first of those since the level was set, and every n-th after, still comes. A task of several kinds is looked at as the strictest of their levels. contract below every is refused. A level holds only while the agent runs the model it was set under."
   },
   {
    "name": "agent.review",
-   "summary": "How the founder checks an agent's story work: its level, its record at that level (the founder's first verdict on each task it finished, the last ten, newest last), the level the record suggests, and its lesson count.",
+   "summary": "How the founder checks an agent's work, per kind of work it has done: each kind's level, its record at that level (the founder's first verdict on each task of that kind it finished, the last ten, newest last), the level the record offers, and its lesson count.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3558,55 +3596,84 @@
       "agent": {
        "type": "string"
       },
-      "level": {
-       "type": "string",
-       "enum": [
-        "every",
-        "one_in_three",
-        "auto"
-       ]
-      },
-      "record": {
+      "ladder": {
        "type": "array",
+       "description": "One per kind of work the agent has finished a task of or has a level at, in the order contract, screen, daemon, docs.",
        "items": {
         "type": "object",
         "properties": {
-         "task": {
-          "type": "integer"
+         "work": {
+          "type": "string",
+          "enum": [
+           "contract",
+           "screen",
+           "daemon",
+           "docs"
+          ]
          },
-         "ok_first": {
-          "type": "boolean",
-          "description": "The founder's first verdict on it was OK."
+         "level": {
+          "type": "string",
+          "enum": [
+           "every",
+           "one_in_two",
+           "one_in_three",
+           "one_in_five",
+           "never"
+          ]
          },
-         "at": {
-          "$ref": "#/components/schemas/Timestamp"
+         "record": {
+          "type": "array",
+          "items": {
+           "type": "object",
+           "properties": {
+            "task": {
+             "type": "integer"
+            },
+            "ok_first": {
+             "type": "boolean",
+             "description": "The founder's first verdict on it was OK."
+            },
+            "at": {
+             "$ref": "#/components/schemas/Timestamp"
+            }
+           },
+           "required": [
+            "task",
+            "ok_first",
+            "at"
+           ]
+          }
+         },
+         "looks": {
+          "type": "integer",
+          "description": "Every look at this level; record holds the last ten."
+         },
+         "suggested": {
+          "oneOf": [
+           {
+            "type": "string",
+            "enum": [
+             "one_in_two",
+             "one_in_three",
+             "one_in_five",
+             "never"
+            ]
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The level one step less looked at when the last 10 were all OK at first look (the founder's offer says so); null otherwise, and always for contract."
          }
         },
         "required": [
-         "task",
-         "ok_first",
-         "at"
+         "work",
+         "level",
+         "record",
+         "looks",
+         "suggested"
         ]
        }
-      },
-      "looks": {
-       "type": "integer",
-       "description": "Every look at this level; record holds the last ten."
-      },
-      "suggested": {
-       "oneOf": [
-        {
-         "type": "string",
-         "enum": [
-          "one_in_three",
-          "auto"
-         ]
-        },
-        {
-         "type": "null"
-        }
-       ],
-       "description": "The level one step less checked when 8 of the last 10 were OK at first look (the founder's notice says so); null otherwise."
       },
       "lessons": {
        "type": "integer",
@@ -3615,10 +3682,7 @@
      },
      "required": [
       "agent",
-      "level",
-      "record",
-      "looks",
-      "suggested",
+      "ladder",
       "lessons"
      ]
     }

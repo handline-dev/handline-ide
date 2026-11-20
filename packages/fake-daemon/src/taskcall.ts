@@ -3,7 +3,7 @@ import { Failure, invalidParams, refused, storeFailure } from '#src/errors.ts';
 import { discardAll } from '#src/discardbatch.ts';
 import { timeOf } from '#src/history.ts';
 import { changesOf } from '#src/taskchanges.ts';
-import { TaskFailure, type FakeTasks } from '#src/tasks.ts';
+import { REVIEW_LEVELS, REVIEW_WORKS, TaskFailure, type FakeTasks, type ReviewLevel, type ReviewWork } from '#src/tasks.ts';
 
 /** Answers one task method, turning the store's refusals into the daemon's errors. */
 export function taskCall(
@@ -50,9 +50,12 @@ export function taskCall(
         return tasks.reviewOf(p.agent);
       case 'agent.review_set':
         if (typeof p.agent !== 'string' || !p.agent) throw invalidParams("agent is an agent's key", 'agent');
-        if (p.level !== 'every' && p.level !== 'one_in_three' && p.level !== 'auto')
-          throw invalidParams('level is every, one_in_three or auto', 'level');
-        return (tasks.setReview(p.agent, p.level), ok('Review level set.'));
+        if (!REVIEW_WORKS.includes(p.work as ReviewWork)) throw invalidParams('work is contract, screen, daemon or docs', 'work');
+        if (!REVIEW_LEVELS.includes(p.level as ReviewLevel))
+          throw invalidParams('level is every, one_in_two, one_in_three, one_in_five or never', 'level');
+        if (p.work === 'contract' && p.level !== 'every')
+          throw refused('state', 'contract and data work is always looked at: its level stays every');
+        return (tasks.setReview(p.agent, p.work as ReviewWork, p.level as ReviewLevel), ok('Review level set.'));
       case 'warning.dismiss':
         if (typeof p.id !== 'string' || !p.id) throw invalidParams("id is a warning's id (a machine item's id)", 'id');
         if (!tasks.dismissWarning(p.id)) throw new Failure('not_found', `no warning ${p.id}`, { what: 'warning', name: p.id });

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -123,11 +124,14 @@ func (e *Env) agentsList(c *rpc.Conn, params map[string]any) (any, error) {
 				return nil, err
 			}
 		}
-		l, err := db.ReviewLevel(e.DB, n)
+		l, err := e.leastLooked(roster, n)
 		if err != nil {
 			return nil, err
 		}
-		v["review_level"] = l.Level
+		v["review_level"], v["review_work"] = l.Level, nil
+		if l.Level != db.LevelEvery {
+			v["review_work"] = l.Work
+		}
 		v["folder"] = nil // the folder of its workspace it works in
 		if f := roster.RepoOf(n); f != "" {
 			v["folder"] = f
@@ -517,4 +521,27 @@ func pyStr(v any) string {
 	}
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+// leastLooked is agent's least looked-at review level among its kinds of work (db.AgentWorks): every when it has none.
+func (e *Env) leastLooked(roster *team.Roster, agent string) (db.LevelAt, error) {
+	least := db.LevelAt{Level: db.LevelEvery}
+	model, err := roster.Model(agent)
+	if err != nil {
+		return least, err
+	}
+	works, err := db.AgentWorks(e.DB, agent)
+	if err != nil {
+		return least, err
+	}
+	for _, w := range works {
+		l, err := db.ReviewLevel(e.DB, agent, w, model)
+		if err != nil {
+			return least, err
+		}
+		if slices.Index(db.Levels, l.Level) > slices.Index(db.Levels, least.Level) {
+			least = l
+		}
+	}
+	return least, nil
 }

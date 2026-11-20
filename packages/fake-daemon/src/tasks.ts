@@ -8,7 +8,11 @@ import { TaskReviews } from '#src/taskreviews.ts';
 import type { Lesson } from '@handline/contract';
 
 export { TaskFailure };
-export type ReviewLevel = 'every' | 'one_in_three' | 'auto';
+export type ReviewLevel = 'every' | 'one_in_two' | 'one_in_three' | 'one_in_five' | 'never';
+export type ReviewWork = 'contract' | 'screen' | 'daemon' | 'docs';
+export const REVIEW_LEVELS: ReviewLevel[] = ['every', 'one_in_two', 'one_in_three', 'one_in_five', 'never'];
+export const REVIEW_WORKS: ReviewWork[] = ['contract', 'screen', 'daemon', 'docs'];
+type Rung = { level: ReviewLevel; record: { task: number; ok_first: boolean; at: string }[] };
 
 /** The headings the daemon's launch prompt puts over an agent's lessons and a person's (db.Section), counted in their bytes. */
 const LESSONS_HEADING = "# What you learned (your lessons)\nFrom the founder's Redo notes. Apply them to every task.";
@@ -33,29 +37,38 @@ export class FakeTasks extends TaskReviews {
     return { agent, items, bytes, cap: 3072 };
   }
 
-  /** Each agent's review level and its record at that level (the founder's first verdict on each task, newest last); a seed puts them here. */
-  readonly reviews = new Map<string, { level: ReviewLevel; record: { task: number; ok_first: boolean; at: string }[] }>();
+  /** Each agent's review level and record per kind of work it has done (the founder's first verdict on each task, newest last); a seed
+   *  puts them here. */
+  readonly reviews = new Map<string, Map<ReviewWork, Rung>>();
 
-  /** agent.review: its level (every when none was set), the last ten of its record, and one step less checked at 8 of 10 OK. */
+  /** agent.review: per kind of work, its level, the last ten of its record, and one step less looked at after ten first-look OKs in a row
+   *  (never for contract). */
   reviewOf(agent: string) {
-    const r = this.reviews.get(agent) ?? { level: 'every' as const, record: [] };
-    const record = r.record.slice(-10);
-    const ok = record.filter((x) => x.ok_first).length;
-    const down = r.level === 'every' ? 'one_in_three' : r.level === 'one_in_three' ? 'auto' : null;
-    return {
-      agent,
-      level: r.level,
-      record,
-      looks: r.record.length,
-      suggested: record.length >= 10 && ok >= 8 ? down : null,
-      lessons: this.lessonsOf(agent).items.length,
-    };
+    const ladder = REVIEW_WORKS.flatMap((work) => {
+      const r = this.reviews.get(agent)?.get(work);
+      if (!r) return [];
+      const record = r.record.slice(-10);
+      const down = REVIEW_LEVELS[REVIEW_LEVELS.indexOf(r.level) + 1] ?? null;
+      const earned = work !== 'contract' && record.length === 10 && record.every((x) => x.ok_first);
+      return [{ work, level: r.level, record, looks: r.record.length, suggested: earned ? down : null }];
+    });
+    return { agent, ladder, lessons: this.lessonsOf(agent).items.length };
   }
 
-  /** agent.review_set: a new level starts a new record, and its notice leaves. */
-  setReview(agent: string, level: ReviewLevel) {
-    this.reviews.set(agent, { level, record: [] });
-    this.dismissWarning(`review:${agent}`);
+  /** agents.list's summary: the least looked-at level among the kinds the agent has done, and that kind (null at every). */
+  reviewSummary(agent: string): { level: ReviewLevel; work: ReviewWork | null } {
+    let least: { level: ReviewLevel; work: ReviewWork | null } = { level: 'every', work: null };
+    for (const [work, r] of this.reviews.get(agent) ?? [])
+      if (REVIEW_LEVELS.indexOf(r.level) > REVIEW_LEVELS.indexOf(least.level)) least = { level: r.level, work };
+    return least;
+  }
+
+  /** agent.review_set: a new level at a kind starts a new record there, and its offer leaves. */
+  setReview(agent: string, work: ReviewWork, level: ReviewLevel) {
+    const ladder = this.reviews.get(agent) ?? new Map<ReviewWork, Rung>();
+    ladder.set(work, { level, record: [] });
+    this.reviews.set(agent, ladder);
+    this.dismissWarning(`review:${agent}:${work}`);
   }
 
   /** lesson.remove: false when no live lesson has that id. */

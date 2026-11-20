@@ -1,6 +1,8 @@
 package gitrun
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -80,5 +82,45 @@ func TestDefaultBranchIsReadFromTheRepository(t *testing.T) {
 	git(master, "branch", "main")
 	if b := DefaultBranch(master); b != "main" {
 		t.Fatalf("main beside master: %q", b)
+	}
+}
+
+// A task's files are those of the commits naming it on any branch: a file deleted by each of them is deleted, one added again is not, and a
+// commit naming another task, or naming this one outside its last parenthesis, is left out.
+func TestTaskFilesAreThoseOfTheCommitsNamingTheTask(t *testing.T) {
+	dir := repo(t)
+	commit := func(msg string, steps ...string) {
+		t.Helper()
+		for _, s := range steps {
+			op, p, _ := strings.Cut(s, " ")
+			if op == "rm" {
+				Run(dir, "rm", "-q", p)
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(dir, p), []byte(msg), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			Run(dir, "add", p)
+		}
+		if r := Run(dir, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", msg); r.RC != 0 {
+			t.Fatalf("%s: %+v", msg, r)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(dir, "apps"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	commit("base", "add old.go", "add gone.go", "add back.go")
+	Run(dir, "checkout", "-q", "-b", "work")
+	commit("one (T7)", "add apps/a.tsx", "rm gone.go", "rm back.go")
+	commit("two (T7)", "add back.go")
+	commit("other (T8)", "add apps/x.md")
+	commit("T7 named but not last (T9)", "add old.go")
+	got, err := TaskFiles(dir, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []TaskFile{{"apps/a.tsx", false}, {"back.go", false}, {"gone.go", true}}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("files %v, want %v", got, want)
 	}
 }

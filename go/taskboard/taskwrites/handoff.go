@@ -110,6 +110,10 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			return nil, badParam("a handoff to the founder says what they decide, and what you recommend", "note")
 		}
 		reviewFlow := team.ReviewFlow(home)
+		var works []string // the kinds of work a finish held back for the founder is, from its commits: read before the write
+		if !actor.IsPerson(me) && !actor.IsPerson(to) {
+			works = taskWorks(home, me, tid)
+		}
 		store := attachments.New(home)
 		files, err := store.AddFiles(c.Server().DB, home, me, false, paths) // read before the write: a video is large; one never linked is swept
 		if err != nil {
@@ -123,6 +127,8 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			landBy string // a finish held back from it: Ready for the founder
 			skip   bool   // ... or not held back: its review level lets it go on without the founder
 			level  string
+			model  string
+			judged string // the kind of work whose level judged the finish
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if err := claimImages(tx, home, me, said, "", "note"); err != nil {
@@ -138,7 +144,10 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			}
 			maySkip := false
 			if landBy != "" {
-				if maySkip, skip, level, err = skipsFounder(tx, tid, me, rep); err != nil {
+				if model, err = team.NewRosterOn(tx, home).Model(me); err != nil {
+					return nil, err
+				}
+				if maySkip, skip, level, judged, err = skipsFounder(tx, tid, me, rep, works, model); err != nil {
 					return nil, err
 				}
 			}
@@ -160,7 +169,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				}
 				switch {
 				case skip:
-					if err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(true)...); err == nil {
+					if err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(true, works, model, judged)...); err == nil {
 						err = db.AddVerdict(tx, tid, db.AutoVerdictBy, db.VerdictOK, 0)
 					}
 					if err == nil {
@@ -168,7 +177,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 					}
 				default:
 					if h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", ""); err == nil && landBy != "" && asked.OK && !asked.Reask {
-						err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(maySkip)...)
+						err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(maySkip, works, model, judged)...)
 					}
 				}
 			} else {
