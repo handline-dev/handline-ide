@@ -127,8 +127,9 @@ function Verdict({ t }: { t: TaskDetail }) {
   );
 }
 
-/** A draft's buttons, before Run: ask for a plan or its core logic, and Plan OK. */
-function DraftButtons({ t }: { t: TaskDetail }) {
+/** A draft's buttons, before Run: ask for a plan or its core logic, and Plan OK; `children` goes last (a draft's own page puts Run
+ * there). */
+export function DraftButtons({ t, children }: { t: TaskDetail; children?: ReactNode }) {
   const ask = useWrite('task.plan_ask');
   const core = useWrite('task.core_ask');
   const plan = t.plan;
@@ -152,6 +153,7 @@ function DraftButtons({ t }: { t: TaskDetail }) {
         </Button>
       )}
       <PlanOk t={t} />
+      {children}
     </Footer>
   );
 }
