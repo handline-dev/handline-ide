@@ -350,6 +350,14 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	return v.performHandoff(agent, t, dest)
 }
 
+// turnOverAtLimit: a turn that ended on the usage limit and has stayed quiet is over, whatever else says; one that ended on an expired
+// login is over at once. Sooner than that a person or the agent may be mid-turn.
+func (v *Mover) turnOverAtLimit(agent, kind string, now int64) bool {
+	stoppedAt, stopped := v.E.AtLimit(v.M.Q, agent)
+	return kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS) ||
+		((usageTrigger(kind) || kind == "forced") && v.E.LimitDialogOpen(agent))
+}
+
 // performHandoff is PerformHandoff for a caller that holds the agent's lock.
 func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (bool, error) {
 	m := v.M
@@ -372,11 +380,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 		v.log("  %s: %s fired but no session is running - not handing off", agent, t.Kind)
 		return true, nil
 	}
-	// A turn that ended on the usage limit and has stayed quiet is over, whatever else says; one that ended on an expired login is over at
-	// once. Sooner than that a person or the agent may be mid-turn.
-	stoppedAt, stopped := v.E.AtLimit(m.Q, agent)
-	settled := t.Kind == LoginTrigger || (stopped && now-stoppedAt >= states.LimitSettleS) ||
-		((usageTrigger(t.Kind) || t.Kind == "forced") && v.E.LimitDialogOpen(agent))
+	settled := v.turnOverAtLimit(agent, t.Kind, now)
 	busy := m.sessionBusy
 	switch {
 	case t.Kind == "context":
@@ -541,7 +545,7 @@ func (v *Mover) closeNow(agent, kind string) (bool, string) {
 }
 
 // SettleOwedClear is true while this agent's clear is owed: the close comes once its background work has ended or its time is up,
-// and the agent is parked as the handoff would have. False when nothing is owed or the session it was owed for is gone.
+// and the agent is parked as the handoff would have. Past its time only a running turn holds it, whatever the trigger. False when nothing is owed or the session it was owed for is gone.
 func (v *Mover) SettleOwedClear(agent string) (owed bool, err error) {
 	defer catch(&err)
 	m := v.M
@@ -569,14 +573,20 @@ func (v *Mover) SettleOwedClear(agent string) (owed bool, err error) {
 		return false, nil
 	}
 	defer m.lockAgent(agent)()
+	kind, now := must(db.LastHandoffTrigger(m.Q, agent)), m.now()
 	busy := m.sessionBusy
-	if must(db.LastHandoffTrigger(m.Q, agent)) == "context" {
+	switch {
+	case now-v.clearOwed(agent) >= ClearWaitS && v.turnOverAtLimit(agent, kind, now):
+		busy = func(string) bool { return false }
+	case now-v.clearOwed(agent) >= ClearWaitS:
+		busy = m.turnRunning
+	case kind == "context":
 		busy = m.turnBusy // only a context clear waits past background work
 	}
 	if busy(agent) {
 		return true, nil
 	}
-	cleared, why := v.reclaim(agent, must(db.LastHandoffTrigger(m.Q, agent)))
+	cleared, why := v.reclaim(agent, kind)
 	if !cleared {
 		v.log("  %s: its clear is owed and holds all it is told - %s", agent, ifTrue(why != "", why)+ifTrue(why == "", "the close did not go"))
 		return true, nil
