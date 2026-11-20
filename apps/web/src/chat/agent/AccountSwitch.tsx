@@ -1,8 +1,8 @@
-import { roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
+import { moveSteps, roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
 import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data';
 import type { TranscriptItem } from '@handline/client';
-import { clock } from '#src/format/time.ts';
-import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Clock, TriangleAlert } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { clock, useNow } from '#src/format/time.ts';
 import { useRef } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
@@ -15,6 +15,41 @@ const useSwitch = (agent: string) => useAgents().data?.agents.find((a) => a.key 
 export function useSwitchLock(agent: string): string | null {
   const s = useSwitch(agent)?.account_switch;
   return s ? switchWords(s) : null;
+}
+
+/** A move under way as its four steps, the current one with its seconds; narrow, the title and the current step alone. Null for a wait. */
+export function MoveSteps({ agent }: { agent: string }) {
+  const s = useSwitch(agent)?.account_switch;
+  const tick = useNow(1000);
+  const m = s ? moveSteps(s) : null;
+  if (!s || !m) return null;
+  const secs = Math.max(0, Math.floor((tick - Date.parse(s.since)) / 1000));
+  const took = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const now = m.steps[m.at];
+  return (
+    <span role="status" className="@container flex min-w-0 flex-1 items-center gap-2 text-xs text-muted">
+      <span className="shrink-0 font-medium text-fg">{m.title}</span>
+      <span className="hidden min-w-0 items-center gap-1.5 truncate @xl:flex">
+        {m.steps.map((st, i) => (
+          <span key={st.name} className={`flex shrink-0 items-center gap-1 ${st.state === 'now' ? 'text-fg' : ''}`}>
+            {i > 0 && <span aria-hidden>—</span>}
+            {st.state === 'done' ? (
+              <Check size={12} className="text-success" aria-label="done" />
+            ) : st.state === 'now' ? (
+              <LoaderCircle size={12} className="animate-spin" aria-label="now" />
+            ) : (
+              <Circle size={12} aria-label="next" />
+            )}
+            {st.name}
+            {st.state === 'now' && <span className="tabular-nums">{took}</span>}
+          </span>
+        ))}
+      </span>
+      <span className="min-w-0 truncate @xl:hidden">
+        · {m.at + 1}/4 {now.name} · <span className="tabular-nums">{took}</span>
+      </span>
+    </span>
+  );
 }
 
 /** While the agent waits at its limit: a card with the wait and the account with the most room to switch to now, the others in a list by

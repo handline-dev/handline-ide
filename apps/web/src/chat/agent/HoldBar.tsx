@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { classify, sentence, useAccounts, useAgents, useUnstall } from '@handline/app-data';
 import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
@@ -29,10 +30,13 @@ export function FootRow({
   busy,
   hold,
   restart,
+  move,
   held,
   doing,
   turn,
 }: {
+  /** A move under way, drawn as its steps in place of the restart's words. */
+  move?: ReactNode;
   busy: boolean;
   hold: ReturnType<typeof useHoldLine>;
   restart: string | null;
@@ -48,6 +52,11 @@ export function FootRow({
             <ActivityIcon act={hold.act} />
           </span>
           <span className="min-w-0 truncate">{hold.line}</span>
+        </span>
+      ) : move ? (
+        <span className="flex items-center gap-2">
+          <Dots />
+          {move}
         </span>
       ) : (
         <span className="flex items-center gap-2">
