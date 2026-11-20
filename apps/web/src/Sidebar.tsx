@@ -2,12 +2,13 @@ import { byWorkspace, dotOf, queuedBehind } from '@handline/app-core';
 import { useAgents, useDirectory, useNameOf, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
-import type { AgentView } from '@handline/client';
+import { workspaceFolders } from '#src/WorkspaceFolders.tsx';
+import type { AgentView, Workspace } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
-import { ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Folder, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
@@ -178,7 +179,7 @@ function Section({
 }
 
 /** The agents in sections: Pinned (when any are), then a flat list per workspace. */
-function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew: () => void }) {
+function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew: (ws: Workspace) => void }) {
   const list = useAgents();
   const { nav, change, togglePin } = useNav();
   const first = list.data?.agents[0]?.key;
@@ -211,10 +212,15 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           accepts={(name) => nav.pins.includes(name)}
           onAgentDrop={togglePin}
           action={
-            i === 0 && (
-              <IconButton label="New agent" onClick={onNew}>
-                <Plus size={14} />
-              </IconButton>
+            workspace && (
+              <span className="flex">
+                <IconButton label="Folders" onClick={() => workspaceFolders(workspace)}>
+                  <Folder size={14} />
+                </IconButton>
+                <IconButton label="New agent" onClick={() => onNew(workspace)}>
+                  <Plus size={14} />
+                </IconButton>
+              </span>
             )
           }
         >
@@ -281,7 +287,7 @@ export function Sidebar({
         <Agents
           page={page}
           pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings }}
-          onNew={() => void newAgent().then((name) => name && onSelectAgent(name))}
+          onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
         />
       </div>
       <SetupCard />
