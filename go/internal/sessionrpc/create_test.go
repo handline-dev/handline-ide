@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/protocol/operations"
 )
@@ -57,6 +58,14 @@ func waitEnded(t *testing.T, r *rig, op string) {
 	t.Fatal("the operation did not end")
 }
 
+// startedByKey fails t unless the last start was agent name's, by its key, in repo, through the session path.
+func startedByKey(t *testing.T, r *rig, name, repo string) {
+	t.Helper()
+	if key := paths.AgentKey(r.e.Home, name); key == "" || r.ctl.calls[len(r.ctl.calls)-1] != "start "+key+" "+repo+"  true" {
+		t.Fatalf("%s started by its key in %s: %v", name, repo, r.ctl.calls)
+	}
+}
+
 func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	r, sn, c := createRig(t)
 	repo := testfiles.GitCheckout(t)
@@ -68,9 +77,7 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	if len(sn.got) > 0 && sn.got[len(sn.got)-1]["state"] == "failed" {
 		t.Fatalf("%v", sn.got[len(sn.got)-1])
 	}
-	if r.ctl.calls[len(r.ctl.calls)-1] != "start ann.new "+repo+"  true" {
-		t.Fatalf("started through the session path: %v", r.ctl.calls)
-	}
+	startedByKey(t, r, "ann.new", repo)
 	cfg, err := team.NewRoster(r.e.Home).Read("ann.new")
 	if err != nil || cfg["effort"] != "high" || cfg["repo"] != repo {
 		t.Fatalf("registered with what was asked: %v %v", cfg, err)
