@@ -334,3 +334,18 @@ describe('reopen closed', () => {
     expect(titles(only(takeTabs(solo, 'p', ['t']).root))).toEqual(['Empty']);
   });
 });
+
+describe("an agent's own tab outside its workspace", () => {
+  it('carries the agent when it leaves, and drops it back home', async () => {
+    const { carry, canonical, ownedBy, labelOf } = await import('#src/layout/kinds.tsx');
+    expect(carry('shell', 'a5')).toBe('shell|a5');
+    expect(carry('tasks', 'a5')).toBe('tasks');
+    expect(ownedBy('shell:t3|a5')).toEqual({ kind: 'shell:t3', agent: 'a5' });
+    expect(ownedBy('web:https://x@y.z')).toBeNull();
+    expect(ownedBy('file:node_modules/@types/x.md')).toBeNull();
+    expect(carry('file:node_modules/@types/x.md', 'a5')).toBe('file:node_modules/@types/x.md|a5');
+    expect(canonical('shell|a5', 'a5')).toBe('shell');
+    expect(canonical('shell|a5', null)).toBe('shell|a5');
+    expect(labelOf('shell|a5', () => 'town')).toBe('Agent terminal · town');
+  });
+});

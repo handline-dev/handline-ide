@@ -38,7 +38,24 @@ const kinds: Record<string, { label: string; icon: ReactNode }> = {
 /** Another agent's chat, dragged in from the sidebar, opens `chat:<name>`. */
 export const chatOf = (name: string) => `chat:${name}`;
 /** In an agent's own workspace its chat is the pinned Chat tab, so `chat:<itself>` means `chat`. */
-export const canonical = (opens: string, agent: string | null) => (agent && opens === chatOf(agent) ? 'chat' : opens);
+export const canonical = (opens: string, agent: string | null) => {
+  if (agent && opens === chatOf(agent)) return 'chat';
+  const own = ownedBy(opens);
+  return agent && own?.agent === agent ? own.kind : opens;
+};
+
+/** Kinds that show one agent's thing (its terminal, a shell of its, its changes, its files). Outside that agent's workspace they carry
+ * the agent: `<kind>|<agent>`, as a chat carries it in `chat:<agent>`. */
+export const agentKind = (kind: string) => ['shell', 'newshell', 'diff', 'markdown'].includes(kind) || /^(shell|file):/.test(kind);
+export const withAgent = (kind: string, agent: string) => `${kind}|${agent}`;
+export const ownedBy = (opens: string) => {
+  // | and a key with no slash: a file path or an address never reads as an agent.
+  const i = opens.lastIndexOf('|');
+  const agent = opens.slice(i + 1);
+  return i > 0 && /^[\w.-]+$/.test(agent) && agentKind(opens.slice(0, i)) ? { kind: opens.slice(0, i), agent } : null;
+};
+/** A tab leaving `from`'s workspace keeps naming its agent. */
+export const carry = (opens: string, from: string | null) => (from && agentKind(opens) && !ownedBy(opens) ? withAgent(opens, from) : opens);
 const chatName = (kind: string) => (kind.startsWith('chat:') ? kind.slice(5) : null);
 
 /** A plain shell shell.open opened (`shell:<handle>`); `newshell` is the menu's pick that opens one; `shell` alone is the agent's own terminal. */
@@ -89,16 +106,23 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
 };
 
 /** What a new tab can open (legacy CHOICES). Chat is not here: the first pane's Chat is the one chat. */
-export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web', 'android', 'ios'].map((kind) => ({ kind, ...kinds[kind] }));
+export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web', 'android', 'ios'].map((kind) => ({
+  kind,
+  ...kinds[kind],
+}));
 
 /** `nameOf` writes out the agent key a chat tab carries (useNameOf). */
-export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k) => {
+export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k): string => {
+  const own = ownedBy(kind);
+  if (own) return `${labelOf(own.kind, nameOf)} · ${nameOf(own.agent)}`;
   const key = chatName(kind);
   return kinds[kind]?.label ?? (key ? `${nameOf(key)} chat` : (onThing(kind)?.label ?? kind));
 };
 /** An Empty tab (no kind) shows +. */
-export const iconOf = (kind?: string) => {
+export const iconOf = (kind?: string): ReactNode => {
   if (!kind) return <Plus size={14} />;
+  const own = ownedBy(kind);
+  if (own) return iconOf(own.kind);
   return kinds[kind]?.icon ?? (chatName(kind) ? kinds.chat.icon : (onThing(kind)?.icon ?? null));
 };
 

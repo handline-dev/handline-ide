@@ -20,7 +20,7 @@ import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Colu
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
-import { canonical, choices, iconOf, labelOf, shellHandle, shellOf } from '#src/layout/kinds.tsx';
+import { agentKind, canonical, choices, iconOf, labelOf, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import {
   hasFixed,
@@ -194,21 +194,30 @@ function PaneView({
   const [line, setLine] = useState<number | null>(null);
   const [zone, setZone] = useState<Zone | null>(null);
   const current = pane.tabs.find((t) => t.id === pane.active);
+  // A tab of another agent's own (its terminal, its changes) names that agent; any other draws with this workspace's.
+  const own = ownedBy(current?.opens ?? '');
+  const shown = own?.kind ?? current?.opens;
+  const who = own?.agent ?? agent;
   const closeShells = useCloseShells(agent);
   const close = (ids: string[]) => {
     closeShells(pane.tabs.filter((t) => ids.includes(t.id)));
     ids.forEach((tab) => dispatch({ type: 'closeTab', pane: pane.id, tab }));
   };
-  const openShell = useWrite('shell.open', agent ?? undefined);
-  /** Places what was picked; a new Terminal first opens its shell, so the tab is made with its handle. */
-  const pick = (kind: string, place: (opens: string) => void) => {
-    if (kind !== 'newshell') return place(kind);
-    if (agent)
+  const openShell = useWrite('shell.open');
+  /** Places what was picked, for `of` (a page's workspace asks which agent); a new Terminal first opens its shell, so the tab is made
+   * with its handle. */
+  const pick = (kind: string, place: (opens: string) => void, of = agent) => {
+    const named = (k: string) => (of && of !== agent ? withAgent(k, of) : k);
+    if (kind !== 'newshell') return place(named(kind));
+    if (of)
       openShell
-        .mutateAsync({ agent })
-        .then((r) => place(shellOf(r.terminal)))
+        .mutateAsync({ agent: of })
+        .then((r) => place(named(shellOf(r.terminal))))
         .catch((e: Error) => toast(`The terminal did not open: ${e.message}`, { tone: 'warning' }));
   };
+  // In a page's workspace an agent's kind asks which agent.
+  const agents = useAgents().data?.agents;
+  const agentChoices = agents?.map((a) => ({ key: a.key, label: nameOf(a.key) }));
   // A tab, or a thing to open, dropped among the tabs or on the pane (its middle, or an edge to split there).
   const onBar = useDropTarget({
     accepts: isTabDrag,
@@ -249,10 +258,10 @@ function PaneView({
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
             onClose={(tab) => close([tab])}
             onCloseTabs={close}
-            newTabKinds={agent ? choices.filter((c) => BUILT.has(c.kind)) : []}
-            onAdd={
-              agent ? (kind, how) => pick(kind, (opens) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)) : undefined
-            }
+            newTabKinds={choices
+              .filter((c) => BUILT.has(c.kind))
+              .flatMap((c) => (agent || !agentKind(c.kind) ? [c] : agentChoices ? [{ ...c, agents: agentChoices }] : []))}
+            onAdd={(kind, how, of) => pick(kind, (opens) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how), of ?? agent)}
             onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { space: here.space, pane: pane.id, tab, tabs } })}
           />
           {line !== null && <InsertLine x={line} />}
@@ -278,12 +287,10 @@ function PaneView({
             <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)}>
               {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
               {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
-              {current?.opens === 'diff' && agent && <Changes key={agent} agent={agent} />}
-              {current?.opens === 'shell' && agent && <TerminalTab key={agent} agent={agent} />}
-              {shellHandle(current?.opens ?? '') && agent && (
-                <ShellTab key={current!.id} agent={agent} handle={shellHandle(current!.opens!)!} />
-              )}
-              {current?.opens === 'markdown' && agent && <MarkdownTab key={current.id} agent={agent} tab={current.id} />}
+              {shown === 'diff' && who && <Changes key={who} agent={who} />}
+              {shown === 'shell' && who && <TerminalTab key={who} agent={who} />}
+              {shellHandle(shown ?? '') && who && <ShellTab key={current!.id} agent={who} handle={shellHandle(shown!)!} />}
+              {shown === 'markdown' && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} />}
               {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
               {current?.opens?.startsWith('web:') && (
                 <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />
@@ -291,9 +298,7 @@ function PaneView({
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('plan:') && <PlanTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('code:') && <CodeTab key={current.opens} id={Number(current.opens.slice(5))} />}
-              {current?.opens?.startsWith('file:') && agent && (
-                <MarkdownTab key={current.id} agent={agent} tab={current.id} start={current.opens.slice(5)} />
-              )}
+              {shown?.startsWith('file:') && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} start={shown.slice(5)} />}
               {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}
               {current?.opens?.startsWith('proposal:') && <ProposalView key={current.opens} id={Number(current.opens.slice(9))} />}
               {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
@@ -434,7 +439,9 @@ function useCloseShells(agent: string | null) {
   return useCallback(
     (tabs: { opens?: string; closable?: boolean }[]) => {
       for (const t of tabs) {
-        const h = t.closable !== false && shellHandle(t.opens ?? '');
+        // Another agent's shell (`shell:<handle>|<agent>`) closes by its own handle.
+        const opens = t.opens ?? '';
+        const h = t.closable !== false && shellHandle(ownedBy(opens)?.kind ?? opens);
         if (h) mutate({ terminal: h });
       }
     },
