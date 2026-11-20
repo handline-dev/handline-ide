@@ -219,7 +219,17 @@ func (e *Env) runCreate(op, name, repo, base string, register func() error, call
 	}
 	step = stepStart
 	e.progress(op, map[string]any{"step": step, "steps_done": 1, "message": "starting " + name})
-	ok, said, err := e.Controls.Start(call, name, repo, base)
+	// started by its key, as session.start does: the launch command, the desk's holder and the trust lines carry what Start is given
+	key, err := paths.AgentKeyIn(e.DB, name)
+	if err == nil && key == "" {
+		err = fmt.Errorf("%s is not found after registering", name)
+	}
+	if err != nil {
+		e.progress(op, map[string]any{"state": "failed", "message": fmt.Sprintf("%s failed: %v", step, err),
+			"result": map[string]any{"agent": name, "registered": true}})
+		return
+	}
+	ok, said, err := e.Controls.Start(call, key, repo, base)
 	said = strings.TrimSpace(said)
 	switch {
 	case err != nil:
