@@ -66,6 +66,21 @@ export type Proposal = {
   };
   error?: string | null;
   settled?: Timestamp | null;
+  /** Each change approving makes, in the order it is applied: the proposal itself, or each step of a bundle. A context step is one entry per file it replaces. proposal.list only: the proposals events leave it out. Optional: absent from a daemon that does not serve it. */
+  changes?: {
+    /** The step's kind, as Proposal.kind words it. */
+    kind: string;
+    /** The step's subject as the proposal names it, as Proposal.agent does: an agent's name, or for team and global the name they set. */
+    agent: string;
+    /** This step's lines of Proposal.diff. */
+    diff: string;
+    /** Context only: the file it replaces, ROLE.md, base.md or rules. */
+    file?: string;
+    /** Context only: the file's whole text in force now, "" for none yet. Set only while the proposal waits (open, applying, apply_failed) and the agent exists; a client diffs it against `after`. */
+    before?: string;
+    /** Context only: the whole text approving sets, trimmed as it is kept. Text from an agent: draw as plain text. */
+    after?: string;
+  }[];
   /** What the proposal does: add, retire, rename, team, settings, context, schedule, run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
   kind?: string;
   /** Kind run only: the command and, once the approve started it, its run. The run's output goes to the proposing agent: a card says so before the press. */
