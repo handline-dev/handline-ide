@@ -6,9 +6,12 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"runtime"
 
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/scheduler/sysres"
 )
 
 func line(v any) string { return textsafe.Oneline(fmt.Sprint(v)) }
@@ -18,6 +21,9 @@ func line(v any) string { return textsafe.Oneline(fmt.Sprint(v)) }
 // device is `hl device pair`: the code that pairs a first device when no paired app can make one, on the host --host names (the
 // daemon's default without it). The daemon refuses it to an agent session. Listing and revoking devices are the app's.
 func device(c *hlclient.Client, args []string) (int, bool) {
+	if len(args) == 2 && args[0] == "join" {
+		return join(c.Home, args[1]), true
+	}
 	if len(args) == 0 || args[0] != "pair" {
 		return 0, false
 	}
@@ -90,6 +96,33 @@ func printAddresses(c *hlclient.Client, w io.Writer, chosen string) {
 	for _, r := range rows {
 		fmt.Fprintln(w, r)
 	}
+}
+
+// join is `hl device join <link>`, run in a machine's own terminal: it redeems the link's code at the master as this machine (a mac,
+// or a server for anything else), the device of the person who made the code, on Off. The daemon here sets its board aside at its
+// next start.
+func join(home, link string) int {
+	node, err := joined.NodeID(home, nil)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	kind := "server"
+	if runtime.GOOS == "darwin" {
+		kind = "mac"
+	}
+	name := sysres.MachineName()
+	m, err := hlclient.Join(home, link, name, kind, node)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "join refused:", err)
+		return 1
+	}
+	if m.Fingerprint == "" {
+		fmt.Println("encryption: none (the link names no certificate; plain HTTP)")
+	}
+	fmt.Printf("joined %s as %s (%s, device %s), on Off: its person sets Run in Devices\n", line(m.Addr), line(name), kind, line(m.Device))
+	fmt.Println("restart the daemon here: its own board is set aside, unchanged, and a new one opens")
+	return 0
 }
 
 func orEmpty(v any) any {

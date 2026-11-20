@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/loadgate"
@@ -92,7 +92,7 @@ func (e *Env) paused() any {
 
 // machine is DaemonStatus.machine: the machine this daemon runs on, by its node id.
 func (e *Env) machine() map[string]any {
-	return map[string]any{"id": db.NodeIDOf(e.Home), "name": sysres.MachineName()}
+	return map[string]any{"id": joined.NodeIDOf(e.Home), "name": sysres.MachineName()}
 }
 
 // machineNeeds are the items daemon.status carries: what the machine needs of the founder, oldest first.

@@ -7,8 +7,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `devices.list` | owner |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
 | `device.pair` | owner | yes | `name?`, `ttl_s?`, `address?`, `request_id` | `Accepted & {code, expires_at, fingerprint, uri, web_link}` | `refused` |  | decided: pair |
-| `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit | not from the app |
+| `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `node?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit, already_joined | not from the app |
 | `device.revoke` | owner | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
+| `device.set` | owner | yes | `device`, `lending`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
 | `device.push_token` | owner | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 | `node.status` | agent |  | none | `{master, nodes}` |  |  | `nodes`, fed by nodes |
 
@@ -22,11 +23,15 @@ Make a one-time pairing code. Founder only. The code is single use and expires: 
 
 ### `device.redeem`
 
-Trade a pairing code for a device token. The only method an unpaired network caller may call. A code that is wrong, expired or already used is refused, gate `pairing_code`, without saying which; too many wrong tries are refused, gate `attempt_limit`. A code redeems once: the token is in this one reply and never again, and the daemon keeps only its hash. `name` is how the device is listed. It is not replayed by request_id either: a retry runs again, and a code that was redeemed stays used, so the retry is refused. The wrong-code count for a redeem over the local socket is kept under the host '' (the empty string), since it has no address.
+Trade a pairing code for a device token. The only method an unpaired network caller may call. A code that is wrong, expired or already used is refused, gate `pairing_code`, without saying which; too many wrong tries are refused, gate `attempt_limit`. A code redeems once: the token is in this one reply and never again, and the daemon keeps only its hash. `name` is how the device is listed. It is not replayed by request_id either: a retry runs again, and a code that was redeemed stays used, so the retry is refused. The wrong-code count for a redeem over the local socket is kept under the host '' (the empty string), since it has no address. A mac or a server whose node id this master already has is refused, gate `already_joined`. The device is the person's who made the code (device.pair).
 
 ### `device.revoke`
 
 Cancel a device and close its connections at once. Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found.
+
+### `device.set`
+
+Set a lent machine's Run · Pause · Off. Only the device's own person sets it; anyone else is refused, gate `person`. A device that is no mac or server that joined is refused, gate `kind`. run lists the machine in node.status and lets the master start work there; pause lists it as paused and the master starts nothing new there; off takes it out of node.status. A device.changed event is sent on the devices topic, and the nodes feed changes.
 
 ### `device.push_token`
 
@@ -34,5 +39,5 @@ A paired device gives the push token its OS gave it. Called by the paired device
 
 ### `node.status`
 
-The machines of this master, its own first. Read only. Today it lists only the master's own machine.
+The machines of this master, its own first. Read only. The master's own machine and the machines lent to it on run or pause (device.set).
 

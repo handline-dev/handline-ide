@@ -11,7 +11,7 @@ import { useDevices } from '#src/settings/data/devices.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 
-const KIND_WORD = { ios: 'iPhone / iPad', android: 'Android', web: 'Browser', desktop: 'Desktop' } as const;
+const KIND_WORD = { ios: 'iPhone / iPad', android: 'Android', web: 'Browser', desktop: 'Desktop', mac: 'Mac', server: 'Server' } as const;
 
 type Row = Device & { stale: boolean };
 

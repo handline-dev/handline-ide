@@ -61,6 +61,7 @@ const AREAS: Area[] = [
     if (!d.admin.owns(method)) return null;
     const value = d.admin.call(method, p, ok);
     if (method === 'device.revoke') d.emit('devices', 'device.revoked', { data: { device: p.device } });
+    if (method === 'device.set') d.emit('devices', 'device.changed', { data: d.admin.device(String(p.device)) });
     if (method === 'daemon.resume' || method === 'task.send_now') release(d, method === 'task.send_now' ? Number(p.task) : null);
     return { value };
   },

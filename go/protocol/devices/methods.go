@@ -1,6 +1,7 @@
 package devices
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -8,7 +9,24 @@ import (
 )
 
 // kinds are the Device.kind values a client may name at device.redeem.
-var kinds = map[string]bool{"ios": true, "android": true, "web": true, "desktop": true}
+var kinds = map[string]bool{"ios": true, "android": true, "web": true, "desktop": true, "mac": true, "server": true}
+
+// nodeID is what a node id may be: the 16 hex digits NodeID makes, with room.
+var nodeID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// lends are the kinds that lend their machine: they redeem with its node id and have Run, Pause and Off.
+var lends = map[string]bool{"mac": true, "server": true}
+
+// personOf is the person a caller is: a person's own key, or a device's person; "" for an agent or no one.
+func personOf(c *rpc.Conn) string {
+	switch c.Caller.Kind {
+	case "person":
+		return c.Caller.Key
+	case "device":
+		return c.Caller.Person
+	}
+	return ""
+}
 
 // maxPushToken bounds a push token: an APNs token is 64 hex characters and an FCM one a few hundred, so this is room, not a format.
 const maxPushToken = 4096
@@ -49,7 +67,7 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 			e.Data["addresses"] = served
 			return nil, e
 		}
-		code, expires, print, uri = m.PairAt(ttl, door)
+		code, expires, print, uri = m.PairAt(ttl, door, personOf(c))
 		if door.Web {
 			web = WebLink(door, code)
 		}
@@ -72,7 +90,11 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		if !kinds[kind] {
 			kind = "" // a kind this daemon does not know is kept as none, so a newer client still pairs
 		}
-		token, d, err := m.Redeem(code, name, kind, c.Remote)
+		node, _ := p["node"].(string)
+		if lends[kind] != (node != "") || !nodeID.MatchString(node) && node != "" {
+			return nil, rpc.BadRequestError("node is the machine's node id, given by a mac or a server and by nothing else", "node", rpc.InvalidParams)
+		}
+		token, d, err := m.Redeem(code, name, kind, node, c.Remote)
 		if err != nil {
 			return nil, err
 		}
@@ -95,6 +117,25 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 			return nil, rpc.NotFoundError("no such device: " + id)
 		}
 		emit("device.revoked", map[string]any{"device": id}, c.Caller.ActorInfo(), "device "+id+" revoked")
+		return map[string]any{"accepted": true}, nil
+	}})
+	s.Register("device.set", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		id, ok := p["device"].(string)
+		if !ok {
+			return nil, rpc.BadRequestError("device is a string", "device", rpc.InvalidParams)
+		}
+		lending, _ := p["lending"].(string)
+		if !Lendings[lending] {
+			return nil, rpc.BadRequestError("lending is run, pause or off", "lending", rpc.InvalidParams)
+		}
+		if m == nil {
+			return nil, rpc.NotFoundError("no such device: " + id)
+		}
+		d, err := m.SetLending(id, lending, personOf(c))
+		if err != nil {
+			return nil, err
+		}
+		emit("device.changed", m.Row(d), c.Caller.ActorInfo(), d.Name+" set to "+lending)
 		return map[string]any{"accepted": true}, nil
 	}})
 	s.Register("device.push_token", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
