@@ -25,9 +25,7 @@ func TestWorkspaceCreateMakesItsLeadOnTheCheckoutTopAndStartsIt(t *testing.T) {
 	if got["accepted"] != true || got["operation"] == nil || got["said"] != "done" {
 		t.Fatalf("answered once the lead is up: %v", got)
 	}
-	if r.ctl.calls[len(r.ctl.calls)-1] != "start shop "+repo+"  true" {
-		t.Fatalf("the lead starts on the checkout's top: %v", r.ctl.calls)
-	}
+	startedByKey(t, r, "shop", repo) // the lead, on the checkout's top
 	if team.NewRoster(r.e.Home).RepoOf("shop") != repo {
 		t.Fatalf("the workspace's folder is the top of its checkout")
 	}
