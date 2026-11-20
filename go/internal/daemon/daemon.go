@@ -70,8 +70,8 @@ type Config struct {
 	// Claude is the claude binary agents are run with, for daemon.status missing_tools; empty: the daemon runs no agent side.
 	Claude string
 	// Listen is the address the network listener binds; empty leaves it off. With CertFile and KeyFile it is a TLS
-	// WebSocket. With neither it is in Tailscale mode: Listen is ":PORT" (the Tailscale address is found) or a Tailscale
-	// or loopback address, and it serves plain HTTP/ws.
+	// WebSocket. With neither it is plain: Listen is ":PORT" (the VPN interface address is found) or a VPN
+	// interface or loopback address, and it serves plain HTTP/ws.
 	Listen            string
 	CertFile, KeyFile string
 	Log               func(format string, args ...any)
@@ -181,7 +181,7 @@ func Start(cfg Config) (*Daemon, error) {
 		return nil, fmt.Errorf("-advertise %q is host:port: %w", cfg.Advertise, err)
 	}
 	if (cfg.CertFile == "") != (cfg.KeyFile == "") {
-		return nil, errors.New("the network listener takes -cert and -key together, or neither (Tailscale mode, plain HTTP)")
+		return nil, errors.New("the network listener takes -cert and -key together, or neither (plain HTTP, no certificate)")
 	}
 	db, err := store.Open(cfg.DBFile)
 	if err != nil {

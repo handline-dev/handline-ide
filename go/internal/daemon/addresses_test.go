@@ -269,6 +269,22 @@ func TestDevicePairNamesTheChosenHostWithAnAppURIAndAWebLinkAndRefusesAnyOther(t
 	}
 }
 
+func TestAPairingNamesALANHostByDefaultEvenWhenTheSettingListsTailscaleFirst(t *testing.T) {
+	d, c := startDoors(t, false)
+	serveHosts(t, netAddress{Host: "mac.ts.net", Kind: kindTailscaleName, IPs: loop}, netAddress{Host: "127.0.0.1", Kind: kindLAN, IPs: loop})
+	setAddresses(t, c, `["mac.ts.net","127.0.0.1"]`)
+	if h := d.net.hosts(); !reflect.DeepEqual(h, []string{"127.0.0.1", "mac.ts.net"}) {
+		t.Fatalf("the default host is not first: %v", h)
+	}
+	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=127.0.0.1") {
+		t.Fatalf("with no address the pairing names the LAN host: %v", res)
+	}
+	setAddresses(t, c, `["mac.ts.net"]`)
+	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=mac.ts.net") {
+		t.Fatalf("with no LAN host the pairing names the first one served: %v", res)
+	}
+}
+
 func TestWithoutTheWebPageThePairingHasNoWebLink(t *testing.T) {
 	_, c := startDoors(t, false)
 	res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)

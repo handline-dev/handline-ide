@@ -30,7 +30,7 @@ export interface DevicesMethods {
   name?: string;
   /** Seconds the code lives; default 300. */
   ttl_s?: number;
-  /** A host a door serves; absent is the default door (listener). Any other is refused, gate address, with data.addresses the hosts served. */
+  /** A host a door serves; absent is the default door: -advertise (or the listener) while network_addresses is unset, else the first LAN host served, else the first host served. Any other is refused, gate address, with data.addresses the hosts served, the default first. */
   address?: string;
   request_id: RequestId;
 }; result: Accepted & {

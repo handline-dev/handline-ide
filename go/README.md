@@ -12,8 +12,8 @@ lifecycle and the resource-aware start), `go/taskboard` (the task board's core),
 
 ## Network listener
 
-`-listen ADDR:PORT` opens a WebSocket (`/rpc`) for paired devices, plain on Tailscale or loopback without `-cert` and `-key` (Tailscale mode), TLS with them; nothing listens without it. `ADDR` must be an IP of this
-machine's loopback, LAN or Tailscale network, never a wildcard, a public address or a host name. A connection no device token opened gets
+`-listen ADDR:PORT` opens a WebSocket (`/rpc`) for paired devices, plain on a Tailscale interface or loopback without `-cert` and `-key` (plain mode), TLS with them; nothing listens without it. `ADDR` must be an IP of this
+machine's loopback, LAN or VPN (100.64.0.0/10) network, never a wildcard, a public address or a host name. A connection no device token opened gets
 one refusal for every call (`gate: unpaired`) and nothing else. `device.pair` (founder) makes a one-time code; a device trades it
 with `device.redeem` for a token, which is kept as a hash in the `devices` table and sent in `hello`.
 
@@ -34,12 +34,12 @@ with `device.redeem` for a token, which is kept as a hash in the `devices` table
 
 ## Web UI and TLS
 
-`-web DIR` serves the built web UI on the listener's own origin (`http://` in Tailscale mode, `https://` with a certificate), so a browser needs no pinning. Files only: no
+`-web DIR` serves the built web UI on the listener's own origin (`http://` in plain mode, `https://` with a certificate), so a browser needs no pinning. Files only: no
 listing, nothing outside `DIR` (including through a symlink), no dotfiles, `index.html` never cached, `GET` and `HEAD` only, a `token` in the
 query refused. The page is the app and its pairing screen, not data; every call it makes goes through the device gate, with the token sent
 in the first `hello` message. A browser's WebSocket is accepted only from the page this listener served.
 
-### Tailscale mode (the default): no certificate
+### Plain mode (the default): no certificate
 
 A listener given no `-cert` and `-key` serves plain HTTP and WebSocket, because a tailnet is already encrypted end to end by WireGuard.
 There is nothing to install and a browser shows no warning.
@@ -74,4 +74,4 @@ Both files are given together or not at all.
   `-advertise HOST.TAILNET.ts.net:PORT`. Browsers accept it without a warning.
 
 `device.pair` returns `{code, expires_at, fingerprint, uri}`; `uri` is `handline://pair?host=ADDRESS&fp=FINGERPRINT&code=CODE`, the address
-being `-advertise` or the listening address; `fp` is absent in Tailscale mode.
+being `-advertise` or the listening address; `fp` is absent in plain mode.
