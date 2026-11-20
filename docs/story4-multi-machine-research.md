@@ -123,6 +123,51 @@ slots that has the task's tags. A rule, not a model.
 loss; with two machines a failed leader leaves no majority and no automatic election)? That one
 question may decide the whole shape, so ask it before choosing between 1 and 2.
 
+## 6. Agent tools that run on several machines (11-21)
+
+Asked by the founder (T3890 8135): how agent tools spread agents over machines, what to take and what to
+leave, without logic that grows too complex. Eight tools, read from their own docs on 2026-11-21; they are
+not named here (the founder, T3890 8143).
+
+| Kind | Joining | Where work goes | A machine drops out | Logins, MCP, skills |
+|---|---|---|---|---|
+| A cloud agent service with self-hosted workers | A worker command dials out, no inbound port | Personal: the person picks the machine, no fallback. Team pools: a run waits until a free worker with its label claims it | Pools: a reconnect window, then the run may move to a new machine | The machine keeps its own tools, logins and network and gets no secrets from the service; local MCP servers and hooks run on it |
+| Two agent team platforms with a daemon per machine | A login and a join token; the daemon dials the server | An agent is bound to the machine the person picked (or the only one online); queued work never moves; no load balancing | Marked lost after about 5 min; queued work waits; one fails a running task only after 3 h; agents never move by themselves, a person moves one | Agent CLIs found by scanning PATH; logins stay on the machine; MCP config merged with the machine's own; a bare repo per project and a worktree per run; a cap of runs per machine; the version in every heartbeat |
+| Two desktop agent apps with SSH hosts | An SSH host; the agent installed there | The person picks the host | One stops while the laptop sleeps; the other keeps running and rejoins | MCP, skills and logins are the host's own |
+| Two agent frameworks with remote backends | An HTTP adapter or a terminal backend per agent | Set by hand, per agent | Not covered | No machine concept |
+| A device cluster for models | Finds devices on the network, no master | Splits one model over devices by memory | Not covered | Models, not agents |
+
+Reading across:
+
+- Every machine dials out with its own credential and keeps its own logins, programs and MCP servers.
+  Nobody copies a login to another machine. Story 4 already does both.
+- Placement is by hand or sticky: an agent is bound to a machine. Only the cloud service's team pools pick a
+  machine per run, by label, for throw-away workers. Nobody balances by load.
+- A machine that drops out is waited for (5 minutes to 3 hours), not emptied at once; a move is a person's
+  act or comes after a long grace.
+- None moves its own server: there is one hub, in the cloud or self-hosted. None has a pause or drain for a
+  machine; cluster tools do (T3890 8122).
+- What a machine has is found, not configured: a PATH scan at start, the version in every heartbeat.
+
+Taken into Story 4 (the founder's OK, T3890 8140; `docs/story4-design.md`):
+
+1. **An agent stays on one device while it has room.** Its sessions, transcript, worktree and build
+   caches stay there. A device is picked, the one with the most room, only when the agent has none, or
+   at a session's start its device is full (memory cap, slots, simulators), Off, offline past the wait,
+   or lacks what the agent needs; the agent then stays on the new one. Load spreads at starts, never
+   mid-turn. This replaces placing each session (design Decisions 5).
+2. **A device that drops out is waited for** 30 minutes (a setting, was 10), so a closed lid does not
+   scatter a laptop's agents; Off moves them at once.
+3. **The master stays where the owner puts it**, moved by hand ("Make this Mac the master"), also when
+   it is gone. Taking over by itself becomes a later slice; with two machines it is the one place two
+   masters can appear.
+4. **A device says what it has** (agent CLIs, MCP programs, Xcode and simulators, Handline version) at
+   connect and in each heartbeat; an agent goes only where all it needs is, and a device on another
+   version takes no work.
+
+Left: placing each run on any machine (it suits throw-away workers, not agents with warm caches),
+copying logins or MCP programs to a machine, and a master run as a cloud service.
+
 ## Sources
 
 `gh api repos/<r>` for every repository in the table (licence and description), and
