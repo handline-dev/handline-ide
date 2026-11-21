@@ -228,7 +228,7 @@ type sub struct {
 	hangUp  func()
 	topics  map[string]bool
 	agent   string // only this agent's events and those of no agent; "" is every agent's
-	person  string // the subscribing person: an event of a person (its Agent a person key) goes to that person only
+	person  string // the subscribing person: a personal topic's event of a person (its Agent a person key) goes to that person only
 	visible func(*Event) bool
 	logged  bool // its topics are stream_log's, so it has cursors
 
@@ -259,11 +259,14 @@ func (s *sub) topicList() []string {
 	return out
 }
 
+// personal are the topics whose events are each one person's: what waits on them.
+var personal = map[string]bool{"for_you": true, "requests": true}
+
 func (s *sub) wants(ev *Event) bool {
 	if !s.topics[ev.Topic] {
 		return false
 	}
-	if ev.Agent != nil && actor.IsPerson(*ev.Agent) {
+	if personal[ev.Topic] && ev.Agent != nil && actor.IsPerson(*ev.Agent) {
 		return *ev.Agent == s.person
 	}
 	if s.agent != "" && ev.Agent != nil && *ev.Agent != s.agent {
