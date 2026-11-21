@@ -365,12 +365,13 @@ func kindArgs(prefix []any, kinds []string) []any {
 	return args
 }
 
-// LastActivity is db.last_activity: when the agent last did anything we can see.
+// LastActivity is db.last_activity: when the agent last did anything we can see (agent_heard included).
 func LastActivity(q Q, agent string) (int64, bool, error) {
-	return maxInt(q, "SELECT MAX(ts) FROM events WHERE agent = ? AND kind IN ("+marks(len(ActivityKinds))+")", kindArgs([]any{agent}, ActivityKinds)...)
+	return maxInt(q, "SELECT MAX(t) FROM (SELECT MAX(ts) AS t FROM events WHERE agent = ? AND kind IN ("+marks(len(ActivityKinds))+
+		") UNION ALL SELECT at FROM agent_heard WHERE agent = ?)", append(kindArgs([]any{agent}, ActivityKinds), agent)...)
 }
 
-// LastActivityBefore is db.last_activity_before: LastActivity as of ts.
+// LastActivityBefore is db.last_activity_before: the newest activity event before ts (agent_heard keeps no history).
 func LastActivityBefore(q Q, agent string, ts int64) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM events WHERE agent = ? AND ts < ? AND kind IN ("+marks(len(ActivityKinds))+")", kindArgs([]any{agent, ts}, ActivityKinds)...)
 }
