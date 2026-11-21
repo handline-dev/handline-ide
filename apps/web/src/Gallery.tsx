@@ -126,7 +126,15 @@ function Sheet() {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() =>
-              show(confirm({ title: 'Delete this tab?', message: 'It cannot be undone.', confirmText: 'Delete', danger: true }))
+              show(
+                confirm({
+                  title: 'Delete this tab?',
+                  message: 'It cannot be undone.',
+                  confirmText: 'Delete',
+                  icon: <Trash2 size={14} />,
+                  danger: true,
+                }),
+              )
             }
           >
             confirm

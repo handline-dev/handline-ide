@@ -63,6 +63,7 @@ export function AgentMenu({
         title: `Delete ${word}?`,
         message: 'Its terminal closes and it leaves the team.',
         confirmText: 'Delete',
+        icon: <Trash2 size={14} />,
         danger: true,
       }))
     )

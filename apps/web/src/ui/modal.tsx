@@ -186,17 +186,20 @@ export function confirm({
   confirmText = modalText.ok,
   cancelText = modalText.cancel,
   danger = false,
+  icon,
   run,
 }: {
   title: ReactNode;
   message?: ReactNode;
   confirmText?: string;
+  /** Drawn before the confirm's word, as a delete's trash. */
+  icon?: ReactNode;
   cancelText?: string;
   danger?: boolean;
   /** The call the confirm makes: the window stays, its button turning, until the daemon answers; a refusal stays in it. */
   run?: () => Promise<unknown>;
 }): Promise<boolean> {
-  return openModal<boolean>((close) => <Confirm {...{ title, message, confirmText, cancelText, danger, run }} close={close} />).then(
+  return openModal<boolean>((close) => <Confirm {...{ title, message, confirmText, cancelText, danger, icon, run }} close={close} />).then(
     (v) => v === true,
   );
 }
@@ -207,6 +210,7 @@ function Confirm({
   confirmText,
   cancelText,
   danger,
+  icon,
   run,
   close,
 }: {
@@ -215,6 +219,7 @@ function Confirm({
   confirmText: string;
   cancelText: string;
   danger: boolean;
+  icon?: ReactNode;
   run?: () => Promise<unknown>;
   close: Close<boolean>;
 }) {
@@ -229,6 +234,7 @@ function Confirm({
         <>
           <Button onClick={() => close(false)}>{cancelText}</Button>
           <Button variant={danger ? 'danger' : 'primary'} autoFocus busy={call.busy} onClick={yes}>
+            {icon}
             {confirmText}
           </Button>
         </>

@@ -1,7 +1,7 @@
 // Settings: the shared runs of This Mac or of one workspace. A shared run is a set of commands only N agents run at once; the others
 // wait their turn (hl use). Agents set them; the founder sees them here and may add, change or remove any.
 import { classify, Hooks, sentence, useNameOf, useWrite } from '@handline/app-data';
-import { Clock, Bot } from 'lucide-react';
+import { Clock, Bot, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Block } from '#src/settings/Meter.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
@@ -47,6 +47,7 @@ export function SharedRuns() {
       title: `Remove ${run.name}?`,
       message: 'Turns held now run to their end; nothing waits for it again.',
       confirmText: 'Remove',
+      icon: <Trash2 size={14} />,
       danger: true,
       run: () => remove.mutateAsync({ ...target(run.scope), name: run.name }),
     });
