@@ -15,9 +15,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/internal/homefiles"
+	"github.com/handline/handline/go/internal/hooks"
+	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
@@ -53,6 +57,9 @@ type Config struct {
 	Tokens            Tokens
 	HL                string // the hl its hooks call; paths.HlExe when empty
 	Log               func(format string, args ...any)
+	// Accounts is this machine's Claude accounts, whose transcripts' calls the master counts (node.tokens); nil is the home's
+	// (paths.ListAccounts), which a runner with no board of its own has none of until its accounts are known to the master (slice 9).
+	Accounts func() []string
 }
 
 // Runner is one runner daemon.
@@ -60,6 +67,13 @@ type Runner struct {
 	cfg   Config
 	local *rpc.Server
 	ln    net.Listener
+	// turns watches the sessions here, from their hooks and processes, and tells the master each turn (node.turn); hooks records
+	// each hook event: the tracker hears it, then the master, or the spool while the master is away.
+	turns *turns.Tracker
+	hooks *hooks.Recorder
+	// changed is the agents whose turn the master has not been sent since it changed; turnSent wakes the one loop that sends them.
+	changed  map[string]bool
+	turnSent chan struct{}
 
 	mu       sync.Mutex
 	link     *rpc.Link                             // nil while the master is not reached
@@ -107,7 +121,7 @@ func Start(cfg Config) (*Runner, error) {
 		return nil, fmt.Errorf("hooks: %w", err)
 	}
 	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, repos: map[string]*sync.Mutex{},
-		pushers: map[string]*pusher{}, stop: make(chan struct{})}
+		pushers: map[string]*pusher{}, stop: make(chan struct{}), changed: map[string]bool{}, turnSent: make(chan struct{}, 1)}
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
 		if err := json.Unmarshal(b, &r.sessions); err != nil {
 			return nil, fmt.Errorf("%s: %w", StateFile(cfg.Home), err)
@@ -116,6 +130,10 @@ func Start(cfg Config) (*Runner, error) {
 	r.local = rpc.NewServer(cfg.Auth, cfg.Sha, 0, "local", cfg.Log)
 	r.local.Register("runner.committed", rpc.Method{Role: "agent", Handler: r.committed})
 	r.local.Fallback = r.forward
+	r.turns = &turns.Tracker{Log: cfg.Log, Lines: r.transcriptLines}
+	r.turns.OnEnd(r.sessionPid, nil)
+	r.turns.OnChange(r.tellTurn)
+	r.hooks = &hooks.Recorder{Home: cfg.Home, Log: cfg.Log, Turns: r.turns, Forward: r.sendHook}
 	if cfg.Socket != "" {
 		os.Remove(cfg.Socket)
 		old := syscall.Umask(0o177) // the socket is never open to others, not even before the chmod
@@ -132,9 +150,12 @@ func Start(cfg Config) (*Runner, error) {
 		r.wg.Add(1)
 		go r.accept()
 	}
-	r.wg.Add(2)
+	r.wg.Add(5)
 	go r.keepLinked()
 	go r.sendUp()
+	go r.drainSpool()
+	go r.sendTokens()
+	go r.sendTurns()
 	return r, nil
 }
 
@@ -182,6 +203,9 @@ func (r *Runner) forward(c *rpc.Conn, name string, params map[string]any) (any, 
 	}
 	if strings.HasPrefix(name, "runner.") {
 		return nil, rpc.Refused(name+" is the master's call, on the runner's link", "link", "")
+	}
+	if name == "hook.record" {
+		return r.hooks.Record(c, params)
 	}
 	r.mu.Lock()
 	l := r.link
@@ -247,8 +271,15 @@ func (r *Runner) linkOnce() (up bool, err error) {
 		return true, errors.New("the runner is stopping")
 	}
 	r.link = l
+	agents := make([]string, 0, len(r.sessions))
+	for a := range r.sessions {
+		agents = append(agents, a)
+	}
 	r.mu.Unlock()
 	r.cfg.Log("runner: linked to the master at %s", r.cfg.Master.Addr)
+	for _, a := range agents { // what changed while the link was down
+		r.tellTurn(a)
+	}
 	err = <-ended
 	r.mu.Lock()
 	r.link = nil
@@ -560,6 +591,175 @@ func plain(values ...string) error {
 	for _, v := range values {
 		if v == "" || strings.HasPrefix(v, "-") {
 			return rpc.BadRequestError(fmt.Sprintf("%q is not a path, a remote or a branch", v), "", rpc.InvalidParams)
+		}
+	}
+	return nil
+}
+
+// sessionPid is the process of agent's session here, 0 for none: its exit ends the session's turn.
+func (r *Runner) sessionPid(agent string) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.sessions[agent].Pid
+}
+
+// linked is the link to the master, nil while it is not reached.
+func (r *Runner) linked() *rpc.Link {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.link
+}
+
+// tellTurn marks agent's turn for the master (node.turn), sent by sendTurns. While the master is away nothing is sent: the link's next
+// start tells every session's.
+func (r *Runner) tellTurn(agent string) {
+	r.mu.Lock()
+	r.changed[agent] = true
+	r.mu.Unlock()
+	select {
+	case r.turnSent <- struct{}{}:
+	default:
+	}
+}
+
+// sendTurns sends each marked agent's turn as the tracker holds it when it is sent, one at a time: a newer view is never overtaken by
+// an older one, and changes that came meanwhile go as one.
+func (r *Runner) sendTurns() {
+	defer r.wg.Done()
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-r.turnSent:
+		}
+		r.mu.Lock()
+		agents := r.changed
+		r.changed = map[string]bool{}
+		l := r.link
+		r.mu.Unlock()
+		if l == nil {
+			continue
+		}
+		for agent := range agents {
+			if _, err := l.Call("node.turn", map[string]any{"agent": agent, "view": r.turns.ViewOf(agent)}, hlclient.Quick); err != nil {
+				r.cfg.Log("runner: %s: its turn did not reach the master: %v", agent, err)
+			}
+		}
+	}
+}
+
+// sendHook is hooks.Recorder's Forward: the event to the master as the agent's own hook.record, its nudge back.
+func (r *Runner) sendHook(agent, kind string, data map[string]any, requestID string, at int64) (string, error) {
+	l := r.linked()
+	if l == nil {
+		return "", hooks.ErrUnreached
+	}
+	got, err := l.Call("node.forward", map[string]any{"agent": agent, "method": "hook.record", "client": "hl",
+		"params": map[string]any{"agent": agent, "kind": kind, "data": data, "at": at, "request_id": requestID}}, hlclient.Quick)
+	var refused *rpc.Error
+	if err != nil && !errors.As(err, &refused) {
+		return "", fmt.Errorf("%w: %v", hooks.ErrUnreached, err)
+	}
+	if err != nil {
+		return "", err
+	}
+	r.tellTurn(agent) // a hook that moves no state can still change the view (doing, settled)
+	nudge, _ := got["nudge"].(string)
+	return nudge, nil
+}
+
+// drainSpool sends what was spooled while the master was away, in order, once it is reached again.
+func (r *Runner) drainSpool() {
+	defer r.wg.Done()
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-time.After(hooks.SpoolEvery):
+		}
+		if r.linked() == nil {
+			continue
+		}
+		if _, err := r.hooks.Ingest(); err != nil && !errors.Is(err, hooks.ErrUnreached) {
+			r.cfg.Log("runner: the hook spool: %v", err)
+		}
+	}
+}
+
+// transcriptWait bounds a transcript line's send: the tracker's watcher waits on it, and its Esc and doing reads with it.
+const transcriptWait = 3 * time.Second
+
+// transcriptLines sends what each line of agent's session transcript holds for chat to the master (node.transcript), which keeps it
+// when chat_transcript_rows is on. A line read while the master is away is not kept: chat misses it, no count is wrong.
+func (r *Runner) transcriptLines(agent, session string) func([]byte) {
+	return func(line []byte) {
+		at, rows := transcript.Rows(line)
+		l := r.linked()
+		if len(rows) == 0 || l == nil {
+			return
+		}
+		if _, err := l.Call("node.transcript", map[string]any{"agent": agent, "session": session, "at": at, "rows": rows},
+			transcriptWait); err != nil {
+			r.cfg.Log("runner: %s: transcript rows did not reach the master: %v", agent, err)
+		}
+	}
+}
+
+// TokensEvery is how often a runner reads what its accounts' transcripts gained and sends it to the master.
+const TokensEvery = 30 * time.Second
+
+// TokensFile is where a runner keeps how far it has sent each account's transcripts.
+func TokensFile(home string) string { return filepath.Join(home, "token-offsets.json") }
+
+// sendTokens reads, every TokensEvery, the calls this machine's accounts' transcripts gained and sends them to the master
+// (node.tokens), which counts them in its usage. A file's position moves only once the master has taken its calls, so a call is never
+// lost; one sent twice counts once there (token_calls is keyed by account, session and request).
+func (r *Runner) sendTokens() {
+	defer r.wg.Done()
+	u := &usage.Env{Home: r.cfg.Home}
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-time.After(TokensEvery):
+		}
+		if err := r.SendTokens(u); err != nil {
+			r.cfg.Log("runner: tokens: %v", err)
+		}
+	}
+}
+
+// SendTokens is one pass of sendTokens.
+func (r *Runner) SendTokens(u *usage.Env) error {
+	l := r.linked()
+	if l == nil {
+		return nil
+	}
+	kept := map[string]map[string]any{}
+	if b, err := os.ReadFile(TokensFile(r.cfg.Home)); err == nil {
+		json.Unmarshal(b, &kept)
+	}
+	accounts := r.cfg.Accounts
+	if accounts == nil {
+		accounts = func() []string { return paths.ListAccounts(r.cfg.Home) }
+	}
+	for _, acct := range accounts() {
+		calls, moved, ok := u.NewCalls(acct, kept[acct], usage.BytesPerTick)
+		if !ok {
+			continue
+		}
+		if len(calls) > 0 {
+			if _, err := l.Call("node.tokens", map[string]any{"account": acct, "calls": calls}, hlclient.Quick); err != nil {
+				return fmt.Errorf("%s: %w", acct, err)
+			}
+		}
+		kept[acct] = moved
+		b, err := json.Marshal(kept)
+		if err != nil {
+			return err
+		}
+		if err := atomicfile.Write(TokensFile(r.cfg.Home), string(b)); err != nil {
+			return err
 		}
 	}
 	return nil

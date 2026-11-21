@@ -722,7 +722,7 @@
      "description": "The forwarded call's own result."
     }
    },
-   "x-role": "owner",
+   "x-role": "member",
    "x-write": false,
    "x-since": 1,
    "errors": [
@@ -735,7 +735,165 @@
     "not_on_node",
     "method"
    ],
-   "description": "Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`); never hello, a node.* or runner.* call, subscribe or unsubscribe (gate `method`). The answer comes back with its paths under the master's home made the runner's.",
+   "description": "Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`); never hello, a node.* or runner.* call, subscribe or unsubscribe (gate `method`). The answer comes back with its paths under the master's home made the runner's. A runner lent by a member calls it with that member's device token.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.turn",
+   "summary": "A runner's tracker tells the master one of its agents' turns.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The agent whose session is on that runner."
+     }
+    },
+    {
+     "name": "view",
+     "required": true,
+     "schema": {
+      "type": "object",
+      "description": "The turn as the runner's tracker holds it: state (0 unknown, 1 working, 2 idle), at, doing, background, bg_known, settled, live (its session process is watched there), ended."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "not_on_node"
+   ],
+   "description": "Only on a runner's link (gate `node`), for an agent whose session is on that runner (gate `not_on_node`). Sent on each change of the turn and for every session when the link starts. The master's readers (the agent's view, an idle wait) see that agent as one of its own; when its session there stops or the link ends, its turn goes back to unknown.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.transcript",
+   "summary": "A runner sends the chat rows one line of an agent's session transcript holds.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The agent whose session is on that runner."
+     }
+    },
+    {
+     "name": "session",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "at",
+     "required": true,
+     "schema": {
+      "type": "integer",
+      "description": "When the line was written, epoch seconds."
+     }
+    },
+    {
+     "name": "rows",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "Each {kind, body} as transcript_events keeps it: text, tool_use, tool_result (its output already cut to 16 KiB)."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "not_on_node"
+   ],
+   "description": "Only on a runner's link (gate `node`), for an agent whose session is on that runner (gate `not_on_node`). The master keeps the rows when chat_transcript_rows is on and drops them otherwise. Lines read while the master is away are not sent again.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.tokens",
+   "summary": "A runner sends the calls one of its accounts' transcripts gained.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "account",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The account's name on that runner."
+     }
+    },
+    {
+     "name": "calls",
+     "required": true,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "Each call as the token log reads it: session, req, ts, model, cwd, side and tokens {inp, cc, cr, out, thinking, cc1h}."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "node"
+   ],
+   "description": "Only on a runner's link (gate `node`). The master counts the calls in its usage under that account, each charged to the agent whose session made it; a call sent again counts once (by account, session and request). The runner moves its read positions only once the master has answered. Any linked runner may send for any account name: the runner is the person's own lent machine, so this is not checked against the node.",
    "x-app-cache": false
   },
   {

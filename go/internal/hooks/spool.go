@@ -23,6 +23,12 @@ func spoolPath(home string) string { return filepath.Join(home, spoolName) }
 
 func ingesting(home string) string { return filepath.Join(home, "hook-spool.ingesting") }
 
+// spoolWaiting is whether events wait in the spool, or in an ingest that has not finished.
+func spoolWaiting(home string) bool {
+	_, err := os.Stat(spoolPath(home))
+	return err == nil || spoolPending(home)
+}
+
 // spoolPending is whether a file left by an ingest that did not finish waits: events must keep the ids it may replay.
 func spoolPending(home string) bool {
 	_, err := os.Stat(ingesting(home))
