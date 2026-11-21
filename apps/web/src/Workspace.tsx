@@ -15,12 +15,13 @@ import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
 import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Usage } from '#src/usage/Usage.tsx';
+import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
-import { agentKind, canonical, choices, iconOf, labelOf, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
+import { agentKind, canonical, choices, iconOf, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import {
   hasFixed,
@@ -39,12 +40,8 @@ import { InsertLine, isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, ZoneH
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
-import { TabDot } from '#src/layout/TabDot.tsx';
+import { dotOf } from '#src/layout/TabDot.tsx';
 import { TabBar } from '#src/ui/Tabs.tsx';
-import { tabTarget, type TabTarget } from '@handline/app-core';
-
-/** The tab on screen is read as it shows, so only a background tab gets a dot. */
-const dotOf = (target: TabTarget) => (target ? <TabDot target={target} /> : null);
 
 export type Dispatch = (a: Action) => void;
 
@@ -252,7 +249,7 @@ function PaneView({
               ...t,
               title: t.opens ? labelOf(t.opens, nameOf) : t.title,
               icon: iconOf(t.opens),
-              dot: t.id === pane.active ? null : dotOf(tabTarget(t.opens, agent)),
+              dot: t.id === pane.active ? null : dotOf(t.opens, agent),
             }))}
             active={pane.active}
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
@@ -303,6 +300,7 @@ function PaneView({
               {current?.opens?.startsWith('proposal:') && <ProposalView key={current.opens} id={Number(current.opens.slice(9))} />}
               {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
               {current?.opens === 'usage' && <Usage />}
+              {opened(current?.opens ?? '', 'ws') && <WorkspacePage key={current!.opens} ws={opened(current!.opens!, 'ws')!} />}
               {current?.opens === 'requests' && <RequestsTab />}
               {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
             </PaneOpen.Provider>
