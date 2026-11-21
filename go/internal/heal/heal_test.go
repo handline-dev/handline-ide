@@ -286,3 +286,30 @@ func TestAMessageTheLoadHoldsIsNotStuck(t *testing.T) {
 		t.Fatalf("the founder's message waiting UndeliveredS is still pushed: %v", f.did)
 	}
 }
+
+// A turn that runs tools for 40 minutes is heard at each tool call and never hung; one that hears nothing for 30 minutes still is.
+func TestALongTurnOfToolCallsIsNotHungButASilentOneIs(t *testing.T) {
+	q := openDB(t)
+	now := time.Now().Unix()
+	must(t, db.SetAgentState(q, "a", states.Running, 0, ""))
+	must(t, db.SetTerminal(q, "a", "%1", "wt"))
+	if _, err := db.AddEventAt(q, now, "a", "UserPromptSubmit"); err != nil {
+		t.Fatal(err)
+	}
+	f := &fakePorts{}
+	h := inline(f)
+	for at := now; at <= now+40*60; at += 30 {
+		if (at-now)%(4*60) == 0 {
+			_, err := q.Exec("INSERT INTO agent_heard(agent, at) VALUES('a', ?) ON CONFLICT(agent) DO UPDATE SET at = excluded.at", at) // a PostToolUse
+			must(t, err)
+		}
+		must(t, h.Sweep(q, at))
+	}
+	if len(f.did) != 0 {
+		t.Fatalf("a turn running tools was healed: %v", f.did)
+	}
+	sweepFor(t, h, q, now+40*60, 31*60)
+	if len(f.did) == 0 || f.did[0] != "interrupt" {
+		t.Fatalf("a turn with nothing heard for 30 minutes was not retried: %v", f.did)
+	}
+}

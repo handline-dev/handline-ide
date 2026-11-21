@@ -24,7 +24,7 @@ const hookKeep = policy.HookKeep
 var captured = set("SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "PostCompact", "UserPromptSubmit",
 	"PermissionRequest", "TeammateIdle", "Notification")
 
-// answers say a permission prompt was answered or a tool ran: they are never recorded.
+// answers say a permission prompt was answered or a tool ran: never an event, only agent_heard.
 var answers = set("PostToolUse", "PostToolUseFailure")
 
 // endsWait are the events after which no prompt can still be pending.
@@ -173,6 +173,12 @@ func Apply(db *sql.DB, home, agent, event string, raw map[string]any, requestID 
 }
 
 func apply(tx *sql.Tx, home, agent, event string, raw map[string]any, at int64, late bool) error {
+	if answers[event] {
+		// One row per agent, only ever forward: db.LastActivity reads it.
+		if _, err := tx.Exec("INSERT INTO agent_heard(agent, at) VALUES(?, ?) ON CONFLICT(agent) DO UPDATE SET at = MAX(at, excluded.at)", agent, at); err != nil {
+			return err
+		}
+	}
 	if answers[event] && !late {
 		clearNotified(home, agent)
 		if err := noteToolUse(tx, agent); err != nil {
