@@ -118,8 +118,9 @@ type Config struct {
 	// Session makes the env of the session methods (session.start, wake, stop, restart, park, interrupt) once the lifecycle is built; nil
 	// serves none of them.
 	Session func() *sessionrpc.Env
-	// OnOpen is given the database once it is open, for the parts built before it was (the supervisor's ports, the tick).
-	OnOpen func(db *sql.DB, env *supervisor.Env)
+	// OnOpen is given the database once it is open, for the parts built before it was (the supervisor's ports, the tick), and the
+	// terminals of the runners linked to this master.
+	OnOpen func(db *sql.DB, env *supervisor.Env, runners term.Remote)
 	// BeforeClose is called by Close once the connections have ended, before the database closes, to wait for work the parts run off
 	// the caller (the heal steps).
 	BeforeClose func()
@@ -234,8 +235,9 @@ func Start(cfg Config) (*Daemon, error) {
 			}
 		}
 	}
+	d.nodes = nodes.New(db)
 	if cfg.OnOpen != nil {
-		cfg.OnOpen(db, d.env())
+		cfg.OnOpen(db, d.env(), d.nodes.Terminals())
 	}
 	global, _ := usage.LoadConfig(cfg.Home)[handoff.PromptKey].(string)
 	handoff.LogCustomPrompts(cfg.Home, global, handoff.OwnPrompts(cfg.Home), cfg.Log)
@@ -325,7 +327,6 @@ func Start(cfg Config) (*Daemon, error) {
 		d.load.DB, d.load.Panes = db, d.agentPanes
 	}
 	d.hclock = &reads.HealthClock{}
-	d.nodes = nodes.New(db)
 	d.local = d.newServer("local")
 	d.seedHealth()
 	d.armPause()          // a pause kept across a restart still ends at its until
@@ -584,7 +585,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 // typing is the env of input.take and release and the session typing methods: who holds each terminal, and the host to type at.
 func (d *Daemon) typing() *sessionrpc.Env {
 	screens := team.ScreenFor(d.cfg.Home, d.db, claudecode.ScreenFor)
-	t := term.New(agenthost.Dynamic(d.cfg.Home), screens)
+	t := term.New(&term.Machines{Local: agenthost.Dynamic(d.cfg.Home), Remote: d.nodes.Terminals()}, screens)
 	if d.cfg.Terminal != nil {
 		t = term.New(d.cfg.Terminal, screens)
 	}

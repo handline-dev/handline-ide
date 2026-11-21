@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/peerinbox"
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/lock"
@@ -65,6 +66,13 @@ func (p *Parts) terminalSessions() map[string]int {
 // spends, whatever its row says). live is the terminals the host lists, nil when it could not say.
 func (p *Parts) terminalSession(agent string, live map[string]bool) (sessionRec, string, lookup) {
 	row, err := db.GetAgentState(p.db, agent)
+	if err == nil && row != nil {
+		if _, _, onRunner := term.OnRunner(row.Terminal.String); onRunner {
+			// Its session file and process are on the runner, not here: unknown, never none, so nothing ends or relaunches it on a
+			// fact this machine does not have.
+			return sessionRec{}, "", sessionUnknown
+		}
+	}
 	if err != nil || row == nil || row.Terminal.String == "" || (live != nil && !live[row.Terminal.String]) {
 		return sessionRec{}, "", sessionNone
 	}

@@ -36,6 +36,8 @@ type Config struct {
 	Peer func(agent string) bool
 	// Term is the terminal host agents run in; nil is the one config.yaml names (tmux by default). Tests give a fake one.
 	Term *term.Term
+	// Runners is the terminals of the runners linked to this master (nodes.Registry.Terminals); nil runs every agent here.
+	Runners term.Remote
 	// Turns, when set, is asked before the screen whether a terminal agent is mid-turn (-turns-from-hooks).
 	Turns *turns.Tracker
 	// DiskFree is the free and total bytes of the volume holding a path, for the disk watch; nil is statfs. Tests give a low one.

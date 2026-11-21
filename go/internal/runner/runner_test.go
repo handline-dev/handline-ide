@@ -9,7 +9,10 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-type fakeTerm struct{ typed, closed []string }
+type fakeTerm struct {
+	typed, closed []string
+	respawns      int
+}
 
 func (f *fakeTerm) CreateTerminal(command, cwd, title, agent string) (string, string) {
 	f.typed = append(f.typed, command)
@@ -26,7 +29,9 @@ func (f *fakeTerm) Send(h, text string, enter bool) (bool, string) {
 func (f *fakeTerm) ReadScreen(h string, n int) *term.Screen {
 	return &term.Screen{Tail: []string{"$ " + h}}
 }
-func (f *fakeTerm) PanePid(string) int { return 4242 }
+func (f *fakeTerm) RespawnTerminal(string) (bool, string) { f.respawns++; return true, "" }
+func (f *fakeTerm) ListTerminals() map[string]bool        { return map[string]bool{"%1": true} }
+func (f *fakeTerm) PanePid(string) int                    { return 4242 + f.respawns } // a respawned pane runs a new shell
 
 type fakeTokens struct{ kept map[string]int }
 
@@ -61,6 +66,19 @@ func TestTheMastersCallsReachTheTerminalAndOnlyOverTheLink(t *testing.T) {
 	}
 	if got, _ := r.serve("runner.screen", map[string]any{"handle": "%1"}); got.(map[string]any)["rows"].([]string)[0] != "$ %1" {
 		t.Fatalf("screen: %v", got)
+	}
+	if got, _ := r.serve("runner.terminals", nil); len(got.(map[string]any)["handles"].([]string)) != 1 {
+		t.Fatalf("terminals: %v", got)
+	}
+	// A respawn ends the session's shell: the new one is the agent's session in its place.
+	if _, err := r.serve("runner.respawn", map[string]any{"handle": "%1"}); err != nil || tok.kept["bob"] != 4243 {
+		t.Fatalf("respawn: %v %v", err, tok.kept)
+	}
+	if b, _ := os.ReadFile(StateFile(home)); !strings.Contains(string(b), `"pid":4243`) {
+		t.Fatalf("runner.json after respawn: %s", b)
+	}
+	if _, err := r.serve("runner.respawn", map[string]any{"handle": "%9"}); err == nil {
+		t.Fatal("a terminal the runner did not open was respawned")
 	}
 	if _, err := r.serve("runner.stop", map[string]any{"agent": "bob", "handle": "%1"}); err != nil || len(tok.kept) != 0 || len(tm.closed) != 1 {
 		t.Fatalf("stop: %v %v %v", err, tok.kept, tm.closed)
