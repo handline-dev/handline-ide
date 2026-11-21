@@ -143,11 +143,26 @@ func main() {
 		log.Printf("handlined: setting the home up failed (run `hl init` to see why): %v", err)
 	}
 	if m, ok := joined.Of(homeDir); ok {
-		runRunner(homeDir, *db, *sock, *claude, m, *exitWithStdin)
+		door := func() *runner.Door { // read again at each heartbeat: an address can change
+			d, err := daemon.OwnDoor(daemon.Config{Home: homeDir, Listen: *listen, CertFile: *cert, KeyFile: *key, Advertise: *advertise})
+			if err != nil {
+				log.Printf("handlined: no network door, so this machine is not made the master: %v", err)
+			}
+			return d
+		}
+		if runRunner(homeDir, *db, *sock, *claude, m, door, *exitWithStdin) {
+			startAgain()
+		}
 		return
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
 		WebDir: *web, Advertise: *advertise, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey, BoardCopy: true}
+	work, stopWork := context.WithCancel(context.Background()) // the tick runs only while work is not done
+	tickEnded := make(chan struct{})                           // closed once the tick has returned, or is not to run
+	cfg.StopWork = func() {
+		stopWork()
+		<-tickEnded
+	}
 	var tracker *turns.Tracker
 	if *turnsFromHooks {
 		tracker = &turns.Tracker{Log: log.Printf}
@@ -243,23 +258,62 @@ func main() {
 	if *exitWithStdin {
 		ctx = untilClosed(ctx, os.Stdin)
 	}
-	var tickDone <-chan struct{}
-	if startTick != nil {
-		tickDone = startTick(ctx)
+	<-d.Checked() // the owner's other machines were asked whether one is master above this one: no timer fires before
+	tickCtx, stopTick := context.WithCancel(ctx)
+	context.AfterFunc(work, stopTick)
+	devRestart := make(chan struct{}) // closed when the tick ended by itself: dev mode found a changed executable
+	if startTick != nil && work.Err() == nil && !closed(d.StartAgain()) {
+		done := startTick(tickCtx)
+		go func() {
+			<-done
+			if tk.Restarting() {
+				close(devRestart)
+			}
+			close(tickEnded)
+		}()
+	} else {
+		close(tickEnded)
 	}
 	select {
 	case <-ctx.Done():
-	case <-tickDone: // the loop ended by itself: dev mode found a changed executable (nil when there is no tick)
+	case <-devRestart:
+	case <-d.StartAgain():
 	}
-	if tickDone != nil {
-		<-tickDone // the tick in hand finishes before the database closes: a wake or a close is not cut off in the middle
-	}
+	stopTick()
+	<-tickEnded // the tick in hand finishes before the database closes: a wake or a close is not cut off in the middle
 	d.Stop(daemon.StopLimit, os.Stderr, ctx.Err() != nil, os.Exit)
-	if tk != nil && tk.Restarting() && ctx.Err() == nil { // the lock and the database are given up, as a clean exit gives them up
+	if ctx.Err() != nil {
+		return
+	}
+	if tk != nil && tk.Restarting() { // the lock and the database are given up, as a clean exit gives them up
 		if err := tk.Restart(); err != nil {
 			log.Fatalf("handlined: dev-mode restart: %v", err)
 		}
 	}
+	if closed(d.StartAgain()) {
+		startAgain()
+	}
+}
+
+// closed is whether c is closed.
+func closed(c <-chan struct{}) bool {
+	select {
+	case <-c:
+		return true
+	default:
+		return false
+	}
+}
+
+// startAgain runs this executable again with the same arguments, in this process: a master a newer one outranked starts as a runner,
+// a runner made the master starts as master. It returns only when that fails.
+func startAgain() {
+	exe, err := os.Executable()
+	if err == nil {
+		log.Printf("handlined: starting again as what this machine is now")
+		err = syscall.Exec(exe, os.Args, os.Environ())
+	}
+	log.Fatalf("handlined: start again: %v", err)
 }
 
 // causeOf names what ended ctx ("terminated signal received", "stdin closed"), "" while it runs.
@@ -291,7 +345,8 @@ func leaveAgentSession() string {
 }
 
 // runRunner is a home that joined a master: runner mode, which keeps no board. The board it ran alone on is set aside first, unchanged.
-func runRunner(home, dbFile, sock, claude string, m joined.Master, exitWithStdin bool) {
+// door is where it would serve as master. true when node.promote made it the master, so it must start again.
+func runRunner(home, dbFile, sock, claude string, m joined.Master, door func() *runner.Door, exitWithStdin bool) bool {
 	single := lock.TakeSingleton(home, "daemon")
 	if single == nil {
 		log.Fatalf("handlined: another daemon holds this home: not starting a second")
@@ -318,7 +373,8 @@ func runRunner(home, dbFile, sock, claude string, m joined.Master, exitWithStdin
 	if claude != "" {
 		meter = &usagepoll.Meter{Home: home, Claude: claude}
 	}
-	r, err := runner.Start(runner.Config{Home: home, Socket: sock, Sha: version.Sha, Master: m, Term: tm, Log: log.Printf, Meter: meter})
+	r, err := runner.Start(runner.Config{Home: home, Socket: sock, Sha: version.Sha, Master: m, Term: tm, Log: log.Printf, Meter: meter,
+		DBFile: dbFile, Door: door})
 	if err != nil {
 		log.Fatalf("handlined: runner: %v", err)
 	}
@@ -328,6 +384,11 @@ func runRunner(home, dbFile, sock, claude string, m joined.Master, exitWithStdin
 	if exitWithStdin {
 		ctx = untilClosed(ctx, os.Stdin)
 	}
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case <-r.Promoted():
+	}
 	r.Close()
+	single.Release() // before the start again, which takes it as master
+	return ctx.Err() == nil
 }

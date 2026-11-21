@@ -12,6 +12,7 @@ require (
 	github.com/handline/handline/go/protocol v0.0.0
 	github.com/handline/handline/go/scheduler v0.0.0
 	github.com/handline/handline/go/taskboard v0.0.0
+	github.com/superfly/ltx v0.5.2
 	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.54.0
 )
@@ -39,7 +40,6 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/psanford/sqlite3vfs v0.0.0-20260519004904-f9180fa2acc9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/superfly/ltx v0.5.2 // indirect
 	github.com/tetratelabs/wazero v1.2.1 // indirect
 	github.com/wasilibs/go-re2 v1.3.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect

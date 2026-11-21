@@ -15,7 +15,7 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 		t.Fatal(err)
 	}
 	run(t, e, "INSERT INTO nodes(id, person, name, joined_at, lending) VALUES('aaaa', 1, 'box', 50, 'pause')") // sorts first by id, joined first
-	run(t, e, "INSERT INTO nodes(id, person, name, joined_at, lending) VALUES('bbbb', 1, 'run', 60, 'run')")
+	run(t, e, "INSERT INTO nodes(id, person, name, joined_at, lending, door, door_fp) VALUES('bbbb', 1, 'run', 60, 'run', '10.0.0.2:7777', 'ab')")
 	run(t, e, "INSERT INTO nodes(id, person, name, joined_at) VALUES('cccc', 1, 'off', 40)")
 	if err := db.KeepOwnNode(e.DB, id, "mac", 100); err != nil {
 		t.Fatal(err)
@@ -25,11 +25,11 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(v)
-	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null`
+	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null`
 	want := `{"master":{"id":"` + id + `","number":1},"nodes":[` +
-		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run",` + none + `},` +
-		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause",` + none + `},` +
-		`{"id":"bbbb","person":"p1","name":"run","joined_at":"1970-01-01T00:01:00Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"run",` + none + `}]}`
+		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run","door":null,` + none + `},` +
+		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause","door":null,` + none + `},` +
+		`{"id":"bbbb","person":"p1","name":"run","joined_at":"1970-01-01T00:01:00Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"run","door":{"addr":"10.0.0.2:7777","fp":"ab"},` + none + `}]}`
 	if !sameJSON(string(b), want) {
 		t.Fatalf("%s", b)
 	}

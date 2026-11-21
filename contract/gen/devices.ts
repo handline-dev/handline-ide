@@ -40,7 +40,7 @@ export type Node = {
   joined_at: Timestamp;
   /** When the master last heard from it: for its own row, the daemon's start. */
   last_seen: Timestamp | null;
-  /** The master it belongs to; 1 until masters can change. */
+  /** The master number this machine last took; the master's own is the board's, raised by one each time the master moves (node.promote). */
   master_number: number;
   /** It is the master. */
   master: boolean;
@@ -82,6 +82,16 @@ export type Node = {
   } | null;
   /** A lent machine runs on its battery now, from its newest heartbeat; null as load is. */
   battery?: boolean | null;
+  /** Where it serves, or would serve, as master: addr (host:port) and fp (its certificate's sha256, "" for a plain door); null before it said. */
+  door?: {
+    addr: string;
+    fp: string;
+  } | null;
+  /** It was master, and a newer master outranked it: since when its own board is set aside, unchanged, and the master number that outranked it. null otherwise. */
+  set_aside?: {
+    since: Timestamp;
+    master: number;
+  } | null;
 };
 
 export interface DevicesMethods {
@@ -187,11 +197,17 @@ export interface DevicesMethods {
   has?: { [key: string]: unknown };
   /** The machine runs on its battery now. */
   battery?: boolean;
+  /** Where it would serve as master: addr (host:port) and fp (its certificate's sha256, "" for a plain door). The master keeps it on the node row; a machine with none is not made the master. */
+  door?: { [key: string]: unknown };
+  /** The board it set aside when it was master and a newer master outranked it: since (unix seconds) and master (the number that outranked it). */
+  set_aside?: { [key: string]: unknown };
 }; result: {
     /** The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it. */
     stop: string[];
     /** The programs its agents' MCP servers run, which its next heartbeat says it has or not (has.programs): an agent goes only to a runner with all it needs. */
     check: string[];
+    /** To one of the owner's machines only: each of the owner's machines with a door, in the order they joined: {node, addr, fp}. A runner keeps it and, once its master is gone, asks each of them who is master now. */
+    doors?: { [key: string]: unknown }[];
   } };
   "node.tokens": { params: {
   /** The account's name on that runner. */
@@ -212,6 +228,17 @@ export interface DevicesMethods {
     /** More data waits: pull again. */
     more: boolean;
   } };
+  "node.promote": { params: { [key: string]: unknown }; result: {
+    /** The master number this machine takes. */
+    number: number;
+    /** The master was reached and handed over, so nothing was lost; false: this machine took over from its copy, and what the master wrote after the copy's last pull is lost. */
+    handed_over: boolean;
+  } };
+  "node.handover": { params: { [key: string]: unknown }; result: {
+    /** The master number the runner takes. */
+    number: number;
+  } };
+  "node.outranked": { params: { [key: string]: unknown }; result: { [key: string]: unknown } };
   "node.launch": { params: {
   /** The agent whose session asks, as the runner proved it. */
   agent: string;
@@ -248,12 +275,15 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "node.heartbeat": { role: "member", callers: null, write: false, since: 1 },
   "node.tokens": { role: "member", callers: null, write: false, since: 1 },
   "node.copy.files": { role: "member", callers: null, write: false, since: 1 },
+  "node.promote": { role: "owner", callers: null, write: false, since: 1 },
+  "node.handover": { role: "member", callers: null, write: false, since: 1 },
+  "node.outranked": { role: "member", callers: null, write: false, since: 1 },
   "node.launch": { role: "owner", callers: null, write: false, since: 1 },
   "node.agent_files": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.copy.files" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.copy.files" | "node.promote" | "node.handover" | "node.outranked" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
   "node.forward": false,
@@ -262,6 +292,9 @@ export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.f
   "node.heartbeat": false,
   "node.tokens": false,
   "node.copy.files": false,
+  "node.promote": false,
+  "node.handover": false,
+  "node.outranked": false,
   "node.launch": false,
   "node.agent_files": false,
 };

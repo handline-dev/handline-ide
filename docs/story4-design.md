@@ -135,16 +135,22 @@ the master.
   When the master is reachable, it stops its writes, waits until the copy has them all and hands over, so
   nothing is lost. When it is gone, the runner restores its copy and starts as master the way the daemon
   starts today, with timers and deliveries rebuilt from the board; what the old master wrote in its last
-  second or two is lost. Either way it raises the **master number** by one and tells every runner in the node
-  table.
+  second or two is lost. Either way it raises the **master number** by one. Runners do not listen, so it does
+  not tell them: a runner whose link drops asks each of the owner's machines in the node table (its address and
+  certificate fingerprint, which each heartbeat's answer lists) and joins the one that is master with the
+  highest number.
 - **Where the master lives:** on the device that stays on (a desktop or a server). A laptop master that sleeps
   stops new work everywhere until it wakes or the owner moves the master.
 - **One master:** runners and apps obey only the highest master number they have seen. An old master that
-  comes back learns the higher number from the first runner it reaches and becomes a runner. Its own board is
-  set aside unchanged, not merged, and its app says so. The sessions on its machine were reclaimed like any
+  comes back learns the higher number so: at its start, before it fires a timer, it asks the owner's machines
+  in its node table; and while it was gone, the new master dials its address each 15 s until it answers, for an
+  old master that never restarts (a laptop woken from sleep, a cut link healed). Each master keeps a device of
+  its own, which the copy carries, so either side proves itself with a device token. It then becomes a runner
+  with that device. Its own board is set aside unchanged, not merged, and its app says so. The sessions on its machine were reclaimed like any
   offline runner's, and its return is handled as in section 3.
-- **Apps** keep the list of machines and their device token. When the master is unreachable they ask the
-  others which one is master now and connect to it with the same token, which the copy carries.
+- **Apps** keep the list of machines and their device token. When the master is unreachable they redial that
+  list, pinning each certificate, and connect with the same token, which the copy carries, to the one that is
+  master with the highest number (in its hello).
 - **Later: taking over by itself.** A runner that has not reached the master for 30 seconds but reaches the
   internet could take over on its own. No agent tool surveyed does this (research section 6), and with two
   machines that cannot reach each other it is the one way two masters appear. It is a later slice, behind an

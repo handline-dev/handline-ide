@@ -1,6 +1,10 @@
 package runner
 
-import "time"
+import (
+	"time"
+
+	"github.com/handline/handline/go/kit/joined"
+)
 
 // BeatEvery is how long a runner waits after the master answered its heartbeat before it sends the next: one is in flight at a time.
 const BeatEvery = 15 * time.Second
@@ -14,6 +18,22 @@ type Beat struct {
 	Accounts []BeatAccount `json:"accounts"`
 	Has      Has           `json:"has"`
 	Battery  bool          `json:"battery"` // the machine runs on its battery now
+	// Door is where this machine would serve as master (its -listen and certificate), nil when it has no network door.
+	Door *Door `json:"door,omitempty"`
+	// SetAside is the board this machine set aside when a newer master outranked it as master, nil when it set none aside so.
+	SetAside *joined.SetAside `json:"set_aside,omitempty"`
+}
+
+// Door is an address a master serves (host:port) and its certificate's fingerprint, "" for a plain door.
+type Door struct {
+	Addr string `json:"addr"`
+	FP   string `json:"fp"`
+}
+
+// NodeDoor is one of the owner's machines and its door, as a heartbeat's answer lists them: where a runner looks for the master.
+type NodeDoor struct {
+	Node string `json:"node"`
+	Door
 }
 
 // Load is the machine as a heartbeat measured it; a figure it could not read is 0.

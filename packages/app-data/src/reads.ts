@@ -28,6 +28,10 @@ export const NOT_QUERIES = [
   'node.transcript',
   'node.tokens',
   'node.heartbeat',
+  'node.handover',
+  'node.outranked',
+  // A runner's own: the founder at its terminal makes it the master (hl node promote).
+  'node.promote',
   'subscribe',
   'unsubscribe',
   'events.feed',

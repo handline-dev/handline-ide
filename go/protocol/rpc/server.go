@@ -78,7 +78,9 @@ type Server struct {
 	// Names, when set, is the database who words resolve in (addr.Resolve): the home's. With none, they reach the handler as sent.
 	Names *sql.DB
 	// Fallback, when set, answers a method the server does not serve, after hello: a runner's forwarding, whose calls the master checks.
-	Fallback     func(c *Conn, name string, params map[string]any) (any, error)
+	Fallback func(c *Conn, name string, params map[string]any) (any, error)
+	// Hold, when set, is asked before each write: non-nil refuses it (a master handing over to another takes no writes).
+	Hold         func() error
 	capabilities []func() map[string]any
 	methods      map[string]Method
 	order        []string
@@ -253,7 +255,7 @@ func (c *Conn) HangUp() {
 // OnClose runs f when the connection ends. Call it from a method's handler.
 func (c *Conn) OnClose(f func()) { c.onClose = append(c.onClose, f) }
 
-// AfterReply runs f once the reply to the call being handled is sent: for what must not reach the client first.
+// AfterReply runs f once the reply to the call being handled is sent (not when it could not be): for what must not reach the client first.
 // Not for a method that Waits.
 func (c *Conn) AfterReply(f func()) { c.afterReply = append(c.afterReply, f) }
 
@@ -434,12 +436,16 @@ func (c *Conn) one(raw []byte) bool {
 		if hasID {
 			sent = c.send(map[string]any{"jsonrpc": "2.0", "id": rid, "result": result})
 		}
-		if !call.waits { // a waiting call runs beside the loop on a Conn of its own
-			for _, f := range c.afterReply {
+		on := c
+		if call.waits && call.on != nil { // a waiting call runs beside the loop on a Conn of its own
+			on = call.on
+		}
+		if sent { // what must follow the answer does not happen when it never left
+			for _, f := range on.afterReply {
 				f()
 			}
-			c.afterReply = nil
 		}
+		on.afterReply = nil
 		return sent
 	}
 	if call.waits && call.read {
@@ -480,6 +486,7 @@ type routed struct {
 	waits bool // it runs beside the loop
 	read  bool // a Read, which takes one of the connection's read slots to run beside it
 	run   func() (any, error)
+	on    *Conn // the Conn it runs on: a waiting call's own, whose AfterReply runs once its answer is sent
 }
 
 func (c *Conn) route(msg any) (routed, error) {
@@ -539,12 +546,19 @@ func (c *Conn) route(msg any) (routed, error) {
 		at = &Conn{srv: c.srv, tr: c.tr, Pid: c.Pid, Remote: c.Remote, Caller: c.Caller, saidHello: c.saidHello, done: c.done,
 			helloClient: c.helloClient, cwd: c.cwd, root: c.Root()}
 	}
-	return routed{waits: beside, read: m.Read && !m.Waits, run: func() (any, error) {
+	return routed{waits: beside, read: m.Read && !m.Waits, on: at, run: func() (any, error) {
 		var result any
 		var err error
-		if m.Write {
+		var held error
+		if m.Write && at.srv.Hold != nil {
+			held = at.srv.Hold()
+		}
+		switch {
+		case held != nil:
+			err = held
+		case m.Write:
 			result, err = at.runWrite(name, m, params, sentKey)
-		} else {
+		default:
 			result, err = m.Handler(at, params)
 		}
 		if at.Typed() && at.srv.Names != nil && name != "hello" && !m.Verbatim {

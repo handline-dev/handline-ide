@@ -15,9 +15,12 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 | `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
-| `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?` | `{stop, check}` | `refused`, `bad_request` | node | not cached |
+| `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?`, `door?`, `set_aside?` | `{stop, check, doors}` | `refused`, `bad_request` | node | not cached |
 | `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
 | `node.copy.files` | member |  | `have?`, `parts?` | `{send, gone, more}` | `refused` | node, owner, copy | not cached |
+| `node.promote` | owner |  | none | `{number, handed_over}` | `refused` | board, door, copy | not cached |
+| `node.handover` | member |  | none | `{number}` | `refused` | node, copy, door, device | not cached |
+| `node.outranked` | member |  | none | `object` | `refused` | node, door | not cached |
 | `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |
 | `node.agent_files` | owner |  | `agent`, `files?`, `deleted?` | `Accepted` | `refused`, `bad_request` | node, not_on_node, path | not cached |
 
@@ -72,6 +75,18 @@ A runner sends the calls one of its accounts' transcripts gained. Only on a runn
 ### `node.copy.files`
 
 A runner pulls what its copy of the board lacks. Only on a runner's link (gate `node`). The board's copy is the folder Litestream writes on the master (board-copy in its home): each committed change within a second, a snapshot every hour, two hours kept. Only the owner's runners keep it: another person's is refused, gate `owner`, and drops any copy it holds; gate `copy` when the master keeps none now (the runner keeps what it holds). A pull that finds the runner already holding all of it sets the runner's copy in node.status.
+
+### `node.promote`
+
+Make this machine the master: "Make this Mac the master". On one of the owner's machines that joined, at its own socket (the founder at its terminal, `hl node promote`). No machine takes over by itself. With the master reached, it hands over (node.handover). Without it, this machine restores its copy of the board. Either way the copy becomes this machine's board, the master number goes up by one, and once the answer is sent the daemon starts again as master: the other runners find it by asking the owner's machines (node.heartbeat's doors) and join it with their own device tokens, and the old master, when it is back, sets its board aside and joins it as a runner. Gate `door`: it has no network door (handlined -listen); gate `copy`: it keeps no copy of the board yet.
+
+### `node.handover`
+
+The master hands over to the runner that is made the master. Only on a runner's link (gate `node`), from node.promote. The master refuses every write from then (gate `master`), stops its tick, writes its last changes into the copy and waits up to a minute until that runner's copy holds them all; then it answers, and once the answer is sent it joins that runner as a runner with its own device's token, its board set aside. A move that does not finish starts this master again.
+
+### `node.outranked`
+
+A machine of the owner says it is master with a higher number. From the master made so while this one was gone, each 15 s until it answers. Its word moves nothing: this master asks that machine at the door its own board has for it, pinned to its fingerprint, and joins it as a runner, its board set aside, only when the number there is the higher. A master also asks the owner's machines so at its start, before it fires a timer.
 
 ### `node.launch`
 

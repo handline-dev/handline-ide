@@ -64,7 +64,9 @@ type Registry struct {
 		Next(agent string) string
 	}
 	// Check, when set, is the programs a runner is asked whether it has, which its next heartbeat says (Has.Programs).
-	Check   func() []string
+	Check func() []string
+	// Hold, when set, refuses what a runner's link writes into the board while non-nil: the master is handing over.
+	Hold    func() error
 	local   func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
 	mu      sync.Mutex
 	links   map[string]*rpc.Conn
@@ -557,6 +559,13 @@ func (r *Runner) Terminals() ([]string, error) {
 	return out, nil
 }
 
+func (r *Registry) holding() error {
+	if r.Hold != nil {
+		return r.Hold()
+	}
+	return nil
+}
+
 // notForwarded are what a runner may not forward: its own handshake, the methods of the link itself, and a subscription, whose
 // events have no connection to go to.
 func notForwarded(method string) bool {
@@ -627,6 +636,9 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		if node == "" {
 			return nil, rpc.Refused("node.tokens is a runner's own call, on its link", "node", "")
 		}
+		if err := r.holding(); err != nil {
+			return nil, err
+		}
 		folder, _ := p["account"].(string)
 		calls, err := json.Marshal(p["calls"])
 		if folder == "" || err != nil {
@@ -647,6 +659,9 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		node := r.NodeOf(c.Root())
 		if node == "" {
 			return nil, rpc.Refused("node.transcript is a runner's own call, on its link", "node", "")
+		}
+		if err := r.holding(); err != nil {
+			return nil, err
 		}
 		agent, _ := p["agent"].(string)
 		session, _ := p["session"].(string)

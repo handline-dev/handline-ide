@@ -12,6 +12,7 @@ import (
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
@@ -44,6 +45,9 @@ func (r *Runner) SendBeat() error {
 	got, err := l.Call("node.heartbeat", r.Beat(), hlclient.Quick)
 	if err != nil {
 		return err
+	}
+	if doors, ok := got["doors"]; ok {
+		r.keepDoors(doors)
 	}
 	stop, _ := got["stop"].([]any)
 	for _, v := range stop {
@@ -78,7 +82,10 @@ func (r *Runner) beatSoon() {
 
 // Beat is this runner's heartbeat now, as node.heartbeat's params.
 func (r *Runner) Beat() map[string]any {
-	b := Beat{Version: r.cfg.Sha, Boot: bootID(), Accounts: r.accounts(), Has: r.has(), Battery: r.cfg.Battery()}
+	b := Beat{Version: r.cfg.Sha, Boot: bootID(), Accounts: r.accounts(), Has: r.has(), Battery: r.cfg.Battery(), Door: r.door()}
+	if s, ok := joined.SetAsideOf(r.cfg.Home); ok {
+		b.SetAside = &s
+	}
 	if m, err := sysres.Read(); err == nil {
 		b.Load = Load{Cores: m.Cores, Load1: m.Load1, RAMTotal: m.RAMTotal, RAMFree: m.RAMFree}
 	}

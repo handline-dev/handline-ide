@@ -1,9 +1,7 @@
 package nodes
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"sync"
 	"time"
 
@@ -21,6 +19,8 @@ type Copy struct {
 
 	mu      sync.Mutex
 	matched map[string]time.Time
+	upto    map[string]uint64 // the last transaction each runner's mirror said it holds (boardcopy.Upto)
+	waits   []chan struct{}   // closed at the next pull
 }
 
 func (c *Copy) set(node string, at *time.Time) {
@@ -33,6 +33,39 @@ func (c *Copy) set(node string, at *time.Time) {
 		delete(c.matched, node)
 	} else {
 		c.matched[node] = *at
+	}
+}
+
+// pulled keeps how far node's mirror is, from the files a pull said it holds.
+func (c *Copy) pulled(node string, have []boardcopy.File) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.upto == nil {
+		c.upto = map[string]uint64{}
+	}
+	c.upto[node] = boardcopy.Upto(have)
+	for _, w := range c.waits {
+		close(w)
+	}
+	c.waits = nil
+}
+
+// WaitHolds waits until node's mirror holds the copy up to transaction txid (boardcopy.Copier.Synced); false when stop is done first.
+func (c *Copy) WaitHolds(node string, txid uint64, stop <-chan struct{}) bool {
+	for {
+		c.mu.Lock()
+		if c.upto[node] >= txid {
+			c.mu.Unlock()
+			return true
+		}
+		w := make(chan struct{})
+		c.waits = append(c.waits, w)
+		c.mu.Unlock()
+		select {
+		case <-w:
+		case <-stop:
+			return false
+		}
 	}
 }
 
@@ -61,12 +94,11 @@ func (r *Registry) copyFiles(c *rpc.Conn, p map[string]any) (any, error) {
 	if r.Copy == nil {
 		return nil, rpc.Refused("this master keeps no copy of its board now", "copy", "")
 	}
-	var role string
-	err := r.DB.QueryRow("SELECT p.role FROM nodes n JOIN people p ON p.id = n.person WHERE n.id = ?", node).Scan(&role)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	owner, err := r.ownerNode(node)
+	if err != nil {
 		return nil, err
 	}
-	if role != "owner" {
+	if !owner {
 		r.Copy.set(node, nil)
 		return nil, rpc.Refused("only the owner's machines keep a copy of the board", "owner", "")
 	}
@@ -79,6 +111,7 @@ func (r *Registry) copyFiles(c *rpc.Conn, p map[string]any) (any, error) {
 			}
 		}
 	}
+	r.Copy.pulled(node, have)
 	send, gone, more, err := boardcopy.Changes(r.Copy.Dir, have, parts, CopyChunk)
 	if err != nil {
 		return nil, err
