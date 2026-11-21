@@ -19,7 +19,7 @@ type fakeInbox struct {
 	froms   []string
 }
 
-func (f *fakeInbox) Deliver(_ context.Context, _ peerinbox.Session, text string, from peerinbox.From) peerinbox.Result {
+func (f *fakeInbox) Deliver(_ context.Context, _ peerinbox.Session, text string, from peerinbox.From, _ string) peerinbox.Result {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.texts = append(f.texts, text)
@@ -28,6 +28,10 @@ func (f *fakeInbox) Deliver(_ context.Context, _ peerinbox.Session, text string,
 		return r
 	}
 	return peerinbox.Result{Kind: peerinbox.Delivered}
+}
+
+func (*fakeInbox) Watch(context.Context, peerinbox.Session, string, time.Time) (bool, bool) {
+	return false, false
 }
 
 func (f *fakeInbox) Type(_ context.Context, _ peerinbox.Session, text string, typeIn func(string) error) peerinbox.Result {

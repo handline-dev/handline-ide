@@ -206,11 +206,13 @@ func authLine(key []byte) ([]byte, error) {
 	return append(line, '}'), nil
 }
 
-// Deliver sends text to sess as from (Envelope), and waits until its transcript shows it. A write that does not show within ConfirmWait is written
+// Deliver sends text to sess as from (Envelope) under id ("" draws a fresh one), and waits until its transcript shows it. A write that does not show within ConfirmWait is written
 // again with the same id after ResendAfter, up to Tries writes. Delivered needs the peer's user record; a message only queued
 // behind a running turn or a prompt comes back Queued: it is not written again and not a failure.
-func (s *Sender) Deliver(ctx context.Context, sess Session, text string, from From) Result {
-	id := s.NewID()
+func (s *Sender) Deliver(ctx context.Context, sess Session, text string, from From, id string) Result {
+	if id == "" {
+		id = s.NewID()
+	}
 	body := Envelope(Body(text, id), from)
 	res := Result{ID: id}
 	tr := newTail(sess)
@@ -280,6 +282,31 @@ func (s *Sender) awaiter(tr *tail, match matcher) func(ctx context.Context) bool
 			if !s.Now().Before(deadline) || s.Sleep(ctx, s.Poll) != nil {
 				return false
 			}
+		}
+	}
+}
+
+// Watch reads the transcript of sess from its start for the message an earlier process wrote under id at written (only records from then
+// on count, so an older one with the same id does not): seen once it shows, else queued when it was only queued, up to QueuedWait after
+// written.
+func (s *Sender) Watch(ctx context.Context, sess Session, id string, written time.Time) (seen, queued bool) {
+	match := peerRecord(id)
+	since := func(line string) recKind {
+		var r struct{ Timestamp time.Time }
+		if k := match(line); k != recOther && json.Unmarshal([]byte(line), &r) == nil && !r.Timestamp.Before(written) {
+			return k
+		}
+		return recOther
+	}
+	tr, deadline := &tail{sess: sess, path: transcriptPath(sess)}, written.Add(s.QueuedWait)
+	for {
+		sn, q := tr.scan(since)
+		queued = queued || q
+		if sn {
+			return true, queued
+		}
+		if !s.Now().Before(deadline) || s.Sleep(ctx, s.Poll) != nil {
+			return false, queued
 		}
 	}
 }

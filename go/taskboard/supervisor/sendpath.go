@@ -208,9 +208,10 @@ func (e *Env) SessionConfirmed(q db.Q, agent, op string) (err error) {
 	return nil
 }
 
-// SessionLost is what the session layer calls when an agent's session ended. A message written and not confirmed is unknown: the sender is
-// told and it is not written again. A message that was only held was never written and is owed again.
-func (e *Env) SessionLost(q db.Q, agent string) (err error) {
+// ResumeSends is the start of a daemon for agent: the last daemon's watch of what it wrote ended with it, not the session. A message
+// written and not confirmed goes back to a watch when rewatch(op, written) takes it, written being when the ledger recorded it; otherwise
+// it is unknown: the sender is told and it is not written again. A message that was only held was never written and is owed again.
+func (e *Env) ResumeSends(q db.Q, agent string, rewatch func(op string, written time.Time) bool) (err error) {
 	defer Catch(&err)
 	prefix := ledgerKey(agent, "")
 	rows := must(q.Query("SELECT name, row_id FROM cursors WHERE name LIKE ? ESCAPE '\\' ORDER BY name", likeEscape(prefix)+"%"))
@@ -242,6 +243,9 @@ func (e *Env) SessionLost(q db.Q, agent string) (err error) {
 			check(db.ClearCursor(q, key))
 			continue
 		}
+		if at, ok := ok2(db.CursorUpdated(q, key)); ok && rewatch != nil && rewatch(l.op, time.Unix(at, 0)) {
+			continue
+		}
 		check(db.SetCursor(q, key, sendUnknown))
 		e.deliveryUnknown(q, agent, l.op, "was written to its session, and the session ended before it confirmed it: it may or may not have been read",
 			"ask "+agent+" whether it saw it, or send it again")
@@ -250,7 +254,7 @@ func (e *Env) SessionLost(q db.Q, agent string) (err error) {
 }
 
 // actedOn is whether every request a written op carried has since been seen to arrive: landed, read with hl read, or no longer queued
-// (answered, settled, withdrawn). A daemon restart ends every session, and an old delivery like that is not one that may be lost.
+// (answered, settled, withdrawn): a delivery like that is not one that may be lost.
 func actedOn(q db.Q, op string) bool {
 	rids := ridsOfOp(op)
 	for _, rid := range rids {

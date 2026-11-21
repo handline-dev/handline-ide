@@ -181,7 +181,7 @@ func main() {
 			}
 			ccfg.DB = db
 			env.Ports = parts.SupervisorPorts(parts.Lifecycle(ccfg, compose.LifecycleConfig{Env: env}))
-			parts.SettlePeerSends()
+			parts.SettlePeerSends(env.Ports.Agents)
 			if *terminalTick {
 				startTick = func(stop context.Context) <-chan struct{} {
 					compose.CheckRepos(db, homeDir, env, log.Printf) // with the tick that would start the agents

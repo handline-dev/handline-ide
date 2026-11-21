@@ -90,11 +90,11 @@ func (p *Parts) WaitForPlanAsks() {
 }
 
 // Telling is what the supervisor's Env does with a session's end of a send: the operation is delivered once the session showed it, and
-// what was written and not shown when the session ended is unknown (supervisor.Env).
+// what the last daemon wrote and did not see shown goes back to a watch, or is unknown (supervisor.Env).
 type Telling interface {
 	SessionWritten(q db.Q, agent, op string) error
 	SessionConfirmed(q db.Q, agent, op string) error
-	SessionLost(q db.Q, agent string) error
+	ResumeSends(q db.Q, agent string, rewatch func(op string, written time.Time) bool) error
 }
 
 // New builds the parts. The daemon fills in what only it knows when it starts (the database and the telling).

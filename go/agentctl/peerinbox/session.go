@@ -43,8 +43,8 @@ type Session struct {
 	State      string
 	Detail     string
 	Config     string // the account config dir the record came from
-	// UpdatedAt is the record's own clock, in ms.
-	UpdatedAt int64
+	// UpdatedAt is the record's own clock, in ms; StartedAt is when the session began, in ms.
+	UpdatedAt, StartedAt int64
 
 	keyPath string
 }
@@ -66,6 +66,7 @@ type record struct {
 	Detail       string `json:"detail"`
 	WaitingFor   string `json:"waitingFor"`
 	UpdatedAt    int64  `json:"updatedAt"`
+	StartedAt    int64  `json:"startedAt"`
 }
 
 // ByPID reads <config>/sessions/<pid>.json. It refuses a record with no socket, a peerProtocol other than ProtocolVersion, no
@@ -96,7 +97,7 @@ func ByPID(config string, pid int) (Session, error) {
 	return Session{
 		PID: pid, SessionID: r.SessionID, Cwd: r.Cwd, Version: r.Version, Socket: r.Socket,
 		Status: r.Status, WaitingFor: r.WaitingFor, State: r.State, Detail: r.Detail,
-		Config: config, UpdatedAt: r.UpdatedAt, keyPath: keys[0],
+		Config: config, UpdatedAt: r.UpdatedAt, StartedAt: r.StartedAt, keyPath: keys[0],
 	}, nil
 }
 

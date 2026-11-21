@@ -93,7 +93,8 @@ Every message to an agent from a person, another agent, the daemon's own notices
   same as Now.
 - **Crash rule.** If the daemon or the CLI dies with an operation in `sent` and not `confirmed`, the daemon does not write it
   again. It marks the operation `unknown` and tells the sender, because the CLI may or may not have run it and a repeat
-  could do it twice. A `queued` operation survives and is written after the restart. This is the fail-closed choice; the
+  could do it twice. When only the daemon died and the session still runs, the transcript watch resumes instead; it is
+  unknown only if the watch does not see it in time. A `queued` operation survives and is written after the restart. This is the fail-closed choice; the
   prototype keeps the ledger in memory and the database table is part of the work below.
 
 ## Permissions and dialogs: callbacks, not keys

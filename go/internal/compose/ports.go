@@ -17,7 +17,7 @@ import (
 )
 
 // SupervisorPorts are the supervisor's ports for the terminal agents: the lifecycle, the transcript, the handoff and the terminal (its launch, its screen reads) are real; typing at a terminal session and the dialogs are not served. The caller
-// sets them on the Env, then calls SettlePeerSends.
+// sets them on the Env, then calls SettlePeerSends with their Agents.
 func (p *Parts) SupervisorPorts(lc *Lifecycle) supervisor.Ports {
 	set := lc.Manager.Settings
 	return supervisor.Ports{
@@ -194,13 +194,6 @@ func (t peerTell) SessionConfirmed(q db.Q, agent, op string) error {
 func (t peerTell) SessionNotDelivered(agent, op, why string, written bool) error {
 	if d, ok := t.p.tell.(peerDelivery); ok {
 		return d.SessionNotDelivered(agent, op, why, written)
-	}
-	return nil
-}
-
-func (t peerTell) SessionLost(q db.Q, agent string) error {
-	if d, ok := t.p.tell.(peerDelivery); ok {
-		return d.SessionLost(q, agent)
 	}
 	return nil
 }

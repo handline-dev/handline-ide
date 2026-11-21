@@ -243,7 +243,7 @@ func TestSettlingPeerSendsAtStartTellsTheSenderThroughTheWiredPorts(t *testing.T
 	if !env.Wired() {
 		t.Fatal("every supervisor port has its owner")
 	}
-	p.SettlePeerSends()
+	p.SettlePeerSends(env.Ports.Agents)
 	if v, _ := dbpkg.Cursor(d, key); v != 3 {
 		t.Fatalf("the unconfirmed send is unknown now, got %d", v)
 	}
