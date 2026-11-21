@@ -201,9 +201,14 @@ type Conn struct {
 	// callName and callRID name the write in hand while its handler runs (see Effect); calls on a plain connection run one at a time,
 	// so if that ever changes they move into the call.
 	callName, callRID string
-	calls             outCalls // the calls this end makes to the client (Call)
-	root              *Conn    // the connection a call that runs beside the loop came on; nil on that connection itself
+	calls             outCalls                                   // the calls this end makes to the client (Call)
+	notice            func(method string, params map[string]any) // the client's notifications, when they are not calls (OnNotice)
+	root              *Conn                                      // the connection a call that runs beside the loop came on; nil on that connection itself
 }
+
+// OnNotice takes every notification the client sends from here on, on the connection's loop, in order with the answers to its Calls:
+// a runner's link, whose notifications are its own. Set it from a call on the loop (hello).
+func (c *Conn) OnNotice(f func(method string, params map[string]any)) { c.Root().notice = f }
 
 // Root is the connection this call came on: c itself, or the one whose loop a call running beside it (Waits, Read) was read from.
 func (c *Conn) Root() *Conn {
@@ -400,6 +405,12 @@ func (c *Conn) one(raw []byte) bool {
 	}
 	obj, isObj := msg.(map[string]any)
 	if isObj && c.calls.deliver(obj) {
+		return true
+	}
+	if _, hasID := obj["id"]; isObj && !hasID && c.notice != nil {
+		name, _ := obj["method"].(string)
+		params, _ := obj["params"].(map[string]any)
+		c.notice(name, params)
 		return true
 	}
 	var rid any

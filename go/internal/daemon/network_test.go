@@ -63,6 +63,19 @@ func (c *wsClient) ask(msg string) map[string]any {
 	return m
 }
 
+// askFor sends msg and is the answer with id, past the notices that come before it.
+func (c *wsClient) askFor(msg string, id float64) map[string]any {
+	c.t.Helper()
+	c.ws.WriteMessage(websocket.TextMessage, []byte(msg))
+	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); {
+		if m, ok := c.next(time.Until(end)); ok && m["id"] == id {
+			return m
+		}
+	}
+	c.t.Fatalf("no answer to %s", msg)
+	return nil
+}
+
 func (c *wsClient) closed() bool {
 	c.ws.SetReadDeadline(time.Now().Add(5 * time.Second))
 	_, _, err := c.ws.ReadMessage()

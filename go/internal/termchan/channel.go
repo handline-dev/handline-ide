@@ -155,6 +155,9 @@ func (h Host) ServesBytes() bool {
 
 func (h Host) ServesStyled() bool {
 	_, ok := h.Backend.(term.StyledReader)
+	if s, says := h.Backend.(term.StyledServer); says {
+		ok = s.ServesStyled()
+	}
 	return ok && h.Backend.Available()
 }
 

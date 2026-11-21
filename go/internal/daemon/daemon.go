@@ -294,12 +294,15 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	d.logins = newLogins(cfg)
 	d.prompts = prompts.New(db, cfg.Home, &reads.Env{DB: db, Home: cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion()})
+	runners := d.nodes.Terminals()
 	d.tchan = termchan.New(db, cfg.Home, func() term.Backend {
-		if cfg.Terminal != nil {
-			return cfg.Terminal
+		local := cfg.Terminal
+		if local == nil {
+			local = agenthost.Current(cfg.Home)
 		}
-		return agenthost.Current(cfg.Home)
+		return &term.Machines{Local: local, Remote: runners} // a runner's terminal is read and typed into over its link
 	})
+	d.tchan.Relay = d.nodes
 	d.holds = &inputhold.Store{DB: db, Changed: d.tchan.HoldersChanged, IdleS: func() int64 {
 		return (&settings.Settings{Home: cfg.Home}).ConfigSeconds("input_hold_idle_s", inputhold.DefaultIdleS)
 	}}

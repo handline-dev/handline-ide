@@ -4,6 +4,7 @@
 package runner
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/internal/homefiles"
 	"github.com/handline/handline/go/internal/hooks"
+	"github.com/handline/handline/go/internal/termchan"
 	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/joined"
@@ -48,11 +50,13 @@ type Tokens interface {
 	Forget(agent string, pid int) bool
 }
 
-// Config is what a runner runs with. Term, Auth and Tokens default to the home's tmux, protected store and session tokens.
+// Config is what a runner runs with. Term, Auth and Tokens default to the home's tmux, protected store and session tokens; Control,
+// the control-mode client the bytes format streams from, to Term's (term.ControlSpawner).
 type Config struct {
 	Home, Socket, Sha string
 	Master            joined.Master
 	Term              Terminals
+	Control           func() (termchan.Proc, error)
 	Auth              authority.Authority
 	Tokens            Tokens
 	HL                string // the hl its hooks call; paths.HlExe when empty
@@ -83,6 +87,7 @@ type Runner struct {
 	sessions map[string]session
 	repos    map[string]*sync.Mutex // a clone's lock, held while it is synced
 	pushers  map[string]*pusher     // a worktree's push running now
+	streams  *termchan.Streams      // the master's bytes attaches, ended with the link they go up
 	stop     chan struct{}
 	once     sync.Once
 	wg       sync.WaitGroup
@@ -114,6 +119,13 @@ func Start(cfg Config) (*Runner, error) {
 	if cfg.Tokens == nil {
 		cfg.Tokens = sessiontoken.New(cfg.Home)
 	}
+	if cfg.Control == nil {
+		if s, ok := cfg.Term.(term.ControlSpawner); ok {
+			cfg.Control = termchan.SpawnCommand(s.ControlCommand())
+		} else {
+			cfg.Control = func() (termchan.Proc, error) { return nil, errors.New("the terminal host streams no bytes") }
+		}
+	}
 	if cfg.HL == "" {
 		cfg.HL = paths.HlExe()
 	}
@@ -122,6 +134,8 @@ func Start(cfg Config) (*Runner, error) {
 	}
 	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, repos: map[string]*sync.Mutex{},
 		pushers: map[string]*pusher{}, stop: make(chan struct{}), changed: map[string]bool{}, turnSent: make(chan struct{}, 1)}
+	control := termchan.NewControlLink(cfg.Control, true)
+	r.streams = termchan.NewStreams(func() *termchan.ControlLink { return control })
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
 		if err := json.Unmarshal(b, &r.sessions); err != nil {
 			return nil, fmt.Errorf("%s: %w", StateFile(cfg.Home), err)
@@ -254,7 +268,13 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	l := rpc.NewLink(rpc.NewWSTransport(ws), r.serve)
+	var l *rpc.Link
+	l = rpc.NewLink(rpc.NewWSTransport(ws), func(method string, p map[string]any) (any, error) {
+		if method == "runner.attach" { // its stream's notices go up this link, and end with it
+			return r.attach(p, l.Notify)
+		}
+		return r.serve(method, p)
+	})
 	ended := make(chan error, 1)
 	go func() { ended <- l.Run(linkIdle) }()
 	if _, err := l.Call("hello", map[string]any{"client": Client, "protocol": rpc.Protocol, "token": r.cfg.Master.Token},
@@ -284,6 +304,7 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	r.mu.Lock()
 	r.link = nil
 	r.mu.Unlock()
+	r.streams.DetachAll()
 	return true, err
 }
 
@@ -304,11 +325,71 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 		if n, ok := rpc.AsInt(p["rows"]); ok && n > 0 {
 			rows = int(n)
 		}
+		if styled, _ := p["styled"].(bool); styled {
+			sr, ok := r.cfg.Term.(term.StyledReader)
+			var got []string
+			if ok {
+				got = sr.ReadScreenANSI(str("handle"), rows)
+			}
+			if got == nil {
+				return nil, rpc.NotFoundError("no styled screen for " + str("handle"))
+			}
+			return map[string]any{"rows": got}, nil
+		}
 		s := r.cfg.Term.ReadScreen(str("handle"), rows)
 		if s == nil {
 			return nil, rpc.NotFoundError("no screen for " + str("handle"))
 		}
 		return map[string]any{"rows": append([]string{}, s.Tail...)}, nil
+	case "runner.input":
+		data, err := base64.StdEncoding.DecodeString(str("data"))
+		if err != nil || len(data) == 0 {
+			return nil, rpc.BadRequestError("data is base64", "data", rpc.InvalidParams)
+		}
+		bs, ok := r.cfg.Term.(term.BytesSender)
+		if !ok {
+			return nil, rpc.Refused("this runner's terminal host cannot send raw bytes", "unsupported", "")
+		}
+		if ok, why := bs.SendBytes(str("handle"), data); !ok {
+			return nil, rpc.Refused("could not type into "+str("handle")+": "+why, "terminal", "")
+		}
+		return map[string]any{"accepted": true}, nil
+	case "runner.size", "runner.resize":
+		sz, ok := r.cfg.Term.(term.Sizer)
+		if !ok {
+			return nil, rpc.Refused("this runner's terminal host has no size", "unsupported", "")
+		}
+		if method == "runner.size" {
+			cols, rows, ok := sz.Size(str("handle"))
+			if !ok {
+				return nil, rpc.NotFoundError("no size for " + str("handle"))
+			}
+			return map[string]any{"cols": cols, "rows": rows}, nil
+		}
+		cols, ok1 := rpc.AsInt(p["cols"])
+		rows, ok2 := rpc.AsInt(p["rows"])
+		if !ok1 || !ok2 {
+			return nil, rpc.BadRequestError("cols and rows are integers", "cols", rpc.InvalidParams)
+		}
+		if ok, why := sz.Resize(str("handle"), int(cols), int(rows)); !ok {
+			return nil, rpc.Refused("could not resize "+str("handle")+": "+why, "unsupported", "")
+		}
+		return map[string]any{"accepted": true}, nil
+	case "runner.detach":
+		r.streams.Detach(str("stream"))
+		return map[string]any{"accepted": true}, nil
+	case "runner.resync":
+		if err := r.streams.Resync(str("stream"), str("reason")); err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true}, nil
+	case "runner.history":
+		before, ok1 := rpc.AsInt(p["before"])
+		limit, ok2 := rpc.AsInt(p["limit"])
+		if !ok1 || !ok2 {
+			return nil, rpc.BadRequestError("before and limit are integers", "before", rpc.InvalidParams)
+		}
+		return r.streams.History(str("handle"), int(before), int(limit))
 	case "runner.stop":
 		return r.close(str("agent"), str("handle"))
 	case "runner.respawn":
@@ -356,6 +437,15 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 		return map[string]any{"accepted": true}, nil
 	}
 	return nil, rpc.BadRequestError("no such method: "+method, "method", rpc.NoSuchMethod)
+}
+
+// attach starts a stream of the terminal's bytes for the master: its answer is the snapshot, and each notice after it goes up the link
+// with notify (termchan.Streams).
+func (r *Runner) attach(p map[string]any, notify func(string, map[string]any) bool) (any, error) {
+	id, _ := p["stream"].(string)
+	handle, _ := p["handle"].(string)
+	history, _ := rpc.AsInt(p["history"])
+	return r.streams.Attach(id, handle, int(min(max(history, 0), termchan.MaxHistory)), notify)
 }
 
 // open opens agent's terminal in folder with command typed at its shell, and records its shell as the agent's session: what runs
