@@ -14,6 +14,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/benbjohnson/litestream"
 	"github.com/benbjohnson/litestream/file"
+	"github.com/superfly/ltx"
 )
 
 // Dir is where a home keeps the board's copy: the master's replica, a runner's mirror of it.
@@ -67,6 +69,35 @@ func Start(board, dir, id string) (*Copier, error) {
 		return nil, fmt.Errorf("board copy: %w", err)
 	}
 	return &Copier{store: store}, nil
+}
+
+// Synced writes every change committed to the board so far into the copy's folder, and answers the last transaction the folder then
+// holds: a mirror whose files reach it (Upto) holds every one of those changes.
+func (c *Copier) Synced(ctx context.Context) (uint64, error) {
+	var last uint64
+	for _, db := range c.store.DBs() {
+		if err := db.SyncAndWait(ctx); err != nil {
+			return 0, fmt.Errorf("board copy: %w", err)
+		}
+		pos, err := db.Pos()
+		if err != nil {
+			return 0, fmt.Errorf("board copy: %w", err)
+		}
+		last = max(last, uint64(pos.TXID))
+	}
+	return last, nil
+}
+
+// Upto is the last transaction a copy holding files has: the highest any of its files ends at. A mirror pulls every file and drops
+// one only once what replaces it has come, so the files before it are there too.
+func Upto(files []File) uint64 {
+	var last uint64
+	for _, f := range files {
+		if _, end, err := ltx.ParseFilename(path.Base(f.Path)); err == nil {
+			last = max(last, uint64(end))
+		}
+	}
+	return last
 }
 
 // Stop stops replicating.

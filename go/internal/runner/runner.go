@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -69,6 +70,10 @@ type Config struct {
 	Battery func() bool
 	// Meter reads this machine's accounts' usage, which each heartbeat carries; nil reads none.
 	Meter Meter
+	// DBFile is where this home's board goes when node.promote makes it the master; Door is where it would serve as master, which each
+	// heartbeat says (nil: it has no network door, and is not made the master).
+	DBFile string
+	Door   func() *Door
 }
 
 // Runner is one runner daemon.
@@ -103,6 +108,10 @@ type Runner struct {
 	stop        chan struct{}
 	once        sync.Once
 	pulling     sync.Mutex // held by Pull
+	leading     bool       // node.promote makes this machine the master: no pull writes into the copy (under pulling)
+	promoting   atomic.Bool
+	promoted    chan struct{}
+	promoteOnce sync.Once
 	wg          sync.WaitGroup
 }
 
@@ -155,7 +164,7 @@ func Start(cfg Config) (*Runner, error) {
 	}
 	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, repos: map[string]*sync.Mutex{},
 		pushers: map[string]*pusher{}, rescuing: map[string]bool{}, rescueFails: map[string]int{}, stop: make(chan struct{}), changed: map[string]bool{}, turnSent: make(chan struct{}, 1),
-		beatNow: make(chan struct{}, 1)}
+		beatNow: make(chan struct{}, 1), promoted: make(chan struct{})}
 	control := termchan.NewControlLink(cfg.Control, true)
 	r.streams = termchan.NewStreams(func() *termchan.ControlLink { return control })
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
@@ -165,6 +174,7 @@ func Start(cfg Config) (*Runner, error) {
 	}
 	r.local = rpc.NewServer(cfg.Auth, cfg.Sha, 0, "local", cfg.Log)
 	r.local.Register("runner.committed", rpc.Method{Role: "agent", Handler: r.committed})
+	r.local.Register("node.promote", rpc.Method{Waits: true, Handler: r.promote})
 	r.local.Fallback = r.forward
 	r.turns = &turns.Tracker{Log: cfg.Log, Lines: r.transcriptLines}
 	r.turns.OnEnd(r.sessionPid, nil)
@@ -272,8 +282,10 @@ func (r *Runner) keepLinked() {
 		}
 		if up {
 			wait = time.Second
+		} else {
+			r.lookForMaster() // it may have moved
 		}
-		r.cfg.Log("runner: the link to the master at %s ended: %v; again in %s", r.cfg.Master.Addr, err, wait)
+		r.cfg.Log("runner: the link to the master at %s ended: %v; again in %s", r.master().Addr, err, wait)
 		select {
 		case <-r.stop:
 			return
@@ -289,7 +301,8 @@ const linkIdle = rpc.IdleTimeout + time.Minute
 // linkOnce dials the master, says hello with the device token and serves the master's calls until the link ends; up is whether hello
 // was answered.
 func (r *Runner) linkOnce() (up bool, err error) {
-	ws, err := hlclient.DialMaster(r.cfg.Master.Addr, r.cfg.Master.Fingerprint)
+	m := r.master()
+	ws, err := hlclient.DialMaster(m.Addr, m.Fingerprint)
 	if err != nil {
 		return false, err
 	}
@@ -310,12 +323,16 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	})
 	ended := make(chan error, 1)
 	go func() { ended <- l.Run(linkIdle) }()
-	if _, err := l.Call("hello", map[string]any{"client": Client, "protocol": rpc.Protocol, "token": r.cfg.Master.Token},
-		hlclient.Quick); err != nil {
+	got, err := l.Call("hello", map[string]any{"client": Client, "protocol": rpc.Protocol, "token": m.Token}, hlclient.Quick)
+	if err == nil {
+		m, err = r.heard(m, hlclient.MasterIn(got))
+	}
+	if err != nil {
 		l.Close()
 		<-ended
 		return false, fmt.Errorf("hello: %w", err)
 	}
+	r.obey(m)
 	r.mu.Lock()
 	if r.stopped { // Close ran while this dialled: it saw no link to close
 		r.mu.Unlock()
@@ -329,7 +346,7 @@ func (r *Runner) linkOnce() (up bool, err error) {
 		agents = append(agents, a)
 	}
 	r.mu.Unlock()
-	r.cfg.Log("runner: linked to the master at %s", r.cfg.Master.Addr)
+	r.cfg.Log("runner: linked to the master at %s", m.Addr)
 	r.beatSoon()
 	for _, a := range agents { // what changed while the link was down
 		r.tellTurn(a)
@@ -923,7 +940,7 @@ func (r *Runner) Pull() error {
 	dir := boardcopy.Dir(r.cfg.Home)
 	for {
 		l := r.linked()
-		if l == nil {
+		if l == nil || r.leading {
 			return nil
 		}
 		have, err := boardcopy.List(dir)

@@ -12,8 +12,8 @@ import (
 // master, self and online; another is online while its heartbeat comes.
 func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 	self := joined.NodeIDOf(e.Home)
-	rs, err := e.DB.Query(`SELECT id, person, name, joined_at, last_seen, master_number, lending, device, memory_max_gb FROM nodes
-		WHERE lending IN ('run', 'pause') ORDER BY id != ?, joined_at, id`, self)
+	rs, err := e.DB.Query(`SELECT id, person, name, joined_at, last_seen, master_number, lending, device, memory_max_gb, door,
+		COALESCE(door_fp, '') FROM nodes WHERE lending IN ('run', 'pause') ORDER BY id != ?, joined_at, id`, self)
 	if err != nil {
 		return nil, err
 	}
@@ -23,9 +23,10 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 	for rs.Next() {
 		var id, name, lending string
 		var person, seen, memMax sql.NullInt64
-		var device sql.NullString
+		var device, door sql.NullString
+		var fp string
 		var joined, master int64
-		if err := rs.Scan(&id, &person, &name, &joined, &seen, &master, &lending, &device, &memMax); err != nil {
+		if err := rs.Scan(&id, &person, &name, &joined, &seen, &master, &lending, &device, &memMax, &door, &fp); err != nil {
 			return nil, err
 		}
 		var who, last any
@@ -40,8 +41,14 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
 			"master_number": master, "master": id == self, "self": id == self, "online": id == self || e.NodeOnline != nil && e.NodeOnline(id),
-			"lending": lending, "device": nil, "memory_max_gb": nil, "load": nil, "battery": nil}
-		if device.Valid {
+			"lending": lending, "device": nil, "memory_max_gb": nil, "load": nil, "battery": nil, "door": nil, "set_aside": nil}
+		if door.String != "" {
+			row["door"] = map[string]any{"addr": door.String, "fp": fp}
+		}
+		if id != self && e.NodeSetAside != nil {
+			row["set_aside"] = e.NodeSetAside(id)
+		}
+		if device.Valid && id != self { // the master's own device is its own, which no one paired
 			row["device"] = device.String
 		}
 		if memMax.Valid {

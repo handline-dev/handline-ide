@@ -8,9 +8,10 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -123,6 +124,26 @@ func join(home, link string) int {
 	fmt.Printf("joined %s as %s (%s, device %s), on Off: its person sets Run in Devices\n", line(m.Addr), line(name), kind, line(m.Device))
 	fmt.Println("restart the daemon here: its own board is set aside, unchanged, and a new one opens")
 	return 0
+}
+
+// nodeCmd is `hl node promote`, "Make this Mac the master", run on one of the owner's machines that joined: with the master reached it
+// hands over and nothing is lost; without it this machine takes over from its copy of the board.
+func nodeCmd(c *hlclient.Client, args []string) (int, bool) {
+	if len(args) != 1 || args[0] != "promote" {
+		return 0, false
+	}
+	got, err := c.Call("node.promote", map[string]any{})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "not made the master:", err)
+		return 1, true
+	}
+	n, _ := rpc.AsInt(got["number"])
+	if handed, _ := got["handed_over"].(bool); handed {
+		fmt.Printf("this machine is the master now (number %d): the old master handed over and joins it as a runner\n", n)
+	} else {
+		fmt.Printf("this machine is the master now (number %d), from its copy of the board: the old master was not reached, and joins it as a runner once it is\n", n)
+	}
+	return 0, true
 }
 
 func orEmpty(v any) any {

@@ -107,6 +107,8 @@ type Manager struct {
 	PushPlatforms []string
 	// Doors finds the door a device.pair address names ("" the default one), or answers the hosts that are served; the daemon sets it.
 	Doors func(host string) (d Door, served []string, ok bool)
+	// Self is the master's own node id: its own device (EnsureOwn) is not listed, set or revoked, as no one paired it.
+	Self string
 }
 
 // MaxConnsPerDevice is how many connections one paired device may hold open at once. A client that leaks sockets fills the daemon's
@@ -257,6 +259,9 @@ func (m *Manager) wrongTry(remote string, now time.Time) {
 
 // Revoke cancels a device and closes its connections. false when it is not paired.
 func (m *Manager) Revoke(id string) (bool, error) {
+	if m.own(id) {
+		return false, rpc.Refused("this is the master's own machine, which is not revoked", "device", "")
+	}
 	if m.BeforeRevoke != nil {
 		m.BeforeRevoke(id)
 	}
@@ -272,6 +277,23 @@ func (m *Manager) Revoke(id string) (bool, error) {
 		f()
 	}
 	return found, err
+}
+
+// own is whether id is the master's own device.
+func (m *Manager) own(id string) bool {
+	if m.Self == "" {
+		return false
+	}
+	ds, err := m.store.List()
+	if err != nil {
+		return false
+	}
+	for _, d := range ds {
+		if d.ID == id {
+			return d.Node == m.Self
+		}
+	}
+	return false
 }
 
 // Owns is whether device id is person's.
@@ -353,7 +375,7 @@ func (m *Manager) SetNode(id, person string, n NodeSet) (Device, error) {
 		if d.ID != id {
 			continue
 		}
-		if d.Node == "" {
+		if d.Node == "" || d.Node == m.Self {
 			return Device{}, rpc.Refused("only a Mac or a server that joined has Run, Pause and Off", "kind", "")
 		}
 		if person == "" || person != d.Person {
@@ -386,7 +408,7 @@ func (m *Manager) List(self, person string) ([]map[string]any, error) {
 	defer m.mu.Unlock()
 	out := make([]map[string]any, 0, len(ds))
 	for _, d := range ds {
-		if person != "" && d.Person != person {
+		if person != "" && d.Person != person || m.Self != "" && d.Node == m.Self {
 			continue
 		}
 		r := m.row(d)

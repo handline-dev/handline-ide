@@ -222,9 +222,14 @@ func (s *Server) Dispatch(caller Caller, client, cwd, name string, params map[st
 		return nil, err
 	}
 	res, err := call.run()
-	for _, f := range c.afterReply {
+	on := c
+	if call.on != nil { // a waiting call ran on a Conn of its own
+		on = call.on
+	}
+	for _, f := range on.afterReply {
 		f()
 	}
+	on.afterReply = nil
 	return res, err
 }
 

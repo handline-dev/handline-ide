@@ -66,6 +66,9 @@ type Env struct {
 	// NodeHeard is a runner's newest heartbeat's load and battery (nodes.Registry.Heard); ok false before its first since the master
 	// started, and nil shows none.
 	NodeHeard func(node string) (load map[string]any, battery bool, ok bool)
+	// NodeSetAside is the board a runner set aside when it was master and a newer one outranked it, as its newest heartbeat says
+	// (since, master), nil when it set none aside so; nil shows none.
+	NodeSetAside func(node string) any
 	// NodeLacks is why an agent cannot start on a machine now (placement.Placer.Lacks), "" when it can; nil shows none.
 	NodeLacks func(agent, node string) string
 	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.

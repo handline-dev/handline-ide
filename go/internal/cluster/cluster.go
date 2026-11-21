@@ -158,6 +158,9 @@ func (n *Node) store() *protected.Store {
 	return &protected.Store{Root: protected.RootUnder(n.UserHome(), n.Home)}
 }
 
+// Joined is the master this node joined, as its protected store keeps it; false when it is a master.
+func (n *Node) Joined() (joined.Master, bool) { return joined.OfStore(n.store()) }
+
 // tmux is the tmux server (tmux -L) of the node's terminals.
 func (n *Node) tmux() string {
 	sum := sha256.Sum256([]byte(paths.Resolved(n.Home)))
@@ -270,6 +273,20 @@ func (n *Node) Running() bool { return n.pid() != 0 }
 
 // Kill ends the daemon at once (SIGKILL), as a machine that goes away does.
 func (n *Node) Kill() error { return n.end(syscall.SIGKILL) }
+
+// Pause stops the daemon where it is (SIGSTOP), as a laptop asleep does: its connections stay open and nothing answers on them.
+func (n *Node) Pause() error { return n.signal(syscall.SIGSTOP) }
+
+// Resume lets a paused daemon run on (SIGCONT).
+func (n *Node) Resume() error { return n.signal(syscall.SIGCONT) }
+
+func (n *Node) signal(sig syscall.Signal) error {
+	pid := n.pid()
+	if pid == 0 {
+		return fmt.Errorf("%s is not running", n.Name)
+	}
+	return syscall.Kill(-pid, sig)
+}
 
 // Stop ends the daemon as a quit does (SIGTERM) and waits for it.
 func (n *Node) Stop() error { return n.end(syscall.SIGTERM) }

@@ -173,7 +173,7 @@
      },
      "master_number": {
       "type": "integer",
-      "description": "The master it belongs to; 1 until masters can change."
+      "description": "The master number this machine last took; the master's own is the board's, raised by one each time the master moves (node.promote)."
      },
      "master": {
       "type": "boolean",
@@ -320,6 +320,54 @@
        }
       ],
       "description": "A lent machine runs on its battery now, from its newest heartbeat; null as load is."
+     },
+     "door": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "addr": {
+          "type": "string"
+         },
+         "fp": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "addr",
+         "fp"
+        ],
+        "additionalProperties": false
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Where it serves, or would serve, as master: addr (host:port) and fp (its certificate's sha256, \"\" for a plain door); null before it said."
+     },
+     "set_aside": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "since": {
+          "$ref": "#/components/schemas/Timestamp"
+         },
+         "master": {
+          "type": "integer"
+         }
+        },
+        "required": [
+         "since",
+         "master"
+        ],
+        "additionalProperties": false
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "It was master, and a newer master outranked it: since when its own board is set aside, unchanged, and the master number that outranked it. null otherwise."
      }
     },
     "required": [
@@ -1049,6 +1097,22 @@
       "type": "boolean",
       "description": "The machine runs on its battery now."
      }
+    },
+    {
+     "name": "door",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "description": "Where it would serve as master: addr (host:port) and fp (its certificate's sha256, \"\" for a plain door). The master keeps it on the node row; a machine with none is not made the master."
+     }
+    },
+    {
+     "name": "set_aside",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "description": "The board it set aside when it was master and a newer master outranked it: since (unix seconds) and master (the number that outranked it)."
+     }
     }
    ],
    "result": {
@@ -1069,6 +1133,13 @@
         "type": "string"
        },
        "description": "The programs its agents' MCP servers run, which its next heartbeat says it has or not (has.programs): an agent goes only to a runner with all it needs."
+      },
+      "doors": {
+       "type": "array",
+       "items": {
+        "type": "object"
+       },
+       "description": "To one of the owner's machines only: each of the owner's machines with a door, in the order they joined: {node, addr, fp}. A runner keeps it and, once its master is gone, asks each of them who is master now."
       }
      },
      "required": [
@@ -1215,6 +1286,110 @@
     "copy"
    ],
    "description": "Only on a runner's link (gate `node`). The board's copy is the folder Litestream writes on the master (board-copy in its home): each committed change within a second, a snapshot every hour, two hours kept. Only the owner's runners keep it: another person's is refused, gate `owner`, and drops any copy it holds; gate `copy` when the master keeps none now (the runner keeps what it holds). A pull that finds the runner already holding all of it sets the runner's copy in node.status.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.promote",
+   "summary": "Make this machine the master: \"Make this Mac the master\".",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "number": {
+       "type": "integer",
+       "description": "The master number this machine takes."
+      },
+      "handed_over": {
+       "type": "boolean",
+       "description": "The master was reached and handed over, so nothing was lost; false: this machine took over from its copy, and what the master wrote after the copy's last pull is lost."
+      }
+     },
+     "required": [
+      "number",
+      "handed_over"
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "board",
+    "door",
+    "copy"
+   ],
+   "description": "On one of the owner's machines that joined, at its own socket (the founder at its terminal, `hl node promote`). No machine takes over by itself. With the master reached, it hands over (node.handover). Without it, this machine restores its copy of the board. Either way the copy becomes this machine's board, the master number goes up by one, and once the answer is sent the daemon starts again as master: the other runners find it by asking the owner's machines (node.heartbeat's doors) and join it with their own device tokens, and the old master, when it is back, sets its board aside and joins it as a runner. Gate `door`: it has no network door (handlined -listen); gate `copy`: it keeps no copy of the board yet.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.handover",
+   "summary": "The master hands over to the runner that is made the master.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "number": {
+       "type": "integer",
+       "description": "The master number the runner takes."
+      }
+     },
+     "required": [
+      "number"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "copy",
+    "door",
+    "device"
+   ],
+   "description": "Only on a runner's link (gate `node`), from node.promote. The master refuses every write from then (gate `master`), stops its tick, writes its last changes into the copy and waits up to a minute until that runner's copy holds them all; then it answers, and once the answer is sent it joins that runner as a runner with its own device's token, its board set aside. A move that does not finish starts this master again.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.outranked",
+   "summary": "A machine of the owner says it is master with a higher number.",
+   "paramStructure": "by-name",
+   "params": [],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "door"
+   ],
+   "description": "From the master made so while this one was gone, each 15 s until it answers. Its word moves nothing: this master asks that machine at the door its own board has for it, pinned to its fingerprint, and joins it as a runner, its board set aside, only when the number there is the higher. A master also asks the owner's machines so at its start, before it fires a timer.",
    "x-app-cache": false
   },
   {

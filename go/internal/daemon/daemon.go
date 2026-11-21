@@ -135,6 +135,8 @@ type Config struct {
 	// BeforeClose is called by Close once the connections have ended, before the database closes, to wait for work the parts run off
 	// the caller (the heal steps).
 	BeforeClose func()
+	// StopWork, when set, stops the tick and returns once it has: the master hands over, or a newer one outranked it.
+	StopWork func()
 }
 
 // Daemon is a running daemon. Close stops the listeners and waits for the connections to end.
@@ -169,6 +171,7 @@ type Daemon struct {
 	net       *netDoors
 	dev       *devices.Manager // nil unless the network listener is on
 	nodes     *nodes.Registry  // the runners linked to this master
+	master    *mastership      // whether this master holds its writes, and must start again
 	projects  *projects.Syncer // the workspaces' repos on those runners
 	push      *push.Sender     // nil when push is off: no credentials in config.yaml
 	hub       *stream.Hub
@@ -230,7 +233,11 @@ func Start(cfg Config) (*Daemon, error) {
 		db.Close()
 		return nil, err
 	}
-	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{})}
+	if err := applyPromotion(db, cfg.Home, joined.NodeIDOf(cfg.Home), time.Now()); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("take over as master: %w", err)
+	}
+	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{}), master: newMastership()}
 	if cfg.Turns != nil {
 		cfg.Turns.Agent = func(handle string) string { a, _ := dbpkg.AgentOfTerminal(db, handle); return a }
 		cfg.Turns.Lines = func(agent, session string) func([]byte) {
@@ -252,6 +259,11 @@ func Start(cfg Config) (*Daemon, error) {
 	d.nodes = nodes.New(db, cfg.Home)
 	d.nodes.Log = cfg.Log
 	d.nodes.Self, d.nodes.Version = joined.NodeIDOf(cfg.Home), version.Sha
+	d.nodes.Hold = d.master.refusal
+	if err := d.readNumber(); err != nil {
+		db.Close()
+		return nil, err
+	}
 	d.nodes.BatterySwitch = func() bool { return (&settings.Settings{Home: cfg.Home}).Flag(nodes.BatteryKey, false) }
 	d.nodes.AccountFor = func(email, name string, add bool) (string, error) {
 		a := team.Accounts{Home: cfg.Home}
@@ -307,6 +319,11 @@ func Start(cfg Config) (*Daemon, error) {
 		} else {
 			d.copier = c
 			d.nodes.Copy = &nodes.Copy{Dir: boardcopy.Dir(cfg.Home)}
+		}
+	}
+	if d.moves() {
+		if err := d.ensureOwn(); err != nil {
+			cfg.Log("master: no device of its own, so a newer master cannot take this one back as a runner: %v", err)
 		}
 	}
 	if cfg.OnOpen != nil {
@@ -381,7 +398,7 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	if cfg.Listen != "" {
 		d.dev = devices.New(devices.SQLStore{DB: db})
-		d.dev.Log = cfg.Log
+		d.dev.Log, d.dev.Self = cfg.Log, d.nodes.Self
 		d.dev.BeforeRevoke = func(device string) {
 			var node string
 			if db.QueryRow("SELECT id FROM nodes WHERE device = ?", device).Scan(&node) == nil {
@@ -419,6 +436,11 @@ func Start(cfg Config) (*Daemon, error) {
 		if _, err := listenNetwork(cfg, d); err != nil {
 			d.Close()
 			return nil, err
+		}
+		if d.moves() {
+			if err := d.keepOwnDoor(); err != nil {
+				cfg.Log("master: its door was not kept: %v", err)
+			}
 		}
 	}
 	if cfg.SocketFile != "" {
@@ -505,6 +527,16 @@ func Start(cfg Config) (*Daemon, error) {
 			d.leases.Check(procs)
 		})
 	}()
+	if d.moves() {
+		d.wg.Add(2)
+		go func() {
+			defer d.wg.Done()
+			d.startCheck()
+		}()
+		go d.tellOldMaster()
+	} else {
+		close(d.master.checked)
+	}
 	cfg.Log("handlined %s serving %q", version.Sha, cfg.SocketFile)
 	return d, nil
 }
@@ -712,6 +744,12 @@ func (d *Daemon) readsEnv() reads.Env {
 			return map[string]any{"cores": l.Cores, "load1": l.Load1, "ram_total": l.RAMTotal, "ram_free": l.RAMFree, "agents_rss": l.AgentsRSS},
 				b.Battery, ok
 		}
+		renv.NodeSetAside = func(node string) any {
+			if b, _, ok := d.nodes.Heard(node); ok && b.SetAside != nil {
+				return map[string]any{"since": time.Unix(b.SetAside.Since, 0).UTC().Format("2006-01-02T15:04:05Z"), "master": b.SetAside.Master}
+			}
+			return nil
+		}
 	}
 	if d.nodes != nil && d.nodes.Copy != nil {
 		renv.NodeCopy = d.nodes.CopyOf
@@ -749,6 +787,12 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 		s.Net = d.dev
 		s.Wrap("hello", d.linkRunner)
 	}
+	s.Register("node.handover", rpc.Method{Waits: true, Handler: d.handover}) // a runner's link, or another master's ask: refused elsewhere
+	s.Register("node.outranked", rpc.Method{Handler: d.outranked})
+	s.Hold = d.master.refusal
+	s.DeclareCapabilities(func() map[string]any {
+		return map[string]any{"master": map[string]any{"node": d.nodes.Self, "number": d.number()}}
+	})
 	nodes.Register(s, func() *rpc.Server { return d.local }, d.nodes)
 	devices.Register(s, d.dev, d.hub.Emit)
 	devices.RegisterPeople(s, d.dev)

@@ -26,6 +26,7 @@ var commands = map[string]command{
 	"lesson":       lesson,
 	"desk":         desk,
 	"load":         loadCmd,
+	"node":         nodeCmd,
 	"progress":     progress,
 	"read":         read,
 	"sandbox-repo": sandboxRepo,

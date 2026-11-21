@@ -172,6 +172,9 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 	if node == "" {
 		return nil, rpc.Refused("node.heartbeat is a runner's own call, on its link", "node", "")
 	}
+	if err := r.holding(); err != nil {
+		return nil, err
+	}
 	raw, err := json.Marshal(p)
 	var b runner.Beat
 	if err != nil || json.Unmarshal(raw, &b) != nil {
@@ -187,7 +190,11 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 		opening[a] = true
 	}
 	r.mu.Unlock()
-	if _, err := r.DB.Exec("UPDATE nodes SET last_seen = ? WHERE id = ?", now.Unix(), node); err != nil {
+	var addr, fp any
+	if b.Door != nil {
+		addr, fp = b.Door.Addr, b.Door.FP
+	}
+	if _, err := r.DB.Exec("UPDATE nodes SET last_seen = ?, door = ?, door_fp = ? WHERE id = ?", now.Unix(), addr, fp, node); err != nil {
 		return nil, err
 	}
 	for _, a := range b.Accounts {
@@ -224,7 +231,47 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 	if r.Check != nil {
 		check = r.Check()
 	}
-	return map[string]any{"stop": stop, "check": check}, nil
+	reply := map[string]any{"stop": stop, "check": check}
+	if owner, err := r.ownerNode(node); err != nil {
+		return nil, err
+	} else if owner { // only the owner's machines can be made the master, so only they look for one
+		if reply["doors"], err = Doors(r.DB); err != nil {
+			return nil, err
+		}
+	}
+	return reply, nil
+}
+
+// ownerNode is whether node is a machine of the owner.
+func (r *Registry) ownerNode(node string) (bool, error) {
+	var role string
+	err := r.DB.QueryRow("SELECT p.role FROM nodes n JOIN people p ON p.id = n.person WHERE n.id = ?", node).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return role == "owner", err
+}
+
+// Doors is the owner's machines that have a door, in the order they joined (the master's own first): where a runner looks for the
+// master once the one it knew is gone, and whom a master asks at its start whether one outranks it.
+func Doors(q interface {
+	Query(string, ...any) (*sql.Rows, error)
+}) ([]runner.NodeDoor, error) {
+	rs, err := q.Query(`SELECT n.id, n.door, COALESCE(n.door_fp, '') FROM nodes n JOIN people p ON p.id = n.person
+		WHERE p.role = 'owner' AND n.door IS NOT NULL AND n.door != '' ORDER BY n.joined_at, n.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := []runner.NodeDoor{}
+	for rs.Next() {
+		var d runner.NodeDoor
+		if err := rs.Scan(&d.Node, &d.Addr, &d.FP); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rs.Err()
 }
 
 // Reclaimed is a session the sweep took back from a runner: the task it was on and the memo that task was given.

@@ -324,6 +324,11 @@ export type Capabilities = {
   transcript?: boolean;
   /** The founder's own messages to a terminal agent are typed into its terminal (unless its row turns peer_inbox off), so hl launch tells the agent so. Absent means false. */
   founder_typed?: boolean;
+  /** This daemon is master: its node id and master number, raised by one each time the master moves (node.promote). Runners and apps obey only the highest number they have seen. Absent on a runner. */
+  master?: {
+    node?: string;
+    number?: number;
+  };
 };
 
 export type Listener = {
