@@ -24,7 +24,12 @@ func Of(home string) (Master, bool) {
 	if home == "" {
 		return Master{}, false
 	}
-	raw, ok := protected.New(home).Get(ns, name)
+	return OfStore(protected.New(home))
+}
+
+// OfStore is Of read from s, the home's protected store.
+func OfStore(s *protected.Store) (Master, bool) {
+	raw, ok := s.Get(ns, name)
 	if !ok {
 		return Master{}, false
 	}

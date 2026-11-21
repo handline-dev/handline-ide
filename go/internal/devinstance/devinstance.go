@@ -132,6 +132,9 @@ func within(p, dir string) bool {
 	return p == dir || strings.HasPrefix(p, dir+string(filepath.Separator))
 }
 
+// Overlaps is whether a and b are one folder or one holds the other.
+func Overlaps(a, b string) bool { return within(a, b) || within(b, a) }
+
 // OnOpts are `hl dev on`'s choices: the worktree to build (default: the team manager's), the listener address (default 127.0.0.1:<port>),
 // and whether to retake the snapshot over the one the folder keeps.
 type OnOpts struct {
@@ -151,7 +154,7 @@ func (e *Env) On(team string, o OnOpts) (*Instance, error) {
 		return nil, err
 	}
 	home := e.home(team)
-	if within(home, e.LiveHome) || within(e.LiveHome, home) {
+	if Overlaps(home, e.LiveHome) {
 		return nil, fmt.Errorf("%s overlaps the live home %s", home, e.LiveHome)
 	}
 	labels := Labels(team)
