@@ -55,6 +55,8 @@ type Env struct {
 	Now        func() time.Time
 	// Note is what asking for and reading the agent's own note needs.
 	Note NoteEnv
+	// Fetch brings the agent's files here from the runner its session is on, before its note is read; nil when every session runs here.
+	Fetch func(agent string) error
 	// Summary writes the note from the transcript when the agent left none (summary.go); nil writes none.
 	Summary *Summarizer
 }

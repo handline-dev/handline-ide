@@ -18,13 +18,13 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
-	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/homeinit"
 	"github.com/handline/handline/go/internal/compose"
 	"github.com/handline/handline/go/internal/daemon"
 	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/internal/sessionrpc"
@@ -174,7 +174,7 @@ func main() {
 		cfg.Watch = *terminalTick
 		fromParts(&cfg, parts, &ccfg)
 		cfg.Transcripts = true
-		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env, runners term.Remote) {
+		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry) {
 			parts.Bind(db, env)
 			if n, err := dbpkg.WithdrawMemoAsksOfEndedTasks(db); err != nil {
 				log.Printf("withdrawing the comment asks of ended tasks: %v", err)
@@ -189,7 +189,7 @@ func main() {
 			if err := compose.RetryStartStalls(db, log.Printf); err != nil {
 				log.Printf("clearing the start and wake stalls to try again: %v", err)
 			}
-			ccfg.DB, ccfg.Runners = db, runners
+			ccfg.DB, ccfg.Nodes = db, runners
 			env.Ports = parts.SupervisorPorts(parts.Lifecycle(ccfg, compose.LifecycleConfig{Env: env}))
 			parts.SettlePeerSends(env.Ports.Agents)
 			if *terminalTick {

@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -105,7 +106,7 @@ func wiredDaemon(t *testing.T, ports bool, proposals func(*sql.DB, string) super
 	agents := &typedAt{typed: map[string][]string{}}
 	cfg := Config{Home: home, DBFile: filepath.Join(home, "db.sqlite"), Auth: pidAuth{}, Log: t.Logf}
 	if ports {
-		cfg.OnOpen = func(d *sql.DB, env *supervisor.Env, _ term.Remote) {
+		cfg.OnOpen = func(d *sql.DB, env *supervisor.Env, _ *nodes.Registry) {
 			env.Ports = supervisor.Ports{Agents: agents, Terminal: noScreen{}, Observer: wiredPorts{}, Dialogs: wiredPorts{}, Waits: wiredPorts{}, Idle: wiredPorts{}, Sessions: wiredPorts{live: live},
 				Lifecycle: wiredPorts{}, Evaluate: wiredPorts{}, Proposals: proposals(d, env.Home), Stuck: wiredPorts{}}
 		}

@@ -115,6 +115,26 @@ export interface DevicesMethods {
   /** The folder that hello was sent from. */
   cwd?: string;
 }; result: { [key: string]: unknown } };
+  "node.launch": { params: {
+  /** The agent whose session asks, as the runner proved it. */
+  agent: string;
+  /** session.launch_prepare's own params, as hl launch sent them on the runner. */
+  params?: { [key: string]: unknown };
+}; result: {
+    argv: string[];
+    env: string[];
+    warnings: string[];
+    files: { [key: string]: unknown }[];
+    agent_dir: string;
+  } };
+  "node.agent_files": { params: {
+  /** The agent whose session wrote them, as the runner proved it. */
+  agent: string;
+  /** Each {path under the agent's folder, data in base64, mode}. */
+  files?: { [key: string]: unknown }[];
+  /** Paths under the agent's folder it removed. */
+  deleted?: string[];
+}; result: Accepted };
 }
 
 export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -126,13 +146,17 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
   "node.forward": { role: "owner", callers: null, write: false, since: 1 },
+  "node.launch": { role: "owner", callers: null, write: false, since: 1 },
+  "node.agent_files": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
   "node.forward": false,
+  "node.launch": false,
+  "node.agent_files": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */

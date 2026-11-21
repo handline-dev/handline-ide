@@ -119,8 +119,8 @@ type Config struct {
 	// serves none of them.
 	Session func() *sessionrpc.Env
 	// OnOpen is given the database once it is open, for the parts built before it was (the supervisor's ports, the tick), and the
-	// terminals of the runners linked to this master.
-	OnOpen func(db *sql.DB, env *supervisor.Env, runners term.Remote)
+	// runners linked to this master.
+	OnOpen func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry)
 	// BeforeClose is called by Close once the connections have ended, before the database closes, to wait for work the parts run off
 	// the caller (the heal steps).
 	BeforeClose func()
@@ -235,9 +235,10 @@ func Start(cfg Config) (*Daemon, error) {
 			}
 		}
 	}
-	d.nodes = nodes.New(db)
+	d.nodes = nodes.New(db, cfg.Home)
+	d.nodes.Log = cfg.Log
 	if cfg.OnOpen != nil {
-		cfg.OnOpen(db, d.env(), d.nodes.Terminals())
+		cfg.OnOpen(db, d.env(), d.nodes)
 	}
 	global, _ := usage.LoadConfig(cfg.Home)[handoff.PromptKey].(string)
 	handoff.LogCustomPrompts(cfg.Home, global, handoff.OwnPrompts(cfg.Home), cfg.Log)
@@ -363,6 +364,11 @@ func Start(cfg Config) (*Daemon, error) {
 	}()
 	d.wg.Add(1)
 	go d.healthLoop()
+	d.wg.Add(1)
+	go func() { // the runners' copy of the shared skills, commands and subagents
+		defer d.wg.Done()
+		d.nodes.WatchShared(d.stop)
+	}()
 	d.wg.Add(1)
 	go d.usageLoop()
 	if cfg.Watch {

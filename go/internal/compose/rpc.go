@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
@@ -34,6 +37,30 @@ func (lc *Lifecycle) prepareLaunch(r sessionrpc.LaunchRequest) (sessionrpc.Launc
 		return sessionrpc.LaunchResult{}, err
 	}
 	return sessionrpc.LaunchResult{Argv: got.Argv, Env: got.Env, Warnings: warnings}, nil
+}
+
+// runnerLaunch is node.launch: Prepare for hl launch on node, in the terminal the master opened there; its paths are the master's
+// until the registry makes them node's.
+func (lc *Lifecycle) runnerLaunch(node, agent string, params map[string]any) (*nodes.Launched, error) {
+	r, err := sessionrpc.ParseLaunch(params)
+	if err != nil {
+		return nil, err
+	}
+	var warnings []string
+	site := &lifecycle.Site{Cwd: r.Cwd, Env: r.Env, Binary: r.Binary, HlExe: r.HlExe, WorktreeID: r.WorktreeID, Runner: true,
+		Warn: func(s string) { warnings = append(warnings, s) }}
+	if r.Handle != "" {
+		site.Handle = term.RunnerHandle(node, r.Handle)
+	}
+	got, err := lc.Launch.Prepare(site, agent, r.Extra, r.Force, r.PromptFile, r.Account, r.Why, r.By)
+	var refused *lifecycle.Refusal
+	if errors.As(err, &refused) {
+		return nil, rpc.Refused(refused.Msg, "state", "")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &nodes.Launched{Argv: got.Argv, Env: got.Env, Warnings: warnings}, nil
 }
 
 // ForceStart is agent.force_start: work the machine's load, its account's pace or its 5-hour limit holds for the agent goes past them for its next start,
