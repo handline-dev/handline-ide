@@ -24,6 +24,7 @@ type Q interface {
 type Who struct {
 	Key       string
 	Workspace int64
+	Task      int64 // the task the words are about: human on it is the task's person (TaskPerson); 0 for none
 }
 
 // Of is who key is: an agent's own workspace, or for a person the workspace whose project folder holds cwd (none when cwd is "" or
@@ -122,8 +123,11 @@ func Resolve(q Q, c Who, word string) (string, error) {
 // OwnerOf is the person who owns key: an agent's owner, a person themself, else the install's owner.
 func OwnerOf(q Q, key string) (string, error) { return ownerOf(q, Who{Key: key}) }
 
-// ownerOf is the person human names for c: an agent's owner, a person themselves.
+// ownerOf is the person human names for c: on a task, its person; else an agent's owner, a person themselves.
 func ownerOf(q Q, c Who) (string, error) {
+	if c.Task != 0 {
+		return TaskPerson(q, c.Task)
+	}
 	if k, id, _ := actor.Parse(c.Key); k == actor.Agent {
 		var owner string
 		err := q.QueryRow("SELECT owner FROM agents WHERE id = ?", id).Scan(&owner)
@@ -355,4 +359,21 @@ func Lead(text string) string {
 		return ""
 	}
 	return t[m[2]:m[3]]
+}
+
+// TaskPerson is the person human names on task tid: the person the task or its nearest parent answers to, else the person whose request
+// it serves, else the owner; a removed person is passed over.
+func TaskPerson(q Q, tid int64) (string, error) {
+	var who string
+	err := q.QueryRow(`WITH RECURSIVE up(id, parent, d) AS (SELECT id, parent_task, 0 FROM tasks WHERE id = ?
+		UNION ALL SELECT t.id, t.parent_task, up.d + 1 FROM tasks t JOIN up ON t.id = up.parent)
+		SELECT who FROM (SELECT up.d, 0 AS o, COALESCE(NULLIF(t.reporter, ''), t.opened_by) AS who FROM up JOIN tasks t ON t.id = up.id
+			UNION ALL SELECT up.d, 1, r.requester FROM up JOIN tasks t ON t.id = up.id JOIN requests r ON r.id = t.request)
+		WHERE who GLOB 'p[0-9]*' AND EXISTS (SELECT 1 FROM people p WHERE 'p' || p.id = who AND p.removed_at IS NULL) ORDER BY d, o LIMIT 1`, tid).Scan(&who)
+	if errors.Is(err, sql.ErrNoRows) {
+		if who, err = ownerOf(q, Who{}); errors.Is(err, actor.ErrNoOwner) {
+			return actor.OwnerKey, nil
+		}
+	}
+	return who, err
 }

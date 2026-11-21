@@ -194,3 +194,26 @@ func TestAMentionTakesWorkspaceSlashName(t *testing.T) {
 		t.Fatalf("%q %v, want %q", got, err, want)
 	}
 }
+
+// On a task, human is the task's person both ways: Name writes them as human and Resolve reads human as them; a handle is its own person.
+func TestHumanOnATaskIsItsPersonBothWays(t *testing.T) {
+	db := seed(t)
+	if _, err := db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'Jisoo''s', 'a2', 'p2', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	on := Who{Key: "a2", Workspace: 1, Task: 7}
+	if got := Name(db, on, "p2"); got != "human" {
+		t.Errorf("Jisoo on her task: %q, want human", got)
+	}
+	if got := Name(db, on, "p1"); got == "human" {
+		t.Errorf("the agent's owner on Jisoo's task is written as human")
+	}
+	for word, want := range map[string]string{"human": "p2", "jisoo": "p2"} {
+		if got, err := Resolve(db, on, word); err != nil || got != want {
+			t.Errorf("%s on Jisoo's task: %q %v, want %s", word, got, err, want)
+		}
+	}
+	if got, _ := Resolve(db, Who{Key: "a2", Workspace: 1}, "human"); got != "p1" {
+		t.Errorf("human on no task: %q, want the agent's owner p1", got)
+	}
+}

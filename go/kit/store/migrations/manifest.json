@@ -113,5 +113,10 @@
   "version": 122,
   "name": "people_removed",
   "additive": true
+ },
+ {
+  "version": 123,
+  "name": "result_seen_per_person",
+  "additive": false
  }
 ]

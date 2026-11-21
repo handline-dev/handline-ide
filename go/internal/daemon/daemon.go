@@ -333,6 +333,7 @@ func Start(cfg Config) (*Daemon, error) {
 	d.hub = stream.NewHub()
 	d.hub.Log = &stream.Log{DB: db}
 	d.hub.Reach = (&reads.Env{DB: db, Home: cfg.Home}).Reach
+	d.hub.Render = (&reads.Env{DB: db, Home: cfg.Home}).TaskEventFor
 	if d.logins != nil { // a login's state moving is an account.changed on the accounts topic
 		d.logins.Changed = d.accountChanged
 	}

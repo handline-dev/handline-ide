@@ -226,12 +226,12 @@ func (e *Env) resultMarks() (resultMarks, error) {
 	if v, ok := queryMeta(e, db.ResultSeenFloorMeta); ok {
 		out.floor, _ = strconv.ParseInt(v, 10, 64)
 	}
-	rows, err := query(e.DB, "SELECT name, row_id FROM cursors WHERE name LIKE ?", db.ResultSeenPrefix+"%")
+	rows, err := query(e.DB, "SELECT name, row_id FROM cursors WHERE name LIKE ?", db.ResultSeenPrefixOf(e.person())+"%")
 	if err != nil {
 		return out, err
 	}
 	for _, r := range rows {
-		id, _ := strconv.ParseInt(strings.TrimPrefix(r.str("name"), db.ResultSeenPrefix), 10, 64)
+		id, _ := strconv.ParseInt(strings.TrimPrefix(r.str("name"), db.ResultSeenPrefixOf(e.person())), 10, 64)
 		out.at[id] = r.i("row_id")
 	}
 	return out, nil

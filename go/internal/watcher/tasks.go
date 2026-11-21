@@ -34,8 +34,9 @@ var taskExtras = []struct {
 	{"SELECT task_id, COUNT(*), group_concat(agent), MAX(since) FROM task_turns GROUP BY task_id", false},
 	{db.PlanEventsSQL, false}, // a plan written or marked OK, an ask for one made or sent
 	{db.ReviewEventsSQL, false}, // a story's sub-task Ready for the founder, or their OK or Redo
-	// the founder's read marker of a task: reading its comments changes its unread count
-	{"SELECT CAST(substr(name, length('" + db.SeenPrefix + "') + 1) AS INTEGER), row_id FROM cursors WHERE name LIKE '" + db.SeenPrefix + "%'", false},
+	// each person's read marker of a task (task_seen:<person>:<task>): reading its comments changes their unread count
+	{"SELECT task, group_concat(mark) FROM (SELECT CAST(substr(name, instr(substr(name, 11), ':') + 11) AS INTEGER) AS task, " +
+		"substr(name, 11) || '=' || row_id AS mark FROM cursors WHERE name LIKE 'task_seen:%' ORDER BY name) GROUP BY task", false},
 }
 
 // Tasks is the tasks topic: a task that appeared or changed (its fields, a memo, a request linked to it), as the spec's Task. Its

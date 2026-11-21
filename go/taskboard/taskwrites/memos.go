@@ -225,10 +225,10 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				}
 				return nil, refusal(fmt.Sprintf("no task T%d", tid))
 			}
-			if body, err = c.Mentions(body); err != nil {
+			if body, err = c.MentionsOn(tid, body); err != nil {
 				return nil, err
 			}
-			if to, err = turnPerson(tx, tid, c.Caller.Actor(), to); err != nil {
+			if err = turnPerson(tx, to); err != nil {
 				return nil, err
 			}
 			if err := claimImages(tx, home, c.Caller.Actor(), body, "", "text"); err != nil {
@@ -337,24 +337,18 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 	}
 }
 
-// turnPerson is who a turn to `to` on task tid waits on: human, which names the caller's owner, means the task's person
-// (db.TaskPerson); any other person is that person, who must not have been removed.
-func turnPerson(tx *sql.Tx, tid int64, caller, to string) (string, error) {
+// turnPerson refuses a turn to a removed person; human was resolved to the task's person with the turn's other words.
+func turnPerson(tx *sql.Tx, to string) error {
 	if !actor.IsPerson(to) {
-		return to, nil
-	}
-	if human, err := addr.OwnerOf(tx, caller); err != nil {
-		return "", err
-	} else if to == human {
-		return db.TaskPerson(tx, tid)
+		return nil
 	}
 	var removed sql.NullInt64
 	if err := tx.QueryRow("SELECT removed_at FROM people WHERE id = ?", to[1:]).Scan(&removed); errors.Is(err, sql.ErrNoRows) || removed.Valid {
-		return "", refusal(to + " is no person here")
+		return refusal(to + " is no person here")
 	} else if err != nil {
-		return "", err
+		return err
 	}
-	return to, nil
+	return nil
 }
 
 // turnParams are a comment's turn: who it hands the task to ("" for none) and, for a review, the evidence a pass of it closes the task with.
@@ -407,7 +401,7 @@ func memoRecipients(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if body, err = c.Mentions(body); err != nil { // as add would store it
+		if body, err = c.MentionsOn(tid, body); err != nil { // as add would store it
 			return nil, err
 		}
 		now, err := optionalBool(p, "now")
@@ -454,7 +448,7 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 			if err := guard(c.Caller.Actor(), author, mid); err != nil {
 				return nil, err
 			}
-			if body, err = c.Mentions(body); err != nil {
+			if body, err = c.MentionsOn(tid, body); err != nil {
 				return nil, err
 			}
 			if body == was {

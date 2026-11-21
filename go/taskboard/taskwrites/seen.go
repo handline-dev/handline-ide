@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -31,18 +30,18 @@ func SetResultSeenFloor(q db.Q) error {
 	return db.SetMeta(q, db.ResultSeenFloorMeta, strconv.FormatInt(time.Now().Unix(), 10))
 }
 
-// markResultSeen records that the founder has seen how the ended task tid ended.
-func markResultSeen(tx db.Q, tid int64) error {
-	return db.SetCursor(tx, db.ResultSeenKey(tid), time.Now().Unix())
+// markResultSeen records that person has seen how the ended task tid ended.
+func markResultSeen(tx db.Q, person string, tid int64) error {
+	return db.SetCursor(tx, db.ResultSeenKey(person, tid), time.Now().Unix())
 }
 
-// MarkSeen moves person's read marker only forward (to the newest comment when upto is 0), and marks an ended task's result seen for the
-// owner; a queued question is never read away.
+// MarkSeen moves person's read marker only forward (to the newest comment when upto is 0), and marks an ended task's result seen for
+// them; a queued question is never read away.
 func MarkSeen(tx db.Q, person string, tid, upto int64) (bool, error) {
 	if ended, err := taskEnded(tx, tid); err != nil {
 		return false, err
-	} else if ended && person == actor.OwnerKey {
-		if err := markResultSeen(tx, tid); err != nil {
+	} else if ended {
+		if err := markResultSeen(tx, person, tid); err != nil {
 			return false, err
 		}
 	}

@@ -13,10 +13,12 @@ const SeenFloorMeta = "task_seen_floor"
 // ResultSeenFloorMeta holds the time at or before which a request that ended counts as seen.
 const ResultSeenFloorMeta = "result_seen_floor"
 
-// ResultSeenPrefix is the cursors holding when the founder last saw a task that had ended; a task ended after that is unseen again.
-const ResultSeenPrefix = "result_seen:"
+// ResultSeenPrefixOf is the cursors holding when person last saw a task that had ended; a task ended after that is unseen again.
+func ResultSeenPrefixOf(person string) string { return "result_seen:" + person + ":" }
 
-func ResultSeenKey(tid int64) string { return ResultSeenPrefix + strconv.FormatInt(tid, 10) }
+func ResultSeenKey(person string, tid int64) string {
+	return ResultSeenPrefixOf(person) + strconv.FormatInt(tid, 10)
+}
 
 // SeenPrefix is the cursors holding how far the owner has read each task's comments; SeenPrefixOf another person's.
 const SeenPrefix = "task_seen:" + actor.OwnerKey + ":"

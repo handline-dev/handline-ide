@@ -167,3 +167,155 @@ func (c *wsClient) next(wait time.Duration) (map[string]any, bool) {
 	json.Unmarshal(b, &m)
 	return m, true
 }
+
+// On a task, human is that task's person, for a turn and an @human comment alike; a person's handle is that person, never rewritten
+// to the task's person.
+func TestHumanOnATaskIsItsPersonAndAHandleIsItsOwner(t *testing.T) {
+	d, _ := tellDaemon(t, true)
+	if _, err := d.db.Exec("INSERT INTO people(id, display_name, handle, role, created_at) VALUES(2, 'Kim', 'kim', 'member', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.db.Exec("UPDATE people SET handle = 'ron' WHERE id = 1"); err != nil {
+		t.Fatal(err)
+	}
+	bob := key(t, d, "bob")
+	hers, err := db.NewTask(d.db, "Kim's", bob, bob, 0, db.DefaultPriority, "", 0, "p2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine, err := db.NewTask(d.db, "the founder's", bob, "p1", 0, db.DefaultPriority, "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(tid int64, p map[string]any) {
+		t.Helper()
+		p["task"] = json.Number(strconv.FormatInt(tid, 10))
+		if _, err := d.local.Dispatch(d.local.AgentCaller(bob), "hl", "", "task.comment.add", p); err != nil {
+			t.Fatalf("T%d %v: %v", tid, p, err)
+		}
+	}
+	add(hers, map[string]any{"text": "for the founder", "turn": "ron", "request_id": "to-ron"})
+	if acting, _ := db.Acting(d.db, hers); acting != "p1" {
+		t.Fatalf("a turn to ron on Kim's task went to %s", acting)
+	}
+	add(mine, map[string]any{"text": "for Kim", "turn": "kim", "request_id": "to-kim"})
+	if acting, _ := db.Acting(d.db, mine); acting != "p2" {
+		t.Fatalf("a turn to kim on the founder's task went to %s", acting)
+	}
+	add(hers, map[string]any{"text": "@human which one?", "request_id": "ask-hers"})
+	var body string
+	if err := d.db.QueryRow("SELECT body FROM task_memos WHERE task_id = ? ORDER BY id DESC LIMIT 1", hers).Scan(&body); err != nil ||
+		!strings.HasPrefix(body, "<@p2>") {
+		t.Fatalf("@human on Kim's task was kept as %q (%v)", body, err)
+	}
+	if _, err := d.local.Dispatch(d.local.AgentCaller(bob), "hl", "", "task.edit", map[string]any{"task": json.Number(strconv.FormatInt(hers, 10)),
+		"reporter": "human", "request_id": "rep"}); err != nil {
+		t.Fatal(err)
+	}
+	var reporter string
+	if err := d.db.QueryRow("SELECT reporter FROM tasks WHERE id = ?", hers).Scan(&reporter); err != nil || reporter != "p1" {
+		t.Fatalf("--reporter human on Kim's task set %q (%v): it is the caller's owner there", reporter, err)
+	}
+	if _, err := d.db.Exec("UPDATE tasks SET reporter = 'p2' WHERE id = ?", hers); err != nil {
+		t.Fatal(err)
+	}
+	notes := func(as rpc.Caller) (out []any) {
+		t.Helper()
+		got, err := d.local.Dispatch(as, "t", "", "requests.pending", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range got.(map[string]any)["answer"].([]map[string]any) {
+			if r["kind"] == "note" {
+				out = append(out, r["task"])
+				if r["ask"] != "which one?" {
+					t.Fatalf("the note reads %q", r["ask"])
+				}
+			}
+		}
+		return out
+	}
+	kim := rpc.Caller{Kind: "device", Key: "p2", Person: "p2", Role: "member", Info: map[string]any{"device": "kim-phone"}}
+	if got := notes(kim); len(got) != 1 || got[0] != hers {
+		t.Fatalf("Kim's notes: %v", got)
+	}
+	if got := notes(rpc.Caller{Kind: "person", Key: "p1", Role: "owner"}); len(got) != 0 {
+		t.Fatalf("the founder's notes: %v", got)
+	}
+}
+
+// A result is unseen for the person whose request it was, and seen once they read it: Kim's mark is hers, not the founder's.
+func TestEachPersonSeesTheirOwnResults(t *testing.T) {
+	d, _ := tellDaemon(t, true)
+	if _, err := d.db.Exec("INSERT INTO people(id, display_name, role, created_at) VALUES(2, 'Kim', 'member', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	bob := key(t, d, "bob")
+	hers, err := db.NewTask(d.db, "Kim's request", bob, "p2", 0, db.DefaultPriority, "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.db.Exec("UPDATE tasks SET done_evidence = 'shipped', done_at = ? WHERE id = ?", time.Now().Unix(), hers); err != nil {
+		t.Fatal(err)
+	}
+	kim := rpc.Caller{Kind: "device", Key: "p2", Person: "p2", Role: "member", Info: map[string]any{"device": "kim-phone"}}
+	founder := rpc.Caller{Kind: "person", Key: "p1", Role: "owner"}
+	unseen := func(as rpc.Caller) any {
+		t.Helper()
+		got, err := d.local.Dispatch(as, "t", "", "requests.pending", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.(map[string]any)["counts"].(map[string]any)["unseen_results"]
+	}
+	if k, f := unseen(kim), unseen(founder); k != 1 || f != 0 {
+		t.Fatalf("unseen results: Kim %v, the founder %v", k, f)
+	}
+	if _, err := d.local.Dispatch(kim, "t", "", "task.seen", map[string]any{"task": json.Number(strconv.FormatInt(hers, 10)), "request_id": "seen"}); err != nil {
+		t.Fatal(err)
+	}
+	if k := unseen(kim); k != 0 {
+		t.Fatalf("Kim read her result and it is still unseen: %v", k)
+	}
+}
+
+// A tasks event reaches each person with their own unread count: Kim, who has read the task, gets 0 where the founder gets 1.
+func TestATasksEventCarriesEachPersonsOwnUnreadCount(t *testing.T) {
+	d := startNet(t)
+	code, _, _, _ := d.dev.Pair(time.Minute)
+	owner := helloAs(t, d, joinAs(t, d, code, "owner-phone", "ios", "")["result"].(map[string]any)["token"].(string))
+	kimKey := rpcAs(owner, "person.invite", `{"display_name":"Kim","request_id":"inv-kim"}`)["result"].(map[string]any)["person"].(string)
+	link := rpcAs(owner, "device.pair", `{"person":"`+kimKey+`","request_id":"kim-link"}`)["result"].(map[string]any)
+	kim := helloAs(t, d, joinAs(t, d, link["code"].(string), "kim-phone", "ios", "")["result"].(map[string]any)["token"].(string))
+	tid, err := db.NewTask(d.db, "read by Kim", "a9", "p1", 0, db.DefaultPriority, "", 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mid, err := db.AddMemo(d.db, tid, "a9", "a comment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetCursor(d.db, db.SeenKey(kimKey, tid), mid); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []*wsClient{owner, kim} {
+		if r := rpcAs(c, "subscribe", `{"topics":["tasks"]}`); r["result"] == nil {
+			t.Fatalf("subscribe: %v", r)
+		}
+	}
+	if _, err := d.hub.Append(stream.Entry{Topic: "tasks", Type: "task.changed", Agent: "a9",
+		Data: map[string]any{"id": tid, "title": "read by Kim", "unread": 1, "first_unread": mid}}); err != nil {
+		t.Fatal(err)
+	}
+	unread := func(c *wsClient) any {
+		t.Helper()
+		m, ok := c.next(5 * time.Second)
+		if !ok {
+			t.Fatal("no tasks event")
+		}
+		return m["params"].(map[string]any)["data"].(map[string]any)["unread"]
+	}
+	if f, k := unread(owner), unread(kim); f != float64(1) || k != float64(0) {
+		t.Fatalf("unread: the founder %v, Kim %v", f, k)
+	}
+}

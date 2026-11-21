@@ -564,3 +564,30 @@ func TestADesksWhosAreNamesForHl(t *testing.T) {
 		}
 	}
 }
+
+// A reply about a task names that task's person human, as a word typed on the task would mean them.
+func TestAReplyAboutATaskNamesItsPersonHuman(t *testing.T) {
+	db := storetest.Open(t)
+	for _, q := range []string{
+		"INSERT INTO people(display_name, handle, role, created_at) VALUES('Kim', 'kim', 'member', 0)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'Kim''s', 'a1', 'p2', 0)",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv := NewServer(fakeAuth{key: "k"}, "abc1234", 7, "local", func(string, ...any) {})
+	srv.DB, srv.Names = db, db
+	srv.Register("test.task", Method{Role: "owner", Read: true, Handler: func(*Conn, map[string]any) (any, error) {
+		return map[string]any{"who": []any{"p2"}}, nil
+	}})
+	c := connect(t, srv, `{"client":"hl","protocol":1,"key":"k"}`)
+	got := c.raw(t, `{"jsonrpc":"2.0","id":2,"method":"test.task","params":{"task":7}}`)["result"].(map[string]any)
+	if got["who"].([]any)[0] != "human" {
+		t.Fatalf("Kim on her task reads %v", got)
+	}
+	got = c.raw(t, `{"jsonrpc":"2.0","id":3,"method":"test.task","params":{}}`)["result"].(map[string]any)
+	if got["who"].([]any)[0] != "kim" {
+		t.Fatalf("Kim on no task reads %v", got)
+	}
+}

@@ -1,12 +1,17 @@
 package reads
 
 import (
+	"bytes"
+	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -52,6 +57,36 @@ func (e *Env) unreadAll() (map[int64]unread, error) {
 		out[r.i("task")] = unread{r.i("n"), r.i("first"), r.i("last")}
 	}
 	return out, nil
+}
+
+// TaskEventFor is a tasks event as person reads it: its task's unread count is theirs, not the owner's it was logged with (stream
+// Hub.Render). Any other event is nil, read as logged.
+func (e *Env) TaskEventFor(person string, ev *stream.Event) *stream.Event {
+	if ev.Topic != "tasks" {
+		return nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(ev.Data))
+	dec.UseNumber()
+	var task map[string]any
+	if dec.Decode(&task) != nil {
+		return nil
+	}
+	tid, ok := rpc.AsInt(task["id"])
+	if !ok {
+		return nil
+	}
+	u, err := e.For(person).unreadOf(tid)
+	if err != nil {
+		return nil
+	}
+	withUnread(task, u)
+	data, err := json.Marshal(task)
+	if err != nil {
+		return nil
+	}
+	mine := *ev
+	mine.Data = data
+	return &mine
 }
 
 func withUnread(task map[string]any, u unread) {
@@ -191,7 +226,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	}
 	// Notes (the bell's dot, not its count): @human comments unread on their task and in their author's chat, on a task no row above has.
 	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
-		"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?1 AND m.body LIKE '%@human%' AND m.id > MAX(?2, COALESCE(c.row_id, 0)) "+
+		"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?1 AND (m.body LIKE '%@human%' OR m.body LIKE '<@p%') AND m.id > MAX(?2, COALESCE(c.row_id, 0)) "+
 		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.memo_id = m.id AND r.target = ?1 AND r.read_at IS NOT NULL) "+
 		"AND COALESCE((SELECT r.ts FROM requests r JOIN cursors s ON r.id = s.row_id WHERE s.name = 'for_you_seen:' || m.author), 0) < m.created_at "+
 		"ORDER BY m.id DESC", e.person(), e.seenFloor(), db.SeenPrefixOf(e.person()))
@@ -203,13 +238,17 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		if byTask[tid] != nil || !db.ToPerson(m.str("body")) {
 			continue
 		}
-		if whose, err := db.TaskPerson(e.DB, tid); err != nil {
-			return nil, err
-		} else if whose != e.person() {
+		whose := addr.Lead(m.str("body")) // the person the comment opens with; an old @human comment's is the task's person
+		if !actor.IsPerson(whose) {
+			if whose, err = db.TaskPerson(e.DB, tid); err != nil {
+				return nil, err
+			}
+		}
+		if whose != e.person() {
 			continue
 		}
 		out := row(tid, m.str("title"), "note", []int64{}, all[tid], ts(m["created_at"]))
-		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(m.str("body")))
+		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(strings.TrimPrefix(strings.TrimSpace(m.str("body")), addr.Ref(whose))))
 		byTask[tid] = out
 		answer = append(answer, out)
 	}
