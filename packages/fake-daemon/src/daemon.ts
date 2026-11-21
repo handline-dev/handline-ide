@@ -66,6 +66,8 @@ export class FakeDaemon {
   readonly replyItems: boolean;
   readonly serveChat: boolean;
   readonly serveBytes: boolean;
+  /** hello's capabilities.master; a test sets it to stand for one of several machines. */
+  master: { node: string; number: number } | null = null;
   readonly log: EventLog;
   readonly conns = new Set<Conn>();
   private replies = new Replies();

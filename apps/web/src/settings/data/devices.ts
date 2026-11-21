@@ -5,6 +5,7 @@ import type { Device, Node } from '@handline/client';
 import { Hooks, useAgents } from '@handline/app-data';
 import { useHello, useThisDevice } from '@handline/app-react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
+import { useSyncExternalStore } from 'react';
 
 export const STALE_DAYS = 30;
 export const isStale = (d: Pick<Device, 'last_seen' | 'connected'>, now = Date.now()): boolean =>
@@ -185,4 +186,38 @@ export function useAgentDevice(agent: string): { name: string; online: boolean; 
   const at = useAgents().data?.agents.find((a) => a.key === agent)?.node;
   const n = nodes.length > 1 ? nodes.find((x) => x.id === at) : undefined;
   return n ? { name: n.name, online: n.online, since: n.last_seen } : null;
+}
+
+/** A machine whose own board was set aside when a newer master outranked it, and the master now; null when none was. */
+export function useSetAside(): { name: string; since: string; master: string; key: string } | null {
+  const nodes = Hooks.useNodeStatus().data?.nodes ?? [];
+  const n = nodes.find((x) => x.set_aside);
+  if (!n?.set_aside) return null;
+  return { name: n.name, since: n.set_aside.since, master: nodes.find((x) => x.master)?.name ?? '', key: `${n.id}@${n.set_aside.since}` };
+}
+
+// The set-aside board is told once: the status row shows it until Settings > Devices has shown its note.
+const SEEN = 'set-aside-seen';
+const seenListeners = new Set<() => void>();
+const readSeen = (): string => {
+  try {
+    return localStorage.getItem(SEEN) ?? '';
+  } catch {
+    return '';
+  }
+};
+export function markSetAsideSeen(key: string): void {
+  if (readSeen() === key) return;
+  try {
+    localStorage.setItem(SEEN, key);
+  } catch {
+    /* blocked: the status row keeps saying it this run */
+  }
+  for (const f of seenListeners) f();
+}
+/** The set-aside board, while the person has not seen its note. */
+export function useSetAsideUnseen() {
+  const a = useSetAside();
+  const seen = useSyncExternalStore((f) => (seenListeners.add(f), () => void seenListeners.delete(f)), readSeen);
+  return a && a.key !== seen ? a : null;
 }

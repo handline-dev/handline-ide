@@ -35,7 +35,9 @@ const setMode = vi.fn((_r: DeviceRow, _m: Mode) => Promise.resolve());
 vi.mock('#src/settings/data/devices.ts', async (orig) => ({
   ...(await orig<object>()),
   useDevices: () => ({ loading: false, error: false, rows, pushPlatforms: [], pending: null, setMode, revoke: (id: string) => revoke(id) }),
+  useSetAside: () => aside.now,
 }));
+const aside = vi.hoisted(() => ({ now: null as { name: string; since: string; master: string; key: string } | null }));
 vi.mock('@handline/app-data', () => ({ useNameOf: () => (k: string) => k }));
 vi.mock('#src/settings/PairSheet.tsx', () => ({ openPairSheet: vi.fn() }));
 vi.mock('#src/settings/MachineSections.tsx', () => ({ MachineSections: () => <p>this mac</p> }));
@@ -67,6 +69,18 @@ const radio = (id: string, word: string) =>
   [...at(id).querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((b) => b.textContent === word)!;
 
 describe('Devices', () => {
+  it('says when a board was set aside: which device was the master until when, and where the board is now', async () => {
+    expect(document.querySelector('[role="note"]')).toBeNull();
+    aside.now = { name: 'studio', since: '2026-11-21T11:23:00Z', master: 'mini', key: 'n@1' };
+    await act(async () => root.unmount()); // a fresh page: the note is read as it opens
+    root = createRoot(document.body.appendChild(document.createElement('div')));
+    await act(async () => root.render(<DevicesTab />));
+    expect(document.querySelector('[role="note"]')?.textContent).toMatch(
+      /^studio was the master until .+\. Its board was set aside; the board is now on mini\.$/,
+    );
+    aside.now = null;
+  });
+
   it('lists every device in one list, the master first, with its state and what a Mac lacks', () => {
     expect([...document.querySelectorAll('[data-device]')].map((r) => r.getAttribute('data-device'))).toEqual([
       'mbp',

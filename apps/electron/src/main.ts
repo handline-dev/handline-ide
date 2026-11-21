@@ -21,11 +21,12 @@ import { followMain } from '#src/follow-app.ts';
 import { keepPlace, savedFrame, savedRoute, type Frame } from '#src/window-place.ts';
 import type { Follower } from '#src/follow.ts';
 import { remoteUrl, SettingsFile, type Link, type Remote } from '#src/mode.ts';
+import { Doors, serveOwnDaemon, trustFingerprints } from '#src/masters.ts';
 import { ownDaemon, readFounderKey, type Own } from '#src/own.ts';
 import { quitQuietly } from '#src/ask.ts';
 import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, trayFollow, trayUpdate } from '#src/app-life.ts';
 import { addressesChosen, listenAddress, magicDnsName, onTailnet, TAILSCALE_CLIS, windowDaemon } from '#src/tailnet.ts';
-import { Cli, Connection, DaemonView, Page, Settings, Update, CHANNELS } from '#src/bridge.ts';
+import { Cli, Connection, Page, Settings, Update, CHANNELS } from '#src/bridge.ts';
 import { serveDir } from '#src/serve.ts';
 import { buildId, UNSENT_PROBE, Updater } from '#src/update.ts';
 import { UpdateFlow } from '#src/update-flow.ts';
@@ -95,7 +96,8 @@ async function editorEnv(): Promise<EditorEnv> {
 function allowListenerOrigin(): void {
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://*/*', 'wss://*/*'] }, (d, done) => {
     const host = new URL(d.url).host;
-    const ours = listen && (host === listen || host === new URL(ws).host);
+    const ours =
+      (listen && (host === listen || host === new URL(ws).host)) || (d.webContentsId === win?.webContents.id && doors?.has(host));
     done({ requestHeaders: ours ? { ...d.requestHeaders, Origin: `http://${host}` } : d.requestHeaders });
   });
 }
@@ -130,14 +132,8 @@ async function advertised(listen: string): Promise<string | null> {
   return null;
 }
 
-/** A paired remote daemon has a self-signed certificate: the page trusts it by the fingerprint pairing handed over, and no other. */
-function trustFingerprint(remote: Remote): void {
-  app.on('certificate-error', (e, _wc, url, _err, cert, trust) => {
-    e.preventDefault();
-    const got = Buffer.from(cert.fingerprint.replace(/^sha256\//, ''), 'base64').toString('hex');
-    trust(!!remote.fingerprint && new URL(url).host === remote.host && got === remote.fingerprint);
-  });
-}
+/** The owner's machines the page may join (keepDoors), from the launch on. */
+let doors: Doors | null = null;
 
 /** The window connects as a paired device, which may not read or write settings; the shell's founder connection does it for the page. */
 function handleSettings(origin: string, client: DaemonClient, remote: Remote | null): void {
@@ -150,7 +146,7 @@ function handleSettings(origin: string, client: DaemonClient, remote: Remote | n
   ipcMain.handle(CHANNELS.settingsSet, (e, arg) => s.set(e, arg));
 }
 
-function handleConnection(origin: string, own: Own, remote: Remote | null, f?: Follower): void {
+function handleConnection(origin: string, own: Own, remote: Remote | null, client: DaemonClient, f?: Follower): void {
   const c = new Connection(origin, {
     // Only a daemon this app started, and only when the build on disk is this one: a newer one (main moved) is the follow offer's to apply.
     build: () => ({ sha: runningBuild, canRestart: !remote && readBuildSha(import.meta.dirname) === runningBuild }),
@@ -167,11 +163,16 @@ function handleConnection(origin: string, own: Own, remote: Remote | null, f?: F
   ipcMain.handle(CHANNELS.setMode, (e, arg) => c.setMode(e, arg));
   ipcMain.handle(CHANNELS.build, (e) => c.build(e));
   ipcMain.handle(CHANNELS.restartDaemon, (e) => c.restartDaemon(e));
-  const d = new DaemonView(origin, { view: () => own.daemon(), start: () => own.startDaemon(), stop: () => own.stopDaemon() });
-  ipcMain.handle(CHANNELS.daemon, (e) => d.view(e));
-  ipcMain.handle(CHANNELS.startDaemon, (e) => d.start(e));
-  ipcMain.handle(CHANNELS.stopDaemon, (e) => d.stop(e));
-  own.onDaemon(() => win?.webContents.send(CHANNELS.daemon, own.daemon()));
+  serveOwnDaemon({
+    origin,
+    own,
+    shellClient: client,
+    connect: () => unixSocketTransport(socket),
+    key: founderKey,
+    home,
+    doors: () => doors,
+    send: (v) => win?.webContents.send(CHANNELS.daemon, v),
+  });
   ipcMain.handle(CHANNELS.follow, (e) => c.follow(e));
   ipcMain.handle(CHANNELS.checkUpdate, (e) => c.checkUpdate(e));
   ipcMain.handle(CHANNELS.pairRemote, (e, arg) => c.pairRemote(e, arg));
@@ -226,7 +227,6 @@ async function untilUp(f: () => Promise<unknown>): Promise<void> {
 function useRemote(remote: Remote): void {
   listen = remote.host;
   ws = remoteUrl(remote);
-  trustFingerprint(remote);
 }
 
 /** Builds a checkout's go/handlined, the daemon this app starts. */
@@ -365,6 +365,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     const remote = current.remote;
     const login = loginLaunch(current.openAtLogin, background);
     if (remote) useRemote(remote);
+    doors = trustFingerprints(app, new Doors(settings, current), { remote, window: () => win?.webContents });
     // The device token, the layouts and the settings are kept per page origin, so the page keeps one port from launch to launch.
     const web = await pageServer();
     const origin = new URL(web.url).origin;
@@ -400,7 +401,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       update: () => trayUpdate(flow),
       follow: f && (() => trayFollow(f)),
     });
-    handleConnection(origin, own, remote, f);
+    handleConnection(origin, own, remote, client, f);
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
     ipcMain.handle(CHANNELS.unsent, (e, arg) => page.setUnsent(e, arg));

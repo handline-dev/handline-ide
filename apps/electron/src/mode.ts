@@ -23,9 +23,30 @@ export interface Remote {
   device: string;
 }
 
+/** One of the owner's machines, where it serves as master: host:port and its certificate's sha256 (hex), '' for a plain door. */
+export interface Door {
+  addr: string;
+  fp: string;
+}
+
+const MAX_DOORS = 64;
+const HEX64 = /^[0-9a-f]{64}$/;
+/** The doors the page handed over, when they are that: at most 64, each a host:port and a fingerprint. */
+export const doorsOf = (v: unknown): Door[] | null =>
+  Array.isArray(v) && v.length <= MAX_DOORS && v.every(isDoor) ? v.map((d: Door) => ({ addr: d.addr, fp: d.fp })) : null;
+
+/** A plain door (no fingerprint) only where the link is already private: loopback or Tailscale. */
+const isDoor = (d: Partial<Door> | null): d is Door => {
+  if (!d || typeof d.addr !== 'string' || d.addr.length > 256 || !/:\d+$/.test(d.addr) || typeof d.fp !== 'string') return false;
+  const host = d.addr.replace(/:\d+$/, '');
+  return HEX64.test(d.fp) || (d.fp === '' && (['127.0.0.1', 'localhost', '[::1]'].includes(host) || isTailscaleHost(host)));
+};
+
 export interface Settings {
   /** Another device's daemon, in place of this Mac's. */
   remote: Remote | null;
+  /** The owner's machines the page found (node.status), trusted by fingerprint so the page can join whichever is master next. */
+  doors?: Door[];
   /** Open Handline at login, in the tray only. On unless turned off. */
   openAtLogin: boolean;
   /** Quit without asking first ("Don't show again"). */
@@ -56,10 +77,12 @@ export class SettingsFile {
     } catch {
       /* none yet */
     }
+    const doors = doorsOf(kept.doors);
     return {
       remote: isRemote(kept.remote) && kept.mode !== 'own' ? kept.remote : null,
       openAtLogin: kept.openAtLogin !== false,
       ...(kept.quietQuit === true ? { quietQuit: true } : {}),
+      ...(doors ? { doors } : {}),
     };
   }
   write(s: Settings): void {

@@ -88,6 +88,8 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     daemon: () => call(CHANNELS.daemon),
     startDaemon: () => call(CHANNELS.startDaemon),
     stopDaemon: () => call(CHANNELS.stopDaemon),
+    promote: () => call(CHANNELS.promote),
+    keepDoors: (doors) => call(CHANNELS.keepDoors, doors),
     onDaemon(cb) {
       daemonListeners.add(cb);
       if (daemon) cb(daemon);
