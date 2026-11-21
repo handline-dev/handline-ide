@@ -30,7 +30,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	wait := &tick.WaitFor{Decide: waitDecider{lc: lc}, Log: func(s string) { cfg.Log("%s", s) }}
 	apply := &tick.ApplySettings{Ports: settingsPorts{launcher: lc.Launch, env: lc.Env}}
 	subs := &subscriptions.Env{DB: lc.Env.DB, Home: cfg.Home, Asker: founderAsker{lc.Env}, Tasks: founderCloser{lc.Env, cfg.Home},
-		Plans: vendorPlans{cfg.Home, cfg.CLI}, Now: cfg.Now, Log: cfg.Log}
+		Plans: vendorPlans{home: cfg.Home, cli: cfg.CLI}, Now: cfg.Now, Log: cfg.Log}
 	p.plans = append(p.plans, subs)
 	sched := &schedules.Runner{Q: p.db, Agents: func() []string { return paths.ListAgents(cfg.Home) }, Schedules: func(agent string) []cronspec.Schedule { return cronspec.Of(cfg.Home, agent) },
 		Say: lc.Env.SystemSayThen, Log: func(s string) { cfg.Log("%s", s) }}
