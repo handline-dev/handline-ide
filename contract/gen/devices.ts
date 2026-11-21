@@ -127,6 +127,27 @@ export interface DevicesMethods {
   /** The folder that hello was sent from. */
   cwd?: string;
 }; result: { [key: string]: unknown } };
+  "node.turn": { params: {
+  /** The agent whose session is on that runner. */
+  agent: string;
+  /** The turn as the runner's tracker holds it: state (0 unknown, 1 working, 2 idle), at, doing, background, bg_known, settled, live (its session process is watched there), ended. */
+  view: { [key: string]: unknown };
+}; result: { [key: string]: unknown } };
+  "node.transcript": { params: {
+  /** The agent whose session is on that runner. */
+  agent: string;
+  session: string;
+  /** When the line was written, epoch seconds. */
+  at: number;
+  /** Each {kind, body} as transcript_events keeps it: text, tool_use, tool_result (its output already cut to 16 KiB). */
+  rows: { [key: string]: unknown }[];
+}; result: { [key: string]: unknown } };
+  "node.tokens": { params: {
+  /** The account's name on that runner. */
+  account: string;
+  /** Each call as the token log reads it: session, req, ts, model, cwd, side and tokens {inp, cc, cr, out, thinking, cc1h}. */
+  calls: { [key: string]: unknown }[];
+}; result: { [key: string]: unknown } };
   "node.launch": { params: {
   /** The agent whose session asks, as the runner proved it. */
   agent: string;
@@ -157,16 +178,22 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.set": { role: "member", callers: null, write: true, since: 1 },
   "device.push_token": { role: "member", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
-  "node.forward": { role: "owner", callers: null, write: false, since: 1 },
+  "node.forward": { role: "member", callers: null, write: false, since: 1 },
+  "node.turn": { role: "member", callers: null, write: false, since: 1 },
+  "node.transcript": { role: "member", callers: null, write: false, since: 1 },
+  "node.tokens": { role: "member", callers: null, write: false, since: 1 },
   "node.launch": { role: "owner", callers: null, write: false, since: 1 },
   "node.agent_files": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.tokens" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
   "node.forward": false,
+  "node.turn": false,
+  "node.transcript": false,
+  "node.tokens": false,
   "node.launch": false,
   "node.agent_files": false,
 };

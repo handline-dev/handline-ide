@@ -4,6 +4,7 @@ package nodes
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -11,7 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -32,6 +35,14 @@ type Registry struct {
 	Log    func(format string, a ...any)
 	// OnLink, when set, is told each time a node links (it joined, or came back), off the hello that linked it.
 	OnLink func(node string)
+	// Turns, when set, holds the turn of each agent whose session is on a runner, as that runner's tracker tells it (node.turn); the
+	// turns of a runner's agents are forgotten when its link ends.
+	Turns *turns.Tracker
+	// Transcript, when set, stores the chat transcript rows a runner read from one of its sessions' transcripts (node.transcript).
+	Transcript func(agent, session string, at int64, rows []transcript.Row)
+	// Tokens, when set, counts the calls a runner read from one of its accounts' transcripts (node.tokens), as usage.Call in JSON.
+	Tokens func(account string, calls json.RawMessage) error
+	local  func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
 	mu     sync.Mutex
 	links  map[string]*rpc.Conn
 	homes  map[*rpc.Conn]string // each link's runner's home, once asked
@@ -51,11 +62,17 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 	r.mu.Unlock()
 	c.OnClose(func() {
 		r.mu.Lock()
-		defer r.mu.Unlock()
-		if r.links[node] == c {
+		gone := r.links[node] == c
+		if gone {
 			delete(r.links, node)
 		}
 		delete(r.homes, c)
+		r.mu.Unlock()
+		if gone {
+			for _, a := range r.agentsOn(node) {
+				r.forget(a)
+			}
+		}
 	})
 	if r.OnLink != nil {
 		go r.OnLink(node)
@@ -71,6 +88,58 @@ func (r *Registry) Linked() []string {
 		out = append(out, node)
 	}
 	return out
+}
+
+// agentsOn is the agents whose sessions are on node.
+func (r *Registry) agentsOn(node string) []string {
+	rs, err := r.DB.Query("SELECT agent FROM node_sessions WHERE node = ?", node)
+	if err != nil {
+		return nil
+	}
+	defer rs.Close()
+	var out []string
+	for rs.Next() {
+		var a string
+		if rs.Scan(&a) == nil {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// Elsewhere is whether agent's session is on a runner. agent is its key; node_sessions keeps the agent as the master opened it, read
+// as a key the way the master's server reads it.
+func (r *Registry) Elsewhere(agent string) bool {
+	rs, err := r.DB.Query("SELECT agent FROM node_sessions")
+	if err != nil {
+		return false
+	}
+	var on []string
+	for rs.Next() {
+		var a string
+		if rs.Scan(&a) == nil {
+			on = append(on, a)
+		}
+	}
+	rs.Close()
+	for _, a := range on {
+		if a == agent || r.local != nil && r.local().AgentCaller(a).Key == agent {
+			return true
+		}
+	}
+	return false
+}
+
+// onNode is nil when agent's session is on node, the refusal otherwise.
+func (r *Registry) onNode(agent, node string) error {
+	var on string
+	if err := r.DB.QueryRow("SELECT node FROM node_sessions WHERE agent = ?", agent).Scan(&on); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if on != node {
+		return rpc.Refused(agent+" has no session on this runner", "not_on_node", "")
+	}
+	return nil
 }
 
 // NodeOf is the node whose link c is; "" for any other connection.
@@ -154,8 +223,18 @@ func (r *Runner) Stop(agent string) error {
 		!(errors.As(err, &gone) && gone.Code == "not_found") { // a session the runner no longer has is stopped
 		return err
 	}
-	_, err := r.reg.DB.Exec("DELETE FROM node_sessions WHERE agent = ? AND node = ?", agent, r.node)
-	return err
+	if _, err := r.reg.DB.Exec("DELETE FROM node_sessions WHERE agent = ? AND node = ?", agent, r.node); err != nil {
+		return err
+	}
+	r.reg.forget(agent) // the runner's later word on it is refused (not_on_node): its last view would stay
+	return nil
+}
+
+// forget drops what the runner's tracker last said of agent's turn.
+func (r *Registry) forget(agent string) {
+	if r.Turns != nil && r.local != nil {
+		r.Turns.Forget(r.local().AgentCaller(agent).Key)
+	}
 }
 
 // MakeWorktree makes a worktree of remote at path on branch, from base when the branch is new.
@@ -286,6 +365,7 @@ func notForwarded(method string) bool {
 // is on that runner.
 // local is the master's local server, asked at the call: on that server itself node.forward is refused, as no connection there is a link.
 func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
+	r.local = local
 	s.Register("node.forward", rpc.Method{Waits: true, Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		node := r.NodeOf(c.Root())
 		if node == "" {
@@ -299,12 +379,8 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		if notForwarded(method) {
 			return nil, rpc.Refused(method+" is not forwarded", "method", "")
 		}
-		var on string
-		if err := r.DB.QueryRow("SELECT node FROM node_sessions WHERE agent = ?", agent).Scan(&on); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err := r.onNode(agent, node); err != nil {
 			return nil, err
-		}
-		if on != node {
-			return nil, rpc.Refused(agent+" has no session on this runner", "not_on_node", "")
 		}
 		params, _ := p["params"].(map[string]any)
 		client, _ := p["client"].(string)
@@ -322,4 +398,60 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 	}})
 	s.Register("node.launch", rpc.Method{Waits: true, Handler: r.launch})
 	s.Register("node.agent_files", rpc.Method{Waits: true, Handler: r.agentFiles})
+	s.Register("node.turn", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		node := r.NodeOf(c.Root())
+		if node == "" {
+			return nil, rpc.Refused("node.turn is a runner's own call, on its link", "node", "")
+		}
+		agent, _ := p["agent"].(string)
+		b, err := json.Marshal(p["view"])
+		var v turns.View
+		if agent == "" || err != nil || json.Unmarshal(b, &v) != nil {
+			return nil, rpc.BadRequestError("agent is a string and view the runner's turn", "view", rpc.InvalidParams)
+		}
+		if err := r.onNode(agent, node); err != nil {
+			return nil, err
+		}
+		if r.Turns != nil { // by the agent's key, as its hooks reach this tracker
+			r.Turns.SetView(local().AgentCaller(agent).Key, v)
+		}
+		return map[string]any{}, nil
+	}})
+	s.Register("node.tokens", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		if r.NodeOf(c.Root()) == "" {
+			return nil, rpc.Refused("node.tokens is a runner's own call, on its link", "node", "")
+		}
+		account, _ := p["account"].(string)
+		calls, err := json.Marshal(p["calls"])
+		if account == "" || err != nil {
+			return nil, rpc.BadRequestError("account is a string and calls the calls read", "calls", rpc.InvalidParams)
+		}
+		if r.Tokens != nil {
+			if err := r.Tokens(account, calls); err != nil {
+				return nil, err
+			}
+		}
+		return map[string]any{}, nil
+	}})
+	s.Register("node.transcript", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		node := r.NodeOf(c.Root())
+		if node == "" {
+			return nil, rpc.Refused("node.transcript is a runner's own call, on its link", "node", "")
+		}
+		agent, _ := p["agent"].(string)
+		session, _ := p["session"].(string)
+		at, _ := rpc.AsInt(p["at"])
+		b, err := json.Marshal(p["rows"])
+		var rows []transcript.Row
+		if agent == "" || err != nil || json.Unmarshal(b, &rows) != nil {
+			return nil, rpc.BadRequestError("agent is a string and rows the transcript rows", "rows", rpc.InvalidParams)
+		}
+		if err := r.onNode(agent, node); err != nil {
+			return nil, err
+		}
+		if r.Transcript != nil && len(rows) > 0 {
+			r.Transcript(local().AgentCaller(agent).Key, session, at, rows)
+		}
+		return map[string]any{}, nil
+	}})
 }

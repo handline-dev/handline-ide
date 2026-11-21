@@ -34,7 +34,14 @@ var kindMult = []struct {
 }{{"inp", 1}, {"cc", 1.25}, {"cr", 0.1}, {"out", 5}, {"thinking", 5}}
 
 // Tokens is one call's (or one span's) tokens by class. CC1h is the part of CC written to the hour-long cache.
-type Tokens struct{ Inp, CC, CR, Out, Thinking, CC1h int64 }
+type Tokens struct {
+	Inp      int64 `json:"inp"`
+	CC       int64 `json:"cc"`
+	CR       int64 `json:"cr"`
+	Out      int64 `json:"out"`
+	Thinking int64 `json:"thinking"`
+	CC1h     int64 `json:"cc1h"`
+}
 
 // CacheHourMult is what a cache write held for an hour costs, as a multiple of the input price; a 5-minute one costs the cc multiple.
 const CacheHourMult = 2.0
