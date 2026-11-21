@@ -849,6 +849,109 @@
    "x-app-cache": false
   },
   {
+   "name": "node.heartbeat",
+   "summary": "A runner says it is there: its version, load, sessions, accounts and what it has.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "version",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The runner's Handline version: one that is not the master's takes no new session."
+     }
+    },
+    {
+     "name": "boot",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The machine's boot: another one means it restarted."
+     }
+    },
+    {
+     "name": "load",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "description": "cores, load1, ram_total and ram_free, as the runner read them."
+     }
+    },
+    {
+     "name": "sessions",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "Each session it holds: agent, handle, and the branch of its worktree with the commit last pushed (branch, pushed)."
+     }
+    },
+    {
+     "name": "accounts",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "Each Claude account folder there logged in to an account: name and email."
+     }
+    },
+    {
+     "name": "has",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "description": "What it has for an agent's work: clis, mcp, xcode, simulators."
+     }
+    },
+    {
+     "name": "battery",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "The machine runs on its battery now."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "stop": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it."
+      }
+     },
+     "required": [
+      "stop"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "node"
+   ],
+   "description": "Only on a runner's link (gate `node`). The runner sends one when its link comes up, then 15 s after each answer, so one is in flight at a time. The master keeps the newest in memory and the time as the node row's last_seen; a runner unheard for 60 s is offline, and after the reclaim time offline (node_reclaim_s, 30 minutes) its sessions are taken back. With the battery switch on (node_battery_switch), one that says it went on battery is set to Off from Run, and back to Run when it is plugged in.",
+   "x-app-cache": false
+  },
+  {
    "name": "node.tokens",
    "summary": "A runner sends the calls one of its accounts' transcripts gained.",
    "paramStructure": "by-name",

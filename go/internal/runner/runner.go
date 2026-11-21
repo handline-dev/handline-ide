@@ -61,9 +61,11 @@ type Config struct {
 	Tokens            Tokens
 	HL                string // the hl its hooks call; paths.HlExe when empty
 	Log               func(format string, args ...any)
-	// Accounts is this machine's Claude accounts, whose transcripts' calls the master counts (node.tokens); nil is the home's
-	// (paths.ListAccounts), which a runner with no board of its own has none of until its accounts are known to the master (slice 9).
+	// Accounts is this machine's Claude accounts, whose transcripts' calls the master counts (node.tokens); nil is the home's account
+	// folders logged in to one (a runner keeps no accounts table).
 	Accounts func() []string
+	// Battery is whether the machine runs on its battery now, which each heartbeat says; nil reads the Mac's power source.
+	Battery func() bool
 }
 
 // Runner is one runner daemon.
@@ -78,6 +80,8 @@ type Runner struct {
 	// changed is the agents whose turn the master has not been sent since it changed; turnSent wakes the one loop that sends them.
 	changed  map[string]bool
 	turnSent chan struct{}
+	beatNow  chan struct{} // the link came up: a heartbeat goes at once
+	hasKept  hasKept
 
 	mu       sync.Mutex
 	link     *rpc.Link                             // nil while the master is not reached
@@ -88,9 +92,12 @@ type Runner struct {
 	repos    map[string]*sync.Mutex // a clone's lock, held while it is synced
 	pushers  map[string]*pusher     // a worktree's push running now
 	streams  *termchan.Streams      // the master's bytes attaches, ended with the link they go up
-	stop     chan struct{}
-	once     sync.Once
-	wg       sync.WaitGroup
+	// rescuing is the agents whose session's rescue runs now; rescueFails how many times each one's push failed.
+	rescuing    map[string]bool
+	rescueFails map[string]int
+	stop        chan struct{}
+	once        sync.Once
+	wg          sync.WaitGroup
 }
 
 // session is an agent's terminal the runner opened, kept in runner.json. Agent is the agent's folder under the home once a launch there
@@ -100,6 +107,8 @@ type session struct {
 	Pid    int    `json:"pid"`
 	Agent  string `json:"agent,omitempty"`
 	Folder string `json:"folder,omitempty"` // the folder it was opened in: the agent's worktree, whose commits are pushed
+	// Rescued is that what its worktree held was pushed to a rescue branch: the master no longer places it here.
+	Rescued bool `json:"rescued,omitempty"`
 }
 
 // Client is the client a runner's hello names on its link: the master takes only that connection for the runner's link.
@@ -129,11 +138,18 @@ func Start(cfg Config) (*Runner, error) {
 	if cfg.HL == "" {
 		cfg.HL = paths.HlExe()
 	}
+	if cfg.Accounts == nil {
+		cfg.Accounts = func() []string { return loggedIn(cfg.Home) }
+	}
+	if cfg.Battery == nil {
+		cfg.Battery = machineOnBattery
+	}
 	if err := writeHooks(cfg.Home, cfg.HL); err != nil {
 		return nil, fmt.Errorf("hooks: %w", err)
 	}
 	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, repos: map[string]*sync.Mutex{},
-		pushers: map[string]*pusher{}, stop: make(chan struct{}), changed: map[string]bool{}, turnSent: make(chan struct{}, 1)}
+		pushers: map[string]*pusher{}, rescuing: map[string]bool{}, rescueFails: map[string]int{}, stop: make(chan struct{}), changed: map[string]bool{}, turnSent: make(chan struct{}, 1),
+		beatNow: make(chan struct{}, 1)}
 	control := termchan.NewControlLink(cfg.Control, true)
 	r.streams = termchan.NewStreams(func() *termchan.ControlLink { return control })
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
@@ -164,7 +180,8 @@ func Start(cfg Config) (*Runner, error) {
 		r.wg.Add(1)
 		go r.accept()
 	}
-	r.wg.Add(5)
+	r.wg.Add(6)
+	go r.heartbeats()
 	go r.keepLinked()
 	go r.sendUp()
 	go r.drainSpool()
@@ -305,6 +322,7 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	}
 	r.mu.Unlock()
 	r.cfg.Log("runner: linked to the master at %s", r.cfg.Master.Addr)
+	r.beatSoon()
 	for _, a := range agents { // what changed while the link was down
 		r.tellTurn(a)
 	}
@@ -484,6 +502,7 @@ func (r *Runner) open(agent, folder, command string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	r.beatSoon() // the master hears of what it holds now
 	return map[string]any{"handle": handle}, nil
 }
 
@@ -497,15 +516,23 @@ func (r *Runner) close(agent, handle string) (any, error) {
 	if ok, why := r.cfg.Term.CloseTerminal(handle, true); !ok {
 		return nil, fmt.Errorf("could not close %s: %s", handle, why)
 	}
+	return map[string]any{"accepted": true}, r.forgetSession(agent, s)
+}
+
+// forgetSession drops agent's session s, which is no longer the agent's proof, and what was sent up of its files; a session opened
+// for the agent since stays.
+func (r *Runner) forgetSession(agent string, s session) error {
 	r.cfg.Tokens.Forget(agent, s.Pid)
 	r.mu.Lock()
-	delete(r.sessions, agent)
+	if r.sessions[agent] == s {
+		delete(r.sessions, agent)
+	}
 	err := r.save()
 	r.mu.Unlock()
 	r.sendMu.Lock()
 	delete(r.sent, agent)
 	r.sendMu.Unlock()
-	return map[string]any{"accepted": true}, err
+	return err
 }
 
 // respawn leaves a fresh shell in a session's terminal and records that shell as the agent's session in place of the one it ended.
@@ -837,11 +864,7 @@ func (r *Runner) SendTokens(u *usage.Env) error {
 	if b, err := os.ReadFile(TokensFile(r.cfg.Home)); err == nil {
 		json.Unmarshal(b, &kept)
 	}
-	accounts := r.cfg.Accounts
-	if accounts == nil {
-		accounts = func() []string { return paths.ListAccounts(r.cfg.Home) }
-	}
-	for _, acct := range accounts() {
+	for _, acct := range r.cfg.Accounts() {
 		calls, moved, ok := u.NewCalls(acct, kept[acct], usage.BytesPerTick)
 		if !ok {
 			continue

@@ -281,7 +281,10 @@ func (r *Runner) git(args ...string) error {
 const gitTimeout = 10 * time.Minute
 
 // gitOut runs git with no one at it, in C locale, until gitTimeout or the runner stops; out is what it said, trimmed.
-func (r *Runner) gitOut(args ...string) (out string, err error) {
+func (r *Runner) gitOut(args ...string) (out string, err error) { return r.gitEnv(nil, args...) }
+
+// gitEnv is gitOut with env added to git's environment; an error says what git said.
+func (r *Runner) gitEnv(env []string, args ...string) (out string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 	go func() {
@@ -292,7 +295,10 @@ func (r *Runner) gitOut(args ...string) (out string, err error) {
 		}
 	}()
 	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = append(os.Environ(), append(gitrun.NoPrompts(protocols), "LC_ALL=C")...)
+	cmd.Env = append(append(os.Environ(), append(gitrun.NoPrompts(protocols), "LC_ALL=C")...), env...)
 	b, err := cmd.CombinedOutput()
+	if err != nil && env != nil {
+		err = fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(b)))
+	}
 	return strings.TrimSpace(string(b)), err
 }

@@ -39,6 +39,8 @@ type Tick struct {
 	Config    Config
 	Cost      *CostPilot
 	Memory    Memory // nil: no cap on the agents' memory
+	// OffMachine is the machine agent's session runs on when its person set it to Off, "" otherwise (or nil: every agent runs here).
+	OffMachine func(agent string) string
 
 	said, saidClose map[string]string
 	memOver         bool // this tick's reading of the agents' memory is over the cap and not yet acted on
@@ -421,6 +423,9 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 		in.CompactBy = compactAsked(q, agent) // a note already awaited goes on as its own kind, and its handoff spends the ask
 	}
 	in.FreshDue = atWall == nil && !trig.Fired && t.Cost.FreshDue(t, agent, row)
+	if t.OffMachine != nil {
+		in.OffMachine = t.OffMachine(agent)
+	}
 	trig = chooseTrigger(in)
 	// Asking whether the note's turn is over asks the agent for the note when it was not asked yet: only when nothing else fired.
 	if kind, _, kept := must3(db.NoteWaitKept(q, agent, now)); kept && !trig.Fired {

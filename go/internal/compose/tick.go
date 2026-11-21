@@ -143,6 +143,9 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 		Observe: tickObserve{u: uenv, home: home, now: nowOf(cfg.Now), out: newLoginMemo(home)},
 		Config:  tickConfig{roster: lc.roster, set: lc.Manager.Settings},
 	}
+	if cfg.Nodes != nil {
+		t.OffMachine = cfg.Nodes.OffMachine
+	}
 	if cfg.AgentsMemory != nil {
 		t.Memory = &tickMemory{m: lc.Manager, home: home, read: cfg.AgentsMemory}
 	}

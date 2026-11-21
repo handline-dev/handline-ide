@@ -29,6 +29,9 @@ func TestChooseTriggerWeighsTheReasonsInOrder(t *testing.T) {
 		{"the trigger beats a compact ask", triggerInput{Eval: Trigger{true, "usage", "wall"}, CompactBy: "ron"}, true, "usage", "wall"},
 		{"a compact ask beats fresh", triggerInput{CompactBy: "ron", FreshDue: true}, true, "context", "compact asked"},
 		{"fresh beats the note", triggerInput{FreshDue: true, NoteKept: true, NoteKind: "cache"}, true, FreshKind, "fresh session"},
+		{"its machine set to Off hands it over", triggerInput{OffMachine: "box"}, true, "context", "box was set to Off"},
+		{"the wall beats Off", triggerInput{AtWall: wall, OffMachine: "box"}, true, "usage_7d", "Weekly limit"},
+		{"Off beats a compact ask", triggerInput{OffMachine: "box", CompactBy: "ron"}, true, "context", "set to Off"},
 	} {
 		got := chooseTrigger(c.in)
 		if got.Fired != c.fired || got.Kind != c.kind || (c.contains != "" && !strings.Contains(got.Reason, c.contains)) {

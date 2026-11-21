@@ -15,6 +15,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 | `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
+| `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?` | `{stop}` | `refused`, `bad_request` | node | not cached |
 | `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
 | `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |
 | `node.agent_files` | owner |  | `agent`, `files?`, `deleted?` | `Accepted` | `refused`, `bad_request` | node, not_on_node, path | not cached |
@@ -58,6 +59,10 @@ A runner's tracker tells the master one of its agents' turns. Only on a runner's
 ### `node.transcript`
 
 A runner sends the chat rows one line of an agent's session transcript holds. Only on a runner's link (gate `node`), for an agent whose session is on that runner (gate `not_on_node`). The master keeps the rows when chat_transcript_rows is on and drops them otherwise. Lines read while the master is away are not sent again.
+
+### `node.heartbeat`
+
+A runner says it is there: its version, load, sessions, accounts and what it has. Only on a runner's link (gate `node`). The runner sends one when its link comes up, then 15 s after each answer, so one is in flight at a time. The master keeps the newest in memory and the time as the node row's last_seen; a runner unheard for 60 s is offline, and after the reclaim time offline (node_reclaim_s, 30 minutes) its sessions are taken back. With the battery switch on (node_battery_switch), one that says it went on battery is set to Off from Run, and back to Run when it is plugged in.
 
 ### `node.tokens`
 

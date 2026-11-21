@@ -59,6 +59,8 @@ type Env struct {
 	Machine func() *sysres.Machine
 	// NodeProjects is a runner's workspaces' repos there, as node.status shows them (projects.Syncer.Of); nil shows none.
 	NodeProjects func(node string) []any
+	// NodeOnline is whether a machine of this master is online (nodes.Registry.Online); nil has only the master's own online.
+	NodeOnline func(node string) bool
 	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.
 	Claude string
 	// HealthClock keeps since when DaemonStatus.health has had its level, shared by every server of the daemon; nil is since the start.

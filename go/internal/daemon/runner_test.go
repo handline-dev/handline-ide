@@ -25,6 +25,7 @@ import (
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 )
 
@@ -316,6 +317,12 @@ func masterAndRunner(t *testing.T) (master *Daemon, node, home, hl string) {
 // masterWithRunner is masterAndRunner with the master's turn tracker (nil for none), and the runner.
 func masterWithRunner(t *testing.T, tracker *turns.Tracker) (master *Daemon, node, home, hl string, r *runner.Runner) {
 	t.Helper()
+	return masterWithRunnerAs(t, tracker, func(*runner.Config) {})
+}
+
+// masterWithRunnerAs is masterWithRunner with the runner's config as edit leaves it.
+func masterWithRunnerAs(t *testing.T, tracker *turns.Tracker, edit func(*runner.Config)) (master *Daemon, node, home, hl string, r *runner.Runner) {
+	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("no tmux")
 	}
@@ -334,8 +341,10 @@ func masterWithRunner(t *testing.T, tracker *turns.Tracker) (master *Daemon, nod
 	home, node, m := joinRunner(t, master)
 	tm := agenthost.Tmux(home).(runner.Terminals)
 	t.Cleanup(func() { exec.Command("tmux", "-L", paths.TmuxSocket(home), "kill-server").Run() })
-	r, err = runner.Start(runner.Config{Home: home, Socket: paths.SocketFile(home), Master: m, Term: tm, HL: hl, Log: t.Logf,
-		Accounts: func() []string { return []string{"alpha"} }})
+	rc := runner.Config{Home: home, Socket: paths.SocketFile(home), Sha: version.Sha, Master: m, Term: tm, HL: hl, Log: t.Logf,
+		Accounts: func() []string { return []string{"alpha"} }}
+	edit(&rc)
+	r, err = runner.Start(rc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,16 +406,19 @@ func joinRunner(t *testing.T, master *Daemon) (home, node string, m joined.Maste
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { joined.Forget(home) })
+	if _, err := master.db.Exec("UPDATE nodes SET lending = 'run' WHERE id = ?", node); err != nil { // lent: it takes sessions
+		t.Fatal(err)
+	}
 	return home, node, m
 }
 
-// linkedRunner is master's hand on node once its runner has linked.
+// linkedRunner is master's hand on node once its runner has linked and its heartbeat came.
 func linkedRunner(t *testing.T, master *Daemon, node string) *nodes.Runner {
 	t.Helper()
 	var rn *nodes.Runner
-	for end := time.Now().Add(10 * time.Second); rn == nil; time.Sleep(50 * time.Millisecond) {
-		if rn, _ = master.nodes.Runner(node); rn == nil && time.Now().After(end) {
-			t.Fatal("the runner never linked to the master")
+	for end := time.Now().Add(10 * time.Second); rn == nil || master.nodes.Takes(node) != ""; time.Sleep(50 * time.Millisecond) {
+		if rn, _ = master.nodes.Runner(node); time.Now().After(end) {
+			t.Fatalf("the runner never linked to the master and took work: %s", master.nodes.Takes(node))
 		}
 	}
 	return rn
