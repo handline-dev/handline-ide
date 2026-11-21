@@ -67,13 +67,16 @@ type Config struct {
 	Accounts func() []string
 	// Battery is whether the machine runs on its battery now, which each heartbeat says; nil reads the Mac's power source.
 	Battery func() bool
+	// Meter reads this machine's accounts' usage, which each heartbeat carries; nil reads none.
+	Meter Meter
 }
 
 // Runner is one runner daemon.
 type Runner struct {
-	cfg   Config
-	local *rpc.Server
-	ln    net.Listener
+	cfg    Config
+	local  *rpc.Server
+	meters meters // what this machine read of its accounts' usage
+	ln     net.Listener
 	// turns watches the sessions here, from their hooks and processes, and tells the master each turn (node.turn); hooks records
 	// each hook event: the tracker hears it, then the master, or the spool while the master is away.
 	turns *turns.Tracker
@@ -183,8 +186,9 @@ func Start(cfg Config) (*Runner, error) {
 		r.wg.Add(1)
 		go r.accept()
 	}
-	r.wg.Add(7)
+	r.wg.Add(8)
 	go r.heartbeats()
+	go r.meter()
 	go r.keepLinked()
 	go r.mirror()
 	go r.sendUp()

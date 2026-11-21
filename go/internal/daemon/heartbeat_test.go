@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"maps"
 	"os"
 	"os/exec"
@@ -303,5 +304,86 @@ func TestARunnersAccountFoldersAreTheBoardsAccountsByEmail(t *testing.T) {
 	}
 	if a := (team.Accounts{Home: master.cfg.Home}); a.RecordedEmail("beta") != "b@example.com" || a.LoggedIn("beta") {
 		t.Fatal("beta is the board's, with its email, logged in on the runner only")
+	}
+}
+
+// fakeMeter reads each account as its readings say; one it has none for is refused.
+type fakeMeter struct {
+	mu       sync.Mutex
+	readings map[string]*usage.Reading
+	turns    int
+}
+
+func (m *fakeMeter) Read(_ context.Context, acct string) (*usage.Reading, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	r := m.readings[acct]
+	return r, r == nil
+}
+
+func (m *fakeMeter) RunModel(context.Context, string, string, string) (bool, string, string) {
+	m.mu.Lock()
+	m.turns++
+	m.mu.Unlock()
+	return true, "", ""
+}
+
+// A runner reads its own accounts' usage and its heartbeat carries it: an account logged in only there is held to its 5-hour wall, one
+// logged in on both machines takes the newer reading, and an older one leaves the master's as it is. A login refused even after a real
+// turn is no account to start on there.
+func TestARunnersReadingsHoldItsAccountsToTheirWalls(t *testing.T) {
+	meter := &fakeMeter{}
+	master, node, home, _, r := masterWithRunnerAs(t, nil, func(c *runner.Config) { c.Accounts, c.Meter = nil, meter })
+	login := func(dir, email string) {
+		t.Helper()
+		os.MkdirAll(dir, 0o755)
+		if err := os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"`+email+`"}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mhome := master.cfg.Home
+	mdir, err := (team.Accounts{Home: mhome}).Add("main", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	login(mdir, "a@example.com")
+	for name, email := range map[string]string{"alpha": "a@example.com", "beta": "b@example.com", "gone": "g@example.com"} {
+		login(filepath.Join(paths.AccountsDir(home), paths.Unregistered, name, ".claude"), email)
+	}
+	now := time.Now().Unix()
+	at := func(acct string, when int64, short int) *usage.Reading {
+		week := 10
+		return &usage.Reading{Account: acct, At: when, Windows: []usage.ReadingWindow{
+			{Minutes: 300, Pct: &short, Reset: now + 3600}, {Minutes: 10080, Pct: &week, Reset: now + 86400}}}
+	}
+	usage.Record(mhome, *at("main", now-60, 10))
+	meter.readings = map[string]*usage.Reading{"alpha": at("alpha", now-10, 50), "beta": at("beta", now-10, 99)}
+	for range 3 {
+		r.MeterOne(t.Context())
+	}
+	if err := r.SendBeat(); err != nil {
+		t.Fatal(err)
+	}
+	env := &usage.Env{Home: mhome}
+	if got := *env.Read("main").ShortTrusted(); got != 50 {
+		t.Fatalf("main, logged in on both, reads %d%%, not the runner's newer 50%%", got)
+	}
+	if got := env.Read("beta").ShortTrusted(); got == nil || *got != 99 {
+		t.Fatalf("beta, logged in on the runner only, reads %v", got)
+	}
+	accts := master.nodes.Accounts(node)
+	if _, ok := accts["gone"]; ok || len(accts) != 2 || meter.turns != 1 {
+		t.Fatalf("a login refused after one real turn is no account there: %v (%d turns)", accts, meter.turns)
+	}
+	picked, reasons, err := env.Pick(master.db, usage.PickOpts{Candidates: []string{"beta", "main"}, Bootstrap: true})
+	if err != nil || picked != "main" {
+		t.Fatalf("picked %q (%v): %v", picked, err, reasons)
+	}
+	usage.Record(mhome, *at("main", now, 20)) // the master reads it after the runner did
+	if err := r.SendBeat(); err != nil {
+		t.Fatal(err)
+	}
+	if got := *env.Read("main").ShortTrusted(); got != 20 {
+		t.Fatalf("an older reading from the runner replaced the master's: %d%%", got)
 	}
 }
