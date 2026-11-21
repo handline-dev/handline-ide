@@ -53,12 +53,12 @@ var layer = map[string]int{
 	"filerw":            2,
 	"hlclient":          2,
 	"cluster":           2,
-	"runner":            2,
 	"clustertest":       2,
 	"inputhold":         2,
 	"taskboard/msgtest": 2,
 	// L3 model
 	"data/states":             3,
+	"runner":                  3,
 	"data/stream":             3,
 	"data/team":               3,
 	"data/team/teamtest":      3,

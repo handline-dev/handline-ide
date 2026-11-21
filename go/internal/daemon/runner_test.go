@@ -9,10 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/clustertest"
 	"github.com/handline/handline/go/internal/hlclient"
@@ -249,6 +252,12 @@ func (noSession) WaitForSession(string, int, string) bool { return false }
 // masterAndRunner is a master with bob seeded and a runner on its own home and tmux server, linked to it: the runner's node id and
 // home, and the hl binary built for them.
 func masterAndRunner(t *testing.T) (master *Daemon, node, home, hl string) {
+	master, node, home, hl, _ = masterWithRunner(t, nil)
+	return
+}
+
+// masterWithRunner is masterAndRunner with the master's turn tracker (nil for none), and the runner.
+func masterWithRunner(t *testing.T, tracker *turns.Tracker) (master *Daemon, node, home, hl string, r *runner.Runner) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
 		t.Skip("no tmux")
@@ -256,19 +265,26 @@ func masterAndRunner(t *testing.T) (master *Daemon, node, home, hl string) {
 	t.Setenv("HANDLINE_AGENT", "")
 	t.Setenv("HANDLINE_TMUX_SOCKET", "")
 	hl = filepath.Join(clustertest.Build(t), "hl")
-	master = startNet(t)
+	cfg := tlsConfig(t, t.TempDir())
+	cfg.Auth, cfg.Turns = fakeAuth{key: "k", agent: "a"}, tracker
+	master, err := Start(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(master.Close)
 	teamtest.Seed(t, master.cfg.Home, "bob")
 
 	home, node, m := joinRunner(t, master)
 	tm := agenthost.Tmux(home).(runner.Terminals)
 	t.Cleanup(func() { exec.Command("tmux", "-L", paths.TmuxSocket(home), "kill-server").Run() })
-	r, err := runner.Start(runner.Config{Home: home, Socket: paths.SocketFile(home), Master: m, Term: tm, HL: hl, Log: t.Logf})
+	r, err = runner.Start(runner.Config{Home: home, Socket: paths.SocketFile(home), Master: m, Term: tm, HL: hl, Log: t.Logf,
+		Accounts: func() []string { return []string{"alpha"} }})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(r.Close)
 	linkedRunner(t, master, node)
-	return master, node, home, hl
+	return master, node, home, hl, r
 }
 
 // node.forward is a runner's link's call only, and only for an agent whose session the master opened on that runner.
@@ -343,4 +359,106 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	clustertest.Remove() // the handlined and hl the runner test built
 	os.Exit(code)
+}
+
+// The hooks of a session on a runner reach the master's board, and the runner's own tracker tells the master the turn: bob works on
+// the master's tracker after his UserPromptSubmit on the runner and is idle after his Stop, and is unknown once his session there is
+// stopped or the runner's link ends;
+// what his session writes to its transcript there reaches the master's chat rows.
+func TestARunnersSessionShowsWorkingAndIdleOnTheMaster(t *testing.T) {
+	tracker := &turns.Tracker{}
+	master, node, home, hl, r := masterWithRunner(t, tracker)
+	rn, _ := master.nodes.Runner(node)
+	handle, err := rn.Open("bob", home, "cd "+home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob := teamtest.Key(t, master.cfg.Home, "bob") // the master's tracker holds an agent by its key, as its hooks reach it
+	becomes := func(want turns.State, what string) {
+		t.Helper()
+		for end := time.Now().Add(15 * time.Second); tracker.State(bob) != want; time.Sleep(50 * time.Millisecond) {
+			if time.Now().After(end) {
+				rows, _ := rn.Screen(handle, 20)
+				t.Fatalf("%s: bob is %v on the master, want %v; the runner shows %q", what, tracker.State(bob), want, rows)
+			}
+		}
+	}
+	os.WriteFile(filepath.Join(master.cfg.Home, "config.yaml"), []byte("chat_transcript_rows: true\n"), 0o644)
+	path := filepath.Join(home, "s1.jsonl")
+	os.WriteFile(path, nil, 0o644)
+	hook := func(event string) {
+		t.Helper()
+		payload := `{"session_id":"s1","transcript_path":"` + path + `"}`
+		if err := rn.Keys(handle, "echo '"+payload+"' | HANDLINE_AGENT=bob "+hl+" hook "+event, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hook("UserPromptSubmit")
+	becomes(turns.Working, "after UserPromptSubmit")
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"assistant","message":{"content":[{"type":"text","text":"Reading it on the runner."}]}}` + "\n")
+	f.Close()
+	for end := time.Now().Add(15 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		var text string
+		master.db.QueryRow("SELECT json_extract(body, '$.text') FROM transcript_events WHERE agent = ? AND kind = 'text'", bob).Scan(&text)
+		if text == "Reading it on the runner." {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("the runner's transcript line never reached the master's chat rows: %q", text)
+		}
+	}
+	hook("Stop")
+	becomes(turns.Idle, "after Stop")
+	var n int
+	if err := master.db.QueryRow("SELECT COUNT(*) FROM hook_applied WHERE agent = ?", bob).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("the master's board has %d of bob's hook events (%v), want 2", n, err)
+	}
+	if !master.nodes.Elsewhere(bob) {
+		t.Fatal("the master's own tracker would hear bob's hooks too")
+	}
+	if err := rn.Stop("bob"); err != nil {
+		t.Fatal(err)
+	}
+	becomes(turns.Unknown, "after his session there was stopped")
+	if handle, err = rn.Open("bob", home, "cd "+home); err != nil {
+		t.Fatal(err)
+	}
+	hook("UserPromptSubmit")
+	becomes(turns.Working, "in his next session there")
+	r.Close()
+	becomes(turns.Unknown, "after his runner's link ended")
+}
+
+// What a runner's account's transcripts gain reaches the master's token log under that account, charged to nobody here; the same
+// calls sent again count once, and a pass with nothing new sends nothing.
+func TestARunnersAccountUsageCountsOnTheMaster(t *testing.T) {
+	master, _, home, _, r := masterWithRunner(t, nil)
+	dir, err := team.AccountConfigDir(home, "alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects := filepath.Join(dir, "projects", "p")
+	os.MkdirAll(projects, 0o755)
+	line := `{"type":"assistant","requestId":"r1","sessionId":"s1","cwd":"/w","timestamp":"` + time.Now().UTC().Format(time.RFC3339) +
+		`","message":{"model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":20}}}` + "\n"
+	os.WriteFile(filepath.Join(projects, "s1.jsonl"), []byte(line), 0o644)
+	u := &usage.Env{Home: home}
+	sum := func() (n, out int) {
+		master.db.QueryRow("SELECT COUNT(*), COALESCE(SUM(out), 0) FROM token_calls WHERE account = 'alpha'").Scan(&n, &out)
+		return
+	}
+	if err := r.SendTokens(u); err != nil {
+		t.Fatal(err)
+	}
+	if n, out := sum(); n != 1 || out != 20 {
+		t.Fatalf("the master counts %d calls, %d out", n, out)
+	}
+	os.Remove(runner.TokensFile(home)) // the positions lost: the same calls go again
+	if err := r.SendTokens(u); err != nil {
+		t.Fatal(err)
+	}
+	if n, out := sum(); n != 1 || out != 20 {
+		t.Fatalf("sent twice, the master counts %d calls, %d out", n, out)
+	}
 }

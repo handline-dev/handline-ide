@@ -3,6 +3,7 @@ package daemon
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -222,7 +223,7 @@ func Start(cfg Config) (*Daemon, error) {
 	if cfg.Turns != nil {
 		cfg.Turns.Agent = func(handle string) string { a, _ := dbpkg.AgentOfTerminal(db, handle); return a }
 		cfg.Turns.Lines = func(agent, session string) func([]byte) {
-			if !(&settings.Settings{Home: cfg.Home}).Flag(settings.TranscriptRowsKey, false) {
+			if !transcriptRows(cfg.Home) {
 				return nil
 			}
 			return func(line []byte) {
@@ -241,13 +242,29 @@ func Start(cfg Config) (*Daemon, error) {
 	d.nodes.Log = cfg.Log
 	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
 	d.nodes.OnLink = d.projects.Node
+	d.nodes.Turns = cfg.Turns
+	d.nodes.Tokens = func(account string, raw json.RawMessage) error {
+		var calls []usage.Call
+		if err := json.Unmarshal(raw, &calls); err != nil {
+			return rpc.BadRequestError("calls are the calls read: "+err.Error(), "calls", rpc.InvalidParams)
+		}
+		return (&usage.Env{Home: cfg.Home}).SaveCalls(db, account, calls)
+	}
+	d.nodes.Transcript = func(agent, session string, at int64, rows []transcript.Row) {
+		if !transcriptRows(cfg.Home) {
+			return
+		}
+		if err := transcript.Write(db, agent, session, at, rows); err != nil {
+			cfg.Log("  nodes: %s: transcript rows not stored: %v", agent, err)
+		}
+	}
 	if cfg.OnOpen != nil {
 		cfg.OnOpen(db, d.env(), d.nodes)
 	}
 	global, _ := usage.LoadConfig(cfg.Home)[handoff.PromptKey].(string)
 	handoff.LogCustomPrompts(cfg.Home, global, handoff.OwnPrompts(cfg.Home), cfg.Log)
 	team.RemoveEmptyJournals(cfg.Home, cfg.Log)
-	d.hooks = &hooks.Recorder{DB: db, Home: cfg.Home, Log: cfg.Log, Turns: cfg.Turns}
+	d.hooks = &hooks.Recorder{DB: db, Home: cfg.Home, Log: cfg.Log, Turns: cfg.Turns, Elsewhere: d.nodes.Elsewhere}
 	hookEnv := &session.Env{DB: db, Home: cfg.Home}
 	d.hooks.Nudge = hookEnv.FounderNudge
 	d.files = &filerw.Env{DB: db, Log: cfg.Log}
@@ -911,4 +928,9 @@ func (d *Daemon) linkRunner(next func(*rpc.Conn, map[string]any) (any, error)) f
 		}
 		return res, nil
 	}
+}
+
+// transcriptRows is whether chat keeps the rows of agents' session transcripts (chat_transcript_rows).
+func transcriptRows(home string) bool {
+	return (&settings.Settings{Home: home}).Flag(settings.TranscriptRowsKey, false)
 }

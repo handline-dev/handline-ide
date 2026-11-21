@@ -13,16 +13,26 @@ const (
 	Keep      = 4000
 )
 
-// row is one transcript_events row before it is numbered: its kind and body, in the shape Replies and Tools read.
-type row struct {
-	kind string
-	body map[string]any
+// Row is one transcript_events row before it is numbered: its kind and body, in the shape Replies and Tools read.
+type Row struct {
+	Kind string         `json:"kind"`
+	Body map[string]any `json:"body"`
 }
 
 // Record stores what one line of a Claude Code session transcript holds for chat: an assistant entry's text blocks (kind text, each a
 // reply item) and tool calls (tool_use), and a user entry's tool results (tool_result, their output cut to ResultMax). Any other line, and
 // a subagent's, stores nothing.
 func Record(q *sql.DB, agent, session string, line []byte) error {
+	at, rows := Rows(line)
+	if len(rows) == 0 {
+		return nil
+	}
+	return Write(q, agent, session, at, rows)
+}
+
+// Rows is what Record stores of line, and when the line was written; none for a line that holds nothing for chat. A runner reads its
+// sessions' lines with it, and the master writes the rows (Write).
+func Rows(line []byte) (at int64, rows []Row) {
 	var e struct {
 		Type      string `json:"type"`
 		Sidechain bool   `json:"isSidechain"`
@@ -32,7 +42,7 @@ func Record(q *sql.DB, agent, session string, line []byte) error {
 		} `json:"message"`
 	}
 	if json.Unmarshal(line, &e) != nil || e.Sidechain || (e.Type != "assistant" && e.Type != "user") {
-		return nil
+		return 0, nil
 	}
 	var parts []struct {
 		Type      string          `json:"type"`
@@ -45,29 +55,25 @@ func Record(q *sql.DB, agent, session string, line []byte) error {
 		IsError   bool            `json:"is_error"`
 	}
 	if json.Unmarshal(e.Message.Content, &parts) != nil { // a plain-string content is a person's prompt, which chat has already
-		return nil
+		return 0, nil
 	}
-	var rows []row
 	for _, p := range parts {
 		switch {
 		case e.Type == "assistant" && p.Type == "text" && strings.TrimSpace(p.Text) != "":
-			rows = append(rows, row{"text", map[string]any{"text": p.Text}})
+			rows = append(rows, Row{"text", map[string]any{"text": p.Text}})
 		case e.Type == "assistant" && p.Type == "tool_use" && p.ID != "":
-			rows = append(rows, row{"tool_use", map[string]any{"tool_use": map[string]any{"id": p.ID, "tool": p.Name, "input": p.Input}}})
+			rows = append(rows, Row{"tool_use", map[string]any{"tool_use": map[string]any{"id": p.ID, "tool": p.Name, "input": p.Input}}})
 		case e.Type == "user" && p.Type == "tool_result" && p.ToolUseID != "":
 			text, dropped := FitOutput(resultText(p.Content), ResultMax)
-			rows = append(rows, row{"tool_result", map[string]any{"tool_result": map[string]any{
+			rows = append(rows, Row{"tool_result", map[string]any{"tool_result": map[string]any{
 				"tool_use_id": p.ToolUseID, "ok": !p.IsError, "text": text, "truncated": dropped > 0, "dropped_lines": dropped}}})
 		}
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	at := time.Now().Unix()
+	at = time.Now().Unix()
 	if ts, err := time.Parse(time.RFC3339Nano, e.Timestamp); err == nil {
 		at = ts.Unix()
 	}
-	return write(q, agent, session, at, rows)
+	return at, rows
 }
 
 // resultText is a tool result's content as text: a string as it is, a list of blocks as their text parts joined by newlines.
@@ -87,8 +93,8 @@ func resultText(raw json.RawMessage) string {
 	return strings.Join(texts, "\n")
 }
 
-// write numbers rows after the agent's newest and stores them in one transaction; a text row carries its reply item id.
-func write(q *sql.DB, agent, session string, at int64, rows []row) (err error) {
+// Write numbers rows after the agent's newest and stores them in one transaction; a text row carries its reply item id.
+func Write(q *sql.DB, agent, session string, at int64, rows []Row) (err error) {
 	tx, err := q.Begin()
 	if err != nil {
 		return err
@@ -105,15 +111,15 @@ func write(q *sql.DB, agent, session string, at int64, rows []row) (err error) {
 	for _, r := range rows {
 		seq++
 		var item any
-		if r.kind == "text" {
+		if r.Kind == "text" {
 			item = ItemID(at, ItemReply, seq*2) // as the structured sessions' writer numbered them
 		}
-		body, err := json.Marshal(r.body)
+		body, err := json.Marshal(r.Body)
 		if err != nil {
 			return err
 		}
 		if _, err = tx.Exec("INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES(?,?,?,NULL,?,?,?,?)",
-			agent, seq, session, at, r.kind, item, string(body)); err != nil {
+			agent, seq, session, at, r.Kind, item, string(body)); err != nil {
 			return err
 		}
 		if seq%500 == 0 {

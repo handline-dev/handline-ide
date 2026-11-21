@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -36,11 +37,13 @@ const (
 
 // Call is one transcript line that carries a call's usage.
 type Call struct {
-	Session, Req string
-	TS           int64
-	Model, Cwd   string
-	Side         int
-	Tokens       Tokens
+	Session string `json:"session"`
+	Req     string `json:"req"`
+	TS      int64  `json:"ts"`
+	Model   string `json:"model"`
+	Cwd     string `json:"cwd"`
+	Side    int    `json:"side"`
+	Tokens  Tokens `json:"tokens"`
 }
 
 // callTS is tokenlog._ts: an ISO-8601 stamp with an offset, in unix seconds; one without an offset is not a time we can place.
@@ -158,21 +161,9 @@ type transcript struct {
 }
 
 // IngestTokens is tokenlog.ingest: read what the account's transcripts gained since the last call, up to budget bytes, and record it.
-// It answers the lines that parsed as a call, which is more than the rows written when one streamed over several. A file is read from
-// where it stopped, and only up to its last whole line. Only regular files are read: a link is not followed out of the projects tree.
-// The read position of a file that is gone is dropped, unless part of the tree could not be read.
+// It answers the lines that parsed as a call, which is more than the rows written when one streamed over several. The read positions
+// are kept in the board's meta.
 func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
-	if team.AccountVendor(e.Home, acct) != team.DefaultVendor {
-		return 0, nil
-	}
-	dir, err := team.AccountConfigDir(e.Home, acct)
-	if err != nil {
-		return 0, nil
-	}
-	root := filepath.Join(dir, "projects")
-	if st, err := os.Stat(root); err != nil || !st.IsDir() {
-		return 0, nil
-	}
 	raw, _, err := db.Meta(q, offsetsMeta+acct)
 	if err != nil {
 		return 0, err
@@ -181,11 +172,52 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 	if raw == "" || !decodeObject(raw, &kept) || kept == nil {
 		kept = map[string]any{}
 	}
-	fresh := int64(e.now()) - BackfillDays*86400
-	owners, err := e.CallOwners(q)
-	if err != nil {
+	calls, moved, ok := e.NewCalls(acct, kept, budget)
+	if !ok {
+		return 0, nil
+	}
+	if err := e.SaveCalls(q, acct, calls); err != nil {
 		return 0, err
 	}
+	b, err := json.Marshal(moved)
+	if err != nil {
+		return len(calls), err
+	}
+	return len(calls), db.SetMeta(q, offsetsMeta+acct, string(b))
+}
+
+// SaveCalls records calls as the account's, each charged to the agent and task whose session made it.
+func (e *Env) SaveCalls(q db.Q, acct string, calls []Call) error {
+	if len(calls) == 0 {
+		return nil
+	}
+	owners, err := e.CallOwners(q)
+	if err != nil {
+		return err
+	}
+	return saveCalls(q, acct, calls, owners, int64(e.now()))
+}
+
+// NewCalls is what the account's transcripts gained since the read positions kept (by file, relative to its projects tree), up to
+// budget bytes, and the positions after it; ok is false for an account with no Claude transcripts here. It needs no board: a runner
+// reads its own accounts with it and keeps the positions itself. A file is read from where it stopped, and only up to its last whole
+// line. Only regular files are read: a link is not followed out of the projects tree. The position of a file that is gone is dropped,
+// unless part of the tree could not be read.
+func (e *Env) NewCalls(acct string, kept map[string]any, budget int) (calls []Call, moved map[string]any, ok bool) {
+	if team.AccountVendor(e.Home, acct) != team.DefaultVendor {
+		return nil, kept, false
+	}
+	dir, err := team.AccountConfigDir(e.Home, acct)
+	if err != nil {
+		return nil, kept, false
+	}
+	root := filepath.Join(dir, "projects")
+	if st, err := os.Stat(root); err != nil || !st.IsDir() {
+		return nil, kept, false
+	}
+	moved = make(map[string]any, len(kept))
+	maps.Copy(moved, kept)
+	fresh := int64(e.now()) - BackfillDays*86400
 	var todo []transcript
 	seen, partial := map[string]bool{}, false
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -204,19 +236,19 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 		}
 		seen[key] = true
 		var done int64
-		if f, ok := num(kept[key]); ok {
+		if f, ok := num(moved[key]); ok {
 			done = int64(f)
 		}
-		_, known := kept[key]
+		_, known := moved[key]
 		if info.Size() > done && (known || info.ModTime().Unix() >= fresh) {
 			todo = append(todo, transcript{key, p, info.ModTime().UnixNano(), done})
 		}
 		return nil
 	})
 	if !partial {
-		for key := range kept {
+		for key := range moved {
 			if !seen[key] {
-				delete(kept, key)
+				delete(moved, key)
 			}
 		}
 	}
@@ -226,7 +258,6 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 		}
 		return todo[i].key > todo[j].key
 	})
-	n := 0
 	for _, t := range todo {
 		if budget <= 0 {
 			break
@@ -234,32 +265,21 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 		chunk, end, skip := readWhole(t.path, t.done, budget)
 		if skip > 0 {
 			budget -= skip
-			kept[t.key] = t.done + int64(skip)
+			moved[t.key] = t.done + int64(skip)
 			continue
 		}
 		if end == 0 {
 			continue
 		}
 		budget -= end
-		var calls []Call
 		for _, line := range bytes.Split(chunk[:end], []byte("\n")) {
 			if c, ok := ParseCall(line); ok {
 				calls = append(calls, c)
 			}
 		}
-		if len(calls) > 0 {
-			if err := saveCalls(q, acct, calls, owners, int64(e.now())); err != nil {
-				return n, err
-			}
-			n += len(calls)
-		}
-		kept[t.key] = t.done + int64(end)
+		moved[t.key] = t.done + int64(end)
 	}
-	b, err := json.Marshal(kept)
-	if err != nil {
-		return n, err
-	}
-	return n, db.SetMeta(q, offsetsMeta+acct, string(b))
+	return calls, moved, true
 }
 
 // readWhole reads up to budget bytes of the file from off and answers them with the length of the whole lines among them. A record

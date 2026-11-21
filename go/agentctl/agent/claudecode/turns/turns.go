@@ -88,7 +88,8 @@ type turn struct {
 	ended      bool          // SessionEnd or the process's exit ended the session, and no launch or SessionStart came since
 	changed    chan struct{} // closed on every change
 	unwatch    func()
-	pid        int // the session process watched for its exit
+	pid        int  // the session process watched for its exit
+	live       bool // the tracker of the machine it runs on watches its process (SetView)
 	unwatchPid func()
 	// doing is the running turn's newest tool call shown, nextDoing one seen and not shown yet (release shows it); gen counts the turns
 	// whose calls were forgotten, so a release of an earlier turn shows nothing.
@@ -217,6 +218,7 @@ func (t *Tracker) hook(tr *turn, agent, event string, raw map[string]any, at int
 		return
 	}
 	tr.ended = event == "SessionEnd" // any other hook is a session speaking
+	tr.live = false                  // its hooks reach this tracker: the session is watched here
 	switch event {
 	case "SessionStart", "SessionEnd":
 		tr.stopWatch()
@@ -448,7 +450,7 @@ func (t *Tracker) Session(handle string) (running, known bool) {
 	switch tr := t.agents[agent]; {
 	case tr == nil:
 		return false, false
-	case tr.pid != 0:
+	case tr.pid != 0 || tr.live:
 		return true, true
 	case tr.ended:
 		return false, true

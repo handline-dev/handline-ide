@@ -12,7 +12,10 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.set` | member | yes | `device`, `lending`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
 | `device.push_token` | member | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 | `node.status` | agent |  | none | `{master, nodes}` |  |  | `nodes`, fed by nodes |
-| `node.forward` | owner |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
+| `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
+| `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
+| `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
+| `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
 | `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |
 | `node.agent_files` | owner |  | `agent`, `files?`, `deleted?` | `Accepted` | `refused`, `bad_request` | node, not_on_node, path | not cached |
 
@@ -46,7 +49,19 @@ The machines of this master, its own first. Read only. The master's own machine 
 
 ### `node.forward`
 
-A runner's call for one of its agents, run on the master as that agent. Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`); never hello, a node.* or runner.* call, subscribe or unsubscribe (gate `method`). The answer comes back with its paths under the master's home made the runner's.
+A runner's call for one of its agents, run on the master as that agent. Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`); never hello, a node.* or runner.* call, subscribe or unsubscribe (gate `method`). The answer comes back with its paths under the master's home made the runner's. A runner lent by a member calls it with that member's device token.
+
+### `node.turn`
+
+A runner's tracker tells the master one of its agents' turns. Only on a runner's link (gate `node`), for an agent whose session is on that runner (gate `not_on_node`). Sent on each change of the turn and for every session when the link starts. The master's readers (the agent's view, an idle wait) see that agent as one of its own; when its session there stops or the link ends, its turn goes back to unknown.
+
+### `node.transcript`
+
+A runner sends the chat rows one line of an agent's session transcript holds. Only on a runner's link (gate `node`), for an agent whose session is on that runner (gate `not_on_node`). The master keeps the rows when chat_transcript_rows is on and drops them otherwise. Lines read while the master is away are not sent again.
+
+### `node.tokens`
+
+A runner sends the calls one of its accounts' transcripts gained. Only on a runner's link (gate `node`). The master counts the calls in its usage under that account, each charged to the agent whose session made it; a call sent again counts once (by account, session and request). The runner moves its read positions only once the master has answered. Any linked runner may send for any account name: the runner is the person's own lent machine, so this is not checked against the node.
 
 ### `node.launch`
 
