@@ -39,17 +39,17 @@ vi.mock('#src/settings/data/machine.ts', () => ({
     working: 0,
   }),
 }));
-import { MachineTab } from '#src/settings/MachineTab.tsx';
+import { MachineSections } from '#src/settings/MachineSections.tsx';
 
 let root: Root;
 afterEach(() => act(() => root.unmount()));
 
-describe('Settings > This Mac', () => {
+describe("Settings > Devices, the master's own Mac", () => {
   it("names the running agents and a shared run's holders and waiters, not their keys, and its workspace by name", async () => {
     const el = document.createElement('div');
     document.body.append(el);
     root = createRoot(el);
-    await act(async () => root.render(<MachineTab />));
+    await act(async () => root.render(<MachineSections />));
     const text = el.textContent ?? '';
     for (const word of ['web-settings', 'lander', 'architect']) expect(text).toContain(word);
     for (const key of ['a-7', 'a-9', 'a-2']) expect(text).not.toContain(key);

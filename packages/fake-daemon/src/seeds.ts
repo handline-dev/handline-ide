@@ -2,6 +2,7 @@
 import type { FakeDaemon } from '#src/daemon.ts';
 import { task } from '#src/seedkit.ts';
 import { CHAT_SEEDS } from '#src/seeds-chat.ts';
+import { DEVICE_SEEDS } from '#src/seeds-devices.ts';
 import { LEARNING_SEEDS } from '#src/seeds-learning.ts';
 import { PROPOSAL_SEEDS } from '#src/seeds-proposals.ts';
 import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
@@ -385,6 +386,7 @@ export const SEEDS: Record<string, Seed> = {
   ...REQUEST_SEEDS,
   ...STORY_SEEDS,
   ...CHAT_SEEDS,
+  ...DEVICE_SEEDS,
   ...LEARNING_SEEDS,
 };
 
