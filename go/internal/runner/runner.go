@@ -270,6 +270,14 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	}
 	var l *rpc.Link
 	l = rpc.NewLink(rpc.NewWSTransport(ws), func(method string, p map[string]any) (any, error) {
+		r.mu.Lock() // Close waits for the calls under way, so none writes in the home after it
+		if r.stopped {
+			r.mu.Unlock()
+			return nil, rpc.Refused("the runner is stopping", "state", "")
+		}
+		r.wg.Add(1)
+		r.mu.Unlock()
+		defer r.wg.Done()
 		if method == "runner.attach" { // its stream's notices go up this link, and end with it
 			return r.attach(p, l.Notify)
 		}
