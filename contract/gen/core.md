@@ -41,7 +41,7 @@ The viewer, the device, the role and the methods allowed.
 
 ### `subscribe`
 
-Turn the connection into a stream of `event` notices; replays after `since` first, unless `resume` is latest. topics is a non-empty list of known topics, else -32602 bad_request naming `topics`. Notices start only after this reply is sent. devices is subscribed on its own, by the founder: a topics list naming devices and any other topic is -32602 bad_request naming `topics`, because devices is live only and every other topic has a cursor. A devices subscription is live only: `since` and `agent` are ignored, the reply cursor is 0, its events carry cursor 0, and a client that reconnects reads devices.list again.
+Turn the connection into a stream of `event` notices; replays after `since` first, unless `resume` is latest. topics is a non-empty list of known topics, else -32602 bad_request naming `topics`. Notices start only after this reply is sent. devices is for the founder and may be named with any other topics. It is live only: `since` does not replay it, its events carry cursor 0, a subscribe naming devices alone answers cursor 0, and a client that reconnects reads devices.list again. A subscribe replaces this connection's earlier subscriptions whose topics it all names again, so a client that sends every topic it follows each time gets each event once.
 
 ### `unsubscribe`
 

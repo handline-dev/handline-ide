@@ -130,27 +130,26 @@ func TestDevicesEventsReachAFounderSubscriber(t *testing.T) {
 	}
 }
 
-func TestDevicesIsSubscribedAloneAndByTheFounderAndAPairedDevice(t *testing.T) {
+func TestDevicesRidesWithOtherTopicsForTheFounderAndAPairedDevice(t *testing.T) {
 	d := startStream(t)
 	fo := pipeTo(t, d, "k")
 	for _, topics := range []string{`["devices","tasks"]`, `["tasks","devices"]`} {
-		e := fo.ask(`{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":` + topics + `}}`)["error"].(map[string]any)
-		if e["code"].(float64) != -32602 || e["data"].(map[string]any)["field"] != "topics" {
-			t.Fatalf("%s: %v", topics, e)
+		if r := fo.ask(`{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":` + topics + `}}`); r["result"] == nil {
+			t.Fatalf("%s: %v", topics, r)
 		}
 	}
-	if e := fo.ask(`{"jsonrpc":"2.0","id":3,"method":"unsubscribe","params":{"topics":["devices","proposals"]}}`)["error"]; e == nil {
-		t.Fatal("unsubscribe with devices and another topic")
+	if r := fo.ask(`{"jsonrpc":"2.0","id":3,"method":"unsubscribe","params":{"topics":["devices","proposals"]}}`); r["result"] == nil {
+		t.Fatalf("unsubscribe with devices and another topic: %v", r)
 	}
 	m := helloAs(t, d, mustPair(t, d))
-	if r := m.ask(`{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":["devices"]}}`); r["result"] == nil { // a paired device is the founder
-		t.Fatalf("%v", r)
-	}
-	if r := m.ask(`{"jsonrpc":"2.0","id":3,"method":"subscribe","params":{"topics":["devices","tasks"]}}`)["error"].(map[string]any); r["data"].(map[string]any)["field"] != "topics" {
-		t.Fatalf("%v", r)
-	}
-	if r := m.ask(`{"jsonrpc":"2.0","id":4,"method":"unsubscribe","params":{"topics":["devices"]}}`); r["result"] == nil {
-		t.Fatalf("a stop is not refused: %v", r)
+	for _, call := range []string{
+		`{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":["devices"]}}`, // a paired device is the founder
+		`{"jsonrpc":"2.0","id":3,"method":"subscribe","params":{"topics":["devices","tasks"]}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"unsubscribe","params":{"topics":["devices"]}}`,
+	} {
+		if r := m.ask(call); r["result"] == nil {
+			t.Fatalf("%s: %v", call, r)
+		}
 	}
 }
 
