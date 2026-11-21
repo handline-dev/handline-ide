@@ -178,7 +178,7 @@ export class FakeDaemon {
 
   /** Public so a test can make changes while no client is connected. */
   emit(topic: Topic, type: string, f: { agent?: string; actor?: Actor; title?: string; data?: Record<string, unknown> } = {}) {
-    const e = this.log.append({
+    const fields = {
       topic,
       type,
       at: this.iso(),
@@ -187,7 +187,9 @@ export class FakeDaemon {
       title: f.title ?? null,
       target: f.agent ? { screen: 'agent', id: f.agent } : null,
       data: f.data ?? {},
-    });
+    };
+    // devices is live only, as the daemon's: cursor 0 and never in the log
+    const e = topic === 'devices' ? { cursor: 0, ...fields } : this.log.append(fields);
     for (const c of this.conns) if (c.topics?.has(topic)) this.notify(c, 'event', e);
     if (type === 'agent.removed' && f.agent) this.admin.prefs.forget(f.agent);
   }
