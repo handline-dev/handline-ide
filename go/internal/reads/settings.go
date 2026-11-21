@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/keepawake"
@@ -145,6 +146,8 @@ func (e *Env) settingsValues() map[string]any {
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),
 		worktreepool.DiskKeepFreeKey:    worktreepool.GB(cfg, worktreepool.DiskKeepFreeKey) >> 30,
 		worktreepool.AgentsMemoryMaxKey: worktreepool.GB(cfg, worktreepool.AgentsMemoryMaxKey) >> 30,
+		nodes.BatteryKey:                s.Flag(nodes.BatteryKey, false),
+		nodes.ReclaimKey:                s.ConfigSeconds(nodes.ReclaimKey, nodes.ReclaimS),
 		usage.NetworkAddressesKey:       hostsSetting(cfg[usage.NetworkAddressesKey]),
 		leases.PortRangeKey:             portRangeSetting(cfg),
 	}

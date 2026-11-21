@@ -25,10 +25,11 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(v)
+	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null`
 	want := `{"master":{"id":"` + id + `","number":1},"nodes":[` +
-		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run"},` +
-		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause"},` +
-		`{"id":"bbbb","person":"p1","name":"run","joined_at":"1970-01-01T00:01:00Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"run"}]}`
+		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run",` + none + `},` +
+		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause",` + none + `},` +
+		`{"id":"bbbb","person":"p1","name":"run","joined_at":"1970-01-01T00:01:00Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"run",` + none + `}]}`
 	if !sameJSON(string(b), want) {
 		t.Fatalf("%s", b)
 	}
