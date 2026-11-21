@@ -64,6 +64,24 @@ export type Node = {
     agent: string;
     why: string;
   }[];
+  /** The paired device (devices.list id) a lent machine joined as; null on the master's own row. */
+  device?: string | null;
+  /** This lent machine's own cap on its agents' memory, in GB (device.set): at it, no new session starts there. null where agents_memory_max_gb applies, as it always does on the master's own row. */
+  memory_max_gb?: number | null;
+  /** A lent machine's newest heartbeat's measures, 0 for one it could not read; null on the master's own row (DaemonStatus has its own) and before its first heartbeat since the master started. */
+  load?: {
+    cores: number;
+    /** The 1-minute load average. */
+    load1: number;
+    /** Bytes. */
+    ram_total: number;
+    /** Bytes. */
+    ram_free: number;
+    /** Bytes its agents' sessions use. */
+    agents_rss: number;
+  } | null;
+  /** A lent machine runs on its battery now, from its newest heartbeat; null as load is. */
+  battery?: boolean | null;
 };
 
 export interface DevicesMethods {
@@ -109,7 +127,8 @@ export interface DevicesMethods {
 }; result: Accepted };
   "device.set": { params: {
   device: string;
-  lending: "run" | "pause" | "off";
+  lending?: "run" | "pause" | "off";
+  memory_max_gb?: number | null;
   request_id: RequestId;
 }; result: Accepted };
   "device.push_token": { params: {

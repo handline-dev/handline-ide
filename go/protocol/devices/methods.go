@@ -1,6 +1,8 @@
 package devices
 
 import (
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -139,18 +141,41 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		if !ok {
 			return nil, rpc.BadRequestError("device is a string", "device", rpc.InvalidParams)
 		}
-		lending, _ := p["lending"].(string)
-		if !Lendings[lending] {
-			return nil, rpc.BadRequestError("lending is run, pause or off", "lending", rpc.InvalidParams)
+		var n NodeSet
+		if v, has := p["lending"]; has {
+			if n.Lending, _ = v.(string); !Lendings[n.Lending] {
+				return nil, rpc.BadRequestError("lending is run, pause or off", "lending", rpc.InvalidParams)
+			}
+		}
+		if v, has := p["memory_max_gb"]; has {
+			var gb int64 // null: back to agents_memory_max_gb
+			if v != nil {
+				num, _ := v.(json.Number)
+				var err error
+				if gb, err = num.Int64(); err != nil || gb < 1 || gb > MemoryMaxGB {
+					return nil, rpc.BadRequestError(fmt.Sprintf("memory_max_gb is a whole number of GB from 1 to %d, or null for the master's agents_memory_max_gb", MemoryMaxGB), "memory_max_gb", rpc.InvalidParams)
+				}
+			}
+			n.MemoryMaxGB = &gb
+		}
+		if n.Lending == "" && n.MemoryMaxGB == nil {
+			return nil, rpc.BadRequestError("device.set takes lending, memory_max_gb or both", "device", rpc.InvalidParams)
 		}
 		if m == nil {
 			return nil, rpc.NotFoundError("no such device: " + id)
 		}
-		d, err := m.SetLending(id, lending, personOf(c))
+		d, err := m.SetNode(id, personOf(c), n)
 		if err != nil {
 			return nil, err
 		}
-		emit("device.changed", m.Row(d), c.Caller.ActorInfo(), d.Name+" set to "+lending)
+		var what []string
+		if n.Lending != "" {
+			what = append(what, "set to "+n.Lending)
+		}
+		if n.MemoryMaxGB != nil {
+			what = append(what, "memory cap changed")
+		}
+		emit("device.changed", m.Row(d), c.Caller.ActorInfo(), d.Name+" "+strings.Join(what, ", "))
 		return map[string]any{"accepted": true}, nil
 	}})
 	s.Register("device.push_token", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {

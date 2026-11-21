@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
 )
 
@@ -159,5 +161,60 @@ func TestJoinRedeemsTheLinkPinnedToItsFingerprintAndKeepsTheMaster(t *testing.T)
 	d.db.QueryRow("SELECT lending FROM nodes WHERE device = ?", m.Device).Scan(&lending)
 	if lending != "off" {
 		t.Fatalf("joined on %q", lending)
+	}
+}
+
+// node.status names the device each lent machine joined as, null on the master's own row, and the memory cap device.set gives it;
+// load and battery are null before a heartbeat. The battery switch and the reclaim time are settings.
+func TestNodeStatusNamesEachMachinesDeviceAndItsOwnMemoryCap(t *testing.T) {
+	d := startNet(t)
+	code, _, _, _ := d.dev.Pair(time.Minute)
+	box := joinAs(t, d, code, "box", "server", "n-box")["result"].(map[string]any)
+	c := helloAs(t, d, box["token"].(string))
+	dev := box["device"].(string)
+	row := func(id string) map[string]any {
+		for _, n := range c.ask(`{"jsonrpc":"2.0","id":5,"method":"node.status","params":{}}`)["result"].(map[string]any)["nodes"].([]any) {
+			if r := n.(map[string]any); r["id"] == id {
+				return r
+			}
+		}
+		t.Fatalf("no row for %s", id)
+		return nil
+	}
+	setMem := func(v string) map[string]any {
+		return c.ask(`{"jsonrpc":"2.0","id":7,"method":"device.set","params":{"device":"` + dev + `","memory_max_gb":` + v +
+			`,"request_id":"mem-` + v + `"}}`)
+	}
+	set(c, dev, "run")
+	if r := row("n-box"); r["device"] != dev || r["memory_max_gb"] != nil || r["load"] != nil || r["battery"] != nil {
+		t.Fatalf("the lent machine's row: %v", r)
+	}
+	if r := row(joined.NodeIDOf(d.cfg.Home)); r["device"] != nil {
+		t.Fatalf("the master's own row names a device: %v", r)
+	}
+	d.nodes.Hear("n-box", runner.Beat{Battery: true, Load: runner.Load{Cores: 8, Load1: 1.5, RAMTotal: 16 << 30, RAMFree: 4 << 30, AgentsRSS: 2 << 30}}, time.Now())
+	if r := row("n-box"); r["battery"] != true || fmt.Sprint(r["load"]) != "map[agents_rss:2.147483648e+09 cores:8 load1:1.5 ram_free:4.294967296e+09 ram_total:1.7179869184e+10]" {
+		t.Fatalf("after a heartbeat: load %v, battery %v", r["load"], r["battery"])
+	}
+	if r := setMem("6"); r["result"] == nil || row("n-box")["memory_max_gb"] != float64(6) || row("n-box")["lending"] != "run" {
+		t.Fatalf("memory_max_gb 6: %v %v", r, row("n-box"))
+	}
+	if r := setMem("0"); r["error"] == nil {
+		t.Fatalf("a cap of 0 GB was taken: %v", r)
+	}
+	if r := setMem("null"); r["result"] == nil || row("n-box")["memory_max_gb"] != nil {
+		t.Fatalf("null did not put it back to the master's cap: %v %v", r, row("n-box"))
+	}
+
+	got := c.ask(`{"jsonrpc":"2.0","id":8,"method":"settings.get","params":{}}`)["result"].(map[string]any)["values"].(map[string]any)
+	if got["node_battery_switch"] != false || got["node_reclaim_s"] != float64(1800) {
+		t.Fatalf("settings.get: battery %v, reclaim %v", got["node_battery_switch"], got["node_reclaim_s"])
+	}
+	if r := c.ask(`{"jsonrpc":"2.0","id":9,"method":"settings.set","params":{"changes":{"node_battery_switch":true,"node_reclaim_s":600},"request_id":"s-1"}}`); r["result"] == nil {
+		t.Fatalf("settings.set: %v", r)
+	}
+	got = c.ask(`{"jsonrpc":"2.0","id":8,"method":"settings.get","params":{}}`)["result"].(map[string]any)["values"].(map[string]any)
+	if got["node_battery_switch"] != true || got["node_reclaim_s"] != float64(600) {
+		t.Fatalf("after settings.set: battery %v, reclaim %v", got["node_battery_switch"], got["node_reclaim_s"])
 	}
 }
