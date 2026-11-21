@@ -174,15 +174,8 @@ func (e *Env) folderClone(c *rpc.Conn, p map[string]any) (any, error) {
 	return wrote(c, shown(src)+" is cloned into "+path, map[string]any{"path": path})
 }
 
-// noPrompts is the environment of a git the daemon runs with no one at it: neither git nor ssh asks for anything, so what needs a
-// password or a new host key fails at once; and git uses no transport but cloneProtocols, the submodules' and redirects' too.
-func noPrompts() []string {
-	env := []string{"GIT_ALLOW_PROTOCOL=" + strings.Join(cloneProtocols, ":"), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "GIT_ASKPASS=", "SSH_ASKPASS="}
-	if os.Getenv("GIT_SSH_COMMAND") == "" && gitrun.Run("", "config", "--get", "core.sshCommand").RC != 0 {
-		env = append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
-	}
-	return env
-}
+// noPrompts is gitrun.NoPrompts with the transports a clone may use.
+func noPrompts() []string { return gitrun.NoPrompts(cloneProtocols) }
 
 // callContext ends at limit or when the caller hangs up.
 func callContext(c *rpc.Conn, limit time.Duration) (context.Context, context.CancelFunc) {

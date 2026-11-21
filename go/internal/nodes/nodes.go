@@ -30,6 +30,8 @@ type Registry struct {
 	Home   string
 	Launch LaunchFunc
 	Log    func(format string, a ...any)
+	// OnLink, when set, is told each time a node links (it joined, or came back), off the hello that linked it.
+	OnLink func(node string)
 	mu     sync.Mutex
 	links  map[string]*rpc.Conn
 	homes  map[*rpc.Conn]string // each link's runner's home, once asked
@@ -55,6 +57,20 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 		}
 		delete(r.homes, c)
 	})
+	if r.OnLink != nil {
+		go r.OnLink(node)
+	}
+}
+
+// Linked is the nodes linked now.
+func (r *Registry) Linked() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, 0, len(r.links))
+	for node := range r.links {
+		out = append(out, node)
+	}
+	return out
 }
 
 // NodeOf is the node whose link c is; "" for any other connection.
@@ -145,6 +161,12 @@ func (r *Runner) Stop(agent string) error {
 // MakeWorktree makes a worktree of remote at path on branch, from base when the branch is new.
 func (r *Runner) MakeWorktree(remote, path, branch, base string) error {
 	_, err := r.c.Call("runner.worktree.make", map[string]any{"remote": remote, "path": path, "branch": branch, "base": base}, GitWait)
+	return err
+}
+
+// SyncProject has the runner clone remote, or fetch it when it has it.
+func (r *Runner) SyncProject(remote string) error {
+	_, err := r.c.Call("runner.project.sync", map[string]any{"remote": remote}, GitWait)
 	return err
 }
 

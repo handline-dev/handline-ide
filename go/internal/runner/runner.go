@@ -4,15 +4,11 @@
 package runner
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,6 +20,7 @@ import (
 	"github.com/handline/handline/go/internal/homefiles"
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/joined"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/peer"
 	"github.com/handline/handline/go/protocol/authority"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -54,6 +51,7 @@ type Config struct {
 	Term              Terminals
 	Auth              authority.Authority
 	Tokens            Tokens
+	HL                string // the hl its hooks call; paths.HlExe when empty
 	Log               func(format string, args ...any)
 }
 
@@ -69,6 +67,8 @@ type Runner struct {
 	sendMu   sync.Mutex                            // one send up at a time, so two never cross
 	stopped  bool                                  // Close ran: no link is kept from here
 	sessions map[string]session
+	repos    map[string]*sync.Mutex // a clone's lock, held while it is synced
+	pushers  map[string]*pusher     // a worktree's push running now
 	stop     chan struct{}
 	once     sync.Once
 	wg       sync.WaitGroup
@@ -80,6 +80,7 @@ type session struct {
 	Handle string `json:"handle"`
 	Pid    int    `json:"pid"`
 	Agent  string `json:"agent,omitempty"`
+	Folder string `json:"folder,omitempty"` // the folder it was opened in: the agent's worktree, whose commits are pushed
 }
 
 // Client is the client a runner's hello names on its link: the master takes only that connection for the runner's link.
@@ -99,13 +100,21 @@ func Start(cfg Config) (*Runner, error) {
 	if cfg.Tokens == nil {
 		cfg.Tokens = sessiontoken.New(cfg.Home)
 	}
-	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, stop: make(chan struct{})}
+	if cfg.HL == "" {
+		cfg.HL = paths.HlExe()
+	}
+	if err := writeHooks(cfg.Home, cfg.HL); err != nil {
+		return nil, fmt.Errorf("hooks: %w", err)
+	}
+	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, repos: map[string]*sync.Mutex{},
+		pushers: map[string]*pusher{}, stop: make(chan struct{})}
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
 		if err := json.Unmarshal(b, &r.sessions); err != nil {
 			return nil, fmt.Errorf("%s: %w", StateFile(cfg.Home), err)
 		}
 	}
 	r.local = rpc.NewServer(cfg.Auth, cfg.Sha, 0, "local", cfg.Log)
+	r.local.Register("runner.committed", rpc.Method{Role: "agent", Handler: r.committed})
 	r.local.Fallback = r.forward
 	if cfg.Socket != "" {
 		os.Remove(cfg.Socket)
@@ -299,14 +308,19 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 			return nil, err
 		}
 		return map[string]any{"accepted": true}, nil
+	case "runner.project.sync":
+		if err := r.syncProject(str("remote")); err != nil {
+			return nil, err
+		}
+		return map[string]any{"state": "cloned"}, nil
 	case "runner.worktree.make":
-		return gitWorktree(r.cfg.Home, str("remote"), str("path"), str("branch"), str("base"))
+		return r.makeWorktree(str("remote"), str("path"), str("branch"), str("base"))
 	case "runner.push":
 		if err := plain(str("path"), str("branch")); err != nil {
 			return nil, err
 		}
-		if out, err := runGit("-C", str("path"), "push", "origin", "--", str("branch")); err != nil {
-			return nil, fmt.Errorf("git push: %v: %s", err, out)
+		if err := r.git("-C", str("path"), "push", "origin", "--", str("branch")); err != nil {
+			return nil, err
 		}
 		return map[string]any{"accepted": true}, nil
 	}
@@ -335,7 +349,7 @@ func (r *Runner) open(agent, folder, command string) (any, error) {
 		return nil, fmt.Errorf("the session of %s could not be recorded, so it is not opened", agent)
 	}
 	r.mu.Lock()
-	r.sessions[agent] = session{Handle: handle, Pid: pid}
+	r.sessions[agent] = session{Handle: handle, Pid: pid, Folder: folder}
 	err := r.save()
 	r.mu.Unlock()
 	if err != nil {
@@ -396,7 +410,7 @@ func (r *Runner) respawn(handle string) (any, error) {
 		delete(r.sessions, agent)
 		return nil, errors.Join(fmt.Errorf("the new shell of %s could not be recorded, so its terminal is closed", agent), r.save())
 	}
-	r.sessions[agent] = session{Handle: handle, Pid: pid, Agent: s.Agent}
+	r.sessions[agent] = session{Handle: handle, Pid: pid, Agent: s.Agent, Folder: s.Folder}
 	return map[string]any{"accepted": true}, r.save()
 }
 
@@ -539,52 +553,6 @@ func (r *Runner) save() error {
 		return err
 	}
 	return atomicfile.Write(StateFile(r.cfg.Home), string(b))
-}
-
-// gitWorktree makes a worktree of remote at path on branch: the remote is cloned once under the home's runner-repos, fetched each
-// time, and the branch made from base when the remote has no such branch.
-func gitWorktree(home, remote, path, branch, base string) (any, error) {
-	if base == "" {
-		base = "main"
-	}
-	if remote == "" {
-		return nil, rpc.BadRequestError("remote is a string", "remote", rpc.InvalidParams)
-	}
-	if err := plain(remote, path, branch, base); err != nil {
-		return nil, err
-	}
-	sum := sha256.Sum256([]byte(remote))
-	repo := filepath.Join(home, "runner-repos", hex.EncodeToString(sum[:8]))
-	git := func(args ...string) error {
-		if out, err := runGit(args...); err != nil {
-			return fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, out)
-		}
-		return nil
-	}
-	if _, err := os.Stat(repo); errors.Is(err, os.ErrNotExist) {
-		if err := git("clone", "--no-checkout", "--", remote, repo); err != nil {
-			return nil, err
-		}
-	} else if err := git("-C", repo, "fetch", "origin"); err != nil {
-		return nil, err
-	}
-	from := "origin/" + branch
-	if git("-C", repo, "rev-parse", "--verify", "--quiet", "--end-of-options", from) != nil {
-		from = "origin/" + base
-	}
-	if err := git("-C", repo, "worktree", "add", "-B", branch, "--", path, from); err != nil {
-		return nil, err
-	}
-	return map[string]any{"accepted": true, "path": path}, nil
-}
-
-// gitTimeout bounds one git command a master's call runs.
-const gitTimeout = 10 * time.Minute
-
-func runGit(args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
-	defer cancel()
-	return exec.CommandContext(ctx, "git", args...).CombinedOutput()
 }
 
 // plain refuses a value git could read as an option, and a branch that is not a branch name.

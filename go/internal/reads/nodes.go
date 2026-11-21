@@ -37,8 +37,14 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		if id == self {
 			number = master
 		}
-		nodes = append(nodes, map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
-			"master_number": master, "master": id == self, "self": id == self, "online": id == self, "lending": lending})
+		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
+			"master_number": master, "master": id == self, "self": id == self, "online": id == self, "lending": lending}
+		if id != self && e.NodeProjects != nil {
+			if ps := e.NodeProjects(id); ps != nil {
+				row["projects"] = ps
+			}
+		}
+		nodes = append(nodes, row)
 	}
 	return map[string]any{"master": map[string]any{"id": self, "number": number}, "nodes": nodes}, rs.Err()
 }

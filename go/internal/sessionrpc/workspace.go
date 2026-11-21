@@ -44,8 +44,13 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused("workspace "+name+" exists already", "state", "")
 	}
 	return e.operate(c, workspaceCreateKind, name, top, "", func() error {
-		_, err := e.Roster.Create(name, top)
-		return err
+		if _, err := e.Roster.Create(name, top); err != nil {
+			return err
+		}
+		if e.WorkspaceAdded != nil {
+			e.WorkspaceAdded(name)
+		}
+		return nil
 	})
 }
 
