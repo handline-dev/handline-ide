@@ -939,7 +939,7 @@
       "items": {
        "type": "object"
       },
-      "description": "Each Claude account folder there logged in to an account: name and email."
+      "description": "Each Claude account folder there logged in to an account: name, email and dir (its config dir, relative to the runner's home)."
      }
     },
     {

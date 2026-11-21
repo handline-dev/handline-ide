@@ -45,8 +45,10 @@ type Registry struct {
 	Tokens func(account string, calls json.RawMessage) error
 	// Copy, when set, is the board's copy the owner's runners mirror (node.copy.files).
 	Copy *Copy
-	// AccountOf, when set, is the master's account logged in as email, "" for none: a runner's account folder is counted as it.
-	AccountOf func(email string) string
+	// AccountFor, when set, is the board's account for email, "" for none; with add, one is made, named after name (a runner's folder),
+	// when none is. A runner's account folder is that account, its usage counted and its sessions chosen as it. Unset, a folder is the
+	// account of its name.
+	AccountFor func(email, name string, add bool) (string, error)
 	// Self is the master's own node id; Version the master's Handline version, which a runner's must be to take work ("" takes any).
 	Self, Version string
 	// BatterySwitch, when set, is whether the battery switch is on (BatteryKey): a runner whose heartbeat says it went on battery is set
@@ -56,6 +58,7 @@ type Registry struct {
 	Placer interface {
 		Where(agent string) string
 		Placed(agent string, ok bool)
+		Next(agent string) string
 	}
 	// Check, when set, is the programs a runner is asked whether it has, which its next heartbeat says (Has.Programs).
 	Check   func() []string
@@ -621,13 +624,16 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		if node == "" {
 			return nil, rpc.Refused("node.tokens is a runner's own call, on its link", "node", "")
 		}
-		account, _ := p["account"].(string)
-		account = r.accountHere(node, account)
+		folder, _ := p["account"].(string)
 		calls, err := json.Marshal(p["calls"])
-		if account == "" || err != nil {
+		if folder == "" || err != nil {
 			return nil, rpc.BadRequestError("account is a string and calls the calls read", "calls", rpc.InvalidParams)
 		}
-		if r.Tokens != nil {
+		account, named := r.accountHere(node, folder)
+		if !named {
+			return nil, rpc.Refused("node "+node+"'s heartbeat names no account folder "+folder+" yet: send its calls after the next", "account", "")
+		}
+		if account != "" && r.Tokens != nil { // an account that is no board account's is counted nowhere here
 			if err := r.Tokens(account, calls); err != nil {
 				return nil, err
 			}

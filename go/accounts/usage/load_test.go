@@ -120,6 +120,22 @@ func putMeta(t *testing.T, q db.Q, name string, v any) {
 	}
 }
 
+// An account is one on every machine: an agent mid-turn on it on a runner counts against it as one here does, so a pick for a third
+// machine sees both.
+func TestAnAccountsSessionsOnEveryMachineCountAgainstIt(t *testing.T) {
+	q := openDB(t)
+	e := testEnv(t.TempDir(), clock)
+	setAgent(t, q, "here", "RUNNING", "a")
+	setAgent(t, q, "there", "RUNNING", "a")
+	if _, err := q.Exec("UPDATE agent_state SET node = 'n1' WHERE agent = 'there'"); err != nil {
+		t.Fatal(err)
+	}
+	by, err := e.ActiveByAccount(q)
+	if err != nil || len(by["a"]) != 2 {
+		t.Fatalf("%v %v", by, err)
+	}
+}
+
 func TestCostsPriceAnAgentByItsModelsDollarsOverTheAccountsFactor(t *testing.T) {
 	q := openDB(t)
 	e := testEnv(t.TempDir(), clock)

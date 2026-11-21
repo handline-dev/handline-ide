@@ -868,6 +868,7 @@ func (r *Runner) SendTokens(u *usage.Env) error {
 	if b, err := os.ReadFile(TokensFile(r.cfg.Home)); err == nil {
 		json.Unmarshal(b, &kept)
 	}
+	var failed error
 	for _, acct := range r.cfg.Accounts() {
 		calls, moved, ok := u.NewCalls(acct, kept[acct], usage.BytesPerTick)
 		if !ok {
@@ -875,7 +876,8 @@ func (r *Runner) SendTokens(u *usage.Env) error {
 		}
 		if len(calls) > 0 {
 			if _, err := l.Call("node.tokens", map[string]any{"account": acct, "calls": calls}, hlclient.Quick); err != nil {
-				return fmt.Errorf("%s: %w", acct, err)
+				failed = errors.Join(failed, fmt.Errorf("%s: %w", acct, err)) // kept where it was, sent again next pass; the others go on
+				continue
 			}
 		}
 		kept[acct] = moved
@@ -887,7 +889,7 @@ func (r *Runner) SendTokens(u *usage.Env) error {
 			return err
 		}
 	}
-	return nil
+	return failed
 }
 
 // MirrorEvery is how often a runner pulls what the board's copy on the master gained.

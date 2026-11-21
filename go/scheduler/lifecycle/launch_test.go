@@ -70,6 +70,7 @@ type fakeUsage struct {
 	reasons []usage.Reason     // PickReasons
 	manual  bool               // account_split manual
 	unfit   map[string]int     // StartFit: room of each account that does not fit
+	asked   *[]string          // the candidates PickAccount was given
 }
 
 func (u fakeUsage) ManualSplit() bool { return u.manual }
@@ -107,9 +108,14 @@ func (u fakeUsage) Read(acct string) AccountStatus {
 	}
 	return u.st
 }
-func (fakeUsage) ShortBlock() int                               { return 95 }
-func (fakeUsage) LongBlock() int                                { return 98 }
-func (u fakeUsage) PickAccount([]string, string) string         { return u.pick }
+func (fakeUsage) ShortBlock() int { return 95 }
+func (fakeUsage) LongBlock() int  { return 98 }
+func (u fakeUsage) PickAccount(c []string, _ string) string {
+	if u.asked != nil {
+		*u.asked = c
+	}
+	return u.pick
+}
 func (u fakeUsage) PickReasons([]string, string) []usage.Reason { return u.reasons }
 func (fakeUsage) NotFor(string, string) bool                    { return false }
 
@@ -1110,13 +1116,67 @@ func TestPrepareRefusesASessionItCannotRecord(t *testing.T) {
 func TestARunnersLaunchIsNotRecordedHere(t *testing.T) {
 	r := newLaunchRig(t)
 	t.Setenv("HANDLINE_AGENT", "a5") // the store here refuses every record
+	r.l.Ports.Devices = fakeDevices{"box": {"main": "/runner/accounts/k1/.claude"}}
 	site := r.site()
-	site.Runner, site.Handle = true, "box:%3"
-	if _, err := r.l.Prepare(site, "ann", nil, false, "", "main", "", ""); err != nil {
+	site.Node, site.Handle = "box", "box:%3"
+	got, err := r.l.Prepare(site, "ann", nil, false, "", "main", "", "")
+	if err != nil {
 		t.Fatal(err)
 	}
 	if h, _ := db.Terminal(r.l.Q, "ann"); h != "box:%3" {
 		t.Fatalf("recorded terminal %q", h)
+	}
+	if !slices.Contains(got.Env, "CLAUDE_CONFIG_DIR=/runner/accounts/k1/.claude") {
+		t.Fatalf("the session runs on the runner's own folder of its account: %v", got.Env)
+	}
+}
+
+// fakeDevices is the runners: the agents on each (on) and, by runner, the board accounts logged in there with their config dirs.
+type fakeDevices map[string]map[string]string
+
+func (d fakeDevices) DeviceOf(agent string) string {
+	if on := d["on"]; on != nil {
+		return on[agent]
+	}
+	return ""
+}
+func (d fakeDevices) Accounts(node string) map[string]string { return d[node] }
+
+// An agent on a runner starts on an account logged in there, chosen by the same pick, and waits as on one machine when none is: one
+// logged in only elsewhere is never its choice.
+func TestAnAgentOnARunnerIsChosenAnAccountLoggedInThere(t *testing.T) {
+	r := newLaunchRig(t)
+	addAccounts(t, r, "main", "spare", "far")
+	var asked []string
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, asked: &asked}
+	devices := fakeDevices{"on": {"ann": "box"}, "box": {"main": "/r/main", "far": "/r/far"}}
+	r.l.Ports.Devices = devices
+	r.l.FindRoom("ann")
+	if slices.Sort(asked); !slices.Equal(asked, []string{"far", "main"}) {
+		t.Fatalf("on box the pick is among %v", asked)
+	}
+	r.l.Ports.Devices = fakeDevices{"on": {}}
+	r.l.FindRoom("ann")
+	if slices.Sort(asked); !slices.Equal(asked, []string{"far", "main", "spare"}) {
+		t.Fatalf("on this machine the pick is among %v", asked)
+	}
+	r.l.Ports.Devices = devices
+	site := r.site()
+	site.Node = "box"
+	if _, _, err := r.l.Build(site, "ann", nil, false, "spare"); err == nil || !strings.Contains(err.Error(), "is not logged in on node box") {
+		t.Fatalf("a destination not logged in on the agent's runner: %v", err)
+	}
+	r.l.Ports.Devices = fakeDevices{"on": {"ann": "box"}, "box": {}}
+	if why := r.l.NoRoom("ann"); !strings.Contains(why, "no account is logged in on node box") {
+		t.Fatalf("no account on its runner: %q", why)
+	}
+	// This machine's own launch picks among its accounts even when the agent's machine is a runner: it starts here.
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, asked: &asked, pick: "spare"}
+	if _, env, err := r.build("ann", nil, false, ""); err != nil || env["HANDLINE_ACCOUNT"] != "spare" {
+		t.Fatalf("a launch here: %v %v", env, err)
+	}
+	if slices.Sort(asked); !slices.Equal(asked, []string{"far", "main", "spare"}) {
+		t.Fatalf("a launch here picks among %v", asked)
 	}
 }
 

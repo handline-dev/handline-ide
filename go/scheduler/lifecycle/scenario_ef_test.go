@@ -14,8 +14,8 @@ import (
 // before the restart still holds, and an agent both running and held is one.
 func TestF5ARestartRebuildsTheCountsFromTheStore(t *testing.T) {
 	r := newPlaceRig(t, "alpha", "beta")
-	r.l.place("x", false, "")
-	r.l.place("y", false, "")
+	r.l.place(machine{}, "x", false, "")
+	r.l.place(machine{}, "y", false, "")
 	db.SetAgentState(r.q, "y", states.Running, 0, "") // y's session reported; its hold is still there
 	db.SetAccount(r.q, "y", "beta", "")
 	before := map[string]int{"alpha": activeOn(t, r.u, r.q, "alpha", ""), "beta": activeOn(t, r.u, r.q, "beta", "")}
@@ -31,7 +31,7 @@ func TestF5ARestartRebuildsTheCountsFromTheStore(t *testing.T) {
 func TestF7ALoggedOutAccountKeepsItsAgentsAndTakesNoStarts(t *testing.T) {
 	r := newPlaceRig(t, "alpha", "beta")
 	r.l.Ports.Accounts = loggedOut{"alpha": true}
-	if acct, _ := r.l.place("x", false, ""); acct != "beta" {
+	if acct, _ := r.l.place(machine{}, "x", false, ""); acct != "beta" {
 		t.Fatalf("a start went to %q", acct)
 	}
 	if row, _ := db.GetAgentState(r.q, "run-alpha"); row.State != states.Running {
