@@ -32,14 +32,17 @@ const Human = "human"
 type Store struct{ Root string }
 
 // RootFor is the store kept for home: ~/.config/handline/protected/<the resolved home with every other character a dash>.
-func RootFor(home string) string {
+func RootFor(home string) string { return RootUnder(paths.UserHome(), home) }
+
+// RootUnder is RootFor for a process whose user home is userHome (HANDLINE_TEST_ROOT).
+func RootUnder(userHome, home string) string {
 	if real, err := filepath.EvalSymlinks(home); err == nil {
 		home = real
 	}
 	if abs, err := filepath.Abs(home); err == nil {
 		home = abs
 	}
-	return filepath.Join(paths.UserHome(), ".config", "handline", "protected", nonAlnum.ReplaceAllString(home, "-"))
+	return filepath.Join(userHome, ".config", "handline", "protected", nonAlnum.ReplaceAllString(home, "-"))
 }
 
 // New is the store for home.
