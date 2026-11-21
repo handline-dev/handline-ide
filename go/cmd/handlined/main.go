@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usagepoll"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/data/agenthost"
 	dbpkg "github.com/handline/handline/go/data/db"
@@ -141,7 +143,7 @@ func main() {
 		log.Printf("handlined: setting the home up failed (run `hl init` to see why): %v", err)
 	}
 	if m, ok := joined.Of(homeDir); ok {
-		runRunner(homeDir, *db, *sock, m, *exitWithStdin)
+		runRunner(homeDir, *db, *sock, *claude, m, *exitWithStdin)
 		return
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
@@ -289,7 +291,7 @@ func leaveAgentSession() string {
 }
 
 // runRunner is a home that joined a master: runner mode, which keeps no board. The board it ran alone on is set aside first, unchanged.
-func runRunner(home, dbFile, sock string, m joined.Master, exitWithStdin bool) {
+func runRunner(home, dbFile, sock, claude string, m joined.Master, exitWithStdin bool) {
 	single := lock.TakeSingleton(home, "daemon")
 	if single == nil {
 		log.Fatalf("handlined: another daemon holds this home: not starting a second")
@@ -309,7 +311,14 @@ func runRunner(home, dbFile, sock string, m joined.Master, exitWithStdin bool) {
 	if !ok {
 		log.Fatalf("handlined: the terminal host %s cannot run a runner's sessions", agenthost.TerminalName(home))
 	}
-	r, err := runner.Start(runner.Config{Home: home, Socket: sock, Sha: version.Sha, Master: m, Term: tm, Log: log.Printf})
+	if claude == "" {
+		claude, _ = exec.LookPath("claude") // the one its agents run: a runner is not started with -claude
+	}
+	var meter runner.Meter
+	if claude != "" {
+		meter = &usagepoll.Meter{Home: home, Claude: claude}
+	}
+	r, err := runner.Start(runner.Config{Home: home, Socket: sock, Sha: version.Sha, Master: m, Term: tm, Log: log.Printf, Meter: meter})
 	if err != nil {
 		log.Fatalf("handlined: runner: %v", err)
 	}

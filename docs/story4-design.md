@@ -67,7 +67,8 @@ own person. It comes in Off; Run lends the machine. The master's own Mac is on R
    window, week, sessions already on it); an account logged in on two devices is one account, known by its
    email, and its sessions on both count.
 4. **Heartbeat:** every 15 seconds the runner sends its load (cores, memory, free slots, free leases), its
-   accounts and their sessions, the sessions it runs, what it has (agent CLIs, MCP programs, folders outside
+   accounts with each one's newest usage reading (it reads its own, at least every 2 minutes; the master keeps
+   the newest of every device's for an email) and their sessions, the sessions it runs, what it has (agent CLIs, MCP programs, folders outside
    the repo, Xcode and simulators) and its Handline version. One at a time: the next goes only after the
    master answered the last, so a slow network never stacks them. A runner on another version than the
    master takes no work until it is updated.
@@ -223,7 +224,7 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 6 | Agent files on a runner: the launch's settings, MCP config and prompt written there; memory down at launch and each change up; the shared skills, commands and subagents sent and re-sent when they change; attachments fetched when opened; the handoff written to the master | daemon | 11 | 5 |
 | 7 | Hooks and transcript usage recorded on the runner and sent to the master; working and idle state from them | daemon | 8 | 5 |
 | 8 | Projects on runners: each workspace's repo cloned from its remote at join and when a workspace is added; the branch pushed after each commit | daemon | 6 | 4 |
-| 9 | Heartbeats (load, leases, accounts and their sessions, what it has, its version); another version takes no work; offline after 60 s; reclaim after the setting's time (30 min), back to the queue with the last pushed commit named; Off hands over at once; the battery switch; a returning runner's leftovers to a rescue branch | daemon | 12 | 5, 8 |
+| 9 | Heartbeats (load, leases, accounts with their newest usage readings and their sessions, what it has, its version); another version takes no work; offline after 60 s; reclaim after the setting's time (30 min), back to the queue with the last pushed commit named; Off hands over at once; the battery switch; a returning runner's leftovers to a rescue branch | daemon | 12 | 5, 8 |
 | 10 | Placement: an agent stays on its device; it gets one, the one with the most room among those that hold the project and have all it needs, when it has none or its device is full (memory cap, slots, leases), on Pause or Off, offline or lacking; what a device lacks for an agent | daemon | 6 | 6, 9 |
 | 11 | Account choice on a runner: the one-machine rule over the agent's device's accounts, an account logged in on two devices counted once | daemon | 4 | 9, 10 |
 | 12 | Terminal attach relayed through the master to the runner | daemon | 6 | 5 |
