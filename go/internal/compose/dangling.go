@@ -20,7 +20,7 @@ import (
 // unless a test hands in its own.
 type danglingPorts struct {
 	p       *Parts
-	deliver func(ctx context.Context, sess peerinbox.Session, text string, from peerinbox.From) peerinbox.Result
+	deliver func(ctx context.Context, sess peerinbox.Session, text string, from peerinbox.From, id string) peerinbox.Result
 }
 
 var _ dangling.Ports = danglingPorts{}
@@ -81,7 +81,7 @@ func (d danglingPorts) Ask(pid int, text string) error {
 		if deliver == nil {
 			deliver = peerinbox.New().Deliver
 		}
-		if res := deliver(ctx, sess, text, peerinbox.From{Name: dangling.Requester}); res.Kind != peerinbox.Delivered {
+		if res := deliver(ctx, sess, text, peerinbox.From{Name: dangling.Requester}, ""); res.Kind != peerinbox.Delivered {
 			return errors.New(res.Why)
 		}
 		return nil

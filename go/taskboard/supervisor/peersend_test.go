@@ -2,6 +2,8 @@ package supervisor
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,14 +19,16 @@ import (
 type fakeInbox struct {
 	mu      sync.Mutex
 	texts   []string
+	ids     []string // the message id each Deliver was given, as it begins
 	outcome peerinbox.Result
 	gate    chan struct{} // when set, a Deliver waits for it to close
 	entered int
 }
 
-func (f *fakeInbox) Deliver(_ context.Context, _ peerinbox.Session, text string, _ peerinbox.From) peerinbox.Result {
+func (f *fakeInbox) Deliver(_ context.Context, _ peerinbox.Session, text string, _ peerinbox.From, id string) peerinbox.Result {
 	f.mu.Lock()
 	f.entered++
+	f.ids = append(f.ids, id)
 	f.mu.Unlock()
 	if f.gate != nil {
 		<-f.gate
@@ -33,6 +37,10 @@ func (f *fakeInbox) Deliver(_ context.Context, _ peerinbox.Session, text string,
 	defer f.mu.Unlock()
 	f.texts = append(f.texts, text)
 	return f.outcome
+}
+
+func (*fakeInbox) Watch(context.Context, peerinbox.Session, string, time.Time) (bool, bool) {
+	return false, false
 }
 
 func (f *fakeInbox) Type(_ context.Context, _ peerinbox.Session, text string, typeIn func(string) error) peerinbox.Result {
@@ -226,6 +234,88 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 	}
 }
 
+// nextDaemon is the peer port a restarted daemon has: the real inbox watching bob's transcript in dir, through the session find gives.
+func nextDaemon(r *rig, find func(string) (peerinbox.Session, error)) *peerport.Port {
+	in := peerinbox.New()
+	in.Poll, in.Now = 5*time.Millisecond, func() time.Time { return time.Unix(r.clock, 0) }
+	return &peerport.Port{
+		Peer: func(a string) bool { return a == r.k("bob") }, Find: find, Sender: in,
+		OnDelivered: func(a, op string) {
+			if err := r.SessionConfirmed(r.DB, a, op); err != nil {
+				r.t.Error(err)
+			}
+		},
+		OnFailed: func(a, op, why string, written bool) { r.t.Errorf("%s: %s not delivered: %s", a, op, why) },
+	}
+}
+
+// The daemon restarts after writing a message to bob and before bob's transcript shows it; bob's session runs on. The next daemon watches
+// for it again, lands it once the line is there, and no one is told it may not have been read.
+func TestAMessageWrittenBeforeARestartLandsWhenTheSameSessionShowsIt(t *testing.T) {
+	r, in := peerRigHeld(t, peerinbox.Result{Kind: peerinbox.Delivered})
+	rid := r.ask(r.k("alice"), r.k("bob"), "psst", "say")
+	op := requestOp(rid)
+	if state, _ := r.sendOnce(r.DB, r.k("bob"), op, "psst", delivery.Now); state != Written {
+		t.Fatal(state)
+	}
+	eventually(t, func() bool { return in.enteredCount() == 1 })
+	if in.ids[0] != peerport.MsgID(r.k("bob"), op) {
+		t.Fatalf("written under %q: the next daemon cannot find it", in.ids[0])
+	}
+	dir := t.TempDir()
+	transcript := filepath.Join(dir, "projects", "w", "s1.jsonl")
+	r.must(os.MkdirAll(filepath.Dir(transcript), 0o755))
+	r.must(os.WriteFile(transcript, []byte(`{"type":"user","message":{"content":"earlier"}}`+"\n"), 0o644))
+	sess := peerinbox.Session{PID: 7, SessionID: "s1", Config: dir, StartedAt: (r.clock - 600) * 1000}
+	next := nextDaemon(r, func(string) (peerinbox.Session, error) { return sess, nil })
+	r.must(r.ResumeSends(r.DB, r.k("bob"), func(op string, written time.Time) bool { return next.Rewatch(r.k("bob"), op, written) }))
+	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != sendWritten {
+		t.Fatalf("the send is watched again, still written: ledger %d", v)
+	}
+	line := `{"type":"user","timestamp":"` + time.Unix(r.clock, 0).UTC().Format(time.RFC3339) + `","origin":{"kind":"peer"},` +
+		`"message":{"content":"psst\n[handline-msg ` + peerport.MsgID(r.k("bob"), op) + `]"}}` + "\n"
+	f, err := os.OpenFile(transcript, os.O_APPEND|os.O_WRONLY, 0)
+	r.must(err)
+	_, err = f.WriteString(line)
+	r.must(err)
+	r.must(f.Close())
+	eventually(t, func() bool { row, _ := db.GetRequest(r.DB, rid); return row.LandedAt.Valid })
+	var told int
+	r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE '%may or may not%'")).Scan(&told))
+	if told != 0 {
+		t.Fatalf("the sender was told %d times that it may not have been read", told)
+	}
+}
+
+// A session that did not outlive the restart, gone or started after the write, cannot show the message: it is unknown at once and the
+// sender is told.
+func TestAMessageWrittenBeforeARestartIsUnknownWhenItsSessionEnded(t *testing.T) {
+	for name, find := range map[string]func(string) (peerinbox.Session, error){
+		"gone": func(string) (peerinbox.Session, error) { return peerinbox.Session{}, peerinbox.ErrNoSession },
+		"newer": func(string) (peerinbox.Session, error) {
+			return peerinbox.Session{PID: 8, SessionID: "s2", StartedAt: 100001 * 1000}, nil
+		},
+	} {
+		r, in := peerRigHeld(t, peerinbox.Result{Kind: peerinbox.Delivered})
+		rid := r.ask(r.k("alice"), r.k("bob"), "psst", "say")
+		op := requestOp(rid)
+		if state, _ := r.sendOnce(r.DB, r.k("bob"), op, "psst", delivery.Now); state != Written {
+			t.Fatal(state)
+		}
+		eventually(t, func() bool { return in.enteredCount() == 1 })
+		next := nextDaemon(r, find)
+		r.must(r.ResumeSends(r.DB, r.k("bob"), func(op string, written time.Time) bool { return next.Rewatch(r.k("bob"), op, written) }))
+		if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != sendUnknown {
+			t.Fatalf("%s: ledger %d", name, v)
+		}
+		var told int
+		r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE target = 'alice' AND body LIKE '%session ended before it confirmed it%'")).Scan(&told))
+		if told != 1 {
+			t.Fatalf("%s: the sender was told %d times", name, told)
+		}
+	}
+}
+
 func TestAMessageTheLastDaemonLeftWrittenIsUnknownWhenTheNextSettlesIt(t *testing.T) {
 	r, in := peerRigHeld(t, peerinbox.Result{Kind: peerinbox.Delivered})
 	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
@@ -234,7 +324,7 @@ func TestAMessageTheLastDaemonLeftWrittenIsUnknownWhenTheNextSettlesIt(t *testin
 		t.Fatal(state)
 	}
 	eventually(t, func() bool { return in.enteredCount() == 1 })
-	r.must(r.SessionLost(r.DB, r.k(("bob")))) // what the daemon does at its start for each peer agent
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil)) // what the daemon does at its start for each peer agent
 	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != sendUnknown {
 		t.Fatalf("ledger %d", v)
 	}

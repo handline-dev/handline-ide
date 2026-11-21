@@ -152,7 +152,7 @@ func (r *rig) sent() [][]string {
 func TestDeliveredAndWireFormat(t *testing.T) {
 	r := newRig(t)
 	r.onUser = func(r *rig, body string) { r.receive(body, true, true) }
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Delivered || res.Attempts != 1 || res.ID != "id1" {
 		t.Fatalf("result %+v", res)
 	}
@@ -176,9 +176,29 @@ func TestDeliveredAndWireFormat(t *testing.T) {
 func TestOldTranscriptLinesDoNotConfirm(t *testing.T) {
 	r := newRig(t)
 	r.receive(Body("hello", "id1"), true, true) // an earlier life of the same id
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != NotDelivered {
 		t.Fatalf("a line from before the send confirmed it: %+v", res)
+	}
+}
+
+// A watch an earlier process left counts only records from its write on: an older line with the same id is neither seen nor queued.
+func TestWatchReadsTheTranscriptFromWhenTheMessageWasWritten(t *testing.T) {
+	r := newRig(t)
+	written := r.s.Now()
+	at := func(d time.Duration) string { return written.Add(d).UTC().Format(time.RFC3339Nano) }
+	body := Body("hello", "id1")
+	r.append(map[string]any{"type": "user", "timestamp": at(-time.Minute), "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": body}})
+	if seen, queued := r.s.Watch(context.Background(), r.sess, "id1", written); seen || queued {
+		t.Fatalf("a line from before the write counted: seen %v queued %v", seen, queued)
+	}
+	r.append(map[string]any{"type": "queue-operation", "operation": "enqueue", "timestamp": at(time.Second), "content": body})
+	if seen, queued := r.s.Watch(context.Background(), r.sess, "id1", written); seen || !queued {
+		t.Fatalf("queued only: seen %v queued %v", seen, queued)
+	}
+	r.append(map[string]any{"type": "user", "timestamp": at(2 * time.Second), "origin": map[string]any{"kind": "peer"}, "message": map[string]any{"content": body}})
+	if seen, _ := r.s.Watch(context.Background(), r.sess, "id1", written); !seen {
+		t.Fatal("the line after the write was not seen")
 	}
 }
 
@@ -191,7 +211,7 @@ func TestResendWithSameIDWhenMissing(t *testing.T) {
 			r.receive(body, true, true)
 		}
 	}
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Delivered || res.Attempts != 2 {
 		t.Fatalf("result %+v", res)
 	}
@@ -209,7 +229,7 @@ func TestResendWithSameIDWhenMissing(t *testing.T) {
 
 func TestNeverSeenIsNotDelivered(t *testing.T) {
 	r := newRig(t)
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != NotDelivered || res.Attempts != r.s.Tries || !strings.Contains(res.Why, "transcript") {
 		t.Fatalf("result %+v", res)
 	}
@@ -218,7 +238,7 @@ func TestNeverSeenIsNotDelivered(t *testing.T) {
 func TestQueuedOnlyIsSaidSo(t *testing.T) {
 	r := newRig(t)
 	r.onUser = func(r *rig, body string) { r.receive(body, true, false) }
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Queued || !strings.Contains(res.Why, "queued") {
 		t.Fatalf("result %+v", res)
 	}
@@ -227,7 +247,7 @@ func TestQueuedOnlyIsSaidSo(t *testing.T) {
 func TestAMessageTheReceiverQueuedIsNotWrittenAgain(t *testing.T) {
 	r := newRig(t)
 	r.onUser = func(r *rig, body string) { r.receive(body, true, false) } // queued behind a turn, not yet shown
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Queued || res.Attempts != 1 || len(r.sent()) != 1 {
 		t.Fatalf("a queued message was written again: %+v, %d writes", res, len(r.sent()))
 	}
@@ -236,12 +256,12 @@ func TestAMessageTheReceiverQueuedIsNotWrittenAgain(t *testing.T) {
 func TestAMessageToABusySessionIsNotWrittenAgain(t *testing.T) {
 	r := newRig(t)
 	r.s.Refresh = func(s Session) (Session, error) { s.Status = "busy"; return s, nil }
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Queued || res.Attempts != 1 || len(r.sent()) != 1 || !strings.Contains(res.Why, "mid-turn") {
 		t.Fatalf("a message to a busy session was written again: %+v, %d writes", res, len(r.sent()))
 	}
 	r.s.Refresh = func(s Session) (Session, error) { s.Status = "idle"; return s, nil }
-	if res := r.s.Deliver(context.Background(), r.sess, "hello again", From{}); res.Attempts != 2 {
+	if res := r.s.Deliver(context.Background(), r.sess, "hello again", From{}, ""); res.Attempts != 2 {
 		t.Fatalf("an idle session that dropped it is written to again: %+v", res)
 	}
 }
@@ -251,7 +271,7 @@ func TestNoSocket(t *testing.T) {
 	r.s.Dial = func(string) (net.Conn, error) {
 		return nil, errors.New("dial unix /tmp/cc-socks/42.sock: connect: no such file")
 	}
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != NoSocket || res.Attempts != 1 {
 		t.Fatalf("result %+v", res)
 	}
@@ -262,7 +282,7 @@ func TestPacingPerTarget(t *testing.T) {
 	r.onUser = func(r *rig, body string) { r.receive(body, true, true) }
 	start := r.clock.now()
 	for i := 0; i < 3; i++ {
-		if res := r.s.Deliver(context.Background(), r.sess, fmt.Sprintf("m%d", i), From{}); res.Kind != Delivered {
+		if res := r.s.Deliver(context.Background(), r.sess, fmt.Sprintf("m%d", i), From{}, ""); res.Kind != Delivered {
 			t.Fatalf("%d: %+v", i, res)
 		}
 	}
@@ -323,12 +343,12 @@ func TestByCwdTakesTheNewestLiveOne(t *testing.T) {
 func TestKeyIsNotInAnyOutput(t *testing.T) {
 	r := newRig(t)
 	r.onUser = func(r *rig, body string) { r.receive(body, true, true) }
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	r.s.Dial = func(string) (net.Conn, error) { return nil, errors.New("boom") }
-	res2 := r.s.Deliver(context.Background(), r.sess, "again", From{})
+	res2 := r.s.Deliver(context.Background(), r.sess, "again", From{}, "")
 	bad := newRig(t)
 	bad.sess.keyPath = filepath.Join(bad.config, "sessions", "missing-"+testKey+".key") // a path never reaches an error
-	res3 := bad.s.Deliver(context.Background(), bad.sess, "x", From{})
+	res3 := bad.s.Deliver(context.Background(), bad.sess, "x", From{}, "")
 	for _, v := range []any{res, res2, res3, r.sess} {
 		for _, f := range []string{"%v", "%+v", "%#v"} {
 			if out := fmt.Sprintf(f, v); strings.Contains(out, testKey) {
@@ -348,7 +368,7 @@ func TestNoResendWhileTheSessionWaitsOnAPerson(t *testing.T) {
 		s.Status, s.Detail = "waiting", "permission prompt"
 		return s, nil
 	}
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Queued || res.Attempts != 1 || !strings.Contains(res.Why, "permission prompt") {
 		t.Fatalf("result %+v", res)
 	}
@@ -356,7 +376,7 @@ func TestNoResendWhileTheSessionWaitsOnAPerson(t *testing.T) {
 		t.Fatalf("%d writes", n)
 	}
 	r.s.Refresh = func(s Session) (Session, error) { return s, nil } // idle and not blocked: it is written again
-	if res := r.s.Deliver(context.Background(), r.sess, "again", From{}); res.Attempts != 2 {
+	if res := r.s.Deliver(context.Background(), r.sess, "again", From{}, ""); res.Attempts != 2 {
 		t.Fatalf("an idle session was not written to again: %+v", res)
 	}
 }
@@ -412,7 +432,7 @@ func TestEnvelopeIsTheReceiversCanonicalFormAndNamesItsSender(t *testing.T) {
 func TestDeliverWritesTheEnvelopeAndStillFindsItsId(t *testing.T) {
 	r := newRig(t)
 	r.onUser = func(r *rig, body string) { r.receive(body, true, true) }
-	if res := r.s.Deliver(context.Background(), r.sess, "hello", From{Name: "bob"}); res.Kind != Delivered {
+	if res := r.s.Deliver(context.Background(), r.sess, "hello", From{Name: "bob"}, ""); res.Kind != Delivered {
 		t.Fatalf("%+v", res)
 	}
 	var user struct{ Message struct{ Content string } }
@@ -428,7 +448,7 @@ func TestAwaitConfirmsAQueuedMessageWhenItShows(t *testing.T) {
 	r.s.QueuedWait = time.Minute
 	var body string
 	r.onUser = func(r *rig, b string) { body = b; r.receive(b, true, false) }
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Queued || res.Await == nil {
 		t.Fatalf("result %+v", res)
 	}
@@ -448,7 +468,7 @@ func TestAwaitConfirmsAQueuedMessageTheRunningTurnAbsorbed(t *testing.T) {
 	r.s.QueuedWait = time.Minute
 	var body string
 	r.onUser = func(r *rig, b string) { body = b; r.receive(b, true, false) }
-	res := r.s.Deliver(context.Background(), r.sess, "hello", From{})
+	res := r.s.Deliver(context.Background(), r.sess, "hello", From{}, "")
 	if res.Kind != Queued || res.Await == nil {
 		t.Fatalf("result %+v", res)
 	}

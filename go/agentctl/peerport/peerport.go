@@ -7,8 +7,11 @@ package peerport
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/agentctl/peerinbox"
@@ -16,7 +19,8 @@ import (
 
 // Deliverer is what the port needs of the inbox: *peerinbox.Sender.
 type Deliverer interface {
-	Deliver(ctx context.Context, sess peerinbox.Session, text string, from peerinbox.From) peerinbox.Result
+	Deliver(ctx context.Context, sess peerinbox.Session, text string, from peerinbox.From, id string) peerinbox.Result
+	Watch(ctx context.Context, sess peerinbox.Session, id string, written time.Time) (seen, queued bool)
 	Type(ctx context.Context, sess peerinbox.Session, text string, typeIn func(text string) error) peerinbox.Result
 }
 
@@ -107,6 +111,40 @@ func (p *Port) Promote(_, op string) (delivery.Receipt, error) {
 	return delivery.Receipt{Op: op, State: delivery.Sent}, nil
 }
 
+// Rewatch goes on watching for op, which an earlier daemon recorded as written to agent at written and had not seen in the transcript:
+// OnDelivered once the transcript shows it, OnFailed when it neither shows nor was queued within the usual window (queued only, it is left
+// as Deliver leaves it). False, and nothing is watched, when op was typed (matched by its words, which only the writer had) or the agent has
+// no live session already running at written.
+func (p *Port) Rewatch(agent, op string, written time.Time) bool {
+	if p.Typed != nil && p.Typed(agent, op) {
+		return false
+	}
+	sess, err := p.Find(agent)
+	if err != nil || sess.StartedAt == 0 || sess.StartedAt/1000 > written.Unix() {
+		return false
+	}
+	ctx := p.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	go func() {
+		seen, queued := p.Sender.Watch(ctx, sess, MsgID(agent, op), written)
+		switch {
+		case seen && p.OnDelivered != nil:
+			p.OnDelivered(agent, op)
+		case !seen && !queued:
+			p.failed(agent, op, "not in the receiver's transcript", true)
+		}
+	}()
+	return true
+}
+
+// MsgID is the id op is written to agent under: the same in every daemon, so the next one can find it in the transcript.
+func MsgID(agent, op string) string {
+	sum := sha256.Sum256([]byte(agent + "\x00" + op))
+	return hex.EncodeToString(sum[:8])
+}
+
 func (p *Port) drain(agent string, l *line) {
 	ctx := p.Ctx
 	if ctx == nil {
@@ -136,7 +174,7 @@ func (p *Port) deliver(ctx context.Context, agent string, j job) {
 	if j.typed {
 		res = p.Sender.Type(ctx, sess, j.text, func(text string) error { return p.TypeIn(agent, text) })
 	} else {
-		res = p.Sender.Deliver(ctx, sess, j.text, j.from)
+		res = p.Sender.Deliver(ctx, sess, j.text, j.from, MsgID(agent, j.op))
 	}
 	if res.Kind == peerinbox.Delivered {
 		if p.OnDelivered != nil {

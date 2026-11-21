@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/delivery"
 	"github.com/handline/handline/go/agentctl/peerinbox"
+	"github.com/handline/handline/go/agentctl/peerport"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
@@ -31,27 +33,41 @@ func PeerFromRows(home string) func(agent string) bool {
 	}
 }
 
-// SettlePeerSends is the start of a daemon, run once the Env has its ports (telling a sender can start an agent): the peer port's queue is in memory, so what it had taken for a terminal agent and not seen in the
-// transcript when the last daemon stopped is unknown now, as a message lost with its session is, and its sender is told.
-func (p *Parts) SettlePeerSends() {
+// SettlePeerSends is the start of a daemon, run once the Env has its ports (telling a sender can start an agent): what the last daemon
+// wrote to a terminal agent and had not seen is watched for again when the agent's session outlived it (Env.ResumeSends), and is unknown
+// otherwise.
+func (p *Parts) SettlePeerSends(agents supervisor.Agents) {
 	if p.Peer == nil || p.db == nil || p.tell == nil {
 		return
 	}
+	r, _ := agents.(rewatcher)
 	for _, agent := range paths.ListAgents(p.home) {
 		if !p.Peer(agent) {
 			continue
 		}
-		if err := p.tell.SessionLost(p.db, agent); err != nil && p.log != nil {
+		var rewatch func(op string, written time.Time) bool
+		if r != nil {
+			rewatch = func(op string, written time.Time) bool { return r.Rewatch(agent, op, written) }
+		}
+		if err := p.tell.ResumeSends(p.db, agent, rewatch); err != nil && p.log != nil {
 			p.log("  %s: settling the messages the last daemon left: %v", agent, err)
 		}
 	}
+}
+
+var _ rewatcher = vendorAgents{}
+var _ rewatcher = mixedAgents{}
+var _ rewatcher = (*peerport.Port)(nil)
+
+// rewatcher is the part of a port that goes on watching for a message an earlier daemon wrote (peerport.Port.Rewatch).
+type rewatcher interface {
+	Rewatch(agent, op string, written time.Time) bool
 }
 
 // peerDelivery is the Telling the peer port reports to.
 type peerDelivery interface {
 	SessionConfirmed(q db.Q, agent, op string) error
 	SessionNotDelivered(agent, op, why string, written bool) error
-	SessionLost(q db.Q, agent string) error
 }
 
 // NewPeerPort is the Agents port of the terminal agents that peer reports through, as ag delivers: the session is the live one in the
@@ -161,6 +177,9 @@ func (m mixedAgents) Withdraw(agent, op string) (delivery.Receipt, bool, error) 
 func (m mixedAgents) Promote(agent, op string) (delivery.Receipt, error) {
 	return m.of(agent).Promote(agent, op)
 }
+func (m mixedAgents) Rewatch(agent, op string, written time.Time) bool {
+	return rewatch(m.of(agent), agent, op, written)
+}
 
 // vendorAgents is supervisor.Agents by the agent's vendor: the vendor's own port when it has one, else Claude Code's.
 type vendorAgents struct {
@@ -188,6 +207,15 @@ func (v vendorAgents) Withdraw(agent, op string) (delivery.Receipt, bool, error)
 }
 func (v vendorAgents) Promote(agent, op string) (delivery.Receipt, error) {
 	return v.of(agent).Promote(agent, op)
+}
+func (v vendorAgents) Rewatch(agent, op string, written time.Time) bool {
+	return rewatch(v.of(agent), agent, op, written)
+}
+
+// rewatch is port's Rewatch, false for a port that cannot watch.
+func rewatch(port supervisor.Agents, agent, op string, written time.Time) bool {
+	r, ok := port.(rewatcher)
+	return ok && r.Rewatch(agent, op, written)
 }
 
 // noSessionPort is the Agents of an agent with no session port: nothing is delivered through it, and the supervisor's other paths reach it.

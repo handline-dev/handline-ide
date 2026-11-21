@@ -49,7 +49,7 @@ func TestTheAskGoesThroughThePeerInboxToTheSessionOfThatPid(t *testing.T) {
 	d, _ := danglingRig(t)
 	var to []int
 	result := peerinbox.Result{Kind: peerinbox.Delivered}
-	d.deliver = func(_ context.Context, sess peerinbox.Session, _ string, from peerinbox.From) peerinbox.Result {
+	d.deliver = func(_ context.Context, sess peerinbox.Session, _ string, from peerinbox.From, _ string) peerinbox.Result {
 		to = append(to, sess.PID)
 		if from.Name != "daemon" {
 			t.Fatalf("the ask is from the daemon: %q", from.Name)

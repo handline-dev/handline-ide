@@ -118,7 +118,7 @@ func TestAWrittenMessageThatLosesItsSessionIsUnknownAndTold(t *testing.T) {
 	rid := r.ask(r.k("alice"), r.k(("bob")), "psst", "say")
 	_, err := r.TellNow(r.DB, rid)
 	r.must(err)
-	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil))
 	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), requestOp(rid))); v != sendUnknown {
 		t.Fatalf("ledger %d", v)
 	}
@@ -138,7 +138,7 @@ func TestAHeldMessageThatLosesItsSessionIsOwedAgain(t *testing.T) {
 	if state, _ := r.sendOnce(r.DB, r.k(("bob")), "request:7", "hi", delivery.Queue); state != Held {
 		t.Fatal(state)
 	}
-	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil))
 	fa.state, fa.seen = delivery.Sent, nil // a new session knows nothing of the old one's operations
 	if state, _ := r.sendOnce(r.DB, r.k(("bob")), "request:7", "hi", delivery.Queue); state != Written {
 		t.Fatalf("never written, so it goes out again: %v", state)
@@ -182,7 +182,7 @@ func TestAMessageLeavesTheLedgerWhenEveryRequestItCarriedLandsOrIsClosed(t *test
 	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), op)); v != 0 {
 		t.Fatalf("both settled: the entry goes (%d)", v)
 	}
-	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil))
 	var n int
 	r.must(r.DB.QueryRow(r.sql("SELECT count(*) FROM requests WHERE body LIKE '%may or may not%'")).Scan(&n))
 	if n != 0 {
@@ -258,7 +258,7 @@ func TestAnEchoDuringTheWriteIsNotOverwrittenToHeld(t *testing.T) {
 	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), "request:7")); v != sendConfirmed {
 		t.Fatalf("ledger %d", v)
 	}
-	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil))
 	if v, _ := db.Cursor(r.DB, ledgerKey(r.k("bob"), "request:7")); v != sendConfirmed {
 		t.Fatalf("a lost session unsettled a confirmed message: %d", v)
 	}
@@ -300,7 +300,7 @@ func TestAnUnknownPendingOrNoticeOpIsRecordedAndNotWrittenAgain(t *testing.T) {
 	for _, op := range []string{"pending:3", "notice:4"} {
 		r.sendOnce(r.DB, r.k(("bob")), op, "x", delivery.Now)
 	}
-	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil))
 	for _, op := range []string{"pending:3", "notice:4"} {
 		if state, _ := r.sendOnce(r.DB, r.k(("bob")), op, "x", delivery.Now); state != Unknown {
 			t.Fatalf("%s: %v", op, state)
@@ -370,7 +370,7 @@ func TestADeliveryActedOnSinceIsNotReportedWhenItsSessionEnds(t *testing.T) {
 	}
 	r.DB.Exec(r.sql("UPDATE requests SET read_at = 1 WHERE id = ?"), read)       // the agent ran hl read on it
 	r.DB.Exec(r.sql("UPDATE requests SET state = 'done' WHERE id = ?"), settled) // what a daemon start does to an old say
-	r.must(r.SessionLost(r.DB, r.k(("bob"))))
+	r.must(r.ResumeSends(r.DB, r.k("bob"), nil))
 	var told []string
 	rows, _ := r.DB.Query(r.sql("SELECT target FROM requests WHERE body LIKE '%may or may not%' ORDER BY target"))
 	for rows.Next() {
