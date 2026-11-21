@@ -9,7 +9,7 @@ import (
 )
 
 // nodeStatus is node.status: the machines of this master on run or pause, its own first. This daemon is the master, so its own row is
-// master, self and online; no other machine is online until runners report.
+// master, self and online; another is online while its heartbeat comes.
 func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 	self := joined.NodeIDOf(e.Home)
 	rs, err := e.DB.Query(`SELECT id, person, name, joined_at, last_seen, master_number, lending FROM nodes
@@ -38,7 +38,8 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 			number = master
 		}
 		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
-			"master_number": master, "master": id == self, "self": id == self, "online": id == self, "lending": lending}
+			"master_number": master, "master": id == self, "self": id == self, "online": id == self || e.NodeOnline != nil && e.NodeOnline(id),
+			"lending": lending}
 		if id != self && e.NodeProjects != nil {
 			if ps := e.NodeProjects(id); ps != nil {
 				row["projects"] = ps

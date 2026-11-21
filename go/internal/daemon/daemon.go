@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +43,7 @@ import (
 	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/internal/watcher"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/peer"
@@ -240,6 +242,16 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	d.nodes = nodes.New(db, cfg.Home)
 	d.nodes.Log = cfg.Log
+	d.nodes.Self, d.nodes.Version = joined.NodeIDOf(cfg.Home), version.Sha
+	d.nodes.BatterySwitch = func() bool { return (&settings.Settings{Home: cfg.Home}).Flag(nodes.BatteryKey, false) }
+	d.nodes.AccountOf = func(email string) string {
+		for _, a := range paths.ListAccounts(cfg.Home) {
+			if strings.EqualFold((team.Accounts{Home: cfg.Home}).Email(a), email) {
+				return a
+			}
+		}
+		return ""
+	}
 	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
 	d.nodes.OnLink = d.projects.Node
 	d.nodes.Turns = cfg.Turns
@@ -331,6 +343,14 @@ func Start(cfg Config) (*Daemon, error) {
 	if cfg.Listen != "" {
 		d.dev = devices.New(devices.SQLStore{DB: db})
 		d.dev.Log = cfg.Log
+		d.dev.BeforeRevoke = func(device string) {
+			var node string
+			if db.QueryRow("SELECT id FROM nodes WHERE device = ?", device).Scan(&node) == nil {
+				if _, err := d.nodes.Reclaim(node, "its device was revoked"); err != nil {
+					cfg.Log("nodes: %s: its sessions were not taken back: %v", node, err)
+				}
+			}
+		}
 		d.dev.PushPlatforms = d.push.Platforms()
 	}
 	d.hub = stream.NewHub()
@@ -643,6 +663,9 @@ func (d *Daemon) readsEnv() reads.Env {
 		Context: d.cfg.Context, Claude: d.cfg.Claude, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake}
 	if d.projects != nil {
 		renv.NodeProjects = d.projects.Of
+	}
+	if d.nodes != nil {
+		renv.NodeOnline = d.nodes.Online
 	}
 	if d.res != nil {
 		renv.Resources = d.res.Latest

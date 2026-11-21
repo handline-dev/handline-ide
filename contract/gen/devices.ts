@@ -142,6 +142,25 @@ export interface DevicesMethods {
   /** Each {kind, body} as transcript_events keeps it: text, tool_use, tool_result (its output already cut to 16 KiB). */
   rows: { [key: string]: unknown }[];
 }; result: { [key: string]: unknown } };
+  "node.heartbeat": { params: {
+  /** The runner's Handline version: one that is not the master's takes no new session. */
+  version: string;
+  /** The machine's boot: another one means it restarted. */
+  boot?: string;
+  /** cores, load1, ram_total and ram_free, as the runner read them. */
+  load?: { [key: string]: unknown };
+  /** Each session it holds: agent, handle, and the branch of its worktree with the commit last pushed (branch, pushed). */
+  sessions?: { [key: string]: unknown }[];
+  /** Each Claude account folder there logged in to an account: name and email. */
+  accounts?: { [key: string]: unknown }[];
+  /** What it has for an agent's work: clis, mcp, xcode, simulators. */
+  has?: { [key: string]: unknown };
+  /** The machine runs on its battery now. */
+  battery?: boolean;
+}; result: {
+    /** The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it. */
+    stop: string[];
+  } };
   "node.tokens": { params: {
   /** The account's name on that runner. */
   account: string;
@@ -181,18 +200,20 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "node.forward": { role: "member", callers: null, write: false, since: 1 },
   "node.turn": { role: "member", callers: null, write: false, since: 1 },
   "node.transcript": { role: "member", callers: null, write: false, since: 1 },
+  "node.heartbeat": { role: "member", callers: null, write: false, since: 1 },
   "node.tokens": { role: "member", callers: null, write: false, since: 1 },
   "node.launch": { role: "owner", callers: null, write: false, since: 1 },
   "node.agent_files": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.tokens" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
   "node.forward": false,
   "node.turn": false,
   "node.transcript": false,
+  "node.heartbeat": false,
   "node.tokens": false,
   "node.launch": false,
   "node.agent_files": false,

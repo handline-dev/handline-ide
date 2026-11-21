@@ -9,6 +9,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/heal"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/proposalwrites"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/kit/paths"
@@ -67,6 +68,13 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		}},
 		{Name: "desks", Run: func(_ db.Q, now int64) error { return desks.Run(now) }},
 		{Name: "desk-prune", Run: func(_ db.Q, now int64) error { return prune.Run(now) }},
+		{Name: "reclaim", Run: func(db.Q, int64) error {
+			if cfg.Nodes == nil {
+				return nil
+			}
+			_, err := cfg.Nodes.Sweep(lc.Manager.Settings.ConfigSeconds(nodes.ReclaimKey, nodes.ReclaimS))
+			return err
+		}},
 	}
 }
 

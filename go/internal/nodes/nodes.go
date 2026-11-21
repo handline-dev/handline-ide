@@ -42,13 +42,24 @@ type Registry struct {
 	// Transcript, when set, stores the chat transcript rows a runner read from one of its sessions' transcripts (node.transcript).
 	Transcript func(agent, session string, at int64, rows []transcript.Row)
 	// Tokens, when set, counts the calls a runner read from one of its accounts' transcripts (node.tokens), as usage.Call in JSON.
-	Tokens  func(account string, calls json.RawMessage) error
-	local   func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
-	mu      sync.Mutex
-	links   map[string]*rpc.Conn
-	homes   map[*rpc.Conn]string // each link's runner's home, once asked
-	streams map[string]*stream   // by id
-	next    int
+	Tokens func(account string, calls json.RawMessage) error
+	// AccountOf, when set, is the master's account logged in as email, "" for none: a runner's account folder is counted as it.
+	AccountOf func(email string) string
+	// Self is the master's own node id; Version the master's Handline version, which a runner's must be to take work ("" takes any).
+	Self, Version string
+	// BatterySwitch, when set, is whether the battery switch is on (BatteryKey): a runner whose heartbeat says it went on battery is set
+	// to Off, and back to Run when plugged in again.
+	BatterySwitch func() bool
+	local         func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
+	mu            sync.Mutex
+	links         map[string]*rpc.Conn
+	homes         map[*rpc.Conn]string // each link's runner's home, once asked
+	streams       map[string]*stream   // by id
+	next          int
+	beats         map[string]heard           // each runner's newest heartbeat since this master started
+	opening       map[string]map[string]bool // by node, the agents whose session Open is opening there now
+	started       time.Time
+	Clock         func() time.Time // the time heartbeats are judged by; nil is time.Now
 
 	refOnce sync.Once
 	refRE   *regexp.Regexp // a path under the attachments folder
@@ -61,14 +72,26 @@ type stream struct {
 	ended func()
 }
 
+func (r *Registry) now() time.Time {
+	if r.Clock != nil {
+		return r.Clock()
+	}
+	return time.Now()
+}
+
 func New(db *sql.DB, home string) *Registry {
-	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, streams: map[string]*stream{}}
+	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, streams: map[string]*stream{},
+		beats: map[string]heard{}, opening: map[string]map[string]bool{}, started: time.Now()}
 }
 
 // Link keeps c as node's link, in place of any before it, until c ends, which ends every stream on it.
 func (r *Registry) Link(node string, c *rpc.Conn) {
 	r.mu.Lock()
 	r.links[node] = c
+	h := r.beats[node]
+	h.at = r.now() // its hello is heard from it; its version is what its next heartbeat says
+	h.beat.Version = ""
+	r.beats[node] = h
 	r.mu.Unlock()
 	c.OnNotice(func(method string, p map[string]any) {
 		id, _ := p["stream"].(string)
@@ -248,6 +271,20 @@ type Runner struct {
 
 // Open opens a terminal on the runner in folder, typing command at its shell, as agent's session, and keeps that the session is there.
 func (r *Runner) Open(agent, folder, command string) (string, error) {
+	if why := r.reg.Takes(r.node); why != "" {
+		return "", rpc.Refused(fmt.Sprintf("node %s takes no new session: %s", r.node, why), "node", "")
+	}
+	r.reg.mu.Lock()
+	if r.reg.opening[r.node] == nil {
+		r.reg.opening[r.node] = map[string]bool{}
+	}
+	r.reg.opening[r.node][agent] = true // a heartbeat meanwhile names it before node_sessions does: it is not stopped
+	r.reg.mu.Unlock()
+	defer func() {
+		r.reg.mu.Lock()
+		delete(r.reg.opening[r.node], agent)
+		r.reg.mu.Unlock()
+	}()
 	got, err := r.c.Call("runner.terminal.open", map[string]any{"agent": agent, "folder": folder, "command": command}, CallWait)
 	if err != nil {
 		return "", err
@@ -334,11 +371,30 @@ func (r *Registry) Terminals() term.Remote { return remote{r} }
 
 type remote struct{ r *Registry }
 
+// Nodes is the runners linked now and those holding a session the master has not taken back.
 func (m remote) Nodes() []string {
 	m.r.mu.Lock()
-	defer m.r.mu.Unlock()
-	out := make([]string, 0, len(m.r.links))
+	seen := make(map[string]bool, len(m.r.links))
 	for node := range m.r.links {
+		seen[node] = true
+	}
+	m.r.mu.Unlock()
+	rs, err := m.r.DB.Query("SELECT DISTINCT node FROM node_sessions")
+	if err != nil {
+		m.r.log("nodes: the runners holding sessions could not be read: %v", err)
+	} else {
+		for rs.Next() {
+			var n string
+			if rs.Scan(&n) == nil {
+				seen[n] = true
+			}
+		}
+		if err := errors.Join(rs.Err(), rs.Close()); err != nil {
+			m.r.log("nodes: the runners holding sessions could not be read: %v", err)
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for node := range seen {
 		out = append(out, node)
 	}
 	return out
@@ -430,12 +486,32 @@ func (m remote) Respawn(node, handle string) error {
 	return run.Respawn(handle)
 }
 
+// Terminals is node's terminals as it lists them; for a runner not linked now, the sessions the master opened there: they are taken as
+// running until the reclaim time takes them back (Sweep), as a closed lid or a dropped network is not a session's end.
 func (m remote) Terminals(node string) ([]string, error) {
 	run, err := m.r.Runner(node)
 	if err != nil {
-		return nil, err
+		return m.r.held(node)
 	}
 	return run.Terminals()
+}
+
+// held is the handles of the sessions the master opened on node.
+func (r *Registry) held(node string) ([]string, error) {
+	rs, err := r.DB.Query("SELECT handle FROM node_sessions WHERE node = ?", node)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := []string{}
+	for rs.Next() {
+		var h string
+		if err := rs.Scan(&h); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rs.Err()
 }
 
 // Respawn ends what runs in the terminal and leaves a fresh shell there, which the runner records as the session in its place.
@@ -505,6 +581,7 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		}
 		return r.answerFor(node, home, res), nil
 	}})
+	s.Register("node.heartbeat", rpc.Method{Handler: r.heartbeat})
 	s.Register("node.launch", rpc.Method{Waits: true, Handler: r.launch})
 	s.Register("node.agent_files", rpc.Method{Waits: true, Handler: r.agentFiles})
 	s.Register("node.turn", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
@@ -527,10 +604,12 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		return map[string]any{}, nil
 	}})
 	s.Register("node.tokens", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
-		if r.NodeOf(c.Root()) == "" {
+		node := r.NodeOf(c.Root())
+		if node == "" {
 			return nil, rpc.Refused("node.tokens is a runner's own call, on its link", "node", "")
 		}
 		account, _ := p["account"].(string)
+		account = r.accountHere(node, account)
 		calls, err := json.Marshal(p["calls"])
 		if account == "" || err != nil {
 			return nil, rpc.BadRequestError("account is a string and calls the calls read", "calls", rpc.InvalidParams)

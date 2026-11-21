@@ -26,6 +26,7 @@ export const NOT_QUERIES = [
   'node.turn',
   'node.transcript',
   'node.tokens',
+  'node.heartbeat',
   'subscribe',
   'unsubscribe',
   'events.feed',

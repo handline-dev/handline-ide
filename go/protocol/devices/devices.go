@@ -101,6 +101,8 @@ type Manager struct {
 	maxConns   int
 	// Log, when set, hears of each connection closed to make room: a client that leaks connections shows up by its device's name.
 	Log func(format string, args ...any)
+	// BeforeRevoke, when set, is told of a device about to be revoked, while its machine's node row is still there.
+	BeforeRevoke func(id string)
 	// PushPlatforms is the platforms the daemon has push credentials for; none is push off.
 	PushPlatforms []string
 	// Doors finds the door a device.pair address names ("" the default one), or answers the hosts that are served; the daemon sets it.
@@ -255,6 +257,9 @@ func (m *Manager) wrongTry(remote string, now time.Time) {
 
 // Revoke cancels a device and closes its connections. false when it is not paired.
 func (m *Manager) Revoke(id string) (bool, error) {
+	if m.BeforeRevoke != nil {
+		m.BeforeRevoke(id)
+	}
 	m.mu.Lock()
 	found, err := m.store.Delete(id)
 	var closers []func()
