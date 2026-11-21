@@ -101,7 +101,7 @@ export function CommentBox({
   const dir = useDirectory();
   const nameOf = useNameOf();
   // On the founder's turn the box answers it, unless a comment was picked to reply to.
-  // A Ready task is answered by OK, merge or Redo; the box sends a plain comment.
+  // A Ready task is answered by OK or Redo; the box sends a plain comment.
   const turn = foundersTurn(t, me) && !t.review?.ready ? t.turns?.at(-1) : undefined;
   const picked = asked?.turn ? null : asked;
   const reply = picked ?? (turn ? turnReply(t) : null);

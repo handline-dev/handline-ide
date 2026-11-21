@@ -1,21 +1,18 @@
 import { Ago } from '#src/ui/Ago.tsx';
 // A story's sub-task opened from its node: back to the Plan, the next one for you, and its Plan, Code and Result with the founder's verdicts.
-import type { MemoFile, TaskDetail } from '@handline/client';
-import { MessageImages } from '#src/chat/MessageImages.tsx';
-import { Hooks, useAttachmentUrl, useNameOf, useWrite } from '@handline/app-data';
+import type { TaskDetail } from '@handline/client';
+import { Hooks, useNameOf, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import { Check, ChevronLeft, ChevronRight, Play } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
-import { playVideo } from '#src/viewer/VideoPlayer.tsx';
-import { ChangeSize, TaskCode } from '#src/tools/TaskCode.tsx';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { TaskCode } from '#src/tools/TaskCode.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 import { FaceName } from '#src/ui/Face.tsx';
 import { startsAfter, wordOf, type Sub } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { Markdown } from '#src/ui/Markdown.tsx';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { note, Result, VerdictButtons } from '#src/tools/Review.tsx';
 
 type Tab = 'plan' | 'code' | 'result';
 const CLOSED = ['done', 'discarded'];
@@ -94,7 +91,13 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
           <TaskCode task={t.id} />
         </ScrollFade>
       )}
-      {shown === 'result' && t.review && <ResultTab t={t} />}
+      {shown === 'result' && t.review && (
+        <ScrollFade className="min-h-0 flex-1">
+          <div className="px-6 py-5">
+            <Result t={t} review={t.review} />
+          </div>
+        </ScrollFade>
+      )}
       {t.review?.ready ? <Verdict t={t} /> : t.state === 'draft' && <DraftButtons t={t} />}
     </div>
   );
@@ -104,25 +107,11 @@ function Footer({ children }: { children: ReactNode }) {
   return <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-6 py-3">{children}</div>;
 }
 
-/** A Ready task's buttons, on every tab: Redo with a note, or OK, merge. */
+/** A Ready task's buttons, on every tab: Redo with a note, or OK. */
 function Verdict({ t }: { t: TaskDetail }) {
-  const ok = useWrite('task.ok');
-  const redo = useWrite('task.redo');
   return (
     <Footer>
-      <Button
-        disabled={redo.isPending}
-        onClick={() =>
-          void note({ title: 'Redo', hint: 'What to change', go: 'Send back', required: true }).then(
-            (n) => n && redo.mutate({ task: t.id, note: n }, { onError: sayRefusal }),
-          )
-        }
-      >
-        Redo
-      </Button>
-      <Button variant="primary" disabled={ok.isPending} onClick={() => ok.mutate({ task: t.id }, { onError: sayRefusal })}>
-        OK, merge
-      </Button>
+      <VerdictButtons t={t} />
     </Footer>
   );
 }
@@ -238,124 +227,5 @@ function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
         )}
       </div>
     </ScrollFade>
-  );
-}
-
-function ResultTab({ t }: { t: TaskDetail }) {
-  const review = t.review!;
-  const memo = t.memos.find((m) => m.id === review.memo);
-  const files = memo?.files ?? [];
-  const posters = new Set(files.map((f) => f.poster).filter(Boolean));
-  const pictures = files.filter((f) => f.kind === 'image' && !posters.has(f.id));
-  const videos = files.filter((f) => f.kind === 'video');
-  const others = files.filter((f) => f.kind !== 'image' && f.kind !== 'video');
-  return (
-    <ScrollFade className="min-h-0 flex-1">
-      <div className="flex flex-col gap-5 px-6 py-5 text-sm">
-        <div className="grid grid-cols-3 gap-3">
-          {pictures.map((f) => (
-            <Framed key={f.id} f={f} />
-          ))}
-          {videos.map((f) => (
-            <Video key={f.id} f={f} />
-          ))}
-        </div>
-        <MessageImages images={others.map((f) => ({ id: f.id, name: f.name, mime: f.mime, size: f.bytes }))} />
-        <ChangeSize task={t.id} />
-        {memo && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted">Changed from the plan</span>
-            <Markdown text={memo.text} />
-          </div>
-        )}
-        {review.redo > 0 && <p className="text-xs text-muted">Sent back {review.redo === 1 ? 'once' : `${review.redo} times`}.</p>}
-        {!review.ready && <p className="text-xs text-muted">{review.ok ? 'OK given; merging.' : 'Sent back; being worked again.'}</p>}
-      </div>
-    </ScrollFade>
-  );
-}
-
-/** A picture framed as one, under a window bar and a little faded, so its buttons do not look live. */
-function Framed({ f }: { f: MemoFile }) {
-  const { url } = useAttachmentUrl(f.id, false);
-  return (
-    <figure className="flex flex-col gap-1">
-      <div className="overflow-hidden rounded-md border border-border">
-        <div className="flex h-5 items-center gap-1 border-b border-border bg-surface px-2">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="size-1.5 rounded-full bg-muted/50" />
-          ))}
-        </div>
-        {url ? (
-          <img src={url} alt={f.name} className="h-32 w-full object-cover object-top opacity-80" />
-        ) : (
-          <div className="h-32 bg-hover/30" />
-        )}
-      </div>
-      <figcaption className="text-xs text-muted">{f.name.replace(/\.\w+$/, '')}</figcaption>
-    </figure>
-  );
-}
-
-function Video({ f }: { f: MemoFile }) {
-  return (
-    <figure className="flex flex-col gap-1">
-      <button type="button" onClick={() => playVideo(f.id, f.name)} className="relative overflow-hidden rounded-md border border-border">
-        {f.poster ? <Poster id={f.poster} /> : <div className="h-37 bg-hover/30" />}
-        <span className="absolute inset-0 m-auto flex size-12 items-center justify-center rounded-full bg-fg/60 text-bg">
-          <Play size={20} />
-        </span>
-      </button>
-      <figcaption className="text-xs text-muted">{f.name}</figcaption>
-    </figure>
-  );
-}
-
-function Poster({ id }: { id: string }) {
-  const url = useAttachmentUrl(id, false).url;
-  return url ? <img src={url} alt="" className="h-37 w-full object-cover object-top opacity-80" /> : <div className="h-37 bg-hover/30" />;
-}
-
-/** A note for an ask: resolves the text (maybe empty when not required), or undefined when cancelled. */
-function note({ title, hint, go, required }: { title: string; hint: string; go: string; required: boolean }) {
-  return openModal<string>((close) => <NoteWindow title={title} hint={hint} go={go} required={required} close={close} />);
-}
-
-function NoteWindow({
-  title,
-  hint,
-  go,
-  required,
-  close,
-}: {
-  title: string;
-  hint: string;
-  go: string;
-  required: boolean;
-  close: (v?: string) => void;
-}) {
-  const [text, setText] = useState('');
-  return (
-    <ModalFrame
-      title={title}
-      onClose={() => close()}
-      footer={
-        <>
-          <Button onClick={() => close()}>Cancel</Button>
-          <Button variant="primary" disabled={required && !text.trim()} onClick={() => close(text.trim())}>
-            {go}
-          </Button>
-        </>
-      }
-    >
-      <textarea
-        autoFocus
-        rows={4}
-        value={text}
-        placeholder={hint}
-        onChange={(e) => setText(e.target.value)}
-        className="w-full rounded-md border border-border bg-bg p-2 text-sm text-fg outline-none placeholder:text-muted focus:border-accent"
-      />
-    </ModalFrame>
   );
 }

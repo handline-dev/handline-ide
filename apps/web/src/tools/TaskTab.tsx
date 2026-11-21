@@ -23,6 +23,7 @@ import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { ChangeSize } from '#src/tools/TaskCode.tsx';
 import { PlanFlow, storyChat } from '#src/tools/Story.tsx';
 import { DraftRun } from '#src/tools/RunPlan.tsx';
+import { Result, VerdictButtons } from '#src/tools/Review.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import { FileDropArea } from '#src/ui/fileDrop.tsx';
 import { Page } from '#src/ui/Page.tsx';
@@ -125,6 +126,7 @@ export function TaskTab({ id }: { id: number }) {
             <span className={t.state === 'discarded' ? 'text-muted line-through' : ''}>{t.title}</span>
           </h1>
           {t.state === 'draft' && <DraftRun t={t} />}
+          {t.review?.ready && <VerdictButtons t={t} />}
           <Verbs id={t.id} open={open} state={t.state} />
         </Page>
         <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
@@ -179,13 +181,19 @@ export function TaskTab({ id }: { id: number }) {
               </Section>
             )}
             {t.subtasks.length > 0 && <PlanFlow t={t} />}
-            {t.evidence && (
+            {t.review ? (
               <Section title="Result">
-                <ResultChips evidence={t.evidence} title={t.title} />
-                <Flash text={t.evidence}>
-                  <Markdown text={t.evidence} />
-                </Flash>
+                <Result t={t} review={t.review} />
               </Section>
+            ) : (
+              t.evidence && (
+                <Section title="Result">
+                  <ResultChips evidence={t.evidence} title={t.title} />
+                  <Flash text={t.evidence}>
+                    <Markdown text={t.evidence} />
+                  </Flash>
+                </Section>
+              )
             )}
             {activity()}
           </Page>
