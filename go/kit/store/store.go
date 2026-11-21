@@ -108,10 +108,16 @@ func Open(path string) (*sql.DB, error) {
 }
 
 // dsn is the connection string: one connection per pragma set, since modernc applies _pragma to every connection the pool opens.
+// AutoCheckpointPages leaves the WAL's checkpoints to the board's copy (Litestream checkpoints at 1000 pages) rather than every writer.
 func dsn(path string) string {
 	return "file:" + path + "?_pragma=busy_timeout(" + strconv.Itoa(busyTimeoutMS) + ")&_pragma=journal_mode(WAL)" +
-		"&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(1)&_pragma=cache_size(-" + strconv.Itoa(cacheKiB) + ")&_txlock=immediate"
+		"&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(1)&_pragma=cache_size(-" + strconv.Itoa(cacheKiB) + ")" +
+		"&_pragma=wal_autocheckpoint(" + strconv.Itoa(AutoCheckpointPages) + ")&_txlock=immediate"
 }
+
+// AutoCheckpointPages is the WAL size, in pages, at which a writer checkpoints by itself: above the 1000 the board's copy checkpoints
+// at, as Litestream asks of the app beside it.
+const AutoCheckpointPages = 10000
 
 // create makes an empty WAL database at path under the migrate lock: made aside and renamed in, so no opener sees it before it is WAL
 // (two connections switching one file to WAL at once fail SQLITE_BUSY). Another process may have made it while this one waited.

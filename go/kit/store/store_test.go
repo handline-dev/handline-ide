@@ -290,3 +290,19 @@ func TestTheLeaseMaxRuleIsDropped(t *testing.T) {
 		t.Fatalf("kept %v", keys)
 	}
 }
+
+// Every connection the store opens leaves the WAL's checkpoints to the board's copy until AutoCheckpointPages.
+func TestAWriterLeavesCheckpointsToTheBoardsCopy(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(3)
+	for i := 0; i < 3; i++ {
+		var n int
+		if err := db.QueryRow("PRAGMA wal_autocheckpoint").Scan(&n); err != nil || n != AutoCheckpointPages {
+			t.Fatalf("wal_autocheckpoint %d %v", n, err)
+		}
+	}
+}

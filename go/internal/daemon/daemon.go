@@ -2,7 +2,9 @@
 package daemon
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +26,7 @@ import (
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
+	"github.com/handline/handline/go/internal/boardcopy"
 	"github.com/handline/handline/go/internal/chatwrites"
 	"github.com/handline/handline/go/internal/deskrpc"
 	"github.com/handline/handline/go/internal/filerw"
@@ -89,6 +92,8 @@ type Config struct {
 	Terminal term.Backend // the host the daemon reads panes from; nil is the configured one (tests give a fake)
 	// Turns, when set, says whether a terminal agent is mid-turn from its hooks and transcript; nil reads its screen (-turns-from-hooks).
 	Turns *turns.Tracker
+	// BoardCopy keeps a copy of the board for the owner's runners (boardcopy): a master's daemon runs with it.
+	BoardCopy bool
 
 	// EnsureFounderKey makes the founder key when there is none and reports whether the store could be written (the daemon main sets it
 	// to the home's tokens: the store is outside the home, so a test leaves it nil).
@@ -135,6 +140,7 @@ type Daemon struct {
 	cfg    Config
 	db     *sql.DB
 	lent   func() // takes db back from the shared handles (store.Lend)
+	copier *boardcopy.Copier
 	hooks  *hooks.Recorder
 	files  *filerw.Env        // file.read, file.write and the shared docs
 	pause  pauseClock         // the founder's pause of new work: its until tells the status topic
@@ -270,6 +276,20 @@ func Start(cfg Config) (*Daemon, error) {
 			cfg.Log("  nodes: %s: transcript rows not stored: %v", agent, err)
 		}
 	}
+	if cfg.BoardCopy {
+		id, err := boardID(db)
+		var c *boardcopy.Copier
+		if err == nil {
+			c, err = boardcopy.Start(cfg.DBFile, boardcopy.Dir(cfg.Home), id)
+		}
+		if err != nil {
+			cfg.Log("handlined: the board's copy did not start, so no runner keeps one and the WAL is checkpointed only past %d pages: %v",
+				store.AutoCheckpointPages, err)
+		} else {
+			d.copier = c
+			d.nodes.Copy = &nodes.Copy{Dir: boardcopy.Dir(cfg.Home)}
+		}
+	}
 	if cfg.OnOpen != nil {
 		cfg.OnOpen(db, d.env(), d.nodes)
 	}
@@ -389,6 +409,7 @@ func Start(cfg Config) (*Daemon, error) {
 				d.lent()
 			}
 			db.Close()
+			d.stopCopy()
 			if d.single != nil {
 				d.single.Release()
 			}
@@ -667,6 +688,9 @@ func (d *Daemon) readsEnv() reads.Env {
 	if d.nodes != nil {
 		renv.NodeOnline = d.nodes.Online
 	}
+	if d.nodes != nil && d.nodes.Copy != nil {
+		renv.NodeCopy = d.nodes.CopyOf
+	}
 	if d.res != nil {
 		renv.Resources = d.res.Latest
 		renv.Machine = d.res.LatestMachine
@@ -885,14 +909,26 @@ func (d *Daemon) close() {
 	if d.cfg.BeforeClose != nil {
 		d.cfg.BeforeClose()
 	}
-	if d.single != nil {
-		d.single.Release()
-	}
 	if d.db != nil {
 		if d.lent != nil {
 			d.lent()
 		}
 		d.db.Close()
+	}
+	d.stopCopy()
+	if d.single != nil { // last: another daemon on this home may start its own copy only once this one's has stopped
+		d.single.Release()
+	}
+}
+
+// stopCopy stops the board's copy, after the board's own connections have closed (Litestream's handle on the file would drop their
+// locks), with its last changes written.
+func (d *Daemon) stopCopy() {
+	if d.copier != nil {
+		if err := d.copier.Stop(); err != nil {
+			d.cfg.Log("  board copy: %v", err)
+		}
+		d.copier = nil
 	}
 }
 
@@ -960,4 +996,18 @@ func (d *Daemon) linkRunner(next func(*rpc.Conn, map[string]any) (any, error)) f
 // transcriptRows is whether chat keeps the rows of agents' session transcripts (chat_transcript_rows).
 func transcriptRows(home string) bool {
 	return (&settings.Settings{Home: home}).Flag(settings.TranscriptRowsKey, false)
+}
+
+// boardID is this board's own id (meta board_id), made the first time: the board's copy names it, so a board made anew is not copied
+// on top of another's.
+func boardID(db *sql.DB) (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	if _, err := db.Exec("INSERT OR IGNORE INTO meta(name, value, updated) VALUES('board_id', ?, ?)", hex.EncodeToString(b), time.Now().Unix()); err != nil {
+		return "", err
+	}
+	var id string
+	return id, db.QueryRow("SELECT value FROM meta WHERE name = 'board_id'").Scan(&id)
 }
