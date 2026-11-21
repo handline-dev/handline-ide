@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -35,12 +36,12 @@ func markResultSeen(tx db.Q, tid int64) error {
 	return db.SetCursor(tx, db.ResultSeenKey(tid), time.Now().Unix())
 }
 
-// MarkSeen moves the read marker only forward (to the newest comment when upto is 0), and marks an ended task's result seen; a queued question
-// is never read away.
-func MarkSeen(tx db.Q, tid, upto int64) (bool, error) {
+// MarkSeen moves person's read marker only forward (to the newest comment when upto is 0), and marks an ended task's result seen for the
+// owner; a queued question is never read away.
+func MarkSeen(tx db.Q, person string, tid, upto int64) (bool, error) {
 	if ended, err := taskEnded(tx, tid); err != nil {
 		return false, err
-	} else if ended {
+	} else if ended && person == actor.OwnerKey {
 		if err := markResultSeen(tx, tid); err != nil {
 			return false, err
 		}
@@ -52,13 +53,13 @@ func MarkSeen(tx db.Q, tid, upto int64) (bool, error) {
 		}
 		upto = top.Int64
 	}
-	cur, err := db.Cursor(tx, db.SeenKey(tid))
+	cur, err := db.Cursor(tx, db.SeenKey(person, tid))
 	if err != nil {
 		return false, err
 	}
 	moved := upto > cur
 	if moved {
-		if err := db.SetCursor(tx, db.SeenKey(tid), upto); err != nil {
+		if err := db.SetCursor(tx, db.SeenKey(person, tid), upto); err != nil {
 			return false, err
 		}
 	}
@@ -86,7 +87,7 @@ func seenMethod(c *rpc.Conn, p map[string]any) (any, error) {
 			nf.Data = map[string]any{"what": "task", "id": tid}
 			return nil, nf
 		}
-		if _, err := MarkSeen(tx, tid, upto); err != nil {
+		if _, err := MarkSeen(tx, c.Caller.Actor(), tid, upto); err != nil {
 			return nil, err
 		}
 		return accepted(fmt.Sprintf("T%d's comments are marked seen", tid), nil), nil

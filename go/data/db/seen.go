@@ -18,10 +18,15 @@ const ResultSeenPrefix = "result_seen:"
 
 func ResultSeenKey(tid int64) string { return ResultSeenPrefix + strconv.FormatInt(tid, 10) }
 
-// SeenPrefix is the cursors holding how far the person has read each task's comments.
+// SeenPrefix is the cursors holding how far the owner has read each task's comments; SeenPrefixOf another person's.
 const SeenPrefix = "task_seen:" + actor.OwnerKey + ":"
 
-func SeenKey(tid int64) string { return SeenPrefix + strconv.FormatInt(tid, 10) }
+func SeenPrefixOf(person string) string { return "task_seen:" + person + ":" }
+
+// SeenKey is how far person has read task tid's comments.
+func SeenKey(person string, tid int64) string {
+	return SeenPrefixOf(person) + strconv.FormatInt(tid, 10)
+}
 
 // LoginNeedPrefix is the meta rows holding a LoginNeed for each account that wants a login or stands stalled.
 const LoginNeedPrefix = "founder_login_need:"

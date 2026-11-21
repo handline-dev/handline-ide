@@ -1,6 +1,8 @@
 package reads
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -75,7 +77,7 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 	}
 	owned, err := query(e.DB, "SELECT *, "+taskActing+", "+
 		"COALESCE((SELECT since FROM task_turns WHERE task_id = tasks.id ORDER BY pos DESC LIMIT 1), created_at) AS turn_since "+
-		"FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", actor.OwnerKey)
+		"FROM tasks WHERE "+db.ActingSQL("tasks")+" = ? AND "+openTask+" ORDER BY id", e.person())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -94,10 +96,16 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		add(forYouItem("task", strconv.FormatInt(t.i("id"), 10), from, t.str("title"), ask, ts(t["turn_since"])))
 	}
 
-	// The prompts agents wait on, while the screen watch still sees them.
-	prompts, err := query(e.DB, "SELECT * FROM prompt_blocks WHERE gone_at IS NULL AND last_seen >= ? ORDER BY id", time.Now().Unix()-promptStaleS)
+	// The prompts agents wait on, while the screen watch still sees them; an owner answers them, as an owner types into terminals.
+	owner, err := e.personIsOwner()
 	if err != nil {
 		return nil, 0, err
+	}
+	var prompts []row
+	if owner {
+		if prompts, err = query(e.DB, "SELECT * FROM prompt_blocks WHERE gone_at IS NULL AND last_seen >= ? ORDER BY id", time.Now().Unix()-promptStaleS); err != nil {
+			return nil, 0, err
+		}
 	}
 	for _, r := range prompts {
 		p := promptOf(r.str("agent"), r)
@@ -117,22 +125,24 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 
 	// proposals that wait for the founder (a client counts the dot from open and apply_failed, never applying).
 	for _, p := range e.proposals() {
-		if p.state == "open" || p.state == "apply_failed" {
+		if owner && (p.state == "open" || p.state == "apply_failed") {
 			v := e.proposalView(p)
 			add(forYouItem("proposal", fmt.Sprint(p.wireID), v["agent"], p.title(), "allow", ts(p.created)))
 		}
 	}
 
 	// What the daemon needs and cannot do itself.
-	warnings, err := e.founderWarnings()
-	if err != nil {
-		return nil, 0, err
+	var warnings []founderWarning
+	if owner {
+		if warnings, err = e.founderWarnings(); err != nil {
+			return nil, 0, err
+		}
 	}
 	for _, w := range warnings {
 		add(forYouItem("machine", w.id, nil, w.title, "do", w.since))
 	}
 
-	deferred, err := prefs.LaterOf(e.DB, actor.OwnerKey)
+	deferred, err := prefs.LaterOf(e.DB, e.person())
 	if err != nil {
 		return nil, 0, err
 	}
@@ -175,3 +185,17 @@ func (e *Env) taskIsOpen(id int64) bool {
 
 // withoutHumanTag is a comment's ask without the mention of the founder that raised it.
 func withoutHumanTag(text string) string { return strings.ReplaceAll(text, "@human", "") }
+
+// personIsOwner is whether the person the reads are for is an owner: the prompts, proposals and machine needs are theirs.
+func (e *Env) personIsOwner() (bool, error) {
+	if e.person() == actor.OwnerKey {
+		return true, nil
+	}
+	_, id, _ := actor.Parse(e.person())
+	var role string
+	err := e.DB.QueryRow("SELECT role FROM people WHERE id = ? AND removed_at IS NULL", id).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return role == "owner", err
+}

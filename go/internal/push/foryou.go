@@ -24,9 +24,9 @@ func ForYouNote(e stream.Entry) (Note, bool) {
 		if agent, _ := it["agent"].(string); agent != "" {
 			title += " · " + agent
 		}
-		return Note{Title: title, Body: e.Title, Data: map[string]string{"kind": kind, "id": id}, Collapse: kind + ":" + id, Badge: count}, true
+		return Note{Title: title, Body: e.Title, Data: map[string]string{"kind": kind, "id": id}, Collapse: kind + ":" + id, Badge: count, Person: e.Agent}, true
 	case "for_you.closed":
-		return Note{Badge: count, Silent: true}, true
+		return Note{Badge: count, Silent: true, Person: e.Agent}, true
 	}
 	return Note{}, false
 }

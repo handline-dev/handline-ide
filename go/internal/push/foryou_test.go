@@ -13,6 +13,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/stream"
+	"github.com/handline/handline/go/protocol/devices"
 )
 
 func opened(kind, id, asks string, agent any, title string, count int) stream.Entry {
@@ -135,5 +136,36 @@ func TestNoSenderHasNoPlatforms(t *testing.T) {
 	var s *Sender
 	if got := s.Platforms(); len(got) != 0 {
 		t.Fatalf("%v", got)
+	}
+}
+
+// A note of a person's item goes to that person's devices only: Kim's turn to her phone, the founder's to theirs.
+func TestANoteGoesToItsPersonsDevicesOnly(t *testing.T) {
+	prod := newFake(t)
+	store := devices.NewMemStore()
+	for _, d := range []struct{ id, person, token string }{{"founder", "", "aaa"}, {"kim", "p2", "kkk"}} {
+		store.Add(devices.Device{ID: d.id, Name: d.id, Person: d.person}, "hash"+d.id)
+		store.SetPush(d.id, devices.Push{Platform: "apns", Token: d.token})
+	}
+	ec, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	s, err := FromConfig(usage.Config{KeyAPNsKey: writeFile(t, "key.p8", writePEM(t, ec)), KeyAPNsKeyID: "KID", KeyAPNsTeamID: "TEAM"}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := s.platforms["apns"].(*apns)
+	a.client, a.host, a.sandboxHost = prod.Client(), prod.URL, prod.URL
+	hers, mine := opened("task", "7", "decide", "bob", "Kim's", 1), opened("task", "8", "decide", "bob", "the founder's", 1)
+	hers.Agent, mine.Agent = "p2", "p1"
+	events := make(chan stream.Entry, 2)
+	events <- hers
+	events <- mine
+	close(events)
+	s.Watch(make(chan struct{}), events)
+	var to []string
+	for _, g := range prod.take() {
+		to = append(to, g.path[strings.LastIndex(g.path, "/")+1:])
+	}
+	if !reflect.DeepEqual(to, []string{"kkk", "aaa"}) {
+		t.Fatalf("sent to %v", to)
 	}
 }
