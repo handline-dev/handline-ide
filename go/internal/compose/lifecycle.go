@@ -153,7 +153,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	}
 	tm := cfg.Term
 	if tm == nil {
-		tm = newTerm(home, q, cfg.Runners)
+		tm = newTerm(home, q, cfg.Nodes)
 	}
 	if cfg.Turns != nil {
 		tm.Turns = cfg.Turns
@@ -230,6 +230,10 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		}
 	}
 	p.LC.Mover = p.newMover(m, uenv, lc.Env)
+	if cfg.Nodes != nil { // an agent on a runner is launched from here, and its note brought here before it is read
+		cfg.Nodes.Launch = p.LC.runnerLaunch
+		ho.Fetch = cfg.Nodes.Flush
+	}
 	return p.LC
 }
 

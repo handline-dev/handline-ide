@@ -1105,6 +1105,21 @@ func TestPrepareRefusesASessionItCannotRecord(t *testing.T) {
 	}
 }
 
+// A launch on a runner is proven there: the store here, which refuses the record, does not stop it, and the terminal it records is
+// the runner's handle as given.
+func TestARunnersLaunchIsNotRecordedHere(t *testing.T) {
+	r := newLaunchRig(t)
+	t.Setenv("HANDLINE_AGENT", "a5") // the store here refuses every record
+	site := r.site()
+	site.Runner, site.Handle = true, "box:%3"
+	if _, err := r.l.Prepare(site, "ann", nil, false, "", "main", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if h, _ := db.Terminal(r.l.Q, "ann"); h != "box:%3" {
+		t.Fatalf("recorded terminal %q", h)
+	}
+}
+
 func TestBuildAddsTheWorkspacesDeniedToolsAndHoldsTheModeToItsCap(t *testing.T) {
 	r := newLaunchRig(t)
 	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "main" }

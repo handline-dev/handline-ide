@@ -107,6 +107,8 @@ var specMethods = []SpecMethod{
 	{Name: "device.push_token", Role: "member", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "platform", Type: "string", Required: true}, {Name: "token", Type: "string", Required: true}, {Name: "sandbox", Type: "bool", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
 	{Name: "node.status", Role: "agent", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "node.forward", Role: "owner", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true}, {Name: "method", Type: "string", Required: true}, {Name: "params", Type: "map[string]any", Required: false}, {Name: "client", Type: "string", Required: false}, {Name: "cwd", Type: "string", Required: false}}, Result: ""},
+	{Name: "node.launch", Role: "owner", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true}, {Name: "params", Type: "map[string]any", Required: false}}, Result: ""},
+	{Name: "node.agent_files", Role: "owner", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true}, {Name: "files", Type: "[]any", Required: false}, {Name: "deleted", Type: "[]any", Required: false}}, Result: "Accepted"},
 	{Name: "repos.list", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repos.recent", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{}, Result: ""},
 	{Name: "repo.facts", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "path", Type: "string", Required: true}}, Result: "RepoFacts"},

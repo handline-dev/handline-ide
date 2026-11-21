@@ -210,6 +210,11 @@ func (e *Env) NoteText(agent string) (string, error) {
 	if err != nil || !ok {
 		return "", err
 	}
+	if e.Fetch != nil {
+		if err := e.Fetch(agent); err != nil {
+			e.log("  %s's handoff note not brought from its runner: %v", agent, err)
+		}
+	}
 	raw, err := os.ReadFile(e.NotePath(agent))
 	if err != nil {
 		return "", nil

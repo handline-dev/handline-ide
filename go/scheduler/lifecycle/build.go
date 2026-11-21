@@ -34,6 +34,9 @@ type Site struct {
 	Handle, WorktreeID string
 	// PID is the caller's process, which becomes the session.
 	PID int
+	// Runner is a launch on a runner, where Cwd is: what a launch does to the machine it runs on is the runner's (the session's proof,
+	// Handline's hooks, a resumed session's copy, the worktree's origin/HEAD), so it is not done here.
+	Runner bool
 	// Warn is told what the person at the terminal should read; nil drops it.
 	Warn func(string)
 }
@@ -100,13 +103,13 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if theirs := p.Vendors.AccountVendor(acct); theirs != drv.Name() {
 		return nil, nil, refuse("agent '%s' is a %s agent and account '%s' is a %s account - refusing to start it there.", agent, drv.Name(), acct, theirs)
 	}
-	if resuming && drv.Name() == "claude" {
+	if resuming && drv.Name() == "claude" && !site.Runner {
 		if err := carrySession(l.Home, acct, extra); err != nil {
 			site.warn("warning: the session %s resumes is under another account and could not be copied to %s: %v", resumeID(extra), acct, err)
 		}
 	}
 
-	if hooks := drv.Hooks(); hooks != nil {
+	if hooks := drv.Hooks(); hooks != nil && !site.Runner {
 		// An unreadable settings file is doctor's to report, not a reason not to start.
 		if hooks.EnsureShared() == nil {
 			// A wanted event added after the shared settings were last installed would otherwise sit uninstalled for good: every launch is
@@ -354,7 +357,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 			}
 		}
 	}()
-	if !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
+	if !site.Runner && !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
 		return nil, l.refused(agent, refuse("the session of %s could not be recorded, so it is not started", agent))
 	}
 	prompt := TakePrompt(promptFile)
@@ -382,7 +385,9 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	}
 	fp, _ := l.Fingerprint(agent)
 	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], fp)
-	gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it
+	if !site.Runner {
+		gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it; a runner's worktree is made with it
+	}
 	keys := make([]string, 0, len(env))
 	for k := range env {
 		keys = append(keys, k)

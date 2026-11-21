@@ -21,6 +21,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/internal/homefiles"
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/peer"
@@ -63,18 +64,22 @@ type Runner struct {
 	ln    net.Listener
 
 	mu       sync.Mutex
-	link     *rpc.Link // nil while the master is not reached
-	stopped  bool      // Close ran: no link is kept from here
+	link     *rpc.Link                             // nil while the master is not reached
+	sent     map[string]map[string]homefiles.Stamp // by agent: its files as last sent up
+	sendMu   sync.Mutex                            // one send up at a time, so two never cross
+	stopped  bool                                  // Close ran: no link is kept from here
 	sessions map[string]session
 	stop     chan struct{}
 	once     sync.Once
 	wg       sync.WaitGroup
 }
 
-// session is an agent's terminal the runner opened, kept in runner.json.
+// session is an agent's terminal the runner opened, kept in runner.json. Agent is the agent's folder under the home once a launch there
+// named it: its memory and handoff note go up to the master as they change.
 type session struct {
 	Handle string `json:"handle"`
 	Pid    int    `json:"pid"`
+	Agent  string `json:"agent,omitempty"`
 }
 
 // Client is the client a runner's hello names on its link: the master takes only that connection for the runner's link.
@@ -94,7 +99,7 @@ func Start(cfg Config) (*Runner, error) {
 	if cfg.Tokens == nil {
 		cfg.Tokens = sessiontoken.New(cfg.Home)
 	}
-	r := &Runner{cfg: cfg, sessions: map[string]session{}, stop: make(chan struct{})}
+	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, stop: make(chan struct{})}
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
 		if err := json.Unmarshal(b, &r.sessions); err != nil {
 			return nil, fmt.Errorf("%s: %w", StateFile(cfg.Home), err)
@@ -118,8 +123,9 @@ func Start(cfg Config) (*Runner, error) {
 		r.wg.Add(1)
 		go r.accept()
 	}
-	r.wg.Add(1)
+	r.wg.Add(2)
 	go r.keepLinked()
+	go r.sendUp()
 	return r, nil
 }
 
@@ -173,6 +179,9 @@ func (r *Runner) forward(c *rpc.Conn, name string, params map[string]any) (any, 
 	r.mu.Unlock()
 	if l == nil {
 		return nil, rpc.Refused("the master cannot be reached now", "master", "")
+	}
+	if name == "session.launch_prepare" {
+		return r.launch(l, c.Caller.Key, params)
 	}
 	return l.Call("node.forward", map[string]any{"agent": c.Caller.Key, "method": name, "params": params, "client": c.HelloClient(),
 		"cwd": c.Cwd()}, hlclient.DeadlineOf(name))
@@ -274,6 +283,22 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 			handles = append(handles, h)
 		}
 		return map[string]any{"handles": handles}, nil
+	case "runner.home":
+		return map[string]any{"home": r.cfg.Home}, nil
+	case "runner.files":
+		files, err := homefiles.FromWire(p["files"])
+		if err != nil {
+			return nil, rpc.BadRequestError(err.Error(), "files", rpc.InvalidParams)
+		}
+		if err := homefiles.Apply(r.cfg.Home, files, homefiles.Strings(p["deleted"])); err != nil {
+			return nil, rpc.Refused(err.Error(), "path", "")
+		}
+		return map[string]any{"accepted": true}, nil
+	case "runner.flush":
+		if err := r.sendAgent(str("agent")); err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true}, nil
 	case "runner.worktree.make":
 		return gitWorktree(r.cfg.Home, str("remote"), str("path"), str("branch"), str("base"))
 	case "runner.push":
@@ -334,6 +359,9 @@ func (r *Runner) close(agent, handle string) (any, error) {
 	delete(r.sessions, agent)
 	err := r.save()
 	r.mu.Unlock()
+	r.sendMu.Lock()
+	delete(r.sent, agent)
+	r.sendMu.Unlock()
 	return map[string]any{"accepted": true}, err
 }
 
@@ -368,8 +396,140 @@ func (r *Runner) respawn(handle string) (any, error) {
 		delete(r.sessions, agent)
 		return nil, errors.Join(fmt.Errorf("the new shell of %s could not be recorded, so its terminal is closed", agent), r.save())
 	}
-	r.sessions[agent] = session{Handle: handle, Pid: pid}
+	r.sessions[agent] = session{Handle: handle, Pid: pid, Agent: s.Agent}
 	return map[string]any{"accepted": true}, r.save()
+}
+
+// launch is hl launch's session.launch_prepare: the master builds the launch for this home and sends the files it starts with, which are
+// written here before hl execs what it answered.
+func (r *Runner) launch(l *rpc.Link, agent string, params map[string]any) (any, error) {
+	got, err := l.Call("node.launch", map[string]any{"agent": agent, "params": params}, hlclient.DeadlineOf("session.launch_prepare"))
+	if err != nil {
+		return nil, err
+	}
+	files, err := homefiles.FromWire(got["files"])
+	if err != nil {
+		return nil, fmt.Errorf("the master's files for %s: %w", agent, err)
+	}
+	dir, _ := got["agent_dir"].(string)
+	if !homefiles.Inside(dir) {
+		return nil, fmt.Errorf("the master named %q as the agent's folder", dir)
+	}
+	// Its memory is the master's: a file left here by a session before, which the master no longer has, goes.
+	shipped := map[string]bool{}
+	for _, f := range files {
+		shipped[f.Path] = true
+	}
+	var stale []string
+	for p := range homefiles.Stamps(r.cfg.Home, filepath.Join(r.cfg.Home, dir, "memory")) {
+		if !shipped[p] {
+			stale = append(stale, p)
+		}
+	}
+	if err := homefiles.Apply(r.cfg.Home, files, stale); err != nil {
+		return nil, fmt.Errorf("the master's files for %s not written: %w", agent, err)
+	}
+	r.mu.Lock()
+	s, ok := r.sessions[agent]
+	if ok {
+		s.Agent = dir
+		r.sessions[agent] = s
+		err = r.save()
+	}
+	r.mu.Unlock()
+	if !ok {
+		return nil, fmt.Errorf("%s has no session here to launch in", agent)
+	}
+	if err != nil {
+		return nil, err
+	}
+	r.sendMu.Lock()
+	r.sent[agent] = homefiles.Stamps(r.cfg.Home, r.agentFiles(dir)...) // what came down is what the master has
+	r.sendMu.Unlock()
+	return map[string]any{"argv": got["argv"], "env": got["env"], "warnings": got["warnings"]}, nil
+}
+
+// SendEvery is how often the runner looks for an agent's memory and handoff note having changed.
+const SendEvery = 2 * time.Second
+
+// sendUp sends each agent's changed files up to the master until Close.
+func (r *Runner) sendUp() {
+	defer r.wg.Done()
+	t := time.NewTicker(SendEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-t.C:
+		}
+		r.mu.Lock()
+		agents := make([]string, 0, len(r.sessions))
+		for a, s := range r.sessions {
+			if s.Agent != "" && r.link != nil { // with no master to send to, they wait for the next look
+				agents = append(agents, a)
+			}
+		}
+		r.mu.Unlock()
+		for _, a := range agents {
+			if err := r.sendAgent(a); err != nil {
+				r.cfg.Log("runner: %s's files not sent to the master: %v", a, err)
+			}
+		}
+	}
+}
+
+// agentFiles are the files of an agent's folder that go up: its memory and its handoff note.
+func (r *Runner) agentFiles(dir string) []string {
+	return []string{filepath.Join(r.cfg.Home, dir, "memory"), filepath.Join(r.cfg.Home, dir, "handoff.md")}
+}
+
+// sendAgent sends the agent's files that changed since they were last sent: node.agent_files, by path under its folder.
+func (r *Runner) sendAgent(agent string) error {
+	r.sendMu.Lock()
+	defer r.sendMu.Unlock()
+	r.mu.Lock() // under sendMu, so a close that forgot the agent meanwhile is seen
+	s, ok := r.sessions[agent]
+	l := r.link
+	r.mu.Unlock()
+	if !ok || s.Agent == "" {
+		return rpc.NotFoundError(agent + " has no session here")
+	}
+	if l == nil {
+		return errors.New("the master cannot be reached now")
+	}
+	now := homefiles.Stamps(r.cfg.Home, r.agentFiles(s.Agent)...)
+	changed, gone := homefiles.Changed(r.sent[agent], now)
+	if len(changed) == 0 && len(gone) == 0 {
+		return nil
+	}
+	var abs []string
+	for _, p := range changed {
+		abs = append(abs, filepath.Join(r.cfg.Home, p))
+	}
+	files, err := homefiles.Collect(r.cfg.Home, abs...)
+	if err != nil {
+		return err
+	}
+	for i := range files {
+		if files[i].Path, err = filepath.Rel(s.Agent, files[i].Path); err != nil {
+			return err
+		}
+	}
+	deleted := make([]any, 0, len(gone))
+	for _, p := range gone {
+		rel, err := filepath.Rel(s.Agent, p)
+		if err != nil {
+			return err
+		}
+		deleted = append(deleted, rel)
+	}
+	if _, err := l.Call("node.agent_files", map[string]any{"agent": agent, "files": homefiles.Wire(files), "deleted": deleted},
+		hlclient.Quick); err != nil {
+		return err
+	}
+	r.sent[agent] = now
+	return nil
 }
 
 // save writes the sessions to runner.json; called with r.mu held.
