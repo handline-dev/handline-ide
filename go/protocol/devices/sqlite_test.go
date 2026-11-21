@@ -26,7 +26,7 @@ func TestAPushTokenIsKeptOnTheRowAndGoesWithIt(t *testing.T) {
 	}
 	push := func() any {
 		t.Helper()
-		rows, err := m.List("")
+		rows, err := m.List("", "")
 		if err != nil || len(rows) != 1 {
 			t.Fatal(rows, err)
 		}
@@ -148,7 +148,7 @@ func TestADeviceKeepsItsKindClientAndNewName(t *testing.T) {
 	_, other, _ := m.Redeem(code, "laptop", "", "", "")
 	row := func(id string) map[string]any {
 		t.Helper()
-		rows, err := m.List(d.ID)
+		rows, err := m.List(d.ID, "")
 		if err != nil {
 			t.Fatal(err)
 		}

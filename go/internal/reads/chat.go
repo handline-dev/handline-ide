@@ -66,6 +66,9 @@ func (c *chat) taskState(taskID int64) (any, error) {
 	return c.b.state(t), nil
 }
 
+// personKeys is every person's key, removed ones too: their words stay in the thread.
+const personKeys = "(SELECT 'p' || id FROM people)"
+
 // chatScope is the requests a chat draws. A notice the digest has listed is left out: the digest line carries it, and drawing both shows it
 // twice; so is a request that forwards a comment or a turn's return (db.ForwardedSQL), which the task's page draws.
 func chatScope(agent string, everyone bool) (string, []any) {
@@ -73,7 +76,8 @@ func chatScope(agent string, everyone bool) (string, []any) {
 	if everyone {
 		return "((requester = ? OR target = ?)" + undigested + ")", []any{agent, agent}
 	}
-	return "(((requester = ? AND target = ?) OR (requester = ? AND target = ?))" + undigested + ")", []any{actor.OwnerKey, agent, agent, actor.OwnerKey}
+	// One thread per agent that every person sees (T9185): each request names who wrote it.
+	return "(((requester IN " + personKeys + " AND target = ?) OR (requester = ? AND target IN " + personKeys + "))" + undigested + ")", []any{agent, agent}
 }
 
 // rows adds the live state of the task a task delivery carries (the only row drawn as a card).

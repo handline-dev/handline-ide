@@ -5,8 +5,9 @@ import type { Accepted, RequestId, Role, Timestamp, Topic, WriteKind } from './c
 export type Device = {
   id: string;
   name: string;
-  /** A paired device acts with its person's role: the owner's, before team mode. */
-  role: "owner";
+  /** The role of the device's person, which it acts with. */
+  role: "owner" | "member";
+  person?: string | null;
   created: Timestamp;
   last_seen: Timestamp | null;
   connected: boolean;
@@ -57,6 +58,8 @@ export interface DevicesMethods {
   ttl_s?: number;
   /** A host a door serves; absent is the default door: -advertise (or the listener) while network_addresses is unset, else the first LAN host served, else the first host served. Any other is refused, gate address, with data.addresses the hosts served, the default first. */
   address?: string;
+  /** The person whose device it pairs (p<n>): the owner names one they invited (person.invite); a member only themself. The caller's own when left out. */
+  person?: string;
   request_id: RequestId;
 }; result: Accepted & {
     code: string;
@@ -118,12 +121,12 @@ export interface DevicesMethods {
 }
 
 export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
-  "devices.list": { role: "owner", callers: null, write: false, since: 1 },
-  "device.pair": { role: "owner", callers: null, write: true, since: 1 },
+  "devices.list": { role: "member", callers: null, write: false, since: 1 },
+  "device.pair": { role: "member", callers: null, write: true, since: 1 },
   "device.redeem": { role: "anonymous", callers: null, write: true, since: 1 },
-  "device.revoke": { role: "owner", callers: null, write: true, since: 1 },
-  "device.set": { role: "owner", callers: null, write: true, since: 1 },
-  "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
+  "device.revoke": { role: "member", callers: null, write: true, since: 1 },
+  "device.set": { role: "member", callers: null, write: true, since: 1 },
+  "device.push_token": { role: "member", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
   "node.forward": { role: "owner", callers: null, write: false, since: 1 },
 };

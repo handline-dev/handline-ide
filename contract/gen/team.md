@@ -8,6 +8,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `proposal.propose` | agent | yes | `kind`, `args`, `why?`, `request_id` | `Accepted & {proposal}` | `refused`, `bad_request` |  | not from the app |
 | `proposal.withdraw` | agent | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: withdraw |
 | `people.list` | agent |  | none | `{people}` | `bad_request` |  | `people`, fed by people |
+| `person.invite` | owner | yes | `display_name`, `role?`, `request_id` | `{accepted, person}` | `refused`, `not_found`, `bad_request` |  | decided: invite |
+| `person.set_role` | owner | yes | `person`, `role`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: change role |
+| `person.remove` | owner | yes | `person`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: remove |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
 | `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create workspace |
 | `workspace.set` | owner | yes | `workspace`, `name?`, `add_folder?`, `remove_folder?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
@@ -16,9 +19,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `workspace.rule.set` | owner | yes | `workspace?`, `key`, `value`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set workspace rule |
 | `team.get` | agent |  | none | `{agents, people, workspaces}` |  |  | `team`, snapshot |
 | `proposal.list` | agent |  | `state?` | `{proposals} & ReadCursor` | `bad_request` |  | `proposals`, fed by proposals |
-| `proposal.decide` | member | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
-| `proposal.apply_now` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: apply now |
-| `proposal.stop` | member | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: stop |
+| `proposal.decide` | owner | yes | `proposal`, `decision`, `note?`, `subject?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | proposal_changed, proposal_settled | decided: decide |
+| `proposal.apply_now` | owner | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` | proposal_settled | decided: apply now |
+| `proposal.stop` | owner | yes | `proposal`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: stop |
 
 ### `proposal.propose`
 
@@ -31,6 +34,18 @@ Take back an undecided proposal: its author's own, or any for the founder; anoth
 ### `people.list`
 
 Every person, so a client writes out a person key by name.
+
+### `person.invite`
+
+Add a person; device.pair with their key makes the link that pairs their first device. Adds the person with their role (member when left out). Their first device pairs with a code from device.pair given `person`: that device is theirs and acts with their role, and they pair more of their own with device.pair. A retry with the same request_id is the same person.
+
+### `person.set_role`
+
+Make a person an owner or a member. The owner decides (trust, settings, people, gates); a member gives work, comments, chats and lends machines. The founder (p1) stays an owner, and so does the last owner (gate `last_owner`). The person's open connections close, and their devices act with the new role from their next login.
+
+### `person.remove`
+
+Remove a person: their devices are revoked and their machines leave. Every device of theirs is revoked as device.revoke does (connections closed at once, a lent machine leaves), the codes made for them stop working, and they can no longer log in. The person stays in people.list as removed, so their past words, tasks and comments still name them. The founder (p1) and the last owner cannot be removed (gate `last_owner`).
 
 ### `workspaces.list`
 

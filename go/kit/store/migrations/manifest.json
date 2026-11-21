@@ -108,5 +108,10 @@
   "version": 121,
   "name": "node_sessions",
   "additive": true
+ },
+ {
+  "version": 122,
+  "name": "people_removed",
+  "additive": true
  }
 ]

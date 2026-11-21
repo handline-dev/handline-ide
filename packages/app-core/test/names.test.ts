@@ -10,7 +10,7 @@ const dir: Directory = {
     { key: 'a4', name: 'designer', workspace: 'w2' },
     { key: 'a5', name: 'auditor', workspace: 'w2' },
   ],
-  people: [{ key: 'p1', display_name: 'Sam', handle: null, role: 'owner' }],
+  people: [{ key: 'p1', display_name: 'Sam', handle: null, role: 'owner', removed: false }],
   workspaces: [
     { key: 'w1', name: 'shop', folder: '/s', added_folders: [], folders: [], lead: 'a1' },
     { key: 'w2', name: 'site', folder: '/t', added_folders: [], folders: [], lead: 'a3' },

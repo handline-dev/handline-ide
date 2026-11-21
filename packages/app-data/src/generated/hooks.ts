@@ -134,6 +134,9 @@ export const useTaskPlanAsk = (target?: string) => useWrite("task.plan_ask", tar
 export const useTaskCoreAsk = (target?: string) => useWrite("task.core_ask", target);
 export const useLessonRemove = (target?: string) => useWrite("lesson.remove", target);
 export const useProposalWithdraw = (target?: string) => useWrite("proposal.withdraw", target);
+export const usePersonInvite = (target?: string) => useWrite("person.invite", target);
+export const usePersonSetRole = (target?: string) => useWrite("person.set_role", target);
+export const usePersonRemove = (target?: string) => useWrite("person.remove", target);
 export const useWorkspaceCreate = (target?: string) => useWrite("workspace.create", target);
 export const useWorkspaceSet = (target?: string) => useWrite("workspace.set", target);
 export const useWorkspaceDelete = (target?: string) => useWrite("workspace.delete", target);
