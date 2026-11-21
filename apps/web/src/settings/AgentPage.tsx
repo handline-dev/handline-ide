@@ -10,6 +10,8 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { InfoTip } from '#src/ui/InfoTip.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
+import { DeviceLine } from '#src/settings/DeviceControls.tsx';
+import { useAgentDevice } from '#src/settings/data/devices.ts';
 
 type Rung = Methods['agent.review']['result']['ladder'][number];
 export type Level = Rung['level'];
@@ -39,11 +41,17 @@ const day = (iso: string) => new Date(iso).toLocaleDateString([], { month: 'shor
 
 export function AgentPage({ agent, back }: { agent: string; back: () => void }) {
   const name = useNameOf()(agent);
+  const device = useAgentDevice(agent);
   return (
     <SettingsPage
       keep={`settings-agent-${agent}`}
       title={name}
-      note="What it learned, and how much of its finished work you check."
+      note={
+        <>
+          What it learned, and how much of its finished work you check.
+          {device && <DeviceLine device={device} />}
+        </>
+      }
       action={
         <Button variant="ghost" onClick={back}>
           <ArrowLeft size={14} />

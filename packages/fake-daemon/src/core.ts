@@ -106,13 +106,14 @@ export function coreCall(
             review_level: d.tasks.reviewSummary(v.key).level,
             review_work: d.tasks.reviewSummary(v.key).work,
             folder: d.spaces.folderFor(v.key),
+            node: d.admin.placed.get(v.key) ?? 'm-fake',
           })),
       };
     case 'people.list':
       return { people: PEOPLE };
     case 'node.status': {
       const at = d.iso();
-      const own = { id: 'm-fake', person: 'p1', name: 'mac', joined_at: at, last_seen: at, master_number: 1 };
+      const own = { id: 'm-fake', person: OWNER, name: 'mac', joined_at: at, last_seen: at, master_number: 1 };
       const mine = {
         ...own,
         master: true,

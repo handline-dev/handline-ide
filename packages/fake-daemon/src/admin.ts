@@ -1,6 +1,16 @@
 // The fake daemon's read-mostly admin surface: the stats windows, the usage outlook, the home settings, the standing answers, and the repos
 // and worktrees (worktrees.ts).
-import type { ConnectionAddresses, NetworkAddress, Outlook, MachineNeed, Settings, SettingsChanges, Timestamp } from '@handline/contract';
+import { OWNER } from '#src/names.ts';
+import type {
+  ConnectionAddresses,
+  Device,
+  NetworkAddress,
+  Outlook,
+  MachineNeed,
+  Settings,
+  SettingsChanges,
+  Timestamp,
+} from '@handline/contract';
 import { Failure, badRequest } from '#src/errors.ts';
 import { retroOf } from '#src/retro.ts';
 import { AGENTS, outlookOf, statsOf } from '#src/usage.ts';
@@ -57,13 +67,22 @@ const DEFAULTS: Settings['values'] = {
 };
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+/** What a seeded lent machine's node row says beyond the defaults. */
+export type Lent = Partial<{
+  online: boolean;
+  last_seen: Timestamp;
+  load: { cores: number; load1: number; ram_total: number; ram_free: number; agents_rss: number };
+  battery: boolean;
+  lacks: { agent: string; why: string }[];
+}>;
+
 export class FakeAdmin {
   readonly worktrees: FakeWorktrees;
   readonly prefs: FakePrefs;
   private now: () => Timestamp;
   private on: boolean;
   private values: Settings['values'] = structuredClone(DEFAULTS);
-  private devices = [
+  private devices: Device[] = [
     {
       id: 'd1',
       name: 'Handline desktop',
@@ -85,7 +104,7 @@ export class FakeAdmin {
     ...Array.from({ length: 12 }, (_, i) => ({
       id: `d${i + 3}`,
       name: `phone-${(0x3c10 + i * 37).toString(16)}`,
-      role: 'founder' as const,
+      role: 'owner' as const,
       created: '2026-08-01T09:00:00Z',
       last_seen: `2026-09-${String(1 + i).padStart(2, '0')}T08:00:00Z`,
       connected: false,
@@ -123,28 +142,62 @@ export class FakeAdmin {
   device = (id: string): Record<string, unknown> => ({ ...this.devices.find((d) => d.id === id) });
   /** Each lent machine's own memory cap (device.set memory_max_gb), by device id. */
   private memoryMax = new Map<string, number>();
-  /** node.status's rows of the machines lent on Run or Pause: a device with a node; none is seeded. */
+  /** A seeded lent machine's node: its id and what its row says beyond the defaults, by device id. */
+  private lent = new Map<string, { node: string; row: Lent }>();
+  /** node.status's rows of the machines lent on Run or Pause: a device with a node. */
   lentNodes = (at: Timestamp): Record<string, unknown>[] =>
-    this.devices
-      .map((d) => d as { id: string; name: string; node?: string; lending?: string })
-      .filter((d) => d.node && (d.lending === 'run' || d.lending === 'pause'))
-      .map((d) => ({
-        id: d.node,
-        person: 'p1',
-        name: d.name,
-        joined_at: at,
-        last_seen: at,
-        master_number: 1,
-        master: false,
-        self: false,
-        online: true,
-        lending: d.lending,
-        device: d.id,
-        memory_max_gb: this.memoryMax.get(d.id) ?? null,
-        load: null,
-        battery: null,
-        lacks: [],
-      }));
+    this.devices.flatMap((d) => {
+      const n = this.lent.get(d.id);
+      if (!n || (d.lending !== 'run' && d.lending !== 'pause')) return [];
+      return [
+        {
+          id: n.node,
+          person: OWNER,
+          name: d.name,
+          joined_at: at,
+          last_seen: at,
+          master_number: 1,
+          master: false,
+          self: false,
+          online: true,
+          lending: d.lending,
+          device: d.id,
+          memory_max_gb: this.memoryMax.get(d.id) ?? null,
+          load: null,
+          battery: null,
+          lacks: [],
+          ...n.row,
+        },
+      ];
+    });
+  /** Agents placed on a lent machine (the seed's), by agent key: its node id. Any other stays on the master's own. */
+  readonly placed = new Map<string, string>();
+  /** A seed's lent machine: a mac or server device on `lending`, and what its node row says beyond the defaults. */
+  lend(d: {
+    id: string;
+    name: string;
+    kind: 'mac' | 'server';
+    lending: 'run' | 'pause' | 'off';
+    connected?: boolean;
+    lent?: Lent;
+    agents?: string[];
+  }) {
+    const at = this.now();
+    this.devices.push({
+      id: d.id,
+      name: d.name,
+      role: 'owner' as const,
+      created: at,
+      last_seen: at,
+      connected: d.connected ?? true,
+      push: false,
+      kind: d.kind,
+      person: OWNER,
+      lending: d.lending,
+    });
+    this.lent.set(d.id, { node: `n-${d.id}`, row: d.lent ?? {} });
+    for (const a of d.agents ?? []) this.placed.set(a, `n-${d.id}`);
+  }
   owns = (name: string): boolean => ADMIN.test(name) || this.worktrees.owns(name) || this.prefs.owns(name);
 
   call(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
