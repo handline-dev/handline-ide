@@ -26,7 +26,7 @@ export const useSettingsOpen = () =>
     () => open,
   );
 
-/** The Settings a warning without a place of its own opens: an agent's page for a review notice, else Settings as it was left. */
+/** The Settings a warning without a place of its own opens: an agent's page for a step-down offer, else Settings as it was left. */
 export const settingsFor = (w: { kind: string; agent?: string } | null | undefined): SettingsTarget =>
   w?.kind === 'review' && w.agent ? { section: 'agents', agent: w.agent } : {};
 export const openSettingsFor = (w: Parameters<typeof settingsFor>[0]) => openSettings(settingsFor(w));
