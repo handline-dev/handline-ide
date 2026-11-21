@@ -11,7 +11,6 @@ import (
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/textsafe"
-	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -137,11 +136,11 @@ func nodeCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Fprintln(os.Stderr, "not made the master:", err)
 		return 1, true
 	}
-	n, _ := rpc.AsInt(got["number"])
+	n, _ := got["number"].(float64)
 	if handed, _ := got["handed_over"].(bool); handed {
-		fmt.Printf("this machine is the master now (number %d): the old master handed over and joins it as a runner\n", n)
+		fmt.Printf("this machine is the master now (number %.0f): the old master handed over and joins it as a runner\n", n)
 	} else {
-		fmt.Printf("this machine is the master now (number %d), from its copy of the board: the old master was not reached, and joins it as a runner once it is\n", n)
+		fmt.Printf("this machine is the master now (number %.0f), from its copy of the board: the old master was not reached, and joins it as a runner once it is\n", n)
 	}
 	return 0, true
 }
