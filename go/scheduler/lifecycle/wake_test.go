@@ -238,7 +238,7 @@ func TestARecentlyActiveResumeOntoAFullAccountMovesToWhereAnotherHasRoom(t *test
 	if err != nil || !ok {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
-	if _, p, moved, _ := db.LastEvent(m.Q, "a", "moved_account"); !moved || p["from"] != "a" || p["to"] != "slow" {
+	if _, p, moved, _ := db.LastEvent(m.Q, "a", "moved_account"); !moved || p["from"] != "a" || p["to"] != "slow" || p["reason"] != "a was paused." {
 		t.Fatalf("%v %v", moved, p)
 	}
 }
@@ -315,7 +315,8 @@ func TestAPersonsStartOnAWalledPinnedAccountResumesWhereThereIsRoom(t *testing.T
 	if err != nil || !ok {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
-	if _, p, moved, _ := db.LastEvent(m.Q, "a", "moved_account"); !moved || p["from"] != "a" || p["to"] != "b" {
+	if _, p, moved, _ := db.LastEvent(m.Q, "a", "moved_account"); !moved || p["from"] != "a" || p["to"] != "b" ||
+		p["reason"] != "a's 5-hour window was at 99%." {
 		t.Fatalf("%v %v", moved, p)
 	}
 	if last := tm.relaunched[len(tm.relaunched)-1]; !strings.HasSuffix(last, "-- --resume sess-1") {
@@ -1216,5 +1217,24 @@ func TestARestartNoticeOpensWithASeparatorLineOfWhatChangedAndWho(t *testing.T) 
 	}
 	if got := RestartNotice("the daemon", false, nil, ""); !strings.HasPrefix(got, "---------- restarted by the daemon ----------\nRestarted by the daemon (fresh).") {
 		t.Fatalf("%q", got)
+	}
+}
+
+// A move's wake starts on where the move goes: the wall of the account it leaves, still on its row, does not pick again, so the move
+// is written once, by the move, with the reason that decided it (T9362: one move was two moved_account events, pinned and usage_7d).
+func TestAMovesWakeDoesNotPickAgainOffTheWallItLeaves(t *testing.T) {
+	m, d, tm := newManager(t)
+	d.waitingMsg, d.tookPrompt, tm.launchOK = "Here is your request.", true, true
+	m.Launch = wallLaunch{dest: "b"}
+	var asked bool
+	m.Handoff = planHandoff{dest: "c", starting: &asked}
+	db.SetTerminal(m.Q, "a", "t1", "/wt")
+	db.SetClosed(m.Q, "a", "sess-1")
+	ok, said, err := m.WakeAgentLocked("a", WakeOpts{MovedTo: "b"})
+	if err != nil || !ok {
+		t.Fatalf("%v %q %v", ok, said, err)
+	}
+	if _, p, moved, _ := db.LastEvent(m.Q, "a", "moved_account"); moved || asked {
+		t.Fatalf("the wake moved it again: %v (asked %v)", p, asked)
 	}
 }

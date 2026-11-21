@@ -658,13 +658,18 @@
        "note_written": {
         "type": "boolean",
         "description": "Whether the agent's handoff note was in when the move began; false means the next session starts from the daemon's own record."
+       },
+       "reason": {
+        "type": "string",
+        "description": "Why it moved: one sentence for a person, with the numbers that decided it."
        }
       },
       "required": [
        "from",
        "to",
        "cause",
-       "note_written"
+       "note_written",
+       "reason"
       ]
      },
      "move_failed": {

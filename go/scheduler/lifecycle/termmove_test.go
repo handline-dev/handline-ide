@@ -590,7 +590,7 @@ func TestAMoveWaitingForItsNoteKeepsItsDestinationAndStartsWhenTheNoteIsIn(t *te
 		if row := g.row(t); row.Account.String != "beta" || g.l.lastAccount != "beta" || g.l.lastWhy != "move" || len(g.sp.startedIn) != 1 {
 			t.Fatalf("%s: not started on beta as a move: %+v %q %q", kind, row, g.l.lastAccount, g.l.lastWhy)
 		}
-		if _, p, _, _ := db.LastEvent(g.m.Q, "a", "moved_account"); p["to"] != "beta" || p["trigger"] != kind {
+		if _, p, _, _ := db.LastEvent(g.m.Q, "a", "moved_account"); p["to"] != "beta" || p["trigger"] != kind || p["reason"] == "" {
 			t.Fatalf("%s: moved_account %v", kind, p)
 		}
 	}
