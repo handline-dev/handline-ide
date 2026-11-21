@@ -33,6 +33,8 @@ import (
 type Terminals interface {
 	CreateTerminal(command, cwd, title, agent string) (handle, why string)
 	CloseTerminal(handle string, tab bool) (bool, string)
+	RespawnTerminal(handle string) (bool, string)
+	ListTerminals() map[string]bool
 	Send(handle, text string, enter bool) (bool, string)
 	ReadScreen(handle string, limit int) *term.Screen
 	PanePid(handle string) int
@@ -260,6 +262,18 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 		return map[string]any{"rows": append([]string{}, s.Tail...)}, nil
 	case "runner.stop":
 		return r.close(str("agent"), str("handle"))
+	case "runner.respawn":
+		return r.respawn(str("handle"))
+	case "runner.terminals":
+		set := r.cfg.Term.ListTerminals()
+		if set == nil {
+			return nil, errors.New("the terminal host could not list its terminals")
+		}
+		handles := []string{}
+		for h := range set {
+			handles = append(handles, h)
+		}
+		return map[string]any{"handles": handles}, nil
 	case "runner.worktree.make":
 		return gitWorktree(r.cfg.Home, str("remote"), str("path"), str("branch"), str("base"))
 	case "runner.push":
@@ -321,6 +335,41 @@ func (r *Runner) close(agent, handle string) (any, error) {
 	err := r.save()
 	r.mu.Unlock()
 	return map[string]any{"accepted": true}, err
+}
+
+// respawn leaves a fresh shell in a session's terminal and records that shell as the agent's session in place of the one it ended.
+func (r *Runner) respawn(handle string) (any, error) {
+	r.mu.Lock()
+	agent, s := "", session{}
+	for a, v := range r.sessions {
+		if v.Handle == handle {
+			agent, s = a, v
+		}
+	}
+	r.mu.Unlock()
+	if agent == "" {
+		return nil, rpc.NotFoundError("no session " + handle + " here")
+	}
+	if ok, why := r.cfg.Term.RespawnTerminal(handle); !ok {
+		return nil, fmt.Errorf("could not restart the shell of %s: %s", handle, why)
+	}
+	r.cfg.Tokens.Forget(agent, s.Pid)
+	pid := r.cfg.Term.PanePid(handle)
+	recorded := pid != 0 && r.cfg.Tokens.Record(agent, pid)
+	if !recorded {
+		r.cfg.Term.CloseTerminal(handle, true)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.sessions[agent] != s { // opened again or stopped meanwhile: that call's record stands
+		return map[string]any{"accepted": true}, nil
+	}
+	if !recorded {
+		delete(r.sessions, agent)
+		return nil, errors.Join(fmt.Errorf("the new shell of %s could not be recorded, so its terminal is closed", agent), r.save())
+	}
+	r.sessions[agent] = session{Handle: handle, Pid: pid}
+	return map[string]any{"accepted": true}, r.save()
 }
 
 // save writes the sessions to runner.json; called with r.mu held.

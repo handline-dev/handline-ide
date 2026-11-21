@@ -9,7 +9,6 @@ import (
 	"context"
 	"os/exec"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,9 +21,6 @@ const (
 	tmuxTimeout = 15 * time.Second
 	// Between typing a line and its Enter: a shell or TUI that gets both at once can take the Enter as part of a paste.
 	enterDelay = 400 * time.Millisecond
-	// How long the screen must hold still to count as idle, and how often it is looked at.
-	idleSettle = 1500 * time.Millisecond
-	idlePoll   = 500 * time.Millisecond
 )
 
 // run is one command as (exit code, stdout, stderr); a program that cannot run is (127, "", why). Stderr is clean at the source.
@@ -143,27 +139,7 @@ func (t Tmux) Send(handle, text string, enter bool) (bool, string) {
 	return true, ""
 }
 
-// WaitIdle: the frame has not changed for idleSettle and turn (the vendor's reading) sees no turn in progress; with none
-// given, a still frame is idle.
+// WaitIdle reads the pane's frame until it is still (term.ScreenIdle).
 func (t Tmux) WaitIdle(handle string, timeoutMs int, turn func([]string) bool) bool {
-	deadline := time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
-	var last []string
-	since := time.Now()
-	for {
-		scr := t.ReadScreen(handle, 40)
-		if scr == nil {
-			return false
-		}
-		now := time.Now()
-		if last == nil || !slices.Equal(scr.Tail, last) {
-			last, since = scr.Tail, now
-		} else if now.Sub(since) >= idleSettle && !(turn != nil && turn(scr.Tail)) {
-			return true
-		}
-		left := deadline.Sub(now)
-		if left <= 0 {
-			return false
-		}
-		time.Sleep(min(idlePoll, left))
-	}
+	return term.ScreenIdle(func() *term.Screen { return t.ReadScreen(handle, 40) }, timeoutMs, turn)
 }

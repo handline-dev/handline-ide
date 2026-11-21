@@ -105,7 +105,7 @@ func wiredDaemon(t *testing.T, ports bool, proposals func(*sql.DB, string) super
 	agents := &typedAt{typed: map[string][]string{}}
 	cfg := Config{Home: home, DBFile: filepath.Join(home, "db.sqlite"), Auth: pidAuth{}, Log: t.Logf}
 	if ports {
-		cfg.OnOpen = func(d *sql.DB, env *supervisor.Env) {
+		cfg.OnOpen = func(d *sql.DB, env *supervisor.Env, _ term.Remote) {
 			env.Ports = supervisor.Ports{Agents: agents, Terminal: noScreen{}, Observer: wiredPorts{}, Dialogs: wiredPorts{}, Waits: wiredPorts{}, Idle: wiredPorts{}, Sessions: wiredPorts{live: live},
 				Lifecycle: wiredPorts{}, Evaluate: wiredPorts{}, Proposals: proposals(d, env.Home), Stuck: wiredPorts{}}
 		}

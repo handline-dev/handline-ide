@@ -19,10 +19,10 @@ type termPort struct{ t *term.Term }
 
 type termHost struct{ t *term.Term }
 
-// newTerm is the Term over the host in force for home (tmux unless config.yaml says otherwise), each terminal read in the wording of
-// its agent's vendor.
-func newTerm(home string, q db.Q) *term.Term {
-	return term.New(agenthost.Dynamic(home), team.ScreenFor(home, q, claudecode.ScreenFor))
+// newTerm is the Term over the machines agents run on: the host in force for home (tmux unless config.yaml says otherwise) and the
+// runners, each terminal read in the wording of its agent's vendor.
+func newTerm(home string, q db.Q, runners term.Remote) *term.Term {
+	return term.New(&term.Machines{Local: agenthost.Dynamic(home), Remote: runners}, team.ScreenFor(home, q, claudecode.ScreenFor))
 }
 
 var (
