@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -386,5 +387,22 @@ func TestASubagentStartPassesOnWhatTheAgentCallSaid(t *testing.T) {
 	}
 	if got != (SubagentCall{Description: "review the diff", Type: "general-purpose", Background: true}) {
 		t.Fatalf("%+v", got)
+	}
+}
+
+// A tool call is no event, but the agent is heard: LastActivity moves with it, and only forward.
+func TestAToolCallIsHeardWithoutAnEvent(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	for i, at := range []int64{now - 600, now, now - 60} {
+		if err := h.apply("w", []string{"PostToolUse", "PostToolUseFailure", "PostToolUse"}[i], map[string]any{"tool_name": "Bash"}, "t"+strconv.Itoa(i), at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if last, ok, err := db.LastActivity(h.DB, "w"); err != nil || !ok || last != now {
+		t.Fatalf("last heard %d %v %v, want %d", last, ok, err, now)
+	}
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM events WHERE agent = 'w'"); n != 0 {
+		t.Fatalf("%d events from tool calls", n)
 	}
 }
