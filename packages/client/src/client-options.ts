@@ -1,5 +1,6 @@
 import type { MethodName, Methods, Notifications, RequestId } from '#src/protocol.ts';
 import type { Transport } from '#src/transport.ts';
+import type { MasterSays } from '#src/master.ts';
 
 /** A call's params; the client fills in request_id on writes. */
 export type CallParams<M extends MethodName> = Omit<Methods[M]['params'], 'request_id'> & { request_id?: RequestId };
@@ -18,6 +19,8 @@ export interface ClientOptions {
   newRequestId?: () => string;
   /** Methods answered by something other than the daemon connection (the desktop shell, for calls this caller may not make itself); each throws what a failed call throws. */
   relay?: { [M in MethodName]?: (params: CallParams<M>) => Promise<Methods[M]['result']> };
+  /** The highest master seen: a hello naming a lower one is refused (and `below` told), so the next connect is tried. */
+  master?: { floor: () => MasterSays | null; below?: (said: MasterSays) => void };
 }
 
 /** A doc notice, its method in `kind`. */

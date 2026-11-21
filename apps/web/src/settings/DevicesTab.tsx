@@ -1,8 +1,8 @@
 // Settings > Devices: every device in one flat list, the master first; a row opens its page. At the foot, the battery switch and reclaim time.
 import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { BatteryCharging, ChevronRight, Plus, SlidersHorizontal, Timer, Zap } from 'lucide-react';
-import { useState } from 'react';
+import { ArchiveX, BatteryCharging, ChevronRight, Plus, SlidersHorizontal, Timer, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
   Confirm,
@@ -17,7 +17,7 @@ import {
 } from '#src/settings/DeviceControls.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { openPairSheet } from '#src/settings/PairSheet.tsx';
-import { MASTER, MODES, useDevices, type DeviceRow, type Mode } from '#src/settings/data/devices.ts';
+import { MASTER, MODES, markSetAsideSeen, useDevices, useSetAside, type DeviceRow, type Mode } from '#src/settings/data/devices.ts';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
@@ -235,6 +235,7 @@ export function DevicesTab({ open: start }: { open?: string }) {
         )
       }
     >
+      <SetAsideNote />
       {q.loading && <ListLoading rows={3} label="Loading devices" />}
       {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
       {recent.length > 0 && list(recent)}
@@ -259,5 +260,24 @@ export function DevicesTab({ open: start }: { open?: string }) {
       )}
       <AllDevices q={q} />
     </SettingsPage>
+  );
+}
+
+/** A board set aside: which machine was the master until when, and where the board is now. */
+function SetAsideNote() {
+  const a = useSetAside();
+  const key = a?.key;
+  useEffect(() => {
+    if (key) markSetAsideSeen(key);
+  }, [key]);
+  if (!a) return null;
+  const until = new Date(a.since).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return (
+    <p role="note" className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm text-fg">
+      <ArchiveX size={16} className="mt-0.5 shrink-0 text-warning" />
+      <span>
+        {a.name} was the master until {until}. Its board was set aside{a.master ? `; the board is now on ${a.master}` : ''}.
+      </span>
+    </p>
   );
 }

@@ -1,6 +1,6 @@
 // The app's bottom bar, full width: a quiet status dot, the host, keep-awake, this device's Run · Pause · Off, the bell (a preview of Requests),
 // the week's Usage %; the host opens this Mac's page in Settings > Devices.
-import { Check, Coffee, Pause } from 'lucide-react';
+import { ArchiveX, Check, Coffee, Pause, Unplug } from 'lucide-react';
 import { Confirm, MODE_WORD, OFF_TEXT, StateWord, refused } from '#src/settings/DeviceControls.tsx';
 import { openModal } from '#src/ui/modal.tsx';
 import { BellButton } from '#src/requests/BellButton.tsx';
@@ -8,8 +8,10 @@ import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
 import { openSettings } from '#src/settings/open.ts';
-import { MASTER, MODES, useOwnMac, type Mode } from '#src/settings/data/devices.ts';
+import { MASTER, MODES, useOwnMac, useSetAsideUnseen, type Mode } from '#src/settings/data/devices.ts';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
+import { useConnection } from '@handline/app-react';
+import { confirmPromote, useMasterName, useThisMacRunner } from '#src/connection/master.tsx';
 
 const AWAKE: { mode: KeepAwake; label: string; line: string }[] = [
   { mode: 'off', label: 'Off', line: 'The Mac sleeps as usual.' },
@@ -50,10 +52,47 @@ export function StatusRow() {
         <span className="truncate">{s.host}</span>
         {s.usagePct !== null && <span className="tabular-nums">Week {s.usagePct}% used</span>}
       </button>
+      <MasterGone />
+      <SetAside />
       <KeepAwakeButton s={s} busy={busy} bar={bar} />
       <ModeButton busy={busy} bar={bar} />
       <BellButton bar={bar} />
     </div>
+  );
+}
+
+/** While the link to the master is lost: that it is, and "Make this Mac the master" when this Mac can become it. */
+function MasterGone() {
+  const lost = useConnection() === 'reconnecting';
+  const { name, several } = useMasterName();
+  const runner = useThisMacRunner();
+  if (!lost || !several) return null; // one Mac: a daemon restart, which the page rides out
+  return (
+    <span role="status" className="flex shrink-0 items-center gap-2">
+      <Unplug size={14} className="text-danger" />
+      <span className="text-fg">{name ? `Can't reach the master, ${name}` : "Can't reach the master"}</span>
+      {runner && (
+        <button type="button" onClick={() => confirmPromote(true)} className="text-accent hover:underline">
+          Make this Mac the master
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** A board set aside, until its note in Settings > Devices was seen: a click opens it there. */
+function SetAside() {
+  const a = useSetAsideUnseen();
+  if (!a) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => openSettings({ section: 'devices' })}
+      className="flex shrink-0 items-center gap-1.5 text-fg hover:underline"
+    >
+      <ArchiveX size={14} className="text-warning" />
+      Board set aside
+    </button>
   );
 }
 

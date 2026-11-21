@@ -26,6 +26,8 @@ export interface CoreHost {
   readonly unservedTopics: Set<Topic>;
   readonly serveChat: boolean;
   readonly serveBytes: boolean;
+  /** hello's capabilities.master: this daemon is master, with this node id and number; null for none named. */
+  readonly master: { node: string; number: number } | null;
   readonly deviceRole: Role;
   readonly now: () => Date;
   iso(): Timestamp;
@@ -58,6 +60,7 @@ export function hello(d: CoreHost, c: Conn, p: Record<string, unknown>): unknown
       transcript: d.replyItems,
       review: false,
       ...(d.serveBytes ? TERMINAL_CAPS : TEXT_CAPS),
+      ...(d.master ? { master: d.master } : {}),
     },
     transport: c.network ? 'network' : 'local',
     methods: Object.entries(METHODS)

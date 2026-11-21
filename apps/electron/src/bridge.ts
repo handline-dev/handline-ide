@@ -4,7 +4,7 @@ import { PAGE_SETTINGS, type Fail, type ShellDaemon } from '@handline/app-core';
 import type { Methods } from '@handline/client';
 import type { CliState } from '#src/cli.ts';
 import { UPDATE_ACTS, type UpdateAct, type UpdateView } from '#src/update-flow.ts';
-import type { OfferInput } from '#src/mode.ts';
+import { doorsOf, type Door, type OfferInput } from '#src/mode.ts';
 
 /** The page's word for which daemon the app uses: own is this Mac's, connect another device's it is paired with. */
 type Mode = 'connect' | 'own';
@@ -48,6 +48,8 @@ export const CHANNELS = {
   deviceList: 'handline:deviceList',
   deviceSwipe: 'handline:deviceSwipe',
   deviceText: 'handline:deviceText',
+  promote: 'handline:promote',
+  keepDoors: 'handline:keepDoors',
 } as const;
 
 /** The part of an IPC event this checks: the frame that sent it. */
@@ -310,6 +312,10 @@ export interface DaemonDeps {
   /** Brings the app's own daemon up. */
   start(): void;
   stop(): Promise<void>;
+  /** node.promote on this Mac's daemon, a runner. */
+  promote(): Promise<{ number: number; handed_over: boolean }>;
+  /** Trusts these doors' certificates from now on, and keeps them for the next launch. */
+  keepDoors(doors: Door[]): void;
 }
 
 /** The daemon state the page shows when the daemon is down, and its Start button, with the usual sender check. */
@@ -338,5 +344,21 @@ export class DaemonView {
     } catch (err) {
       return { ok: false, code: 'cannot_stop', message: err instanceof Error ? err.message : String(err) };
     }
+  }
+  async promote(e: Sender): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window') as Fail<'bad_request'>;
+    if (!this.d.view().runner) return bad("this Mac's daemon is not one of the owner's runners") as Fail<'bad_request'>;
+    try {
+      return { ok: true, ...(await this.d.promote()) };
+    } catch (err) {
+      return { ok: false, code: 'cannot_promote', message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  keepDoors(e: Sender, arg: unknown): Reply {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    const doors = doorsOf(arg);
+    if (!doors) return bad('keepDoors takes up to 64 { addr: host:port, fp: sha256 hex or empty }');
+    this.d.keepDoors(doors);
+    return { ok: true };
   }
 }
