@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/verdict"
@@ -569,7 +570,7 @@ func TaskWaits(q Q, tid int64) (bool, error) {
 	return len(on) > 0, err
 }
 
-// TaskWaitsOn is what a task waits on, open: the tasks it is blocked by, then its children.
+// TaskWaitsOn is what a task waits on, open: the tasks it is blocked by, then its children, each once.
 func TaskWaitsOn(q Q, tid int64) ([]int64, error) {
 	bs, err := TaskBlockers(q, tid)
 	if err != nil {
@@ -578,7 +579,9 @@ func TaskWaitsOn(q Q, tid int64) ([]int64, error) {
 	kids, err := OpenChildTasks(q, tid)
 	var out []int64
 	for _, t := range append(bs, kids...) {
-		out = append(out, t.ID)
+		if !slices.Contains(out, t.ID) {
+			out = append(out, t.ID)
+		}
 	}
 	return out, err
 }

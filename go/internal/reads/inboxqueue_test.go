@@ -157,6 +157,11 @@ func TestInboxQueueOfAnAgentShowsFirstWhatItCanActOn(t *testing.T) {
 	if got["head"] != nil || onHold(got) != "T1 on [9], T2 on [3]" {
 		t.Fatalf("with everything waiting there is no head: %v", got)
 	}
+	// A child the story is also blocked by is one thing it waits on, listed once.
+	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 3, 1)")
+	if held := onHold(queueOf(t, e, asBob, nil)); held != "T1 on [9], T2 on [3]" {
+		t.Fatalf("a child that is also a blocker is listed once: %s", held)
+	}
 	run(t, e, "UPDATE tasks SET done_evidence = 'sha' WHERE id = 3")
 	if got := head(); got != int64(2) {
 		t.Fatalf("the child done, the story's delivery is the head again: %v", got)
