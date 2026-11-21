@@ -245,7 +245,7 @@ function Restart({
 }
 
 /** The handoff: folded when changes come first, else open; held to a few lines (whole Markdown, never cut mid-block) until Show all. */
-function HandoffLines({ text, folded }: { text: string | null; folded: boolean }) {
+export function HandoffLines({ text, folded }: { text: string | null; folded: boolean }) {
   if (text === null)
     return (
       <section className="flex flex-col gap-2">
@@ -296,7 +296,7 @@ function HandoffNote({ text, folded }: { text: string; folded: boolean }) {
   );
 }
 
-function Facts({ rows }: { rows: [string, string][] }) {
+export function Facts({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="flex flex-col gap-1 text-sm">
       {rows.map(([k, v]) => (

@@ -115,7 +115,13 @@ export const CHAT_SEEDS: Record<string, Seed> = {
     d.chat.seedItem(ARCH, {
       at: iso(30),
       kind: 'account_moved',
-      account_moved: { from: 'alpha', to: 'beta', cause: 'manual', note_written: false, reason: 'You moved it.' },
+      account_moved: {
+        from: 'alpha',
+        to: 'beta',
+        cause: 'manual',
+        note_written: false,
+        reason: 'You moved it from alpha, at 92% of its 5-hour window, to beta.',
+      },
     });
     d.chat.seedItem(ARCH, { at: iso(10), kind: 'move_failed', move_failed: { to: 'gamma', reason: 'gamma is at its usage limit' } });
     const s = d.sessions.get(ARCH)!;

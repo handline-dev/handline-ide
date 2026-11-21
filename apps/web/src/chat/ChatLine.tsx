@@ -44,6 +44,7 @@ export function ChatLine({
   onReply,
   parentText,
   bash,
+  moveNote,
   fade: fades = true,
 }: {
   e: TimelineEntry;
@@ -54,6 +55,8 @@ export function ChatLine({
   parentText?: string;
   /** What this ! line ran and printed, once the daemon has paired them. */
   bash?: TranscriptItem;
+  /** For a Moved to line: the handoff note of the session the move started. */
+  moveNote?: string | null;
   fade?: boolean;
 }) {
   const key = `${e.kind}:${e.id}`;
@@ -70,7 +73,7 @@ export function ChatLine({
   if (e.kind === 'item' && (e.item.account_moved || e.item.move_failed))
     return (
       <motion.div data-id={key} {...fade}>
-        <MoveLine agent={agent} at={e.at} moved={e.item.account_moved} failed={e.item.move_failed} />
+        <MoveLine agent={agent} at={e.at} moved={e.item.account_moved} failed={e.item.move_failed} note={moveNote} />
       </motion.div>
     );
   // A command with no message to fold into: typed at the terminal, or sent before messages recorded their landing.
