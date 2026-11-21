@@ -24,9 +24,9 @@ func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 	return err
 }
 
-// answerMemoAsks closes the asks to the founder that comments on task tid raised: the founder has now written on the task.
-func answerMemoAsks(tx *sql.Tx, tid int64) error {
-	_, err := db.CloseMemoAsks(tx, "landed", "id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", tid)
+// answerMemoAsks closes the asks to person that comments on task tid raised: they have now written on the task.
+func answerMemoAsks(tx *sql.Tx, tid int64, person string) error {
+	_, err := db.CloseMemoAsks(tx, "landed", "target = ? AND id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", person, tid)
 	return err
 }
 

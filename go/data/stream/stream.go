@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -227,6 +228,7 @@ type sub struct {
 	hangUp  func()
 	topics  map[string]bool
 	agent   string // only this agent's events and those of no agent; "" is every agent's
+	person  string // the subscribing person: an event of a person (its Agent a person key) goes to that person only
 	visible func(*Event) bool
 	logged  bool // its topics are stream_log's, so it has cursors
 
@@ -260,6 +262,9 @@ func (s *sub) topicList() []string {
 func (s *sub) wants(ev *Event) bool {
 	if !s.topics[ev.Topic] {
 		return false
+	}
+	if ev.Agent != nil && actor.IsPerson(*ev.Agent) {
+		return *ev.Agent == s.person
 	}
 	if s.agent != "" && ev.Agent != nil && *ev.Agent != s.agent {
 		return false
@@ -420,6 +425,9 @@ func Register(srv *rpc.Server, h *Hub) {
 			}
 		}
 		s := newSub(c, names, agent, visible)
+		if actor.IsPerson(c.Caller.Key) {
+			s.person = c.Caller.Key
+		}
 		top, err := h.add(s, since)
 		if err != nil {
 			return nil, err

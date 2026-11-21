@@ -10,9 +10,10 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// unreadSQL counts, per task, the comments by others above the founder's marker or the floor, whichever is higher.
+// unreadSQL counts, per task, the comments by others than the person (?2) above their marker (?3 is its prefix) or the floor (?1),
+// whichever is higher.
 const unreadSQL = "SELECT m.task_id AS task, COUNT(*) AS n, MIN(m.id) AS first, MAX(m.created_at) AS last FROM task_memos m " +
-	"LEFT JOIN cursors c ON c.name = '" + db.SeenPrefix + "' || m.task_id WHERE m.author != '" + actor.OwnerKey + "' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "
+	"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?2 AND m.id > MAX(?1, COALESCE(c.row_id, 0)) "
 
 type unread struct{ n, first, last int64 }
 
@@ -34,7 +35,7 @@ func queryMeta(e *Env, name string) (string, bool) {
 }
 
 func (e *Env) unreadOf(tid int64) (unread, error) {
-	r, err := queryOne(e.DB, unreadSQL+"AND m.task_id = ? GROUP BY m.task_id", e.seenFloor(), tid)
+	r, err := queryOne(e.DB, unreadSQL+"AND m.task_id = ?4 GROUP BY m.task_id", e.seenFloor(), e.person(), db.SeenPrefixOf(e.person()), tid)
 	if err != nil || r == nil {
 		return unread{}, err
 	}
@@ -42,7 +43,7 @@ func (e *Env) unreadOf(tid int64) (unread, error) {
 }
 
 func (e *Env) unreadAll() (map[int64]unread, error) {
-	rows, err := query(e.DB, unreadSQL+"GROUP BY m.task_id", e.seenFloor())
+	rows, err := query(e.DB, unreadSQL+"GROUP BY m.task_id", e.seenFloor(), e.person(), db.SeenPrefixOf(e.person()))
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +130,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		if tid != 0 {
 			// a request the founder queued to themself asks them nothing
 			open, err := query(e.DB, "SELECT r.id FROM task_requests l CROSS JOIN requests r ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? "+
-				"AND r.requester != ? AND r.state = 'queued' AND r.kind != 'say' ORDER BY r.id", tid, actor.OwnerKey, actor.OwnerKey)
+				"AND r.requester != ? AND r.state = 'queued' AND r.kind != 'say' ORDER BY r.id", tid, e.person(), e.person())
 			if err != nil {
 				return nil, err
 			}
@@ -190,16 +191,21 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	}
 	// Notes (the bell's dot, not its count): @human comments unread on their task and in their author's chat, on a task no row above has.
 	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
-		"LEFT JOIN cursors c ON c.name = '"+db.SeenPrefix+"' || m.task_id WHERE m.author != '"+actor.OwnerKey+"' AND m.body LIKE '%@human%' AND m.id > MAX(?, COALESCE(c.row_id, 0)) "+
-		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.memo_id = m.id AND r.target = ? AND r.read_at IS NOT NULL) "+
+		"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?1 AND m.body LIKE '%@human%' AND m.id > MAX(?2, COALESCE(c.row_id, 0)) "+
+		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.memo_id = m.id AND r.target = ?1 AND r.read_at IS NOT NULL) "+
 		"AND COALESCE((SELECT r.ts FROM requests r JOIN cursors s ON r.id = s.row_id WHERE s.name = 'for_you_seen:' || m.author), 0) < m.created_at "+
-		"ORDER BY m.id DESC", e.seenFloor(), actor.OwnerKey)
+		"ORDER BY m.id DESC", e.person(), e.seenFloor(), db.SeenPrefixOf(e.person()))
 	if err != nil {
 		return nil, err
 	}
 	for _, m := range notes {
 		tid := m.i("task_id")
 		if byTask[tid] != nil || !db.ToPerson(m.str("body")) {
+			continue
+		}
+		if whose, err := db.TaskPerson(e.DB, tid); err != nil {
+			return nil, err
+		} else if whose != e.person() {
 			continue
 		}
 		out := row(tid, m.str("title"), "note", []int64{}, all[tid], ts(m["created_at"]))
@@ -230,7 +236,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		if who, err := e.askerOf(t); err != nil {
 			return nil, err
-		} else if !actor.IsPerson(who) && !actor.IsPerson(actingOf(t)) {
+		} else if who != e.person() && actingOf(t) != e.person() {
 			continue
 		}
 		comments = append(comments, row(tid, t.str("title"), "comment", []int64{}, u, ts(u.last)))
@@ -269,8 +275,11 @@ func (e *Env) needsYouAndDrafts() (needs, drafts int, err error) {
 		case "draft":
 			drafts++
 		case "queued", "doing":
-			if actor.IsPerson(actingOf(t)) {
+			if actingOf(t) == e.person() {
 				needs++
+				continue
+			}
+			if e.person() != actor.OwnerKey {
 				continue
 			}
 			task, err := e.taskOf(t, st, b)

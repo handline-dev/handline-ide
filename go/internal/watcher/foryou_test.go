@@ -139,3 +139,33 @@ func TestForYouTellsARewrittenQuestionAgainOnlyWhenItChanges(t *testing.T) {
 		t.Fatalf("unchanged told %q", got)
 	}
 }
+
+// With two people each item is told to the person it waits on: its event carries that person, and the other is told nothing.
+func TestForYouTellsEachPersonTheirOwn(t *testing.T) {
+	d, l := rig(t)
+	exec(t, d, "INSERT INTO people(id, display_name, role, created_at) VALUES(2, 'Kim', 'member', 0)")
+	w := &ForYou{Reads: &reads.Env{DB: d, Home: t.TempDir()}}
+	if err := w.Scan(d, l.Append); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'hers', 'p2', 'boss', 1, 'boss')")
+	if err := w.Scan(d, l.Append); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, "UPDATE tasks SET done_evidence = 'ok', done_at = 2 WHERE id = 1")
+	if err := w.Scan(d, l.Append); err != nil {
+		t.Fatal(err)
+	}
+	got, err := l.Since(0, []string{"for_you"}, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Type != "for_you.opened" || got[1].Type != "for_you.closed" {
+		t.Fatalf("told: %+v", got)
+	}
+	for _, e := range got {
+		if e.Agent == nil || *e.Agent != "p2" {
+			t.Fatalf("%s is not Kim's: %v", e.Type, e.Agent)
+		}
+	}
+}

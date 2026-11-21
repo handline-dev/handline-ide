@@ -3872,7 +3872,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend."
+      "description": "Hand the task to this agent, or to a person, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. human is the task's person: the person it or its nearest parent answers to, else whose request it serves, else the owner. For a person, the comment is the decision and what you recommend."
      }
     },
     {

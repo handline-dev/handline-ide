@@ -23,7 +23,7 @@ func TestSeenMovesTheMarkerForwardOnlyAndReadsAwayNeitherASayNorAQuestion(t *tes
 			"(21, 1, 'worker', 'p1', 'decide @human', 'queued', 'ask', 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(22, 1, 'worker', 'p1', 'a reply', 'landed', 'say', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 21), (1, 22)")
-	cur := func() int64 { n, _ := db.Cursor(d, db.SeenKey(1)); return n }
+	cur := func() int64 { n, _ := db.Cursor(d, db.SeenKey("p1", 1)); return n }
 	if r := seenCall(t, mk, `"task":1,"upto":3,`, "s1"); r["result"] == nil || cur() != 3 {
 		t.Fatalf("%v marker %d", r, cur())
 	}

@@ -48,3 +48,26 @@ func TestRequestsWatchesTheCursorsTheResultMarkMoves(t *testing.T) {
 		t.Fatal("a mark on a result would not reach the requests topic")
 	}
 }
+
+// With two people each request is told to the person whose it is: its event carries that person.
+func TestARequestIsToldToItsPerson(t *testing.T) {
+	d, l := rig(t)
+	exec(t, d, "INSERT INTO people(id, display_name, role, created_at) VALUES(2, 'Kim', 'member', 0)")
+	w := &Requests{Reads: &reads.Env{DB: d}}
+	now := time.Now().Unix()
+	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'hers', 'lead', 'p2', %d)", now-10))
+	if err := w.Scan(d, l.Append); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, fmt.Sprintf("UPDATE tasks SET done_evidence = 'ok', done_at = %d WHERE id = 1", now-5))
+	if err := w.Scan(d, l.Append); err != nil {
+		t.Fatal(err)
+	}
+	got, err := l.Since(0, []string{"requests"}, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Agent == nil || *got[0].Agent != "p2" {
+		t.Fatalf("told: %+v", got)
+	}
+}

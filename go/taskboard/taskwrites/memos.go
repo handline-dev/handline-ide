@@ -4,6 +4,7 @@ package taskwrites
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -227,6 +228,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			if body, err = c.Mentions(body); err != nil {
 				return nil, err
 			}
+			if to, err = turnPerson(tx, tid, c.Caller.Actor(), to); err != nil {
+				return nil, err
+			}
 			if err := claimImages(tx, home, c.Caller.Actor(), body, "", "text"); err != nil {
 				return nil, err
 			}
@@ -245,11 +249,14 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					return nil, err
 				}
 			}
-			if c.Caller.Role == "owner" {
-				if actor.IsPerson(to) {
+			if me := c.Caller.Actor(); actor.IsPerson(me) {
+				switch {
+				case to == me:
 					return nil, refusal("you do not hand a turn to yourself: name an agent")
+				case actor.IsPerson(to):
+					return nil, refusal("a person's comment hands no turn to a person: name an agent")
 				}
-				if err = answerMemoAsks(tx, tid); err != nil {
+				if err = answerMemoAsks(tx, tid, me); err != nil {
 					return nil, err
 				}
 				// while the founder's turn is on top, their comment passes it, the comment its note; on a task Ready for them it is a
@@ -262,7 +269,8 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if err != nil {
 					return nil, err
 				}
-				if actor.IsPerson(acting) && len(turns) > 0 {
+				// a person answers their own turn; the owner answers any person's
+				if actor.IsPerson(acting) && len(turns) > 0 && (acting == me || c.Caller.Role == "owner") {
 					ready, err := readyNow(tx, tid)
 					switch {
 					case err != nil:
@@ -303,7 +311,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			}
 			return accepted(said, map[string]any{"memo": mid}), nil
 		})
-		if err == nil && asked != nil && !asked.Reask {
+		if err == nil && asked != nil && !asked.Reask && tell != nil {
 			pushed.After = asked.After
 			if tail := tell.HandedOver(pushed); tail != "" {
 				out["said"] = out["said"].(string) + "\n" + tail
@@ -329,6 +337,26 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 	}
 }
 
+// turnPerson is who a turn to `to` on task tid waits on: human, which names the caller's owner, means the task's person
+// (db.TaskPerson); any other person is that person, who must not have been removed.
+func turnPerson(tx *sql.Tx, tid int64, caller, to string) (string, error) {
+	if !actor.IsPerson(to) {
+		return to, nil
+	}
+	if human, err := addr.OwnerOf(tx, caller); err != nil {
+		return "", err
+	} else if to == human {
+		return db.TaskPerson(tx, tid)
+	}
+	var removed sql.NullInt64
+	if err := tx.QueryRow("SELECT removed_at FROM people WHERE id = ?", to[1:]).Scan(&removed); errors.Is(err, sql.ErrNoRows) || removed.Valid {
+		return "", refusal(to + " is no person here")
+	} else if err != nil {
+		return "", err
+	}
+	return to, nil
+}
+
 // turnParams are a comment's turn: who it hands the task to ("" for none) and, for a review, the evidence a pass of it closes the task with.
 func turnParams(p map[string]any, home string) (to, evidence string, err error) {
 	if to, err = optText(p, "turn"); err != nil {
@@ -338,9 +366,9 @@ func turnParams(p map[string]any, home string) (to, evidence string, err error) 
 		return "", "", err
 	}
 	switch {
-	case evidence != "" && (to == "" || to == actor.OwnerKey):
+	case evidence != "" && (to == "" || actor.IsPerson(to)):
 		return "", "", badParam("done goes with a turn to an agent: a review whose pass closes the task", "done")
-	case to != "" && to != actor.OwnerKey && !contains(paths.ListAgents(home), to):
+	case to != "" && !actor.IsPerson(to) && !contains(paths.ListAgents(home), to):
 		e := rpc.NotFoundError("no agent named " + to)
 		e.Data = map[string]any{"what": "agent", "name": to}
 		return "", "", e

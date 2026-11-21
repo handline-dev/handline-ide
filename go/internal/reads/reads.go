@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/handline/handline/go/accounts/weblogin"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 
 	"github.com/handline/handline/go/accounts/usage"
@@ -70,9 +71,37 @@ type Env struct {
 	AccountWall func(account string, now int64) (blockedUntil, runsOutAt, resetsAt int64)
 	// BranchPR answers the pull request of a branch of a GitHub repo as worktrees.list gives it (number, url, verdict, failing), nil for
 	// none; nil asks gh.
-	BranchPR  func(ctx context.Context, repo, branch string) (map[string]any, error)
+	BranchPR func(ctx context.Context, repo, branch string) (map[string]any, error)
+	// Person is whose requests, asks and turns the reads are: the calling person (asCaller); "" is the owner.
+	Person    string
 	branchPRs *branchPRs
 	samples   *usage.SampleCache // the outlook's usage_samples, held between reads
+}
+
+// person is whose the reads are: Person, else the owner.
+func (e *Env) person() string {
+	if e.Person != "" {
+		return e.Person
+	}
+	return actor.OwnerKey
+}
+
+// For is e reading for person.
+func (e *Env) For(person string) *Env {
+	f := *e
+	f.Person = person
+	return &f
+}
+
+// asCaller serves h for the calling person: a person or a device's person; anyone else reads as the owner.
+func (e *Env) asCaller(h func(*Env, *rpc.Conn, map[string]any) (any, error)) func(*rpc.Conn, map[string]any) (any, error) {
+	return func(c *rpc.Conn, p map[string]any) (any, error) {
+		who := ""
+		if actor.IsPerson(c.Caller.Key) {
+			who = c.Caller.Key
+		}
+		return h(e.For(who), c, p)
+	}
 }
 
 // Register adds the read methods to the server's table. Each is a Read, so a slow one does not hold up a connection's next calls.
@@ -86,11 +115,11 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("agent.get", rpc.Method{Handler: e.agentGet, Read: true})
 	s.Register("agent.strip", rpc.Method{Handler: e.agentStrip, Read: true})
 	s.Register("agent.timeline", rpc.Method{Handler: e.agentTimeline, Read: true})
-	s.Register("tasks.list", rpc.Method{Handler: e.tasksList, Read: true})
-	s.Register("requests.list", rpc.Method{Handler: e.requestsList, Read: true})
-	s.Register("requests.pending", rpc.Method{Handler: e.requestsPending, Read: true})
-	s.Register("task.get", rpc.Method{Handler: e.taskGet, Read: true})
-	s.Register("task.board", rpc.Method{Handler: e.taskBoard, Read: true})
+	s.Register("tasks.list", rpc.Method{Handler: e.asCaller((*Env).tasksList), Read: true})
+	s.Register("requests.list", rpc.Method{Handler: e.asCaller((*Env).requestsList), Read: true})
+	s.Register("requests.pending", rpc.Method{Handler: e.asCaller((*Env).requestsPending), Read: true})
+	s.Register("task.get", rpc.Method{Handler: e.asCaller((*Env).taskGet), Read: true})
+	s.Register("task.board", rpc.Method{Handler: e.asCaller((*Env).taskBoard), Read: true})
 	s.Register("task.history", rpc.Method{Handler: e.taskHistory, Read: true})
 	s.Register("task.time", rpc.Method{Handler: e.taskTime, Read: true})
 	s.Register("task.changes", rpc.Method{Handler: e.taskChanges, Read: true})

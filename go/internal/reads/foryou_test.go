@@ -162,3 +162,20 @@ func TestAFoundersTurnRowIsDatedWhenTheTurnCame(t *testing.T) {
 		t.Errorf("no turn, the task's own time: %v", it)
 	}
 }
+
+// A member sees none of the founder's items, and no prompt, proposal or machine need: those are an owner's. An owner sees the
+// owner's items, not the founder's own asks.
+func TestAMembersForYouHoldsOnlyTheirOwn(t *testing.T) {
+	e := testEnv(t)
+	seedForYou(t, e)
+	run(t, e, "INSERT INTO people(id, display_name, role, created_at) VALUES(2, 'Kim', 'member', 0)")
+	putProposal(t, e, "0000000c", proposalFile("0000000c", "approved", 55, 0, "error: \"read-only\"\n")) // its apply failed
+	if got, count := forYou(t, e.For("p2")); len(got) != 0 || count != 0 {
+		t.Fatalf("Kim the member sees %v", got)
+	}
+	run(t, e, "UPDATE people SET role = 'owner' WHERE id = 2")
+	got, _ := forYou(t, e.For("p2"))
+	if len(got) != 4 || got["prompt\x00fp1"] == nil || got["proposal\x0011"] == nil || got["proposal\x0012"] == nil || got["machine\x00disk"] == nil {
+		t.Fatalf("Kim the owner sees %v", got)
+	}
+}

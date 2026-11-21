@@ -632,3 +632,36 @@ func TaskBrief(q Q, tid int64) (rid int64, requester, body string, err error) {
 	}
 	return rid, requester, body, err
 }
+
+// TaskPerson is the person a turn to human on task tid waits on: the person the task or its nearest parent answers to, else the person
+// whose request it serves, else the owner; a removed person is passed over.
+func TaskPerson(q Q, tid int64) (string, error) {
+	var who string
+	err := q.QueryRow(`WITH RECURSIVE up(id, parent, d) AS (SELECT id, parent_task, 0 FROM tasks WHERE id = ?
+		UNION ALL SELECT t.id, t.parent_task, up.d + 1 FROM tasks t JOIN up ON t.id = up.parent)
+		SELECT who FROM (SELECT up.d, 0 AS o, COALESCE(NULLIF(t.reporter, ''), t.opened_by) AS who FROM up JOIN tasks t ON t.id = up.id
+			UNION ALL SELECT up.d, 1, r.requester FROM up JOIN tasks t ON t.id = up.id JOIN requests r ON r.id = t.request)
+		WHERE who GLOB 'p[0-9]*' AND EXISTS (SELECT 1 FROM people p WHERE 'p' || p.id = who AND p.removed_at IS NULL) ORDER BY d, o LIMIT 1`, tid).Scan(&who)
+	if errors.Is(err, sql.ErrNoRows) {
+		return actor.OwnerKey, nil
+	}
+	return who, err
+}
+
+// People are the keys of the people not removed, oldest first.
+func People(q Q) ([]string, error) {
+	rows, err := q.Query("SELECT id FROM people WHERE removed_at IS NULL ORDER BY id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, actor.Key(actor.Person, id))
+	}
+	return out, rows.Err()
+}

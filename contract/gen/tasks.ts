@@ -809,7 +809,7 @@ export interface TasksMethods {
   skip?: Who[];
   /** The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment. */
   reply?: number;
-  /** Hand the task to this agent, or human, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. For human, the comment is the decision and what you recommend. */
+  /** Hand the task to this agent, or to a person, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. human is the task's person: the person it or its nearest parent answers to, else whose request it serves, else the owner. For a person, the comment is the decision and what you recommend. */
   turn?: Who;
   /** With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work). */
   done?: string;

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/devices"
 )
 
@@ -40,6 +41,7 @@ type Note struct {
 	Collapse    string            // a later note with the same id takes this one's place
 	Badge       int
 	Silent      bool
+	Person      string // whose devices it goes to: the person the item waits on; "" is every device
 }
 
 // ErrGone is Apple or Google saying a token is no longer valid: APNs 410, FCM UNREGISTERED.
@@ -99,7 +101,7 @@ func (s *Sender) Notify(ctx context.Context, n Note) error {
 		return err
 	}
 	for _, d := range ds {
-		if d.Push == nil || s.platforms[d.Push.Platform] == nil {
+		if d.Push == nil || s.platforms[d.Push.Platform] == nil || n.Person != "" && personOf(d) != n.Person {
 			continue
 		}
 		sctx, cancel := context.WithTimeout(ctx, sendTimeout)
@@ -116,6 +118,14 @@ func (s *Sender) Notify(ctx context.Context, n Note) error {
 		}
 	}
 	return nil
+}
+
+// personOf is whose a device is: "" is the owner's.
+func personOf(d devices.Device) string {
+	if d.Person == "" {
+		return actor.OwnerKey
+	}
+	return d.Person
 }
 
 func (s *Sender) log(format string, args ...any) {

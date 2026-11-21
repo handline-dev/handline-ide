@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/policy"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -54,7 +53,7 @@ func (e *Env) mailboxRows() ([]mailbox, error) { return e.mailboxRowsKept(false)
 func (e *Env) mailboxRowsKept(kept bool) ([]mailbox, error) {
 	gateRows, err := query(e.DB, "SELECT id FROM requests WHERE target = ? AND state = 'queued' AND id IN "+
 		"(SELECT MIN(l.request_id) FROM task_requests l JOIN tasks t ON t.id = l.task_id "+
-		"WHERE "+db.ActingSQL("t")+" = ? AND t.discarded_by IS NULL AND t.done_evidence IS NULL GROUP BY t.id) ORDER BY id", actor.OwnerKey, actor.OwnerKey)
+		"WHERE "+db.ActingSQL("t")+" = ? AND t.discarded_by IS NULL AND t.done_evidence IS NULL GROUP BY t.id) ORDER BY id", e.person(), e.person())
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +61,7 @@ func (e *Env) mailboxRowsKept(kept bool) ([]mailbox, error) {
 	for _, g := range gateRows {
 		gates[g.i("id")] = true
 	}
-	where, args := founderOpen, []any{actor.OwnerKey}
+	where, args := founderOpen, []any{e.person()}
 	if kept {
 		where = "(" + founderOpen + " OR (kind = 'say' AND state = 'landed' AND read_at IS NOT NULL AND read_at >= ?))"
 		args = append(args, time.Now().Unix()-readSayKeepS)
