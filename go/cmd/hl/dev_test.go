@@ -40,3 +40,13 @@ func TestDevIsTheFoundersOrTheTeamManagersAndStatusIsAnyones(t *testing.T) {
 		t.Fatalf("%d %s", code, out)
 	}
 }
+
+// hl dev cluster answers a line it does not read with its usage, and refuses --runners off up.
+func TestDevClusterRefusesWhatItDoesNotRead(t *testing.T) {
+	for _, args := range [][]string{nil, {"sideways"}, {"down", "--runners", "2"}, {"status", "extra"}} {
+		var out bytes.Buffer
+		if code := runCluster(t.TempDir(), args, &out, &out); code != 2 || !strings.Contains(out.String(), "hl dev cluster up") {
+			t.Fatalf("%v: %d %q", args, code, out.String())
+		}
+	}
+}
