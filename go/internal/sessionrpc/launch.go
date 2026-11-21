@@ -31,6 +31,26 @@ func (e *Env) launchPrepare(c *rpc.Conn, params map[string]any) (any, error) {
 	if c.Server().Transport != "local" || c.Pid <= 0 {
 		return nil, rpc.Refused("a launch is prepared on the local socket only", "role", "")
 	}
+	req, err := ParseLaunch(params)
+	if err != nil {
+		return nil, err
+	}
+	req.PID = c.Pid
+	if req.Agent, err = e.agent(params); err != nil { // the roster is asked once the input is known to be well formed
+		return nil, err
+	}
+	res, err := e.Launch(req)
+	if refused, ok := err.(*LaunchRefusal); ok {
+		return nil, rpc.Refused(refused.Msg, "state", "")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"argv": res.Argv, "env": res.Env, "warnings": res.Warnings}, nil
+}
+
+// ParseLaunch is session.launch_prepare's params but the agent, checked: what hl launch knows of where it runs.
+func ParseLaunch(params map[string]any) (LaunchRequest, error) {
 	var err error
 	str := func(k string) (string, error) {
 		v, present := params[k]
@@ -43,28 +63,28 @@ func (e *Env) launchPrepare(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		return s, nil
 	}
-	req := LaunchRequest{PID: c.Pid}
+	req := LaunchRequest{}
 	for k, dst := range map[string]*string{"account": &req.Account, "why": &req.Why, "by": &req.By, "prompt_file": &req.PromptFile,
 		"cwd": &req.Cwd, "binary": &req.Binary, "hl_exe": &req.HlExe, "handle": &req.Handle, "worktree_id": &req.WorktreeID} {
 		if *dst, err = str(k); err != nil {
-			return nil, err
+			return LaunchRequest{}, err
 		}
 	}
 	if req.Cwd == "" || req.Cwd[0] != '/' {
-		return nil, bad("cwd is the absolute folder the launch runs in", "cwd")
+		return LaunchRequest{}, bad("cwd is the absolute folder the launch runs in", "cwd")
 	}
 	if req.Force, err = flag(params, "force"); err != nil {
-		return nil, err
+		return LaunchRequest{}, err
 	}
 	if list, present := params["extra"]; present {
 		items, ok := list.([]any)
 		if !ok {
-			return nil, bad("extra is a list of text", "extra")
+			return LaunchRequest{}, bad("extra is a list of text", "extra")
 		}
 		for _, it := range items {
 			t, ok := it.(string)
 			if !ok {
-				return nil, bad("extra is a list of text", "extra")
+				return LaunchRequest{}, bad("extra is a list of text", "extra")
 			}
 			req.Extra = append(req.Extra, t)
 		}
@@ -73,25 +93,15 @@ func (e *Env) launchPrepare(c *rpc.Conn, params map[string]any) (any, error) {
 	if m, present := params["env"]; present {
 		obj, ok := m.(map[string]any)
 		if !ok {
-			return nil, bad("env is an object of text", "env")
+			return LaunchRequest{}, bad("env is an object of text", "env")
 		}
 		for k, v := range obj {
 			t, ok := v.(string)
 			if !ok {
-				return nil, bad("env is an object of text", "env")
+				return LaunchRequest{}, bad("env is an object of text", "env")
 			}
 			req.Env[k] = t
 		}
 	}
-	if req.Agent, err = e.agent(params); err != nil { // the roster is asked once the input is known to be well formed
-		return nil, err
-	}
-	res, err := e.Launch(req)
-	if refused, ok := err.(*LaunchRefusal); ok {
-		return nil, rpc.Refused(refused.Msg, "state", "")
-	}
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"argv": res.Argv, "env": res.Env, "warnings": res.Warnings}, nil
+	return req, nil
 }

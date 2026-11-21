@@ -682,7 +682,151 @@
     "not_on_node",
     "method"
    ],
-   "description": "Only on a runner's link: the connection a joined machine's daemon keeps open to the master with its device token; any other connection is refused, gate `node`. The master runs it only for an agent whose session it opened on that runner (gate `not_on_node`), never hello, node.forward, subscribe, unsubscribe or a runner.* call (gate `method`). The forwarded call's result or error comes back unchanged.",
+   "description": "Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`); never hello, a node.* or runner.* call, subscribe or unsubscribe (gate `method`). The answer comes back with its paths under the master's home made the runner's.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.launch",
+   "summary": "hl launch on a runner: the launch built on the master for that machine's home, and the files it starts with.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The agent whose session asks, as the runner proved it."
+     }
+    },
+    {
+     "name": "params",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "description": "session.launch_prepare's own params, as hl launch sent them on the runner."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "description": "argv, env and warnings as session.launch_prepare answers, their paths the runner's; files, each {path under the home, data in base64, mode}; agent_dir, the agent's folder under the home.",
+     "properties": {
+      "argv": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "env": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "warnings": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
+      "files": {
+       "type": "array",
+       "items": {
+        "type": "object"
+       }
+      },
+      "agent_dir": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "argv",
+      "env",
+      "warnings",
+      "files",
+      "agent_dir"
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "not_on_node",
+    "prompt_file",
+    "launch",
+    "state"
+   ],
+   "description": "Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`). Paths under the master's home are answered as the runner's. The only prompt file taken is the one the master wrote for the agent (gate `prompt_file`).",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.agent_files",
+   "summary": "A runner's agent's memory and handoff note, as its session there wrote them.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The agent whose session wrote them, as the runner proved it."
+     }
+    },
+    {
+     "name": "files",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "Each {path under the agent's folder, data in base64, mode}."
+     }
+    },
+    {
+     "name": "deleted",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Paths under the agent's folder it removed."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "not_on_node",
+    "path"
+   ],
+   "description": "Only on a runner's link (gate `node`), for an agent whose session the master opened there (gate `not_on_node`); only memory/** and handoff.md inside the agent's folder (gate `path`).",
    "x-app-cache": false
   }
  ]

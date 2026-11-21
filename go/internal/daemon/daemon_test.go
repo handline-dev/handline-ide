@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -131,7 +131,7 @@ func TestCloseWaitsForBeforeCloseBeforeTheDatabaseCloses(t *testing.T) {
 	var pingErr error
 	called := false
 	d, err := Start(Config{Home: home, DBFile: filepath.Join(home, "db.sqlite"), Auth: fakeAuth{}, Log: t.Logf,
-		OnOpen:      func(db *sql.DB, _ *supervisor.Env, _ term.Remote) { opened = db },
+		OnOpen:      func(db *sql.DB, _ *supervisor.Env, _ *nodes.Registry) { opened = db },
 		BeforeClose: func() { called, pingErr = true, opened.Ping() }})
 	if err != nil {
 		t.Fatal(err)
