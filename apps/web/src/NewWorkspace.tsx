@@ -1,6 +1,6 @@
 import { classify, sentence, useOperation, useWrite } from '@handline/app-data';
 import { FolderOpen, GitBranch } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
@@ -126,6 +126,20 @@ function Clone({ close }: { close: Close<string> }) {
   );
 }
 
+/** One way to start, as a tile: its icon large, its words under it. */
+function Choice({ icon, word, onClick }: { icon: ReactNode; word: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-28 flex-col items-center justify-center gap-3 rounded-lg border border-border text-sm hover:bg-hover/30"
+    >
+      <span className="text-muted">{icon}</span>
+      {word}
+    </button>
+  );
+}
+
 /** Add workspace: open a folder (picked, or typed where no picker is) or clone a repository. */
 function Start({ close }: { close: Close<string> }) {
   const [step, setStep] = useState<'choose' | 'type' | 'clone' | { folder: string }>('choose');
@@ -141,15 +155,9 @@ function Start({ close }: { close: Close<string> }) {
         )
       : setStep('type');
   return (
-    <div className="flex flex-col gap-2 pb-4">
-      <Button size="lg" className="justify-start" onClick={open}>
-        <FolderOpen size={16} />
-        Open a folder
-      </Button>
-      <Button size="lg" className="justify-start" onClick={() => setStep('clone')}>
-        <GitBranch size={16} />
-        Clone a repository
-      </Button>
+    <div className="grid grid-cols-2 gap-3 pb-4">
+      <Choice icon={<FolderOpen size={28} />} word="Open a folder" onClick={open} />
+      <Choice icon={<GitBranch size={28} />} word="Clone a repository" onClick={() => setStep('clone')} />
     </div>
   );
 }
