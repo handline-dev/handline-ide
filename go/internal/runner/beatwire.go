@@ -34,11 +34,28 @@ type BeatSession struct {
 	Pushed string `json:"pushed,omitempty"`
 }
 
-// BeatAccount is a Claude account folder on the runner, with the email it is logged in as and its config dir, relative to the home.
+// BeatAccount is a Claude account folder on the runner, with the email it is logged in as, its config dir (relative to the home), its
+// newest usage reading, and whether its login was refused even after a real turn.
 type BeatAccount struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Dir   string `json:"dir"`
+	Name        string       `json:"name"`
+	Email       string       `json:"email"`
+	Dir         string       `json:"dir"`
+	Reading     *BeatReading `json:"reading,omitempty"`
+	LoginFailed bool         `json:"login_failed,omitempty"`
+}
+
+// BeatReading is a usage reading (usage.Reading): how long ago it was read, by this machine's clock (the master's may differ), and each
+// window's percent used and reset.
+type BeatReading struct {
+	AgeS    int64        `json:"age_s"`
+	Windows []BeatWindow `json:"windows"`
+}
+
+// BeatWindow is one window of a BeatReading; Pct nil is not read, Reset 0 unknown.
+type BeatWindow struct {
+	Minutes int   `json:"minutes"`
+	Pct     *int  `json:"pct"`
+	Reset   int64 `json:"reset,omitempty"`
 }
 
 // Has is what the runner has for an agent's work.

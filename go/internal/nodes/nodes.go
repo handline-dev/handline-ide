@@ -15,6 +15,7 @@ import (
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -49,6 +50,8 @@ type Registry struct {
 	// when none is. A runner's account folder is that account, its usage counted and its sessions chosen as it. Unset, a folder is the
 	// account of its name.
 	AccountFor func(email, name string, add bool) (string, error)
+	// Reading, when set, is told each board account's reading a runner's heartbeat carries: the newest of every machine's stands.
+	Reading func(account string, r runner.BeatReading)
 	// Self is the master's own node id; Version the master's Handline version, which a runner's must be to take work ("" takes any).
 	Self, Version string
 	// BatterySwitch, when set, is whether the battery switch is on (BatteryKey): a runner whose heartbeat says it went on battery is set
