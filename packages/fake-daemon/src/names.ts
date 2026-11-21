@@ -5,7 +5,7 @@ import type { Person, Workspace } from '@handline/contract';
 
 /** The one person: personal mode. The fake writes the person as human, as the daemon did before keys, so that is their key here. */
 export const OWNER = 'human';
-export const PEOPLE: Person[] = [{ key: OWNER, display_name: 'Founder', handle: null, role: 'owner' }];
+export const PEOPLE: Person[] = [{ key: OWNER, display_name: 'Founder', handle: null, role: 'owner', removed: false }];
 
 export const segment = (key: string) => key.split('.')[0]!;
 

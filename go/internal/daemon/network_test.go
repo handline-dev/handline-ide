@@ -131,7 +131,7 @@ func TestPairingMakesAFounderDeviceWhoseRevocationClosesTheConnection(t *testing
 	if c.ask(`{"jsonrpc":"2.0","id":3,"method":"whoami"}`)["result"] == nil {
 		t.Fatal("a member cannot call whoami")
 	}
-	if ds, _ := d.dev.List(""); len(ds) != 1 || ds[0]["connected"] != true {
+	if ds, _ := d.dev.List("", ""); len(ds) != 1 || ds[0]["connected"] != true {
 		t.Fatalf("%v", ds)
 	}
 	if found, err := d.dev.Revoke(id); !found || err != nil {
@@ -271,7 +271,7 @@ func TestPairedDevicesSurviveARestartAndARevokedOneStaysRefused(t *testing.T) {
 	if r, _ := hello(d, keep)["result"].(map[string]any); r["role"] != "owner" {
 		t.Fatalf("a paired device was forgotten by a restart: %v", r)
 	}
-	if ds, _ := d.dev.List(""); len(ds) != 2 {
+	if ds, _ := d.dev.List("", ""); len(ds) != 2 {
 		t.Fatal(ds)
 	}
 	if found, _ := d.dev.Revoke(goneID); !found {

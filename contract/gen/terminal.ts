@@ -135,11 +135,11 @@ export interface TerminalMethods {
 export const TERMINAL_METHODS: { [K in keyof TerminalMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
   "terminal.attach": { role: "member", callers: null, write: false, since: 1 },
   "terminal.history": { role: "member", callers: null, write: false, since: 1 },
-  "terminal.resize": { role: "member", callers: null, write: true, since: 1 },
-  "terminal.input": { role: "member", callers: null, write: true, since: 1 },
+  "terminal.resize": { role: "owner", callers: null, write: true, since: 1 },
+  "terminal.input": { role: "owner", callers: null, write: true, since: 1 },
   "terminal.open": { role: "member", callers: null, write: false, since: 1 },
-  "shell.open": { role: "member", callers: null, write: true, since: 1 },
-  "shell.close": { role: "member", callers: null, write: true, since: 1 },
+  "shell.open": { role: "owner", callers: null, write: true, since: 1 },
+  "shell.close": { role: "owner", callers: null, write: true, since: 1 },
   "terminal.detach": { role: "member", callers: null, write: false, since: 1 },
 };
 

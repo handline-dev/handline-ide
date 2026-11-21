@@ -39,12 +39,16 @@ type Device struct {
 	Kind     string // what the client said it is at device.redeem (ios, android, web, desktop); "" when it did not say
 	Client   string // the client its last hello named; "" before one
 	Person   string // the person's key it belongs to: whose pairing code it redeemed; "" for the owner's
+	Role     string // that person's role, owner or member; "" read as owner
 	Node     string // a mac's or a server's node id, the machine it lends; "" for a phone or a browser
 	Lending  string // the node's run, pause or off; "" with no node
 }
 
 // Lendings are the states a lent machine is in: run starts new work there, pause lets what runs finish, off is not lent.
 var Lendings = map[string]bool{"run": true, "pause": true, "off": true}
+
+// ErrNoPerson is a redeem of a code made for a person who has been removed since.
+var ErrNoPerson = errors.New("the person this code was made for has been removed")
 
 // ErrAlreadyJoined is a redeem with a node id this master already has.
 var ErrAlreadyJoined = errors.New("this machine has already joined")
@@ -213,6 +217,9 @@ func (m *Manager) Redeem(c, name, kind, node, remote string) (token string, d De
 	}
 	if err := m.store.Add(d, hashOf(token)); errors.Is(err, ErrAlreadyJoined) {
 		return "", Device{}, rpc.Refused(err.Error(), "already_joined", "")
+	} else if errors.Is(err, ErrNoPerson) {
+		delete(m.codes, h)
+		return "", Device{}, pairingRefused()
 	} else if err != nil {
 		return "", Device{}, err
 	}
@@ -262,6 +269,65 @@ func (m *Manager) Revoke(id string) (bool, error) {
 	return found, err
 }
 
+// Owns is whether device id is person's.
+func (m *Manager) Owns(id, person string) bool {
+	ds, err := m.store.List()
+	if err != nil || person == "" {
+		return false
+	}
+	for _, d := range ds {
+		if d.ID == id {
+			return d.Person == person
+		}
+	}
+	return false
+}
+
+// CloseAllOf closes every connection of person's devices, which keep their tokens.
+func (m *Manager) CloseAllOf(person string) {
+	ds, err := m.store.List()
+	if err != nil {
+		return
+	}
+	var closers []func()
+	m.mu.Lock()
+	for _, d := range ds {
+		if d.Person == person {
+			for _, f := range m.conns[d.ID] {
+				closers = append(closers, f)
+			}
+		}
+	}
+	m.mu.Unlock()
+	for _, f := range closers {
+		f()
+	}
+}
+
+// RevokeAllOf revokes every device of person, and the pairing codes made for them: each device's connections close and its machine
+// leaves (its node row goes with it).
+func (m *Manager) RevokeAllOf(person string) error {
+	m.mu.Lock()
+	for h, c := range m.codes {
+		if c.person == person {
+			delete(m.codes, h)
+		}
+	}
+	m.mu.Unlock()
+	ds, err := m.store.List()
+	if err != nil {
+		return err
+	}
+	for _, d := range ds {
+		if d.Person == person {
+			if _, err := m.Revoke(d.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // SetLending sets a lent machine's run, pause or off, for its own person only (person is the caller's key).
 func (m *Manager) SetLending(id, lending, person string) (Device, error) {
 	ds, err := m.store.List()
@@ -293,7 +359,8 @@ func (m *Manager) SetLending(id, lending, person string) (Device, error) {
 func (m *Manager) SetPush(id string, p Push) (bool, error) { return m.store.SetPush(id, p) }
 
 // List is the paired devices, each with whether it has a connection open; self, the caller's own device ("" for none), is current.
-func (m *Manager) List(self string) ([]map[string]any, error) {
+// person keeps only that person's devices; "" keeps all.
+func (m *Manager) List(self, person string) ([]map[string]any, error) {
 	ds, err := m.store.List()
 	if err != nil {
 		return nil, err
@@ -302,6 +369,9 @@ func (m *Manager) List(self string) ([]map[string]any, error) {
 	defer m.mu.Unlock()
 	out := make([]map[string]any, 0, len(ds))
 	for _, d := range ds {
+		if person != "" && d.Person != person {
+			continue
+		}
 		r := m.row(d)
 		r["current"] = d.ID == self
 		out = append(out, r)
@@ -324,7 +394,11 @@ func (m *Manager) row(d Device) map[string]any {
 	if d.LastSeen != nil {
 		seen = time.Unix(*d.LastSeen, 0).UTC().Format("2006-01-02T15:04:05Z")
 	}
-	return map[string]any{"id": d.ID, "name": d.Name, "role": "owner",
+	role := d.Role
+	if role == "" {
+		role = "owner"
+	}
+	return map[string]any{"id": d.ID, "name": d.Name, "role": role, "person": orNil(d.Person),
 		"created": time.Unix(d.Created, 0).UTC().Format("2006-01-02T15:04:05Z"), "last_seen": seen, "connected": len(m.conns[d.ID]) > 0,
 		"push": d.Push != nil, "kind": orNil(d.Kind), "client": orNil(d.Client), "current": false, "lending": orNil(d.Lending)}
 }

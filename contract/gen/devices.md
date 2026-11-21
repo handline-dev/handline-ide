@@ -5,18 +5,18 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
-| `devices.list` | owner |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
-| `device.pair` | owner | yes | `name?`, `ttl_s?`, `address?`, `request_id` | `Accepted & {code, expires_at, fingerprint, uri, web_link}` | `refused` |  | decided: pair |
+| `devices.list` | member |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
+| `device.pair` | member | yes | `name?`, `ttl_s?`, `address?`, `person?`, `request_id` | `Accepted & {code, expires_at, fingerprint, uri, web_link}` | `refused` |  | decided: pair |
 | `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `node?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit, already_joined | not from the app |
-| `device.revoke` | owner | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
-| `device.set` | owner | yes | `device`, `lending`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
-| `device.push_token` | owner | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
+| `device.revoke` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
+| `device.set` | member | yes | `device`, `lending`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
+| `device.push_token` | member | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 | `node.status` | agent |  | none | `{master, nodes}` |  |  | `nodes`, fed by nodes |
 | `node.forward` | owner |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 
 ### `devices.list`
 
-Paired devices with last seen and whether each is connected.
+Paired devices with last seen and whether each is connected. The owner sees every person's devices, a member only their own.
 
 ### `device.pair`
 
@@ -28,7 +28,7 @@ Trade a pairing code for a device token. The only method an unpaired network cal
 
 ### `device.revoke`
 
-Cancel a device and close its connections at once. Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found.
+Cancel a device and close its connections at once. Cancels the device's token. Its open connections and terminal attaches are closed at once, its next call is refused (gate `unpaired`), and a device.revoked event is sent on the devices topic. Revoking a device that is not paired is not_found. A member revokes only their own devices (gate `person`).
 
 ### `device.set`
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -67,7 +68,18 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 			e.Data["addresses"] = served
 			return nil, e
 		}
-		code, expires, print, uri = m.PairAt(ttl, door, personOf(c))
+		person := personOf(c)
+		if v, has := p["person"]; has { // the owner makes the link of a person they invited
+			k, _ := v.(string)
+			if actor.KindOf(k) != actor.Person {
+				return nil, rpc.BadRequestError("person is a person's key (p<n>)", "person", rpc.InvalidParams)
+			}
+			if k != person && c.Caller.Role != "owner" {
+				return nil, rpc.Refused("a member pairs only their own devices", "person", "")
+			}
+			person = k
+		}
+		code, expires, print, uri = m.PairAt(ttl, door, person)
 		if door.Web {
 			web = WebLink(door, code)
 		}
@@ -108,6 +120,9 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		}
 		if m == nil {
 			return nil, rpc.NotFoundError("no such device: " + id)
+		}
+		if c.Caller.Role != "owner" && !m.Owns(id, personOf(c)) {
+			return nil, rpc.Refused("a member revokes only their own devices", "person", "")
 		}
 		found, err := m.Revoke(id)
 		if err != nil {
@@ -172,7 +187,11 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		if m != nil {
 			var err error
 			self, _ := c.Caller.Info["device"].(string)
-			if list, err = m.List(self); err != nil {
+			mine := "" // the owner sees everyone's, a member their own
+			if c.Caller.Role != "owner" {
+				mine = personOf(c)
+			}
+			if list, err = m.List(self, mine); err != nil {
 				return nil, err
 			}
 			if m.PushPlatforms != nil {

@@ -8,8 +8,8 @@ import (
 	"github.com/handline/handline/go/kit/storetest"
 )
 
-// A paired device acts as its person, with that person's role; a device with no person is the owner's, one whose person is not there is
-// unpaired, and a member's waits for team mode.
+// A paired device acts as its person, with that person's role; a device with no person is the owner's, and one whose person is not there
+// or was removed is unpaired.
 func TestADeviceActsAsItsPersonWithThatPersonsRole(t *testing.T) {
 	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
@@ -39,7 +39,13 @@ func TestADeviceActsAsItsPersonWithThatPersonsRole(t *testing.T) {
 			t.Errorf("person %q is no one, got %+v %v", gone, got, err)
 		}
 	}
-	if got, err := s.deviceCaller("d1", "phone", member); err == nil || err.(*Error).Data["gate"] != "role" {
+	if got, err := s.deviceCaller("d1", "phone", member); err != nil || got.Key != member || got.Role != "member" {
 		t.Errorf("a member's device: %+v %v", got, err)
+	}
+	if _, err := db.Exec("UPDATE people SET removed_at = 1 WHERE id = ?", id); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.deviceCaller("d1", "phone", member); err == nil || err.(*Error).Data["gate"] != "unpaired" {
+		t.Errorf("a removed person's device: %+v %v", got, err)
 	}
 }
