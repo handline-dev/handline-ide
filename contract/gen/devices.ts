@@ -104,6 +104,17 @@ export interface DevicesMethods {
     };
     nodes: Node[];
   } };
+  "node.forward": { params: {
+  /** The agent whose session made the call, as the runner proved it. */
+  agent: string;
+  method: string;
+  /** The call's own params, request_id included for a write. */
+  params?: { [key: string]: unknown };
+  /** The client the agent's hello named on the runner (hl). */
+  client?: string;
+  /** The folder that hello was sent from. */
+  cwd?: string;
+}; result: { [key: string]: unknown } };
 }
 
 export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -114,12 +125,14 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.set": { role: "owner", callers: null, write: true, since: 1 },
   "device.push_token": { role: "owner", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
+  "node.forward": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
+  "node.forward": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */

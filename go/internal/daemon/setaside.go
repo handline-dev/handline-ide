@@ -18,9 +18,9 @@ import (
 // the one it ran alone on.
 const joinedKey = "master_joined_at"
 
-// setBoardAside runs before the board opens, with the daemon's singleton held. On a home that joined a master (hl device join), the
+// SetBoardAside runs before the board opens, with the daemon's singleton held. On a home that joined a master (hl device join), the
 // board it ran alone on is checkpointed and moved aside, unchanged (db.set-aside-<unix>.sqlite next to it), so a fresh one opens.
-func setBoardAside(home, file string, now time.Time) error {
+func SetBoardAside(home, file string, now time.Time) error {
 	m, ok := joined.Of(home)
 	if !ok {
 		return nil

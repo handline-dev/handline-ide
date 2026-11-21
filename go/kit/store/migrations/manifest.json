@@ -103,5 +103,10 @@
   "version": 120,
   "name": "agent_heard",
   "additive": true
+ },
+ {
+  "version": 121,
+  "name": "node_sessions",
+  "additive": true
  }
 ]
