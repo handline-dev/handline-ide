@@ -52,16 +52,23 @@ type Registry struct {
 	// BatterySwitch, when set, is whether the battery switch is on (BatteryKey): a runner whose heartbeat says it went on battery is set
 	// to Off, and back to Run when plugged in again.
 	BatterySwitch func() bool
-	local         func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
-	mu            sync.Mutex
-	links         map[string]*rpc.Conn
-	homes         map[*rpc.Conn]string // each link's runner's home, once asked
-	streams       map[string]*stream   // by id
-	next          int
-	beats         map[string]heard           // each runner's newest heartbeat since this master started
-	opening       map[string]map[string]bool // by node, the agents whose session Open is opening there now
-	started       time.Time
-	Clock         func() time.Time // the time heartbeats are judged by; nil is time.Now
+	// Placer, when set, picks the machine each session opens on (package placement).
+	Placer interface {
+		Where(agent string) string
+		Placed(agent string, ok bool)
+	}
+	// Check, when set, is the programs a runner is asked whether it has, which its next heartbeat says (Has.Programs).
+	Check   func() []string
+	local   func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
+	mu      sync.Mutex
+	links   map[string]*rpc.Conn
+	homes   map[*rpc.Conn]string // each link's runner's home, once asked
+	streams map[string]*stream   // by id
+	next    int
+	beats   map[string]heard           // each runner's newest heartbeat since this master started
+	opening map[string]map[string]bool // by node, the agents whose session Open is opening there now
+	started time.Time
+	Clock   func() time.Time // the time heartbeats are judged by; nil is time.Now
 
 	refOnce sync.Once
 	refRE   *regexp.Regexp // a path under the attachments folder

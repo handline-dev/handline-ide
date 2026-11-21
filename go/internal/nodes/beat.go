@@ -38,6 +38,13 @@ func (r *Registry) Heard(node string) (b runner.Beat, at time.Time, ok bool) {
 	return h.beat, h.at, ok
 }
 
+// Hear keeps b as node's newest heartbeat, heard at at.
+func (r *Registry) Hear(node string, b runner.Beat, at time.Time) {
+	r.mu.Lock()
+	r.beats[node] = heard{beat: b, at: at}
+	r.mu.Unlock()
+}
+
 // Online is whether node is the master or has sent a heartbeat within OfflineAfter.
 func (r *Registry) Online(node string) bool {
 	if node == r.Self {
@@ -131,7 +138,11 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 			stop = append(stop, s.Agent)
 		}
 	}
-	return map[string]any{"stop": stop}, nil
+	check := []string{}
+	if r.Check != nil {
+		check = r.Check()
+	}
+	return map[string]any{"stop": stop, "check": check}, nil
 }
 
 // Reclaimed is a session the sweep took back from a runner: the task it was on and the memo that task was given.

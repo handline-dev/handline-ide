@@ -26,6 +26,9 @@ func newTerm(home string, q db.Q, runners *nodes.Registry) *term.Term {
 	m := &term.Machines{Local: agenthost.Dynamic(home)}
 	if runners != nil {
 		m.Remote = runners.Terminals()
+		if runners.Placer != nil {
+			m.Where, m.Placed = runners.Placer.Where, runners.Placer.Placed
+		}
 	}
 	return term.New(m, team.ScreenFor(home, q, claudecode.ScreenFor))
 }

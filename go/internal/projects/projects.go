@@ -151,6 +151,13 @@ func (s *Syncer) setLocked(node, ws string, st State) {
 	s.state[node][ws] = st
 }
 
+// Holds is whether node has cloned the repo of the workspace keyed ws.
+func (s *Syncer) Holds(node, ws string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state[node][ws].State == Cloned
+}
+
 // Of is node's projects as node.status shows them, by workspace key; nil for a node never synced since the master started.
 func (s *Syncer) Of(node string) []any {
 	s.mu.Lock()

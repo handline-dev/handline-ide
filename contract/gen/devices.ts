@@ -59,6 +59,11 @@ export type Node = {
     /** Git's word on a failed clone or fetch. */
     error?: string;
   }[];
+  /** Each agent that cannot start there now and why ("needs pencil", "full: 2 of 2 sessions", "it is set to pause"); a runner's row only. */
+  lacks?: {
+    agent: string;
+    why: string;
+  }[];
 };
 
 export interface DevicesMethods {
@@ -153,19 +158,21 @@ export interface DevicesMethods {
   version: string;
   /** The machine's boot: another one means it restarted. */
   boot?: string;
-  /** cores, load1, ram_total and ram_free, as the runner read them. */
+  /** cores, load1, ram_total, ram_free and agents_rss (what its sessions' process trees use), as the runner read them. */
   load?: { [key: string]: unknown };
   /** Each session it holds: agent, handle, and the branch of its worktree with the commit last pushed (branch, pushed). */
   sessions?: { [key: string]: unknown }[];
   /** Each Claude account folder there logged in to an account: name and email. */
   accounts?: { [key: string]: unknown }[];
-  /** What it has for an agent's work: clis, mcp, xcode, simulators. */
+  /** What it has for an agent's work: clis, mcp, programs (of those the last answer asked about in check, the ones on its PATH), xcode, simulators. */
   has?: { [key: string]: unknown };
   /** The machine runs on its battery now. */
   battery?: boolean;
 }; result: {
     /** The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it. */
     stop: string[];
+    /** The programs its agents' MCP servers run, which its next heartbeat says it has or not (has.programs): an agent goes only to a runner with all it needs. */
+    check: string[];
   } };
   "node.tokens": { params: {
   /** The account's name on that runner. */
