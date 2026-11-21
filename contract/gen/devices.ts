@@ -21,6 +21,12 @@ export type Device = {
   client?: string | null;
   /** A mac's or a server's Run · Pause · Off (device.set): run starts new work on that machine, pause starts nothing new and lets what runs there finish, off is not lent. null for a phone or a browser. Absent on a daemon that does not serve it. */
   lending?: ("run" | "pause" | "off") | null;
+  /** The runner's copy of the board: when it last held all of the master's; null for a runner that keeps none (another person's, or one that has not pulled). Not on the master's own row. */
+  copy?: {
+    matched_at: Timestamp;
+    /** Seconds since its copy last held all of the master's. */
+    behind_s: number;
+  } | null;
 };
 
 /** A machine of this master: its own, and the ones people lend it. */
@@ -167,6 +173,19 @@ export interface DevicesMethods {
   /** Each call as the token log reads it: session, req, ts, model, cwd, side and tokens {inp, cc, cr, out, thinking, cc1h}. */
   calls: { [key: string]: unknown }[];
 }; result: { [key: string]: unknown } };
+  "node.copy.files": { params: {
+  /** The whole files its copy holds: {path, size}. */
+  have?: { [key: string]: unknown }[];
+  /** The files it is still receiving, with the bytes it has: {path, size}. */
+  parts?: { [key: string]: unknown }[];
+}; result: {
+    /** Pieces of the files it lacks, at most 512 KiB of data in all: {path, size, offset, data}; a file's last piece carries its sha256 sum, which the runner checks before it renames the file in. */
+    send: { [key: string]: unknown }[];
+    /** Paths the master's copy no longer has; given only with more false, so a runner never drops a file before what replaces it has arrived. */
+    gone: string[];
+    /** More data waits: pull again. */
+    more: boolean;
+  } };
   "node.launch": { params: {
   /** The agent whose session asks, as the runner proved it. */
   agent: string;
@@ -202,12 +221,13 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "node.transcript": { role: "member", callers: null, write: false, since: 1 },
   "node.heartbeat": { role: "member", callers: null, write: false, since: 1 },
   "node.tokens": { role: "member", callers: null, write: false, since: 1 },
+  "node.copy.files": { role: "member", callers: null, write: false, since: 1 },
   "node.launch": { role: "owner", callers: null, write: false, since: 1 },
   "node.agent_files": { role: "owner", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.copy.files" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
   "node.forward": false,
@@ -215,6 +235,7 @@ export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.f
   "node.transcript": false,
   "node.heartbeat": false,
   "node.tokens": false,
+  "node.copy.files": false,
   "node.launch": false,
   "node.agent_files": false,
 };

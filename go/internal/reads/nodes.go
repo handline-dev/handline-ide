@@ -40,6 +40,9 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
 			"master_number": master, "master": id == self, "self": id == self, "online": id == self || e.NodeOnline != nil && e.NodeOnline(id),
 			"lending": lending}
+		if id != self && e.NodeCopy != nil {
+			row["copy"] = e.NodeCopy(id)
+		}
 		if id != self && e.NodeProjects != nil {
 			if ps := e.NodeProjects(id); ps != nil {
 				row["projects"] = ps

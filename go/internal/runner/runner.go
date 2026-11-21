@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/internal/boardcopy"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/internal/homefiles"
 	"github.com/handline/handline/go/internal/hooks"
@@ -97,6 +98,7 @@ type Runner struct {
 	rescueFails map[string]int
 	stop        chan struct{}
 	once        sync.Once
+	pulling     sync.Mutex // held by Pull
 	wg          sync.WaitGroup
 }
 
@@ -180,9 +182,10 @@ func Start(cfg Config) (*Runner, error) {
 		r.wg.Add(1)
 		go r.accept()
 	}
-	r.wg.Add(6)
+	r.wg.Add(7)
 	go r.heartbeats()
 	go r.keepLinked()
+	go r.mirror()
 	go r.sendUp()
 	go r.drainSpool()
 	go r.sendTokens()
@@ -884,4 +887,71 @@ func (r *Runner) SendTokens(u *usage.Env) error {
 		}
 	}
 	return nil
+}
+
+// MirrorEvery is how often a runner pulls what the board's copy on the master gained.
+const MirrorEvery = time.Second
+
+// mirror keeps this machine's copy of the master's board (boardcopy.Dir) up to date, if its person is the owner: each pull brings
+// what it lacks and drops what the master dropped. Another person's runner is refused, and keeps no copy.
+func (r *Runner) mirror() {
+	defer r.wg.Done()
+	for {
+		select {
+		case <-r.stop:
+			return
+		case <-time.After(MirrorEvery):
+		}
+		if err := r.Pull(); err != nil {
+			r.cfg.Log("runner: the board's copy: %v", err)
+		}
+	}
+}
+
+// Pull is one pass of mirror: it pulls until the copy here holds all of the master's. One pull at a time: two would write the same
+// files' pieces.
+func (r *Runner) Pull() error {
+	r.pulling.Lock()
+	defer r.pulling.Unlock()
+	dir := boardcopy.Dir(r.cfg.Home)
+	for {
+		l := r.linked()
+		if l == nil {
+			return nil
+		}
+		have, err := boardcopy.List(dir)
+		if err != nil {
+			return err
+		}
+		parts, err := boardcopy.Parts(dir)
+		if err != nil {
+			return err
+		}
+		got, err := l.Call("node.copy.files", map[string]any{"have": have, "parts": parts}, hlclient.Quick)
+		var refused *rpc.Error
+		if errors.As(err, &refused) && refused.Data["gate"] == "owner" { // only the owner's machines keep one
+			return os.RemoveAll(dir)
+		}
+		if err != nil {
+			return err
+		}
+		b, err := json.Marshal(got)
+		if err != nil {
+			return err
+		}
+		var res struct {
+			Send []boardcopy.Piece `json:"send"`
+			Gone []string          `json:"gone"`
+			More bool              `json:"more"`
+		}
+		if err := json.Unmarshal(b, &res); err != nil {
+			return err
+		}
+		if err := boardcopy.Apply(dir, res.Send, res.Gone); err != nil {
+			return err
+		}
+		if !res.More { // nothing more is coming: a file still half here will not be
+			return boardcopy.DropParts(dir, res.Send)
+		}
+	}
 }

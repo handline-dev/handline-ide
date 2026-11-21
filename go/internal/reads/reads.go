@@ -61,6 +61,8 @@ type Env struct {
 	NodeProjects func(node string) []any
 	// NodeOnline is whether a machine of this master is online (nodes.Registry.Online); nil has only the master's own online.
 	NodeOnline func(node string) bool
+	// NodeCopy is how far a runner's copy of the board is (nodes.Registry.CopyOf), nil for one that keeps none; nil shows none.
+	NodeCopy func(node string) any
 	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.
 	Claude string
 	// HealthClock keeps since when DaemonStatus.health has had its level, shared by every server of the daemon; nil is since the start.
