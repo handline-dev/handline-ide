@@ -170,6 +170,38 @@
        "pause"
       ],
       "description": "run: the master starts new work there; pause: it starts nothing new there and what runs finishes. The master's own row is always run; a machine on off is not listed."
+     },
+     "projects": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "workspace": {
+         "type": "string",
+         "description": "The workspace's key."
+        },
+        "state": {
+         "type": "string",
+         "enum": [
+          "cloning",
+          "cloned",
+          "failed",
+          "no_remote"
+         ],
+         "description": "no_remote: the repo has no origin, so the workspace runs only on the machine that holds its folder. A failed one is tried again when the machine links again."
+        },
+        "error": {
+         "type": "string",
+         "description": "Git's word on a failed clone or fetch."
+        }
+       },
+       "required": [
+        "workspace",
+        "state"
+       ],
+       "additionalProperties": false
+      },
+      "description": "Each workspace's repo on this lent machine, cloned from its remote when the machine links and when a workspace is added. Not on the master's own row, nor on a machine not linked since the master started."
      }
     },
     "required": [

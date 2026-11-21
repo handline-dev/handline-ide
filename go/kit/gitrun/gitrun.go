@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -43,6 +44,16 @@ func RunTimeout(cwd string, limit time.Duration, args ...string) Result {
 		return Result{-1, "", "git timed out"}
 	}
 	return Result{-1, "", err.Error()}
+}
+
+// NoPrompts is the environment of a git run with no one at it: neither git nor ssh asks for anything, so what needs a password or a
+// new host key fails at once; and git uses no transport but protocols, the submodules' and redirects' too.
+func NoPrompts(protocols []string) []string {
+	env := []string{"GIT_ALLOW_PROTOCOL=" + strings.Join(protocols, ":"), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "GIT_ASKPASS=", "SSH_ASKPASS="}
+	if os.Getenv("GIT_SSH_COMMAND") == "" && Run("", "config", "--get", "core.sshCommand").RC != 0 {
+		env = append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+	}
+	return env
 }
 
 // DefaultBranch is the branch the repository at repo merges into: origin's HEAD, else main or master when it has one, else the

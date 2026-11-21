@@ -44,6 +44,15 @@ export type Node = {
   online: boolean;
   /** run: the master starts new work there; pause: it starts nothing new there and what runs finishes. The master's own row is always run; a machine on off is not listed. */
   lending: "run" | "pause";
+  /** Each workspace's repo on this lent machine, cloned from its remote when the machine links and when a workspace is added. Not on the master's own row, nor on a machine not linked since the master started. */
+  projects?: {
+    /** The workspace's key. */
+    workspace: string;
+    /** no_remote: the repo has no origin, so the workspace runs only on the machine that holds its folder. A failed one is tried again when the machine links again. */
+    state: "cloning" | "cloned" | "failed" | "no_remote";
+    /** Git's word on a failed clone or fetch. */
+    error?: string;
+  }[];
 };
 
 export interface DevicesMethods {

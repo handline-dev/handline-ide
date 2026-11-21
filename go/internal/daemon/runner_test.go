@@ -259,36 +259,16 @@ func masterAndRunner(t *testing.T) (master *Daemon, node, home, hl string) {
 	master = startNet(t)
 	teamtest.Seed(t, master.cfg.Home, "bob")
 
-	home, err := os.MkdirTemp("", "hlr") // short: a socket path holds 104 bytes
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.RemoveAll(home) })
-	node, err = joined.NodeID(home, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, _, uri := master.dev.Pair(time.Minute)
-	m, err := hlclient.Join(home, uri, "box", "server", node)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { joined.Forget(home) })
+	home, node, m := joinRunner(t, master)
 	tm := agenthost.Tmux(home).(runner.Terminals)
 	t.Cleanup(func() { exec.Command("tmux", "-L", paths.TmuxSocket(home), "kill-server").Run() })
-	r, err := runner.Start(runner.Config{Home: home, Socket: paths.SocketFile(home), Master: m, Term: tm, Log: t.Logf})
+	r, err := runner.Start(runner.Config{Home: home, Socket: paths.SocketFile(home), Master: m, Term: tm, HL: hl, Log: t.Logf})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(r.Close)
-	for end := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-		if rn, _ := master.nodes.Runner(node); rn != nil {
-			return master, node, home, hl
-		}
-		if time.Now().After(end) {
-			t.Fatal("the runner never linked to the master")
-		}
-	}
+	linkedRunner(t, master, node)
+	return master, node, home, hl
 }
 
 // node.forward is a runner's link's call only, and only for an agent whose session the master opened on that runner.
@@ -323,6 +303,40 @@ func TestNodeForwardIsOnlyARunnersLinksForItsOwnAgents(t *testing.T) {
 	if r := link.ask(`{"jsonrpc":"2.0","id":8,"method":"node.forward","params":{"agent":"bob","method":"hello","params":{}}}`); gate(r) != "method" {
 		t.Fatalf("hello was forwarded: %v", r)
 	}
+}
+
+// joinRunner is a runner's home joined to master: its node id and the master it reaches.
+func joinRunner(t *testing.T, master *Daemon) (home, node string, m joined.Master) {
+	t.Helper()
+	var err error
+	home, err = os.MkdirTemp("", "hlr") // short: a socket path holds 104 bytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(home) })
+	node, err = joined.NodeID(home, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, uri := master.dev.Pair(time.Minute)
+	m, err = hlclient.Join(home, uri, "box", "server", node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { joined.Forget(home) })
+	return home, node, m
+}
+
+// linkedRunner is master's hand on node once its runner has linked.
+func linkedRunner(t *testing.T, master *Daemon, node string) *nodes.Runner {
+	t.Helper()
+	var rn *nodes.Runner
+	for end := time.Now().Add(10 * time.Second); rn == nil; time.Sleep(50 * time.Millisecond) {
+		if rn, _ = master.nodes.Runner(node); rn == nil && time.Now().After(end) {
+			t.Fatal("the runner never linked to the master")
+		}
+	}
+	return rn
 }
 
 func TestMain(m *testing.M) {

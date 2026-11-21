@@ -44,6 +44,10 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 			os.Exit(0)
 		}
 	}()
+	if event == "git-commit" {
+		gitCommit(c)
+		return 0, true
+	}
 	text, _ := io.ReadAll(os.Stdin)
 	var raw map[string]any
 	if strings.TrimSpace(string(text)) != "" {
@@ -106,6 +110,17 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 	fmt.Println(pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{
 		"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": why}}, true, true))
 	return 0, true
+}
+
+// gitCommit is the post-commit hook of a worktree a runner made (runner.HooksDir): the runner pushes the branch. Git runs the hook at the
+// worktree's top, and its answer is not waited on past a few seconds: a commit never waits on the push.
+func gitCommit(c *hlclient.Client) {
+	folder, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	quick := &hlclient.Client{Home: c.Home, Dial: hlclient.Dialer(c.Home, 2*time.Second), As: "hook", Deadline: 5 * time.Second}
+	quick.Call("runner.committed", map[string]any{"folder": folder})
 }
 
 // landCheckLimit is how long a land_check may run; the PreToolUse hook's timeout (claudecode.longHooks) is set just past it.

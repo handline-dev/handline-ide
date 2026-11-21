@@ -30,6 +30,7 @@ import (
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/pausewrites"
 	"github.com/handline/handline/go/internal/prefs"
+	"github.com/handline/handline/go/internal/projects"
 	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/internal/proposalwrites"
 	"github.com/handline/handline/go/internal/push"
@@ -156,6 +157,7 @@ type Daemon struct {
 	net       *netDoors
 	dev       *devices.Manager // nil unless the network listener is on
 	nodes     *nodes.Registry  // the runners linked to this master
+	projects  *projects.Syncer // the workspaces' repos on those runners
 	push      *push.Sender     // nil when push is off: no credentials in config.yaml
 	hub       *stream.Hub
 	wg        sync.WaitGroup
@@ -237,6 +239,8 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	d.nodes = nodes.New(db, cfg.Home)
 	d.nodes.Log = cfg.Log
+	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
+	d.nodes.OnLink = d.projects.Node
 	if cfg.OnOpen != nil {
 		cfg.OnOpen(db, d.env(), d.nodes)
 	}
@@ -569,6 +573,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 			if d.cfg.Session != nil {
 				env := d.cfg.Session()
 				env.Emit = d.operationEvent
+				env.WorkspaceAdded = d.projects.Workspace
 				env.InterruptTerminal = d.typing().PressEsc
 				sessionrpc.Register(s, env)
 			}
@@ -615,6 +620,9 @@ func (d *Daemon) operationEvent(topic, typ string, data any, agent string) {
 func (d *Daemon) readsEnv() reads.Env {
 	renv := reads.Env{DB: d.db, Home: d.cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion(), Delivery: d.cfg.Delivery,
 		Context: d.cfg.Context, Claude: d.cfg.Claude, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake}
+	if d.projects != nil {
+		renv.NodeProjects = d.projects.Of
+	}
 	if d.res != nil {
 		renv.Resources = d.res.Latest
 		renv.Machine = d.res.LatestMachine

@@ -21,6 +21,8 @@ func TestWorkspaceCreateMakesItsLeadOnTheCheckoutTopAndStartsIt(t *testing.T) {
 	if err := os.Mkdir(sub, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	var added []string
+	r.e.WorkspaceAdded = func(name string) { added = append(added, name) }
 	got := result(t, c.call("workspace.create", map[string]any{"name": "shop", "folder": sub, "request_id": rid("w1")}))
 	if got["accepted"] != true || got["operation"] == nil || got["said"] != "done" {
 		t.Fatalf("answered once the lead is up: %v", got)
@@ -31,6 +33,9 @@ func TestWorkspaceCreateMakesItsLeadOnTheCheckoutTopAndStartsIt(t *testing.T) {
 	}
 	if text, err := team.RulesText(r.e.DB, "shop"); err != nil || text == "" {
 		t.Fatalf("its rules are seeded: %q %v", text, err)
+	}
+	if len(added) != 1 || added[0] != "shop" {
+		t.Fatalf("the runners were told of %v", added)
 	}
 	if last := sn.got[len(sn.got)-1]; last["kind"] != "workspace.create" || last["agent"] != "shop" || last["state"] != "done" {
 		t.Fatalf("the operations topic tells it as workspace.create: %v", last)

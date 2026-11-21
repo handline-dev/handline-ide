@@ -58,7 +58,7 @@ func TestTheMastersCallsReachTheTerminalAndOnlyOverTheLink(t *testing.T) {
 	if err != nil || got.(map[string]any)["handle"] != "%1" || tok.kept["bob"] != 4242 {
 		t.Fatalf("open: %v %v %v", got, err, tok.kept)
 	}
-	if b, _ := os.ReadFile(StateFile(home)); !strings.Contains(string(b), `"bob":{"handle":"%1","pid":4242}`) {
+	if b, _ := os.ReadFile(StateFile(home)); !strings.Contains(string(b), `"bob":{"handle":"%1","pid":4242,"folder":"`+home+`"}`) {
 		t.Fatalf("runner.json: %s", b)
 	}
 	if _, err := r.serve("runner.keys", map[string]any{"handle": "%1", "keys": "ls", "enter": true}); err != nil {

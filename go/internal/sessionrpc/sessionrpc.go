@@ -71,6 +71,8 @@ type Env struct {
 	// Roster registers the agent of agent.create, and Emit tells the operations topic its progress; with Controls they serve agent.create.
 	Roster *team.Roster
 	Emit   func(topic, typ string, data any, agent string)
+	// WorkspaceAdded, when set, is told a workspace workspace.create made, by its name: its repo goes to the runners.
+	WorkspaceAdded func(name string)
 	// Move is handoff.force_move: the agent's session to another account now, a closed agent's next wake there, one mid-turn's when the turn
 	// ends; nil serves no agent.move.
 	Move func(call Call, agent, account string) (ok bool, said string, err error)
