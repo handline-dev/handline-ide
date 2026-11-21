@@ -226,6 +226,25 @@
        "additionalProperties": false
       },
       "description": "Each workspace's repo on this lent machine, cloned from its remote when the machine links and when a workspace is added. Not on the master's own row, nor on a machine not linked since the master started."
+     },
+     "lacks": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "agent": {
+         "type": "string"
+        },
+        "why": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "agent",
+        "why"
+       ]
+      },
+      "description": "Each agent that cannot start there now and why (\"needs pencil\", \"full: 2 of 2 sessions\", \"it is set to pause\"); a runner's row only."
      }
     },
     "required": [
@@ -898,7 +917,7 @@
      "required": false,
      "schema": {
       "type": "object",
-      "description": "cores, load1, ram_total and ram_free, as the runner read them."
+      "description": "cores, load1, ram_total, ram_free and agents_rss (what its sessions' process trees use), as the runner read them."
      }
     },
     {
@@ -928,7 +947,7 @@
      "required": false,
      "schema": {
       "type": "object",
-      "description": "What it has for an agent's work: clis, mcp, xcode, simulators."
+      "description": "What it has for an agent's work: clis, mcp, programs (of those the last answer asked about in check, the ones on its PATH), xcode, simulators."
      }
     },
     {
@@ -951,10 +970,18 @@
         "type": "string"
        },
        "description": "The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it."
+      },
+      "check": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "The programs its agents' MCP servers run, which its next heartbeat says it has or not (has.programs): an agent goes only to a runner with all it needs."
       }
      },
      "required": [
-      "stop"
+      "stop",
+      "check"
      ]
     }
    },

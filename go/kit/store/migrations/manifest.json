@@ -118,5 +118,10 @@
   "version": 123,
   "name": "result_seen_per_person",
   "additive": false
+ },
+ {
+  "version": 124,
+  "name": "agent_node",
+  "additive": true
  }
 ]

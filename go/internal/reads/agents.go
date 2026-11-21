@@ -3,6 +3,7 @@ package reads
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -135,6 +136,11 @@ func (e *Env) agentsList(c *rpc.Conn, params map[string]any) (any, error) {
 		v["folder"] = nil // the folder of its workspace it works in
 		if f := roster.RepoOf(n); f != "" {
 			v["folder"] = f
+		}
+		v["node"] = nil // the machine it stays on (package placement), nil before its first session
+		var node sql.NullString
+		if e.DB.QueryRow("SELECT node FROM agent_state WHERE agent = ?", n).Scan(&node) == nil && node.String != "" {
+			v["node"] = node.String
 		}
 		agents = append(agents, v)
 	}

@@ -34,6 +34,7 @@ import (
 	"github.com/handline/handline/go/internal/inputhold"
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/pausewrites"
+	"github.com/handline/handline/go/internal/placement"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/internal/projects"
 	"github.com/handline/handline/go/internal/prompts"
@@ -58,11 +59,13 @@ import (
 	"github.com/handline/handline/go/scheduler/access"
 	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/leasestore"
+	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/runs"
 	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/sysres"
+	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -154,6 +157,7 @@ type Daemon struct {
 	usageSeen map[string]string // the usage loop's own: each account's row as last told the accounts topic (usageKey); nil before the first look
 	tchan     *termchan.Env     // the terminal channel and the input hold
 	res       *sysres.Sampler   // what the machine and each agent use; nil when the daemon does not watch
+	placer    *placement.Placer // the machine each session opens on
 	load      *procload.Tracker // every process and whose it is; nil when the daemon does not watch
 	leases    *leases.Manager   // the port leases and the shared runs' turns
 	runs      *runs.Book        // the shared runs, as the leases and the hook read them
@@ -260,6 +264,13 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
 	d.nodes.OnLink = d.projects.Node
+	placer := &placement.Placer{DB: db, Home: cfg.Home, Reg: d.nodes, Holds: d.projects.Holds, Log: cfg.Log,
+		Here: d.room, Limits: func() placement.Limits {
+			c := usage.LoadConfig(cfg.Home)
+			return placement.Limits{Sessions: loadgate.LimitsOf(c).Agents, AgentsRSS: worktreepool.GB(c, worktreepool.AgentsMemoryMaxKey)}
+		}}
+	d.nodes.Placer, d.nodes.Check = placer, placer.Check
+	d.placer = placer
 	d.nodes.Turns = cfg.Turns
 	d.nodes.Tokens = func(account string, raw json.RawMessage) error {
 		var calls []usage.Call
@@ -691,6 +702,9 @@ func (d *Daemon) readsEnv() reads.Env {
 	if d.nodes != nil && d.nodes.Copy != nil {
 		renv.NodeCopy = d.nodes.CopyOf
 	}
+	if d.placer != nil {
+		renv.NodeLacks = d.placer.Lacks
+	}
 	if d.res != nil {
 		renv.Resources = d.res.Latest
 		renv.Machine = d.res.LatestMachine
@@ -1010,4 +1024,23 @@ func boardID(db *sql.DB) (string, error) {
 	}
 	var id string
 	return id, db.QueryRow("SELECT value FROM meta WHERE name = 'board_id'").Scan(&id)
+}
+
+// room is this machine's room for a session (placement.Placer.Here): its agents' sessions here, their memory and its free memory.
+func (d *Daemon) room() (placement.Room, error) {
+	var r placement.Room
+	if err := d.db.QueryRow("SELECT COUNT(*) FROM agent_state WHERE terminal IS NOT NULL AND terminal != '' AND instr(terminal, ':') = 0").
+		Scan(&r.Sessions); err != nil {
+		return r, err
+	}
+	if d.res != nil {
+		_, rss := d.res.AgentsMemory()
+		for _, n := range rss {
+			r.AgentsRSS += n
+		}
+		if m := d.res.LatestMachine(); m != nil {
+			r.RAMFree = m.RAMFree
+		}
+	}
+	return r, nil
 }

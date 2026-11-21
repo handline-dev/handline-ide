@@ -82,6 +82,7 @@ type Runner struct {
 	changed  map[string]bool
 	turnSent chan struct{}
 	beatNow  chan struct{} // the link came up: a heartbeat goes at once
+	check    []string      // the programs the master asks whether this machine has
 	hasKept  hasKept
 
 	mu       sync.Mutex

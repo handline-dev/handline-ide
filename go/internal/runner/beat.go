@@ -51,6 +51,20 @@ func (r *Runner) SendBeat() error {
 			r.startRescue(agent)
 		}
 	}
+	var check []string
+	list, _ := got["check"].([]any)
+	for _, v := range list {
+		if s, _ := v.(string); s != "" {
+			check = append(check, s)
+		}
+	}
+	r.mu.Lock()
+	changed := strings.Join(check, "\n") != strings.Join(r.check, "\n")
+	r.check = check
+	r.mu.Unlock()
+	if changed {
+		r.beatSoon() // the master hears at once which of them are here
+	}
 	return nil
 }
 
@@ -70,10 +84,26 @@ func (r *Runner) Beat() map[string]any {
 	}
 	r.mu.Lock()
 	sessions := make(map[string]session, len(r.sessions))
+	panes := make(map[string]int, len(r.sessions))
 	for a, s := range r.sessions {
 		sessions[a] = s
+		panes[a] = s.Pid
 	}
+	check := r.check
 	r.mu.Unlock()
+	b.Has.Programs = []string{}
+	for _, prog := range check {
+		if _, err := exec.LookPath(prog); err == nil {
+			b.Has.Programs = append(b.Has.Programs, prog)
+		}
+	}
+	sampler := &sysres.Sampler{Home: r.cfg.Home, Panes: func() map[string]int { return panes }}
+	if sampler.Sample(0) == nil {
+		_, rss := sampler.AgentsMemory()
+		for _, n := range rss {
+			b.Load.AgentsRSS += n
+		}
+	}
 	for a, s := range sessions {
 		bs := BeatSession{Agent: a, Handle: s.Handle}
 		if s.Folder != "" {

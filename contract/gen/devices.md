@@ -15,7 +15,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 | `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
-| `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?` | `{stop}` | `refused`, `bad_request` | node | not cached |
+| `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?` | `{stop, check}` | `refused`, `bad_request` | node | not cached |
 | `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
 | `node.copy.files` | member |  | `have?`, `parts?` | `{send, gone, more}` | `refused` | node, owner, copy | not cached |
 | `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |

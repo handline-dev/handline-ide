@@ -98,6 +98,7 @@ var layer = map[string]int{
 	// L4 domain writes and reads
 	"adminwrites":          4,
 	"nodes":                4,
+	"placement":            4,
 	"projects":             4,
 	"chatwrites":           4,
 	"deskrpc":              4,

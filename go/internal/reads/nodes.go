@@ -43,6 +43,15 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		if id != self && e.NodeCopy != nil {
 			row["copy"] = e.NodeCopy(id)
 		}
+		if id != self && e.NodeLacks != nil {
+			lacks := []any{}
+			for _, a := range e.listAgents() {
+				if why := e.NodeLacks(a, id); why != "" {
+					lacks = append(lacks, map[string]any{"agent": a, "why": why})
+				}
+			}
+			row["lacks"] = lacks
+		}
 		if id != self && e.NodeProjects != nil {
 			if ps := e.NodeProjects(id); ps != nil {
 				row["projects"] = ps

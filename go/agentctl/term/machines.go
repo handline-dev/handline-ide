@@ -31,6 +31,8 @@ type Machines struct {
 	Local  Backend
 	Remote Remote                    // nil: no runners
 	Where  func(agent string) string // the runner agent's terminal opens on; "" (or a nil Where) is this machine
+	// Placed, when set, is told whether the terminal Where placed opened.
+	Placed func(agent string, ok bool)
 }
 
 // RunnerHandle is node's handle for its terminal h, as Machines takes it.
@@ -108,10 +110,13 @@ func (m *Machines) WaitIdle(handle string, timeoutMs int, turn func([]string) bo
 	return ScreenIdle(func() *Screen { return m.ReadScreen(handle, 40) }, timeoutMs, turn)
 }
 
-func (m *Machines) CreateTerminal(command, cwd, title, agent string) (string, string) {
+func (m *Machines) CreateTerminal(command, cwd, title, agent string) (handle, why string) {
 	node := ""
 	if m.Where != nil && m.Remote != nil {
 		node = m.Where(agent)
+		if m.Placed != nil {
+			defer func() { m.Placed(agent, handle != "") }()
+		}
 	}
 	if node == "" {
 		if h, ok := m.Local.(Host); ok {

@@ -22,6 +22,8 @@ type Load struct {
 	Load1    float64 `json:"load1"`
 	RAMTotal int64   `json:"ram_total"`
 	RAMFree  int64   `json:"ram_free"`
+	// AgentsRSS is the memory its sessions' process trees use.
+	AgentsRSS int64 `json:"agents_rss"`
 }
 
 // BeatSession is a session the runner holds: its agent, terminal, and the branch of its worktree with the commit last pushed.
@@ -42,6 +44,7 @@ type BeatAccount struct {
 type Has struct {
 	CLIs       []string `json:"clis"`       // the agent CLIs on its PATH
 	MCP        []string `json:"mcp"`        // the MCP servers its accounts set up whose program is there
+	Programs   []string `json:"programs"`   // of the programs the master asked about (its answer's check), those on its PATH
 	Xcode      bool     `json:"xcode"`      // Xcode is installed
 	Simulators []string `json:"simulators"` // the iOS simulators it has
 }
