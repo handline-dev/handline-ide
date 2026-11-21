@@ -18,7 +18,7 @@ import {
   useNameOf,
   useVerbRun,
 } from '@handline/app-data';
-import { restartingLine, VERBS } from '@handline/app-core';
+import { noteText, restartingLine, VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
@@ -42,7 +42,6 @@ import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
-import { TaskCommentCard, taskCards } from '#src/chat/TaskCommentCard.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
@@ -186,20 +185,11 @@ const noticeKind = (body: string) => (/^T\d+\s+handed\b/i.test(body) ? 'handoff'
     their notice; `key` names its newest notice, so the reader's line is found again when an older page lands. */
 type Card = { id: string; key: string; events: TaskEvent[] };
 
-/** One card per task: a task with a comment card loses its notice rows, and the card shows the newest of them as its last action. */
-function intoCards(rows: (TimelineEntry | Turn | Card)[]): { rows: (TimelineEntry | Turn | Card)[]; last: Map<string, TaskEvent> } {
-  const carded = new Set(
-    rows.flatMap((r) => ('kind' in r && r.kind === 'item' && r.item.task_comment ? [`T${r.item.task_comment.task}`] : [])),
-  );
-  const last = new Map<string, TaskEvent>();
-  const out = rows.flatMap((r): (TimelineEntry | Turn | Card)[] => {
-    if (!('events' in r)) return [r];
-    for (const e of r.events) if (carded.has(e.id)) last.set(e.id, e);
-    const events = r.events.filter((e) => !carded.has(e.id));
-    return events.length ? [{ ...r, events }] : [];
-  });
-  return { rows: out, last };
-}
+/** A comment's first line, without its leading address. */
+const firstLine = (body: string) =>
+  noteText(body)
+    .split('\n')
+    .find((l) => l.trim()) ?? '';
 
 /** The entries, with each run of task notices gathered into one card's rows. */
 function runs(
@@ -237,6 +227,26 @@ function runs(
   };
   for (const e of entries) {
     until(e.at);
+    // A comment on a task is that task's row, at its time, with its first line and who said it.
+    const said = e.kind === 'item' ? e.item.task_comment : undefined;
+    if (e.kind === 'item' && said) {
+      const who = said.kind === 'answer' || isPerson(said.who, me) ? 'You' : nameOf(said.who);
+      add(
+        [
+          {
+            key: `c${e.id}`,
+            kind: 'comment',
+            id: `T${said.task}`,
+            title: '',
+            detail: `${who}: ${firstLine(said.text)}`,
+            at: e.at,
+            line: `item:${e.id}`,
+          },
+        ],
+        `tasks:c${e.id}`,
+      );
+      continue;
+    }
     const freed = e.kind === 'item' ? unblockedStart(e.item) : null;
     if (freed) {
       // The title is read with the task's state (TaskActivity).
@@ -335,7 +345,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           : [`${r.kind}:${r.id}`],
     );
     for (let i = at.length - 1; i >= 0; i--) if (at[i].includes(tail.before ?? '')) return i;
-    // Not drawn: a task's newer comment moved its card to the end, so the rows that start above that line are the known ones.
+    // Not drawn: a task's newer row moved it to the end (onePerTask), so the rows that start above that line are the known ones.
     const pos = new Map(entries.map((e, n) => [`${e.kind}:${e.id}`, n]));
     const before = pos.get(tail.before ?? '');
     if (before === undefined) return Infinity;
@@ -345,10 +355,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // The words of each loaded message, for the line above a reply.
   const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
   const tasks = useTaskActivity(agent);
-  // What passed between the agent and the founder on a task: one card per task, drawn at its newest line.
-  const shown = taskCards(foldTurns(entries));
-  const cards = intoCards(runs(shown, agent, me, nameOf, tasks));
-  const folded = { ...cards, rows: onePerTask(cards.rows) }; // a task shows once, in the newest card it is in
+  // Each task once, as a row at the newest thing on it: a change or a comment.
+  const rows = onePerTask(runs(foldTurns(entries), agent, me, nameOf, tasks)); // a task shows once, in the newest card it is in
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
     margin: 400,
@@ -379,7 +387,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           <AnimatePresence initial={false}>
             {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
                 an older page lands as one still block. */}
-            {folded.rows.map((r, i, all) =>
+            {rows.map((r, i, all) =>
               'events' in r ? (
                 <motion.div
                   key={r.id}
@@ -391,13 +399,6 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                 >
                   <TaskActivity events={r.events} />
                 </motion.div>
-              ) : r.kind === 'item' && r.item.task_comment ? (
-                <TaskCommentCard
-                  key={`item:${r.id}`}
-                  last={{ ...r.item, task_comment: r.item.task_comment }}
-                  change={folded.last.get(`T${r.item.task_comment.task}`)}
-                  fade={i > known(all)}
-                />
               ) : r.kind === 'record' ? (
                 <TurnRecord key={`record:${r.id}`} r={r} fade={i > known(all)} />
               ) : (

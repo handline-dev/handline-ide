@@ -11,8 +11,8 @@ import { Ago } from '#src/ui/Ago.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 
-/** `start`: a task this agent was given, by its maker or handed on by its holder. */
-export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start';
+/** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line". */
+export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start' | 'comment';
 export type TaskEvent = {
   key: string;
   kind: TaskEventKind;
@@ -111,8 +111,11 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   const nameOf = useNameOf();
   const me = useMe();
   const last = t.events.at(-1)!;
-  // Where it stands now, and how often it changed: "With web-data · 2 changes". The card's time shows on hover, under it.
-  const line = [task ? holder(task, me, nameOf) : last.detail, t.events.length > 1 && `${t.events.length} changes`]
+  // Where it stands now, then the newest comment ("With lander · You: OK") or how often it changed ("· 2 changes"). The time shows on hover.
+  // An edit heard live after a comment (the comment's own memo row) leaves the comment the newest thing said.
+  const at = t.events.map((e) => e.kind).lastIndexOf('comment');
+  const said = at >= 0 && t.events.slice(at + 1).every((e) => e.kind === 'edit') ? t.events[at].detail : undefined;
+  const line = [task ? holder(task, me, nameOf) : said ? '' : last.detail, said ?? (t.events.length > 1 && `${t.events.length} changes`)]
     .filter(Boolean)
     .join(' · ');
   return (
