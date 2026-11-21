@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/agentview"
 	"github.com/handline/handline/go/internal/heal"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/procload"
@@ -36,8 +37,8 @@ type Config struct {
 	Peer func(agent string) bool
 	// Term is the terminal host agents run in; nil is the one config.yaml names (tmux by default). Tests give a fake one.
 	Term *term.Term
-	// Runners is the terminals of the runners linked to this master (nodes.Registry.Terminals); nil runs every agent here.
-	Runners term.Remote
+	// Nodes is the runners linked to this master; nil runs every agent here.
+	Nodes *nodes.Registry
 	// Turns, when set, is asked before the screen whether a terminal agent is mid-turn (-turns-from-hooks).
 	Turns *turns.Tracker
 	// DiskFree is the free and total bytes of the volume holding a path, for the disk watch; nil is statfs. Tests give a low one.

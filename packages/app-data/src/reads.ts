@@ -19,8 +19,10 @@ export { reads };
 export const NOT_QUERIES = [
   'hello',
   'whoami',
-  // A runner's own call on its link to the master, for one of its agents.
+  // A runner's own calls on its link to the master, for one of its agents.
   'node.forward',
+  'node.launch',
+  'node.agent_files',
   'subscribe',
   'unsubscribe',
   'events.feed',

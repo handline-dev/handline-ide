@@ -36,7 +36,7 @@ var layer = map[string]int{
 	"devinstance":            0,
 	"fixtureplay":            0,
 	"layers":                 0,
-	"nodes":                  0,
+	"homefiles":              0,
 	"outcome":                0,
 	"status":                 0,
 	"scheduler/staymove":     0,
@@ -96,6 +96,7 @@ var layer = map[string]int{
 	"worktreeprune":           3,
 	// L4 domain writes and reads
 	"adminwrites":          4,
+	"nodes":                4,
 	"chatwrites":           4,
 	"deskrpc":              4,
 	"rpctest":              3,

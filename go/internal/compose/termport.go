@@ -6,6 +6,7 @@ import (
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
@@ -21,8 +22,12 @@ type termHost struct{ t *term.Term }
 
 // newTerm is the Term over the machines agents run on: the host in force for home (tmux unless config.yaml says otherwise) and the
 // runners, each terminal read in the wording of its agent's vendor.
-func newTerm(home string, q db.Q, runners term.Remote) *term.Term {
-	return term.New(&term.Machines{Local: agenthost.Dynamic(home), Remote: runners}, team.ScreenFor(home, q, claudecode.ScreenFor))
+func newTerm(home string, q db.Q, runners *nodes.Registry) *term.Term {
+	m := &term.Machines{Local: agenthost.Dynamic(home)}
+	if runners != nil {
+		m.Remote = runners.Terminals()
+	}
+	return term.New(m, team.ScreenFor(home, q, claudecode.ScreenFor))
 }
 
 var (

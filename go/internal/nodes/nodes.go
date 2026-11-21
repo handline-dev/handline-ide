@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -22,14 +23,24 @@ const (
 	GitWait  = 10 * time.Minute
 )
 
-// Registry is the runners linked to this master now, by node id.
+// Registry is the runners linked to this master now, by node id. Home is the master's; Launch builds a launch a runner's hl launch asks
+// for (nil starts none).
 type Registry struct {
-	DB    *sql.DB
-	mu    sync.Mutex
-	links map[string]*rpc.Conn
+	DB     *sql.DB
+	Home   string
+	Launch LaunchFunc
+	Log    func(format string, a ...any)
+	mu     sync.Mutex
+	links  map[string]*rpc.Conn
+	homes  map[*rpc.Conn]string // each link's runner's home, once asked
+
+	refOnce sync.Once
+	refRE   *regexp.Regexp // a path under the attachments folder
 }
 
-func New(db *sql.DB) *Registry { return &Registry{DB: db, links: map[string]*rpc.Conn{}} }
+func New(db *sql.DB, home string) *Registry {
+	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}}
+}
 
 // Link keeps c as node's link, in place of any before it, until c ends.
 func (r *Registry) Link(node string, c *rpc.Conn) {
@@ -42,6 +53,7 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 		if r.links[node] == c {
 			delete(r.links, node)
 		}
+		delete(r.homes, c)
 	})
 }
 
@@ -162,12 +174,18 @@ func (m remote) Open(node, agent, cwd, command string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if command, err = m.r.forRunner(node, command); err != nil {
+		return "", err
+	}
 	return run.Open(agent, cwd, command)
 }
 
 func (m remote) Keys(node, handle, keys string, enter bool) error {
 	run, err := m.r.Runner(node)
 	if err != nil {
+		return err
+	}
+	if keys, err = m.r.forRunner(node, keys); err != nil {
 		return err
 	}
 	return run.Keys(handle, keys, enter)
@@ -238,7 +256,7 @@ func (r *Runner) Terminals() ([]string, error) {
 // notForwarded are what a runner may not forward: its own handshake, the methods of the link itself, and a subscription, whose
 // events have no connection to go to.
 func notForwarded(method string) bool {
-	return method == "hello" || method == "node.forward" || method == "subscribe" || method == "unsubscribe" || strings.HasPrefix(method, "runner.")
+	return method == "hello" || strings.HasPrefix(method, "node.") || method == "subscribe" || method == "unsubscribe" || strings.HasPrefix(method, "runner.")
 }
 
 // Register adds node.forward to the network server: a runner's call for one of its agents, run on local as that agent (beside the
@@ -269,7 +287,17 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 		params, _ := p["params"].(map[string]any)
 		client, _ := p["client"].(string)
 		cwd, _ := p["cwd"].(string)
+		home, err := r.runnerHome(node) // before the call has any effect
+		if err != nil {
+			return nil, err
+		}
 		l := local()
-		return l.Dispatch(l.AgentCaller(agent), client, cwd, method, params)
+		res, err := l.Dispatch(l.AgentCaller(agent), client, cwd, method, params)
+		if err != nil {
+			return res, err
+		}
+		return r.answerFor(node, home, res), nil
 	}})
+	s.Register("node.launch", rpc.Method{Waits: true, Handler: r.launch})
+	s.Register("node.agent_files", rpc.Method{Waits: true, Handler: r.agentFiles})
 }

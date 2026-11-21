@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/clustertest"
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
@@ -136,6 +138,91 @@ func TestALaunchForAnAgentOnARunnerOpensItsTerminalThere(t *testing.T) {
 	}
 }
 
+// An agent launched on a runner by hl launch there starts with the master's files at the same paths under the runner's home: its
+// memory, the shared skills, the MCP servers and the attachment its launch names; the paths it is given are the runner's. What it
+// writes to its memory and its handoff note comes back to the master, and a skill changed on the master reaches the runner with no
+// relaunch.
+func TestAnAgentOnARunnerHasTheMastersFilesAndItsOwnComeBack(t *testing.T) {
+	master, node, rhome, hl := masterAndRunner(t)
+	mhome := master.cfg.Home
+	agentDir := paths.AgentDir(mhome, "bob")
+	write := func(path, text string) {
+		t.Helper()
+		if os.MkdirAll(filepath.Dir(path), 0o755) != nil || os.WriteFile(path, []byte(text), 0o644) != nil {
+			t.Fatal("could not write " + path)
+		}
+	}
+	skill := filepath.Join(mhome, "shared", ".claude", "skills", "s", "SKILL.md")
+	attached := filepath.Join(mhome, "attachments", "pic.txt")
+	write(filepath.Join(agentDir, "memory", "MEMORY.md"), "remember-42")
+	write(skill, "skill-v1")
+	write(paths.MCPConfig(mhome), `{"mcpServers":{}}`)
+	write(attached, "attached-7")
+	var asked map[string]any
+	master.nodes.Launch = func(n, agent string, params map[string]any) (*nodes.Launched, error) {
+		if n != node || agent != "bob" {
+			t.Errorf("launch for %s on %s", agent, n)
+		}
+		asked = params
+		script := "cat $MEM/MEMORY.md " + attached + " " + skill + "; echo; echo up-9 > $MEM/new.md; echo note-5 > " +
+			paths.HandoffNoteFile(mhome, "bob") + "; echo at=$MEM; echo launched-$((2+3)); sleep 60"
+		return &nodes.Launched{Argv: []string{"/bin/sh", "-c", script}, Env: []string{"MEM=" + filepath.Join(agentDir, "memory")}}, nil
+	}
+	rn, _ := master.nodes.Runner(node)
+	handle, err := rn.Open("bob", rhome, hl+" launch bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []string
+	for end := time.Now().Add(20 * time.Second); time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
+		if rows, _ = rn.Screen(handle, 40); strings.Contains(strings.Join(rows, "\n"), "launched-5") {
+			break
+		}
+	}
+	screen := strings.Join(rows, "\n")
+	t.Logf("runner screen: %q", rows)
+	for _, want := range []string{"remember-42", "attached-7", "skill-v1", "launched-5"} {
+		if !strings.Contains(screen, want) {
+			t.Fatalf("the launched session did not show %s", want)
+		}
+	}
+	if cwd, _ := asked["cwd"].(string); cwd != rhome && !strings.HasSuffix(cwd, rhome) {
+		t.Fatalf("the launch was asked for %q, not the runner's folder", cwd)
+	}
+	rdir := strings.Replace(agentDir, mhome, rhome, 1)
+	if !strings.Contains(screen, "at="+filepath.Join(rdir, "memory")) { // both homes are on this Mac: only the path tells them apart
+		t.Fatal("the session was not given the runner's paths")
+	}
+	if b, _ := os.ReadFile(filepath.Join(rdir, "memory", "MEMORY.md")); string(b) != "remember-42" {
+		t.Fatalf("the runner's copy of bob's memory: %q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(rdir, "memory", "new.md")); strings.TrimSpace(string(b)) != "up-9" {
+		t.Fatalf("the session did not write its memory on the runner: %q", b)
+	}
+
+	came := func(path, want string) {
+		t.Helper()
+		var b []byte
+		for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
+			if b, _ = os.ReadFile(path); strings.TrimSpace(string(b)) == want {
+				return
+			}
+		}
+		t.Fatalf("%s holds %q, want %q", path, b, want)
+	}
+	came(filepath.Join(agentDir, "memory", "new.md"), "up-9") // sent up as it changed
+	os.Remove(paths.HandoffNoteFile(mhome, "bob"))
+	write(filepath.Join(rdir, "handoff.md"), "note-6")
+	if err := master.nodes.Flush("bob"); err != nil { // what a close does before it reads the note
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(paths.HandoffNoteFile(mhome, "bob")); string(b) != "note-6" {
+		t.Fatalf("the handoff note on the master after a flush: %q", b)
+	}
+	write(skill, "skill-v2")
+	came(strings.Replace(skill, mhome, rhome, 1), "skill-v2")
+}
+
 // spawnHost is the lifecycle's host over a Term, as compose's termHost is.
 type spawnHost struct{ t *term.Term }
 
@@ -225,6 +312,10 @@ func TestNodeForwardIsOnlyARunnersLinksForItsOwnAgents(t *testing.T) {
 	}
 	d.db.Exec("INSERT INTO node_sessions(agent, node, handle, opened_at) VALUES('bob', 'n-box', '%1', 0)")
 	r := link.ask(forward)
+	if r["method"] == "runner.home" { // the master asks a link's home once, before the first forwarded call runs
+		b, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": r["id"], "result": map[string]any{"home": "/runner/home"}})
+		r = link.ask(string(b))
+	}
 	res, _ := r["result"].(map[string]any)
 	if caller, _ := res["caller"].(map[string]any); caller["kind"] != "agent" || caller["key"] != "bob" {
 		t.Fatalf("the forwarded whoami: %v", r)
