@@ -263,9 +263,15 @@ func (r *Runner) snapshot(folder string) (string, error) {
 	return r.gitEnv(env, "-C", folder, "commit-tree", tree, "-p", "HEAD", "-m", "Left on this machine when its session was taken back")
 }
 
-// accounts is this machine's Claude account folders with the email each is logged in as and its config dir: a runner keeps no
+// accounts is this machine's Claude account folders with the email each is logged in as, its config dir and its reading: a runner keeps no
 // accounts table, so a folder under accounts/ (a key) or accounts/.unregistered/ (a name) is an account when its .claude.json names one.
-func (r *Runner) accounts() []BeatAccount { return loggedInAccounts(r.cfg.Home) }
+func (r *Runner) accounts() []BeatAccount {
+	out := loggedInAccounts(r.cfg.Home)
+	for i := range out {
+		out[i].Reading, out[i].LoginFailed = r.reading(out[i].Name, out[i].Email)
+	}
+	return out
+}
 
 func loggedInAccounts(home string) []BeatAccount {
 	out := []BeatAccount{}

@@ -260,6 +260,16 @@ func Start(cfg Config) (*Daemon, error) {
 		}
 		return a.ByEmail(email, name)
 	}
+	d.nodes.Reading = func(acct string, b runner.BeatReading) {
+		if (&usage.Env{Home: cfg.Home}).Read(acct).Unmetered {
+			return
+		}
+		r := usage.Reading{Account: acct, At: time.Now().Unix() - max(0, b.AgeS)} // by this clock: the runner's may differ
+		for _, w := range b.Windows {
+			r.Windows = append(r.Windows, usage.ReadingWindow{Minutes: w.Minutes, Pct: w.Pct, Reset: w.Reset})
+		}
+		usage.RecordNewer(cfg.Home, r)
+	}
 	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
 	d.nodes.OnLink = d.projects.Node
 	placer := &placement.Placer{DB: db, Home: cfg.Home, Reg: d.nodes, Holds: d.projects.Holds, Log: cfg.Log,
