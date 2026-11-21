@@ -137,6 +137,7 @@ func (r *Runner) promote(c *rpc.Conn, _ map[string]any) (any, error) {
 	m := r.master()
 	p := joined.Promotion{Number: max(m.Number, 1) + 1, From: m.Node, Tell: true}
 	if l := r.linked(); l != nil {
+		r.cfg.Log("runner: asking the master to hand over")
 		got, err := l.Call("node.handover", map[string]any{}, 2*HandoverWait)
 		var refused *rpc.Error
 		switch {

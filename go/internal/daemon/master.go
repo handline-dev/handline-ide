@@ -382,16 +382,25 @@ const TellEvery = runner.BeatEvery
 // laptop woken from sleep, a cut link healed) is reached so.
 func (d *Daemon) tellOldMaster() {
 	defer d.wg.Done()
+	var said string // the last reason the old master was not told, logged when it changes
 	for {
 		p, ok := joined.PromotionOf(d.cfg.Home)
 		if !ok || !p.Tell || p.From == "" {
 			return
 		}
-		if slices.Contains(d.nodes.Linked(), p.From) || d.tellOnce(p.From) { // linked: it joined as a runner by itself
+		var err error
+		if !slices.Contains(d.nodes.Linked(), p.From) {
+			err = d.tellOnce(p.From)
+		}
+		if err == nil { // told, or linked: it joined as a runner by itself
 			if err := joined.DropPromotion(d.cfg.Home); err != nil {
 				d.cfg.Log("master: %v", err)
 			}
 			return
+		}
+		if err.Error() != said {
+			said = err.Error()
+			d.cfg.Log("master: the old master %s was not told it is outranked: %v; again every %s", p.From, err, TellEvery)
 		}
 		select {
 		case <-d.stop:
@@ -401,27 +410,31 @@ func (d *Daemon) tellOldMaster() {
 	}
 }
 
-// tellOnce dials old once; true once it was told.
-func (d *Daemon) tellOnce(old string) bool {
+// tellOnce dials old once and tells it it is outranked; nil once it was told.
+func (d *Daemon) tellOnce(old string) error {
 	own, ok := joined.OwnOf(d.cfg.Home)
 	if !ok {
-		return false
+		return errors.New("this master has no device of its own to dial it with")
 	}
 	var addr, fp sql.NullString
-	if err := d.db.QueryRow("SELECT door, door_fp FROM nodes WHERE id = ?", old).Scan(&addr, &fp); err != nil || addr.String == "" {
-		return false
+	if err := d.db.QueryRow("SELECT door, door_fp FROM nodes WHERE id = ?", old).Scan(&addr, &fp); err != nil {
+		return fmt.Errorf("its door: %w", err)
+	} else if addr.String == "" {
+		return errors.New("the board has no door for it")
 	}
-	mine, told := d.number(), false
-	hlclient.Ask(addr.String, fp.String, own.Token, askClient, func(l *rpc.Link, says hlclient.MasterSays) error {
-		if says.Node != old || !(hlclient.MasterSays{Number: mine, Node: d.nodes.Self}).Above(says.Number, says.Node) {
-			return nil
+	mine := d.number()
+	_, err := hlclient.Ask(addr.String, fp.String, own.Token, askClient, func(l *rpc.Link, says hlclient.MasterSays) error {
+		if says.Node != old {
+			return fmt.Errorf("%s answers as %s", addr.String, says.Node)
+		}
+		if !(hlclient.MasterSays{Number: mine, Node: d.nodes.Self}).Above(says.Number, says.Node) {
+			return fmt.Errorf("it is master number %d, not below this one's %d", says.Number, mine)
 		}
 		_, err := l.Call("node.outranked", map[string]any{}, hlclient.AskWait)
-		told = err == nil
 		return err
 	})
-	if told {
+	if err == nil {
 		d.cfg.Log("master: the old master %s was told it is outranked", old)
 	}
-	return told
+	return err
 }

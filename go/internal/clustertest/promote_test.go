@@ -70,8 +70,23 @@ func ready(t *testing.T, c *cluster.Cluster, r, other *cluster.Node) {
 	})
 }
 
-// joinedAsRunner waits until old runs as a runner of master, linked to it, with its own board set aside.
-func joinedAsRunner(t *testing.T, master, old *cluster.Node) {
+// result is what a promote run in the background printed.
+type result struct {
+	out string
+	err error
+}
+
+// asked waits until runner r asked the master to hand over.
+func asked(t *testing.T, r *cluster.Node) {
+	t.Helper()
+	waitFor(t, r.Name+" asking the handover", func() bool {
+		b, _ := os.ReadFile(r.Log())
+		return strings.Contains(string(b), "runner: asking the master to hand over")
+	})
+}
+
+// joinedAsRunner waits until old runs as a runner of master, linked to it, with aside boards set aside.
+func joinedAsRunner(t *testing.T, master, old *cluster.Node, aside int) {
 	t.Helper()
 	node := joined.NodeIDOf(old.Home)
 	waitFor(t, old.Name+" linked to "+master.Name+" as a runner", func() bool { rw := row(master, node); return rw != nil && rw["online"] == true })
@@ -79,8 +94,8 @@ func joinedAsRunner(t *testing.T, master, old *cluster.Node) {
 	if !ok || m.Node != joined.NodeIDOf(master.Home) {
 		t.Fatalf("%s joined %+v", old.Name, m)
 	}
-	if aside, _ := filepath.Glob(filepath.Join(old.Home, "db.set-aside-*.sqlite")); len(aside) != 1 {
-		t.Fatalf("%s set aside: %v", old.Name, aside)
+	if got, _ := filepath.Glob(filepath.Join(old.Home, "db.set-aside-*.sqlite")); len(got) != aside {
+		t.Fatalf("%s set aside %v, not %d", old.Name, got, aside)
 	}
 }
 
@@ -116,7 +131,7 @@ func TestAPlannedMoveLosesNoWrite(t *testing.T) {
 	out, err := r1.Hl("node", "promote")
 	close(stop)
 	wg.Wait()
-	if err != nil || !strings.Contains(out, "handed over") {
+	if err != nil || !strings.Contains(out, "handed over") || !strings.Contains(out, "(number 2)") {
 		t.Fatalf("promote: %v: %s", err, out)
 	}
 	node1 := joined.NodeIDOf(r1.Home)
@@ -131,7 +146,7 @@ func TestAPlannedMoveLosesNoWrite(t *testing.T) {
 			t.Fatalf("the write %s the master answered is not on the new master (%d answered): %s", name, len(kept), have)
 		}
 	}
-	joinedAsRunner(t, r1, c.Master)
+	joinedAsRunner(t, r1, c.Master, 1)
 	waitFor(t, "runner2 linked to runner1", func() bool { rw := row(r1, joined.NodeIDOf(r2.Home)); return rw != nil && rw["online"] == true })
 }
 
@@ -146,7 +161,7 @@ func TestAKilledMasterIsTakenOverAndJoinsAsARunnerWhenItIsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := r1.Hl("node", "promote")
-	if err != nil || !strings.Contains(out, "from its copy") {
+	if err != nil || !strings.Contains(out, "(number 2), from its copy") {
 		t.Fatalf("promote: %v: %s", err, out)
 	}
 	node1 := joined.NodeIDOf(r1.Home)
@@ -158,7 +173,7 @@ func TestAKilledMasterIsTakenOverAndJoinsAsARunnerWhenItIsBack(t *testing.T) {
 	if err := c.Master.Restart(); err != nil {
 		t.Fatal(err)
 	}
-	joinedAsRunner(t, r1, c.Master)
+	joinedAsRunner(t, r1, c.Master, 1)
 }
 
 // A master paused through the move (a laptop asleep) is made a runner once it runs again: the new master dials it until it answers.
@@ -170,7 +185,7 @@ func TestAMasterPausedThroughTheMoveBecomesARunnerOnceItRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := r1.Hl("node", "promote")
-	if err != nil || !strings.Contains(out, "from its copy") {
+	if err != nil || !strings.Contains(out, "(number 2), from its copy") {
 		c.Master.Resume()
 		t.Fatalf("promote: %v: %s", err, out)
 	}
@@ -179,7 +194,7 @@ func TestAMasterPausedThroughTheMoveBecomesARunnerOnceItRuns(t *testing.T) {
 	if err := c.Master.Resume(); err != nil {
 		t.Fatal(err)
 	}
-	joinedAsRunner(t, r1, c.Master)
+	joinedAsRunner(t, r1, c.Master, 1)
 	waitFor(t, "runner2 linked to runner1", func() bool { rw := row(r1, joined.NodeIDOf(r2.Home)); return rw != nil && rw["online"] == true })
 }
 
@@ -208,4 +223,63 @@ func pairPhone(t *testing.T, master *cluster.Node) string {
 		t.Fatalf("redeem: %v", res)
 	}
 	return token
+}
+
+// The old master started again while runner1's promote still waits on its handover starts as master; runner1 takes over from its
+// copy with the higher number and the old master joins it as a runner.
+func TestAMasterRestartedDuringTheHandoverBecomesARunner(t *testing.T) {
+	c := Start(t, Opts{Runners: 2})
+	r1, r2 := c.Runners[0], c.Runners[1]
+	ready(t, c, r1, r2)
+	if err := c.Master.Pause(); err != nil {
+		t.Fatal(err)
+	}
+	promoted := make(chan result, 1)
+	go func() { out, err := r1.Hl("node", "promote"); promoted <- result{out, err} }()
+	asked(t, r1)
+	if err := c.Master.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Master.Restart(); err != nil {
+		t.Fatal(err)
+	}
+	got := <-promoted
+	if got.err != nil || !strings.Contains(got.out, "(number 2), from its copy") {
+		t.Fatalf("promote: %v: %s", got.err, got.out)
+	}
+	node1 := joined.NodeIDOf(r1.Home)
+	waitFor(t, "runner1 as master number 2", func() bool { return isMaster(r1, node1, 2) })
+	joinedAsRunner(t, r1, c.Master, 1)
+}
+
+// The same after a first move: runner1, master number 2, started again while runner2's promote waits on its handover joins runner2,
+// master number 3.
+func TestASecondMasterRestartedDuringTheHandoverBecomesARunner(t *testing.T) {
+	c := Start(t, Opts{Runners: 2})
+	r1, r2 := c.Runners[0], c.Runners[1]
+	ready(t, c, r1, r2)
+	if out, err := r1.Hl("node", "promote"); err != nil || !strings.Contains(out, "(number 2)") {
+		t.Fatalf("promote: %v: %s", err, out)
+	}
+	node1, node2 := joined.NodeIDOf(r1.Home), joined.NodeIDOf(r2.Home)
+	waitFor(t, "runner1 as master number 2", func() bool { return isMaster(r1, node1, 2) })
+	waitFor(t, "runner2 linked to runner1", func() bool { rw := row(r1, node2); return rw != nil && rw["online"] == true })
+	waitFor(t, "runner2's copy of runner1's board", func() bool { rw := row(r1, node2); return rw != nil && rw["copy"] != nil })
+	if err := r1.Pause(); err != nil {
+		t.Fatal(err)
+	}
+	promoted := make(chan result, 1)
+	go func() { out, err := r2.Hl("node", "promote"); promoted <- result{out, err} }()
+	asked(t, r2)
+	if err := r1.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r1.Restart(); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-promoted; got.err != nil || !strings.Contains(got.out, "(number 3), from its copy") {
+		t.Fatalf("promote: %v: %s", got.err, got.out)
+	}
+	waitFor(t, "runner2 as master number 3", func() bool { return isMaster(r2, node2, 3) })
+	joinedAsRunner(t, r2, r1, 2)
 }
