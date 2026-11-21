@@ -383,13 +383,13 @@ func TestAFinishedRequestIsSeenByTheFloorOrAMarkSinceItEnded(t *testing.T) {
 	if list() != 2 {
 		t.Fatal(list())
 	}
-	if err := db.SetCursor(e.DB, db.ResultSeenKey(3), now-101); err != nil {
+	if err := db.SetCursor(e.DB, db.ResultSeenKey("p1", 3), now-101); err != nil {
 		t.Fatal(err)
 	}
 	if ended(3)["seen"] != false {
 		t.Fatal("a mark from before it ended covers it")
 	}
-	if err := db.SetCursor(e.DB, db.ResultSeenKey(3), now-99); err != nil {
+	if err := db.SetCursor(e.DB, db.ResultSeenKey("p1", 3), now-99); err != nil {
 		t.Fatal(err)
 	}
 	if ended(3)["seen"] != true || count() != 1 || list() != 1 {

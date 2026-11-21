@@ -54,8 +54,8 @@ func mergeMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any,
 				if n, _ := res.RowsAffected(); n == 0 {
 					return nil, refusal(fmt.Sprintf("task T%d was done or discarded by someone else just now", r.ID))
 				}
-				if by == actor.OwnerKey {
-					if err := markResultSeen(tx, r.ID); err != nil {
+				if actor.IsPerson(by) {
+					if err := markResultSeen(tx, by, r.ID); err != nil {
 						return nil, err
 					}
 				}

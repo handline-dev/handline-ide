@@ -22,7 +22,7 @@ type Memo struct {
 
 // AddMemo is db.add_memo. The stamp is a float, as Python's time.time() writes it.
 func AddMemo(q Q, tid int64, author, body string) (int64, error) {
-	body, err := storedMentions(q, author, body)
+	body, err := storedMentions(q, tid, author, body)
 	if err != nil {
 		return 0, err
 	}
@@ -55,7 +55,7 @@ func EditMemo(q Q, mid int64, by, body string) error {
 	if err != nil || m == nil {
 		return err
 	}
-	if body, err = storedMentions(q, by, body); err != nil {
+	if body, err = storedMentions(q, m.TaskID, by, body); err != nil {
 		return err
 	}
 	if _, err := q.Exec("UPDATE task_memos SET body = ?, edited_at = ? WHERE id = ?", body, Now(), mid); err != nil {
@@ -113,11 +113,12 @@ func ActedSince(q Q, agent string, ts int64) (bool, error) {
 
 // storedMentions is body as a memo keeps it: each @word that resolves for the author as <@key> (addr.Mentions), so a rename changes no
 // stored text. A typed caller's handler may have done it already with the caller's folder; doing it again changes nothing.
-func storedMentions(q Q, author, body string) (string, error) {
+func storedMentions(q Q, tid int64, author, body string) (string, error) {
 	w, err := addr.Of(q, author, "")
 	if err != nil {
 		return body, err
 	}
+	w.Task = tid
 	return addr.Mentions(q, w, body)
 }
 

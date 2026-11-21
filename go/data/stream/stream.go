@@ -34,6 +34,9 @@ type Hub struct {
 	Reach func(agent string) (map[string]bool, error)
 	// Log is the stream_log; nil serves the devices topic alone.
 	Log *Log
+	// Render is an event as a person other than the owner reads it (their own unread count of a task), nil for the event as logged;
+	// nil renders nothing.
+	Render func(person string, ev *Event) *Event
 
 	mu   sync.Mutex
 	subs map[*sub]struct{}
@@ -227,8 +230,9 @@ type sub struct {
 	send    func([]byte) bool
 	hangUp  func()
 	topics  map[string]bool
-	agent   string // only this agent's events and those of no agent; "" is every agent's
-	person  string // the subscribing person: a personal topic's event of a person (its Agent a person key) goes to that person only
+	agent   string              // only this agent's events and those of no agent; "" is every agent's
+	person  string              // the subscribing person: a personal topic's event of a person (its Agent a person key) goes to that person only
+	render  func(*Event) *Event // the event as this subscriber reads it (Hub.Render); nil, or a nil answer, is the event as logged
 	visible func(*Event) bool
 	logged  bool // its topics are stream_log's, so it has cursors
 
@@ -291,6 +295,11 @@ func (s *sub) offer(ev *Event, msg []byte) {
 	if !s.wants(ev) {
 		return
 	}
+	if s.render != nil {
+		if mine := s.render(ev); mine != nil {
+			msg = msgOf(mine)
+		}
+	}
 	if len(s.queue) >= MaxQueue {
 		s.queue, s.gap = nil, gapNotice("slow_client", ev.Cursor)
 		time.AfterFunc(2*time.Second, s.hangUp) // a writer stuck on a client that stopped reading
@@ -310,6 +319,11 @@ func (s *sub) preload(events []*Event, notice []byte) {
 	}
 	for _, ev := range events {
 		if ev.Cursor > s.last && s.wants(ev) {
+			if s.render != nil {
+				if mine := s.render(ev); mine != nil {
+					ev = mine
+				}
+			}
 			s.replay = append(s.replay, msgOf(ev))
 		}
 		s.last = max(s.last, ev.Cursor)
@@ -430,6 +444,10 @@ func Register(srv *rpc.Server, h *Hub) {
 		s := newSub(c, names, agent, visible)
 		if actor.IsPerson(c.Caller.Key) {
 			s.person = c.Caller.Key
+			if h.Render != nil && s.person != actor.OwnerKey {
+				person := s.person
+				s.render = func(ev *Event) *Event { return h.Render(person, ev) }
+			}
 		}
 		top, err := h.add(s, since)
 		if err != nil {

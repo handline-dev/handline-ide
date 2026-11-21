@@ -537,7 +537,8 @@ func (c *Conn) route(msg any) (routed, error) {
 			result, err = m.Handler(at, params)
 		}
 		if at.Typed() && at.srv.Names != nil && name != "hello" && !m.Verbatim {
-			result, err = at.writeOut(result, err)
+			task, _ := AsInt(params["task"])
+			result, err = at.writeOut(task, result, err)
 		}
 		if err != nil {
 			return nil, err
@@ -617,10 +618,15 @@ func (c *Conn) resolveWho(method string, params map[string]any) error {
 	if err != nil {
 		return err
 	}
+	task, _ := AsInt(params["task"])
 	var failed error
 	key := func(param, w string) string {
 		if failed != nil || w == "" || w == c.Caller.Key { // the caller naming itself, whether or not it has a row
 			return w
+		}
+		r := r
+		if param != "owner" && param != "reporter" { // human on a task is its person, except where it says whose the task is
+			r.Task = task
 		}
 		k, err := addr.Resolve(names, r, w)
 		var refused *addr.Refusal
@@ -659,7 +665,10 @@ func (c *Conn) resolveWho(method string, params map[string]any) error {
 }
 
 // Mentions is text as it is stored for this caller: each @word that resolves for it as <@key> (addr.Mentions).
-func (c *Conn) Mentions(text string) (string, error) {
+func (c *Conn) Mentions(text string) (string, error) { return c.MentionsOn(0, text) }
+
+// MentionsOn is Mentions in a comment on task (0 for none), where @human is the task's person.
+func (c *Conn) MentionsOn(task int64, text string) (string, error) {
 	if c.srv.Names == nil {
 		return text, nil
 	}
@@ -667,16 +676,18 @@ func (c *Conn) Mentions(text string) (string, error) {
 	if err != nil {
 		return text, err
 	}
+	r.Task = task
 	return addr.Mentions(c.srv.Names, r, text)
 }
 
-// writeOut is a reply as a Typed caller reads it: each <@key> in its text written out as @ and the name the caller would use
+// writeOut is a reply as a Typed caller reads it, about task (0 for none): each <@key> in its text written out as @ and the name the caller would use
 // (addr.Render), and a key held by a who field (whoFields) or used as a map's key as that name. Other values stay as they are.
-func (c *Conn) writeOut(result any, err error) (any, error) {
+func (c *Conn) writeOut(task int64, result any, err error) (any, error) {
 	r, rerr := c.Reader()
 	if rerr != nil {
 		return result, err
 	}
+	r.Task = task                // a reply about a task names its person human, as a word typed on it would
 	names := map[string]string{} // one lookup per key in a reply
 	name := func(k string) string {
 		n, ok := names[k]

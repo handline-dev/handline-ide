@@ -69,10 +69,10 @@ func TestSeenMarksAnEndedTasksResultOnly(t *testing.T) {
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence, done_at) VALUES(1, 'open', 'worker', 'p1', 1, NULL, NULL), (2, 'ended', 'worker', 'p1', 1, 'x', 5)")
 	seenCall(t, mk, `"task":1,`, "o")
 	seenCall(t, mk, `"task":2,"upto":1,`, "e")
-	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at != 0 {
+	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 1)); at != 0 {
 		t.Fatalf("an open task got a mark: %d", at)
 	}
-	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at < 5 {
+	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 2)); at < 5 {
 		t.Fatalf("the mark %d is before the end at 5, so RequestRow.ended.seen stays false", at)
 	}
 }
@@ -101,10 +101,10 @@ func TestAResultTheFounderEndedIsAlreadySeen(t *testing.T) {
 	}
 	done("", 1)
 	done("worker", 2)
-	if at, _ := db.Cursor(d, db.ResultSeenKey(1)); at < int64(count(t, d, "SELECT CAST(done_at AS INTEGER) FROM tasks WHERE id = 1")) {
+	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 1)); at < int64(count(t, d, "SELECT CAST(done_at AS INTEGER) FROM tasks WHERE id = 1")) {
 		t.Fatalf("the founder's own end is not seen: mark %d", at)
 	}
-	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at != 0 {
+	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 2)); at != 0 {
 		t.Fatal("an agent's end is marked seen")
 	}
 	if n := count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'p1'"); n != 0 {
@@ -143,10 +143,10 @@ func TestAResultTheFounderMergedAwayIsAlreadySeen(t *testing.T) {
 	}
 	merge("", 2)
 	merge("worker", 3)
-	if at, _ := db.Cursor(d, db.ResultSeenKey(2)); at == 0 {
+	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 2)); at == 0 {
 		t.Fatal("the founder's own merge is not seen")
 	}
-	if at, _ := db.Cursor(d, db.ResultSeenKey(3)); at != 0 {
+	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 3)); at != 0 {
 		t.Fatal("an agent's merge is marked seen")
 	}
 }

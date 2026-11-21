@@ -169,3 +169,22 @@ func TestTheFoundersReadMarkerIsAChangeOfTheTask(t *testing.T) {
 		t.Fatalf("the marker is one task.changed row that says nothing is unread: %+v %v", got, task)
 	}
 }
+
+// A member's read marker is a change of the task too: their devices read it again for their own unread count.
+func TestAMembersReadMarkerIsAChangeOfTheTask(t *testing.T) {
+	d, l := rig(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
+	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(4, 1, 'bob', 'note', 5)")
+	tk := &Tasks{Reads: &reads.Env{DB: d}}
+	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
+	if err := tk.Scan(d, emit); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p2:1', 4, 6)")
+	if err := tk.Scan(d, emit); err != nil {
+		t.Fatal(err)
+	}
+	if got := rows(t, l); len(got) != 1 || got[0].Type != "task.changed" {
+		t.Fatalf("Kim's read told %+v", got)
+	}
+}
