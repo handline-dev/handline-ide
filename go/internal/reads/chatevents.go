@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/internal/transcript"
 )
@@ -121,7 +122,7 @@ func taskCardKinds() []string {
 var accountKinds = []string{"moved_account", db.MoveFailedKind}
 
 // accountItemOf is an account move's event as a transcript item: account_moved (cause manual for a person's move, policy for the
-// daemon's) or move_failed; false for any other event.
+// daemon's; an event written before moves kept a reason reads one from its trigger) or move_failed; false for any other event.
 func accountItemOf(ev row) (map[string]any, bool) {
 	p := decodeObject(ev.str("payload"))
 	id, at := itemID(ev.i("ts"), itemTask, ev.i("id")), ts(ev["ts"])
@@ -132,8 +133,12 @@ func accountItemOf(ev row) (map[string]any, bool) {
 			cause = "manual"
 		}
 		written, _ := p["note_written"].(bool)
-		return map[string]any{"id": id, "at": at, "kind": "account_moved",
-			"account_moved": map[string]any{"from": text(p["from"]), "to": text(p["to"]), "cause": cause, "note_written": written}}, true
+		reason := text(p["reason"])
+		if reason == "" {
+			reason = states.MovedWhy(text(p["trigger"]), text(p["from"]))
+		}
+		return map[string]any{"id": id, "at": at, "kind": "account_moved", "account_moved": map[string]any{"from": text(p["from"]),
+			"to": text(p["to"]), "cause": cause, "note_written": written, "reason": reason}}, true
 	case db.MoveFailedKind:
 		return map[string]any{"id": id, "at": at, "kind": "move_failed",
 			"move_failed": map[string]any{"to": text(p["to"]), "reason": text(p["reason"])}}, true

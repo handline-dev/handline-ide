@@ -170,6 +170,8 @@ export type TranscriptItem = {
     cause: string;
     /** Whether the agent's handoff note was in when the move began; false means the next session starts from the daemon's own record. */
     note_written: boolean;
+    /** Why it moved: one sentence for a person, with the numbers that decided it. */
+    reason: string;
   };
   /** Kind move_failed: a person's kept move could not run when the turn ended or the note was in, and is dropped, not retried. */
   move_failed?: {

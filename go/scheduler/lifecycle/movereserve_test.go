@@ -91,7 +91,7 @@ func TestF1AMoveMidTurnIsKeptAndRunsWhenTheTurnEnds(t *testing.T) {
 	if len(g.pane.handles) != 1 || len(g.sp.startedIn) != 1 || g.row(t).Account.String != "beta" || pending(t, g) != nil {
 		t.Fatalf("closed %v started %v %+v", g.pane.handles, g.sp.startedIn, g.row(t))
 	}
-	if p := lastPayload(t, g, "moved_account"); p["trigger"] != "forced" || p["note_written"] != false {
+	if p := lastPayload(t, g, "moved_account"); p["trigger"] != "forced" || p["note_written"] != false || p["reason"] != "You moved it." {
 		t.Fatalf("moved_account %v", p)
 	}
 	if p := lastPayload(t, g, "forced_move"); p["by"] != "human" {
