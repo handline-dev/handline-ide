@@ -125,14 +125,25 @@ func (s SQLStore) SetClient(id, client string) error {
 	return err
 }
 
-// SetLending sets the run, pause or off of the device's node row while the device is person's; false when it is not, or has none.
-func (s SQLStore) SetLending(id, lending, person string) (bool, error) {
-	r, err := s.DB.Exec("UPDATE nodes SET lending = ? WHERE device = ? AND device IN (SELECT id FROM devices WHERE person = ?)", lending, id, person)
+// SetNode changes the device's node row while the device is person's; false when it is not, or has none.
+func (s SQLStore) SetNode(id, person string, n NodeSet) (bool, error) {
+	var lending, memSet, mem any = nil, 0, nil
+	if n.Lending != "" {
+		lending = n.Lending
+	}
+	if n.MemoryMaxGB != nil {
+		memSet = 1
+		if *n.MemoryMaxGB > 0 {
+			mem = *n.MemoryMaxGB
+		}
+	}
+	r, err := s.DB.Exec(`UPDATE nodes SET lending = COALESCE(?, lending), memory_max_gb = CASE WHEN ? THEN ? ELSE memory_max_gb END
+		WHERE device = ? AND device IN (SELECT id FROM devices WHERE person = ?)`, lending, memSet, mem, id, person)
 	if err != nil {
 		return false, err
 	}
-	n, err := r.RowsAffected()
-	return n > 0, err
+	k, err := r.RowsAffected()
+	return k > 0, err
 }
 
 func (s SQLStore) SetPush(id string, p Push) (bool, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -62,6 +63,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	worktreepool.DiskKeepFreeKey: int0, worktreepool.AgentsMemoryMaxKey: int0,
+	nodes.BatteryKey: flag_, nodes.ReclaimKey: int1,
 	leases.PortRangeKey:            ports,
 	usage.NetworkAddressesKey:      hosts,
 	team.DefaultModelKey("claude"): model, team.DefaultEffortKey("claude"): effort,

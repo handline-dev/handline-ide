@@ -142,3 +142,28 @@ func TestAPickHoldsItsSlotAndIsKeptOnlyOnceItsTerminalOpens(t *testing.T) {
 		t.Fatalf("ann took %q while bob's start held r2's last slot", got)
 	}
 }
+
+func TestARunnersOwnMemoryCapIsWhereItIsFull(t *testing.T) {
+	p, _ := two(t)
+	p.Reg.Hear("r2", runner.Beat{Version: "v1", Load: runner.Load{RAMFree: 8 * gb, AgentsRSS: 3 * gb},
+		Has: runner.Has{CLIs: []string{"claude"}}}, time.Now())
+	if why := p.Lacks("bob", "r2"); why != "" {
+		t.Fatalf("with no cap anywhere r2 is %q", why)
+	}
+	p.Limits = func() Limits { return Limits{Sessions: 2, AgentsRSS: 2 * gb} }
+	if why := p.Lacks("bob", "r2"); !strings.Contains(why, "3 of 2 GB") {
+		t.Fatalf("under the master's 2 GB cap r2 is %q", why)
+	}
+	if _, err := p.DB.Exec("UPDATE nodes SET memory_max_gb = 4 WHERE id = 'r2'"); err != nil {
+		t.Fatal(err)
+	}
+	if why := p.Lacks("bob", "r2"); why != "" {
+		t.Fatalf("its own 4 GB cap still leaves r2 %q", why)
+	}
+	if _, err := p.DB.Exec("UPDATE nodes SET memory_max_gb = 3 WHERE id = 'r2'"); err != nil {
+		t.Fatal(err)
+	}
+	if why := p.Lacks("bob", "r2"); !strings.Contains(why, "3 of 3 GB") {
+		t.Fatalf("at its own 3 GB cap r2 is %q", why)
+	}
+}

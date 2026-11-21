@@ -245,6 +245,81 @@
        ]
       },
       "description": "Each agent that cannot start there now and why (\"needs pencil\", \"full: 2 of 2 sessions\", \"it is set to pause\"); a runner's row only."
+     },
+     "device": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The paired device (devices.list id) a lent machine joined as; null on the master's own row."
+     },
+     "memory_max_gb": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1048576
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "This lent machine's own cap on its agents' memory, in GB (device.set): at it, no new session starts there. null where agents_memory_max_gb applies, as it always does on the master's own row."
+     },
+     "load": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "cores": {
+          "type": "integer"
+         },
+         "load1": {
+          "type": "number",
+          "description": "The 1-minute load average."
+         },
+         "ram_total": {
+          "type": "integer",
+          "description": "Bytes."
+         },
+         "ram_free": {
+          "type": "integer",
+          "description": "Bytes."
+         },
+         "agents_rss": {
+          "type": "integer",
+          "description": "Bytes its agents' sessions use."
+         }
+        },
+        "required": [
+         "cores",
+         "load1",
+         "ram_total",
+         "ram_free",
+         "agents_rss"
+        ],
+        "additionalProperties": false
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "A lent machine's newest heartbeat's measures, 0 for one it could not read; null on the master's own row (DaemonStatus has its own) and before its first heartbeat since the master started."
+     },
+     "battery": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "A lent machine runs on its battery now, from its newest heartbeat; null as load is."
      }
     },
     "required": [
@@ -544,7 +619,7 @@
   },
   {
    "name": "device.set",
-   "summary": "Set a lent machine's Run · Pause · Off.",
+   "summary": "Set a lent machine's Run · Pause · Off and its own memory cap.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -556,13 +631,30 @@
     },
     {
      "name": "lending",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
       "enum": [
        "run",
        "pause",
        "off"
+      ]
+     }
+    },
+    {
+     "name": "memory_max_gb",
+     "required": false,
+     "description": "The machine's own cap on its agents' memory, in GB, at least 1; null puts it back to agents_memory_max_gb.",
+     "schema": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1048576
+       },
+       {
+        "type": "null"
+       }
       ]
      }
     },
@@ -599,7 +691,7 @@
     "person",
     "kind"
    ],
-   "description": "Only the device's own person sets it; anyone else is refused, gate `person`. A device that is no mac or server that joined is refused, gate `kind`. run lists the machine in node.status and lets the master start work there; pause lists it as paused and the master starts nothing new there; off takes it out of node.status. A device.changed event is sent on the devices topic, and the nodes feed changes."
+   "description": "Only the device's own person sets it; anyone else is refused, gate `person`. A device that is no mac or server that joined is refused, gate `kind`. run lists the machine in node.status and lets the master start work there; pause lists it as paused and the master starts nothing new there; off takes it out of node.status. A device.changed event is sent on the devices topic, and the nodes feed changes. It takes lending, memory_max_gb or both."
   },
   {
    "name": "device.push_token",

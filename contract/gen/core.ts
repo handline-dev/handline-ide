@@ -432,6 +432,10 @@ export type SettingsValues = {
   disk_keep_free_gb?: number;
   /** Most memory the agents' processes may use together, in GB; 0 is off, the default. Over it the daemon closes the longest-idle sessions one at a time, never one mid-turn; their work stays and they wake from their handoff. */
   agents_memory_max_gb?: number;
+  /** A lent Mac whose heartbeat says it went on battery is set to Off, and back to Run when it is plugged in again. Off by default. */
+  node_battery_switch?: boolean;
+  /** Seconds a lent machine may be offline before the master takes its sessions back to start them elsewhere. */
+  node_reclaim_s?: number;
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
