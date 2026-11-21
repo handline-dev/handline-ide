@@ -15,10 +15,12 @@ import {
   SquareTerminal,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { workspaceIcon } from '#src/workspace/icon.tsx';
 
 /** Every kind of tab: its title and icon, shown alike in the tab bar, the + menu and an Empty tab's picker. */
 const kinds: Record<string, { label: string; icon: ReactNode }> = {
   chat: { label: 'Chat', icon: <MessageSquare size={14} /> },
+  workspace: { label: 'Workspace', icon: workspaceIcon },
   shell: { label: 'Agent terminal', icon: <SquareTerminal size={14} /> },
   newshell: { label: 'Terminal', icon: <SquareTerminal size={14} /> },
   diff: { label: 'Changes', icon: <FileDiff size={14} /> },
@@ -76,10 +78,13 @@ export const textOf = (when: string, name: string) => `text:${when}/${name}`;
 export const docOf = (id: string, name: string) => `doc:${id}/${name}`;
 /** An HR proposal's detail (requests/ProposalView): `proposal:41`. */
 export const proposalOf = (id: number) => `proposal:${id}`;
-export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal') =>
+/** A workspace's page. */
+export const workspaceOf = (key: string) => `ws:${key}`;
+export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
+  if (opened(kind, 'ws')) return kinds.workspace;
   const task = opened(kind, 'task');
   if (task) return { label: `T${task}`, icon: kinds.tasks.icon };
   const plan = opened(kind, 'plan');
@@ -116,6 +121,8 @@ export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k
   const own = ownedBy(kind);
   if (own) return `${labelOf(own.kind, nameOf)} · ${nameOf(own.agent)}`;
   const key = chatName(kind);
+  const ws = opened(kind, 'ws');
+  if (ws) return nameOf(ws);
   return kinds[kind]?.label ?? (key ? `${nameOf(key)} chat` : (onThing(kind)?.label ?? kind));
 };
 /** An Empty tab (no kind) shows +. */

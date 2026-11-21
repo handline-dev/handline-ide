@@ -1,9 +1,11 @@
 package reads
 
 import (
+	"slices"
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -71,5 +73,32 @@ func (e *Env) statsGet(_ *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
+	if out["your_wait_s"], err = e.personWait(since, until); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// personWait is the median seconds from a turn put on a person to that person giving it back, over turns given back in [since, until]
+// (the upper one of an even count); nil when none was.
+func (e *Env) personWait(since, until int64) (any, error) {
+	rows, err := query(e.DB, "SELECT json_extract(p.payload, '$.agent') AS who, p.ts - (SELECT MAX(q.ts) FROM events q "+
+		"WHERE q.kind = 'task_turn_push' AND q.ts <= p.ts AND json_valid(q.payload) "+
+		"AND json_extract(q.payload, '$.task_id') = json_extract(p.payload, '$.task_id') "+
+		"AND json_extract(q.payload, '$.to') = json_extract(p.payload, '$.agent')) AS wait "+
+		"FROM events p WHERE p.kind = 'task_turn_pop' AND p.ts >= ? AND p.ts <= ? AND json_valid(p.payload)", since, until)
+	if err != nil {
+		return nil, err
+	}
+	waits := []int64{}
+	for _, r := range rows {
+		if actor.IsPerson(r.str("who")) && r.set("wait") {
+			waits = append(waits, r.i("wait"))
+		}
+	}
+	if len(waits) == 0 {
+		return nil, nil
+	}
+	slices.Sort(waits)
+	return waits[len(waits)/2], nil
 }

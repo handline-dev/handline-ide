@@ -548,6 +548,17 @@
      "tasks_done": {
       "type": "integer"
      },
+     "your_wait_s": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The median seconds from a turn put on a person to that person giving it back, over turns given back in the window; null when none was."
+     },
      "use": {
       "type": "array",
       "items": {
@@ -606,6 +617,7 @@
      "since",
      "until",
      "tasks_done",
+     "your_wait_s",
      "use",
      "moves",
      "handoffs",

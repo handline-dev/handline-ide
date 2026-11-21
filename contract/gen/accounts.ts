@@ -138,6 +138,8 @@ export type Stats = {
   since: Timestamp;
   until: Timestamp;
   tasks_done: number;
+  /** The median seconds from a turn put on a person to that person giving it back, over turns given back in the window; null when none was. */
+  your_wait_s: number | null;
   /** Each agent's use of each account in the window, largest cost first; an agent on two accounts has two rows. */
   use: AgentAccountUse[];
   moves: number;

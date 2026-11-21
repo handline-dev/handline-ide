@@ -11,7 +11,8 @@ import { ago, useNow } from '#src/format/time.ts';
 import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
-import { chatOf, footerPages, pages } from '#src/layout/kinds.tsx';
+import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { pageSpace } from '#src/layout/agentLayouts.ts';
 import { Row } from '#src/sidebar/Row.tsx';
@@ -140,6 +141,15 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
   });
 }
 
+function TitleLink({ opens, title }: { opens: string; title: string }) {
+  const open = useOpenable(opens);
+  return (
+    <button type="button" {...open} className="rounded-sm outline-none hover:text-fg focus-visible:text-fg">
+      {title}
+    </button>
+  );
+}
+
 /** A sidebar section under a full-width line: a heading (with an optional action), then its rows. */
 export function Section({
   title,
@@ -149,9 +159,12 @@ export function Section({
   onAgentDrop,
   folded,
   onFold,
+  opens,
   children,
 }: {
   title: string;
+  /** What the title opens as a tab: a workspace's page. */
+  opens?: string;
   /** Folded: header only. onFold adds the chevron. */
   folded?: boolean;
   onFold?: () => void;
@@ -186,7 +199,7 @@ export function Section({
             </button>
           )}
           {icon}
-          {title}
+          {opens ? <TitleLink opens={opens} title={title} /> : title}
         </h2>
         <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">{action}</span>
       </div>
@@ -230,6 +243,7 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           onAgentDrop={togglePin}
           folded={!!workspace && nav.folded.includes(workspace.key)}
           onFold={workspace ? () => toggleFold(workspace.key) : undefined}
+          opens={workspace ? workspaceOf(workspace.key) : undefined}
           action={
             workspace && (
               <IconButton label="New agent" onClick={() => onNew(workspace)}>

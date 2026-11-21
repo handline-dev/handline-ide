@@ -79,6 +79,7 @@ export function statsOf(nowIso: Timestamp, window: '24h' | '7d'): Stats {
     since: new Date(until - (week ? 7 * DAY : DAY)).toISOString(),
     until: new Date(until).toISOString(),
     tasks_done: week ? 19 : 3,
+    your_wait_s: week ? 1080 : 600,
     use: useOf(week),
     moves: week ? 6 : 1,
     handoffs: week ? 9 : 2,

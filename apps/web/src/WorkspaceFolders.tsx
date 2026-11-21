@@ -69,7 +69,7 @@ export function AddFolder({ wsKey, onAdded }: { wsKey: string; onAdded?: (path: 
   );
 }
 
-function Folders({ wsKey }: { wsKey: string }) {
+export function Folders({ wsKey }: { wsKey: string }) {
   // Read live, so an added or removed folder shows at once.
   const ws = Hooks.useWorkspacesList().data?.workspaces.find((w) => w.key === wsKey);
   const set = useWrite('workspace.set');
