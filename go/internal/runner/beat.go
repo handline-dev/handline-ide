@@ -263,13 +263,20 @@ func (r *Runner) snapshot(folder string) (string, error) {
 	return r.gitEnv(env, "-C", folder, "commit-tree", tree, "-p", "HEAD", "-m", "Left on this machine when its session was taken back")
 }
 
-// accounts is this machine's Claude account folders with the email each is logged in as: a runner keeps no accounts table, so a
-// folder under accounts/ (a key) or accounts/.unregistered/ (a name) is an account when its .claude.json names one.
-func (r *Runner) accounts() []BeatAccount {
+// accounts is this machine's Claude account folders with the email each is logged in as and its config dir: a runner keeps no
+// accounts table, so a folder under accounts/ (a key) or accounts/.unregistered/ (a name) is an account when its .claude.json names one.
+func (r *Runner) accounts() []BeatAccount { return loggedInAccounts(r.cfg.Home) }
+
+func loggedInAccounts(home string) []BeatAccount {
 	out := []BeatAccount{}
-	for _, name := range AccountFolders(r.cfg.Home) {
-		if email := (team.Accounts{Home: r.cfg.Home}).Email(name); email != "" {
-			out = append(out, BeatAccount{Name: name, Email: email})
+	for _, name := range AccountFolders(home) {
+		email := (team.Accounts{Home: home}).Email(name)
+		dir, err := team.AccountConfigDir(home, name)
+		if email == "" || err != nil {
+			continue
+		}
+		if rel, err := filepath.Rel(home, dir); err == nil && filepath.IsLocal(rel) {
+			out = append(out, BeatAccount{Name: name, Email: email, Dir: rel})
 		}
 	}
 	return out
@@ -291,13 +298,11 @@ func AccountFolders(home string) []string {
 	return out
 }
 
-// loggedIn is the account folders in home logged in to an account: what the runner counts the usage of (node.tokens).
+// loggedIn is the account folders its heartbeat names: what the runner counts the usage of (node.tokens).
 func loggedIn(home string) []string {
 	var out []string
-	for _, name := range AccountFolders(home) {
-		if (team.Accounts{Home: home}).Email(name) != "" {
-			out = append(out, name)
-		}
+	for _, a := range loggedInAccounts(home) {
+		out = append(out, a.Name)
 	}
 	return out
 }

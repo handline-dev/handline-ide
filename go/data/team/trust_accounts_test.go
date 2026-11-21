@@ -476,3 +476,33 @@ func TestEnvForNamesTheAgentByItsName(t *testing.T) {
 		}
 	}
 }
+
+// An email is one account on every machine: the one logged in as it, else one made for it, named after the runner's folder, then
+// after the email, with -2 when the name is taken.
+func TestByEmailFindsTheAccountOfAnEmailOrMakesOne(t *testing.T) {
+	home := newHome(t)
+	a := Accounts{Home: home}
+	dir, err := a.Add("main", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"a@example.com"}}`), 0o644)
+	for _, c := range []struct{ email, name, want string }{
+		{"A@example.com", "alpha", "main"}, // the master's own, whatever the runner calls its folder
+		{"b@example.com", "alpha", "alpha"},
+		{"c@example.com", "alpha", "alpha-2"}, // another email in a folder of the same name is another account
+		{"b@example.com", "beta", "alpha"},
+		{"d.e@example.com", "c4", "d-e"}, // a key-shaped folder name is no account's name
+	} {
+		got, err := a.ByEmail(c.email, c.name)
+		if err != nil || got != c.want {
+			t.Fatalf("%s in %s: %q, %v; want %q", c.email, c.name, got, err, c.want)
+		}
+	}
+	if a.RecordedEmail("alpha-2") != "c@example.com" || a.LoggedIn("alpha-2") {
+		t.Fatalf("a made account keeps its email and is logged in nowhere here: %q", a.RecordedEmail("alpha-2"))
+	}
+	if _, err := a.ByEmail("", "x"); err == nil {
+		t.Fatal("no email finds no account")
+	}
+}

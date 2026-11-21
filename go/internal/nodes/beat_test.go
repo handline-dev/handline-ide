@@ -1,7 +1,10 @@
 package nodes
 
 import (
+	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -91,3 +94,68 @@ func TestTakesNeedsAHeartbeatTheVersionAndRun(t *testing.T) {
 		t.Fatalf("on pause: %q", why)
 	}
 }
+
+// An email is one board account on every runner: the account an agent there starts on and its usage counts under. Two runners that
+// each call a folder alpha, logged in as two emails, hold two accounts; one email in two folders on one runner is one account.
+func TestARunnersAccountsAreTheBoardsByEmail(t *testing.T) {
+	r := registry(t)
+	r.Self = "n0"
+	board := map[string]string{"a@x": "main"}
+	r.AccountFor = func(email, name string, add bool) (string, error) {
+		if b := board[email]; b != "" || !add {
+			return b, nil
+		}
+		b := name
+		for n := 2; slices.Contains(slices.Collect(maps.Values(board)), b); n++ {
+			b = fmt.Sprintf("%s-%d", name, n)
+		}
+		board[email] = b
+		return b, nil
+	}
+	for _, q := range []string{"INSERT OR IGNORE INTO people(id, display_name, role, created_at) VALUES(1, 'Ron', 'owner', 0), (2, 'Kim', 'member', 0)",
+		"UPDATE nodes SET person = 1 WHERE id = 'n1'", "INSERT INTO nodes(id, name, joined_at, lending, person) VALUES('n2', 'two', 1, 'run', 1), ('n3', 'kims', 1, 'run', 2)"} {
+		if _, err := r.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now()
+	r.Hear("n1", runner.Beat{Accounts: []runner.BeatAccount{{Name: "alpha", Email: "b@x", Dir: "accounts/k1/.claude"},
+		{Name: "mine", Email: "a@x", Dir: "accounts/.unregistered/mine/.claude"}, {Name: "again", Email: "a@x", Dir: "accounts/k2/.claude"}}}, now)
+	r.Hear("n2", runner.Beat{Accounts: []runner.BeatAccount{{Name: "alpha", Email: "c@x", Dir: "accounts/k1/.claude"},
+		{Name: "out", Email: "d@x", Dir: "../elsewhere"}}}, now)
+	want1 := map[string]string{"alpha": filepath.Join(r.Home, "accounts/k1/.claude"), "main": filepath.Join(r.Home, "accounts/.unregistered/mine/.claude")}
+	if got := r.Accounts("n1"); !maps.Equal(got, want1) {
+		t.Fatalf("n1: %v", got)
+	}
+	if got := r.Accounts("n2"); !maps.Equal(got, map[string]string{"alpha-2": filepath.Join(r.Home, "accounts/k1/.claude")}) {
+		t.Fatalf("n2, a folder outside its home left out: %v", got)
+	}
+	// Another person's runner makes no account of the owner's: only an email the board has is one there.
+	r.Hear("n3", runner.Beat{Accounts: []runner.BeatAccount{{Name: "x", Email: "a@x", Dir: "accounts/k1/.claude"}, {Name: "y", Email: "k@x", Dir: "accounts/k2/.claude"}}}, now)
+	if got := r.Accounts("n3"); !maps.Equal(got, map[string]string{"main": filepath.Join(r.Home, "accounts/k1/.claude")}) || board["k@x"] != "" {
+		t.Fatalf("n3: %v", got)
+	}
+	// A folder heard again with its email keeps its account, asked no more.
+	r.AccountFor = func(string, string, bool) (string, error) { t.Fatal("asked again"); return "", nil }
+	r.Hear("n2", runner.Beat{Accounts: []runner.BeatAccount{{Name: "alpha", Email: "c@x", Dir: "accounts/k1/.claude"}}}, now)
+	here := func(node, folder string) string {
+		board, named := r.accountHere(node, folder)
+		return fmt.Sprintf("%s %v", board, named)
+	}
+	if here("n2", "alpha") != "alpha-2 true" || here("n1", "mine") != "main true" || here("n9", "z") != " false" || here("n3", "y") != " true" {
+		t.Fatal("a runner's usage counts under its folder's board account")
+	}
+	r.Placer = nextOn{"bob": "n2", "cat": "n2", "dan": "n0"}
+	for agent, want := range map[string]string{"bob": "n1", "cat": "n2", "dan": "", "eve": ""} {
+		if got := r.DeviceOf(agent); got != want {
+			t.Errorf("%s is on %q, want %q: its session's runner, else where it would open, the master as none", agent, got, want)
+		}
+	}
+}
+
+// nextOn places each agent on its machine.
+type nextOn map[string]string
+
+func (n nextOn) Where(agent string) string { return n[agent] }
+func (nextOn) Placed(string, bool)         {}
+func (n nextOn) Next(agent string) string  { return n[agent] }

@@ -47,7 +47,7 @@ func (lc *Lifecycle) runnerLaunch(node, agent string, params map[string]any) (*n
 		return nil, err
 	}
 	var warnings []string
-	site := &lifecycle.Site{Cwd: r.Cwd, Env: r.Env, Binary: r.Binary, HlExe: r.HlExe, WorktreeID: r.WorktreeID, Runner: true,
+	site := &lifecycle.Site{Cwd: r.Cwd, Env: r.Env, Binary: r.Binary, HlExe: r.HlExe, WorktreeID: r.WorktreeID, Node: node,
 		Warn: func(s string) { warnings = append(warnings, s) }}
 	if r.Handle != "" {
 		site.Handle = term.RunnerHandle(node, r.Handle)

@@ -509,6 +509,10 @@ func TestARunnersAccountUsageCountsOnTheMaster(t *testing.T) {
 	}
 	projects := filepath.Join(dir, "projects", "p")
 	os.MkdirAll(projects, 0o755)
+	os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"a@example.com"}}`), 0o644)
+	if err := r.SendBeat(); err != nil { // its heartbeat names the folder, which is the board's account of its email
+		t.Fatal(err)
+	}
 	line := `{"type":"assistant","requestId":"r1","sessionId":"s1","cwd":"/w","timestamp":"` + time.Now().UTC().Format(time.RFC3339) +
 		`","message":{"model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":20}}}` + "\n"
 	os.WriteFile(filepath.Join(projects, "s1.jsonl"), []byte(line), 0o644)

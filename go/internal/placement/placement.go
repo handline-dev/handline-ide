@@ -85,6 +85,24 @@ func (p *Placer) Where(agent string) string {
 	return node
 }
 
+// Next is the runner agent's next session would open on now, "" for this machine; it holds nothing (nodes.Registry.DeviceOf).
+func (p *Placer) Next(agent string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if got, had := p.picked[agent]; had { // as Where picks: without the agent's own pick before
+		p.reserved[got.node]--
+		defer func() { p.reserved[got.node]++ }()
+	}
+	node, _, _, err := p.pick(agent)
+	if err != nil {
+		p.log("placement: %s: %v - its account is chosen as this machine's", agent, err)
+	}
+	if err != nil || node == p.Reg.Self {
+		return ""
+	}
+	return node
+}
+
 // Placed is told whether agent's terminal opened where Where picked (term.Machines.Placed): its slot is given back, and once it opened
 // that machine becomes the agent's.
 func (p *Placer) Placed(agent string, ok bool) {

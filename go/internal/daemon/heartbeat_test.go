@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/agenthost"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/runner"
@@ -255,6 +257,9 @@ func TestARunnersLoggedInAccountFolderIsItsAccount(t *testing.T) {
 	line := `{"type":"assistant","requestId":"r1","sessionId":"s1","cwd":"/w","timestamp":"` + time.Now().UTC().Format(time.RFC3339) +
 		`","message":{"model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":20}}}` + "\n"
 	os.WriteFile(filepath.Join(dir, "projects", "p", "s1.jsonl"), []byte(line), 0o644)
+	if err := r.SendBeat(); err != nil { // the folder is named to the master before its calls are counted
+		t.Fatal(err)
+	}
 	if err := r.SendTokens(&usage.Env{Home: home}); err != nil {
 		t.Fatal(err)
 	}
@@ -265,5 +270,38 @@ func TestARunnersLoggedInAccountFolderIsItsAccount(t *testing.T) {
 	}
 	if err := r.SendBeat(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A runner's account folders are the board's accounts by email: one logged in as the master's account's email is that account, its
+// config dir the runner's own folder; one logged in as an email the board has not seen becomes an account of its own, named after its
+// folder, logged in nowhere here.
+func TestARunnersAccountFoldersAreTheBoardsAccountsByEmail(t *testing.T) {
+	master, node, home, _, r := masterWithRunnerAs(t, nil, func(c *runner.Config) { c.Accounts = nil })
+	login := func(dir, email string) {
+		t.Helper()
+		os.MkdirAll(dir, 0o755)
+		if err := os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{"oauthAccount":{"emailAddress":"`+email+`"}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mdir, err := (team.Accounts{Home: master.cfg.Home}).Add("main", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	login(mdir, "a@example.com")
+	login(filepath.Join(paths.AccountsDir(home), paths.Unregistered, "alpha", ".claude"), "A@example.com")
+	login(filepath.Join(paths.AccountsDir(home), paths.Unregistered, "beta", ".claude"), "b@example.com")
+	if err := r.SendBeat(); err != nil {
+		t.Fatal(err)
+	}
+	got := master.nodes.Accounts(node)
+	want := map[string]string{"main": filepath.Join(master.cfg.Home, "accounts", paths.Unregistered, "alpha", ".claude"),
+		"beta": filepath.Join(master.cfg.Home, "accounts", paths.Unregistered, "beta", ".claude")}
+	if !maps.Equal(got, want) {
+		t.Fatalf("the runner's accounts are %v", got)
+	}
+	if a := (team.Accounts{Home: master.cfg.Home}); a.RecordedEmail("beta") != "b@example.com" || a.LoggedIn("beta") {
+		t.Fatal("beta is the board's, with its email, logged in on the runner only")
 	}
 }

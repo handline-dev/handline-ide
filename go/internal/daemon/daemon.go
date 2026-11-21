@@ -11,7 +11,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -254,13 +253,12 @@ func Start(cfg Config) (*Daemon, error) {
 	d.nodes.Log = cfg.Log
 	d.nodes.Self, d.nodes.Version = joined.NodeIDOf(cfg.Home), version.Sha
 	d.nodes.BatterySwitch = func() bool { return (&settings.Settings{Home: cfg.Home}).Flag(nodes.BatteryKey, false) }
-	d.nodes.AccountOf = func(email string) string {
-		for _, a := range paths.ListAccounts(cfg.Home) {
-			if strings.EqualFold((team.Accounts{Home: cfg.Home}).Email(a), email) {
-				return a
-			}
+	d.nodes.AccountFor = func(email, name string, add bool) (string, error) {
+		a := team.Accounts{Home: cfg.Home}
+		if !add { // another person's runner: their emails make no account of the owner's
+			return a.OfEmail(email), nil
 		}
-		return ""
+		return a.ByEmail(email, name)
 	}
 	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
 	d.nodes.OnLink = d.projects.Node
