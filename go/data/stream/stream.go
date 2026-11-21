@@ -201,7 +201,7 @@ func (h *Hub) add(s *sub, since *int64) (int64, error) {
 			}
 			var missed []*Event
 			if *since >= pruned {
-				if missed, err = h.Log.Since(*since, s.topicList(), s.agent, ReplayMax+1); err != nil {
+				if missed, err = h.Log.Since(*since, s.loggedTopics(), s.agent, ReplayMax+1); err != nil {
 					return 0, err
 				}
 			}
@@ -239,26 +239,45 @@ type sub struct {
 	mu     sync.Mutex
 	cond   *sync.Cond
 	replay [][]byte // what a resume missed: up to ReplayMax, outside the live bound
-	queue  [][]byte // live messages, bounded by MaxQueue
+	queue  []queued // live messages, bounded by MaxQueue
 	last   int64    // the newest cursor queued: nothing at or below it is queued twice
 	dead   bool
 	gap    []byte // the notice that ends this subscription: sent, then the connection is hung up
+}
+
+// queued is a live message, and whether its event is live only (cursor 0), so no replay brings it back.
+type queued struct {
+	msg  []byte
+	live bool
 }
 
 func newSub(c *rpc.Conn, names map[string]bool, agent string, visible func(*Event) bool) *sub {
 	s := &sub{send: c.SendRaw, hangUp: c.HangUp, topics: map[string]bool{}, agent: agent, visible: visible}
 	for n := range names {
 		s.topics[n] = true
-		s.logged = Daemon(n)
+		s.logged = s.logged || Daemon(n)
 	}
 	s.cond = sync.NewCond(&s.mu)
 	return s
 }
 
-func (s *sub) topicList() []string {
+// coveredBy is whether every topic of s is in names.
+func (s *sub) coveredBy(names map[string]bool) bool {
+	for t := range s.topics {
+		if !names[t] {
+			return false
+		}
+	}
+	return true
+}
+
+// loggedTopics is s's topics that stream_log holds.
+func (s *sub) loggedTopics() []string {
 	var out []string
 	for t := range s.topics {
-		out = append(out, t)
+		if Daemon(t) {
+			out = append(out, t)
+		}
 	}
 	return out
 }
@@ -304,7 +323,7 @@ func (s *sub) offer(ev *Event, msg []byte) {
 		s.queue, s.gap = nil, gapNotice("slow_client", ev.Cursor)
 		time.AfterFunc(2*time.Second, s.hangUp) // a writer stuck on a client that stopped reading
 	} else {
-		s.queue = append(s.queue, msg)
+		s.queue = append(s.queue, queued{msg: msg, live: ev.Cursor == 0})
 	}
 	s.cond.Signal()
 }
@@ -328,6 +347,27 @@ func (s *sub) preload(events []*Event, notice []byte) {
 		}
 		s.last = max(s.last, ev.Cursor)
 	}
+	s.cond.Signal()
+}
+
+// takeOver ends old and keeps its live-only messages not sent yet ahead of s's own: a replay from since brings back the logged ones.
+func (s *sub) takeOver(old *sub) {
+	old.mu.Lock()
+	var live []queued
+	for _, q := range old.queue {
+		if q.live {
+			live = append(live, q)
+		}
+	}
+	old.queue, old.dead = nil, true
+	old.mu.Unlock()
+	old.cond.Broadcast()
+	if len(live) == 0 {
+		return
+	}
+	s.mu.Lock()
+	s.queue = append(live, s.queue...)
+	s.mu.Unlock()
 	s.cond.Signal()
 }
 
@@ -360,7 +400,7 @@ func (s *sub) run() {
 		if len(s.replay) > 0 {
 			msg, s.replay = s.replay[0], s.replay[1:]
 		} else {
-			msg, s.queue = s.queue[0], s.queue[1:]
+			msg, s.queue = s.queue[0].msg, s.queue[1:]
 		}
 		s.mu.Unlock()
 		if !s.send(msg) {
@@ -375,8 +415,8 @@ func gapNotice(reason string, cursor int64) []byte {
 	return b
 }
 
-// Register adds subscribe and unsubscribe to a server. A subscribe names devices alone or stream_log's topics
-// (else bad_request naming topics). devices is for a founder; an agent session is sent only what its role may read.
+// Register adds subscribe and unsubscribe to a server. A subscribe names known topics (else bad_request naming topics); devices is
+// live only, its events cursor 0. devices is for a founder; an agent session is sent only what its role may read.
 func Register(srv *rpc.Server, h *Hub) {
 	var mu sync.Mutex
 	byConn := map[*rpc.Conn][]*sub{}
@@ -424,23 +464,12 @@ func Register(srv *rpc.Server, h *Hub) {
 			}
 			agent = name
 		}
-		live := names[devicesTopic]
 		var visible func(*Event) bool
 		if c.Caller.Role == "agent" {
 			visible = newAgentView(c.Caller.Key, h.Reach).may
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if live { // a second subscribe to a live topic replaces the first's filter
-			for _, old := range byConn[c] {
-				if old.topics[devicesTopic] == names[devicesTopic] {
-					old.mu.Lock()
-					old.agent = agent
-					old.mu.Unlock()
-					return map[string]any{"cursor": 0}, nil
-				}
-			}
-		}
 		s := newSub(c, names, agent, visible)
 		if actor.IsPerson(c.Caller.Key) {
 			s.person = c.Caller.Key
@@ -456,7 +485,20 @@ func Register(srv *rpc.Server, h *Hub) {
 		if len(byConn[c]) == 0 {
 			c.OnClose(func() { drop(c) })
 		}
-		byConn[c] = append(byConn[c], s)
+		// A subscribe replaces this connection's subscriptions whose topics it names again, so a client that sends every topic it
+		// follows each time gets each event once.
+		keep := []*sub{s}
+		for _, old := range byConn[c] {
+			if old.coveredBy(names) {
+				h.mu.Lock()
+				delete(h.subs, old)
+				h.mu.Unlock()
+				s.takeOver(old)
+			} else {
+				keep = append(keep, old)
+			}
+		}
+		byConn[c] = keep
 		c.AfterReply(func() { go s.run() })
 		return map[string]any{"cursor": top}, nil
 	}})
@@ -584,7 +626,7 @@ func topicNames(p map[string]any) (map[string]bool, bool) {
 	return out, true
 }
 
-// check judges the topics param: known topics only, and devices by itself.
+// check judges the topics param: known topics only.
 func check(p map[string]any) (map[string]bool, error) {
 	names, ok := topicNames(p)
 	if !ok {
@@ -594,9 +636,6 @@ func check(p map[string]any) (map[string]bool, error) {
 		if !topics[n] {
 			return nil, rpc.BadRequestError("no such topic: "+n, "topics", rpc.InvalidParams)
 		}
-	}
-	if names[devicesTopic] && len(names) > 1 {
-		return nil, rpc.BadRequestError("devices is subscribed on its own: it is live only, every other topic has a cursor", "topics", rpc.InvalidParams)
 	}
 	return names, nil
 }

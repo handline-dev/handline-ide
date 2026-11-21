@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
@@ -216,5 +217,39 @@ func TestNodeStatusNamesEachMachinesDeviceAndItsOwnMemoryCap(t *testing.T) {
 	got = c.ask(`{"jsonrpc":"2.0","id":8,"method":"settings.get","params":{}}`)["result"].(map[string]any)["values"].(map[string]any)
 	if got["node_battery_switch"] != true || got["node_reclaim_s"] != float64(600) {
 		t.Fatalf("after settings.set: battery %v, reclaim %v", got["node_battery_switch"], got["node_reclaim_s"])
+	}
+}
+
+// device.set moves the nodes feed, and the devices topic rides with the others on one subscribe, each event sent once.
+func TestDeviceSetMovesTheNodesFeedAndDevicesRidesWithTheOtherTopics(t *testing.T) {
+	cfg := tlsConfig(t, t.TempDir())
+	cfg.Auth, cfg.Watch = fakeAuth{key: "k", agent: "a"}, true
+	d, err := Start(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	code, _, _, _ := d.dev.Pair(time.Minute)
+	box := joinAs(t, d, code, "box", "server", "n-box")["result"].(map[string]any)
+	c := helloAs(t, d, box["token"].(string))
+	dev := box["device"].(string)
+	for i := 0; i < 2; i++ { // the client sends every topic it follows in each subscribe
+		if r := c.ask(`{"jsonrpc":"2.0","id":20,"method":"subscribe","params":{"topics":["nodes","devices","status"]}}`); r["result"] == nil {
+			t.Fatalf("subscribe: %v", r)
+		}
+	}
+	c.ws.WriteMessage(websocket.TextMessage, []byte(`{"jsonrpc":"2.0","id":21,"method":"device.set","params":{"device":"`+dev+
+		`","lending":"run","request_id":"set-run"}}`))
+	seen := map[string]int{}
+	for m, ok := c.next(5 * time.Second); ok; m, ok = c.next(time.Second) {
+		if m["id"] == float64(21) && m["result"] == nil {
+			t.Fatalf("device.set: %v", m)
+		}
+		if m["method"] == "event" {
+			seen[m["params"].(map[string]any)["type"].(string)]++
+		}
+	}
+	if seen["nodes.changed"] != 1 || seen["device.changed"] != 1 {
+		t.Fatalf("after device.set: %v", seen)
 	}
 }
