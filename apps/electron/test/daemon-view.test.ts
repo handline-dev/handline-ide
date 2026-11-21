@@ -15,6 +15,8 @@ test('the page reads the daemon state and presses Start or Stop only from the wi
     view: () => ({ state: 'failed', reason: 'the daemon exited at start (exit 1)', canStart }),
     start: () => void started++,
     stop: async () => void stopped++,
+    promote: async () => ({ number: 2, handed_over: true }),
+    keepDoors: () => {},
   });
   assert.deepEqual(d.view(win), { ok: true, state: 'failed', reason: 'the daemon exited at start (exit 1)', canStart: true });
   assert.equal(d.view(frame).ok, false);
@@ -33,6 +35,32 @@ test('the page reads the daemon state and presses Start or Stop only from the wi
   canStart = false;
   assert.equal((await d.stop(win)).ok, false);
   assert.equal(stopped, 1);
+});
+
+test("Make this Mac the master goes to this Mac's daemon only from the window and only on a runner; doors are checked", async () => {
+  let runner: { node: string } | null = null;
+  const kept: unknown[] = [];
+  const d = new DaemonView(ORIGIN, {
+    view: () => ({ state: 'running', reason: '', canStart: true, runner }),
+    start: () => {},
+    stop: async () => {},
+    promote: async () => {
+      throw new Error('this machine keeps no copy of the board');
+    },
+    keepDoors: (doors) => void kept.push(doors),
+  });
+  assert.equal((await d.promote(win)).ok, false);
+  runner = { node: 'n-1' };
+  assert.equal((await d.promote(frame)).ok, false);
+  assert.deepEqual(await d.promote(win), { ok: false, code: 'cannot_promote', message: 'this machine keeps no copy of the board' });
+  const fp = 'ab'.repeat(32);
+  assert.deepEqual(d.keepDoors(win, [{ addr: '10.0.0.2:7443', fp }]), { ok: true });
+  assert.equal(d.keepDoors(win, [{ addr: '10.0.0.2', fp }]).ok, false);
+  assert.deepEqual(d.keepDoors(win, [{ addr: '127.0.0.1:7462', fp: '' }]), { ok: true });
+  assert.equal(d.keepDoors(win, [{ addr: 'evil.example:443', fp: '' }]).ok, false);
+  assert.equal(d.keepDoors(win, [{ addr: '10.0.0.2:7443', fp: 'zz' }]).ok, false);
+  assert.equal(d.keepDoors(frame, [{ addr: '10.0.0.2:7443', fp }]).ok, false);
+  assert.deepEqual(kept, [[{ addr: '10.0.0.2:7443', fp }], [{ addr: '127.0.0.1:7462', fp: '' }]]);
 });
 
 test('the preload keeps the last daemon state for a listener that registers after it, and sends every change', async () => {

@@ -3,11 +3,13 @@ import { Store, type KV, type ShellDaemon } from '@handline/app-core';
 import { shell } from '#src/shell.ts';
 import { DataProvider } from '@handline/app-data';
 import { DaemonProvider } from '@handline/app-react';
-import { DaemonClient, webSocketTransport } from '@handline/client';
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { DaemonClient, masterOf, webSocketTransport, type Node } from '@handline/client';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { browserStorage, daemonUrl } from '#src/connection/daemon.ts';
 import { deviceName, forgetToken, inviteCode, loadToken, needsToken, pairWith, tokenRefused } from '#src/connection/pairing.ts';
 import { Button } from '#src/ui/Button.tsx';
+import { doorUrl, Machines, masterConnect } from '#src/connection/cluster.ts';
+import { KeepMachines, MasterName, PromoteButton } from '#src/connection/master.tsx';
 
 export function Connect({ children }: { children: ReactNode }) {
   const [storage] = useState(browserStorage);
@@ -34,11 +36,36 @@ export function Connect({ children }: { children: ReactNode }) {
       live = false;
     };
   }, [url, token, storage]);
+  // The owner's machines: the page joins whichever is master now, with the same token.
+  const machines = useMemo(() => new Machines(storage, url), [storage, url]);
+  const name = useSyncExternalStore(machines.subscribe, () => machines.get().master?.name ?? '');
+  const several = useSyncExternalStore(machines.subscribe, () => machines.get().urls.length > 1);
+  const master = useMemo(() => ({ name, several }), [name, several]);
+  const seen = useCallback(
+    (st: { master: { id: string; number: number }; nodes: Node[] }) => {
+      machines.seen(st);
+      const doors = st.nodes.flatMap((n) => (n.door && doorUrl(n.door) ? [n.door] : []));
+      if (doors.length) void shell()?.keepDoors?.(doors);
+    },
+    [machines],
+  );
   const store = useMemo(() => {
-    const s = new Store(new DaemonClient({ client: 'web-pc', token: token ?? undefined, connect: () => webSocketTransport(url) }));
+    const t = token ?? undefined;
+    const m = masterConnect({ url, kept: machines.get, open: webSocketTransport, token: t });
+    const client = new DaemonClient({
+      client: 'web-pc',
+      token: t,
+      connect: m.connect,
+      master: { floor: () => machines.get().master, below: m.below },
+    });
+    client.onState((st) => {
+      const said = st === 'open' ? masterOf(client.hello) : null;
+      if (said) machines.joined(m.at(), said);
+    });
+    const s = new Store(client);
     if (insecure) s.fail(`Refusing ${url}: use wss:// for a daemon that is not on this machine.`);
     return s;
-  }, [url, insecure, token]);
+  }, [url, insecure, token, machines]);
   const off = insecure || !!failure;
   const error = useSyncExternalStore(
     (f) => store.subscribe(f),
@@ -59,12 +86,15 @@ export function Connect({ children }: { children: ReactNode }) {
     <DaemonProvider store={store} where={url} connect>
       {error && store.served.size === 0 && unreachable ? (
         <AppSkeleton>
-          <Stopped text={error} waiting />
+          <Stopped text={master.several && master.name ? `Can't reach the master, ${master.name}.` : error} waiting />
         </AppSkeleton>
       ) : error && store.served.size === 0 ? (
         <Stopped text={error} />
       ) : (
-        <DataProvider daemonId={url}>{children}</DataProvider>
+        <DataProvider daemonId={url}>
+          <KeepMachines seen={seen} />
+          <MasterName.Provider value={master}>{children}</MasterName.Provider>
+        </DataProvider>
       )}
     </DaemonProvider>
   );
@@ -139,6 +169,7 @@ function Stopped({ text, waiting = false }: { text: string; waiting?: boolean })
         </Button>
       )}
       {tried && daemon?.state === 'starting' && <p className="text-muted">Starting…</p>}
+      {waiting && !failed && <PromoteButton />}
     </div>
   );
 }

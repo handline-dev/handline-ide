@@ -54,6 +54,8 @@ export interface ShellDaemon {
   /** True when the login shell did not answer in time at the daemon's last start, so it runs on the app's own PATH: its missing_tools
    * may name tools that are installed. A restart asks the shell again. Absent from an app that does not say. */
   pathTimedOut?: boolean;
+  /** This Mac's daemon is one of the owner's runners, with its node id: `promote` can make it the master. */
+  runner?: { node: string } | null;
 }
 
 export interface ShellApi {
@@ -162,6 +164,11 @@ export interface ShellApi {
   startDaemon?(): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** Stops the app's own daemon, which stays stopped until started; `cannot_stop` says why not. */
   stopDaemon?(): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_stop'>>;
+  /** Makes this Mac's daemon, a runner, the master (node.promote on its socket): the master hands over, or, when it is gone, this Mac takes
+   * over from its copy. `cannot_promote` carries the daemon's reason. */
+  promote?(): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>>;
+  /** The owner's machines' doors from node.status (fp '' for a plain door), so the window may join whichever is master next. */
+  keepDoors?(doors: { addr: string; fp: string }[]): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** Pairs with another device's daemon, from its `handline://` link or its address and code; the app relaunches on it. */
   pairRemote?(a: { link?: string; address?: string; code?: string }): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_pair'>>;
   /** The page's zoom factor (1 = 100%), read from the window itself: `outerWidth` lags a full-screen change, so the page cannot tell it from its own size. */

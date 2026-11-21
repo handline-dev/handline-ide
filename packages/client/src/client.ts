@@ -17,6 +17,7 @@ import { BytesChannel } from '#src/bytes-channel.ts';
 import { toBase64 } from '#src/byte-terminal-view.ts';
 import { TerminalView } from '#src/terminal-view.ts';
 import { Listeners } from '#src/listeners.ts';
+import { belowFloor } from '#src/master.ts';
 import type { CallParams, ClientOptions, ConnectionState, DocNotice, Handler, HelloResult, Pending } from '#src/client-options.ts';
 
 export type { CallParams, ClientOptions, ConnectionState, HelloResult } from '#src/client-options.ts';
@@ -130,6 +131,7 @@ export class DaemonClient {
     }
     if (this.opts.founder && hello.role !== 'owner')
       throw new RpcError('transport', `the daemon took this app as ${hello.role}: no founder key accepted`);
+    belowFloor(this.opts.master, hello);
     this.hello = hello;
     // Pending writes go first with their old ids and request_ids: a daemon that already did one
     // answers from its stored reply instead of repeating it.

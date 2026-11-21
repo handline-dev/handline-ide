@@ -11,6 +11,7 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
+import { confirmPromote, useThisMacRunner } from '#src/connection/master.tsx';
 
 function AgentsHere({ row }: { row: DeviceRow }) {
   const nameOf = useNameOf();
@@ -97,6 +98,9 @@ function Resources({ row, q }: { row: DeviceRow; q: Devices }) {
 
 export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back: () => void }) {
   const Icon = KIND_ICON[row.kind ?? 'desktop'];
+  // This Mac, when its daemon is one of the owner's runners: it can be made the master.
+  const runner = useThisMacRunner();
+  const here = !!runner && !!row.node && row.node.id === runner.node;
   return (
     <ScrollFade keep={`settings-device-${row.id}`} className="min-h-0 flex-1">
       <Page>
@@ -126,6 +130,7 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
                   </IconButton>
                 }
               >
+                {here && <MenuItem onClick={() => confirmPromote(false)}>Make this Mac the master…</MenuItem>}
                 <MenuItem danger onClick={() => confirmRevoke([row], (id) => q.revoke(id).then(back))}>
                   Revoke…
                 </MenuItem>
