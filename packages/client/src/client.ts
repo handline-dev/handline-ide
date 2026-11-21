@@ -299,8 +299,11 @@ export class DaemonClient {
     switch (method) {
       case 'event': {
         const e = params as WireEvent;
-        if (this.cursor !== undefined && e.cursor <= this.cursor) return; // replayed twice
-        this.cursor = e.cursor;
+        if (e.cursor > 0) {
+          // cursor 0 is a live-only event (devices): no replay sends it twice, and it moves no cursor
+          if (this.cursor !== undefined && e.cursor <= this.cursor) return; // replayed twice
+          this.cursor = e.cursor;
+        }
         this.eventHandlers.emit(e);
         break;
       }
