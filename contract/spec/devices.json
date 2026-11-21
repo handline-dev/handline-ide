@@ -1031,7 +1031,7 @@
       "items": {
        "type": "object"
       },
-      "description": "Each Claude account folder there logged in to an account: name, email and dir (its config dir, relative to the runner's home)."
+      "description": "Each Claude account folder there logged in to an account: name, email, dir (its config dir, relative to the runner's home), reading (its newest usage reading: age_s, and windows of minutes, pct and reset) and login_failed (its login was refused even after a real turn)."
      }
     },
     {
