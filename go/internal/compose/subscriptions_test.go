@@ -37,7 +37,7 @@ func TestAPlanThatCannotBeReadLeavesTheRecordedOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", t.TempDir()) // no claude to ask
-	got, err := vendorPlans{home, ""}.Refresh("a1")
+	got, err := vendorPlans{home: home}.Refresh("a1")
 	if err != nil || got != "pro" {
 		t.Fatalf("got %q, %v", got, err)
 	}
@@ -54,7 +54,8 @@ func TestAPlanIsAskedOfTheConfiguredClaude(t *testing.T) {
 	if err := os.WriteFile(cli, []byte("#!/bin/sh\necho '{\"subscriptionType\": \"max\"}'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := (vendorPlans{home, cli}).Refresh("a1"); err != nil || got != "max" {
+	// No deadline: this checks which claude is asked, not how fast a fake written a moment ago first runs on a loaded machine.
+	if got, err := (vendorPlans{home: home, cli: cli, wait: -1}).Refresh("a1"); err != nil || got != "max" {
 		t.Fatalf("got %q, %v", got, err)
 	}
 }
