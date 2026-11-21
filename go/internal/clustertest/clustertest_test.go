@@ -3,8 +3,11 @@ package clustertest
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/handline/handline/go/internal/cluster"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/protected"
 )
@@ -64,5 +67,26 @@ func TestTwoRunnersBothJoin(t *testing.T) {
 		if n.Running() {
 			t.Fatalf("%s still runs after Stop", n.Name)
 		}
+	}
+}
+
+// A joined runner runs in runner mode: no board, linked to the master; its own socket answers hello but forwards only its agents' calls.
+func TestARunnerRunsLinkedToTheMasterAndForwardsOnlyItsAgents(t *testing.T) {
+	c := Start(t, Opts{})
+	r := c.Runners[0]
+	for end := time.Now().Add(cluster.JoinWait); ; time.Sleep(100 * time.Millisecond) {
+		b, _ := os.ReadFile(r.Log())
+		if strings.Contains(string(b), "runner mode") && strings.Contains(string(b), "linked to the master") {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("the runner did not link: %s", b)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(r.Home, "db.sqlite")); err == nil {
+		t.Fatal("the runner opened a board")
+	}
+	if _, err := r.Call("node.status", nil); err == nil || !strings.Contains(err.Error(), "runner") {
+		t.Fatalf("the runner's founder call: %v", err)
 	}
 }

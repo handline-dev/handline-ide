@@ -76,7 +76,9 @@ type Server struct {
 	// Note, when set on the local server, records what a hello's note says: a command's verb and the programs above it.
 	Note func(agent, kind string, argv []string, chain string)
 	// Names, when set, is the database who words resolve in (addr.Resolve): the home's. With none, they reach the handler as sent.
-	Names        *sql.DB
+	Names *sql.DB
+	// Fallback, when set, answers a method the server does not serve, after hello: a runner's forwarding, whose calls the master checks.
+	Fallback     func(c *Conn, name string, params map[string]any) (any, error)
 	capabilities []func() map[string]any
 	methods      map[string]Method
 	order        []string
@@ -199,7 +201,20 @@ type Conn struct {
 	// callName and callRID name the write in hand while its handler runs (see Effect); calls on a plain connection run one at a time,
 	// so if that ever changes they move into the call.
 	callName, callRID string
+	calls             outCalls // the calls this end makes to the client (Call)
+	root              *Conn    // the connection a call that runs beside the loop came on; nil on that connection itself
 }
+
+// Root is the connection this call came on: c itself, or the one whose loop a call running beside it (Waits, Read) was read from.
+func (c *Conn) Root() *Conn {
+	if c.root != nil {
+		return c.root
+	}
+	return c
+}
+
+// HelloClient is the client the connection's hello named.
+func (c *Conn) HelloClient() string { return c.helloClient }
 
 // NetGate is what a network server knows of paired devices: a call from a connection that no device token
 // opened is refused before any method runs.
@@ -249,8 +264,10 @@ func (s *Server) ServeNet(tr Transport, remote string, closeConn func()) {
 }
 
 func (s *Server) serve(tr Transport, pid int, remote string, closeConn func()) {
-	c := &Conn{srv: s, tr: tr, Pid: pid, Remote: remote, closeFn: closeConn, done: make(chan struct{}), reads: make(chan struct{}, ReadsBeside)}
+	c := &Conn{srv: s, tr: tr, Pid: pid, Remote: remote, closeFn: closeConn, done: make(chan struct{}), reads: make(chan struct{}, ReadsBeside),
+		calls: outCalls{prefix: "d"}}
 	defer func() {
+		c.calls.close()
 		close(c.done)
 		c.waiting.Wait()
 		for _, f := range c.onClose {
@@ -348,14 +365,17 @@ func unpairedReply(raw []byte) map[string]any {
 	return map[string]any{"jsonrpc": "2.0", "id": rid, "error": UnpairedError().wire()}
 }
 
-func (c *Conn) send(obj map[string]any) bool {
+func (c *Conn) send(obj map[string]any) bool { return sendOn(c.tr, &c.wmu, obj) }
+
+// sendOn writes obj as one message on tr, one writer at a time; false when it cannot.
+func sendOn(tr Transport, mu *sync.Mutex, obj map[string]any) bool {
 	b, err := json.Marshal(obj)
 	if err != nil {
 		return false
 	}
-	c.wmu.Lock()
-	defer c.wmu.Unlock()
-	return c.tr.WriteMessage(b) == nil
+	mu.Lock()
+	defer mu.Unlock()
+	return tr.WriteMessage(b) == nil
 }
 
 func decode(raw []byte) (any, error) {
@@ -379,6 +399,9 @@ func (c *Conn) one(raw []byte) bool {
 			"error": BadRequestError("not JSON: "+err.Error(), "", ParseError).wire()})
 	}
 	obj, isObj := msg.(map[string]any)
+	if isObj && c.calls.deliver(obj) {
+		return true
+	}
 	var rid any
 	if isObj {
 		switch v := obj["id"].(type) {
@@ -479,6 +502,10 @@ func (c *Conn) route(msg any) (routed, error) {
 		return routed{}, BadRequestError("the first call is hello", "method", BadRequest)
 	}
 	m, found := c.srv.methods[name]
+	if !found && c.srv.Fallback != nil {
+		at := c
+		return routed{run: func() (any, error) { return c.srv.Fallback(at, name, params) }}, nil
+	}
 	if !found {
 		return routed{}, BadRequestError("no such method: "+name, "method", NoSuchMethod)
 	}
@@ -499,7 +526,7 @@ func (c *Conn) route(msg any) (routed, error) {
 	at := c
 	if beside {
 		at = &Conn{srv: c.srv, tr: c.tr, Pid: c.Pid, Remote: c.Remote, Caller: c.Caller, saidHello: c.saidHello, done: c.done,
-			helloClient: c.helloClient, cwd: c.cwd}
+			helloClient: c.helloClient, cwd: c.cwd, root: c.Root()}
 	}
 	return routed{waits: beside, read: m.Read && !m.Waits, run: func() (any, error) {
 		var result any

@@ -12,6 +12,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.set` | owner | yes | `device`, `lending`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
 | `device.push_token` | owner | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 | `node.status` | agent |  | none | `{master, nodes}` |  |  | `nodes`, fed by nodes |
+| `node.forward` | owner |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 
 ### `devices.list`
 
@@ -40,4 +41,8 @@ A paired device gives the push token its OS gave it. Called by the paired device
 ### `node.status`
 
 The machines of this master, its own first. Read only. The master's own machine and the machines lent to it on run or pause (device.set).
+
+### `node.forward`
+
+A runner's call for one of its agents, run on the master as that agent. Only on a runner's link: the connection a joined machine's daemon keeps open to the master with its device token; any other connection is refused, gate `node`. The master runs it only for an agent whose session it opened on that runner (gate `not_on_node`), never hello, node.forward, subscribe, unsubscribe or a runner.* call (gate `method`). The forwarded call's result or error comes back unchanged.
 

@@ -34,27 +34,9 @@ func Join(home, link, name, kind, node string) (joined.Master, error) {
 	if b, err := hex.DecodeString(fp); err != nil || fp != "" && len(b) != sha256.Size {
 		return joined.Master{}, errors.New("the pairing link's fp is not a sha256 fingerprint")
 	}
-	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	scheme := "ws"
-	if fp != "" {
-		scheme = "wss"
-		dialer.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true, // the master's certificate is its own: the fingerprint the link names is what is trusted
-			VerifyConnection: func(cs tls.ConnectionState) error {
-				if len(cs.PeerCertificates) == 0 {
-					return errors.New("the master showed no certificate")
-				}
-				sum := sha256.Sum256(cs.PeerCertificates[0].Raw)
-				if hex.EncodeToString(sum[:]) != fp {
-					return errors.New("the master's certificate is not the one the pairing link names")
-				}
-				return nil
-			},
-		}
-	}
-	ws, _, err := dialer.Dial(scheme+"://"+addr+"/rpc", nil)
+	ws, err := DialMaster(addr, fp)
 	if err != nil {
-		return joined.Master{}, fmt.Errorf("cannot reach the master at %s: %w", addr, err)
+		return joined.Master{}, err
 	}
 	defer ws.Close()
 	req := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "device.redeem", "params": map[string]any{
@@ -96,4 +78,31 @@ func Join(home, link, name, kind, node string) (joined.Master, error) {
 		return lost(err)
 	}
 	return m, nil
+}
+
+// DialMaster opens the master's /rpc at addr over a websocket, pinned to the certificate fingerprint fp ("" for a plain door).
+func DialMaster(addr, fp string) (*websocket.Conn, error) {
+	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
+	scheme := "ws"
+	if fp != "" {
+		scheme = "wss"
+		dialer.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true, // the master's certificate is its own: the fingerprint the link names is what is trusted
+			VerifyConnection: func(cs tls.ConnectionState) error {
+				if len(cs.PeerCertificates) == 0 {
+					return errors.New("the master showed no certificate")
+				}
+				sum := sha256.Sum256(cs.PeerCertificates[0].Raw)
+				if hex.EncodeToString(sum[:]) != fp {
+					return errors.New("the master's certificate is not the one the pairing link names")
+				}
+				return nil
+			},
+		}
+	}
+	ws, _, err := dialer.Dial(scheme+"://"+addr+"/rpc", nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot reach the master at %s: %w", addr, err)
+	}
+	return ws, nil
 }
