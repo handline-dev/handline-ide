@@ -86,7 +86,7 @@ func (r *Registry) boardAccounts(node string, b runner.Beat) map[string]string {
 	return out
 }
 
-// Accounts is, by board account, the config dir of each account logged in on node, in the master's home's terms (a launch built here
+// Accounts is, by board account, the config dir of each account logged in on node (its login not refused), in the master's home's terms (a launch built here
 // makes its paths node's): what an agent there starts on (lifecycle.DevicesPort). Two folders logged in as one email give one account.
 func (r *Registry) Accounts(node string) map[string]string {
 	r.mu.Lock()
@@ -94,7 +94,7 @@ func (r *Registry) Accounts(node string) map[string]string {
 	r.mu.Unlock()
 	out := map[string]string{}
 	for _, a := range h.beat.Accounts {
-		if board := h.accounts[a.Name]; board != "" && a.Dir != "" && filepath.IsLocal(a.Dir) && out[board] == "" {
+		if board := h.accounts[a.Name]; board != "" && !a.LoginFailed && a.Dir != "" && filepath.IsLocal(a.Dir) && out[board] == "" {
 			out[board] = filepath.Join(r.Home, a.Dir)
 		}
 	}
@@ -189,6 +189,11 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 	r.mu.Unlock()
 	if _, err := r.DB.Exec("UPDATE nodes SET last_seen = ? WHERE id = ?", now.Unix(), node); err != nil {
 		return nil, err
+	}
+	for _, a := range b.Accounts {
+		if board := accounts[a.Name]; board != "" && a.Reading != nil && r.Reading != nil {
+			r.Reading(board, *a.Reading)
+		}
 	}
 	if !had || before.beat.Battery != b.Battery {
 		if err := r.battery(node, b.Battery); err != nil {

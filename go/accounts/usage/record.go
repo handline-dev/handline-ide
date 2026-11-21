@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/paths"
@@ -23,11 +24,24 @@ func Record(home string, r Reading) bool {
 	return RecordFile(paths.StatusFile(home, r.Account), r)
 }
 
+// RecordNewer is Record of a reading from another machine, taken only when it is newer than the one held: the newest of every
+// machine's stands.
+func RecordNewer(home string, r Reading) bool {
+	return recordFile(paths.StatusFile(home, r.Account), r, true)
+}
+
 // RecordFile is Record to a given file. The account's directory must exist: a reading for an account that is not there is not made one.
-func RecordFile(path string, r Reading) bool {
+func RecordFile(path string, r Reading) bool { return recordFile(path, r, false) }
+
+// recordMu makes each record's read, merge and write one step: a runner's reading and this machine's can arrive at once.
+var recordMu sync.Mutex
+
+func recordFile(path string, r Reading, onlyNewer bool) bool {
 	if st, err := os.Stat(filepath.Dir(path)); err != nil || !st.IsDir() {
 		return false
 	}
+	recordMu.Lock()
+	defer recordMu.Unlock()
 	prev := map[string]any{}
 	if b, err := os.ReadFile(path); err == nil {
 		var v any
@@ -36,6 +50,9 @@ func RecordFile(path string, r Reading) bool {
 				prev = m
 			}
 		}
+	}
+	if at, ok := isInt(prev["collected_at"]); ok && onlyNewer && int64(at) >= r.At {
+		return false
 	}
 	snap := make(map[string]any, len(prev)+3)
 	for k, v := range prev {

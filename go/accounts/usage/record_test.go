@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/kit/paths"
 )
 
 func pct(n int) *int { return &n }
@@ -76,4 +78,23 @@ func TestRecordDoesNotMakeAnAccountDirectory(t *testing.T) {
 		t.Error("wrote into a missing directory")
 	}
 	_ = json.Number("")
+}
+
+// Another machine's reading is taken only when newer than the one held: the newest of every machine's stands.
+func TestRecordNewerTakesOnlyANewerReading(t *testing.T) {
+	home := t.TempDir()
+	path := paths.StatusFile(home, "a")
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	at := func(when int64, p int) Reading {
+		return Reading{Account: "a", At: when, Windows: []ReadingWindow{{Minutes: 300, Pct: pct(p), Reset: 9000}}}
+	}
+	if !RecordNewer(home, at(1000, 10)) || RecordNewer(home, at(1000, 20)) || RecordNewer(home, at(900, 30)) {
+		t.Fatal("only a reading newer than the held one is written")
+	}
+	if !RecordNewer(home, at(1100, 40)) {
+		t.Fatal("a newer one is")
+	}
+	if n, _ := isInt(entries(readBack(t, path))[0]["used_percent"]); n != 40 {
+		t.Fatalf("held %d", n)
+	}
 }
