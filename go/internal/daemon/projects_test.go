@@ -161,7 +161,7 @@ func TestACommitInAnAgentsWorktreeOnARunnerIsPushed(t *testing.T) {
 		out, _ := exec.Command("git", "-C", bare, "rev-parse", "--verify", "--quiet", "refs/heads/bob").Output()
 		pushed = strings.TrimSpace(string(out))
 		if time.Now().After(end) {
-			rows, _ := rn.Screen(handle, 40)
+			rows, _ := rn.Screen(handle, 40, false)
 			t.Fatalf("the commit %q never reached the remote (it has %q): %q", made, pushed, rows)
 		}
 	}

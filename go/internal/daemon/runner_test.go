@@ -1,7 +1,9 @@
 package daemon
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,7 +42,7 @@ func TestTheMasterDrivesARunnerAndItsAgentsCallsReachTheMasterAsThem(t *testing.
 		t.Helper()
 		var rows []string
 		for end := time.Now().Add(15 * time.Second); time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
-			if rows, err = rn.Screen(handle, 40); err == nil && strings.Contains(strings.Join(rows, "\n"), want) {
+			if rows, err = rn.Screen(handle, 40, false); err == nil && strings.Contains(strings.Join(rows, "\n"), want) {
 				return rows
 			}
 		}
@@ -79,6 +81,61 @@ func TestTheMasterDrivesARunnerAndItsAgentsCallsReachTheMasterAsThem(t *testing.
 	master.db.QueryRow("SELECT COUNT(*) FROM node_sessions").Scan(&left)
 	if left != 0 {
 		t.Fatal("the stopped session is still kept")
+	}
+}
+
+// An app connected to the master attaches the terminal of an agent that runs on a runner: the snapshot and the output come from the
+// runner's tmux over its link, what the app types reaches it, a resize and a scrollback page reach it, and the styled format reads it.
+func TestAnAppAttachesAnAgentsTerminalOnARunnerThroughTheMaster(t *testing.T) {
+	master, node, home, _ := masterAndRunner(t)
+	rn, _ := master.nodes.Runner(node)
+	pane, err := rn.Open("bob", home, "cd "+home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handle := term.RunnerHandle(node, pane)
+	bob := teamtest.Key(t, master.cfg.Home, "bob")
+	if _, err := master.db.Exec(`INSERT INTO agent_state(agent, state, updated, terminal) VALUES(?, 'IDLE', 0, ?)
+		ON CONFLICT(agent) DO UPDATE SET terminal = excluded.terminal`, bob, handle); err != nil {
+		t.Fatal(err)
+	}
+	token, _ := pair(t, master, "app")
+	app := helloAs(t, master, token)
+	r := app.ask(`{"jsonrpc":"2.0","id":2,"method":"terminal.attach","params":{"terminal":"` + handle + `","format":"bytes","history":10}}`)
+	snap, ok := r["result"].(map[string]any)
+	if !ok || snap["terminal"] != handle || snap["format"] != "bytes" || snap["cols"] == nil {
+		t.Fatalf("attach: %v", r)
+	}
+	if r := app.askFor(`{"jsonrpc":"2.0","id":3,"method":"input.take","params":{"agent":"bob","request_id":"take-1"}}`, 3); r["result"] == nil {
+		t.Fatalf("input.take: %v", r)
+	}
+	typed := base64.StdEncoding.EncodeToString([]byte("echo relayed-$((40+2))\r"))
+	if r := app.askFor(`{"jsonrpc":"2.0","id":4,"method":"terminal.input","params":{"terminal":"`+handle+`","data":"`+typed+`","request_id":"in-1"}}`, 4); r["result"] == nil {
+		t.Fatalf("terminal.input: %v", r)
+	}
+	var seen strings.Builder
+	for end := time.Now().Add(15 * time.Second); !strings.Contains(seen.String(), "relayed-42"); {
+		if time.Now().After(end) {
+			t.Fatalf("the output never came: %q", seen.String())
+		}
+		m, _ := app.next(time.Until(end))
+		if p, _ := m["params"].(map[string]any); m["method"] == "output" && p["terminal"] == handle {
+			b, _ := base64.StdEncoding.DecodeString(p["data"].(string))
+			seen.Write(b)
+		}
+	}
+	if r := app.askFor(`{"jsonrpc":"2.0","id":5,"method":"terminal.resize","params":{"terminal":"`+handle+`","cols":101,"rows":31,"request_id":"rs-1"}}`, 5); r["result"] == nil {
+		t.Fatalf("terminal.resize: %v", r)
+	}
+	if c, rows, ok := agenthost.Tmux(home).(term.Sizer).Size(pane); !ok || c != 101 || rows != 31 {
+		t.Fatalf("the runner's pane is %dx%d", c, rows)
+	}
+	if r := app.askFor(`{"jsonrpc":"2.0","id":6,"method":"terminal.history","params":{"terminal":"`+handle+`","format":"bytes","before":1000,"limit":10}}`, 6); r["result"] == nil {
+		t.Fatalf("terminal.history: %v", r)
+	}
+	r = app.askFor(`{"jsonrpc":"2.0","id":7,"method":"terminal.attach","params":{"terminal":"`+handle+`","format":"styled"}}`, 7)
+	if res, _ := r["result"].(map[string]any); res == nil || !strings.Contains(fmt.Sprint(res["lines"]), "relayed-42") {
+		t.Fatalf("styled attach: %v", r)
 	}
 }
 
@@ -178,7 +235,7 @@ func TestAnAgentOnARunnerHasTheMastersFilesAndItsOwnComeBack(t *testing.T) {
 	}
 	var rows []string
 	for end := time.Now().Add(20 * time.Second); time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
-		if rows, _ = rn.Screen(handle, 40); strings.Contains(strings.Join(rows, "\n"), "launched-5") {
+		if rows, _ = rn.Screen(handle, 40, false); strings.Contains(strings.Join(rows, "\n"), "launched-5") {
 			break
 		}
 	}
@@ -378,7 +435,7 @@ func TestARunnersSessionShowsWorkingAndIdleOnTheMaster(t *testing.T) {
 		t.Helper()
 		for end := time.Now().Add(15 * time.Second); tracker.State(bob) != want; time.Sleep(50 * time.Millisecond) {
 			if time.Now().After(end) {
-				rows, _ := rn.Screen(handle, 20)
+				rows, _ := rn.Screen(handle, 20, false)
 				t.Fatalf("%s: bob is %v on the master, want %v; the runner shows %q", what, tracker.State(bob), want, rows)
 			}
 		}

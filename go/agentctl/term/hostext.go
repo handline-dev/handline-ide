@@ -16,6 +16,9 @@ type StyledReader interface {
 	ReadScreenANSI(handle string, limit int) []string
 }
 
+// StyledServer says whether a StyledReader reads styled rows: a host that routes each handle (Machines) has the method either way.
+type StyledServer interface{ ServesStyled() bool }
+
 // HistoryReader reads the scrollback the host keeps itself; ok is false when it is unreadable. Row 0 is the oldest row held.
 type HistoryReader interface {
 	ReadHistory(handle string, before *int, limit int, styled bool) (first int, rows []string, ok bool)

@@ -37,6 +37,8 @@ type Env struct {
 	Bytes *BytesHub
 	// Holds is who holds each terminal's input; nil serves no input, no resize and no holder but the daemon.
 	Holds *inputhold.Store
+	// Relay reaches a runner's terminal (a <node>:<handle> handle) in the bytes format; nil: there are no runners.
+	Relay Relay
 
 	mu    sync.Mutex
 	link  *ControlLink
@@ -68,7 +70,7 @@ func (e *Env) controlLink() *ControlLink {
 	defer e.mu.Unlock()
 	if e.link == nil {
 		argv := []string{"tmux", "-C"}
-		if s, ok := e.Backend().(term.ControlSpawner); ok {
+		if s, ok := e.Backend().(term.ControlSpawner); ok && s.ControlCommand() != nil {
 			argv = s.ControlCommand()
 		}
 		e.link = NewControlLink(SpawnCommand(argv), true)
@@ -126,7 +128,11 @@ func formatParam(params map[string]any) (string, error) {
 	return "", bad("format is text, bytes or styled", "format")
 }
 
-func (e *Env) serves(format string) error {
+// serves refuses a format the host of handle cannot give; a runner's is tmux, which gives them all.
+func (e *Env) serves(handle, format string) error {
+	if _, _, ok := e.onRunner(handle); ok {
+		return nil
+	}
 	h := e.host()
 	switch {
 	case format == "bytes" && !h.ServesBytes():
@@ -308,7 +314,7 @@ func (e *Env) attach(c *rpc.Conn, params map[string]any) (any, error) {
 		return e.attachBytes(c, handle, history, holders)
 	}
 	if format == "styled" {
-		if err := e.serves("styled"); err != nil {
+		if err := e.serves(handle, "styled"); err != nil {
 			return nil, err
 		}
 	}
@@ -323,18 +329,31 @@ func (e *Env) attach(c *rpc.Conn, params map[string]any) (any, error) {
 }
 
 func (e *Env) attachBytes(c *rpc.Conn, handle string, history int, holders []map[string]any) (any, error) {
-	if err := e.serves("bytes"); err != nil {
+	if err := e.serves(handle, "bytes"); err != nil {
 		return nil, err
 	}
-	link := e.controlLink()
-	if !link.Start() {
-		return nil, rpc.Refused("the terminal host could not be reached", "state", "")
-	}
 	client := NewBytesClient(sender(c), c.HangUp)
-	ch := e.Bytes.Channel(handle, link)
-	snap := ch.Attach(client, history)
-	if snap == nil {
-		return nil, rpc.Refused("the terminal's screen could not be read", "state", "")
+	var ch *BytesChannel
+	var out map[string]any
+	if node, pane, ok := e.onRunner(handle); ok {
+		ch = e.Bytes.relayChannel(handle, e.Relay, node, pane)
+		reply, err := ch.attachRelayed(client, history)
+		if err != nil {
+			return nil, rpc.Refused("the terminal on "+node+" could not be attached: "+err.Error(), "state", "")
+		}
+		out = reply
+	} else {
+		link := e.controlLink()
+		if !link.Start() {
+			return nil, rpc.Refused("the terminal host could not be reached", "state", "")
+		}
+		ch = e.Bytes.Channel(handle, link)
+		snap := ch.Attach(client, history)
+		if snap == nil {
+			return nil, rpc.Refused("the terminal's screen could not be read", "state", "")
+		}
+		out = snap.encode()
+		out["history"] = snap.history()
 	}
 	c.AfterReply(func() { ch.Begin(client) })
 	e.hold(c, handle, "bytes", func() { ch.Detach(client) })
@@ -342,10 +361,17 @@ func (e *Env) attachBytes(c *rpc.Conn, handle string, history int, holders []map
 	if len(holders) > 0 {
 		holder = holders[0]
 	}
-	out := snap.encode()
 	out["terminal"], out["format"], out["seq"] = handle, "bytes", client.Seq
-	out["history"], out["holder"], out["holders"] = snap.history(), holder, holders
+	out["holder"], out["holders"] = holder, holders
 	return out, nil
+}
+
+// onRunner is the runner and its own handle when handle is a runner's terminal and this daemon has runners.
+func (e *Env) onRunner(handle string) (node, pane string, ok bool) {
+	if e.Relay == nil {
+		return "", "", false
+	}
+	return term.OnRunner(handle)
 }
 
 // open is where an agent's terminal is and how a person on this machine attaches to it, for the one button that opens it when the agent
@@ -368,12 +394,14 @@ func (e *Env) open(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, notFound(agent+" has no terminal open", "terminal", agent)
 	}
 	var attach any
-	if a, ok := b.(term.Attacher); ok {
-		attach = map[string]any{"argv": a.AttachCommand()}
-	}
 	focused := false
-	if f, ok := b.(term.Focuser); ok {
-		focused = f.Focus(handle)
+	if _, _, remote := term.OnRunner(handle); !remote { // a runner's terminal is attached in the app, through this daemon
+		if a, ok := b.(term.Attacher); ok && a.AttachCommand() != nil {
+			attach = map[string]any{"argv": a.AttachCommand()}
+		}
+		if f, ok := b.(term.Focuser); ok {
+			focused = f.Focus(handle)
+		}
 	}
 	return map[string]any{"agent": agent, "terminal": handle, "host": b.Name(), "attach": attach, "focused": focused, "local": c.Remote == ""}, nil
 }
@@ -430,8 +458,15 @@ func (e *Env) history(_ *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	if format == "bytes" {
-		if err := e.serves("bytes"); err != nil {
+		if err := e.serves(handle, "bytes"); err != nil {
 			return nil, err
+		}
+		if node, pane, ok := e.onRunner(handle); ok {
+			page, err := e.Relay.Call(node, "runner.history", map[string]any{"handle": pane, "before": before, "limit": limit})
+			if err != nil {
+				return nil, rpc.Refused("the scrollback on "+node+" could not be read: "+err.Error(), "state", "")
+			}
+			return page, nil
 		}
 		link := e.controlLink()
 		if !link.Start() {
@@ -444,7 +479,7 @@ func (e *Env) history(_ *rpc.Conn, params map[string]any) (any, error) {
 		return page, nil
 	}
 	if format == "styled" {
-		if err := e.serves("styled"); err != nil {
+		if err := e.serves(handle, "styled"); err != nil {
 			return nil, err
 		}
 	}

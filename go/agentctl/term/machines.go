@@ -15,6 +15,11 @@ type Remote interface {
 	Close(node, handle string) error
 	Respawn(node, handle string) error
 	Terminals(node string) ([]string, error)
+	// ScreenANSI is Screen's rows with their SGR codes kept.
+	ScreenANSI(node, handle string, rows int) ([]string, error)
+	SendBytes(node, handle string, data []byte) error
+	Size(node, handle string) (cols, rows int, err error)
+	Resize(node, handle string, cols, rows int) error
 }
 
 // Machines is the one way to the terminals agents run in, on this machine or on a runner: each call goes by its handle. This machine's
@@ -210,14 +215,122 @@ func (m *Machines) ListPanes() ([]Pane, bool) {
 	return nil, false
 }
 
+// ReadScreenANSI and the rest below are what the terminal channel asks: a runner's terminal over its link, this machine's from its host
+// when the host does it. A runner keeps no scrollback or cursor the master reads.
+func (m *Machines) ReadScreenANSI(handle string, limit int) []string {
+	node, h, ok := m.remote(handle)
+	if !ok {
+		if l, ok := m.Local.(StyledReader); ok {
+			return l.ReadScreenANSI(handle, limit)
+		}
+		return nil
+	}
+	rows, err := m.Remote.ScreenANSI(node, h, limit)
+	if err != nil {
+		return nil
+	}
+	return rows
+}
+
+// ServesStyled, ServesBytes and ControlCommand are this machine's host's; termchan asks them only for this machine's terminals.
+func (m *Machines) ServesStyled() bool { _, ok := m.Local.(StyledReader); return ok }
+
+func (m *Machines) SendBytes(handle string, data []byte) (bool, string) {
+	node, h, ok := m.remote(handle)
+	if !ok {
+		if l, ok := m.Local.(BytesSender); ok {
+			return l.SendBytes(handle, data)
+		}
+		return false, "the " + m.Name() + " terminal host cannot send raw bytes"
+	}
+	if err := m.Remote.SendBytes(node, h, data); err != nil {
+		return false, err.Error()
+	}
+	return true, ""
+}
+
+func (m *Machines) Size(handle string) (int, int, bool) {
+	node, h, ok := m.remote(handle)
+	if !ok {
+		if l, ok := m.Local.(Sizer); ok {
+			return l.Size(handle)
+		}
+		return 0, 0, false
+	}
+	cols, rows, err := m.Remote.Size(node, h)
+	return cols, rows, err == nil
+}
+
+func (m *Machines) Resize(handle string, cols, rows int) (bool, string) {
+	node, h, ok := m.remote(handle)
+	if !ok {
+		if l, ok := m.Local.(Sizer); ok {
+			return l.Resize(handle, cols, rows)
+		}
+		return false, "the host has no resize"
+	}
+	if err := m.Remote.Resize(node, h, cols, rows); err != nil {
+		return false, err.Error()
+	}
+	return true, ""
+}
+
+func (m *Machines) Cursor(handle string) *Cursor {
+	if l, ok := m.Local.(CursorReader); ok && !m.isRemote(handle) {
+		return l.Cursor(handle)
+	}
+	return nil
+}
+
+func (m *Machines) ReadHistory(handle string, before *int, limit int, styled bool) (int, []string, bool) {
+	if l, ok := m.Local.(HistoryReader); ok && !m.isRemote(handle) {
+		return l.ReadHistory(handle, before, limit, styled)
+	}
+	return 0, nil, false
+}
+
+func (m *Machines) ServesBytes() bool {
+	s, ok := m.Local.(ControlSpawner)
+	_, sends := m.Local.(BytesSender)
+	return ok && sends && s.ServesBytes()
+}
+
+func (m *Machines) ControlCommand() []string {
+	if s, ok := m.Local.(ControlSpawner); ok {
+		return s.ControlCommand()
+	}
+	return nil
+}
+
+func (m *Machines) AttachCommand() []string {
+	if a, ok := m.Local.(Attacher); ok {
+		return a.AttachCommand()
+	}
+	return nil
+}
+
+func (m *Machines) Focus(handle string) bool {
+	if f, ok := m.Local.(Focuser); ok && !m.isRemote(handle) {
+		return f.Focus(handle)
+	}
+	return false
+}
+
 func (m *Machines) isRemote(handle string) bool { _, _, ok := m.remote(handle); return ok }
 
 var (
-	_ Backend     = (*Machines)(nil)
-	_ Host        = (*Machines)(nil)
-	_ Shells      = (*Machines)(nil)
-	_ Runs        = (*Machines)(nil)
-	_ PaneAgenter = (*Machines)(nil)
-	_ panePidder  = (*Machines)(nil)
-	_ PaneLister  = (*Machines)(nil)
+	_ Backend        = (*Machines)(nil)
+	_ Host           = (*Machines)(nil)
+	_ Shells         = (*Machines)(nil)
+	_ Runs           = (*Machines)(nil)
+	_ PaneAgenter    = (*Machines)(nil)
+	_ panePidder     = (*Machines)(nil)
+	_ PaneLister     = (*Machines)(nil)
+	_ StyledReader   = (*Machines)(nil)
+	_ BytesSender    = (*Machines)(nil)
+	_ Sizer          = (*Machines)(nil)
+	_ CursorReader   = (*Machines)(nil)
+	_ HistoryReader  = (*Machines)(nil)
+	_ ControlSpawner = (*Machines)(nil)
+	_ StyledServer   = (*Machines)(nil)
 )
