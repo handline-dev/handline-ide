@@ -24,15 +24,15 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `session.restart` | agent | yes | `agent`, `fresh?`, `force?`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: restart |
 | `session.compact` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: compact |
 | `session.park` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: park |
-| `session.input` | member | yes | `agent`, `text`, `enter?`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder, wall, screen_blocker, unsupported | uncached: type |
-| `session.keys` | member | yes | `agent`, `keys`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
-| `session.interrupt` | member | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder | decided: interrupt |
+| `session.input` | owner | yes | `agent`, `text`, `enter?`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder, wall, screen_blocker, unsupported | uncached: type |
+| `session.keys` | owner | yes | `agent`, `keys`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
+| `session.interrupt` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder | decided: interrupt |
 | `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings}` | `refused`, `not_found` | role, state | not cached |
 | `prompt.list` | member |  | `agent` | `{prompts} & ReadCursor` | `not_found` |  | `prompts` by agent, fed by notifications |
-| `prompt.answer` | member | yes | `agent`, `prompt`, `choice`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `stale_prompt` | role, terminal_lock, input_holder | decided: answer |
+| `prompt.answer` | owner | yes | `agent`, `prompt`, `choice`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `stale_prompt` | role, terminal_lock, input_holder | decided: answer |
 | `permission.ask` | agent |  | `tool`, `input` | `{behavior, message}` | `bad_request`, `refused` |  | not cached |
-| `input.take` | member | yes | `agent`, `force?`, `request_id` | `Accepted & {holder}` | `refused`, `not_found` | role, input_holder, unsupported | decided: take control |
-| `input.release` | member | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, unsupported | decided: release |
+| `input.take` | owner | yes | `agent`, `force?`, `request_id` | `Accepted & {holder}` | `refused`, `not_found` | role, input_holder, unsupported | decided: take control |
+| `input.release` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, unsupported | decided: release |
 | `agent.strip` | member |  | `agent` | `{agent, model, account, ctx_pct, ctx_used, ctx_limit, cache_left_s, screen_word, screen_detail} & ReadCursor` | `not_found`, `bad_request` |  | `strip` by agent, fed by agents |
 | `progress.get` | agent (only agent) |  | none | `{note}` |  |  | not cached |
 | `say` | agent | yes | `target`, `body`, `parent?`, `files?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | not from the app |

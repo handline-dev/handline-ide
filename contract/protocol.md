@@ -20,7 +20,7 @@ The first call is hello. Compatibility: adding a method or field never changes p
 
 ## Roles
 
-Order: anonymous < agent < member < owner. x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a person of team mode; no caller is given it before then. A paired device acts with its person's role, so the owner's local and paired callers are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.keys acts at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach.
+Order: anonymous < agent < member < owner. x-role on a method is the lowest role that may call it. Roles are proven, not assumed. owner: the connection said hello with the founder key and it matches (a Unix-socket peer being the same user proves nothing, because agents run as that user). agent: the peer pid verifies against a recorded session. member: a paired device of a person with role member (person.invite, person.set_role). A paired device acts with its person's role, so the owner's local callers and devices are owner. Anything else is anonymous: on the Unix socket it may call only hello and device.redeem; on the network listener it is unpaired and may call only device.redeem (see Framing, network). A call below its role is refused, gate `role`. session.keys acts at a shell prompt as they do anywhere in the pane: only a paired device can connect to the network listener and an unpaired caller gets no data, so a shell is within what a paired device may reach.
 
 ## Errors
 
@@ -93,7 +93,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [devices](gen/devices.md): 8 methods
 - [repos](gen/repos.md): 18 methods
 - [tasks](gen/tasks.md): 40 methods
-- [team](gen/team.md): 14 methods
+- [team](gen/team.md): 17 methods
 - [terminal](gen/terminal.md): 8 methods
 
 ## Who the caller is

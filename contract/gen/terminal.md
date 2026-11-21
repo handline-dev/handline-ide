@@ -7,11 +7,11 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `terminal.attach` | member |  | `agent?`, `terminal?`, `history?`, `format?` | `TerminalSnapshot \| TerminalBytesSnapshot` | `not_found`, `bad_request`, `refused` | unsupported | not cached |
 | `terminal.history` | member |  | `terminal`, `before`, `limit`, `format?` | `HistoryPage \| HistoryBytesPage` | `not_found`, `refused`, `bad_request` | unsupported | not cached |
-| `terminal.resize` | member | yes | `terminal`, `cols`, `rows`, `request_id` | `Accepted` | `refused`, `not_found` | role, input_holder | uncached: resize |
-| `terminal.input` | member | yes | `terminal`, `data`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
+| `terminal.resize` | owner | yes | `terminal`, `cols`, `rows`, `request_id` | `Accepted` | `refused`, `not_found` | role, input_holder | uncached: resize |
+| `terminal.input` | owner | yes | `terminal`, `data`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
 | `terminal.open` | member |  | `agent` | `TerminalOpening` | `not_found`, `bad_request`, `refused` | role, unsupported | not cached |
-| `shell.open` | member | yes | `agent`, `command?`, `block?`, `request_id` | `ShellOpening` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: open shell |
-| `shell.close` | member | yes | `terminal`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: close shell |
+| `shell.open` | owner | yes | `agent`, `command?`, `block?`, `request_id` | `ShellOpening` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: open shell |
+| `shell.close` | owner | yes | `terminal`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: close shell |
 | `terminal.detach` | member |  | `terminal`, `format?` | `object` | `not_found`, `bad_request` |  | not cached |
 
 ### `terminal.attach`

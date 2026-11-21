@@ -428,13 +428,18 @@
        "owner",
        "member"
       ]
+     },
+     "removed": {
+      "type": "boolean",
+      "description": "The owner removed them (person.remove): kept so their past words still name them, with no device and no login."
      }
     },
     "required": [
      "key",
      "display_name",
      "handle",
-     "role"
+     "role",
+     "removed"
     ]
    },
    "Workspace": {
@@ -724,6 +729,183 @@
      "$ref": "#/components/errors/bad_request"
     }
    ]
+  },
+  {
+   "name": "person.invite",
+   "summary": "Add a person; device.pair with their key makes the link that pairs their first device.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "display_name",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "role",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "owner",
+       "member"
+      ],
+      "description": "member when left out."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "accepted": {
+       "type": "boolean",
+       "const": true
+      },
+      "person": {
+       "type": "string",
+       "description": "The new person's key."
+      }
+     },
+     "required": [
+      "accepted",
+      "person"
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "invite"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Adds the person with their role (member when left out). Their first device pairs with a code from device.pair given `person`: that device is theirs and acts with their role, and they pair more of their own with device.pair. A retry with the same request_id is the same person."
+  },
+  {
+   "name": "person.set_role",
+   "summary": "Make a person an owner or a member.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "person",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The person's key, p<n>."
+     }
+    },
+    {
+     "name": "role",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "owner",
+       "member"
+      ]
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "change role"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "The owner decides (trust, settings, people, gates); a member gives work, comments, chats and lends machines. The founder (p1) stays an owner, and so does the last owner (gate `last_owner`). The person's open connections close, and their devices act with the new role from their next login."
+  },
+  {
+   "name": "person.remove",
+   "summary": "Remove a person: their devices are revoked and their machines leave.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "person",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The person's key, p<n>."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "remove"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Every device of theirs is revoked as device.revoke does (connections closed at once, a lent machine leaves), the codes made for them stop working, and they can no longer log in. The person stays in people.list as removed, so their past words, tasks and comments still name them. The founder (p1) and the last owner cannot be removed (gate `last_owner`)."
   },
   {
    "name": "workspaces.list",
@@ -1276,7 +1458,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -1325,7 +1507,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -1370,7 +1552,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",

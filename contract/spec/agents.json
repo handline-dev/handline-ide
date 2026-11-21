@@ -2403,7 +2403,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "uncached",
@@ -2465,7 +2465,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "uncached",
@@ -2517,7 +2517,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -2828,7 +2828,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -2968,7 +2968,7 @@
      ]
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",
@@ -3016,7 +3016,7 @@
      "$ref": "#/components/schemas/Accepted"
     }
    },
-   "x-role": "member",
+   "x-role": "owner",
    "x-write": true,
    "x-app-write": {
     "kind": "decided",

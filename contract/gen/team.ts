@@ -145,6 +145,8 @@ export type Person = {
   /** The word other people address them by in team mode; null in personal mode. */
   handle: string | null;
   role: "owner" | "member";
+  /** The owner removed them (person.remove): kept so their past words still name them, with no device and no login. */
+  removed: boolean;
 };
 
 export type Workspace = {
@@ -204,6 +206,27 @@ export interface TeamMethods {
   "people.list": { params: { [key: string]: unknown }; result: {
     people: Person[];
   } };
+  "person.invite": { params: {
+  display_name: string;
+  /** member when left out. */
+  role?: "owner" | "member";
+  request_id: RequestId;
+}; result: {
+    accepted: true;
+    /** The new person's key. */
+    person: string;
+  } };
+  "person.set_role": { params: {
+  /** The person's key, p<n>. */
+  person: string;
+  role: "owner" | "member";
+  request_id: RequestId;
+}; result: Accepted };
+  "person.remove": { params: {
+  /** The person's key, p<n>. */
+  person: string;
+  request_id: RequestId;
+}; result: Accepted };
   "workspaces.list": { params: { [key: string]: unknown }; result: {
     workspaces: Workspace[];
   } };
@@ -297,6 +320,9 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "proposal.propose": { role: "agent", callers: null, write: true, since: 1 },
   "proposal.withdraw": { role: "agent", callers: null, write: true, since: 1 },
   "people.list": { role: "agent", callers: null, write: false, since: 1 },
+  "person.invite": { role: "owner", callers: null, write: true, since: 1 },
+  "person.set_role": { role: "owner", callers: null, write: true, since: 1 },
+  "person.remove": { role: "owner", callers: null, write: true, since: 1 },
   "workspaces.list": { role: "agent", callers: null, write: false, since: 1 },
   "workspace.create": { role: "owner", callers: null, write: true, since: 1 },
   "workspace.set": { role: "owner", callers: null, write: true, since: 1 },
@@ -305,9 +331,9 @@ export const TEAM_METHODS: { [K in keyof TeamMethods]: { role: Role; callers: Ro
   "workspace.rule.set": { role: "owner", callers: null, write: true, since: 1 },
   "team.get": { role: "agent", callers: null, write: false, since: 1 },
   "proposal.list": { role: "agent", callers: null, write: false, since: 1 },
-  "proposal.decide": { role: "member", callers: null, write: true, since: 1 },
-  "proposal.apply_now": { role: "member", callers: null, write: true, since: 1 },
-  "proposal.stop": { role: "member", callers: null, write: true, since: 1 },
+  "proposal.decide": { role: "owner", callers: null, write: true, since: 1 },
+  "proposal.apply_now": { role: "owner", callers: null, write: true, since: 1 },
+  "proposal.stop": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
@@ -320,9 +346,12 @@ export const TEAM_APP_CACHE: { [K in "people.list" | "workspaces.list" | "worksp
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "workspace.create" | "workspace.set" | "workspace.delete" | "workspace.rule.set" | "proposal.decide" | "proposal.apply_now" | "proposal.stop"]: { kind: WriteKind; label: string } | false } = {
+export const TEAM_APP_WRITES: { [K in "proposal.propose" | "proposal.withdraw" | "person.invite" | "person.set_role" | "person.remove" | "workspace.create" | "workspace.set" | "workspace.delete" | "workspace.rule.set" | "proposal.decide" | "proposal.apply_now" | "proposal.stop"]: { kind: WriteKind; label: string } | false } = {
   "proposal.propose": false,
   "proposal.withdraw": {"kind": "decided", "label": "withdraw"},
+  "person.invite": {"kind": "decided", "label": "invite"},
+  "person.set_role": {"kind": "decided", "label": "change role"},
+  "person.remove": {"kind": "decided", "label": "remove"},
   "workspace.create": {"kind": "decided", "label": "create workspace"},
   "workspace.set": {"kind": "decided", "label": "rename workspace"},
   "workspace.delete": {"kind": "decided", "label": "delete workspace"},

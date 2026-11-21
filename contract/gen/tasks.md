@@ -36,9 +36,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
 | `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `parent?`, `no_parent?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
 | `task.plan` | agent | yes | `task`, `text`, `request_id` | `Accepted & {version}` | `refused`, `not_found`, `bad_request` |  | decided: plan |
-| `task.plan_ok` | member | yes | `task`, `ok?`, `version?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: plan OK |
-| `task.ok` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: OK, merge |
-| `task.redo` | member | yes | `task`, `note`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: Redo |
+| `task.plan_ok` | owner | yes | `task`, `ok?`, `version?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: plan OK |
+| `task.ok` | owner | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: OK, merge |
+| `task.redo` | owner | yes | `task`, `note`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: Redo |
 | `task.plan_ask` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for a plan |
 | `task.core_ask` | member | yes | `task`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: ask for core logic |
 | `lesson.add` | agent (only agent) | yes | `text`, `task`, `about?`, `said?`, `request_id` | `Accepted & {id}` | `refused`, `not_found`, `bad_request` |  | not from the app |

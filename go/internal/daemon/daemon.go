@@ -640,6 +640,7 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	}
 	nodes.Register(s, func() *rpc.Server { return d.local }, d.nodes)
 	devices.Register(s, d.dev, d.hub.Emit)
+	devices.RegisterPeople(s, d.dev)
 	stream.Register(s, d.hub)
 	if d.cfg.Transcripts {
 		s.DeclareCapabilities(func() map[string]any { return map[string]any{"transcript": true} })
