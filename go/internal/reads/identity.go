@@ -47,7 +47,7 @@ func WithIdent(view map[string]any, key string, ids map[string]Ident) {
 
 // peopleList is people.list: every person, by key.
 func (e *Env) peopleList(c *rpc.Conn, params map[string]any) (any, error) {
-	rs, err := e.DB.Query("SELECT id, display_name, handle, role FROM people ORDER BY id")
+	rs, err := e.DB.Query("SELECT id, display_name, handle, role, removed_at IS NOT NULL FROM people ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -57,14 +57,15 @@ func (e *Env) peopleList(c *rpc.Conn, params map[string]any) (any, error) {
 		var id int64
 		var name, role string
 		var handle sql.NullString
-		if err := rs.Scan(&id, &name, &handle, &role); err != nil {
+		var removed bool
+		if err := rs.Scan(&id, &name, &handle, &role, &removed); err != nil {
 			return nil, err
 		}
 		var h any
 		if handle.Valid {
 			h = handle.String
 		}
-		people = append(people, map[string]any{"key": actor.Key(actor.Person, id), "display_name": name, "handle": h, "role": role})
+		people = append(people, map[string]any{"key": actor.Key(actor.Person, id), "display_name": name, "handle": h, "role": role, "removed": removed})
 	}
 	return map[string]any{"people": people}, rs.Err()
 }

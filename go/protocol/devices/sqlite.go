@@ -23,6 +23,14 @@ func (s SQLStore) Add(d Device, tokenHash string) error {
 		if person, err = actor.Owner(tx); err != nil {
 			return err
 		}
+	} else if k, pid, _ := actor.Parse(person); k == actor.Person {
+		var here int
+		if err := tx.QueryRow("SELECT COUNT(*) FROM people WHERE id = ? AND removed_at IS NULL", pid).Scan(&here); err != nil {
+			return err
+		}
+		if here == 0 { // removed since the code was made
+			return ErrNoPerson
+		}
 	}
 	if _, err = tx.Exec("INSERT INTO devices(id, person, name, token_hash, created, last_seen, address, kind) VALUES(?,?,?,?,?,NULL,NULLIF(?,''),NULLIF(?,''))",
 		d.ID, person, d.Name, tokenHash, d.Created, d.Address, d.Kind); err != nil {
@@ -50,7 +58,8 @@ func (s SQLStore) Add(d Device, tokenHash string) error {
 
 // columns is a device with its node's id and lending, from devices LEFT JOIN nodes.
 const columns = "d.id, d.name, d.created, d.last_seen, d.push_platform, d.push_token, d.push_sandbox, COALESCE(d.address, ''), " +
-	"COALESCE(d.kind, ''), COALESCE(d.client, ''), d.person, COALESCE(n.id, ''), COALESCE(n.lending, '')"
+	"COALESCE(d.kind, ''), COALESCE(d.client, ''), d.person, COALESCE(n.id, ''), COALESCE(n.lending, ''), " +
+	"COALESCE((SELECT role FROM people WHERE 'p' || people.id = d.person), '')"
 
 const from = " FROM devices d LEFT JOIN nodes n ON n.device = d.id"
 
@@ -60,7 +69,7 @@ func scan(r scanner) (Device, error) {
 	var d Device
 	var seen, sandbox sql.NullInt64
 	var platform, token sql.NullString
-	if err := r.Scan(&d.ID, &d.Name, &d.Created, &seen, &platform, &token, &sandbox, &d.Address, &d.Kind, &d.Client, &d.Person, &d.Node, &d.Lending); err != nil {
+	if err := r.Scan(&d.ID, &d.Name, &d.Created, &seen, &platform, &token, &sandbox, &d.Address, &d.Kind, &d.Client, &d.Person, &d.Node, &d.Lending, &d.Role); err != nil {
 		return Device{}, err
 	}
 	if seen.Valid {

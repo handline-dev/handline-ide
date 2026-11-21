@@ -573,21 +573,18 @@ func (s *Server) owner() string {
 	return k
 }
 
-// deviceCaller is the paired device id acting as its person, with that person's role. A device with no person is the owner's. A member's
-// device is refused until the reads it would reach are scoped to its person (team mode).
+// deviceCaller is the paired device id acting as its person, with that person's role. A device with no person is the owner's; one whose
+// person was removed (person.remove, which also revokes it) is no one's.
 func (s *Server) deviceCaller(id, name, person string) (Caller, error) {
 	role := "owner"
 	if person == "" {
 		person = s.owner()
 	} else {
 		k, n, ok := actor.Parse(person)
-		if !ok || k != actor.Person || s.DB == nil || s.DB.QueryRow("SELECT role FROM people WHERE id = ?", n).Scan(&role) != nil {
+		if !ok || k != actor.Person || s.DB == nil || s.DB.QueryRow("SELECT role FROM people WHERE id = ? AND removed_at IS NULL", n).Scan(&role) != nil {
 			s.Log("  device %s (%s): its person %q is no one: refused as unpaired", name, id, person)
 			return Caller{}, UnpairedError()
 		}
-	}
-	if role != "owner" {
-		return Caller{}, Refused("a member's device is not served before team mode", "role", "")
 	}
 	return Caller{Kind: "device", Key: person, Person: person, Role: role, Info: map[string]any{"kind": "device", "key": person, "device": id, "name": name}}, nil
 }

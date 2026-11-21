@@ -741,3 +741,43 @@ func TestBackgroundWorkIsNoTurnToStop(t *testing.T) {
 		}
 	}
 }
+
+// An agent's chat is one thread every person sees: the owner's and a member's messages to the agent and its replies to each, each
+// naming who wrote it; a request between the agent and another agent is not in it.
+func TestAnAgentsChatIsOneThreadEveryPersonSees(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	addAgent(t, e, "cat", "")
+	bob, cat := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "cat")
+	for _, q := range []string{
+		"INSERT INTO people(id, display_name, role, created_at) VALUES(2, 'Kim', 'member', 0)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 1, 'p1', '" + bob + "', 'from the owner', 'done', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(2, 2, 'p2', '" + bob + "', 'from Kim', 'done', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(3, 3, '" + bob + "', 'p2', 'to Kim', 'done', 'say')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(4, 4, '" + bob + "', '" + cat + "', 'to cat', 'done', 'say')",
+	} {
+		if _, err := e.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "mine"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(got)
+	var out struct {
+		Messages []struct {
+			ID   int64
+			From string
+		}
+	}
+	json.Unmarshal(b, &out)
+	who := map[int64]string{}
+	for _, m := range out.Messages {
+		who[m.ID] = m.From
+	}
+	if len(who) != 3 || who[1] != "p1" || who[2] != "p2" || who[3] != bob {
+		t.Fatalf("%s", b)
+	}
+}
