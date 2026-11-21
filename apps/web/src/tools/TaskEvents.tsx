@@ -6,6 +6,7 @@ import type { TaskDetail } from '@handline/client';
 import { addressText, isPerson, noteText, toldOf } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useNameOf, useWrite } from '@handline/app-data';
+import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { confirm } from '#src/ui/modal.tsx';
 import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
@@ -166,6 +167,7 @@ export function CommentRow({
         ? `${told.map(nameOf).join(', ')} ${told.length > 1 ? 'were' : 'was'} told; ${told.length > 1 ? 'they' : 'it'} will be told it was deleted.`
         : undefined,
       confirmText: 'Delete',
+      icon: <Trash2 size={14} />,
       danger: true,
       run: () => del.mutateAsync({ task: own.task, memo: own.memo }),
     });
@@ -259,22 +261,34 @@ export function CommentRow({
 /** A comment's text, edited in place: Enter saves, Shift+Enter breaks the line, Esc cancels. */
 function EditBox({ text, onSave, onCancel }: { text: string; onSave: (text: string) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(text);
+  // The buttons keep the textarea's focus on press, so its blur does not cancel first.
+  const keep = (e: React.MouseEvent) => e.preventDefault();
   return (
-    <textarea
-      autoFocus
-      aria-label="Edit comment"
-      value={draft}
-      rows={Math.min(8, draft.split('\n').length + 1)}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={onCancel}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel();
-        else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-          e.preventDefault();
-          onSave(draft);
-        }
-      }}
-      className="mt-1 w-full resize-none rounded-md border border-border bg-bg px-2 py-1 text-sm outline-none focus:border-accent"
-    />
+    <div className="relative mt-1">
+      <textarea
+        autoFocus
+        aria-label="Edit comment"
+        value={draft}
+        rows={Math.min(8, draft.split('\n').length + 1)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={onCancel}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel();
+          else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            onSave(draft);
+          }
+        }}
+        className="w-full resize-none rounded-md border border-border bg-bg px-2 pt-1 pb-10 text-sm outline-none focus:border-accent"
+      />
+      <div className="absolute right-2 bottom-2.5 flex gap-2">
+        <Button size="sm" onMouseDown={keep} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" variant="primary" onMouseDown={keep} onClick={() => onSave(draft)}>
+          Save
+        </Button>
+      </div>
+    </div>
   );
 }
