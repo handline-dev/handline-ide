@@ -46,7 +46,7 @@ function Sheet({ close }: { close: () => void }) {
   const openAddress = useOpenAddress();
   const [openError, setOpenError] = useState<string | null>(null);
   const devices = useDevices();
-  const [known] = useState(() => new Set(devices.devices.map((d) => d.id)));
+  const [known] = useState(() => new Set(devices.rows.filter((d) => !d.master).map((d) => d.id)));
   const [chosen, setChosen] = useState<string | null>(null);
   const [invite, setInvite] = useState<{ code: string; until: number; uri: string; link: string | null } | null>(null);
   const [left, setLeft] = useState(0);
@@ -62,7 +62,7 @@ function Sheet({ close }: { close: () => void }) {
     return () => clearInterval(t);
   }, [invite]);
 
-  const joined = devices.devices.find((d) => !known.has(d.id));
+  const joined = devices.rows.find((d) => !d.master && !known.has(d.id));
   useEffect(() => {
     if (!joined) return;
     toast(`${joined.name} connected.`);
