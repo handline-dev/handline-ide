@@ -3,7 +3,12 @@ import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data
 import type { TranscriptItem } from '@handline/client';
 import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { clock, useNow } from '#src/format/time.ts';
-import { useRef } from 'react';
+import { motion } from 'framer-motion';
+import { useRef, useState } from 'react';
+import { Facts, HandoffLines } from '#src/chat/CompactionLine.tsx';
+import { spring } from '#src/motion.ts';
+import { Ago } from '#src/ui/Ago.tsx';
+import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -186,27 +191,79 @@ export function PendingMove({ agent }: { agent: string }) {
   );
 }
 
+/** The handoff note of the session a move started: the first such session before the next move. */
+export function moveNoteAfter(rows: readonly ({ item: TranscriptItem } | object)[], i: number): string | null | undefined {
+  for (let j = i + 1; j < rows.length; j++) {
+    const r = rows[j];
+    if (!('item' in r)) continue;
+    if (r.item.account_moved) return undefined;
+    if (r.item.session?.cause === 'move') return r.item.session.handoff_note ?? null;
+  }
+  return undefined;
+}
+
 /** A move in the chat: the account it landed on (and that it began without a handoff note when so), or a kept move that could not run. */
 export function MoveLine({
   agent,
   at,
   moved,
   failed,
+  note,
 }: {
   agent: string;
   at: string;
   moved?: TranscriptItem['account_moved'];
   failed?: TranscriptItem['move_failed'];
+  /** The handoff note the session after the move started from: null when none was written, undefined when not loaded. */
+  note?: string | null;
 }) {
+  const [shown, setShown] = useState(false);
   // A move that did not run is something to see to: a card, as the chat's other holds are; a move that ran is a line between rules.
   if (!moved) return <MoveFailed agent={agent} at={at} failed={failed} />;
+  const m = moved;
+  const open = () =>
+    void openModal((close) => (
+      <ModalFrame title={`Moved to ${m.to}`} onClose={() => close()}>
+        <div className="flex flex-col gap-6 pb-1">
+          <Facts
+            rows={[
+              ['By', m.cause === 'manual' ? 'You' : 'Handline'],
+              ['Why', m.reason || 'Not recorded'],
+              ['From', m.from],
+              ['To', m.to],
+              ['When', new Date(at).toLocaleString()],
+            ]}
+          />
+          {(note !== undefined || !m.note_written) && <HandoffLines text={note ?? null} folded={false} />}
+        </div>
+      </ModalFrame>
+    ));
   return (
-    <div className="my-3 flex items-center gap-4 text-sm text-muted">
+    <div className="my-3 flex h-10 items-center gap-4 text-sm text-muted">
       <div className="h-px flex-1 bg-border" />
-      <span title={clock(at)} className="flex items-center gap-1.5">
-        <ArrowRightLeft size={14} />
-        {`Moved to ${moved.to}${moved.note_written ? '' : ' · no handoff note'}`}
-      </span>
+      <button
+        type="button"
+        onClick={open}
+        onPointerEnter={() => setShown(true)}
+        onPointerLeave={() => setShown(false)}
+        onFocus={() => setShown(true)}
+        onBlur={() => setShown(false)}
+        className="flex flex-col items-center rounded-md px-2 py-0.5 transition-colors outline-none hover:bg-hover/30 hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <span className="flex items-center gap-1.5">
+          <ArrowRightLeft size={14} />
+          {`Moved to ${m.to}${m.note_written ? '' : ' · no handoff note'}`}
+        </span>
+        <motion.time
+          dateTime={at}
+          initial={false}
+          animate={shown ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
+          transition={spring}
+          className="overflow-hidden text-xs"
+        >
+          <Ago at={at} />
+        </motion.time>
+      </button>
       <div className="h-px flex-1 bg-border" />
     </div>
   );

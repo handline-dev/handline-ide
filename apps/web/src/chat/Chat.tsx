@@ -26,7 +26,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
-import { MoveSteps, PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
+import { moveNoteAfter, MoveSteps, PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { restarting } from '#src/layout/agentList.ts';
@@ -410,6 +410,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                   onReply={onReply}
                   parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
                   bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
+                  moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
                   fade={i > known(all)}
                 />
               ),
