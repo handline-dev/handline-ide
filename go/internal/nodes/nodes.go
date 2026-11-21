@@ -4,6 +4,7 @@ package nodes
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,25 +42,43 @@ type Registry struct {
 	// Transcript, when set, stores the chat transcript rows a runner read from one of its sessions' transcripts (node.transcript).
 	Transcript func(agent, session string, at int64, rows []transcript.Row)
 	// Tokens, when set, counts the calls a runner read from one of its accounts' transcripts (node.tokens), as usage.Call in JSON.
-	Tokens func(account string, calls json.RawMessage) error
-	local  func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
-	mu     sync.Mutex
-	links  map[string]*rpc.Conn
-	homes  map[*rpc.Conn]string // each link's runner's home, once asked
+	Tokens  func(account string, calls json.RawMessage) error
+	local   func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
+	mu      sync.Mutex
+	links   map[string]*rpc.Conn
+	homes   map[*rpc.Conn]string // each link's runner's home, once asked
+	streams map[string]*stream   // by id
+	next    int
 
 	refOnce sync.Once
 	refRE   *regexp.Regexp // a path under the attachments folder
 }
 
-func New(db *sql.DB, home string) *Registry {
-	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}}
+// stream is one stream a runner sends on its link (Stream).
+type stream struct {
+	c     *rpc.Conn
+	on    func(map[string]any)
+	ended func()
 }
 
-// Link keeps c as node's link, in place of any before it, until c ends.
+func New(db *sql.DB, home string) *Registry {
+	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, streams: map[string]*stream{}}
+}
+
+// Link keeps c as node's link, in place of any before it, until c ends, which ends every stream on it.
 func (r *Registry) Link(node string, c *rpc.Conn) {
 	r.mu.Lock()
 	r.links[node] = c
 	r.mu.Unlock()
+	c.OnNotice(func(method string, p map[string]any) {
+		id, _ := p["stream"].(string)
+		r.mu.Lock()
+		s := r.streams[id]
+		r.mu.Unlock()
+		if method == "runner.output" && s != nil && s.c == c {
+			s.on(p)
+		}
+	})
 	c.OnClose(func() {
 		r.mu.Lock()
 		gone := r.links[node] == c
@@ -67,7 +86,17 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 			delete(r.links, node)
 		}
 		delete(r.homes, c)
+		var ended []func()
+		for id, s := range r.streams {
+			if s.c == c {
+				delete(r.streams, id)
+				ended = append(ended, s.ended)
+			}
+		}
 		r.mu.Unlock()
+		for _, f := range ended {
+			f()
+		}
 		if gone {
 			for _, a := range r.agentsOn(node) {
 				r.forget(a)
@@ -142,6 +171,51 @@ func (r *Registry) onNode(agent, node string) error {
 	return nil
 }
 
+// Stream calls method on node with params and a new stream id, which the runner's runner.output notices for it name: each goes to on,
+// on the link's loop and in order, from before the answer comes; ended runs once if the link ends first. stop ends the stream and
+// tells the runner (runner.detach).
+func (r *Registry) Stream(node, method string, params map[string]any, on func(map[string]any), ended func()) (reply map[string]any, id string, stop func(), err error) {
+	r.mu.Lock()
+	c := r.links[node]
+	r.next++
+	id = fmt.Sprintf("s%d", r.next)
+	if c != nil {
+		r.streams[id] = &stream{c: c, on: on, ended: ended}
+	}
+	r.mu.Unlock()
+	if c == nil {
+		return nil, "", nil, fmt.Errorf("node %s is not linked to this master", node)
+	}
+	stop = func() {
+		r.mu.Lock()
+		_, open := r.streams[id]
+		delete(r.streams, id)
+		r.mu.Unlock()
+		if open {
+			go c.Call("runner.detach", map[string]any{"stream": id}, CallWait)
+		}
+	}
+	p := map[string]any{"stream": id}
+	for k, v := range params {
+		p[k] = v
+	}
+	reply, err = c.Call(method, p, CallWait)
+	if err != nil {
+		stop()
+		return nil, "", nil, err
+	}
+	return reply, id, stop, nil
+}
+
+// Call calls method on node over its link.
+func (r *Registry) Call(node, method string, params map[string]any) (map[string]any, error) {
+	run, err := r.Runner(node)
+	if err != nil {
+		return nil, err
+	}
+	return run.c.Call(method, params, CallWait)
+}
+
 // NodeOf is the node whose link c is; "" for any other connection.
 func (r *Registry) NodeOf(c *rpc.Conn) string {
 	r.mu.Lock()
@@ -197,9 +271,9 @@ func (r *Runner) Keys(handle, keys string, enter bool) error {
 	return err
 }
 
-// Screen is the bottom rows of the terminal's screen.
-func (r *Runner) Screen(handle string, rows int) ([]string, error) {
-	got, err := r.c.Call("runner.screen", map[string]any{"handle": handle, "rows": rows}, ReadWait)
+// Screen is the bottom rows of the terminal's screen, with their SGR codes when styled.
+func (r *Runner) Screen(handle string, rows int, styled bool) ([]string, error) {
+	got, err := r.c.Call("runner.screen", map[string]any{"handle": handle, "rows": rows, "styled": styled}, ReadWait)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +371,42 @@ func (m remote) Screen(node, handle string, rows int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return run.Screen(handle, rows)
+	return run.Screen(handle, rows, false)
+}
+
+func (m remote) ScreenANSI(node, handle string, rows int) ([]string, error) {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return nil, err
+	}
+	return run.Screen(handle, rows, true)
+}
+
+func (m remote) SendBytes(node, handle string, data []byte) error {
+	_, err := m.r.Call(node, "runner.input", map[string]any{"handle": handle, "data": base64.StdEncoding.EncodeToString(data)})
+	return err
+}
+
+func (m remote) Size(node, handle string) (int, int, error) {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return 0, 0, err
+	}
+	got, err := run.c.Call("runner.size", map[string]any{"handle": handle}, ReadWait)
+	if err != nil {
+		return 0, 0, err
+	}
+	cols, ok1 := rpc.AsInt(got["cols"])
+	rows, ok2 := rpc.AsInt(got["rows"])
+	if !ok1 || !ok2 {
+		return 0, 0, errors.New("the runner gave no size")
+	}
+	return int(cols), int(rows), nil
+}
+
+func (m remote) Resize(node, handle string, cols, rows int) error {
+	_, err := m.r.Call(node, "runner.resize", map[string]any{"handle": handle, "cols": cols, "rows": rows})
+	return err
 }
 
 // Close stops the session the master opened at handle.

@@ -583,6 +583,8 @@ type BytesClient struct {
 	channel   *BytesChannel
 	live      bool // owed the output that comes next: set at the place in the stream the snapshot was taken
 	resyncing bool
+	// resyncFailed, when set, is told a resync whose snapshot could not be taken (a runner's stream tells its master).
+	resyncFailed func()
 }
 
 func NewBytesClient(send func(map[string]any) bool, closeConn func()) *BytesClient {
@@ -702,7 +704,8 @@ func (c *BytesClient) run() {
 type BytesChannel struct {
 	Handle string
 	hub    *BytesHub
-	link   *ControlLink
+	link   *ControlLink // this machine's terminal
+	relay  *relay       // a runner's terminal (relay.go), in place of link
 
 	mu       sync.Mutex
 	clients  []*BytesClient
@@ -734,11 +737,18 @@ func (ch *BytesChannel) resync(c *BytesClient, reason string) {
 	}
 	c.resyncing = true
 	c.mu.Unlock()
+	if ch.relay != nil {
+		ch.relay.resync(c, reason)
+		return
+	}
 	Capture(ch.link, ch.Handle, 0, func(s *Snapshot) {
 		if s == nil {
 			c.mu.Lock()
 			c.resyncing = false
 			c.mu.Unlock()
+			if c.resyncFailed != nil {
+				c.resyncFailed()
+			}
 			return
 		}
 		p := s.encode()
@@ -785,6 +795,9 @@ func (ch *BytesChannel) Detach(c *BytesClient) {
 		}
 	}
 	c.end()
+	if ch.relay != nil {
+		ch.relay.detach(c)
+	}
 	if len(ch.clients) == 0 && ch.watching != nil {
 		ch.link.Unwatch(ch.Handle, ch.watching)
 		ch.watching = nil
@@ -836,6 +849,32 @@ func (h *BytesHub) Channel(handle string, link *ControlLink) *BytesChannel {
 		h.channels[handle] = ch
 	}
 	return ch
+}
+
+// relayChannel is the channel of a runner's terminal, handle on the master and pane on node.
+func (h *BytesHub) relayChannel(handle string, r Relay, node, pane string) *BytesChannel {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ch := h.channels[handle]
+	if ch == nil {
+		ch = &BytesChannel{Handle: handle, hub: h, relay: &relay{r: r, node: node, pane: pane, streams: map[*BytesClient]*relayed{}}}
+		h.channels[handle] = ch
+	}
+	return ch
+}
+
+// attachRelayed is c on ch, a runner's terminal: the reply the runner's snapshot makes.
+// It joins the channel once its stream is open, so no resize or notice reaches it before.
+func (ch *BytesChannel) attachRelayed(c *BytesClient, history int) (map[string]any, error) {
+	c.channel = ch
+	reply, err := ch.relay.attach(ch, c, history)
+	if err != nil {
+		return nil, err
+	}
+	ch.mu.Lock()
+	ch.clients = append(ch.clients, c)
+	ch.mu.Unlock()
+	return reply, nil
 }
 
 func (h *BytesHub) openFor(handle string) *BytesChannel {

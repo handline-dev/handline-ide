@@ -148,7 +148,7 @@ func (e *Env) input(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused(inputhold.HeldWhy(agent, row.Name), "input_holder", "")
 	}
 	h := e.host()
-	if !h.Backend.Available() || !h.ServesBytes() {
+	if _, _, remote := e.onRunner(handle); !remote && (!h.Backend.Available() || !h.ServesBytes()) {
 		return nil, rpc.Refused("the terminal host ("+h.Backend.Name()+") cannot send raw bytes", "unsupported", "")
 	}
 	if ok, why := h.SendBytes(handle, raw); !ok {

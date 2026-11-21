@@ -14,8 +14,8 @@ import (
 var hostAllowed = []struct{ file, line, why string }{
 	{"cmd/handlined/main.go", "agenthost.Current(home).(runner.Terminals)", "a runner's own host, which the master drives"},
 	{"cmd/hl/launch.go", "agenthost.Current(c.Home)", "hl launch runs in the terminal it launches in"},
-	{"internal/termchan/rpc.go", `[]string{"tmux", "-C"}`, "the attach the app views a terminal by: relayed for a runner in slice 12"},
-	{"internal/daemon/daemon.go", "return agenthost.Current(cfg.Home)", "the terminal channel's host: relayed for a runner in slice 12"},
+	{"internal/termchan/rpc.go", `[]string{"tmux", "-C"}`, "this machine's control client: a runner's bytes are relayed over its link"},
+	{"internal/daemon/daemon.go", "local = agenthost.Current(cfg.Home)", "the Local of the terminal channel's term.Machines"},
 	{"internal/daemon/daemon.go", "host = agenthost.Current(d.cfg.Home)", "the pane processes this machine's load is measured by"},
 	{"internal/compose/lifecycle.go", "agenthost.Tmux(home).(term.PaneAgenter)", "the pane an hl launch on this machine runs in"},
 	{"internal/compose/termport.go", "&term.Machines{Local: agenthost.Dynamic(home)", "the Term the lifecycle drives"},

@@ -146,6 +146,11 @@ func (l *Link) Call(method string, params map[string]any, timeout time.Duration)
 	return l.calls.call(l.send, method, params, timeout)
 }
 
+// Notify sends the other end a notification; false when it cannot be sent.
+func (l *Link) Notify(method string, params map[string]any) bool {
+	return l.send(map[string]any{"jsonrpc": "2.0", "method": method, "params": params})
+}
+
 // Run reads the connection until it ends, handing answers to the calls that wait on them and serving requests; idle is how long it
 // waits for the next message.
 func (l *Link) Run(idle time.Duration) error {

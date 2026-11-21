@@ -2,6 +2,7 @@ package term_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -41,6 +42,19 @@ func (f *fakeRemote) Respawn(node, handle string) error {
 }
 func (f *fakeRemote) Terminals(node string) ([]string, error) {
 	return []string{"%7"}, nil
+}
+func (f *fakeRemote) ScreenANSI(node, handle string, rows int) ([]string, error) {
+	f.log("styled " + node + " " + handle)
+	return f.screen, nil
+}
+func (f *fakeRemote) SendBytes(node, handle string, data []byte) error {
+	f.log("bytes " + node + " " + handle + " " + string(data))
+	return nil
+}
+func (f *fakeRemote) Size(node, handle string) (int, int, error) { return 100, 30, nil }
+func (f *fakeRemote) Resize(node, handle string, cols, rows int) error {
+	f.log(fmt.Sprintf("resize %s %s %dx%d", node, handle, cols, rows))
+	return nil
 }
 
 // localHost is this machine's host: it lists %1 and writes down what reaches it.
@@ -149,3 +163,38 @@ var errDown = errors.New("node box is not linked to this master")
 func (downRemote) Screen(string, string, int) ([]string, error) { return nil, errDown }
 func (downRemote) Keys(string, string, string, bool) error      { return errDown }
 func (downRemote) Terminals(string) ([]string, error)           { return nil, errDown }
+
+// What the terminal channel asks of a runner's terminal goes over its link: styled rows, raw bytes, the size and a resize. It has no
+// scrollback or cursor the master reads, and this machine's host answers the rest as it did.
+func TestMachinesServesTheChannelForARunnersTerminal(t *testing.T) {
+	remote := &fakeRemote{screen: []string{"\x1b[1mbold\x1b[0m"}}
+	m := &term.Machines{Local: &localHost{}, Remote: remote}
+	if rows := m.ReadScreenANSI("box:%7", 40); len(rows) != 1 || rows[0] != remote.screen[0] {
+		t.Fatalf("styled rows %q", rows)
+	}
+	if ok, why := m.SendBytes("box:%7", []byte("hi")); !ok {
+		t.Fatal(why)
+	}
+	if c, r, ok := m.Size("box:%7"); !ok || c != 100 || r != 30 {
+		t.Fatalf("size %d %d %v", c, r, ok)
+	}
+	if ok, why := m.Resize("box:%7", 120, 40); !ok {
+		t.Fatal(why)
+	}
+	if m.Cursor("box:%7") != nil {
+		t.Fatal("a runner's cursor is not read")
+	}
+	if _, _, ok := m.ReadHistory("box:%7", nil, 10, false); ok {
+		t.Fatal("a runner's scrollback is not read")
+	}
+	want := []string{"styled box %7", "bytes box %7 hi", "resize box %7 120x40"}
+	if !reflect.DeepEqual(remote.calls, want) {
+		t.Fatalf("box got %q, want %q", remote.calls, want)
+	}
+	if m.ServesStyled() || m.ServesBytes() {
+		t.Fatal("a local host that reads no styled rows and sends no bytes serves neither")
+	}
+	if ok, _ := m.SendBytes("%1", []byte("x")); ok {
+		t.Fatal("this machine's host sends no bytes")
+	}
+}
