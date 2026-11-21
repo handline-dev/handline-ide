@@ -432,6 +432,10 @@ export type SettingsValues = {
   disk_keep_free_gb?: number;
   /** Most memory the agents' processes may use together, in GB; 0 is off, the default. Over it the daemon closes the longest-idle sessions one at a time, never one mid-turn; their work stays and they wake from their handoff. */
   agents_memory_max_gb?: number;
+  /** A lent Mac whose heartbeat says it went on battery is set to Off, and back to Run when it is plugged in again. Off by default. */
+  node_battery_switch?: boolean;
+  /** Seconds a lent machine may be offline before the master takes its sessions back to start them elsewhere. */
+  node_reclaim_s?: number;
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
@@ -516,6 +520,10 @@ export type SettingsChanges = {
   port_range?: string | null;
   /** Hosts the network listener serves, from connection.addresses, each on the -listen port: a door on each of their addresses, made again within seconds when the setting or the interfaces change (no restart). The web page is served on each. null (the default) serves -listen alone; [] serves none. A host the machine has no address for now is served when it has one again. A write answers unreachable_devices: the paired devices whose host is no longer served. A host this machine cannot be reached on is refused, gate address. A client connected through a host it drops is cut off before the answer; its retry with the same request_id reads it. null removes the key (back to the default). */
   network_addresses?: string[] | null;
+  /** The battery switch (SettingsValues.node_battery_switch). null removes the key (back to the default). */
+  node_battery_switch?: boolean | null;
+  /** Seconds a lent machine may be offline before its sessions are taken back (SettingsValues.node_reclaim_s). null removes the key (back to the default). */
+  node_reclaim_s?: number | null;
 };
 
 /** One method as a daemon lists it: its role and whether this caller may call it. */
