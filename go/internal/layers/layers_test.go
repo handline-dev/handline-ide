@@ -51,6 +51,8 @@ var layer = map[string]int{
 	"cmdruns":           2,
 	"filerw":            2,
 	"hlclient":          2,
+	"cluster":           2,
+	"clustertest":       2,
 	"inputhold":         2,
 	"taskboard/msgtest": 2,
 	// L3 model

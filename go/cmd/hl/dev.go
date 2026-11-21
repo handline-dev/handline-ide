@@ -16,7 +16,8 @@ import (
 const devUsage = `usage: hl dev on <team> [--worktree PATH] [--listen ADDR] [--fresh]
        hl dev off <team>
        hl dev rebuild <team>
-       hl dev status`
+       hl dev status
+       hl dev cluster up [--runners N] [--worktree PATH] | down | status`
 
 // dev is a team's dev instance beside the live one (internal/devinstance). Python has no such command, so a line this
 // does not read is answered with the usage here.
@@ -28,6 +29,9 @@ func dev(c *hlclient.Client, args []string) (int, bool) {
 				agent = name
 			}
 		}
+	}
+	if len(args) > 0 && args[0] == "cluster" {
+		return runCluster(c.Home, args[1:], os.Stdout, os.Stderr), true
 	}
 	return runDev(devinstance.System(c.Home), agent, args, os.Stdout, os.Stderr), true
 }
