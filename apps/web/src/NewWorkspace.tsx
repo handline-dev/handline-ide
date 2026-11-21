@@ -1,5 +1,6 @@
 import { classify, sentence, useOperation, useWrite } from '@handline/app-data';
-import { useEffect, useState, type ReactNode } from 'react';
+import { FolderOpen, GitBranch } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
@@ -27,7 +28,7 @@ function Progress({ operation, close }: { operation: string; close: Close<string
 }
 
 /** A folder's workspace name, from its last part, as onboarding names it. */
-const nameOf = (folder: string) =>
+export const nameOf = (folder: string) =>
   workspaceNameOf(
     folder
       .replace(/[\\/]+$/, '')
@@ -96,18 +97,67 @@ function Picked({ folder, close }: { folder: string; close: Close<string> }) {
   );
 }
 
-/** Add workspace: a folder is picked first, git or plain; where no picker is, it is typed. */
-export function newWorkspace() {
-  const choose = shell()?.pickFolder;
-  const open = (body: (close: Close<string>) => ReactNode) =>
-    void openModal<string>((close) => (
-      <ModalFrame title="Add workspace" onClose={() => close()}>
-        {body(close)}
-      </ModalFrame>
-    ));
-  if (!choose) return open((close) => <Form close={close} />);
-  void choose().then(
-    (r) => r.ok && r.path && open((close) => <Picked folder={r.path!} close={close} />),
-    () => undefined,
+/** Clone: the repository's address; the daemon clones it under the Handline folder, then the workspace is made on it. */
+function Clone({ close }: { close: Close<string> }) {
+  const clone = useWrite('folder.clone');
+  const [url, setUrl] = useState('');
+  const [folder, setFolder] = useState<string | null>(null);
+  if (folder) return <Picked folder={folder} close={close} />;
+  const ready = !!url.trim() && !clone.isPending;
+  return (
+    <form
+      className="flex flex-col gap-3 pb-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (ready) clone.mutate({ url: url.trim() }, { onSuccess: (r) => setFolder((r as { path: string }).path) });
+      }}
+    >
+      <Field label="Repository address">
+        <Input autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/you/project.git" />
+      </Field>
+      {!!clone.error && <p className="text-sm text-danger">{sentence(classify(clone.error))}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button onClick={() => close()}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={!ready}>
+          {clone.isPending ? 'Cloning…' : 'Clone'}
+        </Button>
+      </div>
+    </form>
   );
+}
+
+/** Add workspace: open a folder (picked, or typed where no picker is) or clone a repository. */
+function Start({ close }: { close: Close<string> }) {
+  const [step, setStep] = useState<'choose' | 'type' | 'clone' | { folder: string }>('choose');
+  const choose = shell()?.pickFolder;
+  if (step === 'type') return <Form close={close} />;
+  if (step === 'clone') return <Clone close={close} />;
+  if (typeof step === 'object') return <Picked folder={step.folder} close={close} />;
+  const open = () =>
+    choose
+      ? void choose().then(
+          (r) => r.ok && r.path && setStep({ folder: r.path }),
+          () => undefined,
+        )
+      : setStep('type');
+  return (
+    <div className="flex flex-col gap-2 pb-4">
+      <Button size="lg" className="justify-start" onClick={open}>
+        <FolderOpen size={16} />
+        Open a folder
+      </Button>
+      <Button size="lg" className="justify-start" onClick={() => setStep('clone')}>
+        <GitBranch size={16} />
+        Clone a repository
+      </Button>
+    </div>
+  );
+}
+
+export function newWorkspace() {
+  void openModal<string>((close) => (
+    <ModalFrame title="Add workspace" onClose={() => close()}>
+      <Start close={close} />
+    </ModalFrame>
+  ));
 }
