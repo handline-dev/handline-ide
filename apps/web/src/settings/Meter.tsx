@@ -14,14 +14,27 @@ export function Bar({ pct, tone }: { pct: number; tone: Tone }) {
   );
 }
 
-/** A titled card of a settings section: its title, one muted sentence, then its rows. */
-export function Block({ title, icon, note, children }: { title: string; icon?: ReactNode; note?: ReactNode; children: ReactNode }) {
+/** A titled card of a settings section: its title (with `action` beside it), one muted sentence, then its rows. */
+export function Block({
+  title,
+  icon,
+  action,
+  note,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  action?: ReactNode;
+  note?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-3 rounded-lg border border-border p-4">
       <div>
         <h2 className="flex items-center gap-2 text-sm font-medium text-fg">
           {icon && <span className="text-muted">{icon}</span>}
           {title}
+          {action}
         </h2>
         {note && <p className="text-xs text-muted">{note}</p>}
       </div>

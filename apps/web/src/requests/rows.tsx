@@ -1,6 +1,6 @@
-import { classify, sentence, useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
+import { useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
-import { isUnseen, laterKey, pickGroup, proposalTitle, requestRow, tomorrowAt9, turnKey, turnRow, type Picked } from '@handline/app-core';
+import { isUnseen, pickGroup, proposalTitle, requestRow, turnRow, type Picked } from '@handline/app-core';
 import type { HardDrive } from 'lucide-react';
 import {
   CircleCheck,
@@ -14,14 +14,13 @@ import {
   MessageSquare,
   ShieldQuestion,
   Signpost,
-  X,
   SquareArrowOutUpRight,
   UserRound,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useState, type MouseEvent, type ReactNode } from 'react';
-import { RowMenu, usePick, useRowActions } from '#src/requests/RowMenu.tsx';
-import { Button } from '#src/ui/Button.tsx';
+import { type MouseEvent, type ReactNode } from 'react';
+import { RowMenu, usePick } from '#src/requests/RowMenu.tsx';
+import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago } from '#src/format/time.ts';
@@ -31,7 +30,6 @@ import { chatOf, proposalOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import type { Gesture } from '#src/layout/openTab.tsx';
 import { openSettingsFor } from '#src/settings/open.ts';
-import { OpenReview } from '#src/settings/AgentPage.tsx';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
 import { WARN, WARN_WORD } from '#src/requests/warnings.ts';
@@ -180,7 +178,8 @@ function Line({
               {who && <span className="shrink-0 text-muted">{who}</span>}
               {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
             </span>
-            {meta && <span className="line-clamp-2 break-words text-muted">{meta}</span>}
+            {/* The answers sit over the row's bottom-right: the text keeps their room. */}
+            {meta && <span className={`line-clamp-2 break-words text-muted ${answers ? 'pr-36' : ''}`}>{meta}</span>}
           </span>
         ) : (
           <>
@@ -236,6 +235,9 @@ function turnOpens(p: PendingRequest): string | null {
   return p.agent ? chatOf(p.agent) : 'requests';
 }
 
+/** In Requests' own list, a proposal's and a step-down offer's answers always show; the others' on hover. */
+const answersShown = (p: PendingRequest) => p.source === 'proposal' || p.warning?.kind === 'review';
+
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
 export function TurnLine({
   p,
@@ -271,7 +273,7 @@ export function TurnLine({
         lead: p.source === 'proposal' ? 'HR' : p.task !== null ? `T${p.task}` : p.warning ? WARN_WORD[p.warning.kind] : '',
         who: proposal ? (proposal.requested_by ? nameOf(proposal.requested_by) : 'daemon') : daemon ? 'daemon' : nameOf(p.agent!),
         wait: until ? `back ${until}` : ago(p.last_at),
-        answers: p.source === 'proposal' ? <TurnQuick p={p} /> : undefined,
+        answers: answersShown(p) ? <TurnQuick p={p} /> : undefined,
       })}
       meta={
         full
@@ -280,7 +282,7 @@ export function TurnLine({
             : p.ask
               ? refs(p.ask)
               : p.warning
-                ? (p.warning.line ?? '') // the icon and its word already say what it is; a review notice adds its record
+                ? (p.warning.line ?? '') // the icon and its word already say what it is; a step-down offer adds its record
                 : ASK[p.kind]
           : [
               until ? `back ${until}` : ASK[p.kind],
@@ -294,7 +296,7 @@ export function TurnLine({
       }
       opens={opens}
       here={opens ? undefined : () => openSettingsFor(p.warning)}
-      trailing={full && p.source === 'proposal' ? undefined : <TurnQuick p={p} />}
+      trailing={full && answersShown(p) ? undefined : <TurnQuick p={p} />}
       hint={
         p.task !== null && (p.kind === 'ask' || p.kind === 'decide')
           ? `Opens T${p.task} at ${p.agent ? `${nameOf(p.agent)}'s` : 'its'} question in Activity`
@@ -356,78 +358,3 @@ export function RequestLine({ r, onOpened }: { r: TaskRequest; onOpened?: () => 
 
 /** Said when a dimmed row is clicked while the other kind is picked. */
 const APART = 'Pick one kind at a time.';
-
-/** A proposal's answer, Allow or Deny; a daemon warning's dismiss, kept by the daemon while its cause lasts; else a dismiss until tomorrow
- *  09:00 (Later). An Allow names the subject proposal.list showed; one the daemon refuses as changed since stays off on this row, so a
- *  changed proposal is opened and read before it is allowed. */
-export function TurnQuick({ p }: { p: PendingRequest }) {
-  const act = useRowActions();
-  const decide = useWrite('proposal.decide');
-  const dismiss = useWrite('warning.dismiss');
-  const listed = useProposals().data?.proposals.find((x) => String(x.id) === p.id);
-  const [changed, setChanged] = useState(false);
-  if (p.source === 'proposal' && p.id) {
-    const answer = (decision: 'approve' | 'reject') =>
-      decide.mutate(
-        { proposal: Number(p.id), decision, ...(decision === 'approve' && listed ? { subject: listed.subject } : {}) },
-        {
-          onError: (e) => {
-            const f = classify(e);
-            if (f.kind === 'refused' && f.gate === 'proposal_changed') {
-              setChanged(true);
-              toast('The proposal changed since it was listed: open it and read it before you allow it.', { tone: 'warning' });
-            } else if (sentence(f)) toast(`Did not answer: ${sentence(f)}`, { tone: 'warning' });
-          },
-        },
-      );
-    return (
-      <>
-        <Button disabled={decide.isPending} onClick={() => answer('reject')}>
-          Deny
-        </Button>
-        <Button
-          variant="primary"
-          disabled={decide.isPending || !listed || changed}
-          title={changed ? 'Changed since it was listed: open it to read it' : listed ? undefined : 'Reading the proposal'}
-          onClick={() => answer('approve')}
-        >
-          Allow
-        </Button>
-      </>
-    );
-  }
-  if (p.warning?.kind === 'review') return <OpenReview warning={p.warning} />;
-  if (p.source === 'machine' && p.id) {
-    const id = p.id;
-    return (
-      <IconButton
-        label="Dismiss"
-        disabled={dismiss.isPending}
-        onClick={() =>
-          dismiss.mutate(
-            { id },
-            {
-              onError: (e) => {
-                const s = sentence(classify(e));
-                if (s) toast(`Did not dismiss: ${s}`, { tone: 'warning' });
-              },
-            },
-          )
-        }
-      >
-        <X size={14} />
-      </IconButton>
-    );
-  }
-  const later = laterKey(p);
-  // A note is not put off: opening its task reads it.
-  if (!later || p.kind === 'note') return null;
-  return (
-    <IconButton
-      label="Dismiss until tomorrow 09:00"
-      onClick={() => void act.later([{ keys: [turnKey(p)], later }], tomorrowAt9(Date.now()))}
-    >
-      <X size={14} />
-    </IconButton>
-  );
-}

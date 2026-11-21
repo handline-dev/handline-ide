@@ -1,51 +1,36 @@
-// Settings › Agents › one agent: what it learned (its lessons, each removable) and how its finished work is reviewed (its level, its
-// record, and the level the record suggests, which only the founder sets).
-import { classify, Hooks, sentence, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
+// Settings › Agents › one agent: what it learned (its lessons, each removable) and how its finished work is reviewed, per kind of work.
+import { classify, sentence, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
 import type { Methods } from '@handline/client';
-import { ArrowLeft, Check, ChevronDown, Trash2 } from 'lucide-react';
+import { AppWindow, ArrowLeft, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Block } from '#src/settings/Meter.tsx';
-import { openSettingsFor } from '#src/settings/open.ts';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
+import { InfoTip } from '#src/ui/InfoTip.tsx';
+import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
 type Rung = Methods['agent.review']['result']['ladder'][number];
 export type Level = Rung['level'];
+export type Work = Rung['work'];
 export const LEVEL_WORD: Record<Level, string> = {
-  every: 'Every task',
+  every: 'Every',
   one_in_two: '1 in 2',
   one_in_three: '1 in 3',
   one_in_five: '1 in 5',
   never: 'Never',
 };
 const LEVELS: Level[] = ['every', 'one_in_two', 'one_in_three', 'one_in_five', 'never'];
-const WORK_WORD: Record<Rung['work'], string> = {
+export const WORK_WORD: Record<Work, string> = {
   contract: 'Contract and data',
   screen: 'Screen',
   daemon: 'Daemon',
   docs: 'Docs and cleanup',
 };
-
-const sample = (n: string): string[] => [
-  `One in ${n} finished tasks waits for your OK or Redo`,
-  'The others merge once the check and tests pass',
-  'Any Redo moves it back to Every task',
-];
-
-/** What each level does, said under the levels for the one picked. */
-const MEANS: Record<Level, string[]> = {
-  every: ['Every finished task waits for your OK or Redo'],
-  one_in_two: sample('two'),
-  one_in_three: sample('three'),
-  one_in_five: sample('five'),
-  never: [
-    'Finished tasks merge once the check and tests pass',
-    'You can still Redo a task after it merged',
-    'Any Redo moves it back to Every task',
-  ],
-};
+const WORK_ICON: Record<Work, typeof Database> = { contract: Database, screen: AppWindow, daemon: Server, docs: FileText };
+/** First-look OKs in a row that offer one step less. */
+const RUN = 10;
 
 /** Lessons shown before the rest fold into "N more". */
 const SHOWN = 8;
@@ -130,91 +115,102 @@ export function Lessons({ agent, founder = false }: { agent: string; founder?: b
   );
 }
 
+/** One row per kind of work the agent has done: its level, and its run of first-look OKs toward one step less. */
 function Review({ agent }: { agent: string }) {
-  const review = useAgentReview(agent);
+  const ladder = useAgentReview(agent).data?.ladder ?? [];
+  if (!ladder.length) return null;
   return (
-    <>
-      {review.data?.ladder.map((rung) => (
-        <ReviewRung key={rung.work} agent={agent} rung={rung} />
-      ))}
-    </>
-  );
-}
-
-function ReviewRung({ agent, rung: r }: { agent: string; rung: Rung }) {
-  const pending = Hooks.useRequestsPending();
-  const set = useWrite('agent.review_set');
-  const dismiss = useWrite('warning.dismiss');
-  const [picked, pick] = useState<Level | null>(null);
-  const chosen = picked ?? r.suggested ?? r.level;
-  const ok = r.record.filter((x) => x.ok_first).length;
-  // The offer in Requests, while it stands: Not now dismisses it.
-  const notice = pending.data?.answer.find((p) => p.warning?.kind === 'review' && p.warning.agent === agent && p.warning.work === r.work);
-  const fail = (what: string) => (e: unknown) => toast(`Did not ${what}: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' });
-  return (
-    <Block title={`Review: ${WORK_WORD[r.work]}`}>
-      <div className="flex items-center gap-3">
-        <span className="flex gap-1" aria-hidden>
-          {Array.from({ length: 10 }, (_, i) => {
-            const x = r.record[r.record.length - 10 + i];
-            return <span key={i} className={`size-2 rounded-full ${!x ? 'bg-surface' : x.ok_first ? 'bg-success' : 'bg-warning'}`} />;
-          })}
-        </span>
-        <span className="text-sm text-fg">
-          {r.record.length
-            ? `${ok} of its last ${r.record.length} ${r.record.length === 1 ? 'task was' : 'tasks were'} OK at first look`
-            : 'No finished tasks at this level yet'}
-        </span>
-      </div>
-      <div role="radiogroup" aria-label="Review level" className="flex gap-0.5 self-start rounded-md bg-surface p-0.5">
-        {(r.work === 'contract' ? LEVELS.slice(0, 1) : LEVELS).map((l) => (
-          <button
-            key={l}
-            type="button"
-            role="radio"
-            aria-checked={chosen === l}
-            onClick={() => pick(l)}
-            className={`flex items-center gap-2 rounded px-3 py-1 text-sm ${chosen === l ? 'bg-bg text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
-          >
-            {LEVEL_WORD[l]}
-            {l === r.level && <span className="rounded-full bg-surface px-1.5 text-xs text-muted">Now</span>}
-            {l === r.suggested && <span className="rounded-full bg-accent/15 px-1.5 text-xs text-accent">Suggested</span>}
-          </button>
-        ))}
-      </div>
-      <ul className="flex flex-col gap-1.5">
-        {MEANS[chosen].map((m) => (
-          <li key={m} className="flex items-center gap-2 text-sm text-fg">
-            <Check size={14} className="text-success" />
-            {m}
-          </li>
+    <Block
+      title="Review"
+      action={
+        <InfoTip label="What the levels mean">
+          A level is how many of its finished tasks of that kind wait for your OK or Redo; the others merge once the check and tests pass.{' '}
+          {RUN} OKs in a row at first look offer one step less, and any Redo puts it back to Every. Contract and data work is always looked
+          at.
+        </InfoTip>
+      }
+    >
+      <ul className="-mx-2 flex flex-col">
+        {ladder.map((rung) => (
+          <ReviewRow key={rung.work} agent={agent} rung={rung} />
         ))}
       </ul>
-      {(notice || chosen !== r.level) && (
-        <div className="flex justify-end gap-2 border-t border-border pt-3">
-          {notice?.id && (
-            <Button disabled={dismiss.isPending} onClick={() => dismiss.mutate({ id: notice.id! }, { onError: fail('put it off') })}>
-              Not now
-            </Button>
-          )}
-          <Button
-            variant="primary"
-            disabled={chosen === r.level || set.isPending}
-            onClick={() => set.mutate({ agent, work: r.work, level: chosen }, { onSuccess: () => pick(null), onError: fail('change it') })}
-          >
-            Change to {LEVEL_WORD[chosen]}
-          </Button>
-        </div>
-      )}
     </Block>
   );
 }
 
-/** A review notice's one button in Requests: its agent's page, where the level is changed or the notice put off. */
-export function OpenReview({ warning }: { warning: { kind: string; agent?: string } }) {
+/** The OKs at first look since the last miss, newest last. */
+const runOf = (record: Rung['record']) => {
+  let n = 0;
+  while (record.at(-1 - n)?.ok_first) n++;
+  return n;
+};
+
+function ReviewRow({ agent, rung: r }: { agent: string; rung: Rung }) {
+  const Icon = WORK_ICON[r.work];
+  const floor = r.work === 'contract';
+  const run = runOf(r.record);
   return (
-    <Button variant="primary" onClick={() => openSettingsFor(warning)}>
-      Open
-    </Button>
+    <li className="flex items-center gap-3 border-t border-border px-2 py-2 first:border-t-0">
+      <Icon size={14} className="shrink-0 text-muted" />
+      <span className="min-w-0 flex-1 truncate text-sm text-fg">{WORK_WORD[r.work]}</span>
+      <Dots record={r.record} />
+      <span className="w-14 text-right text-xs text-muted tabular-nums">{floor || r.level === 'never' ? '' : `${run} of ${RUN}`}</span>
+      {floor ? (
+        <span className="flex w-24 items-center justify-end gap-1.5 text-sm text-muted">
+          <Lock size={12} />
+          {LEVEL_WORD.every}
+        </span>
+      ) : (
+        <LevelMenu agent={agent} rung={r} />
+      )}
+    </li>
+  );
+}
+
+/** The last ten first looks, oldest first: a filled dot an OK, a cross a Redo, a ring a look not had yet. */
+function Dots({ record }: { record: Rung['record'] }) {
+  const last = record.slice(-RUN);
+  return (
+    <span
+      className="flex items-center gap-1"
+      role="img"
+      aria-label={`${last.filter((x) => x.ok_first).length} of the last ${last.length} OK at first look`}
+    >
+      {Array.from({ length: RUN }, (_, i) => {
+        const x = last[i - (RUN - last.length)];
+        if (!x) return <span key={i} className="size-2 rounded-full border border-border" />;
+        if (!x.ok_first) return <X key={i} size={10} strokeWidth={3} className="text-warning" />;
+        return <span key={i} className="size-2 rounded-full bg-success" />;
+      })}
+    </span>
+  );
+}
+
+/** A kind's level, set by hand from a menu of the levels; the pick is saved at once. */
+function LevelMenu({ agent, rung }: { agent: string; rung: Rung }) {
+  const set = useWrite('agent.review_set');
+  const pick = (level: Level) =>
+    level !== rung.level &&
+    set.mutate(
+      { agent, work: rung.work, level },
+      { onError: (e) => toast(`Did not change it: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' }) },
+    );
+  return (
+    <Menu
+      align="end"
+      trigger={
+        <Button className="w-24 justify-between!" busy={set.isPending} aria-label={`${WORK_WORD[rung.work]} level`}>
+          {LEVEL_WORD[rung.level]}
+          <ChevronDown size={14} className="text-muted" />
+        </Button>
+      }
+    >
+      {LEVELS.map((l) => (
+        <MenuItem key={l} checked={l === rung.level} onClick={() => pick(l)}>
+          {LEVEL_WORD[l]}
+        </MenuItem>
+      ))}
+    </Menu>
   );
 }

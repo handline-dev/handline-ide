@@ -5,7 +5,7 @@ import type { SettingsChanges } from '@handline/client';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { useMe } from '@handline/app-react';
-import { AgentPage, LEVEL_WORD, Lessons } from '#src/settings/AgentPage.tsx';
+import { AgentPage, LEVEL_WORD, Lessons, WORK_WORD } from '#src/settings/AgentPage.tsx';
 import { Mark } from '#src/ui/Face.tsx';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
@@ -15,7 +15,7 @@ import { Toggle } from '#src/ui/Toggle.tsx';
 
 type Key = 'default_model_claude' | 'default_effort_claude' | 'default_model_codex' | 'default_effort_codex';
 
-/** The list, or one agent's page: `open` is the agent Settings was opened on (a review notice's Open). */
+/** The list, or one agent's page: `open` is the agent Settings was opened on (a step-down offer in Requests). */
 export function AgentsTab({ open }: { open?: string }) {
   const [agent, setAgent] = useState(open);
   return agent ? <AgentPage agent={agent} back={() => setAgent(undefined)} /> : <AgentsList pick={setAgent} />;
@@ -127,7 +127,9 @@ function AgentRows({ pick }: { pick: (agent: string) => void }) {
             >
               <Mark who={a.key} />
               <span className="min-w-0 flex-1 truncate">{nameOf(a.key)}</span>
-              <span className="text-xs text-muted">{LEVEL_WORD[a.review_level ?? 'every']}</span>
+              <span className="text-xs text-muted">
+                {a.review_work ? `${WORK_WORD[a.review_work]} ${LEVEL_WORD[a.review_level ?? 'every']}` : LEVEL_WORD.every}
+              </span>
               <ChevronRight size={14} className="text-muted" />
             </button>
           </li>

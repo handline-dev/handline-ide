@@ -39,6 +39,7 @@ export const LEARNING_SEEDS: Record<string, Seed> = {
     d.tasks.reviews.set(
       ARCH,
       new Map([
+        ['contract', { level: 'every', record: record(9140, [true, true, false, true, true]) }],
         ['screen', { level: 'every', record: record(9150, Array<boolean>(10).fill(true)) }],
         ['daemon', { level: 'one_in_two', record: record(9170, [true, false, true, true]) }],
       ]),

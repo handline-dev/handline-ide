@@ -1,7 +1,7 @@
 // An HR proposal read whole: what it does, who asked and why, each change, and Allow or Deny while it waits on the founder.
 import { proposalTitle } from '@handline/app-core';
 import { Hooks, useNameOf, useProposals } from '@handline/app-data';
-import { TurnQuick } from '#src/requests/rows.tsx';
+import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 import { ago } from '#src/format/time.ts';
 import { DiffLines, diffLines, type Line } from '#src/tools/TaskDiff.tsx';
 
