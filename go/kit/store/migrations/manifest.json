@@ -123,5 +123,10 @@
   "version": 124,
   "name": "agent_node",
   "additive": true
+ },
+ {
+  "version": 125,
+  "name": "node_memory_max",
+  "additive": true
  }
 ]

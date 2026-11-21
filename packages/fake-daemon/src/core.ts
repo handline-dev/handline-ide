@@ -113,7 +113,18 @@ export function coreCall(
     case 'node.status': {
       const at = d.iso();
       const own = { id: 'm-fake', person: 'p1', name: 'mac', joined_at: at, last_seen: at, master_number: 1 };
-      return { master: { id: own.id, number: 1 }, nodes: [{ ...own, master: true, self: true, online: true, lending: 'run' }] };
+      const mine = {
+        ...own,
+        master: true,
+        self: true,
+        online: true,
+        lending: 'run',
+        device: null,
+        memory_max_gb: null,
+        load: null,
+        battery: null,
+      };
+      return { master: { id: own.id, number: 1 }, nodes: [mine, ...d.admin.lentNodes(at)] };
     }
     case 'agent.get':
       return detail(agent(), d.tasks);

@@ -208,6 +208,14 @@ func (p *Placer) lacks(node string, n need, l Limits) string {
 			}
 		}
 	}
+	if node != p.Reg.Self {
+		var gb sql.NullInt64
+		if err := p.DB.QueryRow("SELECT memory_max_gb FROM nodes WHERE id = ?", node).Scan(&gb); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return "its memory cap could not be read: " + err.Error()
+		} else if gb.Valid {
+			l.AgentsRSS = gb.Int64 << 30 // its own cap (device.set) in place of agents_memory_max_gb
+		}
+	}
 	r, err := p.room(node)
 	switch {
 	case err != nil:
