@@ -17,6 +17,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?` | `{stop}` | `refused`, `bad_request` | node | not cached |
 | `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
+| `node.copy.files` | member |  | `have?`, `parts?` | `{send, gone, more}` | `refused` | node, owner, copy | not cached |
 | `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |
 | `node.agent_files` | owner |  | `agent`, `files?`, `deleted?` | `Accepted` | `refused`, `bad_request` | node, not_on_node, path | not cached |
 
@@ -67,6 +68,10 @@ A runner says it is there: its version, load, sessions, accounts and what it has
 ### `node.tokens`
 
 A runner sends the calls one of its accounts' transcripts gained. Only on a runner's link (gate `node`). The master counts the calls in its usage under that account, each charged to the agent whose session made it; a call sent again counts once (by account, session and request). The runner moves its read positions only once the master has answered. Any linked runner may send for any account name: the runner is the person's own lent machine, so this is not checked against the node.
+
+### `node.copy.files`
+
+A runner pulls what its copy of the board lacks. Only on a runner's link (gate `node`). The board's copy is the folder Litestream writes on the master (board-copy in its home): each committed change within a second, a snapshot every hour, two hours kept. Only the owner's runners keep it: another person's is refused, gate `owner`, and drops any copy it holds; gate `copy` when the master keeps none now (the runner keeps what it holds). A pull that finds the runner already holding all of it sets the runner's copy in node.status.
 
 ### `node.launch`
 

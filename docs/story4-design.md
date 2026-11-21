@@ -127,7 +127,9 @@ the master.
 - **The copy:** Litestream, run as a library inside the master, writes each committed change of the board to
   a folder on the master; each of the owner's runners mirrors that folder through the node API, a second or
   two behind. Other people's runners get no copy, so no one else's machine holds the board's chats and memos.
-  The copy is only ever restored, never read from.
+  The copy is only ever restored, never read from. It is `go/internal/boardcopy`: the master writes
+  `<home>/board-copy` (a snapshot an hour, two hours kept), each owner's runner pulls what it lacks every second
+  (`node.copy.files`), and `node.status` shows per runner how long since its copy last held all of it.
 - **Taking over, by hand:** "Make this Mac the master" on one of the owner's runners (or `hl node promote`).
   When the master is reachable, it stops its writes, waits until the copy has them all and hands over, so
   nothing is lost. When it is gone, the runner restores its copy and starts as master the way the daemon
