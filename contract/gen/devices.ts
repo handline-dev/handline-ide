@@ -162,7 +162,7 @@ export interface DevicesMethods {
   load?: { [key: string]: unknown };
   /** Each session it holds: agent, handle, and the branch of its worktree with the commit last pushed (branch, pushed). */
   sessions?: { [key: string]: unknown }[];
-  /** Each Claude account folder there logged in to an account: name and email. */
+  /** Each Claude account folder there logged in to an account: name, email and dir (its config dir, relative to the runner's home). */
   accounts?: { [key: string]: unknown }[];
   /** What it has for an agent's work: clis, mcp, programs (of those the last answer asked about in check, the ones on its PATH), xcode, simulators. */
   has?: { [key: string]: unknown };

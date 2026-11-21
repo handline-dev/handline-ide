@@ -66,7 +66,7 @@ func (r *placeRig) race(t *testing.T) map[string]string {
 		go func() {
 			defer wg.Done()
 			<-start
-			acct, err := r.l.place(a, false, "")
+			acct, err := r.l.place(machine{}, a, false, "")
 			if err != nil {
 				t.Error(err)
 			}
@@ -110,7 +110,7 @@ func TestTwoPlacementsForTwoLikeAccountsPlaceOneEach(t *testing.T) { // E2
 // A launch slower than WakeReserveS loses its hold at the look-back, before its session reports: the slot then reads free.
 func TestAHeldSlotCountsUntilItsLookBackEndsThenGoes(t *testing.T) {
 	r := newPlaceRig(t, "alpha")
-	if acct, err := r.l.place("x", false, ""); err != nil || acct != "alpha" {
+	if acct, err := r.l.place(machine{}, "x", false, ""); err != nil || acct != "alpha" {
 		t.Fatalf("placed on %q (%v)", acct, err)
 	}
 	now := usageNow
@@ -218,7 +218,7 @@ func TestAPlacementUsesTheReadingThatLandedBeforeItsChoice(t *testing.T) {
 		writeUsage(t, r.u.Env.Home, acct, liveAccount(usage.WallPct, 10, 90000))
 		return true
 	}
-	if acct, err := r.l.place("x", false, ""); err != nil || acct != "" {
+	if acct, err := r.l.place(machine{}, "x", false, ""); err != nil || acct != "" {
 		t.Fatalf("placed on %q (%v): the reading that landed said full", acct, err)
 	}
 	if asked != 1 {

@@ -34,9 +34,9 @@ type Site struct {
 	Handle, WorktreeID string
 	// PID is the caller's process, which becomes the session.
 	PID int
-	// Runner is a launch on a runner, where Cwd is: what a launch does to the machine it runs on is the runner's (the session's proof,
-	// Handline's hooks, a resumed session's copy, the worktree's origin/HEAD), so it is not done here.
-	Runner bool
+	// Node is the runner the launch runs on, where Cwd is, "" for this machine. What a launch does to the machine it runs on is the
+	// runner's (the session's proof, Handline's hooks, a resumed session's copy, the worktree's origin/HEAD), so it is not done here.
+	Node string
 	// Warn is told what the person at the terminal should read; nil drops it.
 	Warn func(string)
 }
@@ -70,7 +70,8 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if why := l.leftOut(agent, account); why != "" {
 		return nil, nil, refuse("agent '%s': account '%s' %s", agent, account, why)
 	}
-	acct, err := l.place(agent, resuming, account)
+	m := l.machineAt(site.Node)
+	acct, err := l.place(m, agent, resuming, account)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -87,7 +88,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		if resuming && l.Ports.CurrentAccount(l.Q, agent) == "" {
 			return nil, nil, refuse("agent '%s' has no recorded session to resume", agent)
 		}
-		return nil, nil, refuse("agent '%s': %s", agent, l.NoRoom(agent))
+		return nil, nil, refuse("agent '%s': %s", agent, l.noRoom(m, agent))
 	}
 	// Its config dir is by key: one not looked up would point the session at an empty folder that is no account.
 	if key, err := paths.AccountKeyIn(l.Q, acct); err != nil {
@@ -103,13 +104,13 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if theirs := p.Vendors.AccountVendor(acct); theirs != drv.Name() {
 		return nil, nil, refuse("agent '%s' is a %s agent and account '%s' is a %s account - refusing to start it there.", agent, drv.Name(), acct, theirs)
 	}
-	if resuming && drv.Name() == "claude" && !site.Runner {
+	if resuming && drv.Name() == "claude" && site.Node == "" {
 		if err := carrySession(l.Home, acct, extra); err != nil {
 			site.warn("warning: the session %s resumes is under another account and could not be copied to %s: %v", resumeID(extra), acct, err)
 		}
 	}
 
-	if hooks := drv.Hooks(); hooks != nil && !site.Runner {
+	if hooks := drv.Hooks(); hooks != nil && site.Node == "" {
 		// An unreadable settings file is doctor's to report, not a reason not to start.
 		if hooks.EnsureShared() == nil {
 			// A wanted event added after the shared settings were last installed would otherwise sit uninstalled for good: every launch is
@@ -126,7 +127,10 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 			}
 		}
 	}
-	if !p.Accounts.MayStart(acct) {
+	switch {
+	case site.Node != "" && m.dirs[acct] == "":
+		return nil, nil, refuse("account '%s' is not logged in on node %s.\nA human logs in there once (Handline never touches credentials).", acct, site.Node)
+	case site.Node == "" && !p.Accounts.MayStart(acct):
 		login, _ := p.Accounts.LoginCommand(acct)
 		return nil, nil, refuse("account '%s' is not logged in.\nA human has to do this once (Handline never touches credentials):\n\n  %s\n", acct, login)
 	}
@@ -246,6 +250,9 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if env == nil {
 		env = map[string]string{}
 	}
+	if site.Node != "" {
+		env[team.ConfigDirEnv(drv.Name())] = m.dirs[acct] // the runner's own folder for the account (checked above)
+	}
 	for k, v := range drv.LaunchEnv(preamble, l.disallowed(agent), paths.AgentDir(l.Home, agent)) {
 		env[k] = v
 	}
@@ -304,9 +311,9 @@ type Prepared struct {
 }
 
 // place is ChooseAccount and the hold of the slot it chose (wake_reserved, source launch) as one step under placeMu.
-func (l *Launcher) place(agent string, resuming bool, account string) (string, error) {
+func (l *Launcher) place(m machine, agent string, resuming bool, account string) (string, error) {
 	defer l.Placing()()
-	acct := l.ChooseAccount(agent, resuming, account)
+	acct := l.chooseOn(m, agent, resuming, account)
 	if acct == "" {
 		return "", nil
 	}
@@ -357,7 +364,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 			}
 		}
 	}()
-	if !site.Runner && !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
+	if site.Node == "" && !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
 		return nil, l.refused(agent, refuse("the session of %s could not be recorded, so it is not started", agent))
 	}
 	prompt := TakePrompt(promptFile)
@@ -385,7 +392,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	}
 	fp, _ := l.Fingerprint(agent)
 	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], fp)
-	if !site.Runner {
+	if site.Node == "" {
 		gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it; a runner's worktree is made with it
 	}
 	keys := make([]string, 0, len(env))

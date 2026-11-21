@@ -34,10 +34,11 @@ type BeatSession struct {
 	Pushed string `json:"pushed,omitempty"`
 }
 
-// BeatAccount is a Claude account folder on the runner, with the email it is logged in as.
+// BeatAccount is a Claude account folder on the runner, with the email it is logged in as and its config dir, relative to the home.
 type BeatAccount struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
+	Dir   string `json:"dir"`
 }
 
 // Has is what the runner has for an agent's work.

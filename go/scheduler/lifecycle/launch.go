@@ -125,6 +125,16 @@ type LaunchPorts struct {
 	// RegisterWorker joins the agent's terminal to the team's Run.
 	RegisterWorker func(agent, handle string) error
 	Warn           func(string)
+	// Devices is the runners agents run on; nil is this machine alone.
+	Devices DevicesPort
+}
+
+// DevicesPort is the runners as launch sees them (go/internal/nodes): an agent on one starts on the board's accounts logged in there.
+type DevicesPort interface {
+	// DeviceOf is the runner agent's session runs on, or opens on next, "" for this machine.
+	DeviceOf(agent string) string
+	// Accounts is, by board account, the config dir of each logged in on node, in this machine's home's terms.
+	Accounts(node string) map[string]string
 }
 
 // Refusal is a launch that must not go ahead, in words for the person at the terminal.
@@ -148,9 +158,33 @@ type Launcher struct {
 	FounderTyped func(agent string) bool
 
 	// placeMu makes choosing an account and holding its slot (wake_reserved) one step: a launch's choice (Build), a wake's fresh or
-	// cold choice, and the slot of a move or a warm resume, asked again under it (wake.go). Taken after the agent's lock and the terminal lock, never before them; nothing under it takes
-	// another lock, makes a network call or waits (usage.Env.Refresh, the one live read a pick may make, is not set in the daemon).
+	// cold choice, and the slot of a move or a warm resume, asked again under it (wake.go). Taken after the agent's lock and the terminal lock, never before them; nothing under it makes a
+	// network call or waits (usage.Env.Refresh, the one live read a pick may make, is not set in the daemon), and the only locks it takes
+	// are the runners' (DevicesPort: placement's, then the registry's), which take none of the lifecycle's.
 	placeMu sync.Mutex
+}
+
+// machine is the machine an account is chosen on: a runner (node) with the config dir of each board account logged in there, or this
+// machine (node "").
+type machine struct {
+	node string
+	dirs map[string]string
+}
+
+// machineOf is the machine agent's session runs on or opens on next.
+func (l *Launcher) machineOf(agent string) machine {
+	if l.Ports.Devices == nil {
+		return machine{}
+	}
+	return l.machineAt(l.Ports.Devices.DeviceOf(agent))
+}
+
+// machineAt is node, "" for this machine.
+func (l *Launcher) machineAt(node string) machine {
+	if node == "" || l.Ports.Devices == nil {
+		return machine{node: node}
+	}
+	return machine{node, l.Ports.Devices.Accounts(node)}
 }
 
 // Placing takes placeMu; the returned func lets it go.
@@ -172,13 +206,21 @@ func (l *Launcher) now() time.Time {
 	return time.Now()
 }
 
-// mayStartAccounts is the accounts agent may start on: logged in (`assignable` says nothing about credentials), and named by its
-// workspace's accounts rule when one is on.
+// mayStartAccounts is the accounts agent may start on: logged in on its machine (`assignable` says nothing about credentials), and
+// named by its workspace's accounts rule when one is on.
 func (l *Launcher) mayStartAccounts(agent string) []string {
+	return l.mayStartOn(l.machineOf(agent), agent)
+}
+
+func (l *Launcher) mayStartOn(m machine, agent string) []string {
 	allowed, _ := l.accountsRule(agent)
 	var out []string
 	for _, a := range paths.ListAccounts(l.Home) {
-		if l.Ports.Accounts.MayStart(a) && (allowed == nil || slices.Contains(allowed, a)) {
+		loggedIn := m.dirs[a] != ""
+		if m.node == "" {
+			loggedIn = l.Ports.Accounts.MayStart(a)
+		}
+		if loggedIn && (allowed == nil || slices.Contains(allowed, a)) {
 			out = append(out, a)
 		}
 	}
@@ -235,33 +277,33 @@ func (l *Launcher) PinOf(agent string) string {
 
 // heldTo is the one account the agent may start on, "" for any: its pin, else with account_split manual the account it is on. An agent
 // on no account yet, or on one it cannot use at all (another vendor's, left out, logged out or paused), is placed as in auto.
-func (l *Launcher) heldTo(agent string) string {
+func (l *Launcher) heldTo(m machine, agent string) string {
 	if pin := l.PinOf(agent); pin != "" || !l.Ports.Usage.ManualSplit() {
 		return pin
 	}
 	own := l.Ports.CurrentAccount(l.Q, agent)
-	if own == "" || l.unusable(agent, own) {
+	if own == "" || l.unusable(m, agent, own) {
 		return ""
 	}
 	return own
 }
 
 // unusable is whether agent cannot run on acct whatever its room: another vendor's, left out by its workspace, logged out or paused.
-func (l *Launcher) unusable(agent, acct string) bool {
+func (l *Launcher) unusable(m machine, agent, acct string) bool {
 	return l.Ports.Vendors.AccountVendor(acct) != l.Ports.Vendors.AgentVendor(agent) || l.leftOut(agent, acct) != "" ||
-		!slices.Contains(l.mayStartAccounts(agent), acct) || l.Ports.Usage.Read(acct).Paused
+		!slices.Contains(l.mayStartOn(m, agent), acct) || l.Ports.Usage.Read(acct).Paused
 }
 
 // pinnedWhy is why the account the agent is pinned to cannot take it now, "" when it can. The account must be the agent's vendor's and
 // logged in. One whose vendor reports no usage takes it with no room test; one that reports usage is held to its room as any account is.
-func (l *Launcher) pinnedWhy(agent, pin string) string {
+func (l *Launcher) pinnedWhy(m machine, agent, pin string) string {
 	vendor, theirs := l.Ports.Vendors.AgentVendor(agent), l.Ports.Vendors.AccountVendor(pin)
 	switch out := l.leftOut(agent, pin); {
 	case theirs != vendor:
 		return fmt.Sprintf("it is pinned to %s, a %s account, but it runs %s", pin, theirs, vendor)
 	case out != "":
 		return fmt.Sprintf("it is pinned to %s, which %s", pin, out)
-	case !slices.Contains(l.mayStartAccounts(agent), pin):
+	case !slices.Contains(l.mayStartOn(m, agent), pin):
 		return fmt.Sprintf("it is pinned to %s, which is not logged in or may not start", pin)
 	case l.Ports.Usage.Read(pin).Paused:
 		return fmt.Sprintf("it is pinned to %s, which is paused", pin)
@@ -276,14 +318,16 @@ func (l *Launcher) pinnedWhy(agent, pin string) string {
 
 // FindRoom is the account that can take this agent's next session, "" for none: the account it is pinned to, else the best of the
 // logged-in ones, and failing that one nothing says is a bad place to start. An account whose vendor reports no usage is never picked here.
-func (l *Launcher) FindRoom(agent string) string {
-	if pin := l.heldTo(agent); pin != "" {
-		if l.pinnedWhy(agent, pin) != "" {
+func (l *Launcher) FindRoom(agent string) string { return l.findRoom(l.machineOf(agent), agent) }
+
+func (l *Launcher) findRoom(m machine, agent string) string {
+	if pin := l.heldTo(m, agent); pin != "" {
+		if l.pinnedWhy(m, agent, pin) != "" {
 			return ""
 		}
 		return pin
 	}
-	candidates := l.mayStartAccounts(agent)
+	candidates := l.mayStartOn(m, agent)
 	if picked := l.Ports.Usage.PickAccount(candidates, agent); picked != "" {
 		return picked
 	}
@@ -301,6 +345,10 @@ func (l *Launcher) FindRoom(agent string) string {
 // was recorded on. account is a destination someone already chose (a move), a resume too: Build carries the session there
 // (carrySession) and still holds the account to the vendor, login and wall checks.
 func (l *Launcher) ChooseAccount(agent string, resuming bool, account string) string {
+	return l.chooseOn(l.machineOf(agent), agent, resuming, account)
+}
+
+func (l *Launcher) chooseOn(m machine, agent string, resuming bool, account string) string {
 	pin := l.PinOf(agent)
 	outside := func(a string) bool { return l.leftOut(agent, a) != "" }
 	switch {
@@ -317,7 +365,7 @@ func (l *Launcher) ChooseAccount(agent string, resuming bool, account string) st
 	case resuming && !outside(l.Ports.CurrentAccount(l.Q, agent)):
 		return l.Ports.CurrentAccount(l.Q, agent)
 	}
-	return l.FindRoom(agent) // a session on an account the rule leaves out is carried to one it names
+	return l.findRoom(m, agent) // a session on an account the rule leaves out is carried to one it names
 }
 
 // WakeWait is a closed agent's wake walled behind an account's 5h or weekly wall, its slots, or its workspace's agent_cap.
@@ -514,7 +562,9 @@ func (l *Launcher) RoomOn(q db.Q, agent string, row *db.AgentState, acct string)
 
 // FreesFirst is, for an agent no account has room for, the walled account whose wall lifts first, else a paused one (when it is resumed
 // cannot be told); nil when none is walled or paused.
-func (l *Launcher) FreesFirst(agent string) *WakeWait {
+func (l *Launcher) FreesFirst(agent string) *WakeWait { return l.freesFirst(l.machineOf(agent), agent) }
+
+func (l *Launcher) freesFirst(m machine, agent string) *WakeWait {
 	vendor := l.Ports.Vendors.AgentVendor(agent)
 	var best *WakeWait
 	rank := func(w *WakeWait) float64 {
@@ -523,7 +573,7 @@ func (l *Launcher) FreesFirst(agent string) *WakeWait {
 		}
 		return float64(w.Reset)
 	}
-	for _, a := range l.mayStartAccounts(agent) {
+	for _, a := range l.mayStartOn(m, agent) {
 		if l.Ports.Usage.NotFor(a, vendor) {
 			continue
 		}
@@ -539,35 +589,48 @@ func (l *Launcher) FreesFirst(agent string) *WakeWait {
 }
 
 // NoRoom is why no account can take this agent, naming the one that frees up first; for a pinned agent, why its account cannot.
-func (l *Launcher) NoRoom(agent string) string {
+func (l *Launcher) NoRoom(agent string) string { return l.noRoom(l.machineOf(agent), agent) }
+
+func (l *Launcher) noRoom(m machine, agent string) string {
 	if pin := l.PinOf(agent); pin != "" {
-		if why := l.pinnedWhy(agent, pin); why != "" {
+		if why := l.pinnedWhy(m, agent, pin); why != "" {
 			return why
 		}
 	}
 	named := paths.ListAccounts(l.Home)
-	if len(l.mayStartAccounts(agent)) == 0 {
+	if len(l.mayStartOn(m, agent)) == 0 {
 		if len(named) == 0 {
 			return "no account is registered - add one in the app's Accounts page first"
 		}
 		if allowed, rule := l.accountsRule(agent); allowed != nil {
-			return "no account its workspace's rule " + rule.Words() + " names is logged in"
+			return "no account its workspace's rule " + rule.Words() + " names is logged in" + onRunner(m.node)
+		}
+		if m.node != "" {
+			return "no account is logged in" + onRunner(m.node) + ". A human logs in there once (Handline never touches credentials)"
 		}
 		cmd, _ := l.Ports.Accounts.LoginCommand(named[0])
 		return fmt.Sprintf("no account is logged in. A human has to do this once (Handline never touches credentials):\n\n  %s\n", cmd)
 	}
 	why := "no account can take one more agent"
 	var each []string
-	for _, r := range l.Ports.Usage.PickReasons(l.mayStartAccounts(agent), agent) {
+	for _, r := range l.Ports.Usage.PickReasons(l.mayStartOn(m, agent), agent) {
 		each = append(each, r.Account+": "+r.Why)
 	}
 	if len(each) > 0 {
 		why += " (" + strings.Join(each, "; ") + ")"
 	}
-	if w := l.FreesFirst(agent); w != nil {
+	if w := l.freesFirst(m, agent); w != nil {
 		return why + " - " + DescribeWakeWait(w)
 	}
 	return why
+}
+
+// onRunner is " on node <node>" for a runner, "" for this machine.
+func onRunner(node string) string {
+	if node == "" {
+		return ""
+	}
+	return " on node " + node
 }
 
 // WakeWait is whether a closed agent's wake is held by its workspace's agent_cap or walled behind its own account's 5h or weekly wall:
