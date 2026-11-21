@@ -20,7 +20,7 @@ const code = (r: { ok: boolean }) => (r.ok ? 'ok' : (r as unknown as { code: str
 const present = new Set<string>();
 function make(over: Partial<OpenInDeps> = {}) {
   const calls: { file: string; args: string[] }[] = [];
-  const timers: (() => void)[] = [];
+  const timers: (() => unknown)[] = [];
   const o = new OpenIn(ORIGIN, {
     platform: 'darwin',
     home: root,
@@ -153,8 +153,7 @@ test('Claude Code writes a 0700 launcher in a folder of its own, quotes each wor
   assert.equal(fs.statSync(path.join(root, dir)).mode & 0o777, 0o700);
   assert.deepEqual(calls, [{ file: '/usr/bin/open', args: ['-a', 'Terminal', launcher] }]);
   assert.equal(timers.length, 1);
-  timers[0]!();
-  await new Promise((r) => setTimeout(r, 50));
+  await timers[0]!();
   assert.deepEqual(launchers(), []);
 });
 
@@ -197,7 +196,6 @@ test('a failed Terminal open removes the launcher folder at once', async () => {
   });
   const r = await o.open(top, { app: 'claude', agent: 'handline.x' });
   assert.equal(r.ok, false);
-  await new Promise((r) => setTimeout(r, 50));
   assert.deepEqual(launchers(), []);
 });
 

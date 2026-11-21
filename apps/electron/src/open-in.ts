@@ -35,7 +35,7 @@ export interface OpenInDeps {
   /** Whether an app is at this path. */
   exists(p: string): Promise<boolean>;
   /** Calls `fn` after `ms`; the delete of the launcher's folder. */
-  later(fn: () => void, ms: number): void;
+  later(fn: () => unknown, ms: number): void;
 }
 
 /** The tmux attach command the daemon serves: `tmux -L <server name> attach-session -t <session>`; anything else is not run. */
@@ -149,17 +149,17 @@ export class OpenIn {
   private async launch(name: string, script: string): Promise<OpenInReply> {
     const dir = await fs.mkdtemp(path.join(this.deps.tmp, 'handline-'));
     const file = path.join(dir, name);
-    const drop = () => void fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    const drop = () => fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
     try {
       await fs.writeFile(file, script, { flag: 'wx', mode: 0o700 });
       await fs.chmod(file, 0o700);
     } catch (err) {
-      drop();
+      await drop();
       return fail('unavailable', err instanceof Error ? err.message : String(err));
     }
     this.deps.later(drop, LIFETIME_MS);
     const r = await this.run(['-a', APPS.terminal.name, file]);
-    if (!r.ok) drop();
+    if (!r.ok) await drop();
     return r;
   }
 }
