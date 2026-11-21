@@ -27,12 +27,14 @@ import (
 	"github.com/handline/handline/go/internal/filerw"
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/internal/inputhold"
+	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/pausewrites"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/internal/proposalwrites"
 	"github.com/handline/handline/go/internal/push"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/internal/termchan"
 	"github.com/handline/handline/go/internal/transcript"
@@ -152,6 +154,7 @@ type Daemon struct {
 	local     *rpc.Server
 	net       *netDoors
 	dev       *devices.Manager // nil unless the network listener is on
+	nodes     *nodes.Registry  // the runners linked to this master
 	push      *push.Sender     // nil when push is off: no credentials in config.yaml
 	hub       *stream.Hub
 	wg        sync.WaitGroup
@@ -193,7 +196,7 @@ func Start(cfg Config) (*Daemon, error) {
 			single.Release()
 		}
 	}()
-	if err := setBoardAside(cfg.Home, cfg.DBFile, time.Now()); err != nil {
+	if err := SetBoardAside(cfg.Home, cfg.DBFile, time.Now()); err != nil {
 		return nil, fmt.Errorf("set the board aside for the master: %w", err)
 	}
 	db, err := store.Open(cfg.DBFile)
@@ -322,6 +325,7 @@ func Start(cfg Config) (*Daemon, error) {
 		d.load.DB, d.load.Panes = db, d.agentPanes
 	}
 	d.hclock = &reads.HealthClock{}
+	d.nodes = nodes.New(db)
 	d.local = d.newServer("local")
 	d.seedHealth()
 	d.armPause()          // a pause kept across a restart still ends at its until
@@ -632,7 +636,9 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	}
 	if transport == "network" {
 		s.Net = d.dev
+		s.Wrap("hello", d.linkRunner)
 	}
+	nodes.Register(s, func() *rpc.Server { return d.local }, d.nodes)
 	devices.Register(s, d.dev, d.hub.Emit)
 	stream.Register(s, d.hub)
 	if d.cfg.Transcripts {
@@ -866,4 +872,27 @@ func keepOwnNode(db *sql.DB, home string) error {
 		return fmt.Errorf("node id: %w", err)
 	}
 	return dbpkg.KeepOwnNode(db, id, sysres.MachineName(), time.Now().Unix())
+}
+
+// linkRunner is hello on the network door: a joined machine's device (one with a node) whose hello names runner.Client is that
+// runner's link. Any other connection with its token (an app on that machine) is not.
+func (d *Daemon) linkRunner(next func(*rpc.Conn, map[string]any) (any, error)) func(*rpc.Conn, map[string]any) (any, error) {
+	return func(c *rpc.Conn, p map[string]any) (any, error) {
+		res, err := next(c, p)
+		id, _ := c.Caller.Info["device"].(string)
+		if err != nil || id == "" || d.dev == nil || p["client"] != runner.Client {
+			return res, err
+		}
+		ds, derr := d.dev.Devices()
+		if derr != nil {
+			d.cfg.Log("  device %s: not linked as a runner: %v", id, derr)
+			return res, nil
+		}
+		for _, dev := range ds {
+			if dev.ID == id && dev.Node != "" {
+				d.nodes.Link(dev.Node, c)
+			}
+		}
+		return res, nil
+	}
 }

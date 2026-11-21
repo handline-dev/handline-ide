@@ -15,15 +15,20 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	"github.com/handline/handline/go/data/agenthost"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/homeinit"
 	"github.com/handline/handline/go/internal/compose"
 	"github.com/handline/handline/go/internal/daemon"
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/internal/sessionrpc"
+	"github.com/handline/handline/go/kit/joined"
+	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/protocol/sessiontoken"
@@ -133,6 +138,10 @@ func main() {
 	}
 	if err := homeinit.Setup(homeDir, paths.HlExe(), func(f string, a ...any) { log.Printf("handlined: "+f, a...) }); err != nil {
 		log.Printf("handlined: setting the home up failed (run `hl init` to see why): %v", err)
+	}
+	if m, ok := joined.Of(homeDir); ok {
+		runRunner(homeDir, *db, *sock, m, *exitWithStdin)
+		return
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
 		WebDir: *web, Advertise: *advertise, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey}
@@ -276,4 +285,39 @@ func leaveAgentSession() string {
 		os.Unsetenv(k)
 	}
 	return agent
+}
+
+// runRunner is a home that joined a master: runner mode, which keeps no board. The board it ran alone on is set aside first, unchanged.
+func runRunner(home, dbFile, sock string, m joined.Master, exitWithStdin bool) {
+	single := lock.TakeSingleton(home, "daemon")
+	if single == nil {
+		log.Fatalf("handlined: another daemon holds this home: not starting a second")
+	}
+	defer single.Release()
+	if dbFile == "" {
+		dbFile = paths.DBFile(home)
+	}
+	if err := daemon.SetBoardAside(home, dbFile, time.Now()); err != nil {
+		log.Fatalf("handlined: set the board aside for the master: %v", err)
+	}
+	if sock == "" {
+		sock = paths.SocketFile(home)
+	}
+	sessiontoken.New(home).EnsureFounderKey()
+	tm, ok := agenthost.Current(home).(runner.Terminals)
+	if !ok {
+		log.Fatalf("handlined: the terminal host %s cannot run a runner's sessions", agenthost.TerminalName(home))
+	}
+	r, err := runner.Start(runner.Config{Home: home, Socket: sock, Sha: version.Sha, Master: m, Term: tm, Log: log.Printf})
+	if err != nil {
+		log.Fatalf("handlined: runner: %v", err)
+	}
+	log.Printf("handlined: runner mode: no board; the master is %s", m.Addr)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if exitWithStdin {
+		ctx = untilClosed(ctx, os.Stdin)
+	}
+	<-ctx.Done()
+	r.Close()
 }
