@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // An agent runs, looks at and presses a separate test instance of this worktree's desktop app, never the user's window: it has its own
 // scratch home, data folder, free ports (never 9333) and a DevTools port only it knows. Clicks are the page's own (DevTools input).
-// Usage: app.mjs start [--fake] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
+// Usage: app.mjs start [--fake | --attach HOME ADDR] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
 //   | drag-check (clickable things whose middle is an `-webkit-app-region: drag` area)
 //   | overflow [width ...] (what runs past the window's right edge at each width; default 480 768 1280) | status | stop [--all]
+// --attach HOME ADDR: the app adopts the daemon already running on HOME and listening on ADDR (hl dev cluster's master), never stopping it.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -175,7 +176,7 @@ const commands = {
       console.error('building the web app and the shell');
       sh('pnpm', ['--filter', '@handline/web', 'build']);
       sh('pnpm', ['--filter', '@handline/electron', 'build']);
-      if (!flag('--fake')) sh('bash', ['tools/build-go.sh']);
+      if (!flag('--fake') && !flag('--attach')) sh('bash', ['tools/build-go.sh']);
     }
     const s = await scratch('hl-app-');
     fs.mkdirSync(stateDir, { recursive: true });
@@ -188,7 +189,15 @@ const commands = {
         const wsPort = await freePort();
         const fake = spawn(
           'node',
-          ['packages/fake-daemon/src/serve.ts', '--seed', process.env.HANDLINE_FAKE_SEEDS ?? 'all', '--ws', String(wsPort), '--socket', path.join(s.root, 'fake.sock')],
+          [
+            'packages/fake-daemon/src/serve.ts',
+            '--seed',
+            process.env.HANDLINE_FAKE_SEEDS ?? 'all',
+            '--ws',
+            String(wsPort),
+            '--socket',
+            path.join(s.root, 'fake.sock'),
+          ],
           {
             cwd: top,
             stdio: 'ignore',
@@ -200,6 +209,14 @@ const commands = {
         env.HANDLINE_WS = `ws://127.0.0.1:${wsPort}`;
         delete env.HANDLINE_LISTEN;
         fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+      }
+      const attach = opt('--attach');
+      if (attach) {
+        const listen = rest[rest.indexOf('--attach') + 2];
+        if (!listen) die('usage: node tools/app.mjs start --attach HOME ADDR');
+        // hl dev cluster keeps the nodes' stand-in user home beside their homes.
+        const user = path.join(path.dirname(attach), 'user');
+        Object.assign(env, { HANDLINE_HOME: attach, HANDLINE_ATTACH: '1', HANDLINE_LISTEN: listen, HANDLINE_TEST_ROOT: user, HOME: user });
       }
       startApp(path.join(top, 'apps', 'electron'), env, s.log);
       await until('the app window', 120_000, async () => {

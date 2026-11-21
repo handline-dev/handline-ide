@@ -1,11 +1,10 @@
-// Settings > This Mac: what the machine and the agents use, the shared runs, and keep-awake. Stop is the one change to an agent. Every write dims its control until the daemon answers; a refusal says why under it.
+// The master's own Mac on its Devices page: resources, agents, shared runs and keep-awake. A refused write says why under its control.
 import { useNameOf } from '@handline/app-data';
 import { Bot, Coffee, Cpu, Gauge, HardDrive, MemoryStick, TriangleAlert, Zap } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { bytesText, loadFull, LOW_DISK_BYTES, memoryLow } from '@handline/app-core';
 import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
 import { SharedRuns } from '#src/settings/SharedRuns.tsx';
-import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useService } from '#src/settings/data/service.ts';
 import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
@@ -73,7 +72,7 @@ function Target({
   );
 }
 
-export function MachineTab() {
+export function MachineSections() {
   const nameOf = useNameOf();
   const m = useMachine();
   const service = useService();
@@ -98,7 +97,7 @@ export function MachineTab() {
   const load = m.limits.load_per_core_pct;
   const free = m.limits.ram_free_min_pct;
   return (
-    <SettingsPage keep="settings-machine" title="This Mac" note="What this computer and its agents use, and whether it stays awake.">
+    <>
       <Block
         title="Resources"
         icon={<Gauge size={16} />}
@@ -204,6 +203,6 @@ export function MachineTab() {
         {why('awake')}
       </Block>
       {service && <ServiceBlock service={service} working={m.working} />}
-    </SettingsPage>
+    </>
   );
 }

@@ -17,6 +17,7 @@ const { calls, write, ok, ladder } = vi.hoisted(() => {
   ];
   return { calls, write, ok, ladder };
 });
+vi.mock('#src/settings/data/devices.ts', () => ({ useAgentDevice: () => null }));
 vi.mock('@handline/app-data', () => ({
   useAgentReview: () => ok({ agent: 'ui', ladder, lessons: 0 }),
   useLessons: () => ok({ items: [] }),

@@ -1,138 +1,242 @@
-// Settings > Devices: every device that connects to this computer in one table - this one first, who is connected, when the others were last
-// seen (stale after 30 days), and Revoke behind a confirm that waits for the daemon.
+// Settings > Devices: every device in one flat list, the master first; a row opens its page. At the foot, the battery switch and reclaim time.
+import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { ChevronRight, MonitorSmartphone, Plus } from 'lucide-react';
+import { BatteryCharging, ChevronRight, Plus, SlidersHorizontal, Timer, Zap } from 'lucide-react';
 import { useState } from 'react';
-import { ago } from '@handline/app-core';
-import type { Device } from '@handline/client';
+import { DevicePage } from '#src/settings/DevicePage.tsx';
+import {
+  Confirm,
+  KIND_ICON,
+  KIND_WORD,
+  MODE_WORD,
+  ModeControl,
+  OFF_TEXT,
+  StateWord,
+  confirmRevoke,
+  refused,
+} from '#src/settings/DeviceControls.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { openPairSheet } from '#src/settings/PairSheet.tsx';
-import { useDevices } from '#src/settings/data/devices.ts';
+import { MASTER, MODES, useDevices, type DeviceRow, type Mode } from '#src/settings/data/devices.ts';
+import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { NumberStepper } from '#src/ui/NumberStepper.tsx';
+import { Toggle } from '#src/ui/Toggle.tsx';
+import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
+import { openModal } from '#src/ui/modal.tsx';
 
-const KIND_WORD = { ios: 'iPhone / iPad', android: 'Android', web: 'Browser', desktop: 'Desktop', mac: 'Mac', server: 'Server' } as const;
+type Devices = ReturnType<typeof useDevices>;
 
-type Row = Device & { stale: boolean };
-
-/** This device first, then connected, then the most recently seen. */
-export const sortDevices = (list: Row[]): Row[] =>
-  [...list].sort(
-    (a, b) =>
-      Number(!!b.current) - Number(!!a.current) ||
-      Number(b.connected) - Number(a.connected) ||
-      Date.parse(b.last_seen ?? b.created) - Date.parse(a.last_seen ?? a.created),
-  );
-
-function seen(d: Row) {
-  if (d.connected) return <span className="text-fg">Connected</span>;
-  if (!d.last_seen) return <span className="text-muted">Never seen</span>;
-  return <span className={d.stale ? 'text-warning' : 'text-muted'}>Seen {ago(d.last_seen)} ago</span>;
+/** Sets each row's mode; Off asks once for all of them. */
+function setAll(rows: DeviceRow[], mode: Mode, q: Devices) {
+  const go = async () => {
+    for (const r of rows) await q.setMode(r, mode);
+  };
+  if (mode !== 'off') return void go().catch(refused);
+  void openModal<void>((close) => (
+    <Confirm
+      title={rows.length === 1 ? `Turn ${rows[0]!.name} off?` : `Turn ${rows.length} devices off?`}
+      text={OFF_TEXT}
+      act="Turn off"
+      busyWord="Turning off…"
+      go={go}
+      close={() => close()}
+    />
+  ));
 }
 
-/** The confirm waits for the daemon: it stays, dimmed, until the answer, and a refusal says why in it. */
-function RevokeConfirm({ title, text, go, close }: { title: string; text: string; go: () => Promise<unknown>; close: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [why, setWhy] = useState('');
+/** What the row says under its name: its kind, its agents, its memory cap, and what it lacks for an agent. */
+function Detail({ r, memoryMax }: { r: DeviceRow; memoryMax: number }) {
+  const nameOf = useNameOf();
+  const kind = r.kind ? KIND_WORD[r.kind] : null;
+  const cap = r.node?.memory_max_gb ?? memoryMax;
+  const parts = r.runner
+    ? [kind, `${r.agents.length} ${r.agents.length === 1 ? 'agent' : 'agents'}`, cap ? `up to ${cap} GB` : null]
+    : [kind, 'runs no agents'];
+  const lack = r.lacks[0];
   return (
-    <ModalFrame
-      title={title}
-      size="sm"
-      onClose={busy ? undefined : close}
-      footer={
-        <>
-          <Button disabled={busy} onClick={close}>
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              setWhy('');
-              go().then(close, (e: unknown) => (setWhy(String(e)), setBusy(false)));
-            }}
-          >
-            {busy ? 'Revoking…' : 'Revoke'}
-          </Button>
-        </>
-      }
-    >
-      <p>{text}</p>
-      {why && (
-        <p className="pt-2 text-xs text-danger" role="alert">
-          {why}
-        </p>
+    <div className="truncate text-xs text-muted">
+      {parts.filter(Boolean).join(' · ')}
+      {lack && (
+        <span className="text-warning" title={r.lacks.map((l) => `${nameOf(l.agent)}: ${l.why}`).join('\n')}>
+          {' · '}cannot run {nameOf(lack.agent)}: {lack.why}
+          {r.lacks.length > 1 && ` (+${r.lacks.length - 1})`}
+        </span>
       )}
-    </ModalFrame>
-  );
-}
-
-const again = 'To use it again it has to be paired anew.';
-
-function DeviceRow({ d, pending, revoke }: { d: Row; pending: boolean; revoke: (id: string) => Promise<unknown> }) {
-  return (
-    <div data-device={d.id} className={`flex items-center gap-3 px-4 py-3 text-sm ${pending ? 'opacity-50' : ''}`}>
-      <MonitorSmartphone size={16} className="shrink-0 text-muted" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="[overflow-wrap:anywhere]">{d.name}</span>
-          {d.current && <span className="rounded-full border border-border px-2 text-xs text-muted">This device</span>}
-        </div>
-        {(d.kind || d.client) && (
-          <div className="text-xs text-muted">{[d.kind && KIND_WORD[d.kind], d.client].filter(Boolean).join(' · ')}</div>
-        )}
-      </div>
-      <span className="shrink-0">{seen(d)}</span>
-      <Button
-        disabled={pending}
-        aria-label={`Revoke ${d.name}`}
-        title="Takes this device's access away"
-        onClick={() =>
-          void openModal<void>((close) => (
-            <RevokeConfirm
-              title={`Revoke ${d.name}?`}
-              text={`${d.current ? 'This is the device you are using: it loses its access at once.' : `${d.name} loses its access at once.`} ${again}`}
-              go={() => revoke(d.id)}
-              close={() => close()}
-            />
-          ))
-        }
-      >
-        Revoke
-      </Button>
     </div>
   );
 }
 
-export function DevicesTab() {
+function RowMenu({ r, q, open }: { r: DeviceRow; q: Devices; open: () => void }) {
+  return (
+    <>
+      <MenuItem onClick={open}>Open</MenuItem>
+      {r.runner && r.mine && (
+        <>
+          <MenuSeparator />
+          {MODES.map((m) => (
+            <MenuItem key={m} checked={r.mode === m} disabled={r.master && m === 'off'} onClick={() => setAll([r], m, q)}>
+              {MODE_WORD[m]}
+            </MenuItem>
+          ))}
+        </>
+      )}
+      {!r.master && (
+        <>
+          <MenuSeparator />
+          <MenuItem danger onClick={() => confirmRevoke([r], q.revoke)}>
+            Revoke…
+          </MenuItem>
+        </>
+      )}
+    </>
+  );
+}
+
+function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: boolean; pick: (on: boolean) => void; open: () => void }) {
+  const Icon = KIND_ICON[r.kind ?? 'desktop'];
+  const busy = q.pending === `mode:${r.id}` || q.pending === `revoke:${r.id}`;
+  return (
+    <ContextMenu items={<RowMenu r={r} q={q} open={open} />}>
+      <div
+        data-device={r.id}
+        role="button"
+        tabIndex={0}
+        onClick={open}
+        onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && open()}
+        className={`flex cursor-default items-center gap-3 px-4 py-2.5 text-sm hover:bg-hover/30 ${picked ? 'bg-selected' : ''} ${busy ? 'opacity-50' : ''}`}
+      >
+        <input
+          type="checkbox"
+          aria-label={`Select ${r.name}`}
+          checked={picked}
+          disabled={r.master}
+          className={r.master ? 'invisible' : ''}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => pick(e.target.checked)}
+        />
+        <Icon size={16} className="shrink-0 text-muted" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate">{r.name}</span>
+            {r.here && <span className="shrink-0 rounded-full border border-border px-2 text-xs text-muted">This device</span>}
+            {r.master && <span className="shrink-0 rounded-full border border-border px-2 text-xs text-muted">Master</span>}
+          </div>
+          <Detail r={r} memoryMax={q.memoryMax} />
+        </div>
+        <span className={`w-40 shrink-0 text-xs ${r.stale ? 'text-warning' : ''}`}>
+          <StateWord row={r} />
+        </span>
+        {/* Phones and browsers keep the control's room, so the states line up. */}
+        <span className="flex w-52 shrink-0 justify-end">
+          {r.runner && r.mode && <ModeControl row={r} busy={q.pending !== null} setMode={(m) => q.setMode(r, m)} />}
+        </span>
+        <ChevronRight size={14} className="shrink-0 text-muted" />
+      </div>
+    </ContextMenu>
+  );
+}
+
+/** What holds for every lent device: the battery switch, and under Expert the reclaim time. */
+function AllDevices({ q }: { q: Devices }) {
+  const [expert, setExpert] = useState(false);
+  return (
+    <Block title="Every lent device" icon={<Zap size={16} />}>
+      <Setting title="Turn off on battery" icon={<BatteryCharging size={14} />} note="Back to Run when plugged in again.">
+        <Toggle
+          label="Turn off on battery"
+          on={q.battery}
+          disabled={q.pending !== null}
+          onChange={(on) => void q.setBattery(on).catch(refused)}
+        />
+      </Setting>
+      <button
+        type="button"
+        aria-expanded={expert}
+        onClick={() => setExpert((v) => !v)}
+        className="flex w-fit items-center gap-2 border-t border-border pt-3 text-sm text-muted hover:text-fg"
+      >
+        <ChevronRight size={14} className={expert ? 'rotate-90' : ''} />
+        <SlidersHorizontal size={14} />
+        Expert
+      </button>
+      {expert && (
+        <Setting title="Hand work over after offline for" icon={<Timer size={14} />}>
+          <span className="flex items-center gap-2 text-sm">
+            <NumberStepper
+              value={Math.round(q.reclaimS / 60)}
+              min={1}
+              max={1440}
+              label="Hand work over after offline for"
+              disabled={q.pending !== null}
+              onCommit={(m) => q.setReclaimS(m * 60)}
+            />
+            min
+          </span>
+        </Setting>
+      )}
+    </Block>
+  );
+}
+
+/** The list, or one device's page: `open` is the device Settings was opened on. */
+export function DevicesTab({ open: start }: { open?: string }) {
   const q = useDevices();
-  const rows = sortDevices(q.devices);
+  const [open, setOpen] = useState<string | null>(start ?? null);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [showOld, setShowOld] = useState(false);
-  const recent = rows.filter((d) => !d.stale);
-  const old = rows.filter((d) => d.stale);
-  const list = (items: Row[]) => (
+  const page = open ? q.rows.find((r) => r.id === open || (open === MASTER && r.master)) : undefined;
+  if (page) return <DevicePage row={page} q={q} back={() => setOpen(null)} />;
+  const recent = q.rows.filter((r) => !r.stale);
+  const old = q.rows.filter((r) => r.stale);
+  const chosen = q.rows.filter((r) => picked.has(r.id));
+  const runners = chosen.filter((r) => r.runner && r.mine);
+  const pick = (id: string, on: boolean) =>
+    setPicked((s) => {
+      const n = new Set(s);
+      if (on) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  const list = (items: DeviceRow[]) => (
     <div className="divide-y divide-border rounded-lg border border-border">
-      {items.map((d) => (
-        <DeviceRow key={d.id} d={d} pending={q.pending !== null} revoke={q.revoke} />
+      {items.map((r) => (
+        <Row key={r.id} r={r} q={q} picked={picked.has(r.id)} pick={(on) => pick(r.id, on)} open={() => setOpen(r.id)} />
       ))}
+    </div>
+  );
+  const bulk = (
+    <div className="flex items-center gap-2" role="region" aria-label="Selection">
+      <span className="text-sm text-fg">{chosen.length} selected</span>
+      {MODES.map((m) => (
+        <Button key={m} disabled={runners.length === 0 || q.pending !== null} onClick={() => setAll(runners, m, q)}>
+          {MODE_WORD[m]}
+        </Button>
+      ))}
+      <Button variant="danger" disabled={q.pending !== null} onClick={() => confirmRevoke(chosen, q.revoke)}>
+        Revoke
+      </Button>
+      <Button onClick={() => setPicked(new Set())}>Cancel</Button>
     </div>
   );
   return (
     <SettingsPage
       keep="settings-devices"
       title="Devices"
-      note="Browsers and phones that connect to this computer. They run no agents."
+      note="The Macs and servers that run agents, and the phones and browsers that connect."
       action={
-        <Button variant="primary" onClick={() => void openPairSheet()}>
-          <Plus size={14} />
-          Connect a device
-        </Button>
+        chosen.length > 0 ? (
+          bulk
+        ) : (
+          <Button variant="primary" onClick={() => void openPairSheet()}>
+            <Plus size={14} />
+            Connect a device
+          </Button>
+        )
       }
     >
       {q.loading && <ListLoading rows={3} label="Loading devices" />}
       {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
-      {!q.loading && !q.error && rows.length === 0 && <p className="text-sm text-muted">No devices yet.</p>}
       {recent.length > 0 && list(recent)}
       {old.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -146,27 +250,14 @@ export function DevicesTab() {
               <ChevronRight size={14} className={showOld ? 'rotate-90' : ''} />
               {old.length} not seen for over 30 days
             </button>
-            <Button
-              disabled={q.pending !== null}
-              onClick={() =>
-                void openModal<void>((close) => (
-                  <RevokeConfirm
-                    title={`Revoke ${old.length} devices?`}
-                    text={`The ${old.length} devices not seen for over 30 days lose their access at once. ${again}`}
-                    go={async () => {
-                      for (const d of old) await q.revoke(d.id);
-                    }}
-                    close={() => close()}
-                  />
-                ))
-              }
-            >
+            <Button disabled={q.pending !== null} onClick={() => confirmRevoke(old, q.revoke)}>
               Revoke all {old.length}
             </Button>
           </div>
           {showOld && list(old)}
         </div>
       )}
+      <AllDevices q={q} />
     </SettingsPage>
   );
 }
