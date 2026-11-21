@@ -153,7 +153,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	}
 	tm := cfg.Term
 	if tm == nil {
-		tm = newTerm(home, q)
+		tm = newTerm(home, q, cfg.Runners)
 	}
 	if cfg.Turns != nil {
 		tm.Turns = cfg.Turns

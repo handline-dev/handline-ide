@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
 	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/homeinit"
@@ -173,7 +174,7 @@ func main() {
 		cfg.Watch = *terminalTick
 		fromParts(&cfg, parts, &ccfg)
 		cfg.Transcripts = true
-		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env) {
+		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env, runners term.Remote) {
 			parts.Bind(db, env)
 			if n, err := dbpkg.WithdrawMemoAsksOfEndedTasks(db); err != nil {
 				log.Printf("withdrawing the comment asks of ended tasks: %v", err)
@@ -188,7 +189,7 @@ func main() {
 			if err := compose.RetryStartStalls(db, log.Printf); err != nil {
 				log.Printf("clearing the start and wake stalls to try again: %v", err)
 			}
-			ccfg.DB = db
+			ccfg.DB, ccfg.Runners = db, runners
 			env.Ports = parts.SupervisorPorts(parts.Lifecycle(ccfg, compose.LifecycleConfig{Env: env}))
 			parts.SettlePeerSends(env.Ports.Agents)
 			if *terminalTick {

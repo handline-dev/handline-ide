@@ -10,12 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// CallWait is how long the master waits for a runner's answer; GitWait for a clone, a fetch or a push.
+// CallWait is how long the master waits for a runner's answer; ReadWait for a read the tick and the waits on a screen make many
+// times over; GitWait for a clone, a fetch or a push.
 const (
 	CallWait = 60 * time.Second
+	ReadWait = 5 * time.Second
 	GitWait  = 10 * time.Minute
 )
 
@@ -99,7 +102,7 @@ func (r *Runner) Keys(handle, keys string, enter bool) error {
 
 // Screen is the bottom rows of the terminal's screen.
 func (r *Runner) Screen(handle string, rows int) ([]string, error) {
-	got, err := r.c.Call("runner.screen", map[string]any{"handle": handle, "rows": rows}, CallWait)
+	got, err := r.c.Call("runner.screen", map[string]any{"handle": handle, "rows": rows}, ReadWait)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +140,99 @@ func (r *Runner) MakeWorktree(remote, path, branch, base string) error {
 func (r *Runner) Push(path, branch string) error {
 	_, err := r.c.Call("runner.push", map[string]any{"path": path, "branch": branch}, GitWait)
 	return err
+}
+
+// Terminals is the runners' terminals as term.Machines drives them, by node and the runner's own handle.
+func (r *Registry) Terminals() term.Remote { return remote{r} }
+
+type remote struct{ r *Registry }
+
+func (m remote) Nodes() []string {
+	m.r.mu.Lock()
+	defer m.r.mu.Unlock()
+	out := make([]string, 0, len(m.r.links))
+	for node := range m.r.links {
+		out = append(out, node)
+	}
+	return out
+}
+
+func (m remote) Open(node, agent, cwd, command string) (string, error) {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return "", err
+	}
+	return run.Open(agent, cwd, command)
+}
+
+func (m remote) Keys(node, handle, keys string, enter bool) error {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return err
+	}
+	return run.Keys(handle, keys, enter)
+}
+
+func (m remote) Screen(node, handle string, rows int) ([]string, error) {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return nil, err
+	}
+	return run.Screen(handle, rows)
+}
+
+// Close stops the session the master opened at handle.
+func (m remote) Close(node, handle string) error {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return err
+	}
+	var agent string
+	if err := m.r.DB.QueryRow("SELECT agent FROM node_sessions WHERE node = ? AND handle = ?", node, handle).Scan(&agent); err != nil {
+		return fmt.Errorf("no session %s on node %s: %w", handle, node, err)
+	}
+	return run.Stop(agent)
+}
+
+func (m remote) Respawn(node, handle string) error {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return err
+	}
+	return run.Respawn(handle)
+}
+
+func (m remote) Terminals(node string) ([]string, error) {
+	run, err := m.r.Runner(node)
+	if err != nil {
+		return nil, err
+	}
+	return run.Terminals()
+}
+
+// Respawn ends what runs in the terminal and leaves a fresh shell there, which the runner records as the session in its place.
+func (r *Runner) Respawn(handle string) error {
+	_, err := r.c.Call("runner.respawn", map[string]any{"handle": handle}, CallWait)
+	return err
+}
+
+// Terminals is the handles of the terminals the runner's host has open.
+func (r *Runner) Terminals() ([]string, error) {
+	got, err := r.c.Call("runner.terminals", nil, ReadWait)
+	if err != nil {
+		return nil, err
+	}
+	list, ok := got["handles"].([]any)
+	if !ok {
+		return nil, errors.New("the runner listed no handles")
+	}
+	out := []string{}
+	for _, v := range list {
+		if s, _ := v.(string); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 // notForwarded are what a runner may not forward: its own handshake, the methods of the link itself, and a subscription, whose
