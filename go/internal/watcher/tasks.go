@@ -32,7 +32,7 @@ var taskExtras = []struct {
 		"WHERE " + taskLooked + " GROUP BY l.task_id", true},
 	{"SELECT task_id, COUNT(*) FROM task_blocks WHERE dormant = 0 GROUP BY task_id", false},
 	{"SELECT task_id, COUNT(*), group_concat(agent), MAX(since) FROM task_turns GROUP BY task_id", false},
-	{db.PlanEventsSQL, false}, // a plan written or marked OK, an ask for one made or sent
+	{db.PlanEventsSQL, false},   // a plan written or marked OK, an ask for one made or sent
 	{db.ReviewEventsSQL, false}, // a story's sub-task Ready for the founder, or their OK or Redo
 	// each person's read marker of a task (task_seen:<person>:<task>): reading its comments changes their unread count
 	{"SELECT task, group_concat(mark) FROM (SELECT CAST(substr(name, instr(substr(name, 11), ':') + 11) AS INTEGER) AS task, " +
