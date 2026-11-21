@@ -1594,6 +1594,8 @@ func (p LaunchPort) Placing() func() { return p.L.Placing() }
 
 func (p LaunchPort) ManualSplit() bool { return p.L.Ports.Usage.ManualSplit() }
 
+func (p LaunchPort) AccountUsage(acct string) AccountStatus { return p.L.Ports.Usage.Read(acct) }
+
 func (p LaunchPort) SlowestPaced(q db.Q, agent string, skip string) string {
 	return p.L.SlowestPaced(q, agent, skip)
 }

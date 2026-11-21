@@ -132,6 +132,8 @@ type Launch interface {
 	WorthRepick(own, to string) bool
 	// ManualSplit is account_split manual: the daemon moves no agent off its account (a person's move still goes).
 	ManualSplit() bool
+	// AccountUsage is the account's usage as a launch reads it.
+	AccountUsage(acct string) AccountStatus
 	// RoomNow is a person's start off skip: the account with the most headroom, no older waiter ahead of it.
 	RoomNow(q db.Q, agent string, skip string) (account, why string)
 }

@@ -693,7 +693,7 @@ func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
 	addAgent(t, e, "bob", "")
 	bob := teamtest.Key(t, e.Home, "bob")
 	for _, q := range []string{
-		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 1000, '` + bob + `', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced","note_written":true}')`,
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 1000, '` + bob + `', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced","note_written":true,"reason":"You moved it to beta."}')`,
 		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(2, 1001, '` + bob + `', 'moved_account', '{"from":"beta","to":"alpha","trigger":"usage"}')`,
 		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(3, 1002, '` + bob + `', 'move_failed', '{"to":"gamma","reason":"gamma has no free slot"}')`,
 		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(4, 1003, 'ann', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced"}')`,
@@ -708,8 +708,9 @@ func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
 	}
 	items := got.(map[string]any)["items"].([]any)
 	want := []map[string]any{
-		{"kind": "account_moved", "account_moved": map[string]any{"from": "alpha", "to": "beta", "cause": "manual", "note_written": true}},
-		{"kind": "account_moved", "account_moved": map[string]any{"from": "beta", "to": "alpha", "cause": "policy", "note_written": false}},
+		{"kind": "account_moved", "account_moved": map[string]any{"from": "alpha", "to": "beta", "cause": "manual", "note_written": true, "reason": "You moved it to beta."}},
+		{"kind": "account_moved", "account_moved": map[string]any{"from": "beta", "to": "alpha", "cause": "policy", "note_written": false,
+			"reason": "beta's 5-hour limit was reached."}}, // written before moves kept a reason: read from its trigger
 		{"kind": "move_failed", "move_failed": map[string]any{"to": "gamma", "reason": "gamma has no free slot"}},
 	}
 	if len(items) != len(want) {

@@ -318,8 +318,7 @@ func (v *Mover) land(agent string, t HandoffTrigger, here, there, why, stopped s
 			check(db.ClearHandoff(m.Q, agent))
 		}
 	}
-	must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: here}, db.KV{K: "to", V: there}, db.KV{K: "trigger", V: t.Kind},
-		db.KV{K: "note_written", V: t.NoteWritten}))
+	m.movedAccount(agent, here, there, t.Kind, m.moveReason(t.Kind, here), db.KV{K: "note_written", V: t.NoteWritten})
 	v.log("  %s: moved %s -> %s (%s) - %s%s", agent, here, there, t.Kind, why, ifTrue(!woke && !hookRunning, " - but it was not handed its handoff: "+clip(wakeWhy, 80)))
 	return true, ""
 }
