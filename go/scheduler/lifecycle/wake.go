@@ -611,9 +611,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			if m.carried(agent, row.ResumeSession.String) == "" {
 				check(db.ForgetResume(m.Q, agent))
 			}
-			must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: row.Account.String}, db.KV{K: "to", V: to},
-				db.KV{K: "trigger", V: "forced"}))
-			m.Agents.MeasureBegin(m.Q, agent, to)
+			m.recordMove(agent, row.Account.String, to, "forced", m.moveReason("forced", row.Account.String))
 		}
 		row, movedTo, moveWhy = must(db.GetAgentState(m.Q, agent)), to, "You were moved"
 	}
@@ -623,7 +621,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 	// lives; past that a resume pays for its context in full on any account, so it moves rather than waits.
 	session := row.ResumeSession.String
 	rehomed := false
-	moveFrom := ""
+	moveFrom, moveReason := "", "" // moveReason: the moved_account reason of a move this wake makes
 	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) && !m.Launch.ManualSplit() {
 		// Past its cache's life the agent is on no account: it goes to the one whose unused week runs out soonest that has room (a clear
 		// gain, else it stays), its own included, taking the session along (so ignore_cache_expiry, which only keeps the session, does not hold it).
@@ -631,12 +629,15 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			var kept string
 			if kept, rehomed = m.moveElsewhere(agent, session, to, "its prompt cache has expired"); rehomed {
 				session, movedTo, moveFrom, moveWhy = kept, to, row.Account.String, "Your prompt cache had expired"
+				moveReason = m.repickReason(to)
 			}
 		}
 	}
 	wait := m.Launch.WakeWait(m.Q, agent, row)
-	if rehomed || pastFit {
-		wait = nil // the account it moved to was picked for having room, or by a person who was told it has little
+	if movedTo != "" || pastFit {
+		// The account it moves to was picked for having room, or by a person who was told it has little; the wall of the one it leaves,
+		// still on its row, is no reason to pick again (a second move written for the same one).
+		wait = nil
 	}
 	if o.Person && wait != nil && movedTo == "" {
 		// A person's start on a paused or walled account goes where there is room now (RoomNow).
@@ -651,7 +652,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			if !moved {
 				return false, m.Launch.DescribeWakeWait(wait) + "; not moved: " + why
 			}
-			session, movedTo, moveFrom, moveWhy, wait = kept, to, wait.Account, "Your account had no room", nil
+			session, movedTo, moveFrom, moveWhy, moveReason, wait = kept, to, wait.Account, "Your account had no room", waitReason(wait), nil
 		}
 	}
 	if wait != nil && wait.Slot {
@@ -669,7 +670,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 		if !moved {
 			return false, m.Launch.DescribeWakeWait(wait)
 		}
-		session, movedTo, moveFrom, moveWhy, wait = kept, to, wait.Account, "Your account was paused or full", nil
+		session, movedTo, moveFrom, moveWhy, moveReason, wait = kept, to, wait.Account, "Your account was paused or full", waitReason(wait), nil
 	}
 	if wait != nil {
 		// The resume account is at the wall. Unless it resets within the prompt cache's life (MovePlan), move where another account has
@@ -690,7 +691,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			why := fmt.Sprintf("pinned to %s at %d%% (%s)", acct, pct, wait.Window)
 			kept, moved := m.moveElsewhere(agent, session, elsewhere, why)
 			if moved {
-				session, movedTo, moveFrom, rescued = kept, elsewhere, acct, true
+				session, movedTo, moveFrom, moveReason, rescued = kept, elsewhere, acct, waitReason(wait), true
 				m.noteSwitch(agent, kind, acct, elsewhere, db.SwitchStarting)
 			}
 		}
@@ -720,7 +721,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 		}
 		wt = desk
 	}
-	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveWhy, movedDesk, o.Stopped, o.Applying, held}
+	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveReason, moveWhy, movedDesk, o.Stopped, o.Applying, held}
 	return m.launchClosed(agent, row, wt, session, c)
 }
 
@@ -759,9 +760,15 @@ func (m *Manager) holdSlot(agent, acct string) {
 }
 
 // recordMove writes a move this wake makes, once the launch on `to` has happened: a wake that gives up before it has moved nobody.
-func (m *Manager) recordMove(agent, from, to, trigger string) {
-	must(db.AddEvent(m.Q, agent, "moved_account", db.KV{K: "from", V: from}, db.KV{K: "to", V: to}, db.KV{K: "trigger", V: trigger}))
+func (m *Manager) recordMove(agent, from, to, trigger, reason string) {
+	m.movedAccount(agent, from, to, trigger, reason)
 	m.Agents.MeasureBegin(m.Q, agent, to)
+}
+
+// movedAccount writes the one moved_account event of a move, its reason the sentence a person reads (moveReason).
+func (m *Manager) movedAccount(agent, from, to, trigger, reason string, more ...db.KV) {
+	kv := append([]db.KV{{K: "from", V: from}, {K: "to", V: to}, {K: "trigger", V: trigger}, {K: "reason", V: reason}}, more...)
+	must(db.AddEvent(m.Q, agent, "moved_account", kv...))
 }
 
 // pastFitKey holds the since of the note switch of a move a person chose past the room test (SwitchNow).
@@ -810,6 +817,7 @@ type closed2 struct {
 	cause, restartedBy string
 	movedTo            string
 	movedFrom          string // set when moveElsewhere moved it: its moved_account is written at the launch
+	moveReason         string // that moved_account's reason
 	moveWhy            string // WakePromptIn.MoveWhy
 	desk               string // WakePromptIn.Desk
 	stopped            string // WakePromptIn.Stopped
@@ -1034,11 +1042,11 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		return false, m.wakeFailed(agent, session, why, took, foreign)
 	}
 	if c.movedFrom != "" {
-		m.recordMove(agent, c.movedFrom, c.movedTo, "pinned")
+		m.recordMove(agent, c.movedFrom, c.movedTo, "pinned", c.moveReason)
 	}
 	if s := c.noteMove; s != nil {
 		check(db.SetAccount(m.Q, agent, s.To, ""))
-		m.recordMove(agent, s.From, s.To, s.Cause)
+		m.recordMove(agent, s.From, s.To, s.Cause, m.moveReason(s.Cause, s.From))
 		m.Log("  %s: moved %s -> %s (%s) once its handoff note was in", agent, s.From, s.To, s.Cause)
 	}
 	// A relaunch is where claude shows its folder-trust screen - on a moved agent the new account has never trusted this folder - and the
