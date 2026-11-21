@@ -145,7 +145,7 @@ func main() {
 		return
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
-		WebDir: *web, Advertise: *advertise, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey}
+		WebDir: *web, Advertise: *advertise, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey, BoardCopy: true}
 	var tracker *turns.Tracker
 	if *turnsFromHooks {
 		tracker = &turns.Tracker{Log: log.Printf}

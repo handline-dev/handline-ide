@@ -21,6 +21,7 @@ export const NOT_QUERIES = [
   'whoami',
   // A runner's own calls on its link to the master, for one of its agents.
   'node.forward',
+  'node.copy.files',
   'node.launch',
   'node.agent_files',
   'node.turn',

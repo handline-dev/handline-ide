@@ -43,6 +43,8 @@ type Registry struct {
 	Transcript func(agent, session string, at int64, rows []transcript.Row)
 	// Tokens, when set, counts the calls a runner read from one of its accounts' transcripts (node.tokens), as usage.Call in JSON.
 	Tokens func(account string, calls json.RawMessage) error
+	// Copy, when set, is the board's copy the owner's runners mirror (node.copy.files).
+	Copy *Copy
 	// AccountOf, when set, is the master's account logged in as email, "" for none: a runner's account folder is counted as it.
 	AccountOf func(email string) string
 	// Self is the master's own node id; Version the master's Handline version, which a runner's must be to take work ("" takes any).
@@ -107,6 +109,9 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 		gone := r.links[node] == c
 		if gone {
 			delete(r.links, node)
+			if r.Copy != nil {
+				r.Copy.set(node, nil) // its copy goes on only while it pulls
+			}
 		}
 		delete(r.homes, c)
 		var ended []func()
@@ -583,6 +588,7 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 	}})
 	s.Register("node.heartbeat", rpc.Method{Handler: r.heartbeat})
 	s.Register("node.launch", rpc.Method{Waits: true, Handler: r.launch})
+	s.Register("node.copy.files", rpc.Method{Handler: r.copyFiles})
 	s.Register("node.agent_files", rpc.Method{Waits: true, Handler: r.agentFiles})
 	s.Register("node.turn", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		node := r.NodeOf(c.Root())

@@ -30,6 +30,7 @@ const goPrefix = "github.com/handline/handline/go/"
 // layer is each internal package's layer. Within a layer Go already forbids a cycle; across layers an import goes down only.
 var layer = map[string]int{
 	// L0 leaf: no internal imports
+	"boardcopy":              0,
 	"claudetrust":            0,
 	"contracttest":           0,
 	"data/rowstate":          0,

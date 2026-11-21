@@ -98,6 +98,30 @@
        }
       ],
       "description": "A mac's or a server's Run · Pause · Off (device.set): run starts new work on that machine, pause starts nothing new and lets what runs there finish, off is not lent. null for a phone or a browser. Absent on a daemon that does not serve it."
+     },
+     "copy": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "matched_at": {
+          "$ref": "#/components/schemas/Timestamp"
+         },
+         "behind_s": {
+          "type": "integer",
+          "description": "Seconds since its copy last held all of the master's."
+         }
+        },
+        "required": [
+         "matched_at",
+         "behind_s"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The runner's copy of the board: when it last held all of the master's; null for a runner that keeps none (another person's, or one that has not pulled). Not on the master's own row."
      }
     },
     "required": [
@@ -997,6 +1021,81 @@
     "node"
    ],
    "description": "Only on a runner's link (gate `node`). The master counts the calls in its usage under that account, each charged to the agent whose session made it; a call sent again counts once (by account, session and request). The runner moves its read positions only once the master has answered. Any linked runner may send for any account name: the runner is the person's own lent machine, so this is not checked against the node.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.copy.files",
+   "summary": "A runner pulls what its copy of the board lacks.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "have",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "The whole files its copy holds: {path, size}."
+     }
+    },
+    {
+     "name": "parts",
+     "required": false,
+     "schema": {
+      "type": "array",
+      "items": {
+       "type": "object"
+      },
+      "description": "The files it is still receiving, with the bytes it has: {path, size}."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "send": {
+       "type": "array",
+       "items": {
+        "type": "object"
+       },
+       "description": "Pieces of the files it lacks, at most 512 KiB of data in all: {path, size, offset, data}; a file's last piece carries its sha256 sum, which the runner checks before it renames the file in."
+      },
+      "gone": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Paths the master's copy no longer has; given only with more false, so a runner never drops a file before what replaces it has arrived."
+      },
+      "more": {
+       "type": "boolean",
+       "description": "More data waits: pull again."
+      }
+     },
+     "required": [
+      "send",
+      "gone",
+      "more"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "owner",
+    "copy"
+   ],
+   "description": "Only on a runner's link (gate `node`). The board's copy is the folder Litestream writes on the master (board-copy in its home): each committed change within a second, a snapshot every hour, two hours kept. Only the owner's runners keep it: another person's is refused, gate `owner`, and drops any copy it holds; gate `copy` when the master keeps none now (the runner keeps what it holds). A pull that finds the runner already holding all of it sets the runner's copy in node.status.",
    "x-app-cache": false
   },
   {
