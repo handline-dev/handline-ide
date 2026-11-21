@@ -333,6 +333,8 @@ func TestAnOwedClearAtTheWallComesWhenItsMinutesAreUp(t *testing.T) {
 		closes         bool
 	}{{"idle with background", true, false, true}, {"the limit dialog up", false, true, true}, {"mid-turn", false, false, false}} {
 		g := newTermMoveRig(t)
+		now := g.m.now()
+		g.m.Now = func() int64 { return now } // the wake is checked against now+1000: a second ticking past the close would miss it
 		g.l.dest = "" // no account has room
 		g.v.E.LimitDialogOpen = func(string) bool { return true }
 		g.run.status, g.run.bgIdle, g.d.owesNothing, g.bg = "busy", true, false, "npm test"
