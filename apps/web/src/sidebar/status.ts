@@ -1,7 +1,6 @@
-// The sidebar's status row: the machine's level and line, the pause switch, keep-awake, the inbox count and the week's Usage %.
+// The sidebar's status row: the machine's level and line, keep-awake, the inbox count and the week's Usage %.
 import { Hooks, useAccounts } from '@handline/app-data';
 import { useMachine } from '#src/settings/data/machine.ts';
-import { useKeyed } from '#src/settings/data/keyed.ts';
 
 export type Level = 'ok' | 'near' | 'held' | 'down';
 
@@ -17,9 +16,6 @@ export function useStatusRow() {
   const mdns = Hooks.useConnectionAddresses().data?.addresses.find((a) => a.kind === 'mdns')?.host;
   const machine = useMachine();
   const accounts = useAccounts();
-  const pause = Hooks.useDaemonPause();
-  const resume = Hooks.useDaemonResume();
-  const { pending, run } = useKeyed();
   const s = status.data;
   const paused = s?.paused ?? null;
   return {
@@ -32,8 +28,6 @@ export function useStatusRow() {
     held: s?.keep_awake ? s.keep_awake.held : null,
     setAwake: machine.setAwake,
     paused,
-    /** Pausing stops new work until resumed; the switch dims while the daemon answers. */
-    togglePause: () => run('pause', () => (paused ? resume.mutateAsync({}) : pause.mutateAsync({}))).then(() => {}),
-    pending: pending ?? machine.pending,
+    pending: machine.pending,
   };
 }

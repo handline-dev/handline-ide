@@ -1,11 +1,10 @@
 // Settings: over the whole app so the founder can focus on it, its sections in a menu on the left; Back at the menu's top, or Escape, leaves.
 // The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Bot, FolderGit2, HardDrive, ListChecks, MonitorSmartphone, UserRound, Wrench } from 'lucide-react';
+import { ArrowLeft, Bell, Bot, FolderGit2, ListChecks, MonitorSmartphone, UserRound, Wrench } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AgentsTab } from '#src/settings/AgentsTab.tsx';
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
-import { MachineTab } from '#src/settings/MachineTab.tsx';
 import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { NotificationsTab } from '#src/settings/NotificationsTab.tsx';
 import { OnboardingTab } from '#src/settings/OnboardingTab.tsx';
@@ -17,8 +16,8 @@ import { CONTROLS_STRIP, LayerDragStrip, useWindowLayer } from '#src/layout/wind
 import { useBackCloses } from '#src/ui/backCloses.ts';
 import { closeSettings, isSection, settingsTarget, useSettingsOpen, type Section } from '#src/settings/open.ts';
 
-/** The menu's groups: the setup first, then the details of each part, then this machine. */
-const GROUPS: Section[][] = [['onboarding'], ['accounts', 'agents', 'tools', 'notifications', 'projects'], ['machine', 'devices']];
+/** The menu's groups: the setup first, then the details of each part, then the devices. */
+const GROUPS: Section[][] = [['onboarding'], ['accounts', 'agents', 'tools', 'notifications', 'projects'], ['devices']];
 const MENU: Record<Section, { word: string; icon: ReactNode }> = {
   onboarding: { word: 'Onboarding', icon: <ListChecks size={14} /> },
   accounts: { word: 'Accounts', icon: <UserRound size={14} /> },
@@ -26,7 +25,6 @@ const MENU: Record<Section, { word: string; icon: ReactNode }> = {
   tools: { word: 'Tools', icon: <Wrench size={14} /> },
   notifications: { word: 'Notifications', icon: <Bell size={14} /> },
   projects: { word: 'Projects', icon: <FolderGit2 size={14} /> },
-  machine: { word: 'This Mac', icon: <HardDrive size={14} /> },
   devices: { word: 'Devices', icon: <MonitorSmartphone size={14} /> },
 };
 
@@ -120,8 +118,7 @@ function Frame() {
             {section === 'tools' && <ToolsTab />}
             {section === 'notifications' && <NotificationsTab />}
             {section === 'projects' && <ProjectsTab />}
-            {section === 'machine' && <MachineTab />}
-            {section === 'devices' && <DevicesTab />}
+            {section === 'devices' && <DevicesTab open={to.device} />}
           </main>
         </div>
       </div>

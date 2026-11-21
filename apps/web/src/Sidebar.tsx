@@ -6,6 +6,8 @@ import { newWorkspace } from '#src/NewWorkspace.tsx';
 import type { AgentView, Workspace } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
+import { DeviceLine } from '#src/settings/DeviceControls.tsx';
+import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
@@ -47,11 +49,13 @@ function unreadNote(a: AgentView): string | undefined {
   return a.last_to_founder.text.replace(/\s+/g, ' ').trim();
 }
 
-/** Resting on an agent's row shows what runs behind its prompt, beside the row; a row with nothing running shows no card. */
-function AgentRowCard({ jobs, children }: { jobs: Job[]; children: ReactNode }) {
+/** Resting on an agent's row shows its device (when there are several) and what runs behind its prompt; with neither, no card. */
+function AgentRowCard({ agent, jobs, children }: { agent: string; jobs: Job[]; children: ReactNode }) {
+  const device = useAgentDevice(agent);
   return (
-    <HoverCard side="right" off={jobs.length === 0} trigger={<div>{children}</div>}>
-      <JobList jobs={jobs} />
+    <HoverCard side="right" off={jobs.length === 0 && !device} trigger={<div>{children}</div>}>
+      {device && <DeviceLine device={device} />}
+      {jobs.length > 0 && <JobList jobs={jobs} />}
     </HoverCard>
   );
 }
@@ -109,7 +113,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
           <span className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`} />
         )}
         <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)} onSettings={() => pick.onSettings(agent.key)}>
-          <AgentRowCard jobs={agent.background ?? []}>
+          <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
             <Row
               opens={opens}
               space={agent.key}
