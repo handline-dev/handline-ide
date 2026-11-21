@@ -1,9 +1,11 @@
 package nodes
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,10 +26,11 @@ const (
 	BatteryKey = "node_battery_switch"
 )
 
-// heard is a runner's newest heartbeat and when it came.
+// heard is a runner's newest heartbeat and when it came, with the board's account for each of its account folders, by folder.
 type heard struct {
-	beat runner.Beat
-	at   time.Time
+	beat     runner.Beat
+	at       time.Time
+	accounts map[string]string
 }
 
 // Heard is node's newest heartbeat and when it came; ok false when none came since this master started.
@@ -40,9 +43,82 @@ func (r *Registry) Heard(node string) (b runner.Beat, at time.Time, ok bool) {
 
 // Hear keeps b as node's newest heartbeat, heard at at.
 func (r *Registry) Hear(node string, b runner.Beat, at time.Time) {
+	accounts := r.boardAccounts(node, b)
 	r.mu.Lock()
-	r.beats[node] = heard{beat: b, at: at}
+	r.beats[node] = heard{beat: b, at: at, accounts: accounts}
 	r.mu.Unlock()
+}
+
+// boardAccounts is, by account folder, the board's account for each one b names (AccountFor): an email is one account on every machine.
+// A folder logged in as an email the board has no account for gets one on the owner's runner; on another person's, and where one cannot
+// be found or made, it is left out. A folder named as in node's heartbeat before keeps its account.
+func (r *Registry) boardAccounts(node string, b runner.Beat) map[string]string {
+	r.mu.Lock()
+	before := r.beats[node]
+	r.mu.Unlock()
+	was := map[string]string{}
+	for _, a := range before.beat.Accounts {
+		was[a.Name] = a.Email
+	}
+	var role string
+	if err := r.DB.QueryRow("SELECT p.role FROM nodes n JOIN people p ON p.id = n.person WHERE n.id = ?", node).Scan(&role); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		r.log("nodes: %s: whose machine it is cannot be read, so its new emails make no account: %v", node, err)
+	}
+	out := make(map[string]string, len(b.Accounts))
+	for _, a := range b.Accounts {
+		if board := before.accounts[a.Name]; board != "" && was[a.Name] == a.Email {
+			out[a.Name] = board
+			continue
+		}
+		board := a.Name
+		var err error
+		if r.AccountFor != nil {
+			board, err = r.AccountFor(a.Email, a.Name, role == "owner")
+		}
+		if err != nil {
+			r.log("nodes: %s: no account for its folder %s: %v", node, a.Name, err)
+		}
+		if board != "" {
+			out[a.Name] = board
+		}
+	}
+	return out
+}
+
+// Accounts is, by board account, the config dir of each account logged in on node, in the master's home's terms (a launch built here
+// makes its paths node's): what an agent there starts on (lifecycle.DevicesPort). Two folders logged in as one email give one account.
+func (r *Registry) Accounts(node string) map[string]string {
+	r.mu.Lock()
+	h := r.beats[node]
+	r.mu.Unlock()
+	out := map[string]string{}
+	for _, a := range h.beat.Accounts {
+		if board := h.accounts[a.Name]; board != "" && a.Dir != "" && filepath.IsLocal(a.Dir) && out[board] == "" {
+			out[board] = filepath.Join(r.Home, a.Dir)
+		}
+	}
+	return out
+}
+
+// DeviceOf is the runner agent's session runs on, else the one it would open on now (Placer.Next); "" for the master
+// (lifecycle.DevicesPort).
+func (r *Registry) DeviceOf(agent string) string {
+	node, err := r.sessionNode(agent)
+	if err != nil {
+		r.log("nodes: %s: its session's machine cannot be read, so its account is chosen as this machine's: %v", agent, err)
+		return ""
+	}
+	r.mu.Lock()
+	heard := len(r.beats) > 0
+	r.mu.Unlock()
+	if node == "" && heard && r.Placer != nil { // with no runner heard from, every session opens here
+		node = r.Placer.Next(agent)
+	}
+	if node == r.Self {
+		return ""
+	}
+	return node
 }
 
 // Online is whether node is the master or has sent a heartbeat within OfflineAfter.
@@ -102,9 +178,10 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 		return nil, rpc.BadRequestError("the heartbeat is a runner's beat", "beat", rpc.InvalidParams)
 	}
 	now := r.now()
+	accounts := r.boardAccounts(node, b)
 	r.mu.Lock()
 	before, had := r.beats[node]
-	r.beats[node] = heard{beat: b, at: now}
+	r.beats[node] = heard{beat: b, at: now, accounts: accounts}
 	opening := map[string]bool{}
 	for a := range r.opening[node] {
 		opening[a] = true
@@ -266,21 +343,19 @@ func reclaimMemo(machine, why string, s runner.BeatSession) string {
 	return strings.Join([]string{fmt.Sprintf("Taken back from %s (%s), to start on another machine.", machine, why), at}, " ")
 }
 
-// accountHere is the master's name for account, an account folder on node: the master's account logged in as the email node's newest
-// heartbeat names for it, else account as node calls it.
-func (r *Registry) accountHere(node, account string) string {
-	if r.AccountOf == nil {
-		return account
-	}
-	b, _, _ := r.Heard(node)
-	for _, a := range b.Accounts {
-		if a.Name == account && a.Email != "" {
-			if here := r.AccountOf(a.Email); here != "" {
-				return here
-			}
+// accountHere is the board's account for account, an account folder on node, as node's newest heartbeat names it, "" when it has none
+// (another person's own account); named is false when that heartbeat names no such folder, whose usage then waits for the next one:
+// under the folder's own name it could land on another email's account.
+func (r *Registry) accountHere(node, account string) (board string, named bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	h := r.beats[node]
+	for _, a := range h.beat.Accounts {
+		if a.Name == account {
+			return h.accounts[account], true
 		}
 	}
-	return account
+	return "", false
 }
 
 // battery is the battery switch, when it is on: node gone on battery is set to Off from Run, and back to Run once plugged in, unless its

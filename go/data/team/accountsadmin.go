@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
@@ -115,6 +117,76 @@ func (a Accounts) Add(acct, vendor string, extra ...Link) (string, error) {
 	}
 	return cdir, nil
 }
+
+// byEmail makes ByEmail's find and add one step: two machines naming one new email at once make one account.
+var byEmail sync.Mutex
+
+// OfEmail is the claude account logged in as email, or recorded with it, "" for none: an email is one account on every machine
+// (docs/story4-design.md section 1 item 3).
+func (a Accounts) OfEmail(email string) string {
+	if email == "" {
+		return ""
+	}
+	for _, acct := range paths.ListAccounts(a.Home) {
+		if AccountVendor(a.Home, acct) == DefaultVendor && strings.EqualFold(a.Email(acct), email) {
+			return acct
+		}
+	}
+	return ""
+}
+
+// ByEmail is OfEmail, else an account added for email (as Add: logged in nowhere here) with email recorded. It is named name, or, when
+// name is taken or not a valid account name, after the email; -2, -3 ... when that is taken too.
+func (a Accounts) ByEmail(email, name string) (string, error) {
+	if email == "" {
+		return "", errors.New("no email to find an account by")
+	}
+	byEmail.Lock()
+	defer byEmail.Unlock()
+	if acct := a.OfEmail(email); acct != "" {
+		return acct, nil
+	}
+	local, _, _ := strings.Cut(strings.ToLower(email), "@")
+	local = strings.Trim(nonName.ReplaceAllString(local, "-"), "-")
+next:
+	for _, base := range []string{name, local} {
+		for n := 1; n <= 20 && base != ""; n++ {
+			acct := base
+			if n > 1 {
+				acct = fmt.Sprintf("%s-%d", base, n)
+			}
+			_, err := a.Add(acct, DefaultVendor)
+			switch {
+			case err == nil:
+				if err := a.recordEmail(acct, email); err != nil { // with no email it is nobody's: not kept, or the next look makes another
+					return "", errors.Join(err, a.unadd(acct))
+				}
+				return acct, nil
+			case errors.Is(err, ErrBadAccountName):
+				continue next
+			case !errors.Is(err, ErrAccountExists):
+				return "", err
+			}
+		}
+	}
+	return "", fmt.Errorf("no free account name for %s", email)
+}
+
+// unadd takes away an account Add just made, which nothing uses yet.
+func (a Accounts) unadd(acct string) error {
+	d, err := store.SharedIfThere(paths.DBFile(a.Home))
+	if err != nil || d == nil {
+		return err
+	}
+	dir := paths.AccountDir(a.Home, acct)
+	if _, err := d.Exec("DELETE FROM accounts WHERE name = ?", acct); err != nil {
+		return err
+	}
+	return os.RemoveAll(dir)
+}
+
+// nonName is what an account named after an email leaves out.
+var nonName = regexp.MustCompile(`[^a-z0-9_-]+`)
 
 // RemovePreview is what Remove would do to the account, line by line, and whether it would go ahead. It changes nothing.
 func (a Accounts) RemovePreview(q *sql.DB, acct string) (would bool, lines []string, err error) {

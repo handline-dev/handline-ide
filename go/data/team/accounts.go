@@ -313,7 +313,7 @@ func (a Accounts) Email(acct string) string {
 
 // recordEmail writes email into the account's identity.json, keeping the record's other fields as they are. A record that does not
 // read is begun anew.
-func (a Accounts) recordEmail(acct, email string) {
+func (a Accounts) recordEmail(acct, email string) error {
 	var rec map[string]json.RawMessage
 	if b, err := os.ReadFile(a.identityFile(acct)); err == nil {
 		_ = json.Unmarshal(b, &rec)
@@ -325,9 +325,10 @@ func (a Accounts) recordEmail(acct, email string) {
 	text, _ := json.Marshal(rec)
 	// Written aside and renamed in, so a reader at the same time sees the old record or the new, never a truncated one.
 	tmp := a.identityFile(acct) + ".tmp"
-	if os.WriteFile(tmp, text, 0o644) == nil {
-		_ = os.Rename(tmp, a.identityFile(acct))
+	if err := os.WriteFile(tmp, text, 0o644); err != nil {
+		return err
 	}
+	return os.Rename(tmp, a.identityFile(acct))
 }
 
 // WrongLogin is, in one line, how a claude account is logged in to an Anthropic account other than the one recorded for it, naming
@@ -344,7 +345,7 @@ func (a Accounts) WrongLogin(acct string) string {
 		return ""
 	}
 	if want == "" {
-		a.recordEmail(acct, got)
+		_ = a.recordEmail(acct, got) // recorded at the next look when not now
 		return ""
 	}
 	if strings.EqualFold(got, want) {
