@@ -174,12 +174,16 @@ func (m *Manager) Start(account string) (Login, error) {
 				r.url, r.deviceCode = p.url, p.code
 				moved = m.moved(r)
 			}
+			why := r.reason
 			m.mu.Unlock()
 			if waiting {
 				m.changed(account, moved)
 				return Login{ID: r.id, State: Waiting, URL: p.url, DeviceCode: p.code}, nil
 			}
-			return Login{}, &Refusal{"the login ended before it could be answered"}
+			if why == "" {
+				why = "the login ended before it could be answered"
+			}
+			return Login{}, &Refusal{why}
 		}
 		m.end(r, Failed, "the login ended without giving a URL")
 		m.kill(r)

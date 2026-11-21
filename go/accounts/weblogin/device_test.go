@@ -83,9 +83,10 @@ func TestADeviceLoginAnswersItsURLAndCodeAndTakesNoCodeBack(t *testing.T) {
 }
 
 func TestAFailedDeviceLoginNeverGivesItsCodeAsTheReason(t *testing.T) {
-	r := newDeviceRig(t, deviceSays+"exit 1\n") // no pause: the exit may be read before Start has the code
-	if _, err := r.m.Start("main"); err != nil {
-		t.Fatal(err)
+	r := newDeviceRig(t, deviceSays+"exit 1\n") // no pause: the exit may be read before Start has the code, and Start refuses with it
+	var no *Refusal
+	if _, err := r.m.Start("main"); err != nil && (!errors.As(err, &no) || err.Error() != "the login command exited with an error") {
+		t.Fatalf("refused with %v", err)
 	}
 	r.settles("main", Failed)
 	if got := r.m.Of("main").Reason; got != "the login command exited with an error" {
