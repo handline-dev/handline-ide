@@ -57,7 +57,12 @@ func (c founderCloser) MarkDoneByFounder(_ db.Q, tid int64, reason string) (bool
 
 // vendorPlans is subscriptions.Plans: the plan on disk, and `claude auth status --json` for the one asked again, run with cli, the claude
 // binary the daemon runs ("claude" when none is set).
-type vendorPlans struct{ home, cli string }
+type vendorPlans struct {
+	home, cli string
+	// wait is how long claude may take to answer: authStatusTimeout when 0, no limit when negative (a test's fake, whose first run
+	// may wait on the system's scan of a file just written).
+	wait time.Duration
+}
 
 func (p vendorPlans) Recorded(acct string) (string, bool) {
 	return team.Accounts{Home: p.home}.RecordedSubscriptionType(acct)
@@ -73,7 +78,14 @@ func (p vendorPlans) Refresh(acct string) (string, error) {
 	if err != nil {
 		return recorded, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), authStatusTimeout)
+	wait := p.wait
+	if wait == 0 {
+		wait = authStatusTimeout
+	}
+	ctx, cancel := context.Background(), context.CancelFunc(func() {})
+	if wait > 0 {
+		ctx, cancel = context.WithTimeout(ctx, wait)
+	}
 	defer cancel()
 	cli := p.cli
 	if cli == "" {
