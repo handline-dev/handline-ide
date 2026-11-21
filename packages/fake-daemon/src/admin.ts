@@ -44,6 +44,8 @@ const DEFAULTS: Settings['values'] = {
   disk_free_min_gb: 0,
   disk_keep_free_gb: 0,
   agents_memory_max_gb: 0,
+  node_battery_switch: false,
+  node_reclaim_s: 1800,
   port_range: null,
   network_addresses: null,
   keep_awake: 'off',
@@ -119,6 +121,30 @@ export class FakeAdmin {
   /** Whether this class answers the method. */
   /** A device as the Device schema shows it, for an event. */
   device = (id: string): Record<string, unknown> => ({ ...this.devices.find((d) => d.id === id) });
+  /** Each lent machine's own memory cap (device.set memory_max_gb), by device id. */
+  private memoryMax = new Map<string, number>();
+  /** node.status's rows of the machines lent on Run or Pause: a device with a node; none is seeded. */
+  lentNodes = (at: Timestamp): Record<string, unknown>[] =>
+    this.devices
+      .map((d) => d as { id: string; name: string; node?: string; lending?: string })
+      .filter((d) => d.node && (d.lending === 'run' || d.lending === 'pause'))
+      .map((d) => ({
+        id: d.node,
+        person: 'p1',
+        name: d.name,
+        joined_at: at,
+        last_seen: at,
+        master_number: 1,
+        master: false,
+        self: false,
+        online: true,
+        lending: d.lending,
+        device: d.id,
+        memory_max_gb: this.memoryMax.get(d.id) ?? null,
+        load: null,
+        battery: null,
+        lacks: [],
+      }));
   owns = (name: string): boolean => ADMIN.test(name) || this.worktrees.owns(name) || this.prefs.owns(name);
 
   call(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
@@ -196,7 +222,14 @@ export class FakeAdmin {
       case 'device.set': {
         const dev = this.devices.find((d) => d.id === p.device);
         if (!dev) throw badRequest('no such device', 'device');
-        Object.assign(dev, { lending: p.lending });
+        if (p.lending !== undefined) Object.assign(dev, { lending: p.lending });
+        if (p.memory_max_gb === null) this.memoryMax.delete(dev.id);
+        else if (p.memory_max_gb !== undefined) {
+          const gb = p.memory_max_gb;
+          if (typeof gb !== 'number' || !Number.isInteger(gb) || gb < 1 || gb > 1048576)
+            throw badRequest('memory_max_gb is a whole number of GB from 1 to 1048576, or null', 'memory_max_gb');
+          this.memoryMax.set(dev.id, gb);
+        }
         return accepted('Set.');
       }
       case 'device.revoke':

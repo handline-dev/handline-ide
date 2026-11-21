@@ -78,12 +78,13 @@ func (s *MemStore) SetClient(id, client string) error {
 	return nil
 }
 
-func (s *MemStore) SetLending(id, lending, person string) (bool, error) {
+// SetNode keeps only the lending: a MemStore has no node rows to hold a memory cap.
+func (s *MemStore) SetNode(id, person string, n NodeSet) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	d, ok := s.byID[id]
-	if ok = ok && d.Node != "" && d.Person == person; ok {
-		d.Lending = lending
+	if ok = ok && d.Node != "" && d.Person == person; ok && n.Lending != "" {
+		d.Lending = n.Lending
 		s.byID[id] = d
 	}
 	return ok, nil

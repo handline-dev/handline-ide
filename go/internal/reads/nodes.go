@@ -12,7 +12,7 @@ import (
 // master, self and online; another is online while its heartbeat comes.
 func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 	self := joined.NodeIDOf(e.Home)
-	rs, err := e.DB.Query(`SELECT id, person, name, joined_at, last_seen, master_number, lending FROM nodes
+	rs, err := e.DB.Query(`SELECT id, person, name, joined_at, last_seen, master_number, lending, device, memory_max_gb FROM nodes
 		WHERE lending IN ('run', 'pause') ORDER BY id != ?, joined_at, id`, self)
 	if err != nil {
 		return nil, err
@@ -22,9 +22,10 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 	number := int64(1)
 	for rs.Next() {
 		var id, name, lending string
-		var person, seen sql.NullInt64
+		var person, seen, memMax sql.NullInt64
+		var device sql.NullString
 		var joined, master int64
-		if err := rs.Scan(&id, &person, &name, &joined, &seen, &master, &lending); err != nil {
+		if err := rs.Scan(&id, &person, &name, &joined, &seen, &master, &lending, &device, &memMax); err != nil {
 			return nil, err
 		}
 		var who, last any
@@ -39,7 +40,18 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
 			"master_number": master, "master": id == self, "self": id == self, "online": id == self || e.NodeOnline != nil && e.NodeOnline(id),
-			"lending": lending}
+			"lending": lending, "device": nil, "memory_max_gb": nil, "load": nil, "battery": nil}
+		if device.Valid {
+			row["device"] = device.String
+		}
+		if memMax.Valid {
+			row["memory_max_gb"] = memMax.Int64
+		}
+		if id != self && e.NodeHeard != nil {
+			if load, battery, ok := e.NodeHeard(id); ok {
+				row["load"], row["battery"] = load, battery
+			}
+		}
 		if id != self && e.NodeCopy != nil {
 			row["copy"] = e.NodeCopy(id)
 		}

@@ -68,7 +68,7 @@ type Store interface {
 	List() ([]Device, error)
 	Touch(id string, ts int64) error
 	SetClient(id, client string) error
-	SetLending(id, lending, person string) (bool, error) // only while the device is still person's
+	SetNode(id, person string, n NodeSet) (bool, error) // only while the device is still person's
 	SetPush(id string, p Push) (bool, error)
 	DropPush(id, token string) error // only while token is still the device's: a newer one it gave since stays
 }
@@ -333,8 +333,18 @@ func (m *Manager) RevokeAllOf(person string) error {
 	return nil
 }
 
-// SetLending sets a lent machine's run, pause or off, for its own person only (person is the caller's key).
-func (m *Manager) SetLending(id, lending, person string) (Device, error) {
+// MemoryMaxGB is the largest memory cap device.set takes, in GB.
+const MemoryMaxGB = 1 << 20
+
+// NodeSet is a change to a lent machine's node row: Lending its run, pause or off ("" keeps it), MemoryMaxGB its cap on the agents'
+// memory in GB (nil keeps it, 0 puts it back to the master's agents_memory_max_gb).
+type NodeSet struct {
+	Lending     string
+	MemoryMaxGB *int64
+}
+
+// SetNode changes a lent machine's node row, for its own person only (person is the caller's key).
+func (m *Manager) SetNode(id, person string, n NodeSet) (Device, error) {
 	ds, err := m.store.List()
 	if err != nil {
 		return Device{}, err
@@ -349,12 +359,14 @@ func (m *Manager) SetLending(id, lending, person string) (Device, error) {
 		if person == "" || person != d.Person {
 			return Device{}, rpc.Refused("only the person whose device it is sets it", "person", "")
 		}
-		if found, err := m.store.SetLending(id, lending, person); err != nil {
+		if found, err := m.store.SetNode(id, person, n); err != nil {
 			return Device{}, err
 		} else if !found {
 			break // revoked or given to another person since
 		}
-		d.Lending = lending
+		if n.Lending != "" {
+			d.Lending = n.Lending
+		}
 		return d, nil
 	}
 	return Device{}, rpc.NotFoundError("no such device: " + id)
