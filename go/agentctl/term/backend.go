@@ -3,6 +3,11 @@
 // a permission prompt or a question, and press keys on it only for what a fresh read just showed.
 package term
 
+import (
+	"slices"
+	"time"
+)
+
 // Screen is a rendered frame: the bottom rows, top first, and where they came from. Anything but "screen" is the
 // accumulated stream, whose history is the conversation and not what is drawn now.
 type Screen struct {
@@ -74,4 +79,35 @@ func (d dynamic) ReadScreen(h string, n int) *Screen          { return d.cur().R
 func (d dynamic) Send(h, t string, enter bool) (bool, string) { return d.cur().Send(h, t, enter) }
 func (d dynamic) WaitIdle(h string, ms int, turn func([]string) bool) bool {
 	return d.cur().WaitIdle(h, ms, turn)
+}
+
+// How long a screen must hold still to count as idle, and how often it is looked at.
+const (
+	idleSettle = 1500 * time.Millisecond
+	idlePoll   = 500 * time.Millisecond
+)
+
+// ScreenIdle is WaitIdle for a host that must read the screen to tell: the frame read has not changed for idleSettle and turn (the
+// vendor's reading) sees no turn in progress; with none given, a still frame is idle. A frame that cannot be read is false.
+func ScreenIdle(read func() *Screen, timeoutMs int, turn func([]string) bool) bool {
+	deadline := time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
+	var last []string
+	since := time.Now()
+	for {
+		scr := read()
+		if scr == nil {
+			return false
+		}
+		now := time.Now()
+		if last == nil || !slices.Equal(scr.Tail, last) {
+			last, since = scr.Tail, now
+		} else if now.Sub(since) >= idleSettle && !(turn != nil && turn(scr.Tail)) {
+			return true
+		}
+		left := deadline.Sub(now)
+		if left <= 0 {
+			return false
+		}
+		time.Sleep(min(idlePoll, left))
+	}
 }
