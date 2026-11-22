@@ -51,8 +51,6 @@ export interface TrayView {
   /** Agents mid-turn, null while not known. */
   working: number | null;
   openAtLogin: boolean;
-  /** The other device this app is paired with, null for this Mac's daemon. */
-  remote: string | null;
   /** The menu was opened with Option held: the addresses and the commit. */
   details: boolean;
   link?: Pick<Link, 'address' | 'version'>;
@@ -65,13 +63,12 @@ const ready = (u: TrayUpdate) => u.phase === 'ready' || u.phase === 'later';
 const agents = (n: number) => `${n} agent${n === 1 ? '' : 's'}`;
 
 /** Something the person should know about: this Mac's daemon is not running, or an update failed. The app says what and why. */
-const trouble = (state: DaemonState, v: Pick<TrayView, 'remote' | 'update'>) =>
-  (!v.remote && state !== 'running' && state !== 'starting') || v.update?.phase === 'failed';
+const trouble = (state: DaemonState, v: Pick<TrayView, 'update'>) =>
+  (state !== 'running' && state !== 'starting') || v.update?.phase === 'failed';
 
 /** The first line: what runs, or that the app has something to say. */
-export function statusLine(state: DaemonState, v: Pick<TrayView, 'working' | 'remote' | 'update'>): string {
+export function statusLine(state: DaemonState, v: Pick<TrayView, 'working' | 'update'>): string {
   if (trouble(state, v)) return 'Handline needs attention';
-  if (v.remote) return `Paired with ${v.remote}`;
   if (state === 'starting') return 'Handline is starting…';
   return v.working ? `Handline · ${agents(v.working)} working` : 'Handline';
 }

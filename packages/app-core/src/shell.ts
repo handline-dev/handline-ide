@@ -45,8 +45,18 @@ export interface ShellUpdate {
   reason: string;
 }
 
+/** One cluster this Mac joined: its name (the master's, else its address), its master's WebSocket and this Mac's device token there,
+ * and whether the master answers now. */
+export interface ShellCluster {
+  id: string;
+  name: string;
+  daemon: string;
+  token: string;
+  reachable: boolean;
+}
+
 /** This Mac's daemon, as the tray shows it: starting (also while it restarts), running, stopped, or failed with the reason. `canStart` is
- * false while the app uses a paired device's daemon, so the page offers no Start. */
+ * whether the page may offer Start. */
 export interface ShellDaemon {
   state: 'starting' | 'running' | 'stopped' | 'failed';
   reason: string;
@@ -135,10 +145,6 @@ export interface ShellApi {
   }): Promise<{ ok: true } | Fail<'bad_request' | 'unavailable'>>;
   /** One line typed on that device. */
   deviceText?(a: { kind: 'android' | 'ios'; id: string; text: string }): Promise<{ ok: true } | Fail<'bad_request' | 'unavailable'>>;
-  /** Which daemon the app talks to: own (this Mac's) or connect (a paired device's, with its address). Absent in a shell with one daemon. */
-  mode?(): Promise<{ ok: true; mode: 'connect' | 'own'; remote: string | null } | Fail<'bad_request'>>;
-  /** own: back to this Mac's daemon from a paired device's; the app relaunches. A paired device is reached by pairRemote. */
-  setMode?(mode: 'connect' | 'own'): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** The follow-main build's commit and whether a newer main is waiting; `following` is false in any other build. */
   follow?(): Promise<
     | { ok: true; following: boolean; sha: string; state: 'current' | 'available' | 'updating' | 'ready' | 'failed'; next: string | null }
@@ -169,8 +175,19 @@ export interface ShellApi {
   promote?(): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>>;
   /** The owner's machines' doors from node.status (fp '' for a plain door), so the window may join whichever is master next. */
   keepDoors?(doors: { addr: string; fp: string }[]): Promise<{ ok: true } | Fail<'bad_request'>>;
-  /** Pairs with another device's daemon, from its `handline://` link or its address and code; the app relaunches on it. */
-  pairRemote?(a: { link?: string; address?: string; code?: string }): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_pair'>>;
+  /** The clusters this Mac joined (docs/story4-design.md slice 24): each one's master, as the page opens it, and this Mac's device token
+   * there. `onClusters` is called now with the list and on every change (a join, a leave, a master that answers or stops). */
+  clusters?(): Promise<{ ok: true; clusters: ShellCluster[] } | Fail<'bad_request'>>;
+  onClusters?(cb: (clusters: ShellCluster[]) => void): () => void;
+  /** Joins the cluster whose Settings › Devices › Connect a device gave the link (or its address and the code), as `hl device join`
+   * joins a machine: this person's Mac, on Off. `cannot_join` says why not. */
+  joinCluster?(a: {
+    link?: string;
+    address?: string;
+    code?: string;
+  }): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join'>>;
+  /** Leaves a joined cluster: Off there first (its agents here hand over), this Mac's device revoked, its engine stopped and removed. */
+  leaveCluster?(id: string): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_leave'>>;
   /** The page's zoom factor (1 = 100%), read from the window itself: `outerWidth` lags a full-screen change, so the page cannot tell it from its own size. */
   zoom?(): number;
   /** The window entered or left full screen (the traffic lights are gone in it); called once with the current state on registering. Returns the way to stop listening. */

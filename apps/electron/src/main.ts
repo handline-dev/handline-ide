@@ -20,9 +20,10 @@ import { followMain } from '#src/follow-app.ts';
 import { keepPlace, savedFrame, savedRoute } from '#src/window-place.ts';
 import { createWindow } from '#src/app-window.ts';
 import type { Follower } from '#src/follow.ts';
-import { remoteUrl, SettingsFile, type Link, type Remote } from '#src/mode.ts';
+import { SettingsFile, type Link } from '#src/mode.ts';
 import { Doors, serveOwnDaemon, trustFingerprints } from '#src/masters.ts';
-import { findMaster, joinedOf, masterTransport, type Joined } from '#src/runner-mac.ts';
+import { untilUp } from '#src/clusters.ts';
+import { serveClusters } from '#src/clusters-app.ts';
 import { ownDaemon, readFounderKey, type Own } from '#src/own.ts';
 import { quitQuietly } from '#src/ask.ts';
 import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, trayFollow, trayUpdate } from '#src/app-life.ts';
@@ -60,11 +61,11 @@ function chosenAddresses(): boolean {
   }
 }
 /** The daemon's network listener (host:port): the web app reaches it at /rpc with a device token the app got for itself. An explicit WS address with no listener is the old plain mode. */
-let listen = env('WS') && !env('LISTEN') ? undefined : listenAddress(env('LISTEN'), os.networkInterfaces(), 7443, chosenAddresses());
+const listen = env('WS') && !env('LISTEN') ? undefined : listenAddress(env('LISTEN'), os.networkInterfaces(), 7443, chosenAddresses());
 /** The checkout the app runs from; a packaged app names its binaries with HANDLINE_HANDLINED. */
 const root = path.resolve(import.meta.dirname, '../../..');
 /** The window always carries its daemon: a built page without `?daemon=` would take its own origin, which here is the static server. */
-let ws = env('WS') ?? (listen ? windowDaemon(listen) : 'ws://127.0.0.1:7777');
+const ws = env('WS') ?? (listen ? windowDaemon(listen) : 'ws://127.0.0.1:7777');
 app.setName('Handline'); // the menu bar and the About panel; the bundle name of an unpackaged run is set by launch.ts
 const APP_ICON = path.join(import.meta.dirname, '../assets/icon.png');
 const dist = env('WEB_DIST') ?? carried?.web ?? path.resolve(import.meta.dirname, '../../web/dist');
@@ -137,37 +138,23 @@ async function advertised(listen: string): Promise<string | null> {
 let doors: Doors | null = null;
 
 /** The window connects as a paired device, which may not read or write settings; the shell's founder connection does it for the page. */
-function handleSettings(origin: string, client: DaemonClient, remote: Remote | null): void {
-  const otherDevice = new Error('This app is paired with another device; change its settings there.');
+function handleSettings(origin: string, client: DaemonClient): void {
   const s = new Settings(origin, {
-    get: (agent) => (remote ? Promise.reject(otherDevice) : client.call('settings.get', { agent })),
-    set: (changes, agent) => (remote ? Promise.reject(otherDevice) : client.call('settings.set', { changes, agent })),
+    get: (agent) => client.call('settings.get', { agent }),
+    set: (changes, agent) => client.call('settings.set', { changes, agent }),
   });
   ipcMain.handle(CHANNELS.settingsGet, (e, arg) => s.get(e, arg));
   ipcMain.handle(CHANNELS.settingsSet, (e, arg) => s.set(e, arg));
 }
 
-/** Starts the app again: after a runner Mac was made the master, its window goes to this Mac's own door. */
-const relaunch = (): void => {
-  app.relaunch();
-  quitQuietly(app);
-};
-
-function handleConnection(origin: string, own: Own, remote: Remote | null, client: DaemonClient, f?: Follower, runnerMac = false): void {
+function handleConnection(origin: string, own: Own, client: DaemonClient, f?: Follower): void {
   const c = new Connection(origin, {
-    // Only a daemon this app started, and only when the build on disk is this one: a newer one (main moved) is the follow offer's to apply.
-    build: () => ({ sha: runningBuild, canRestart: !remote && readBuildSha(import.meta.dirname) === runningBuild }),
+    // Only when the build on disk is this one: a newer one (main moved) is the follow offer's to apply.
+    build: () => ({ sha: runningBuild, canRestart: readBuildSha(import.meta.dirname) === runningBuild }),
     restartDaemon: () => own.restartDaemon(),
-    // The page's words for which daemon this is: this Mac's (own), or the paired device's.
-    mode: () => ({ mode: remote ? 'connect' : 'own', remote: remote?.host ?? null }),
     follow: () => (f ? { sha: f.sha, state: f.state, next: f.next?.sha ?? null } : null),
     check: async () => void (await f?.look()),
-    // Going back to this Mac's daemon is the one switch left; another device's is reached by pairing.
-    setMode: (m) => m === 'own' && remote && own.useThisMac(),
-    pair: (i) => own.pair(i),
   });
-  ipcMain.handle(CHANNELS.mode, (e) => c.mode(e));
-  ipcMain.handle(CHANNELS.setMode, (e, arg) => c.setMode(e, arg));
   ipcMain.handle(CHANNELS.build, (e) => c.build(e));
   ipcMain.handle(CHANNELS.restartDaemon, (e) => c.restartDaemon(e));
   serveOwnDaemon({
@@ -179,11 +166,9 @@ function handleConnection(origin: string, own: Own, remote: Remote | null, clien
     home,
     doors: () => doors,
     send: (v) => win?.webContents.send(CHANNELS.daemon, v),
-    promoted: runnerMac ? relaunch : undefined, // the window then goes to this Mac's own door
   });
   ipcMain.handle(CHANNELS.follow, (e) => c.follow(e));
   ipcMain.handle(CHANNELS.checkUpdate, (e) => c.checkUpdate(e));
-  ipcMain.handle(CHANNELS.pairRemote, (e, arg) => c.pairRemote(e, arg));
   serveCapture(ipcMain, origin, { sources: (thumbnailSize) => desktopCapturer.getSources({ types: ['window'], thumbnailSize }) });
   serveFolderPick(
     ipcMain,
@@ -210,44 +195,21 @@ function handleDevices(origin: string): void {
   ipcMain.handle(CHANNELS.deviceText, (e, arg) => devices.text(e, arg));
 }
 
-/** The shell's own connection to the daemon; on a runner Mac, to its master with this machine's device token. */
-const shellClient = (remote: Remote | null, joined: Joined | null): DaemonClient =>
-  joined
-    ? new DaemonClient({ client: 'electron', connect: masterTransport(joined), token: joined.master.token })
-    : new DaemonClient({
-        client: 'electron',
-        connect: () => unixSocketTransport(socket),
-        key: founderKey,
-        founder: !remote && !outsideHome(),
-      });
+/** The shell's own connection to this Mac's daemon, with the founder's key. */
+const shellClient = (): DaemonClient =>
+  new DaemonClient({ client: 'electron', connect: () => unixSocketTransport(socket), key: founderKey, founder: !outsideHome() });
+
+/** The login shell's PATH, asked at each daemon start, so a restart picks up a tool installed since (its installer changes it). */
+const loginPath = async () => {
+  if (process.env.VISUAL || process.env.EDITOR) return { path: process.env.PATH, timedOut: false };
+  const r = await askLogin();
+  return { path: r.env.PATH, timedOut: r.timedOut };
+};
 
 /** On every connect, a daemon restarted by an update included, the tray learns which build it now is. */
 function watchVersion(client: DaemonClient, link: Link): void {
   link.setVersion(client.hello?.daemon);
   client.onState((st) => st === 'open' && link.setVersion(client.hello?.daemon));
-}
-
-/** On a runner Mac the tray says whether the shell reaches the master. */
-function watchMaster(client: DaemonClient, link: Link): void {
-  link.set('connected');
-  client.onState((st) => link.set(st === 'open' ? 'connected' : 'connecting'));
-}
-
-/** Runs `f` until it stops throwing, two seconds apart. */
-async function untilUp(f: () => Promise<unknown>): Promise<void> {
-  for (;;) {
-    try {
-      return void (await f());
-    } catch {
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
-}
-
-/** A paired remote: its daemon is the one the page talks to, and its certificate the one trusted. */
-function useRemote(remote: Remote): void {
-  listen = remote.host;
-  ws = remoteUrl(remote);
 }
 
 /** Builds a checkout's go/handlined, the daemon this app starts. */
@@ -300,8 +262,8 @@ function handleUpdate(origin: string, flow: UpdateFlow, redraw: () => void): voi
 }
 
 /** The calls the shell makes on its own connection for the page (the founder's, or a runner Mac's device at the master): settings, openIn, and opening an agent's worktree. */
-function handleFounderCalls(origin: string, client: DaemonClient, remote: Remote | null, tmp: string): void {
-  handleSettings(origin, client, remote);
+function handleFounderCalls(origin: string, client: DaemonClient, tmp: string): void {
+  handleSettings(origin, client);
   handleOpenIn(origin, client, tmp);
   // The worktree of an agent comes from the shell's own daemon connection, never from the page.
   const opener = new Opener(origin, {
@@ -338,34 +300,33 @@ if (!app.requestSingleInstanceLock({ background })) {
     app.dock?.setIcon(APP_ICON);
     allowListenerOrigin();
     const settings = new SettingsFile(path.join(app.getPath('userData'), 'settings.json'));
-    // This Mac's daemon, unless the app was paired with another device's.
     const current = settings.read();
-    const remote = current.remote;
     const login = loginLaunch(current.openAtLogin, background);
-    if (remote) useRemote(remote);
-    // A runner Mac: the window goes to the master its daemon obeys; with none answering, to the one it joined, and the page says it
-    // cannot reach it, with "Make this Mac the master".
-    const joined = remote ? null : joinedOf(os.homedir(), home);
-    const master = joined && ((await findMaster(joined)) ?? joined.master);
-    if (master) ws = remoteUrl(master);
-    doors = trustFingerprints(app, new Doors(settings, current), { remote: remote ?? master, window: () => win?.webContents });
     // The device token, the layouts and the settings are kept per page origin, so the page keeps one port from launch to launch.
     const web = await pageServer();
     const origin = new URL(web.url).origin;
     const page = new Page(origin);
-    // The shell's own calls (an agent's worktree, the badge): the founder's key from the protected store, or a runner Mac's device token.
-    const client = shellClient(remote, joined);
+    // The clusters this Mac joined: an engine for each beside this Mac's daemon, and their masters the page may open.
+    const clusters = serveClusters({
+      origin,
+      home,
+      settings,
+      hl: carried?.hl ?? path.join(root, 'go', 'hl'),
+      env,
+      root,
+      loginPath,
+      send: (v) => win?.webContents.send(CHANNELS.clusters, v),
+    });
+    doors = trustFingerprints(app, new Doors(settings, current, () => clusters.doors()), () => win?.webContents);
+    clusters.start();
+    // The shell's own calls (an agent's worktree, the badge).
+    const client = shellClient();
     // Follow-main mode (pnpm app): the app runs from its own checkout of main and offers to restart when main moves.
     const following = env('FOLLOW') ? followMain({ dir: root, window: () => win, changed: () => own.redraw(), flow }) : null;
     const f = following?.follower;
     const own: Own = ownDaemon({
       env,
-      // Asked at each daemon start, so a restart picks up a tool installed since (its installer changes the shell's PATH).
-      loginPath: async () => {
-        if (process.env.VISUAL || process.env.EDITOR) return { path: process.env.PATH, timedOut: false };
-        const r = await askLogin();
-        return { path: r.env.PATH, timedOut: r.timedOut };
-      },
+      loginPath,
       home,
       root,
       tray: drawsTray(process.env, app.isPackaged),
@@ -374,24 +335,22 @@ if (!app.requestSingleInstanceLock({ background })) {
       advertise: listen && onTailnet(listen) ? await advertised(listen) : null,
       web: dist,
       origin,
-      settings,
       current,
       setOpenAtLogin: saveOpenAtLogin(settings),
       build: runningBuild,
       buildDaemon: env('HANDLINED') ? undefined : buildDaemon, // a packaged app names its bundle's handlined
-      master,
       openWindow: () => void openWindow(),
       openPage: (screen) => void openWindow().then(() => win?.webContents.send(CHANNELS.navigate, { screen, id: '', event: 'tray' })),
       update: () => trayUpdate(flow),
       follow: f && (() => trayFollow(f)),
     });
-    handleConnection(origin, own, remote, client, f, !!joined);
+    handleConnection(origin, own, client, f);
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
     ipcMain.handle(CHANNELS.unsent, (e, arg) => page.setUnsent(e, arg));
     ipcMain.handle(CHANNELS.capturePreview, (e, id) => capturePage(e, origin, id));
     handleDevices(origin);
-    handleFounderCalls(origin, client, remote, app.getPath('temp'));
+    handleFounderCalls(origin, client, app.getPath('temp'));
     const composer = new Composer(origin, { env: editorEnv, tmp: app.getPath('temp') });
     ipcMain.handle(CHANNELS.compose, (e, arg) => composer.compose(e, arg));
     ipcMain.handle(CHANNELS.cancelCompose, (e, arg) => composer.cancel(e, arg));
@@ -413,8 +372,7 @@ if (!app.requestSingleInstanceLock({ background })) {
 
     handleUpdate(origin, flow, () => own.redraw());
     // The launchd job an older Handline installed would start a daemon under this app's own: it goes before the app starts its daemon.
-    if (!remote && !env('HOME'))
-      await removeOldService().catch((e: Error) => console.warn(`the old daemon service was not removed: ${e.message}`));
+    if (!env('HOME')) await removeOldService().catch((e: Error) => console.warn(`the old daemon service was not removed: ${e.message}`));
     const updater = makeUpdater(page, composer, flow);
     askBeforeQuit(own, settings);
     // The window opens at once and shows the daemon starting; the page reconnects once it answers. At login there is no window.
@@ -454,8 +412,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     // The client reconnects once it has been up; a daemon that is down at launch is retried here.
     void (async () => {
       await untilUp(() => client.start());
-      if (joined) watchMaster(client, own.link);
-      else if (!remote) watchVersion(client, own.link);
+      watchVersion(client, own.link);
       await untilUp(() => desk.start());
     })();
     countWorking(client, own);

@@ -1,14 +1,10 @@
 // The shell's side of window.handline (docs/electron-bridge.md §2, §3): what the page last said, and the check each call passes.
 // Electron's own objects are injected, so this runs under node.
-import { PAGE_SETTINGS, type Fail, type ShellDaemon } from '@handline/app-core';
+import { PAGE_SETTINGS, type Fail, type ShellCluster, type ShellDaemon } from '@handline/app-core';
 import type { Methods } from '@handline/client';
 import type { CliState } from '#src/cli.ts';
 import { UPDATE_ACTS, type UpdateAct, type UpdateView } from '#src/update-flow.ts';
 import { doorsOf, type Door, type OfferInput } from '#src/mode.ts';
-
-/** The page's word for which daemon the app uses: own is this Mac's, connect another device's it is paired with. */
-type Mode = 'connect' | 'own';
-const parseMode = (v: unknown): Mode | undefined => (v === 'connect' || v === 'own' ? v : undefined);
 
 export const CHANNELS = {
   screen: 'handline:screen',
@@ -22,15 +18,15 @@ export const CHANNELS = {
   installTools: 'handline:installTools',
   compose: 'handline:compose',
   cancelCompose: 'handline:cancelCompose',
-  mode: 'handline:mode',
-  setMode: 'handline:setMode',
   follow: 'handline:follow',
   checkUpdate: 'handline:checkUpdate',
   build: 'handline:build',
   restartDaemon: 'handline:restartDaemon',
   cli: 'handline:cli',
   linkCli: 'handline:linkCli',
-  pairRemote: 'handline:pairRemote',
+  clusters: 'handline:clusters',
+  joinCluster: 'handline:joinCluster',
+  leaveCluster: 'handline:leaveCluster',
   update: 'handline:update',
   daemon: 'handline:daemon',
   startDaemon: 'handline:startDaemon',
@@ -100,7 +96,6 @@ export class Page {
 }
 
 export interface ConnectionDeps {
-  mode(): { mode: Mode; remote: string | null };
   /** The follow-main state, or null in a build that does not follow main. */
   follow(): { sha: string; state: 'current' | 'available' | 'updating' | 'ready' | 'failed'; next: string | null } | null;
   /** The build the app is, and whether the daemon here is one it can move onto that build. */
@@ -109,25 +104,15 @@ export interface ConnectionDeps {
   restartDaemon(): Promise<void>;
   /** Looks at GitHub's main now; settles when the look is done. */
   check(): Promise<void>;
-  /** own: goes back to this Mac's daemon from a paired device's, and relaunches; connect is reached by pairing. */
-  setMode(m: Mode): void;
-  /** Pairs and relaunches on the new device; rejects with a sentence when the daemon cannot be paired with. */
-  pair(i: OfferInput): Promise<void>;
 }
 
-const OFFER_KEYS = ['link', 'address', 'code'];
-const MAX_OFFER = 2048;
-
-/** The page's way to change which daemon the app is on, with the same sender and argument checks as the rest. */
+/** The page's calls on the app's build and its daemon, with the same sender and argument checks as the rest. */
 export class Connection {
   private origin: string;
   private d: ConnectionDeps;
   constructor(origin: string, d: ConnectionDeps) {
     this.origin = origin;
     this.d = d;
-  }
-  mode(e: Sender): ({ ok: true } & ReturnType<ConnectionDeps['mode']>) | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, ...this.d.mode() } : (bad('not from the app window') as Fail<'bad_request'>);
   }
   follow(e: Sender) {
     if (!fromWindow(e, this.origin)) return bad('not from the app window') as Fail<'bad_request'>;
@@ -151,27 +136,53 @@ export class Connection {
     await this.d.check();
     return { ok: true };
   }
-  setMode(e: Sender, arg: unknown): Reply {
-    if (!fromWindow(e, this.origin)) return bad('not from the app window');
-    const mode = typeof arg === 'string' ? parseMode(arg) : undefined;
-    if (!mode) return bad('setMode takes connect or own');
-    this.d.setMode(mode);
-    return { ok: true };
+}
+
+export interface ClusterDeps {
+  list(): ShellCluster[];
+  /** Joins the cluster the link names; rejects with a sentence when it cannot. */
+  join(i: OfferInput): Promise<ShellCluster>;
+  /** Leaves that cluster; rejects with a sentence when it cannot. */
+  leave(id: string): Promise<void>;
+}
+
+const OFFER_KEYS = ['link', 'address', 'code'];
+const MAX_OFFER = 2048;
+
+/** The clusters this Mac joined (clusters.ts): the list with each one's master and device token, join and leave, from the window only. */
+export class ClusterCalls {
+  private origin: string;
+  private d: ClusterDeps;
+  constructor(origin: string, d: ClusterDeps) {
+    this.origin = origin;
+    this.d = d;
   }
-  async pairRemote(e: Sender, arg: unknown): Promise<Reply | Fail<'cannot_pair'>> {
-    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+  list(e: Sender): { ok: true; clusters: ShellCluster[] } | Fail<'bad_request'> {
+    return fromWindow(e, this.origin) ? { ok: true, clusters: this.d.list() } : (bad('not from the app window') as Fail<'bad_request'>);
+  }
+  async join(e: Sender, arg: unknown): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join'>> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window') as Fail<'bad_request'>;
     const o = arg as Record<string, unknown> | null;
     const okShape =
       typeof o === 'object' &&
       o !== null &&
       !Array.isArray(o) &&
       Object.entries(o).every(([k, v]) => OFFER_KEYS.includes(k) && typeof v === 'string' && v.length <= MAX_OFFER);
-    if (!okShape) return bad('pairRemote takes { link } or { address, code }');
+    if (!okShape) return bad('joinCluster takes { link } or { address, code }') as Fail<'bad_request'>;
     try {
-      await this.d.pair(o as OfferInput);
+      return { ok: true, ...(await this.d.join(o as OfferInput)) };
+    } catch (err) {
+      return { ok: false, code: 'cannot_join', message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  async leave(e: Sender, arg: unknown): Promise<Reply | Fail<'cannot_leave'>> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    if (typeof arg !== 'string' || !/^[0-9a-f]{8}$/.test(arg)) return bad('leaveCluster takes a cluster id');
+    try {
+      await this.d.leave(arg);
       return { ok: true };
     } catch (err) {
-      return { ok: false, code: 'cannot_pair', message: err instanceof Error ? err.message : String(err) };
+      return { ok: false, code: 'cannot_leave', message: err instanceof Error ? err.message : String(err) };
     }
   }
 }

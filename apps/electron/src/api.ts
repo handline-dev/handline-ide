@@ -1,5 +1,5 @@
 // window.handline as the page sees it, made from the preload's ipcRenderer (docs/electron-bridge.md §2). Calls return a result and never throw.
-import type { NavigateTo, ShellApi, ShellDaemon, ShellUpdate } from '@handline/app-core';
+import type { NavigateTo, ShellApi, ShellCluster, ShellDaemon, ShellUpdate } from '@handline/app-core';
 import { CHANNELS } from '#src/bridge.ts';
 
 export interface Ipc {
@@ -30,27 +30,23 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     lastToken = t;
     tokenListeners.forEach((f) => f(t));
   });
-  // The shell sends the update state on every change; the last one is kept for the first listener.
-  let update: ShellUpdate | null = null;
-  const updateListeners = new Set<(v: ShellUpdate) => void>();
-  ipc.on(CHANNELS.update, (_e, v) => {
-    update = v as ShellUpdate;
-    updateListeners.forEach((f) => f(update!));
-  });
-  // The same for the daemon's state.
-  let daemon: ShellDaemon | null = null;
-  const daemonListeners = new Set<(v: ShellDaemon) => void>();
-  ipc.on(CHANNELS.daemon, (_e, v) => {
-    daemon = v as ShellDaemon;
-    daemonListeners.forEach((f) => f(daemon!));
-  });
   const call = async <R>(channel: string, arg?: unknown): Promise<R> => {
     try {
       return (await ipc.invoke(channel, arg)) as R;
     } catch (e) {
       return { ok: false, code: 'bad_request', message: e instanceof Error ? e.message : String(e) } as R;
     }
-  };
+  }; // The shell sends the update state, the daemon's and the clusters' on every change; the last one is kept for a later listener.
+  const update = kept<ShellUpdate>(ipc, CHANNELS.update);
+  const daemon = kept<ShellDaemon>(ipc, CHANNELS.daemon, async () => {
+    const v = await call<{ ok: boolean } & ShellDaemon>(CHANNELS.daemon);
+    return v.ok ? v : null;
+  });
+  const clusters = kept<ShellCluster[]>(ipc, CHANNELS.clusters, async () => {
+    const v = await call<{ ok: boolean; clusters: ShellCluster[] }>(CHANNELS.clusters);
+    return v.ok ? v.clusters : null;
+  });
+
   return {
     api: 1,
     zoom,
@@ -72,33 +68,25 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     deviceList: () => call(CHANNELS.deviceList),
     deviceSwipe: (a) => call(CHANNELS.deviceSwipe, a),
     deviceText: (a) => call(CHANNELS.deviceText, a),
-    mode: () => call(CHANNELS.mode),
-    setMode: (m) => call(CHANNELS.setMode, m),
     follow: () => call(CHANNELS.follow),
     checkUpdate: () => call(CHANNELS.checkUpdate),
     build: () => call(CHANNELS.build),
     restartDaemon: () => call(CHANNELS.restartDaemon),
     update: () => call(CHANNELS.update),
     updateAct: (what) => call(CHANNELS.updateAct, what),
-    onUpdate(cb) {
-      updateListeners.add(cb);
-      if (update) cb(update);
-      return () => void updateListeners.delete(cb);
-    },
+    onUpdate: update.on,
     daemon: () => call(CHANNELS.daemon),
     startDaemon: () => call(CHANNELS.startDaemon),
     stopDaemon: () => call(CHANNELS.stopDaemon),
     promote: () => call(CHANNELS.promote),
     keepDoors: (doors) => call(CHANNELS.keepDoors, doors),
-    onDaemon(cb) {
-      daemonListeners.add(cb);
-      if (daemon) cb(daemon);
-      else void call<{ ok: boolean } & ShellDaemon>(CHANNELS.daemon).then((v) => v.ok && !daemon && cb(v));
-      return () => void daemonListeners.delete(cb);
-    },
+    onDaemon: daemon.on,
     cli: () => call(CHANNELS.cli),
     linkCli: () => call(CHANNELS.linkCli),
-    pairRemote: (a) => call(CHANNELS.pairRemote, a),
+    clusters: () => call(CHANNELS.clusters),
+    joinCluster: (a) => call(CHANNELS.joinCluster, a),
+    leaveCluster: (id) => call(CHANNELS.leaveCluster, id),
+    onClusters: clusters.on,
     onToken(cb) {
       tokenListeners.add(cb);
       if (lastToken !== null) cb(lastToken);
@@ -121,6 +109,27 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
       return () => {
         if (listener === cb) listener = null;
       };
+    },
+  };
+}
+
+/** The last value the shell sent on `channel`, for a listener that registers later; with none yet, `ask` fetches one for it. */
+function kept<T>(ipc: Ipc, channel: string, ask?: () => Promise<T | null>) {
+  let last: T | null = null;
+  const listeners = new Set<(v: T) => void>();
+  ipc.on(channel, (_e, v) => {
+    last = v as T;
+    listeners.forEach((f) => f(last!));
+  });
+  return {
+    on(cb: (v: T) => void): () => void {
+      listeners.add(cb);
+      if (last) cb(last);
+      else
+        void ask?.().then((v) => {
+          if (v && !last && listeners.has(cb)) cb(v);
+        });
+      return () => void listeners.delete(cb);
     },
   };
 }

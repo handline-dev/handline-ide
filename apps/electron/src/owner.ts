@@ -16,6 +16,8 @@ export interface Cmd {
   path?: string;
   /** The login shell did not answer in time, so path is the app's own. */
   pathTimedOut?: boolean;
+  /** The whole environment, in place of the app's daemon's. */
+  env?: NodeJS.ProcessEnv;
 }
 
 /** How the daemon is spawned: a session of its own, nothing on its stdin, its output in the log, so it outlives the app. */

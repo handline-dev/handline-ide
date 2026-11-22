@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { findMaster, joinedOf } from '#src/runner-mac.ts';
+import { findMaster, joinedOf } from '#src/joined.ts';
 import { protectedDir } from '#src/pair.ts';
 
 const FP = 'ab'.repeat(32);

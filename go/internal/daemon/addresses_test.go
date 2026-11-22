@@ -248,7 +248,7 @@ func TestDevicePairNamesTheChosenHostWithAnAppURIAndAWebLinkAndRefusesAnyOther(t
 	if q.Get("host") != "mac.local:"+port || q.Get("fp") == "" || q.Get("fp") != res["fingerprint"] {
 		t.Fatalf("%v", res)
 	}
-	if res["web_link"] != "https://mac.local:"+port+"/#pair="+res["code"].(string) {
+	if res["web_link"] != "https://mac.local:"+port+"/#pair="+res["code"].(string)+"&fp="+q.Get("fp") {
 		t.Fatalf("web link %v", res["web_link"])
 	}
 	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "10.0.0.9"); err != nil || dev.Address != "mac.local" {

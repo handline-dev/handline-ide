@@ -1,22 +1,13 @@
-// What the app keeps in a small file in its data folder, readable by this user only (it holds a device token): another device's daemon
-// it is paired with (the app then uses that one instead of this Mac's), whether devices on the network may connect, whether it opens at
-// login, and whether quitting asks first. Also the pairing with another device and what the tray says about the daemon it reaches.
+// What the app keeps in a small file in its data folder, readable by this user only: the owner's machines the page found, the clusters
+// this Mac joined, whether it opens at login, and whether quitting asks first. Also the link a Mac joins a cluster with and what the
+// tray says about the daemon.
 import fs from 'node:fs';
 import path from 'node:path';
 import { mismatch } from '@handline/app-core';
-import { once } from '#src/pair.ts';
-import {
-  isTailscaleHost,
-  listenerUrl,
-  parsePairingUri,
-  PROTOCOL,
-  redeemPairing,
-  type PairingOffer,
-  type Transport,
-} from '@handline/client';
+import { isTailscaleHost, listenerUrl, parsePairingUri, type PairingOffer } from '@handline/client';
 
-/** Another device's daemon this app paired with: where it is, which certificate to trust (null: plain Tailscale), our token there. */
-export interface Remote {
+/** The master a runner Mac obeys: where it is, which certificate to trust (null: a plain door), this machine's device token there. */
+export interface Master {
   host: string;
   fingerprint: string | null;
   token: string;
@@ -31,6 +22,7 @@ export interface Door {
 
 const MAX_DOORS = 64;
 const HEX64 = /^[0-9a-f]{64}$/;
+const LOOPBACK = ['127.0.0.1', 'localhost', '[::1]'];
 /** The doors the page handed over, when they are that: at most 64, each a host:port and a fingerprint. */
 export const doorsOf = (v: unknown): Door[] | null =>
   Array.isArray(v) && v.length <= MAX_DOORS && v.every(isDoor) ? v.map((d: Door) => ({ addr: d.addr, fp: d.fp })) : null;
@@ -39,50 +31,53 @@ export const doorsOf = (v: unknown): Door[] | null =>
 const isDoor = (d: Partial<Door> | null): d is Door => {
   if (!d || typeof d.addr !== 'string' || d.addr.length > 256 || !/:\d+$/.test(d.addr) || typeof d.fp !== 'string') return false;
   const host = d.addr.replace(/:\d+$/, '');
-  return HEX64.test(d.fp) || (d.fp === '' && (['127.0.0.1', 'localhost', '[::1]'].includes(host) || isTailscaleHost(host)));
+  return HEX64.test(d.fp) || (d.fp === '' && (LOOPBACK.includes(host) || isTailscaleHost(host)));
 };
 
 export interface Settings {
-  /** Another device's daemon, in place of this Mac's. */
-  remote: Remote | null;
   /** The owner's machines the page found (node.status), trusted by fingerprint so the page can join whichever is master next. */
   doors?: Door[];
   /** Open Handline at login, in the tray only. On unless turned off. */
   openAtLogin: boolean;
   /** Quit without asking first ("Don't show again"). */
   quietQuit?: boolean;
+  /** The clusters this Mac joined (clusters.ts): each engine's home is named by its id; the name is the one its master last gave. */
+  clusters?: KeptCluster[];
 }
 
-const isRemote = (v: unknown): v is Remote => {
-  const r = v as Partial<Remote> | null;
-  return (
-    !!r &&
-    typeof r.host === 'string' &&
-    typeof r.token === 'string' &&
-    typeof r.device === 'string' &&
-    (r.fingerprint === null || typeof r.fingerprint === 'string')
-  );
-};
+export interface KeptCluster {
+  id: string;
+  name: string;
+}
+
+const ID = /^[0-9a-f]{8}$/;
+const clustersOf = (v: unknown): KeptCluster[] | null =>
+  Array.isArray(v)
+    ? v.flatMap((c: Partial<KeptCluster> | null) =>
+        c && typeof c.id === 'string' && ID.test(c.id) ? [{ id: c.id, name: typeof c.name === 'string' ? c.name.slice(0, 200) : '' }] : [],
+      )
+    : null;
 
 export class SettingsFile {
   private file: string;
   constructor(file: string) {
     this.file = file;
   }
-  /** What is kept, or the defaults. A file from before kept a mode: a paired remote is still used, the rest is this Mac's daemon. */
+  /** What is kept, or the defaults. */
   read(): Settings {
-    let kept: Partial<Settings> & { mode?: unknown } = {};
+    let kept: Partial<Settings> = {};
     try {
       kept = JSON.parse(fs.readFileSync(this.file, 'utf8')) as Partial<Settings>;
     } catch {
       /* none yet */
     }
     const doors = doorsOf(kept.doors);
+    const clusters = clustersOf(kept.clusters);
     return {
-      remote: isRemote(kept.remote) && kept.mode !== 'own' ? kept.remote : null,
       openAtLogin: kept.openAtLogin !== false,
       ...(kept.quietQuit === true ? { quietQuit: true } : {}),
       ...(doors ? { doors } : {}),
+      ...(clusters?.length ? { clusters } : {}),
     };
   }
   write(s: Settings): void {
@@ -91,7 +86,7 @@ export class SettingsFile {
   }
 }
 
-/** What the person gave for another device: the `handline://` link `hl device pair` prints, or a Tailscale address and a code. */
+/** What the person gave for the master: the `handline://pair` link its Connect a device shows, or its address and the code. */
 export interface OfferInput {
   link?: string;
   address?: string;
@@ -100,7 +95,9 @@ export interface OfferInput {
 
 export function offerFrom(i: OfferInput): PairingOffer {
   const link = i.link?.trim();
-  if (link) return parsePairingUri(link);
+  const web = link && /^https?:\/\/([^/#?]+)\/?#pair=([^&]+)(?:&fp=([0-9a-fA-F]{64}))?$/.exec(link); // Copy link's invite
+  if (web) return offerOf(`handline://pair?host=${encodeURIComponent(web[1]!)}&code=${web[2]}${web[3] ? `&fp=${web[3]}` : ''}`);
+  if (link) return offerOf(link);
   const address = i.address
     ?.trim()
     .replace(/^[a-z]+:\/\//, '')
@@ -108,63 +105,30 @@ export function offerFrom(i: OfferInput): PairingOffer {
   const code = i.code?.trim();
   if (!address || !code) throw new Error('give the pairing link, or the address and the code');
   const host = /:\d+$/.test(address) ? address : `${address}:7443`;
-  // Without a certificate fingerprint only a Tailscale name can be trusted; parsePairingUri says so for anything else.
-  return parsePairingUri(`handline://pair?host=${encodeURIComponent(host)}&code=${encodeURIComponent(code)}`);
+  return offerOf(`handline://pair?host=${encodeURIComponent(host)}&code=${encodeURIComponent(code)}`);
 }
 
-export const cannotPair = (host: string, why: string): string => `the daemon at ${host} cannot be paired with: ${why}`;
-
-/** Opens the socket to a listener: pinned wss for a certificate fingerprint, plain ws for a Tailscale name. */
-export type Open = (url: string, fingerprint: string | null) => Promise<Transport>;
-
-const withTimeout = <T>(p: Promise<T>, ms: number, what: string): Promise<T> =>
-  new Promise((ok, fail) => {
-    const t = setTimeout(() => fail(new Error(what)), ms);
-    p.then(
-      (v) => (clearTimeout(t), ok(v)),
-      (e) => (clearTimeout(t), fail(e)),
-    );
-  });
-
-/** Pairs with another device's daemon the way the phone does and returns what to keep. A daemon that cannot be paired with says why and never hangs. */
-export async function pairRemote(input: OfferInput, d: { open: Open; name: string; timeoutMs?: number }): Promise<Remote> {
-  const offer = offerFrom(input); // a bad link or an untrusted address throws its own sentence
-  const ms = d.timeoutMs ?? 10_000;
-  const connect = () =>
-    withTimeout(
-      d.open(listenerUrl(offer.host, offer.fingerprint !== null), offer.fingerprint),
-      ms,
-      `nothing answered in ${Math.round(ms / 1000)} s`,
-    );
-  try {
-    const { token, device } = await redeemPairing(connect, offer.code, d.name, ms);
-    return { host: offer.host, fingerprint: offer.fingerprint, token, device };
-  } catch (e) {
-    const why = e instanceof Error ? e.message : String(e);
-    // The upgrade refusal means something answered that is not a Handline daemon.
-    throw new Error(cannotPair(offer.host, /did not accept the WebSocket upgrade/.test(why) ? 'it is not a Handline daemon' : why), {
-      cause: e,
-    });
-  }
+/** A link without a certificate fingerprint is trusted only for a Tailscale name (parsePairingUri) or, as a plain door is (isDoor),
+ * this machine's loopback, where the link is already private. */
+function offerOf(uri: string): PairingOffer {
+  const q = URL.canParse(uri) ? new URL(uri).searchParams : null;
+  const host = q?.get('host') ?? '';
+  const code = q?.get('code');
+  if (code && !q?.get('fp') && LOOPBACK.includes(host.replace(/:\d+$/, ''))) return { host, fingerprint: null, code };
+  return parsePairingUri(uri);
 }
 
-/** Where the window reaches the daemon: the remote's address, or this machine's daemon. */
-export const remoteUrl = (r: Remote): string => listenerUrl(r.host, r.fingerprint !== null);
-
-/** Plain ws to a remote Tailscale name is the one case the page needs told it is allowed. */
-export const plainRemoteHost = (r: Remote): string | null =>
-  r.fingerprint === null && isTailscaleHost(r.host) ? r.host.replace(/:\d+$/, '') : null;
-
-/** The daemon's version, from a hello with our token: what answers is a Handline daemon that still knows this device. Throws its reason otherwise. */
-export async function helloOf(r: Remote, open: Open): Promise<string> {
-  const reply = await once(
-    () => open(remoteUrl(r), r.fingerprint),
-    [['hello', { client: 'electron', protocol: PROTOCOL, token: r.token }]],
-  );
-  return String(reply.result?.daemon ?? '');
+/** The link `hl device join` takes, from what the person gave; a bad link or an untrusted address throws its own sentence. */
+export function joinLink(i: OfferInput): string {
+  const o = offerFrom(i);
+  const fp = o.fingerprint ? `&fp=${o.fingerprint}` : '';
+  return `handline://pair?host=${encodeURIComponent(o.host)}&code=${encodeURIComponent(o.code)}${fp}`;
 }
 
-export type LinkStatus = 'connecting' | 'connected' | 'no-daemon' | 'cannot-pair';
+/** Where the window reaches the master. */
+export const masterUrl = (m: Master): string => listenerUrl(m.host, m.fingerprint !== null);
+
+export type LinkStatus = 'connecting' | 'connected' | 'no-daemon';
 
 /** What the tray says about the daemon the app reaches: which one (address, version) and whether it answers. */
 export class Link {

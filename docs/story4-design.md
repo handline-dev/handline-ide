@@ -34,20 +34,20 @@ folder, press these keys, show me this pane, stop that session. The runner does 
 
 ## Who does what
 
-| Duty | Who |
-|---|---|
-| Keep the board; every write and read of it | master |
-| Pick the task, the agent and the account for a session, and the agent's device | master |
-| Triggers, timeouts, deliveries, the reclaim timer | master |
-| Build the launch: command, settings, prompt, MCP config | master |
-| Open and stop terminals, press keys, capture the screen | the runner the session is on, told by the master |
-| Make the agent's worktree from the project's remote; push its branch | that runner |
-| Bring the agent's memory down at launch and send its changes up | that runner, to and from the master |
-| Record hooks and transcript usage | that runner, sent to the master |
-| Its leases (simulator, browser, build slot, port) | that runner, from its own pools; the master sees them in the heartbeat |
-| Say what it has: agent CLIs, MCP programs, folders outside the repo, Xcode and simulators, its Handline version | that runner, at connect and in each heartbeat |
-| Forward its agents' `hl` calls | that runner |
-| Keep a copy of the board, a second or two behind; become the master when the owner says | each of the owner's runners |
+| Duty                                                                                                            | Who                                                                    |
+| --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Keep the board; every write and read of it                                                                      | master                                                                 |
+| Pick the task, the agent and the account for a session, and the agent's device                                  | master                                                                 |
+| Triggers, timeouts, deliveries, the reclaim timer                                                               | master                                                                 |
+| Build the launch: command, settings, prompt, MCP config                                                         | master                                                                 |
+| Open and stop terminals, press keys, capture the screen                                                         | the runner the session is on, told by the master                       |
+| Make the agent's worktree from the project's remote; push its branch                                            | that runner                                                            |
+| Bring the agent's memory down at launch and send its changes up                                                 | that runner, to and from the master                                    |
+| Record hooks and transcript usage                                                                               | that runner, sent to the master                                        |
+| Its leases (simulator, browser, build slot, port)                                                               | that runner, from its own pools; the master sees them in the heartbeat |
+| Say what it has: agent CLIs, MCP programs, folders outside the repo, Xcode and simulators, its Handline version | that runner, at connect and in each heartbeat                          |
+| Forward its agents' `hl` calls                                                                                  | that runner                                                            |
+| Keep a copy of the board, a second or two behind; become the master when the owner says                         | each of the owner's runners                                            |
 
 ## 1. Lending a machine
 
@@ -57,8 +57,10 @@ server. The device belongs to the person whose code it redeemed, and it comes in
 server's row in Devices has **Run · Pause · Off** (a phone's or a browser's has none), set only by the device's
 own person. It comes in Off; Run lends the machine. The master's own Mac is on Run, as today.
 
-1. The machine's daemon starts in runner mode, with its device token as its credential. If it ran alone before, its own board is set aside unchanged
-   and not merged; bringing old tasks over is later work.
+1. A Mac with the app joins from the app (slice 24): its own daemon keeps its board, and the app runs a separate engine for that
+   cluster beside it, a daemon in a home of its own in runner mode with its device token as its credential; nothing is set aside.
+   A machine joined with `hl device join` runs its own daemon in runner mode; if it ran alone before, its own board is set aside
+   unchanged and not merged; bringing old tasks over is later work.
 2. **The project:** for each workspace, the runner clones the project's repo from its remote into its own
    folder, at join and when a workspace is added. A workspace whose project has no remote runs only on the
    machine that holds its folder.
@@ -168,8 +170,8 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
   lend machines.
 - **Turns:** a turn that waits on a person names that person. Each person's Requests shows the turns that
   wait on them; `--turn human` on a task means the task's owner.
-- **Connecting without lending** is the app's connect mode, which stays: the app talks to the master and
-  starts no daemon.
+- **Connecting without lending** is joining on Off: the Mac's engine for that cluster runs nothing until its
+  person sets it to Run.
 
 ## 6. What the app needs from the daemon
 
@@ -197,8 +199,8 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
 5. **An agent stays on one device while it has room (11-21):** its memory and handoff are on the master; it
    moves, at a session's start, when its device is full, on Pause or Off, offline past the reclaim time or
    lacks what it needs.
-6. **People:** an owner and members; a member may lend a machine; connecting without lending is the app's
-   connect mode.
+6. **People:** an owner and members; a member may lend a machine; connecting without lending is joining on Off
+   (11-22; the app's connect mode is gone).
 7. **Board:** SQLite on the master; the owner's runners hold a copy, through Litestream, only to restore from.
    No replicated database: rqlite cannot run the daemon's transactions, dqlite does not run on macOS, and
    younger replication libraries are not trusted with the board yet.
@@ -215,6 +217,9 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
     A lent Mac of the master's OS and architecture on another version takes the master's own build (handlined
     and hl, sha256 checked) and starts again on it, its sessions going on; Auto by default, Manual waits for its
     row's Update; another person's machine takes it only at its own person's Update (11-22).
+11. **Several clusters in one list (11-22):** a Mac's app shows its own work and every cluster it joined in one
+    list, each cluster named (a random name, changed in Settings); a joined cluster's menu has only Leave, and lending
+    is that cluster's Settings > Devices Run · Pause · Off.
 
 ## Build slices
 
@@ -223,30 +228,31 @@ Phase 1 is one person and several machines (the founder's own Macs), including t
 is reviewed on its own; "after" names the slices it starts after. Most slices are tested with a master and a
 runner on one Mac (slice 3); the last check is two real Macs.
 
-| # | Slice | Area | Hours | After |
-|---|---|---|---|---|
-| 1 | Node identity and the node table on the master; `node.status` and the `nodes` topic | daemon | 6 | |
-| 2 | Lending: a device belongs to the person whose code it redeemed; a Mac's or a server's Run · Pause · Off, set only by that person: Run makes it a runner, Pause starts nothing new there, Off takes it back; `hl device join` for a machine without the app; a lending machine's own board set aside | daemon, hl | 8 | 1 |
-| 3 | A master and a runner on one Mac for tests: two daemons with their own homes and ports, joined | tooling | 4 | 2 |
-| 4 | Runner mode: no board; the API the master drives (terminal open, keys, screen, stop, worktree make, push); the local socket forwards its agents' calls with the agent proven by process descent | daemon | 16 | 3 |
-| 5 | The machine seam on the master: launches, the terminal tick, key presses and stops go through one interface; this machine's own tmux behind it, and a runner's API | daemon | 12 | 4 |
-| 6 | Agent files on a runner: the launch's settings, MCP config and prompt written there; memory down at launch and each change up; the shared skills, commands and subagents sent and re-sent when they change; attachments fetched when opened; the handoff written to the master | daemon | 11 | 5 |
-| 7 | Hooks and transcript usage recorded on the runner and sent to the master; working and idle state from them | daemon | 8 | 5 |
-| 8 | Projects on runners: each workspace's repo cloned from its remote at join and when a workspace is added; the branch pushed after each commit | daemon | 6 | 4 |
-| 9 | Heartbeats (load, leases, accounts with their newest usage readings and their sessions, what it has, its version); another version takes no work; offline after 60 s; reclaim after the setting's time (30 min), back to the queue with the last pushed commit named; Off hands over at once; the battery switch; a returning runner's leftovers to a rescue branch | daemon | 12 | 5, 8 |
-| 10 | Placement: an agent stays on its device; it gets one, the one with the most room among those that hold the project and have all it needs, when it has none or its device is full (memory cap, slots, leases), on Pause or Off, offline or lacking; what a device lacks for an agent | daemon | 6 | 6, 9 |
-| 11 | Account choice on a runner: the one-machine rule over the agent's device's accounts, an account logged in on two devices counted once | daemon | 4 | 9, 10 |
-| 12 | Terminal attach relayed through the master to the runner | daemon | 6 | 5 |
-| 13 | The app's screens designed and shown: Settings > Devices with one row per device; a Mac's row with Run · Pause · Off, its memory cap, online or offline, what it lacks for an agent, and what This Mac shows today for that Mac; the battery switch; reclaim time; "Make this Mac the master"; the pause popover; each agent's device | app | 8 | 1 |
-| 14 | The app built to them: This Mac folded into Devices, Run · Pause · Off and the pause popover, Run starting runner mode | app | 12 | 10, 12, 13 |
-| 15 | People: invite by pairing link, list, roles, remove; a member may lend | daemon, app | 8 | 2 |
-| 16 | Turns per person: a turn names the person it waits on; each person's Requests | daemon, app | 10 | 15 |
-| 17 | The board's copy: Litestream inside the master writing to a folder; each of the owner's runners mirrors it; how far behind, in `node.status`; the copy and the takeover kept in one package, so a vote can replace them | daemon | 10 | 4 |
-| 18 | Taking over by hand: `node.promote` on an owner's runner; with the master reachable it loses nothing, without it the runner restores the copy; either way the master number goes up; runners obey the highest; an old master that returns becomes a runner with its board set aside; tested with a master and two runners on one Mac | daemon, hl | 6 | 9, 17 |
-| 19 | The app after a new master: the machine list and token kept, the new master found and joined; "Make this Mac the master"; a set-aside board said so | app | 4 | 14, 18 |
-| 20 | The desktop app on a runner Mac: the window and the shell's own connection go to the master its daemon obeys (the joined master and the owner's machines it was told of, each certificate pinned), with this machine's device token; with none answering, the page on the master it joined says "Can't reach the master" with "Make this Mac the master"; made the master, the app starts again on this Mac's own door | app | 4 | 19 |
-| 22 | A lent Mac runs the master's build: a heartbeat's answer names the master's build to a runner of its platform on another version (node_build_auto, or its row's Update, device.update); the runner reads it over its link (node.build.read), checks each sha256, keeps the newest under its home and starts again on it, and at a later start runs it while its master is on that version | daemon | 6 | 9 |
+| #   | Slice                                                                                                                                                                                                                                                                                                                                                                                                                  | Area        | Hours | After      |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----- | ---------- |
+| 1   | Node identity and the node table on the master; `node.status` and the `nodes` topic                                                                                                                                                                                                                                                                                                                                    | daemon      | 6     |            |
+| 2   | Lending: a device belongs to the person whose code it redeemed; a Mac's or a server's Run · Pause · Off, set only by that person: Run makes it a runner, Pause starts nothing new there, Off takes it back; `hl device join` for a machine without the app; a lending machine's own board set aside                                                                                                                    | daemon, hl  | 8     | 1          |
+| 3   | A master and a runner on one Mac for tests: two daemons with their own homes and ports, joined                                                                                                                                                                                                                                                                                                                         | tooling     | 4     | 2          |
+| 4   | Runner mode: no board; the API the master drives (terminal open, keys, screen, stop, worktree make, push); the local socket forwards its agents' calls with the agent proven by process descent                                                                                                                                                                                                                        | daemon      | 16    | 3          |
+| 5   | The machine seam on the master: launches, the terminal tick, key presses and stops go through one interface; this machine's own tmux behind it, and a runner's API                                                                                                                                                                                                                                                     | daemon      | 12    | 4          |
+| 6   | Agent files on a runner: the launch's settings, MCP config and prompt written there; memory down at launch and each change up; the shared skills, commands and subagents sent and re-sent when they change; attachments fetched when opened; the handoff written to the master                                                                                                                                         | daemon      | 11    | 5          |
+| 7   | Hooks and transcript usage recorded on the runner and sent to the master; working and idle state from them                                                                                                                                                                                                                                                                                                             | daemon      | 8     | 5          |
+| 8   | Projects on runners: each workspace's repo cloned from its remote at join and when a workspace is added; the branch pushed after each commit                                                                                                                                                                                                                                                                           | daemon      | 6     | 4          |
+| 9   | Heartbeats (load, leases, accounts with their newest usage readings and their sessions, what it has, its version); another version takes no work; offline after 60 s; reclaim after the setting's time (30 min), back to the queue with the last pushed commit named; Off hands over at once; the battery switch; a returning runner's leftovers to a rescue branch                                                    | daemon      | 12    | 5, 8       |
+| 10  | Placement: an agent stays on its device; it gets one, the one with the most room among those that hold the project and have all it needs, when it has none or its device is full (memory cap, slots, leases), on Pause or Off, offline or lacking; what a device lacks for an agent                                                                                                                                    | daemon      | 6     | 6, 9       |
+| 11  | Account choice on a runner: the one-machine rule over the agent's device's accounts, an account logged in on two devices counted once                                                                                                                                                                                                                                                                                  | daemon      | 4     | 9, 10      |
+| 12  | Terminal attach relayed through the master to the runner                                                                                                                                                                                                                                                                                                                                                               | daemon      | 6     | 5          |
+| 13  | The app's screens designed and shown: Settings > Devices with one row per device; a Mac's row with Run · Pause · Off, its memory cap, online or offline, what it lacks for an agent, and what This Mac shows today for that Mac; the battery switch; reclaim time; "Make this Mac the master"; the pause popover; each agent's device                                                                                  | app         | 8     | 1          |
+| 14  | The app built to them: This Mac folded into Devices, Run · Pause · Off and the pause popover, Run starting runner mode                                                                                                                                                                                                                                                                                                 | app         | 12    | 10, 12, 13 |
+| 15  | People: invite by pairing link, list, roles, remove; a member may lend                                                                                                                                                                                                                                                                                                                                                 | daemon, app | 8     | 2          |
+| 16  | Turns per person: a turn names the person it waits on; each person's Requests                                                                                                                                                                                                                                                                                                                                          | daemon, app | 10    | 15         |
+| 17  | The board's copy: Litestream inside the master writing to a folder; each of the owner's runners mirrors it; how far behind, in `node.status`; the copy and the takeover kept in one package, so a vote can replace them                                                                                                                                                                                                | daemon      | 10    | 4          |
+| 18  | Taking over by hand: `node.promote` on an owner's runner; with the master reachable it loses nothing, without it the runner restores the copy; either way the master number goes up; runners obey the highest; an old master that returns becomes a runner with its board set aside; tested with a master and two runners on one Mac                                                                                   | daemon, hl  | 6     | 9, 17      |
+| 19  | The app after a new master: the machine list and token kept, the new master found and joined; "Make this Mac the master"; a set-aside board said so                                                                                                                                                                                                                                                                    | app         | 4     | 14, 18     |
+| 20  | The desktop app on a runner Mac: the window and the shell's own connection go to the master its daemon obeys (the joined master and the owner's machines it was told of, each certificate pinned), with this machine's device token; with none answering, the page on the master it joined says "Can't reach the master" with "Make this Mac the master"; made the master, the app starts again on this Mac's own door | app         | 4     | 19         |
+| 22  | A lent Mac runs the master's build: a heartbeat's answer names the master's build to a runner of its platform on another version (node_build_auto, or its row's Update, device.update); the runner reads it over its link (node.build.read), checks each sha256, keeps the newest under its home and starts again on it, and at a later start runs it while its master is on that version                              | daemon      | 6     | 9          |
+| 24  | Joining a cluster from the Mac app: a link from that cluster's Connect a device; `hl device join` on an engine home of its own (on Off) run beside this Mac's daemon, which keeps its board; the page gets the clusters, join and Leave; the connect mode and the runner-Mac window go                                                                                                                                 | app         | 6     | 22         |
 
-About 167 hours: phase 1 (slices 1 to 14, 17 to 20 and 22) about 149, phase 2 about 18. Not in this list:
+About 173 hours: phase 1 (slices 1 to 14, 17 to 20, 22 and 24) about 155, phase 2 about 18. Not in this list:
 taking over by itself, a majority vote among three or more machines, lending only at night, resting while the
 person uses the machine, bringing a set-aside board's tasks over, the phone.

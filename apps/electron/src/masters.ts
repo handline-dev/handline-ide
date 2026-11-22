@@ -4,42 +4,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DaemonClient, masterOf, type Transport } from '@handline/client';
 import type { ShellDaemon } from '@handline/app-core';
-import type { Door, Remote, Settings, SettingsFile } from '#src/mode.ts';
+import type { Door, Settings, SettingsFile } from '#src/mode.ts';
 import { CHANNELS, DaemonView } from '#src/bridge.ts';
 import type { Own } from '#src/own.ts';
 import { ipcMain, type App, type WebContents } from 'electron';
 
-/** A paired remote daemon and the owner's other machines have self-signed certificates: the page trusts each by the fingerprint
- * pairing or node.status handed over, and no other; only the app window joins the owner's machines. */
-export function trustFingerprints(
-  app: Pick<App, 'on'>,
-  doors: Doors,
-  o: { remote: Remote | null; window: () => WebContents | undefined },
-): Doors {
+/** The owner's machines and the joined clusters' masters have self-signed certificates: the app window trusts each by the fingerprint
+ * node.status or the join handed over, and no other. */
+export function trustFingerprints(app: Pick<App, 'on'>, doors: Doors, window: () => WebContents | undefined): Doors {
   app.on('certificate-error', (e, wc, url, _err, cert, trust) => {
     e.preventDefault();
     const got = Buffer.from(cert.fingerprint.replace(/^sha256\//, ''), 'base64').toString('hex');
-    const host = new URL(url).host;
-    const r = o.remote;
-    trust((!!r?.fingerprint && host === r.host && got === r.fingerprint) || (wc === o.window() && doors.trusts(host, got)));
+    trust(wc === window() && doors.trusts(new URL(url).host, got));
   });
   return doors;
 }
 
-/** The doors the page found (keepDoors), host:port to certificate fingerprint ('' for a plain door), kept for the next launch. */
+/** The doors the page may open, host:port to certificate fingerprint ('' for a plain door): those it found (keepDoors), kept for the
+ * next launch, and the joined clusters' (`also`). */
 export class Doors {
   private map = new Map<string, string>();
   private file: Pick<SettingsFile, 'read' | 'write'>;
-  constructor(file: Pick<SettingsFile, 'read' | 'write'>, kept: Settings) {
+  private also: () => Door[];
+  constructor(file: Pick<SettingsFile, 'read' | 'write'>, kept: Settings, also: () => Door[] = () => []) {
     this.file = file;
+    this.also = also;
     for (const d of kept.doors ?? []) this.map.set(d.addr, d.fp);
   }
-  has(host: string): boolean {
-    return this.map.has(host);
+  private fp(host: string): string | undefined {
+    return this.map.get(host) ?? this.also().find((d) => d.addr === host)?.fp;
   }
-  /** The certificate at host is the one its node.status named. */
+  has(host: string): boolean {
+    return this.fp(host) !== undefined;
+  }
+  /** The certificate at host is the one its node.status or its join named. */
   trusts(host: string, fingerprint: string): boolean {
-    const fp = this.map.get(host);
+    const fp = this.fp(host);
     return !!fp && fp === fingerprint;
   }
   keep(list: Door[]): void {
@@ -108,8 +108,6 @@ export function serveOwnDaemon(o: {
   home: string;
   doors: () => Doors | null;
   send: (v: ShellDaemon) => void;
-  /** After this Mac was made the master (a runner Mac's shell then starts again on its own door). */
-  promoted?: () => void;
 }): void {
   const view = (): ShellDaemon => ({ ...o.own.daemon(), runner: mine.runner() });
   const mine = ownRunner({ ...o, changed: () => o.send(view()) });
@@ -118,11 +116,7 @@ export function serveOwnDaemon(o: {
     view,
     start: () => o.own.startDaemon(),
     stop: () => o.own.stopDaemon(),
-    promote: async () => {
-      const r = await mine.promote();
-      o.promoted?.();
-      return r;
-    },
+    promote: () => mine.promote(),
     keepDoors: (list) => o.doors()?.keep(list),
   });
   ipcMain.handle(CHANNELS.daemon, (e) => d.view(e));

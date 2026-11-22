@@ -1,16 +1,16 @@
-// A Mac whose daemon is a runner (docs/story4-design.md section 4): its home joined a master, and only a master listens, so the window
-// and the shell's own connection go to the master that daemon obeys, with the device token it joined with.
+// A home that joined a master, as a cluster engine's does (clusters.ts; docs/story4-design.md section 4): what it keeps of its masters,
+// and the shell's connection to the master it obeys, with the device token it joined with. Only a master listens.
 import fs from 'node:fs';
 import path from 'node:path';
 import { highestMaster, listenerUrl, webSocketTransport, type MasterSays, type Transport } from '@handline/client';
 import { pinnedWebSocketTransport } from '@handline/client-node';
-import { doorsOf, type Door, type Remote } from '#src/mode.ts';
+import { doorsOf, type Door, type Master } from '#src/mode.ts';
 import { protectedDir } from '#src/pair.ts';
 
 /** What a runner's home keeps of its masters: the one it obeys (its credential, with this machine's device token there) and the
  * owner's other machines, as its last heartbeat's answer listed them (master-doors.json). */
 export interface Joined {
-  master: Remote;
+  master: Master;
   /** The master number it obeys: an app goes to none below it. */
   floor: MasterSays | null;
   doors: Door[];
@@ -49,7 +49,7 @@ const open = (url: string, fp: string): Promise<Transport> => (fp ? pinnedWebSoc
 
 /** Says hello at the master it obeys and at each of the owner's machines at once, each certificate pinned, and answers the one that
  * is master with the highest number, not below the one obeyed; null when none answers so. */
-export async function findMaster(j: Joined, ask = highestMaster): Promise<Remote | null> {
+export async function findMaster(j: Joined, ask = highestMaster): Promise<Master | null> {
   const fps = new Map<string, string>();
   for (const d of [{ addr: j.master.host, fp: j.master.fingerprint ?? '' }, ...j.doors]) fps.set(listenerUrl(d.addr, d.fp !== ''), d.fp);
   const best = await ask([...fps.keys()], (url) => open(url, fps.get(url) ?? ''), j.master.token, 'electron', j.floor);
