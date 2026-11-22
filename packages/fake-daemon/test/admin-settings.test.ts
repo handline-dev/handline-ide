@@ -32,6 +32,7 @@ const KEYS = [
   'disk_keep_free_gb',
   'agents_memory_max_gb',
   'node_battery_switch',
+  'node_build_auto',
   'node_reclaim_s',
   'port_range',
   'network_addresses',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Device, Node } from '@handline/client';
-import { deviceRows, isStale } from '#src/settings/data/devices.ts';
+import { canUpdate, deviceRows, isStale } from '#src/settings/data/devices.ts';
 
 const now = Date.parse('2026-11-06T00:00:00Z');
 const day = 86_400_000;
@@ -73,5 +73,30 @@ describe('deviceRows', () => {
     const rows = deviceRows([dev('phone', { kind: 'ios' }), dev('bob-mac', { kind: 'mac', person: 'p2', lending: 'off' })], [], [], opts);
     expect(rows.find((r) => r.id === 'phone')).toMatchObject({ runner: false, mode: null, state: 'connected' });
     expect(rows.find((r) => r.id === 'bob-mac')).toMatchObject({ runner: true, mine: false });
+  });
+});
+
+describe('a Mac on another build', () => {
+  const m = { ...master, version: 'new' };
+  const row = (n: Partial<Node>, o: { me?: string; buildAuto?: boolean; person?: string } = {}) =>
+    deviceRows([dev('d', { kind: 'mac', lending: 'run', person: o.person ?? 'p1' })], [m, node('n', { device: 'd', version: 'old', ...n })], [], {
+      ...opts,
+      me: o.me ?? 'p1',
+      buildAuto: o.buildAuto,
+    }).find((r) => r.id === 'd')!;
+  it("is behind while online on a version that is not the master's", () => {
+    expect(row({}).behind).toBe(true);
+    expect(row({ version: 'new' }).behind).toBe(false);
+    expect(row({ online: false }).behind).toBe(false);
+    expect(row({ version: undefined }).behind).toBe(false);
+  });
+  it("takes the master's build by itself under Auto on the owner's machine; else its own person updates it", () => {
+    expect(row({})).toMatchObject({ updating: true });
+    expect(canUpdate(row({}))).toBe(false);
+    expect(canUpdate(row({}, { buildAuto: false }))).toBe(true);
+    const bobs = row({ person: 'p2' }, { me: 'p2', person: 'p2' });
+    expect(bobs.updating).toBe(false);
+    expect(canUpdate(bobs)).toBe(true);
+    expect(canUpdate(row({ person: 'p2' }, { person: 'p2' }))).toBe(false);
   });
 });

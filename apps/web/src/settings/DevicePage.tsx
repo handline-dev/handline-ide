@@ -3,10 +3,11 @@ import { useNameOf } from '@handline/app-data';
 import { bytesText } from '@handline/app-core';
 import { BatteryMedium, Bot, ChevronLeft, Cpu, Ellipsis, Gauge, MemoryStick, Plug, TriangleAlert } from 'lucide-react';
 import { MachineSections } from '#src/settings/MachineSections.tsx';
-import { KIND_ICON, KIND_WORD, ModeControl, StateWord, confirmRevoke } from '#src/settings/DeviceControls.tsx';
+import { KIND_ICON, KIND_WORD, ModeControl, StateWord, confirmRevoke, refused } from '#src/settings/DeviceControls.tsx';
 import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
-import type { DeviceRow, useDevices } from '#src/settings/data/devices.ts';
+import { canUpdate, type DeviceRow, type useDevices } from '#src/settings/data/devices.ts';
+import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { Page } from '#src/ui/Page.tsx';
@@ -119,6 +120,11 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
               <StateWord row={row} />
             </span>
             <span className="flex-1" />
+            {canUpdate(row) && (
+              <Button busy={q.pending === `update:${row.id}`} disabled={q.pending !== null} onClick={() => void q.update(row).catch(refused)}>
+                Update
+              </Button>
+            )}
             {row.runner && row.mode && <ModeControl row={row} busy={q.pending !== null} setMode={(m) => q.setMode(row, m)} />}
             {!row.master && (
               <Menu

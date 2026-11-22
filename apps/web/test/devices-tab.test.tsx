@@ -21,20 +21,24 @@ const row = (id: string, o: Partial<DeviceRow>): DeviceRow => ({
   lacks: [],
   node: null,
   stale: false,
+  behind: false,
+  updating: false,
   ...o,
 });
 const rows = [
   row('mbp', { kind: 'mac', runner: true, master: true, here: true, mode: 'run', state: 'running', agents: ['ui', 'core'] }),
   row('studio', { kind: 'mac', runner: true, mode: 'run', state: 'running', lacks: [{ agent: 'ui', why: 'needs pencil' }] }),
+  row('laptop', { kind: 'mac', runner: true, mode: 'run', state: 'running', behind: true }),
   row('bob-mac', { kind: 'mac', runner: true, mine: false, mode: 'off', state: 'off' }),
   row('phone', {}),
   row('old-phone', { state: 'seen', since: new Date(NOW - 40 * day).toISOString(), stale: true }),
 ];
 let revoke: (id: string) => Promise<void>;
 const setMode = vi.fn((_r: DeviceRow, _m: Mode) => Promise.resolve());
+const update = vi.fn((_r: DeviceRow) => Promise.resolve());
 vi.mock('#src/settings/data/devices.ts', async (orig) => ({
   ...(await orig<object>()),
-  useDevices: () => ({ loading: false, error: false, rows, pushPlatforms: [], pending: null, setMode, revoke: (id: string) => revoke(id) }),
+  useDevices: () => ({ loading: false, error: false, rows, pushPlatforms: [], pending: null, setMode, update, revoke: (id: string) => revoke(id) }),
   useSetAside: () => aside.now,
 }));
 const aside = vi.hoisted(() => ({ now: null as { name: string; since: string; master: string; key: string } | null }));
@@ -85,6 +89,7 @@ describe('Devices', () => {
     expect([...document.querySelectorAll('[data-device]')].map((r) => r.getAttribute('data-device'))).toEqual([
       'mbp',
       'studio',
+      'laptop',
       'bob-mac',
       'phone',
     ]);
@@ -139,6 +144,21 @@ describe('Devices', () => {
     await act(async () => answer());
     await flush();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('keeps Update out of the right-click', async () => {
+    await act(async () => at('laptop').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 5, clientY: 5 })));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((m) => m.textContent)).not.toContain('Update');
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  });
+
+  it('says a Mac is on another build on its row, with its Update there', async () => {
+    update.mockClear();
+    expect(at('laptop').textContent).toContain('other build');
+    const b = [...at('laptop').querySelectorAll('button')].find((x) => x.textContent === 'Update')!;
+    await act(async () => b.click());
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-device="studio"]')!.textContent).not.toContain('other build');
   });
 
   it('says why when the daemon refuses', async () => {
