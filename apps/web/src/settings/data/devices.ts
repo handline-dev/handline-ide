@@ -39,7 +39,14 @@ export type DeviceRow = {
   lacks: { agent: string; why: string }[];
   node: Node | null;
   stale: boolean;
+  /** A lent machine online on another Handline build than the master's: its Update has it take the master's. */
+  behind: boolean;
+  /** Behind and taking the master's build by itself: Auto, on one of the owner's machines (another person's waits for its Update). */
+  updating: boolean;
 };
+
+/** Its own person updates a Mac on another build that does not take the master's by itself. */
+export const canUpdate = (r: DeviceRow): boolean => r.behind && r.mine && !r.updating;
 
 const RUNNER_KINDS: ReadonlySet<string> = new Set(['mac', 'server']);
 
@@ -53,7 +60,7 @@ export function deviceRows(
   devices: Device[],
   nodes: Node[],
   agents: { key: string; node?: string | null }[],
-  opts: { me: string | null; here: string | null; paused: boolean; now?: number },
+  opts: { me: string | null; here: string | null; paused: boolean; buildAuto?: boolean; now?: number },
 ): DeviceRow[] {
   const on = (node: string) => agents.filter((a) => a.node === node).map((a) => a.key);
   const self = nodes.find((n) => n.self);
@@ -75,6 +82,8 @@ export function deviceRows(
       lacks: [],
       node: self,
       stale: false,
+      behind: false,
+      updating: false,
     });
   }
   const sorted = [...devices].sort(
@@ -89,6 +98,7 @@ export function deviceRows(
     // node.status lists a lent machine on Run or Pause and leaves it out on Off; its feed is live, devices.list's is not (useOwnMac).
     const mode: Mode | null = runner ? (node?.lending ?? 'off') : null;
     const online = node ? node.online : d.connected;
+    const behind = !!node?.online && !!node.version && !!self?.version && node.version !== self.version;
     rows.push({
       id: d.id,
       name: d.name,
@@ -104,6 +114,8 @@ export function deviceRows(
       lacks: node?.lacks ?? [],
       node,
       stale: isStale(d, opts.now),
+      behind,
+      updating: behind && opts.buildAuto !== false && !!node?.person && node.person === self?.person,
     });
   }
   return rows;
@@ -139,6 +151,7 @@ export function useDevices() {
   const me = useHello()?.caller.key ?? null;
   const revoke = Hooks.useDeviceRevoke();
   const set = Hooks.useDeviceSet();
+  const update = Hooks.useDeviceUpdate();
   const pauseMaster = useMasterPause();
   const settings = Hooks.useSettingsGet();
   const setSettings = Hooks.useSettingsSet();
@@ -148,6 +161,7 @@ export function useDevices() {
     me,
     here,
     paused: !!status.data?.paused,
+    buildAuto: values?.node_build_auto,
   });
   /** The master's own Mac pauses and resumes the daemon; any other runner is device.set. */
   const setMode = (row: DeviceRow, mode: Mode) =>
@@ -175,6 +189,10 @@ export function useDevices() {
     setBattery: (on: boolean) => run('battery', () => setSettings.mutateAsync({ changes: { node_battery_switch: on } })).then(() => {}),
     /** How long a device may be offline before its agents' work goes to another device, in seconds. */
     reclaimS: values?.node_reclaim_s ?? 1800,
+    /** Auto: a lent Mac of the owner's on another build takes the master's by itself; Manual leaves it to the row's Update. */
+    buildAuto: values?.node_build_auto ?? true,
+    setBuildAuto: (on: boolean) => run('build', () => setSettings.mutateAsync({ changes: { node_build_auto: on } })).then(() => {}),
+    update: (row: DeviceRow) => run(`update:${row.id}`, () => update.mutateAsync({ device: row.id })).then(() => {}),
     setReclaimS: (s: number) => run('reclaim', () => setSettings.mutateAsync({ changes: { node_reclaim_s: s } })).then(() => {}),
     pending,
   };

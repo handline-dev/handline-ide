@@ -1,5 +1,5 @@
-// Lent machines for Settings › Devices: a Mac on Run with an agent and one it cannot run, a server on Pause, a Mac offline since a while
-// ago, and another Mac on Off. The master's own Mac stays first, with the seeded phones after.
+// Lent machines for Settings › Devices: a Mac on Run with an agent and one it cannot run, a server on Pause, a Mac on another build, a Mac
+// offline since a while ago, and another Mac on Off. The master's own Mac stays first, with the seeded phones after.
 import type { FakeDaemon } from '#src/daemon.ts';
 
 type Seed = (d: FakeDaemon) => void;
@@ -28,6 +28,7 @@ export const DEVICE_SEEDS: Record<string, Seed> = {
       lending: 'pause',
       lent: { load: { cores: 32, load1: 1.2, ram_total: 128 * GB, ram_free: 100 * GB, agents_rss: 0 } },
     });
+    d.admin.lend({ id: 'd-laptop', name: 'MacBook', kind: 'mac', lending: 'run', lent: { version: '1a2b3c4' } });
     d.admin.lend({
       id: 'd-mini',
       name: 'old-mini',

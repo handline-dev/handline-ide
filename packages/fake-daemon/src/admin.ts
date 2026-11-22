@@ -11,7 +11,7 @@ import type {
   SettingsChanges,
   Timestamp,
 } from '@handline/contract';
-import { Failure, badRequest } from '#src/errors.ts';
+import { Failure, badRequest, refused } from '#src/errors.ts';
 import { retroOf } from '#src/retro.ts';
 import { AGENTS, outlookOf, statsOf } from '#src/usage.ts';
 import { FakeWorktrees } from '#src/worktrees.ts';
@@ -21,7 +21,7 @@ type Accepted = (said: string) => unknown;
 
 /** The methods this answers. */
 const ADMIN =
-  /^(stats\.|connection\.addresses|settings\.|lease\.get|run\.(list|set|remove)|answer\.add|devices?\.(list|revoke|set)|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
+  /^(stats\.|connection\.addresses|settings\.|lease\.get|run\.(list|set|remove)|answer\.add|devices?\.(list|revoke|set|update)|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
 /** The built-in handoff prompt (go/taskboard/handoff/note.go AskTemplate). */
 const BUILTIN_HANDOFF =
   "Write your handoff to {path} now, while your prompt cache is warm, with one Write (replace what is there), then stop and run nothing else. The next session of you, if it starts fresh, reads it first: copy yourself into it. At most {max} characters, about 30 lines, only what `hl` and your memory cannot tell it: (1) what you were deciding and why; (2) what you meant to do next; (3) promises or doubts not yet on any task; (4) the founder's preferences and the pitfalls you learned this session; (5) who you wait on, as T<n>/#<n> numbers only; (6) what slowed you down: one line each, starting with 'Slowed:', naming the command, tool, rule or T number and what it cost (retries, a wait, a refusal), or 'Slowed: none' if nothing did. Do not restate what a task or message holds; cite its T or # number. A lasting lesson or preference goes to your memory first, not here. If there is nothing, write the single word: nothing.";
@@ -57,6 +57,7 @@ const DEFAULTS: Settings['values'] = {
   node_battery_switch: false,
   node_reclaim_s: 1800,
   cluster_name: 'Blue Harbor',
+  node_build_auto: true,
   port_range: null,
   network_addresses: null,
   keep_awake: 'off',
@@ -75,7 +76,12 @@ export type Lent = Partial<{
   load: { cores: number; load1: number; ram_total: number; ram_free: number; agents_rss: number };
   battery: boolean;
   lacks: { agent: string; why: string }[];
+  /** Its Handline version, the master's (MASTER_VERSION) when left out. */
+  version: string;
 }>;
+
+/** The fake master's Handline version, on its own node.status row. */
+export const MASTER_VERSION = '5d6e7f8';
 
 export class FakeAdmin {
   readonly worktrees: FakeWorktrees;
@@ -152,6 +158,13 @@ export class FakeAdmin {
     this.devices.flatMap((d) => {
       const n = this.lent.get(d.id);
       if (!n || (d.lending !== 'run' && d.lending !== 'pause')) return [];
+      const version = n.row.version ?? MASTER_VERSION;
+      // On another build it takes no agent (one lack shown here): Auto has it starting again on the master's, Manual leaves it to Update.
+      const behind = `it runs Handline ${version}, not the master's ${MASTER_VERSION}`;
+      const build =
+        version === MASTER_VERSION
+          ? []
+          : [{ agent: AGENTS[0]!, why: this.values.node_build_auto === false ? `${behind}: update to take work` : `${behind}: it is starting again on the master's build` }];
       return [
         {
           id: n.node,
@@ -168,8 +181,9 @@ export class FakeAdmin {
           memory_max_gb: this.memoryMax.get(d.id) ?? null,
           load: null,
           battery: null,
-          lacks: [],
           ...n.row,
+          version,
+          lacks: [...build, ...(n.row.lacks ?? [])],
         },
       ];
     });
@@ -288,6 +302,17 @@ export class FakeAdmin {
         }
         return accepted('Set.');
       }
+      case 'device.update': {
+        const n = this.lent.get(String(p.device));
+        if (!n) throw badRequest('no such device', 'device');
+        const dev = this.devices.find((d) => d.id === p.device);
+        if (dev?.person !== OWNER) throw refused('person', 'only its own person updates it');
+        if (n.row.online === false) throw refused('build', 'it is offline');
+        if ((n.row.version ?? MASTER_VERSION) === MASTER_VERSION) throw refused('build', "it already runs the master's build");
+        // The fake has it restart on the master's build at once.
+        n.row = { ...n.row, version: MASTER_VERSION };
+        return accepted('Updating.');
+      }
       case 'device.revoke':
         if (!this.devices.some((d) => d.id === p.device)) throw badRequest('no such device', 'device');
         return ((this.devices = this.devices.filter((d) => d.id !== p.device)), accepted('Revoked.'));
@@ -398,6 +423,9 @@ export class FakeAdmin {
   set(changes: SettingsChanges): void {
     // As the real daemon does: a key the contract does not list is refused, so an app writing a key nobody listed fails its test.
     for (const key of Object.keys(changes)) if (!(key in DEFAULTS)) throw badRequest(`${key} is not a setting`, key);
+    // Auto turned on: the owner's machines on another build restart on the master's at once.
+    if (changes.node_build_auto === true)
+      for (const [id, n] of this.lent) if (this.devices.find((d) => d.id === id)?.person === OWNER) n.row = { ...n.row, version: MASTER_VERSION };
     for (const [key, given] of Object.entries(changes)) {
       let value = given;
       if (key === 'handoff_prompt' && typeof value === 'string') {

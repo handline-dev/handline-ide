@@ -61,7 +61,11 @@ const AREAS: Area[] = [
     if (!d.admin.owns(method)) return null;
     const value = d.admin.call(method, p, ok);
     if (method === 'device.revoke') d.emit('devices', 'device.revoked', { data: { device: p.device } });
-    if (method === 'device.set') d.emit('devices', 'device.changed', { data: d.admin.device(String(p.device)) });
+    if (method === 'device.set' || method === 'device.update') d.emit('devices', 'device.changed', { data: d.admin.device(String(p.device)) });
+    // These change node.status's rows.
+    const build = typeof p.changes === 'object' && p.changes !== null && 'node_build_auto' in p.changes;
+    if (method === 'device.set' || method === 'device.update' || (method === 'settings.set' && build))
+      d.emit('nodes', 'nodes.changed');
     if (method === 'daemon.resume' || method === 'task.send_now') release(d, method === 'task.send_now' ? Number(p.task) : null);
     return { value };
   },

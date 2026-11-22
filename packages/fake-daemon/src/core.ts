@@ -1,7 +1,7 @@
 // The fake daemon's own methods: the handshake, who is calling, the subscription, the status and the agents, pairing, pull requests.
 import { METHODS, PROTOCOL, ROLE_ORDER, type MethodName, type Role, type Timestamp, type Topic } from '@handline/contract';
 import type { FakeAccounts } from '#src/accounts.ts';
-import type { FakeAdmin } from '#src/admin.ts';
+import { MASTER_VERSION, type FakeAdmin } from '#src/admin.ts';
 import { TERMINAL_CAPS, TEXT_CAPS, type Conn } from '#src/conn.ts';
 import { badRequest, refused } from '#src/errors.ts';
 import type { EventLog } from '#src/eventlog.ts';
@@ -127,6 +127,7 @@ export function coreCall(
         memory_max_gb: null,
         load: null,
         battery: null,
+        version: MASTER_VERSION,
       };
       return { master: { id: own.id, number: 1 }, nodes: [mine, ...d.admin.lentNodes(at)], cluster: d.admin.cluster(at) };
     }

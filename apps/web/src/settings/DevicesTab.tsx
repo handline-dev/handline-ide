@@ -1,7 +1,8 @@
-// Settings > Devices: every device in one flat list, the master first; a row opens its page. At the foot, the battery switch and reclaim time.
+// Settings > Devices: every device in one flat list, the master first; a row opens its page. At the foot, the battery switch, Auto or
+// Manual for a lent Mac taking the master's build, and the reclaim time.
 import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { ArchiveX, BatteryCharging, ChevronRight, Plus, SlidersHorizontal, Timer, Zap } from 'lucide-react';
+import { ArchiveX, BatteryCharging, ChevronRight, Plus, RefreshCw, SlidersHorizontal, Timer, TriangleAlert, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
@@ -17,13 +18,16 @@ import {
 } from '#src/settings/DeviceControls.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { openPairSheet } from '#src/settings/PairSheet.tsx';
-import { MASTER, MODES, markSetAsideSeen, useDevices, useSetAside, type DeviceRow, type Mode } from '#src/settings/data/devices.ts';
+import { MASTER, MODES, canUpdate, markSetAsideSeen, useDevices, useSetAside, type DeviceRow, type Mode } from '#src/settings/data/devices.ts';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { openModal } from '#src/ui/modal.tsx';
+import { Switch } from '#src/usage/UsageViews.tsx';
+
+const BUILD_MODES = ['auto', 'manual'] as const;
 
 type Devices = ReturnType<typeof useDevices>;
 
@@ -45,8 +49,9 @@ function setAll(rows: DeviceRow[], mode: Mode, q: Devices) {
   ));
 }
 
-/** What the row says under its name: its kind, its agents, its memory cap, and what it lacks for an agent. */
-function Detail({ r, memoryMax }: { r: DeviceRow; memoryMax: number }) {
+/** What the row says under its name: its kind, its agents, its memory cap, and what it lacks for an agent, or that it is on another build. */
+function Detail({ r, q }: { r: DeviceRow; q: Devices }) {
+  const memoryMax = q.memoryMax;
   const nameOf = useNameOf();
   const kind = r.kind ? KIND_WORD[r.kind] : null;
   const cap = r.node?.memory_max_gb ?? memoryMax;
@@ -54,11 +59,41 @@ function Detail({ r, memoryMax }: { r: DeviceRow; memoryMax: number }) {
     ? [kind, `${r.agents.length} ${r.agents.length === 1 ? 'agent' : 'agents'}`, cap ? `up to ${cap} GB` : null]
     : [kind, 'runs no agents'];
   const lack = r.lacks[0];
+  const why = r.lacks.map((l) => `${nameOf(l.agent)}: ${l.why}`).join('\n');
   return (
     <div className="truncate text-xs text-muted">
       {parts.filter(Boolean).join(' · ')}
-      {lack && (
-        <span className="text-warning" title={r.lacks.map((l) => `${nameOf(l.agent)}: ${l.why}`).join('\n')}>
+      {r.behind ? (
+        <span title={why}>
+          {' · '}
+          {r.updating ? (
+            'updating…'
+          ) : (
+            <>
+              <span className="text-warning">
+                <TriangleAlert size={12} className="mb-0.5 inline" /> other build
+              </span>
+              {canUpdate(r) && (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    className="text-fg underline"
+                    disabled={q.pending !== null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void q.update(r).catch(refused);
+                    }}
+                  >
+                    Update
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </span>
+      ) : lack && (
+        <span className="text-warning" title={why}>
           {' · '}cannot run {nameOf(lack.agent)}: {lack.why}
           {r.lacks.length > 1 && ` (+${r.lacks.length - 1})`}
         </span>
@@ -95,7 +130,7 @@ function RowMenu({ r, q, open }: { r: DeviceRow; q: Devices; open: () => void })
 
 function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: boolean; pick: (on: boolean) => void; open: () => void }) {
   const Icon = KIND_ICON[r.kind ?? 'desktop'];
-  const busy = q.pending === `mode:${r.id}` || q.pending === `revoke:${r.id}`;
+  const busy = [`mode:${r.id}`, `revoke:${r.id}`, `update:${r.id}`].includes(q.pending ?? '');
   return (
     <ContextMenu items={<RowMenu r={r} q={q} open={open} />}>
       <div
@@ -122,7 +157,7 @@ function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: b
             {r.here && <span className="shrink-0 rounded-full border border-border px-2 text-xs text-muted">This device</span>}
             {r.master && <span className="shrink-0 rounded-full border border-border px-2 text-xs text-muted">Master</span>}
           </div>
-          <Detail r={r} memoryMax={q.memoryMax} />
+          <Detail r={r} q={q} />
         </div>
         <span className={`w-40 shrink-0 text-xs ${r.stale ? 'text-warning' : ''}`}>
           <StateWord row={r} />
@@ -137,7 +172,7 @@ function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: b
   );
 }
 
-/** What holds for every lent device: the battery switch, and under Expert the reclaim time. */
+/** What holds for every lent device: the battery switch, Auto or Manual for the master's build, and under Expert the reclaim time. */
 function AllDevices({ q }: { q: Devices }) {
   const [expert, setExpert] = useState(false);
   return (
@@ -150,11 +185,20 @@ function AllDevices({ q }: { q: Devices }) {
           onChange={(on) => void q.setBattery(on).catch(refused)}
         />
       </Setting>
+      <Setting title="Take the master's build" icon={<RefreshCw size={14} />} note="A lent Mac on another build restarts on the master's.">
+        <Switch
+          label="Take the master's build"
+          value={q.buildAuto ? 'auto' : 'manual'}
+          options={BUILD_MODES}
+          word={(m) => (m === 'auto' ? 'Auto' : 'Manual')}
+          onChange={(m) => q.pending === null && (m === 'auto') !== q.buildAuto && void q.setBuildAuto(m === 'auto').catch(refused)}
+        />
+      </Setting>
       <button
         type="button"
         aria-expanded={expert}
         onClick={() => setExpert((v) => !v)}
-        className="flex w-fit items-center gap-2 border-t border-border pt-3 text-sm text-muted hover:text-fg"
+        className="flex w-full items-center gap-2 border-t border-border pt-3 text-sm text-muted hover:text-fg"
       >
         <ChevronRight size={14} className={expert ? 'rotate-90' : ''} />
         <SlidersHorizontal size={14} />
