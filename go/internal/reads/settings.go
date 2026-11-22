@@ -148,6 +148,7 @@ func (e *Env) settingsValues() map[string]any {
 		worktreepool.AgentsMemoryMaxKey: worktreepool.GB(cfg, worktreepool.AgentsMemoryMaxKey) >> 30,
 		nodes.BatteryKey:                s.Flag(nodes.BatteryKey, false),
 		nodes.BuildAutoKey:              s.Flag(nodes.BuildAutoKey, true),
+		settings.ClusterNameKey:         ClusterName(e.DB),
 		nodes.ReclaimKey:                s.ConfigSeconds(nodes.ReclaimKey, nodes.ReclaimS),
 		usage.NetworkAddressesKey:       hostsSetting(cfg[usage.NetworkAddressesKey]),
 		leases.PortRangeKey:             portRangeSetting(cfg),

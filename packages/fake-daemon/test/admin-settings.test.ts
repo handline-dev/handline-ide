@@ -33,6 +33,7 @@ const KEYS = [
   'agents_memory_max_gb',
   'node_battery_switch',
   'node_reclaim_s',
+  'cluster_name',
   'port_range',
   'network_addresses',
   'keep_awake',

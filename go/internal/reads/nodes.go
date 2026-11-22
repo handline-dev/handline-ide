@@ -7,6 +7,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/scheduler/settings"
 )
 
 // nodeStatus is node.status: the machines of this master on run or pause, its own first. This daemon is the master, so its own row is
@@ -83,5 +84,23 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		nodes = append(nodes, row)
 	}
-	return map[string]any{"master": map[string]any{"id": self, "number": number}, "nodes": nodes}, rs.Err()
+	return map[string]any{"master": map[string]any{"id": self, "number": number}, "nodes": nodes,
+		"cluster": map[string]any{"name": ClusterName(e.DB), "machines": len(nodes)}}, rs.Err()
+}
+
+// ClusterName is the cluster's name (cluster_name, the board's); "" with no board or before the daemon's start gave it one.
+func ClusterName(db *sql.DB) string {
+	var name sql.NullString
+	if db == nil {
+		return ""
+	}
+	db.QueryRow("SELECT value FROM meta WHERE name = ?", settings.ClusterNameKey).Scan(&name)
+	return name.String
+}
+
+// Machines is how many machines the cluster has: the master and those lent on run or pause, as node.status lists them.
+func Machines(db *sql.DB) (int, error) {
+	var n int
+	err := db.QueryRow("SELECT COUNT(*) FROM nodes WHERE lending IN ('run', 'pause')").Scan(&n)
+	return n, err
 }

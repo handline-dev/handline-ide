@@ -246,7 +246,8 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 19 | The app after a new master: the machine list and token kept, the new master found and joined; "Make this Mac the master"; a set-aside board said so | app | 4 | 14, 18 |
 | 20 | The desktop app on a runner Mac: the window and the shell's own connection go to the master its daemon obeys (the joined master and the owner's machines it was told of, each certificate pinned), with this machine's device token; with none answering, the page on the master it joined says "Can't reach the master" with "Make this Mac the master"; made the master, the app starts again on this Mac's own door | app | 4 | 19 |
 | 22 | A lent Mac runs the master's build: a heartbeat's answer names the master's build to a runner of its platform on another version (node_build_auto, or its row's Update, device.update); the runner reads it over its link (node.build.read), checks each sha256, keeps the newest under its home and starts again on it, and at a later start runs it while its master is on that version | daemon | 6 | 9 |
+| 23 | Cluster names: every cluster has a name, the global setting `cluster_name` kept on the board (so a new master keeps it), two random words in Title Case given at the first start without one and renamed by the owner only; hello's capabilities and `node.status` give the name with how many machines the cluster has, so a joined app draws a device or a cluster without another call | daemon | 2 | 1 |
 
-About 167 hours: phase 1 (slices 1 to 14, 17 to 20 and 22) about 149, phase 2 about 18. Not in this list:
+About 169 hours: phase 1 (slices 1 to 14, 17 to 20, 22 and 23) about 151, phase 2 about 18. Not in this list:
 taking over by itself, a majority vote among three or more machines, lending only at night, resting while the
 person uses the machine, bringing a set-aside board's tasks over, the phone.

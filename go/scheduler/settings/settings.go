@@ -18,6 +18,10 @@ const Never = 0
 // ClearPastBackgroundKey lets a context clear go ahead once the turn has ended with only background work running. Off by default.
 const ClearPastBackgroundKey = "context_clear_past_background"
 
+// ClusterNameKey is the cluster's name, kept on the board (meta): two random words given at the first start without one, changed by
+// the owner.
+const ClusterNameKey = "cluster_name"
+
 // TranscriptRowsKey stores a running turn's replies, tool calls and results for chat (transcript.Record). Off by default.
 const TranscriptRowsKey = "chat_transcript_rows"
 

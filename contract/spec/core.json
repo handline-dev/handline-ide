@@ -1948,6 +1948,9 @@
        }
       },
       "description": "This daemon is master: its node id and master number, raised by one each time the master moves (node.promote). Runners and apps obey only the highest number they have seen. Absent on a runner."
+     },
+     "cluster": {
+      "$ref": "#/components/schemas/Cluster"
      }
     },
     "required": [
@@ -1955,6 +1958,24 @@
      "review",
      "terminal_format"
     ]
+   },
+   "Cluster": {
+    "type": "object",
+    "description": "The cluster this daemon is the master of: its name (cluster_name) and how many machines it has, the master's own and those lent on Run or Pause, as node.status lists them.",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "machines": {
+      "type": "integer",
+      "minimum": 1
+     }
+    },
+    "required": [
+     "name",
+     "machines"
+    ],
+    "additionalProperties": false
    },
    "Listener": {
     "type": "object",
@@ -2321,6 +2342,12 @@
       "type": "boolean",
       "default": true,
       "description": "A lent machine of the owner's, of the master's OS and architecture, on another Handline build takes the master's own build and starts again on it, so it can take work; its sessions go on. Off is Manual: its row says to update, and its Update does the same once. Another person's machine takes it only at its own person's Update."
+     },
+     "cluster_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The cluster's name, one line. A board without one gets two random words in Title Case (\"Blue Harbor\") at the daemon's start; the owner renames it."
      }
     },
     "description": "Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set."
@@ -2807,6 +2834,12 @@
        }
       ],
       "description": "Auto or Manual for a lent machine on another build (SettingsValues.node_build_auto). null removes the key (back to the default)."
+     },
+     "cluster_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The cluster's new name (SettingsValues.cluster_name), trimmed; a blank one, one over 40 characters, more than one line or null is bad_request naming cluster_name: a cluster always has a name."
      }
     },
     "description": "settings.set's changes: any of SettingsValues' keys; null removes one."
