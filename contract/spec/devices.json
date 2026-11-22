@@ -884,11 +884,15 @@
        "items": {
         "$ref": "#/components/schemas/Node"
        }
+      },
+      "cluster": {
+       "$ref": "#/components/schemas/Cluster"
       }
      },
      "required": [
       "master",
-      "nodes"
+      "nodes",
+      "cluster"
      ]
     }
    },

@@ -60,7 +60,7 @@ export function hello(d: CoreHost, c: Conn, p: Record<string, unknown>): unknown
       transcript: d.replyItems,
       review: false,
       ...(d.serveBytes ? TERMINAL_CAPS : TEXT_CAPS),
-      ...(d.master ? { master: d.master } : {}),
+      ...(d.master ? { master: d.master, cluster: d.admin.cluster(d.iso()) } : {}),
     },
     transport: c.network ? 'network' : 'local',
     methods: Object.entries(METHODS)
@@ -128,7 +128,7 @@ export function coreCall(
         load: null,
         battery: null,
       };
-      return { master: { id: own.id, number: 1 }, nodes: [mine, ...d.admin.lentNodes(at)] };
+      return { master: { id: own.id, number: 1 }, nodes: [mine, ...d.admin.lentNodes(at)], cluster: d.admin.cluster(at) };
     }
     case 'agent.get':
       return detail(agent(), d.tasks);

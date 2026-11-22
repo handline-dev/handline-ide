@@ -56,6 +56,7 @@ const DEFAULTS: Settings['values'] = {
   agents_memory_max_gb: 0,
   node_battery_switch: false,
   node_reclaim_s: 1800,
+  cluster_name: 'Blue Harbor',
   port_range: null,
   network_addresses: null,
   keep_awake: 'off',
@@ -144,6 +145,8 @@ export class FakeAdmin {
   private memoryMax = new Map<string, number>();
   /** A seeded lent machine's node: its id and what its row says beyond the defaults, by device id. */
   private lent = new Map<string, { node: string; row: Lent }>();
+  /** hello's and node.status's cluster: its name and machines, the master's own and those lent on Run or Pause. */
+  cluster = (at: Timestamp) => ({ name: String(this.values.cluster_name), machines: 1 + this.lentNodes(at).length });
   /** node.status's rows of the machines lent on Run or Pause: a device with a node. */
   lentNodes = (at: Timestamp): Record<string, unknown>[] =>
     this.devices.flatMap((d) => {
@@ -401,6 +404,17 @@ export class FakeAdmin {
         value = value.replace(/\s*[\r\n]+\s*/g, ' ').trim();
         if (value && value.length < 20) throw badRequest('Too short to guide a note. Leave it blank for the built-in.', 'handoff_prompt');
         if (!value) value = null;
+      }
+      if (key === 'cluster_name') {
+        // as the daemon: trimmed, 1 to 40 characters (not UTF-16 units), no control or line-break character
+        value = typeof value === 'string' ? value.trim() : value;
+        if (
+          typeof value !== 'string' ||
+          !value ||
+          [...value].length > 40 ||
+          [...value].some((ch) => ch < ' ' || ch === '\u007f' || ch === '\u2028' || ch === '\u2029')
+        )
+          throw badRequest('cluster_name is a name of 1 to 40 characters on one line', 'cluster_name');
       }
       if (key === 'park_timeout_s' && value !== null && (!Number.isInteger(value) || (value as number) < 0))
         throw badRequest('park_timeout_s is a whole number of seconds, 0 for never', 'park_timeout_s');

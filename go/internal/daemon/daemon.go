@@ -332,6 +332,9 @@ func Start(cfg Config) (*Daemon, error) {
 			cfg.Log("master: no device of its own, so a newer master cannot take this one back as a runner: %v", err)
 		}
 	}
+	if err := adminwrites.EnsureClusterName(db); err != nil {
+		cfg.Log("cluster: no name given: %v", err)
+	}
 	if cfg.OnOpen != nil {
 		cfg.OnOpen(db, d.env(), d.nodes)
 	}
@@ -806,7 +809,12 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	s.Register("node.outranked", rpc.Method{Handler: d.outranked})
 	s.Hold = d.master.refusal
 	s.DeclareCapabilities(func() map[string]any {
-		return map[string]any{"master": map[string]any{"node": d.nodes.Self, "number": d.number()}}
+		machines, err := reads.Machines(d.db)
+		if err != nil {
+			d.cfg.Log("hello: the machines could not be counted: %v", err)
+		}
+		return map[string]any{"master": map[string]any{"node": d.nodes.Self, "number": d.number()},
+			"cluster": map[string]any{"name": reads.ClusterName(d.db), "machines": machines}}
 	})
 	nodes.Register(s, func() *rpc.Server { return d.local }, d.nodes)
 	devices.Register(s, d.dev, d.hub.Emit)

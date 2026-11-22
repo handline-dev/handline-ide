@@ -3,6 +3,7 @@ package daemon
 import (
 	"bufio"
 	"encoding/json"
+	"github.com/handline/handline/go/internal/reads"
 	"net"
 	"os"
 	"path/filepath"
@@ -50,7 +51,8 @@ func TestHelloReportsTheDeclaredCapabilitiesAndTheMethodsByName(t *testing.T) {
 	json.Unmarshal(line, &r)
 	want := map[string]any{"chat": false, "review": false, "terminal_format": []any{"text", "bytes", "styled"},
 		"terminal_hosts": map[string]any{"tmux": []any{"text", "bytes", "styled"}}, "transcript": false, "founder_typed": false,
-		"master": map[string]any{"node": d.nodes.Self, "number": float64(1)}}
+		"master":  map[string]any{"node": d.nodes.Self, "number": float64(1)},
+		"cluster": map[string]any{"name": reads.ClusterName(d.db), "machines": float64(1)}}
 	if !reflect.DeepEqual(r.Result.Capabilities, want) {
 		t.Fatalf("%v", r.Result.Capabilities)
 	}

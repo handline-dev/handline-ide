@@ -1,0 +1,221 @@
+{
+ "fixtures": [
+  {
+   "name": "settings.cluster_name.renamed_and_never_cleared",
+   "spec": "settings.set",
+   "about": "Every cluster has a name: hello's capabilities and node.status give it with the machines, settings.get shows it; the owner renames it, trimmed, and node.status follows; null, a blank one or one over 40 characters is bad_request naming cluster_name. The name is put back at the end.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {
+      "capabilities": {
+       "cluster": {
+        "name": {
+         "$type": "string",
+         "$save": "was"
+        },
+        "machines": {
+         "$type": "integer"
+        }
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "settings.get",
+      "params": {}
+     },
+     "result": {
+      "values": {
+       "cluster_name": "{{was}}"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "node.status",
+      "params": {}
+     },
+     "result": {
+      "cluster": {
+       "name": "{{was}}",
+       "machines": {
+        "$type": "integer"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "cluster_name": "  Conformance Lab "
+       },
+       "request_id": "conf-cn-1"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "node.status",
+      "params": {}
+     },
+     "result": {
+      "cluster": {
+       "name": "Conformance Lab"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "cluster_name": null
+       },
+       "request_id": "conf-cn-2"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "cluster_name"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "cluster_name": "   "
+       },
+       "request_id": "conf-cn-3"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "cluster_name"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "cluster_name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+       },
+       "request_id": "conf-cn-4"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "cluster_name"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "cluster_name": "{{was}}"
+       },
+       "request_id": "conf-cn-5"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "settings.get",
+      "params": {}
+     },
+     "result": {
+      "values": {
+       "cluster_name": "{{was}}"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "settings.cluster_name.an_agent_session_is_refused_by_role",
+   "spec": "settings.set",
+   "about": "Only the owner renames the cluster: an agent session's settings.set is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "cluster_name": "Agent Lab"
+       },
+       "request_id": "conf-cn-6"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, RequestId, Role, Timestamp, Topic, WriteKind } from './core.ts';
+import type { Accepted, Cluster, RequestId, Role, Timestamp, Topic, WriteKind } from './core.ts';
 
 export type Device = {
   id: string;
@@ -159,6 +159,7 @@ export interface DevicesMethods {
       number: number;
     };
     nodes: Node[];
+    cluster: Cluster;
   } };
   "node.forward": { params: {
   /** The agent whose session made the call, as the runner proved it. */

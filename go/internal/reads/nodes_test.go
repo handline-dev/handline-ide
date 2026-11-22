@@ -26,7 +26,7 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 	}
 	b, _ := json.Marshal(v)
 	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null`
-	want := `{"master":{"id":"` + id + `","number":1},"nodes":[` +
+	want := `{"cluster":{"machines":3,"name":""},"master":{"id":"` + id + `","number":1},"nodes":[` +
 		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run","door":null,` + none + `},` +
 		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause","door":null,` + none + `},` +
 		`{"id":"bbbb","person":"p1","name":"run","joined_at":"1970-01-01T00:01:00Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"run","door":{"addr":"10.0.0.2:7777","fp":"ab"},` + none + `}]}`

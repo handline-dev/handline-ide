@@ -329,6 +329,13 @@ export type Capabilities = {
     node?: string;
     number?: number;
   };
+  cluster?: Cluster;
+};
+
+/** The cluster this daemon is the master of: its name (cluster_name) and how many machines it has, the master's own and those lent on Run or Pause, as node.status lists them. */
+export type Cluster = {
+  name: string;
+  machines: number;
 };
 
 export type Listener = {
@@ -443,6 +450,8 @@ export type SettingsValues = {
   node_reclaim_s?: number;
   /** A lent machine of the owner's, of the master's OS and architecture, on another Handline build takes the master's own build and starts again on it, so it can take work; its sessions go on. Off is Manual: its row says to update, and its Update does the same once. Another person's machine takes it only at its own person's Update. */
   node_build_auto?: boolean;
+  /** The cluster's name, one line. A board without one gets two random words in Title Case ("Blue Harbor") at the daemon's start; the owner renames it. */
+  cluster_name?: string;
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
@@ -533,6 +542,8 @@ export type SettingsChanges = {
   node_reclaim_s?: number | null;
   /** Auto or Manual for a lent machine on another build (SettingsValues.node_build_auto). null removes the key (back to the default). */
   node_build_auto?: boolean | null;
+  /** The cluster's new name (SettingsValues.cluster_name), trimmed; a blank one, one over 40 characters, more than one line or null is bad_request naming cluster_name: a cluster always has a name. */
+  cluster_name?: string;
 };
 
 /** One method as a daemon lists it: its role and whether this caller may call it. */

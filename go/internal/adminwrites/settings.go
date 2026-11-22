@@ -32,6 +32,7 @@ const (
 	tgt    = "int 50-100"
 	burst  = "int 0-50"
 	flag_  = "bool"
+	cname  = "cluster name"
 	line   = "line"
 	awake  = "off, on or working"
 	reaper = "dry, on or off"
@@ -63,7 +64,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	worktreepool.DiskKeepFreeKey: int0, worktreepool.AgentsMemoryMaxKey: int0,
-	nodes.BatteryKey: flag_, nodes.ReclaimKey: int1, nodes.BuildAutoKey: flag_,
+	nodes.BatteryKey: flag_, nodes.ReclaimKey: int1, nodes.BuildAutoKey: flag_, settings.ClusterNameKey: cname,
 	leases.PortRangeKey:            ports,
 	usage.NetworkAddressesKey:      hosts,
 	team.DefaultModelKey("claude"): model, team.DefaultEffortKey("claude"): effort,
@@ -147,6 +148,10 @@ func settingValue(key string, v any) (any, error) {
 		if s, ok := v.(string); ok && slices.Contains(team.ValidEffort, s) {
 			return s, nil
 		}
+	case cname:
+		if n, ok := clusterName(v); ok {
+			return n, nil
+		}
 	case line:
 		// config.yaml holds one line: a newline or another control character is refused, not written.
 		if s, ok := v.(string); ok && !textsafe.HasUnsafe(s) && utf8.RuneCountInString(s) <= LineMax {
@@ -162,9 +167,13 @@ func settingValue(key string, v any) (any, error) {
 		tgt: "a whole number from 50 to 100", burst: "a whole number from 0 to 50",
 		flag_: "true or false", awake: "off, on or working", reaper: "dry, on or off",
 		line:  fmt.Sprintf("one line of text, at most %d characters", LineMax),
+		cname: fmt.Sprintf("a name of 1 to %d characters on one line", ClusterNameMax),
 		hosts: fmt.Sprintf("a list of at most %d different hosts from connection.addresses", HostsMax),
 		ports: "a range of ports like 4000-4999, from 1 to 65535",
 		model: fmt.Sprintf("a model name of at most %d characters, no spaces, not starting with -", team.ModelMax), effort: "one of " + strings.Join(team.ValidEffort, ", ")}[kind]
+	if kind == cname { // a cluster always has a name
+		return nil, badParam(fmt.Sprintf("%s is %s", key, what), key)
+	}
 	return nil, badParam(fmt.Sprintf("%s is %s, or null", key, what), key)
 }
 
@@ -188,7 +197,7 @@ func (e *Env) settingsSet(c *rpc.Conn, p map[string]any) (any, error) {
 		if _, known := settingKinds[key]; !known && key != "token_prices" {
 			return nil, badParam(key+" is not a setting", "changes")
 		}
-		if v != nil {
+		if v != nil || key == settings.ClusterNameKey {
 			w, err := settingValue(key, v)
 			if err != nil {
 				return nil, err
@@ -225,12 +234,19 @@ func (e *Env) settingsSet(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, refused(err.Error(), "state")
 		}
 	} else {
+		if name, ok := values[settings.ClusterNameKey].(string); ok { // the board's, not config.yaml's
+			if err := setClusterName(e.DB, name); err != nil {
+				return nil, err
+			}
+		}
 		cfg, err := e.readConfig()
 		if err != nil {
 			return nil, refused(err.Error(), "state")
 		}
 		for _, k := range keys {
-			cfg.set(k, values[k])
+			if k != settings.ClusterNameKey {
+				cfg.set(k, values[k])
+			}
 		}
 		if err := cfg.save(); err != nil {
 			return nil, refused(err.Error(), "state")
