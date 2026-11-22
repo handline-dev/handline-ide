@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a release's universal (arm64 + amd64) handlined and hl, for CI and local packaging: tools/build-darwin.sh <version> [outdir]
-# Both are stamped <version>+<sha> (-dirty when the tree has changes), which `handlined -version` prints.
+# Both are stripped of the symbol table and DWARF (-s -w; a panic still names its functions) and stamped <version>+<sha> (-dirty when the tree has changes), which `handlined -version` prints.
 # outdir defaults to dist/darwin.
 version="$1"
 if [ -z "$version" ] || [ $# -gt 2 ] || [[ "$version" =~ [^A-Za-z0-9._-] ]]; then
@@ -19,7 +19,7 @@ trap 'rm -rf "$work"' EXIT
 for arch in arm64 amd64; do
     for cmd in handlined hl; do
         GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
-            -ldflags "-X github.com/handline/handline/go/kit/version.Sha=$stamp" -o "$work/$cmd-$arch" "./cmd/$cmd" || exit 1
+            -ldflags "-s -w -X github.com/handline/handline/go/kit/version.Sha=$stamp" -o "$work/$cmd-$arch" "./cmd/$cmd" || exit 1
     done
 done
 mkdir -p "$out" || exit 1
