@@ -29,4 +29,3 @@ func carriedPath(exe, path string) string {
 	}
 	return path + string(os.PathListSeparator) + dir
 }
-
