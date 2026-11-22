@@ -55,7 +55,7 @@ jobs:
           at() { gh release view "mac-$1" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null | sed -n 's/^Commit: //p' | head -1 || true; }
           if [ "$channel" = stable ]; then
             ref="$(at nightly)"
-            version="$(gh release view "mac-$CHANNEL" --repo "$GITHUB_REPOSITORY" --json name -q .name | sed -n 's/^Handline for Mac \([0-9.]*\).*/\1/p')"
+            version="$(gh release view mac-nightly --repo "$GITHUB_REPOSITORY" --json name -q .name | sed -n 's/^Handline for Mac \([0-9.]*\).*/\1/p')"
             [ -n "$ref" ] && [ -n "$version" ] || { echo "there is no Nightly to make Stable from"; exit 1; }
           elif [ "${{ github.event_name }}" = schedule ]; then
             [ "$(at "$channel")" != "$GITHUB_SHA" ] || build=false
