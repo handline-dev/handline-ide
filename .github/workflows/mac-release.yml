@@ -2,7 +2,8 @@
 #   mac-canary  built every 30 minutes, only when main has commits the last Canary build does not have;
 #   mac-nightly built every night from main, on the same condition;
 #   mac-stable  by hand (channel stable): the current Nightly's commit built again under the Nightly's version number, so a Stable dmg reads Stable updates.
-# Each holds the dmg, the zip and latest-mac.yml: the app reads latest-mac.yml at its channel's download address (electron-updater's generic
+# Each holds, for Apple silicon (arm64) and for Intel (x64), a dmg and a zip, each with only its own Electron, daemon and CLI, and the file the app of
+# that architecture reads (latest-mac.yml, latest-x64-mac.yml): the app reads it at its channel's download address (electron-updater's generic
 # provider, and the self-written updater until a Developer ID exists). The version is 0.1.<run number>, which only grows, the same across channels.
 # A manual run of canary or nightly always builds. Signed ad hoc unless HANDLINE_SIGN_IDENTITY is set (apps/electron/electron-builder.config.mjs).
 name: mac-release
@@ -96,31 +97,42 @@ jobs:
         run: |
           cd apps/electron/release
           ls -l
-          for f in latest-mac.yml Handline-*-universal-mac.zip Handline-*-universal.dmg; do ls $f >/dev/null || { echo "missing $f"; exit 1; }; done
-          grep -q "version: $VERSION" latest-mac.yml
-          # The file the app downloads must be the one latest-mac.yml names: the sha512 in the yml is base64 of the digest.
-          for f in Handline-*-universal-mac.zip Handline-*-universal.dmg; do
-            want="$(awk -v n="$f" '$1=="-" && $2=="url:" && $3==n {g=1} g && $1=="sha512:" {print $2; exit}' latest-mac.yml)"
-            got="$(shasum -a 512 "$f" | cut -d' ' -f1 | xxd -r -p | base64)"
-            [ -n "$want" ] && [ "$want" = "$got" ] || { echo "sha512 of $f is not the one in latest-mac.yml"; exit 1; }
+          # Each architecture: its dmg, its zip, and the file its app reads, which must name the zip it sits beside, with the checksum the app verifies
+          # (the sha512 in the yml is base64 of the digest).
+          for arch in arm64 x64; do
+            if [ "$arch" = x64 ]; then yml=latest-x64-mac.yml; else yml=latest-mac.yml; fi
+            for f in "$yml" "Handline-$VERSION-$arch-mac.zip" "Handline-$VERSION-$arch.dmg"; do ls "$f" >/dev/null || { echo "missing $f"; exit 1; }; done
+            grep -q "version: $VERSION" "$yml"
+            for f in "Handline-$VERSION-$arch-mac.zip" "Handline-$VERSION-$arch.dmg"; do
+              want="$(awk -v n="$f" '$1=="-" && $2=="url:" && $3==n {g=1} g && $1=="sha512:" {print $2; exit}' "$yml")"
+              got="$(shasum -a 512 "$f" | cut -d' ' -f1 | xxd -r -p | base64)"
+              [ -n "$want" ] && [ "$want" = "$got" ] || { echo "sha512 of $f is not the one in $yml"; exit 1; }
+            done
           done
-      - name: Update the rolling release, new files first, latest-mac.yml last, old files out at the end
+      - name: Update the rolling release, new files first, the yml files last, old files out at the end
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd apps/electron/release
-          notes="Mac build $VERSION ($CHANNEL). latest-mac.yml is what the app reads to see if it is up to date.
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/mac-$CHANNEL"
+          notes="Handline for Mac $VERSION ($CHANNEL)
+
+          Apple silicon (M1 and later): $base/Handline-$VERSION-arm64.dmg
+          Intel: $base/Handline-$VERSION-x64.dmg
+
+          latest-mac.yml (Apple silicon) and latest-x64-mac.yml (Intel) are what the apps read to see if they are up to date.
           Commit: $(git rev-parse HEAD)"
-          assets=(Handline-*-universal-mac.zip Handline-*-universal.dmg Handline-*.blockmap)
+          assets=(Handline-*-mac.zip Handline-*.dmg Handline-*.blockmap)
+          ymls=(latest-mac.yml latest-x64-mac.yml)
           if gh release view "mac-$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "mac-$CHANNEL" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
-            gh release upload "mac-$CHANNEL" latest-mac.yml --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "mac-$CHANNEL" "${ymls[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "mac-$CHANNEL" --repo "$GITHUB_REPOSITORY" --title "Handline for Mac $VERSION ($CHANNEL)" --notes "$notes"
             for old in $(gh release view "mac-$CHANNEL" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'); do
-              case " ${assets[*]} latest-mac.yml " in *" $old "*) ;; *) gh release delete-asset "mac-$CHANNEL" "$old" --repo "$GITHUB_REPOSITORY" --yes ;; esac
+              case " ${assets[*]} ${ymls[*]} " in *" $old "*) ;; *) gh release delete-asset "mac-$CHANNEL" "$old" --repo "$GITHUB_REPOSITORY" --yes ;; esac
             done
           else
-            gh release create "mac-$CHANNEL" latest-mac.yml "${assets[@]}" \
+            gh release create "mac-$CHANNEL" "${ymls[@]}" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" --prerelease --target "$(git rev-parse HEAD)" --title "Handline for Mac $VERSION ($CHANNEL)" --notes "$notes"
           fi
       - if: failure()

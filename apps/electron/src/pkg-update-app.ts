@@ -37,6 +37,7 @@ export function sweepSwap(): void {
 function ports(o: { idle: () => Promise<boolean> }): PkgPorts {
   return {
     current: () => app.getVersion(),
+    arch: () => (process.arch === 'x64' ? 'x64' : 'arm64'),
     text: async (url) => {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`${url}: ${r.status}`);
