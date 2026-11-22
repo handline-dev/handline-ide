@@ -31,9 +31,10 @@ test('a later version is newer; a dev build is older than any release', () => {
   assert.ok(isNewer('0.0.0', '0.0.0-dev'));
 });
 
-function rigPorts(o: { current?: string; idle?: boolean; sum?: string } = {}, calls: string[] = []): PkgPorts {
+function rigPorts(o: { current?: string; idle?: boolean; sum?: string; arch?: 'arm64' | 'x64' } = {}, calls: string[] = []): PkgPorts {
   return {
     current: () => o.current ?? '0.1.41',
+    arch: () => o.arch ?? 'arm64',
     text: async (url) => (calls.push(`text ${url}`), YML),
     download: async (url, progress) => (calls.push(`download ${url}`), progress(0.5), '/tmp/x.zip'),
     sha512: async () => o.sum ?? 'ZZZ==',
@@ -43,7 +44,7 @@ function rigPorts(o: { current?: string; idle?: boolean; sum?: string } = {}, ca
   };
 }
 
-function rig(o: { current?: string; idle?: boolean; sum?: string } = {}) {
+function rig(o: { current?: string; idle?: boolean; sum?: string; arch?: 'arm64' | 'x64' } = {}) {
   const calls: string[] = [];
   const flow = new UpdateFlow();
   const ports = rigPorts(o, calls);
@@ -171,3 +172,11 @@ test(
     }
   },
 );
+
+test('an Intel build reads its own file, an Apple silicon one the file every build had', async () => {
+  for (const [arch, file] of [['x64', 'latest-x64-mac.yml'], ['arm64', 'latest-mac.yml']] as const) {
+    const r = rig({ arch });
+    await r.u.check();
+    assert.equal(r.calls[0], `text https://example.org/dl/${file}`);
+  }
+});

@@ -1,4 +1,4 @@
-// The installed app's own update: it reads latest-mac.yml at the address the build was made for (the rolling release of .github/workflows/mac-release.yml),
+// The installed app's own update: it reads latest-mac.yml (latest-x64-mac.yml for an Intel build) at the address the build was made for (the rolling release of .github/workflows/mac-release.yml),
 // downloads the newer zip, checks it, prepares the new Handline.app beside the old one and offers it as the one update notice (update-flow.ts).
 // "Restart now" swaps the two (swap.ts) and starts the new one. This is the whole of what an updater does here, behind PkgUpdater, so that
 // electron-updater can take its place once a Developer ID is there (Squirrel.Mac refuses an ad-hoc signed update).
@@ -25,6 +25,9 @@ export function parseLatest(yml: string): Latest | null {
   return version && path && sha512 ? { version, path, sha512 } : null;
 }
 
+/** The file an app of this architecture reads: Apple silicon's keeps the name every build had, Intel's has its own. */
+export const latestFile = (arch: 'arm64' | 'x64'): string => (arch === 'x64' ? 'latest-x64-mac.yml' : 'latest-mac.yml');
+
 const nums = (v: string) => (v.split('-')[0] ?? '').split('.').map((n) => Number(n) || 0);
 
 /** Whether `candidate` is a later version than `current`; a pre-release suffix ("0.0.0-dev") is earlier than the same numbers without one. */
@@ -41,6 +44,8 @@ export function isNewer(candidate: string, current: string): boolean {
 export interface PkgPorts {
   /** The version of the app that runs. */
   current(): string;
+  /** The architecture of the app that runs: the file it reads and the build it takes are its own. */
+  arch(): 'arm64' | 'x64';
   text(url: string): Promise<string>;
   /** Saves the file; `progress` is called with 0 to 1. */
   download(url: string, progress: (fraction: number) => void): Promise<string>;
@@ -73,7 +78,7 @@ export class SelfUpdater implements PkgUpdater {
     if (this.busy || this.flow.view.phase !== 'idle') return; // told already, or being prepared
     this.busy = true;
     try {
-      const latest = parseLatest(await this.ports.text(`${this.base()}/latest-mac.yml`));
+      const latest = parseLatest(await this.ports.text(`${this.base()}/${latestFile(this.ports.arch())}`));
       if (!latest || !isNewer(latest.version, this.ports.current())) return;
       if (!(await this.ports.idle())) return; // owed: the next check offers again
       await this.prepare(latest);
