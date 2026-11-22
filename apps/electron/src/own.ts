@@ -279,14 +279,16 @@ export function ownDaemon(o: {
    * daemon starts it again; an installed app has no build step, so its daemon is started again from the bundle it carries. */
   build: string | null;
   buildDaemon?: () => Promise<void>;
+  /** On a runner Mac, the master its daemon obeys, with this machine's device token there: the window goes to it (runner-mac.ts). */
+  master?: Remote | null;
 }): Own {
   const log = fs.openSync(path.join(app.getPath('userData'), 'daemon.log'), 'a');
   const remote = o.current.remote;
   // HANDLINE_ATTACH=1: a dev run on a home whose daemon is not this app's to start or stop (hl dev, try-prototype beside the installed app).
   const attachOnly = o.env('ATTACH') === '1';
   const mine = !remote && !attachOnly;
-  // The window's loopback door: the listen port on 127.0.0.1 (windowDaemon).
-  const door = o.listen ? Number(o.listen.slice(o.listen.lastIndexOf(':') + 1)) : null;
+  // The window's loopback door: the listen port on 127.0.0.1 (windowDaemon). A runner does not listen.
+  const door = o.listen && !o.master ? Number(o.listen.slice(o.listen.lastIndexOf(':') + 1)) : null;
   const owner = new Owner({
     socketUp: () => answers(o.socket),
     ...(door !== null && { doorUp: () => answers(door) }),
@@ -304,7 +306,7 @@ export function ownDaemon(o: {
   const tray = makeTray(o.tray);
   const link = new Link();
   link.app = o.build;
-  link.set('connecting', { address: remote?.host ?? o.listen ?? null });
+  link.set('connecting', { address: remote?.host ?? o.master?.host ?? o.listen ?? null });
   const relaunchAs = (next: Settings) => relaunchWith(o.settings, next);
   const pair = async (i: OfferInput) => relaunchAs({ ...o.current, remote: await pairFrom(i) });
   link.onChange(() => draw());
@@ -324,8 +326,8 @@ export function ownDaemon(o: {
   draw();
   // The key stays in this process; the page gets the device token only, from its own origin's top frame.
   const tokens = new TokenFile(path.join(app.getPath('userData'), 'device.json'));
-  let token: string | null = remote ? null : (tokens.read()?.token ?? null);
-  let ownHost: string | null = null;
+  let token: string | null = remote ? null : (o.master?.token ?? tokens.read()?.token ?? null);
+  let ownHost: string | null = o.master ? plainRemoteHost(o.master) : null;
   let settled = false; // ready() has ended: the token is what it will be
   let given: string | null | undefined; // the token the page last read; it reads once per load
   ipcMain.on(CHANNELS.token, (e) => {
@@ -370,6 +372,7 @@ export function ownDaemon(o: {
       ownHost = c.host;
       return c.address;
     }
+    if (o.master) return (await owner.start(), o.master.host); // the tray's link follows the shell's connection to it (main.ts)
     if (!o.listen) return undefined;
     await owner.start();
     ownHost = onTailnet(o.listen) ? o.listen.split(':')[0]! : null; // named even when nothing started: the page shows the reason (grant)

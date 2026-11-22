@@ -108,6 +108,8 @@ export function serveOwnDaemon(o: {
   home: string;
   doors: () => Doors | null;
   send: (v: ShellDaemon) => void;
+  /** After this Mac was made the master (a runner Mac's shell then starts again on its own door). */
+  promoted?: () => void;
 }): void {
   const view = (): ShellDaemon => ({ ...o.own.daemon(), runner: mine.runner() });
   const mine = ownRunner({ ...o, changed: () => o.send(view()) });
@@ -116,7 +118,11 @@ export function serveOwnDaemon(o: {
     view,
     start: () => o.own.startDaemon(),
     stop: () => o.own.stopDaemon(),
-    promote: mine.promote,
+    promote: async () => {
+      const r = await mine.promote();
+      o.promoted?.();
+      return r;
+    },
     keepDoors: (list) => o.doors()?.keep(list),
   });
   ipcMain.handle(CHANNELS.daemon, (e) => d.view(e));

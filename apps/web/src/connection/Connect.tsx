@@ -8,8 +8,9 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type R
 import { browserStorage, daemonUrl } from '#src/connection/daemon.ts';
 import { deviceName, forgetToken, inviteCode, loadToken, needsToken, pairWith, tokenRefused } from '#src/connection/pairing.ts';
 import { Button } from '#src/ui/Button.tsx';
+import { ModalHost } from '#src/ui/modal.tsx';
 import { doorUrl, Machines, masterConnect } from '#src/connection/cluster.ts';
-import { KeepMachines, MasterName, PromoteButton } from '#src/connection/master.tsx';
+import { KeepMachines, MasterName, PromoteButton, useThisMacRunner } from '#src/connection/master.tsx';
 
 export function Connect({ children }: { children: ReactNode }) {
   const [storage] = useState(browserStorage);
@@ -41,6 +42,7 @@ export function Connect({ children }: { children: ReactNode }) {
   const name = useSyncExternalStore(machines.subscribe, () => machines.get().master?.name ?? '');
   const several = useSyncExternalStore(machines.subscribe, () => machines.get().urls.length > 1);
   const master = useMemo(() => ({ name, several }), [name, several]);
+  const onRunner = !!useThisMacRunner(); // a runner Mac's page is on a master, never on this Mac's daemon
   const seen = useCallback(
     (st: { master: { id: string; number: number }; nodes: Node[] }) => {
       machines.seen(st);
@@ -86,7 +88,8 @@ export function Connect({ children }: { children: ReactNode }) {
     <DaemonProvider store={store} where={url} connect>
       {error && store.served.size === 0 && unreachable ? (
         <AppSkeleton>
-          <Stopped text={master.several && master.name ? `Can't reach the master, ${master.name}.` : error} waiting />
+          <Stopped text={master.several || onRunner ? `Can't reach the master${master.name ? `, ${master.name}` : ''}.` : error} waiting />
+          <ModalHost /> {/* the app's own is not drawn yet: Make this Mac the master asks first */}
         </AppSkeleton>
       ) : error && store.served.size === 0 ? (
         <Stopped text={error} />

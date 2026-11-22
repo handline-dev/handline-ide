@@ -15,8 +15,12 @@ const realpath = (p: string): string => {
   }
 };
 
+/** The home's folder in the protected store. */
+export const protectedDir = (userHome: string, home: string): string =>
+  path.join(userHome, '.config', 'handline', 'protected', realpath(home).replace(/[^A-Za-z0-9]/g, '-'));
+
 export function founderKeyFile(userHome: string, home: string): string {
-  return path.join(userHome, '.config', 'handline', 'protected', realpath(home).replace(/[^A-Za-z0-9]/g, '-'), 'founder-keys', 'key');
+  return path.join(protectedDir(userHome, home), 'founder-keys', 'key');
 }
 
 export interface PairDeps {
