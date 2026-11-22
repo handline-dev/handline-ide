@@ -321,6 +321,17 @@
       ],
       "description": "A lent machine runs on its battery now, from its newest heartbeat; null as load is."
      },
+     "version": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Its Handline version: the master's own row the master's, a lent machine's from its newest heartbeat (null before its first since the master started). One not the master row's takes no work until it runs the master's build (node_build_auto, device.update)."
+     },
      "door": {
       "oneOf": [
        {

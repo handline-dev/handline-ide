@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/version"
 )
 
 func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRunOrPause(t *testing.T) {
@@ -25,12 +26,27 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(v)
-	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null`
+	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null,"version":null`
+	self := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null,"version":"` + version.Sha + `"`
 	want := `{"master":{"id":"` + id + `","number":1},"nodes":[` +
-		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run","door":null,` + none + `},` +
+		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run","door":null,` + self + `},` +
 		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause","door":null,` + none + `},` +
 		`{"id":"bbbb","person":"p1","name":"run","joined_at":"1970-01-01T00:01:00Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"run","door":{"addr":"10.0.0.2:7777","fp":"ab"},` + none + `}]}`
 	if !sameJSON(string(b), want) {
 		t.Fatalf("%s", b)
+	}
+	e.NodeHeard = func(node string) (map[string]any, bool, string, bool) { return nil, false, "older1", node == "bbbb" }
+	v, err = e.nodeStatus(nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ = json.Marshal(v)
+	var got struct {
+		Nodes []struct {
+			Version *string `json:"version"`
+		} `json:"nodes"`
+	}
+	if json.Unmarshal(b, &got) != nil || len(got.Nodes) != 3 || got.Nodes[1].Version != nil || got.Nodes[2].Version == nil || *got.Nodes[2].Version != "older1" {
+		t.Fatalf("a runner's version is its heartbeat's: %s", b)
 	}
 }

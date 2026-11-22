@@ -82,6 +82,8 @@ export type Node = {
   } | null;
   /** A lent machine runs on its battery now, from its newest heartbeat; null as load is. */
   battery?: boolean | null;
+  /** Its Handline version: the master's own row the master's, a lent machine's from its newest heartbeat (null before its first since the master started). One not the master row's takes no work until it runs the master's build (node_build_auto, device.update). */
+  version?: string | null;
   /** Where it serves, or would serve, as master: addr (host:port) and fp (its certificate's sha256, "" for a plain door); null before it said. */
   door?: {
     addr: string;

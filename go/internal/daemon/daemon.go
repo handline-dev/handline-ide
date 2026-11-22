@@ -753,11 +753,11 @@ func (d *Daemon) readsEnv() reads.Env {
 	}
 	if d.nodes != nil {
 		renv.NodeOnline = d.nodes.Online
-		renv.NodeHeard = func(node string) (map[string]any, bool, bool) {
+		renv.NodeHeard = func(node string) (map[string]any, bool, string, bool) {
 			b, _, ok := d.nodes.Heard(node)
 			l := b.Load
 			return map[string]any{"cores": l.Cores, "load1": l.Load1, "ram_total": l.RAMTotal, "ram_free": l.RAMFree, "agents_rss": l.AgentsRSS},
-				b.Battery, ok
+				b.Battery, b.Version, ok
 		}
 		renv.NodeSetAside = func(node string) any {
 			if b, _, ok := d.nodes.Heard(node); ok && b.SetAside != nil {

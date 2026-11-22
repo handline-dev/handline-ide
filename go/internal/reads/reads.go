@@ -63,9 +63,9 @@ type Env struct {
 	NodeOnline func(node string) bool
 	// NodeCopy is how far a runner's copy of the board is (nodes.Registry.CopyOf), nil for one that keeps none; nil shows none.
 	NodeCopy func(node string) any
-	// NodeHeard is a runner's newest heartbeat's load and battery (nodes.Registry.Heard); ok false before its first since the master
-	// started, and nil shows none.
-	NodeHeard func(node string) (load map[string]any, battery bool, ok bool)
+	// NodeHeard is a runner's newest heartbeat's load, battery and Handline version (nodes.Registry.Heard); ok false before its first
+	// since the master started, and nil shows none.
+	NodeHeard func(node string) (load map[string]any, battery bool, version string, ok bool)
 	// NodeSetAside is the board a runner set aside when it was master and a newer one outranked it, as its newest heartbeat says
 	// (since, master), nil when it set none aside so; nil shows none.
 	NodeSetAside func(node string) any

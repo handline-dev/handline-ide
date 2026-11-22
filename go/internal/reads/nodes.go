@@ -2,6 +2,7 @@ package reads
 
 import (
 	"database/sql"
+	"github.com/handline/handline/go/kit/version"
 
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/joined"
@@ -41,7 +42,11 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
 			"master_number": master, "master": id == self, "self": id == self, "online": id == self || e.NodeOnline != nil && e.NodeOnline(id),
-			"lending": lending, "device": nil, "memory_max_gb": nil, "load": nil, "battery": nil, "door": nil, "set_aside": nil}
+			"lending": lending, "device": nil, "memory_max_gb": nil, "load": nil, "battery": nil, "version": nil, "door": nil,
+			"set_aside": nil}
+		if id == self {
+			row["version"] = version.Sha
+		}
 		if door.String != "" {
 			row["door"] = map[string]any{"addr": door.String, "fp": fp}
 		}
@@ -55,8 +60,8 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 			row["memory_max_gb"] = memMax.Int64
 		}
 		if id != self && e.NodeHeard != nil {
-			if load, battery, ok := e.NodeHeard(id); ok {
-				row["load"], row["battery"] = load, battery
+			if load, battery, v, ok := e.NodeHeard(id); ok {
+				row["load"], row["battery"], row["version"] = load, battery, v
 			}
 		}
 		if id != self && e.NodeCopy != nil {
