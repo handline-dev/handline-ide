@@ -24,13 +24,13 @@ import { remoteUrl, SettingsFile, type Link, type Remote } from '#src/mode.ts';
 import { Doors, serveOwnDaemon, trustFingerprints } from '#src/masters.ts';
 import { ownDaemon, readFounderKey, type Own } from '#src/own.ts';
 import { quitQuietly } from '#src/ask.ts';
-import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, trayFollow, trayUpdate } from '#src/app-life.ts';
+import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, saveUpdateChannel, trayFollow, trayUpdate } from '#src/app-life.ts';
 import { addressesChosen, listenAddress, magicDnsName, onTailnet, TAILSCALE_CLIS, windowDaemon } from '#src/tailnet.ts';
 import { Cli, Connection, Page, Settings, Update, CHANNELS } from '#src/bridge.ts';
 import { serveDir } from '#src/serve.ts';
 import { buildId, UNSENT_PROBE, Updater } from '#src/update.ts';
 import { UpdateFlow } from '#src/update-flow.ts';
-import { startPkgUpdate } from '#src/pkg-update-app.ts';
+import { builtChannel, startPkgUpdate } from '#src/pkg-update-app.ts';
 import { bundleAt } from '#src/bundle.ts';
 import { readBuildSha } from '#src/build-id.ts';
 import { removeOldService } from '#src/old-service.ts';
@@ -364,6 +364,9 @@ if (!app.requestSingleInstanceLock({ background })) {
     const current = settings.read();
     const remote = current.remote;
     const login = loginLaunch(current.openAtLogin, background);
+    // The channel the person picked, else the one this build was made for; none for a build that reads no updates.
+    const channelNow = () => (builtChannel() ? (current.updateChannel ?? builtChannel() ?? undefined) : undefined);
+    let lookNow: () => void = () => undefined;
     if (remote) useRemote(remote);
     doors = trustFingerprints(app, new Doors(settings, current), { remote, window: () => win?.webContents });
     // The device token, the layouts and the settings are kept per page origin, so the page keeps one port from launch to launch.
@@ -394,6 +397,11 @@ if (!app.requestSingleInstanceLock({ background })) {
       settings,
       current,
       setOpenAtLogin: saveOpenAtLogin(settings),
+      setUpdateChannel: (c) => {
+        saveUpdateChannel(settings)(c);
+        lookNow();
+      },
+      updateChannel: channelNow,
       build: runningBuild,
       buildDaemon: env('HANDLINED') ? undefined : buildDaemon, // a packaged app names its bundle's handlined
       openWindow: () => void openWindow(),
@@ -457,7 +465,9 @@ if (!app.requestSingleInstanceLock({ background })) {
       .then(() => following?.start());
     const checking = setInterval(() => void updater.check().catch(() => undefined), 30_000);
     app.on('quit', () => clearInterval(checking));
-    app.on('quit', startPkgUpdate({ flow, idle: idleOf(page, composer) }));
+    const pkg = startPkgUpdate({ flow, idle: idleOf(page, composer), channel: channelNow });
+    lookNow = pkg.look;
+    app.on('quit', pkg.stop);
 
     const desk = new Desk(client, {
       setBadge: (t, n) => {

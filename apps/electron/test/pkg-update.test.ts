@@ -47,7 +47,7 @@ function rig(o: { current?: string; idle?: boolean; sum?: string } = {}) {
   const calls: string[] = [];
   const flow = new UpdateFlow();
   const ports = rigPorts(o, calls);
-  return { flow, calls, u: new SelfUpdater(ports, flow, 'https://example.org/dl/') };
+  return { flow, calls, u: new SelfUpdater(ports, flow, () => 'https://example.org/dl/') };
 }
 
 test('a newer build is downloaded, checked and unpacked, then offered once; Restart now swaps it in', async () => {
@@ -79,7 +79,7 @@ test('Restart now pressed twice swaps once; after a failure it can be pressed ag
     ...rigPorts(),
     swapAndRestart: (s: string) => (swaps.push(s), new Promise<void>((res, rej) => (release = fail ? () => rej(new Error('no')) : res))),
   };
-  const u = new SelfUpdater(ports, flow, 'https://example.org/dl');
+  const u = new SelfUpdater(ports, flow, () => 'https://example.org/dl');
   await u.check();
   flow.act('restart');
   flow.act('restart');

@@ -4,10 +4,12 @@ import type { FollowState } from '#src/follow.ts';
 import type { UpdatePhase } from '#src/update-flow.ts';
 import type { Link } from '#src/mode.ts';
 import type { DaemonState } from '#src/owner.ts';
+import { UPDATE_CHANNELS, type UpdateChannel } from '#src/update-channel.ts';
 
 export interface TrayItem {
   label?: string;
-  type?: 'separator' | 'checkbox';
+  type?: 'separator' | 'checkbox' | 'radio';
+  submenu?: TrayItem[];
   checked?: boolean;
   enabled?: boolean;
   click?: () => void;
@@ -18,6 +20,7 @@ export interface TrayActions {
   /** The Inbox, where the items waiting on the person are. */
   inbox(): void;
   setOpenAtLogin(on: boolean): void;
+  setUpdateChannel(channel: UpdateChannel): void;
   /** Asks first when the daemon runs (Quit Handline). */
   quit(): void;
   /** Puts an address or a commit on the clipboard. */
@@ -51,6 +54,8 @@ export interface TrayView {
   /** Agents mid-turn, null while not known. */
   working: number | null;
   openAtLogin: boolean;
+  /** The release channel updates come from; absent for a build that has no update address (a checkout). */
+  channel?: UpdateChannel;
   /** The other device this app is paired with, null for this Mac's daemon. */
   remote: string | null;
   /** The menu was opened with Option held: the addresses and the commit. */
@@ -105,6 +110,17 @@ export function trayMenu(state: DaemonState, a: TrayActions, v: TrayView): TrayI
   if (v.unread > 0) items.push({ label: `Needs you · ${badgeText(v.unread)}`, click: a.inbox });
   items.push({ type: 'separator' });
   items.push({ label: 'Open at login', type: 'checkbox', checked: v.openAtLogin, click: () => a.setOpenAtLogin(!v.openAtLogin) });
+  if (v.channel) {
+    items.push({
+      label: 'Update channel',
+      submenu: UPDATE_CHANNELS.map((c) => ({
+        label: c[0]!.toUpperCase() + c.slice(1),
+        type: 'radio',
+        checked: c === v.channel,
+        click: () => a.setUpdateChannel(c),
+      })),
+    });
+  }
   if (v.details) {
     const more = detailItems(a, v);
     if (more.length) items.push({ type: 'separator' }, ...more);

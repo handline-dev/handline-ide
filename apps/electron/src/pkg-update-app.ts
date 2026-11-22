@@ -7,6 +7,7 @@ import { SelfUpdater, type PkgPorts } from '#src/pkg-update.ts';
 import { leftovers, STAGING, swapBundle } from '#src/swap.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
 import { quitQuietly } from '#src/ask.ts';
+import { channelOf, withChannel, type UpdateChannel } from '#src/update-channel.ts';
 
 /** The installed Handline.app: three folders above the executable (Contents/MacOS/Handline). */
 const installedApp = () => path.resolve(app.getPath('exe'), '../../..');
@@ -54,17 +55,30 @@ function ports(o: { idle: () => Promise<boolean> }): PkgPorts {
   };
 }
 
-/** Starts looking for a newer build of the installed app, once a minute after launch and then every half hour. Returns what stops it. */
-export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean> }): () => void {
+/** The channel the build was made for, null for a build that has no update address (a checkout). */
+export function builtChannel(): UpdateChannel | null {
   const base = packagedUpdateUrl(app.getAppPath());
-  if (!base) return () => undefined;
+  return base ? channelOf(base) : null;
+}
+
+/** Starts looking for a newer build of the installed app on `channel()`'s release (the build's own unless the person picked one), once a minute
+ * after launch and then every half hour. Returns what stops it, and `look` to check at once (a channel was picked). */
+export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean>; channel: () => UpdateChannel | undefined }): {
+  stop: () => void;
+  look: () => void;
+} {
+  const base = packagedUpdateUrl(app.getAppPath());
+  if (!base) return { stop: () => undefined, look: () => undefined };
   sweepSwap();
-  const updater = new SelfUpdater(ports(o), o.flow, base);
+  const updater = new SelfUpdater(ports(o), o.flow, () => withChannel(base, o.channel() ?? channelOf(base) ?? 'nightly'));
   const look = () => void updater.check();
   const first = setTimeout(look, 60_000);
   const every = setInterval(look, 30 * 60_000);
-  return () => {
-    clearTimeout(first);
-    clearInterval(every);
+  return {
+    stop: () => {
+      clearTimeout(first);
+      clearInterval(every);
+    },
+    look,
   };
 }

@@ -7,6 +7,7 @@ import type { Follower } from '#src/follow.ts';
 import type { SettingsFile } from '#src/mode.ts';
 import type { TrayFollow, TrayUpdate } from '#src/tray.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
+import type { UpdateChannel } from '#src/update-channel.ts';
 import { electronAsk, type Own } from '#src/own.ts';
 
 /** Hands Open at login to the system, and says whether this run was opened at login: then it keeps to the tray (no window, no dock icon)
@@ -61,6 +62,12 @@ export const saveOpenAtLogin =
     settings.write({ ...settings.read(), openAtLogin: on });
     applyOpenAtLogin(app, app.isPackaged, on);
   };
+
+/** The tray's Update channel: kept in the settings. */
+export const saveUpdateChannel =
+  (settings: SettingsFile) =>
+  (channel: UpdateChannel): void =>
+    settings.write({ ...settings.read(), updateChannel: channel });
 
 /** What the tray reads of the update flow. */
 export const trayUpdate = (flow: UpdateFlow): TrayUpdate => ({ phase: flow.view.phase, restart: () => flow.act('restart') });

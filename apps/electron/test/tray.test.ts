@@ -7,6 +7,7 @@ const actions: TrayActions = {
   open: () => calls.push('open'),
   inbox: () => calls.push('inbox'),
   setOpenAtLogin: (on) => calls.push(`login ${on}`),
+  setUpdateChannel: (c) => calls.push(`channel ${c}`),
   quit: () => calls.push('quit'),
   copy: (t) => calls.push(`copy ${t}`),
 };
@@ -111,4 +112,19 @@ test('Option adds the daemon’s address and build and the commit, which copy on
   assert.deepEqual(calls.splice(0), ['copy 127.0.0.1:7443', 'copy aaa1111ffff']);
   assert.ok(!l.some((x) => /mode|connect/i.test(x)));
   assert.ok(!labels('running', view({ follow: follow() })).includes('Check for update'));
+});
+
+test('Update channel is a submenu of three radios with the one in use checked, and only for a build that reads updates', () => {
+  assert.equal(labels('running').includes('Update channel'), false);
+  const item = trayMenu('running', actions, view({ channel: 'nightly' })).find((i) => i.label === 'Update channel')!;
+  assert.deepEqual(
+    item.submenu!.map((i) => [i.label, i.type, i.checked]),
+    [
+      ['Stable', 'radio', false],
+      ['Nightly', 'radio', true],
+      ['Canary', 'radio', false],
+    ],
+  );
+  item.submenu![2]!.click!();
+  assert.deepEqual(calls.splice(0), ['channel canary']);
 });

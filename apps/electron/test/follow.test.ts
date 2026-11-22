@@ -235,6 +235,7 @@ const actions = {
   open: () => undefined,
   inbox: () => undefined,
   setOpenAtLogin: () => undefined,
+  setUpdateChannel: () => undefined,
   quit: () => undefined,
   copy: () => undefined,
 };
