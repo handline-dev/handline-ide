@@ -11,13 +11,16 @@ const BeatEvery = 15 * time.Second
 
 // Beat is what a runner's heartbeat says of it.
 type Beat struct {
-	Version  string        `json:"version"`
-	Boot     string        `json:"boot"` // the machine's boot: another one means it restarted, and what ran there is gone
-	Load     Load          `json:"load"`
-	Sessions []BeatSession `json:"sessions"`
-	Accounts []BeatAccount `json:"accounts"`
-	Has      Has           `json:"has"`
-	Battery  bool          `json:"battery"` // the machine runs on its battery now
+	Version  string `json:"version"`
+	Platform string `json:"platform"` // GOOS/GOARCH: a master hands its build only to a runner of its own
+	// BuildRefused is why this runner refused the master's build (a sha256 that did not match), "" when it did not.
+	BuildRefused string        `json:"build_refused,omitempty"`
+	Boot         string        `json:"boot"` // the machine's boot: another one means it restarted, and what ran there is gone
+	Load         Load          `json:"load"`
+	Sessions     []BeatSession `json:"sessions"`
+	Accounts     []BeatAccount `json:"accounts"`
+	Has          Has           `json:"has"`
+	Battery      bool          `json:"battery"` // the machine runs on its battery now
 	// Door is where this machine would serve as master (its -listen and certificate), nil when it has no network door.
 	Door *Door `json:"door,omitempty"`
 	// SetAside is the board this machine set aside when a newer master outranked it as master, nil when it set none aside so.

@@ -178,6 +178,22 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		emit("device.changed", m.Row(d), c.Caller.ActorInfo(), d.Name+" "+strings.Join(what, ", "))
 		return map[string]any{"accepted": true}, nil
 	}})
+	s.Register("device.update", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		id, ok := p["device"].(string)
+		if !ok {
+			return nil, rpc.BadRequestError("device is a string", "device", rpc.InvalidParams)
+		}
+		if m == nil || m.Update == nil {
+			return nil, rpc.Refused("this daemon hands no build to its machines", "build", "")
+		}
+		if !m.Owns(id, personOf(c)) {
+			return nil, rpc.Refused("only the person whose device it is updates it", "person", "")
+		}
+		if err := m.Update(id); err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true}, nil
+	}})
 	s.Register("device.push_token", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		id, _ := c.Caller.Info["device"].(string)
 		if id == "" {

@@ -58,6 +58,7 @@ func (r *Runner) heard(m joined.Master, says hlclient.MasterSays) (joined.Master
 		m.Node = says.Node
 	}
 	m.Number = max(m.Number, says.Number)
+	m.Version = says.Version
 	return m, nil
 }
 

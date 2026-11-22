@@ -28,12 +28,13 @@ const JoinWait = 10 * time.Second
 
 // Opts are a cluster's choices.
 type Opts struct {
-	Bin      string   // the folder holding the handlined and hl to run
-	Root     string   // the homes are Root/master, Root/runner1, ...
-	Runners  int      // how many runners; 0 is 1
-	BasePort int      // the master listens on BasePort, runner i on BasePort+i; 0 takes free ports
-	Flags    []string // more handlined flags for every node
-	Env      []string // more environment (KEY=value) for every node's processes
+	Bin       string   // the folder holding the handlined and hl to run
+	RunnerBin string   // the folder of the runners' handlined and hl, "" for Bin (a lent machine on another build)
+	Root      string   // the homes are Root/master, Root/runner1, ...
+	Runners   int      // how many runners; 0 is 1
+	BasePort  int      // the master listens on BasePort, runner i on BasePort+i; 0 takes free ports
+	Flags     []string // more handlined flags for every node
+	Env       []string // more environment (KEY=value) for every node's processes
 	// Detach starts each daemon in a session of its own, so it outlives this process (hl dev cluster up). Without it each daemon
 	// stops when this process ends, however it ends (-exit-with-stdin).
 	Detach bool
@@ -74,7 +75,11 @@ func Start(o Opts) (c *Cluster, err error) {
 		if i > 0 {
 			name = "runner" + strconv.Itoa(i)
 		}
-		n, err := newNode(o, name, i)
+		no := o
+		if i > 0 && o.RunnerBin != "" {
+			no.Bin = o.RunnerBin
+		}
+		n, err := newNode(no, name, i)
 		if err != nil {
 			return c, err
 		}
@@ -330,6 +335,22 @@ func (n *Node) gone(pid int) bool {
 		}
 	}
 	return true
+}
+
+// RunOn has the node's next start run the handlined and hl in bin.
+func (n *Node) RunOn(bin string) { n.o.Bin = bin }
+
+// Exe is the executable its daemon runs now, "" when none runs.
+func (n *Node) Exe() string {
+	pid := n.pid()
+	if pid == 0 {
+		return ""
+	}
+	out, err := exec.Command("ps", "-o", "comm=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // Restart starts the daemon again on the same home, socket and port.

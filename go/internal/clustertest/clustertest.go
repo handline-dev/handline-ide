@@ -16,9 +16,10 @@ import (
 
 // Opts are Start's choices: how many runners (0 is 1) and more handlined flags for every node.
 type Opts struct {
-	Runners int
-	Flags   []string
-	Env     []string
+	Runners   int
+	Flags     []string
+	Env       []string
+	RunnerBin string // the runners' handlined and hl, "" for Build's
 }
 
 var built struct {
@@ -51,6 +52,22 @@ func Build(t testing.TB) string {
 	return built.dir
 }
 
+// BuildAs is a folder of handlined and hl built from this tree stamped as version v: a machine on another build than Build's.
+func BuildAs(t testing.TB, v string) string {
+	t.Helper()
+	mod, err := exec.Command("go", "env", "GOMOD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	cmd := exec.Command("go", "build", "-ldflags", "-X github.com/handline/handline/go/kit/version.Sha="+v, "-o", dir+"/", "./cmd/handlined", "./cmd/hl")
+	cmd.Dir = filepath.Dir(strings.TrimSpace(string(mod)))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+	return dir
+}
+
 // Remove removes what Build made; a package's TestMain calls it after its tests.
 func Remove() {
 	if built.dir != "" {
@@ -66,7 +83,8 @@ func Start(t testing.TB, o Opts) *cluster.Cluster {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := cluster.Start(cluster.Opts{Bin: bin, Root: root, Runners: o.Runners, Flags: o.Flags, Env: o.Env})
+	c, err := cluster.Start(cluster.Opts{Bin: bin, RunnerBin: o.RunnerBin, Root: root, Runners: o.Runners, Flags: o.Flags,
+		Env: o.Env})
 	t.Cleanup(func() {
 		if c != nil {
 			if err := c.Stop(); err != nil {

@@ -742,6 +742,54 @@
    "description": "Only the device's own person sets it; anyone else is refused, gate `person`. A device that is no mac or server that joined is refused, gate `kind`. run lists the machine in node.status and lets the master start work there; pause lists it as paused and the master starts nothing new there; off takes it out of node.status. A device.changed event is sent on the devices topic, and the nodes feed changes. It takes lending, memory_max_gb or both."
   },
   {
+   "name": "device.update",
+   "summary": "Have a lent machine take the master's own build.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "device",
+     "required": true,
+     "schema": {
+      "type": "string"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "member",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "update"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "x-gates": [
+    "person",
+    "kind",
+    "build"
+   ],
+   "description": "The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none)."
+  },
+  {
    "name": "device.push_token",
    "summary": "A paired device gives the push token its OS gave it.",
    "paramStructure": "by-name",
@@ -1045,6 +1093,14 @@
      }
     },
     {
+     "name": "platform",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Its GOOS/GOARCH (darwin/arm64): the master hands its own build only to a runner of the same."
+     }
+    },
+    {
      "name": "boot",
      "required": false,
      "schema": {
@@ -1113,6 +1169,14 @@
       "type": "object",
       "description": "The board it set aside when it was master and a newer master outranked it: since (unix seconds) and master (the number that outranked it)."
      }
+    },
+    {
+     "name": "build_refused",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "Why it refused the master's build it was offered (a file whose sha256 is not the one named); its row says so in place of taking work."
+     }
     }
    ],
    "result": {
@@ -1140,6 +1204,10 @@
         "type": "object"
        },
        "description": "To one of the owner's machines only: each of the owner's machines with a door, in the order they joined: {node, addr, fp}. A runner keeps it and, once its master is gone, asks each of them who is master now."
+      },
+      "build": {
+       "type": "object",
+       "description": "When the master wants it on its own build: it runs another version on the master's platform, and it is the owner's with node_build_auto on, or its row's Update was asked (device.update). version, and files: each {name, size, sum} (handlined and hl, sum their sha256). The runner reads each with node.build.read, checks it, keeps it under its home (build/, the newest only) and starts again on it; at a later start it runs the kept build while its master is on that version. Sessions there go on through the restart."
       }
      },
      "required": [
@@ -1286,6 +1354,65 @@
     "copy"
    ],
    "description": "Only on a runner's link (gate `node`). The board's copy is the folder Litestream writes on the master (board-copy in its home): each committed change within a second, a snapshot every hour, two hours kept. Only the owner's runners keep it: another person's is refused, gate `owner`, and drops any copy it holds; gate `copy` when the master keeps none now (the runner keeps what it holds). A pull that finds the runner already holding all of it sets the runner's copy in node.status.",
+   "x-app-cache": false
+  },
+  {
+   "name": "node.build.read",
+   "summary": "A runner reads a piece of a file of the master's own build.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "handlined",
+       "hl"
+      ]
+     }
+    },
+    {
+     "name": "offset",
+     "required": true,
+     "schema": {
+      "type": "integer",
+      "minimum": 0
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "data": {
+       "type": "string",
+       "contentEncoding": "base64",
+       "description": "Up to 512 KiB of the file from offset; empty past its end."
+      }
+     },
+     "required": [
+      "data"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "node",
+    "build"
+   ],
+   "description": "Only on a runner's link (gate `node`). The files are the handlined this master runs and the hl beside it, as opened at its start; gate `build` when it serves none (one was not found beside it).",
    "x-app-cache": false
   },
   {

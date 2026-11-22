@@ -49,6 +49,12 @@ func (r *Runner) SendBeat() error {
 	if doors, ok := got["doors"]; ok {
 		r.keepDoors(doors)
 	}
+	if raw, ok := got["build"]; ok {
+		var o BuildOffer
+		if b, err := json.Marshal(raw); err == nil && json.Unmarshal(b, &o) == nil {
+			r.takeBuild(o)
+		}
+	}
 	stop, _ := got["stop"].([]any)
 	for _, v := range stop {
 		if agent, _ := v.(string); agent != "" {
@@ -82,7 +88,7 @@ func (r *Runner) beatSoon() {
 
 // Beat is this runner's heartbeat now, as node.heartbeat's params.
 func (r *Runner) Beat() map[string]any {
-	b := Beat{Version: r.cfg.Sha, Boot: bootID(), Accounts: r.accounts(), Has: r.has(), Battery: r.cfg.Battery(), Door: r.door()}
+	b := Beat{Version: r.cfg.Sha, Platform: Platform(), Boot: bootID(), Accounts: r.accounts(), Has: r.has(), Battery: r.cfg.Battery(), Door: r.door()}
 	if s, ok := joined.SetAsideOf(r.cfg.Home); ok {
 		b.SetAside = &s
 	}
@@ -90,6 +96,7 @@ func (r *Runner) Beat() map[string]any {
 		b.Load = Load{Cores: m.Cores, Load1: m.Load1, RAMTotal: m.RAMTotal, RAMFree: m.RAMFree}
 	}
 	r.mu.Lock()
+	b.BuildRefused = r.refusedBuild[r.cfg.Master.Version]
 	sessions := make(map[string]session, len(r.sessions))
 	panes := make(map[string]int, len(r.sessions))
 	for a, s := range r.sessions {

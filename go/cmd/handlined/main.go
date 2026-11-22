@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -139,6 +140,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("handlined: %v", err)
 	}
+	if m, ok := joined.Of(homeDir); ok && m.Version != version.Sha {
+		if kept := runner.KeptBuild(homeDir, m.Version); kept != "" && !sameFile(kept) { // the master's build it took
+			log.Printf("handlined: the master runs Handline %s, which this home keeps: starting on it", m.Version)
+			startAgain(kept)
+		}
+	}
 	if err := homeinit.Setup(homeDir, paths.HlExe(), func(f string, a ...any) { log.Printf("handlined: "+f, a...) }); err != nil {
 		log.Printf("handlined: setting the home up failed (run `hl init` to see why): %v", err)
 	}
@@ -150,8 +157,8 @@ func main() {
 			}
 			return d
 		}
-		if runRunner(homeDir, *db, *sock, *claude, m, door, *exitWithStdin) {
-			startAgain()
+		if exe, again := runRunner(homeDir, *db, *sock, *claude, m, door, *exitWithStdin); again {
+			startAgain(exe)
 		}
 		return
 	}
@@ -291,7 +298,7 @@ func main() {
 		}
 	}
 	if closed(d.StartAgain()) {
-		startAgain()
+		startAgain("")
 	}
 }
 
@@ -305,15 +312,33 @@ func closed(c <-chan struct{}) bool {
 	}
 }
 
-// startAgain runs this executable again with the same arguments, in this process: a master a newer one outranked starts as a runner,
-// a runner made the master starts as master. It returns only when that fails.
-func startAgain() {
-	exe, err := os.Executable()
+// startAgain runs exe ("" for this executable) with the same arguments, in this process; another exe is a build its hl beside it
+// serves (HANDLINE_BIN). It returns only when that fails.
+func startAgain(exe string) {
+	var err error
+	env := os.Environ()
+	if exe == "" {
+		exe, err = os.Executable()
+	} else {
+		env = append(slices.DeleteFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "HANDLINE_BIN=") }),
+			"HANDLINE_BIN="+filepath.Join(filepath.Dir(exe), "hl"))
+	}
 	if err == nil {
 		log.Printf("handlined: starting again as what this machine is now")
-		err = syscall.Exec(exe, os.Args, os.Environ())
+		err = syscall.Exec(exe, append([]string{exe}, os.Args[1:]...), env)
 	}
 	log.Fatalf("handlined: start again: %v", err)
+}
+
+// sameFile is whether path is this executable.
+func sameFile(path string) bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	a, errA := os.Stat(exe)
+	b, errB := os.Stat(path)
+	return errA == nil && errB == nil && os.SameFile(a, b)
 }
 
 // causeOf names what ended ctx ("terminated signal received", "stdin closed"), "" while it runs.
@@ -345,8 +370,8 @@ func leaveAgentSession() string {
 }
 
 // runRunner is a home that joined a master: runner mode, which keeps no board. The board it ran alone on is set aside first, unchanged.
-// door is where it would serve as master. true when node.promote made it the master, so it must start again.
-func runRunner(home, dbFile, sock, claude string, m joined.Master, door func() *runner.Door, exitWithStdin bool) bool {
+// door is where it would serve as master. again is true when it must start again on exe: "" (made the master), or the master's build.
+func runRunner(home, dbFile, sock, claude string, m joined.Master, door func() *runner.Door, exitWithStdin bool) (exe string, again bool) {
 	single := lock.TakeSingleton(home, "daemon")
 	if single == nil {
 		log.Fatalf("handlined: another daemon holds this home: not starting a second")
@@ -387,8 +412,10 @@ func runRunner(home, dbFile, sock, claude string, m joined.Master, door func() *
 	select {
 	case <-ctx.Done():
 	case <-r.Promoted():
+	case <-r.Again():
+		exe = r.AgainExe()
 	}
 	r.Close()
 	single.Release() // before the start again, which takes it as master
-	return ctx.Err() == nil
+	return exe, ctx.Err() == nil
 }

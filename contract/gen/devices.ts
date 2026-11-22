@@ -141,6 +141,10 @@ export interface DevicesMethods {
   memory_max_gb?: number | null;
   request_id: RequestId;
 }; result: Accepted };
+  "device.update": { params: {
+  device: string;
+  request_id: RequestId;
+}; result: Accepted };
   "device.push_token": { params: {
   platform: "apns" | "fcm";
   token: string;
@@ -185,6 +189,8 @@ export interface DevicesMethods {
   "node.heartbeat": { params: {
   /** The runner's Handline version: one that is not the master's takes no new session. */
   version: string;
+  /** Its GOOS/GOARCH (darwin/arm64): the master hands its own build only to a runner of the same. */
+  platform?: string;
   /** The machine's boot: another one means it restarted. */
   boot?: string;
   /** cores, load1, ram_total, ram_free and agents_rss (what its sessions' process trees use), as the runner read them. */
@@ -201,6 +207,8 @@ export interface DevicesMethods {
   door?: { [key: string]: unknown };
   /** The board it set aside when it was master and a newer master outranked it: since (unix seconds) and master (the number that outranked it). */
   set_aside?: { [key: string]: unknown };
+  /** Why it refused the master's build it was offered (a file whose sha256 is not the one named); its row says so in place of taking work. */
+  build_refused?: string;
 }; result: {
     /** The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it. */
     stop: string[];
@@ -208,6 +216,8 @@ export interface DevicesMethods {
     check: string[];
     /** To one of the owner's machines only: each of the owner's machines with a door, in the order they joined: {node, addr, fp}. A runner keeps it and, once its master is gone, asks each of them who is master now. */
     doors?: { [key: string]: unknown }[];
+    /** When the master wants it on its own build: it runs another version on the master's platform, and it is the owner's with node_build_auto on, or its row's Update was asked (device.update). version, and files: each {name, size, sum} (handlined and hl, sum their sha256). The runner reads each with node.build.read, checks it, keeps it under its home (build/, the newest only) and starts again on it; at a later start it runs the kept build while its master is on that version. Sessions there go on through the restart. */
+    build?: { [key: string]: unknown };
   } };
   "node.tokens": { params: {
   /** The account's name on that runner. */
@@ -227,6 +237,13 @@ export interface DevicesMethods {
     gone: string[];
     /** More data waits: pull again. */
     more: boolean;
+  } };
+  "node.build.read": { params: {
+  name: "handlined" | "hl";
+  offset: number;
+}; result: {
+    /** Up to 512 KiB of the file from offset; empty past its end. */
+    data: string;
   } };
   "node.promote": { params: { [key: string]: unknown }; result: {
     /** The master number this machine takes. */
@@ -267,6 +284,7 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.redeem": { role: "anonymous", callers: null, write: true, since: 1 },
   "device.revoke": { role: "member", callers: null, write: true, since: 1 },
   "device.set": { role: "member", callers: null, write: true, since: 1 },
+  "device.update": { role: "member", callers: null, write: true, since: 1 },
   "device.push_token": { role: "member", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
   "node.forward": { role: "member", callers: null, write: false, since: 1 },
@@ -275,6 +293,7 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "node.heartbeat": { role: "member", callers: null, write: false, since: 1 },
   "node.tokens": { role: "member", callers: null, write: false, since: 1 },
   "node.copy.files": { role: "member", callers: null, write: false, since: 1 },
+  "node.build.read": { role: "member", callers: null, write: false, since: 1 },
   "node.promote": { role: "owner", callers: null, write: false, since: 1 },
   "node.handover": { role: "member", callers: null, write: false, since: 1 },
   "node.outranked": { role: "member", callers: null, write: false, since: 1 },
@@ -283,7 +302,7 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.copy.files" | "node.promote" | "node.handover" | "node.outranked" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.forward" | "node.turn" | "node.transcript" | "node.heartbeat" | "node.tokens" | "node.copy.files" | "node.build.read" | "node.promote" | "node.handover" | "node.outranked" | "node.launch" | "node.agent_files"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "devices.list": {"resource": "devices", "feed": "devices"},
   "node.status": {"resource": "nodes", "feed": "nodes"},
   "node.forward": false,
@@ -292,6 +311,7 @@ export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.f
   "node.heartbeat": false,
   "node.tokens": false,
   "node.copy.files": false,
+  "node.build.read": false,
   "node.promote": false,
   "node.handover": false,
   "node.outranked": false,
@@ -300,10 +320,11 @@ export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.f
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.set" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
+export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.set" | "device.update" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
   "device.pair": {"kind": "decided", "label": "pair"},
   "device.redeem": false,
   "device.revoke": {"kind": "decided", "label": "revoke"},
   "device.set": {"kind": "decided", "label": "set"},
+  "device.update": {"kind": "decided", "label": "update"},
   "device.push_token": false,
 };

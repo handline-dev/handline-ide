@@ -20,6 +20,7 @@ type Master struct {
 	At          int64  `json:"at"`
 	Node        string `json:"node,omitempty"`
 	Number      int64  `json:"number,omitempty"`
+	Version     string `json:"version,omitempty"` // the master's Handline version as its last hello said: a kept build of it runs at start
 }
 
 // Of is the master home joined; false when it joined none.

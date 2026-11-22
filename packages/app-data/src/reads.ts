@@ -22,6 +22,7 @@ export const NOT_QUERIES = [
   // A runner's own calls on its link to the master, for one of its agents.
   'node.forward',
   'node.copy.files',
+  'node.build.read',
   'node.launch',
   'node.agent_files',
   'node.turn',

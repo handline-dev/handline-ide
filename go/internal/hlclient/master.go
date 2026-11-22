@@ -9,8 +9,9 @@ import (
 
 // MasterSays is who a master says it is in its hello (capabilities.master): its node id and master number.
 type MasterSays struct {
-	Node   string
-	Number int64
+	Node    string
+	Number  int64
+	Version string // its Handline version
 }
 
 // MasterIn reads MasterSays from a hello's answer; zero when it names none.
@@ -19,7 +20,8 @@ func MasterIn(hello map[string]any) MasterSays {
 	m, _ := caps["master"].(map[string]any)
 	node, _ := m["node"].(string)
 	n, _ := rpc.AsInt(m["number"])
-	return MasterSays{Node: node, Number: n}
+	v, _ := hello["version"].(string)
+	return MasterSays{Node: node, Number: n, Version: v}
 }
 
 // AskWait bounds a question to another machine's door: it is asked while a daemon decides what it is, so one that does not answer

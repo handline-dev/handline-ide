@@ -101,6 +101,8 @@ type Manager struct {
 	maxConns   int
 	// Log, when set, hears of each connection closed to make room: a client that leaks connections shows up by its device's name.
 	Log func(format string, args ...any)
+	// Update, when set, has the machine that joined as device id take the master's build (device.update); it refuses when it cannot.
+	Update func(id string) error
 	// BeforeRevoke, when set, is told of a device about to be revoked, while its machine's node row is still there.
 	BeforeRevoke func(id string)
 	// PushPlatforms is the platforms the daemon has push credentials for; none is push off.

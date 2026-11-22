@@ -54,6 +54,10 @@ type Registry struct {
 	Reading func(account string, r runner.BeatReading)
 	// Self is the master's own node id; Version the master's Handline version, which a runner's must be to take work ("" takes any).
 	Self, Version string
+	// Build, when set, is the master's own build, which a runner of its platform on another version is offered (node.build.read).
+	Build *Build
+	// BuildAuto, when set, is whether that offer goes without the row's Update (BuildAutoKey).
+	BuildAuto func() bool
 	// BatterySwitch, when set, is whether the battery switch is on (BatteryKey): a runner whose heartbeat says it went on battery is set
 	// to Off, and back to Run when plugged in again.
 	BatterySwitch func() bool
@@ -75,6 +79,7 @@ type Registry struct {
 	next    int
 	beats   map[string]heard           // each runner's newest heartbeat since this master started
 	opening map[string]map[string]bool // by node, the agents whose session Open is opening there now
+	updates map[string]bool            // the nodes whose Update was asked (AskUpdate), until one runs the master's build
 	started time.Time
 	Clock   func() time.Time // the time heartbeats are judged by; nil is time.Now
 
@@ -98,7 +103,7 @@ func (r *Registry) now() time.Time {
 
 func New(db *sql.DB, home string) *Registry {
 	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, streams: map[string]*stream{},
-		beats: map[string]heard{}, opening: map[string]map[string]bool{}, started: time.Now()}
+		beats: map[string]heard{}, updates: map[string]bool{}, opening: map[string]map[string]bool{}, started: time.Now()}
 }
 
 // Link keeps c as node's link, in place of any before it, until c ends, which ends every stream on it.
@@ -611,6 +616,7 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 	s.Register("node.heartbeat", rpc.Method{Handler: r.heartbeat})
 	s.Register("node.launch", rpc.Method{Waits: true, Handler: r.launch})
 	s.Register("node.copy.files", rpc.Method{Handler: r.copyFiles})
+	s.Register("node.build.read", rpc.Method{Handler: r.buildRead})
 	s.Register("node.agent_files", rpc.Method{Waits: true, Handler: r.agentFiles})
 	s.Register("node.turn", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		node := r.NodeOf(c.Root())

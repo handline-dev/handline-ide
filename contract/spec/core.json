@@ -318,7 +318,7 @@
    "turn": "A turn is running (agents); the owner has the task (tasks).",
    "watch": "A gate watches outside state; text names it (\"watching PR #412 CI\").",
    "handoff": "A hand-off to a new session is moving.",
-   "background": "Background work runs while the agent sits at its prompt. Running when the agent owes something (a queued request, an open ask, or a task it is doing): it may wait on the work to carry on, and text is 'waiting for' and the labels of AgentView.background joined by ' \u00b7 ' ('waiting for check.sh \u00b7 review subagent'). Idle when it owes nothing: it takes work, and text is the labels ('check.sh \u00b7 dev server'). Never a count.",
+   "background": "Background work runs while the agent sits at its prompt. Running when the agent owes something (a queued request, an open ask, or a task it is doing): it may wait on the work to carry on, and text is 'waiting for' and the labels of AgentView.background joined by ' · ' ('waiting for check.sh · review subagent'). Idle when it owes nothing: it takes work, and text is the labels ('check.sh · dev server'). Never a count.",
    "you": "A person must answer: a dialog or prompt on the agent, an open request to the founder on the task, or a task the founder owns.",
    "opener": "A draft: waits on its opener to queue it.",
    "task": "Waits on other tasks; tasks lists them.",
@@ -2316,6 +2316,11 @@
       "minimum": 1,
       "default": 1800,
       "description": "Seconds a lent machine may be offline before the master takes its sessions back to start them elsewhere."
+     },
+     "node_build_auto": {
+      "type": "boolean",
+      "default": true,
+      "description": "A lent machine of the owner's, of the master's OS and architecture, on another Handline build takes the master's own build and starts again on it, so it can take work; its sessions go on. Off is Manual: its row says to update, and its Update does the same once. Another person's machine takes it only at its own person's Update."
      }
     },
     "description": "Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set."
@@ -2791,6 +2796,17 @@
        }
       ],
       "description": "Seconds a lent machine may be offline before its sessions are taken back (SettingsValues.node_reclaim_s). null removes the key (back to the default)."
+     },
+     "node_build_auto": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Auto or Manual for a lent machine on another build (SettingsValues.node_build_auto). null removes the key (back to the default)."
      }
     },
     "description": "settings.set's changes: any of SettingsValues' keys; null removes one."

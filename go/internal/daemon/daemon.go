@@ -265,6 +265,12 @@ func Start(cfg Config) (*Daemon, error) {
 		return nil, err
 	}
 	d.nodes.BatterySwitch = func() bool { return (&settings.Settings{Home: cfg.Home}).Flag(nodes.BatteryKey, false) }
+	d.nodes.BuildAuto = func() bool { return (&settings.Settings{Home: cfg.Home}).Flag(nodes.BuildAutoKey, true) }
+	if exe, err := os.Executable(); err == nil { // a runner of this platform on another version is handed this build
+		if d.nodes.Build, err = nodes.OpenBuild(paths.Resolved(exe)); err != nil {
+			cfg.Log("the build this master runs is not handed to its runners: %v", err)
+		}
+	}
 	d.nodes.AccountFor = func(email, name string, add bool) (string, error) {
 		a := team.Accounts{Home: cfg.Home}
 		if !add { // another person's runner: their emails make no account of the owner's
@@ -406,6 +412,15 @@ func Start(cfg Config) (*Daemon, error) {
 					cfg.Log("nodes: %s: its sessions were not taken back: %v", node, err)
 				}
 			}
+		}
+		d.dev.Update = func(device string) error {
+			var node string
+			if err := db.QueryRow("SELECT id FROM nodes WHERE device = ?", device).Scan(&node); errors.Is(err, sql.ErrNoRows) {
+				return rpc.Refused("only a Mac or a server that joined takes the master's build", "kind", "")
+			} else if err != nil {
+				return err
+			}
+			return d.nodes.AskUpdate(node)
 		}
 		d.dev.PushPlatforms = d.push.Platforms()
 	}

@@ -112,7 +112,14 @@ type Runner struct {
 	promoting   atomic.Bool
 	promoted    chan struct{}
 	promoteOnce sync.Once
-	wg          sync.WaitGroup
+	// fetching is set while the master's build is fetched (takeBuild); refusedBuild is why each version's build was refused (under
+	// mu); again is closed once one was taken, againExe its handlined (under mu).
+	fetching     atomic.Bool
+	refusedBuild map[string]string
+	again        chan struct{}
+	againOnce    sync.Once
+	againExe     string
+	wg           sync.WaitGroup
 }
 
 // session is an agent's terminal the runner opened, kept in runner.json. Agent is the agent's folder under the home once a launch there
@@ -164,7 +171,8 @@ func Start(cfg Config) (*Runner, error) {
 	}
 	r := &Runner{cfg: cfg, sessions: map[string]session{}, sent: map[string]map[string]homefiles.Stamp{}, repos: map[string]*sync.Mutex{},
 		pushers: map[string]*pusher{}, rescuing: map[string]bool{}, rescueFails: map[string]int{}, stop: make(chan struct{}), changed: map[string]bool{}, turnSent: make(chan struct{}, 1),
-		beatNow: make(chan struct{}, 1), promoted: make(chan struct{})}
+		beatNow: make(chan struct{}, 1), promoted: make(chan struct{}),
+		refusedBuild: map[string]string{}, again: make(chan struct{})}
 	control := termchan.NewControlLink(cfg.Control, true)
 	r.streams = termchan.NewStreams(func() *termchan.ControlLink { return control })
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {

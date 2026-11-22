@@ -441,6 +441,8 @@ export type SettingsValues = {
   node_battery_switch?: boolean;
   /** Seconds a lent machine may be offline before the master takes its sessions back to start them elsewhere. */
   node_reclaim_s?: number;
+  /** A lent machine of the owner's, of the master's OS and architecture, on another Handline build takes the master's own build and starts again on it, so it can take work; its sessions go on. Off is Manual: its row says to update, and its Update does the same once. Another person's machine takes it only at its own person's Update. */
+  node_build_auto?: boolean;
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
@@ -529,6 +531,8 @@ export type SettingsChanges = {
   node_battery_switch?: boolean | null;
   /** Seconds a lent machine may be offline before its sessions are taken back (SettingsValues.node_reclaim_s). null removes the key (back to the default). */
   node_reclaim_s?: number | null;
+  /** Auto or Manual for a lent machine on another build (SettingsValues.node_build_auto). null removes the key (back to the default). */
+  node_build_auto?: boolean | null;
 };
 
 /** One method as a daemon lists it: its role and whether this caller may call it. */

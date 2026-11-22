@@ -103,6 +103,7 @@ export const useAnswerAdd = (target?: string) => useWrite("answer.add", target);
 export const useDevicePair = (target?: string) => useWrite("device.pair", target);
 export const useDeviceRevoke = (target?: string) => useWrite("device.revoke", target);
 export const useDeviceSet = (target?: string) => useWrite("device.set", target);
+export const useDeviceUpdate = (target?: string) => useWrite("device.update", target);
 export const useRepoSet = (target?: string) => useWrite("repo.set", target);
 export const useFolderInit = (target?: string) => useWrite("folder.init", target);
 export const useFolderClone = (target?: string) => useWrite("folder.clone", target);

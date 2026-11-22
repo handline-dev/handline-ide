@@ -146,6 +146,10 @@ func (r *Registry) Takes(node string) string {
 		return "it is offline"
 	case b.Version == "":
 		return "it has not sent its heartbeat yet"
+	case r.Version != "" && b.Version != r.Version && b.BuildRefused != "":
+		return fmt.Sprintf("it runs Handline %s, not the master's %s, and refused the master's build: %s", short(b.Version), short(r.Version), b.BuildRefused)
+	case r.Version != "" && b.Version != r.Version && r.offer(node, b) != nil:
+		return fmt.Sprintf("it runs Handline %s, not the master's %s: it is starting again on the master's build", short(b.Version), short(r.Version))
 	case r.Version != "" && b.Version != r.Version:
 		return fmt.Sprintf("it runs Handline %s, not the master's %s: update to take work", short(b.Version), short(r.Version))
 	case lending != "run":
@@ -232,6 +236,13 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 		check = r.Check()
 	}
 	reply := map[string]any{"stop": stop, "check": check}
+	if b.Version == r.Version {
+		r.mu.Lock()
+		delete(r.updates, node)
+		r.mu.Unlock()
+	} else if offer := r.offer(node, b); offer != nil {
+		reply["build"] = offer
+	}
 	if owner, err := r.ownerNode(node); err != nil {
 		return nil, err
 	} else if owner { // only the owner's machines can be made the master, so only they look for one

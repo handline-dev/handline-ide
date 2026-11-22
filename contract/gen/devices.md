@@ -10,14 +10,16 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `node?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit, already_joined | not from the app |
 | `device.revoke` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
 | `device.set` | member | yes | `device`, `lending?`, `memory_max_gb?`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
+| `device.update` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind, build | decided: update |
 | `device.push_token` | member | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 | `node.status` | agent |  | none | `{master, nodes}` |  |  | `nodes`, fed by nodes |
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 | `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
-| `node.heartbeat` | member |  | `version`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?`, `door?`, `set_aside?` | `{stop, check, doors}` | `refused`, `bad_request` | node | not cached |
+| `node.heartbeat` | member |  | `version`, `platform?`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?`, `door?`, `set_aside?`, `build_refused?` | `{stop, check, doors, build}` | `refused`, `bad_request` | node | not cached |
 | `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
 | `node.copy.files` | member |  | `have?`, `parts?` | `{send, gone, more}` | `refused` | node, owner, copy | not cached |
+| `node.build.read` | member |  | `name`, `offset` | `{data}` | `refused`, `bad_request` | node, build | not cached |
 | `node.promote` | owner |  | none | `{number, handed_over}` | `refused` | board, door, copy | not cached |
 | `node.handover` | member |  | none | `{number}` | `refused` | node, copy, door, device | not cached |
 | `node.outranked` | member |  | none | `object` | `refused` | node, door | not cached |
@@ -43,6 +45,10 @@ Cancel a device and close its connections at once. Cancels the device's token. I
 ### `device.set`
 
 Set a lent machine's Run · Pause · Off and its own memory cap. Only the device's own person sets it; anyone else is refused, gate `person`. A device that is no mac or server that joined is refused, gate `kind`. run lists the machine in node.status and lets the master start work there; pause lists it as paused and the master starts nothing new there; off takes it out of node.status. A device.changed event is sent on the devices topic, and the nodes feed changes. It takes lending, memory_max_gb or both.
+
+### `device.update`
+
+Have a lent machine take the master's own build. The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none).
 
 ### `device.push_token`
 
@@ -75,6 +81,10 @@ A runner sends the calls one of its accounts' transcripts gained. Only on a runn
 ### `node.copy.files`
 
 A runner pulls what its copy of the board lacks. Only on a runner's link (gate `node`). The board's copy is the folder Litestream writes on the master (board-copy in its home): each committed change within a second, a snapshot every hour, two hours kept. Only the owner's runners keep it: another person's is refused, gate `owner`, and drops any copy it holds; gate `copy` when the master keeps none now (the runner keeps what it holds). A pull that finds the runner already holding all of it sets the runner's copy in node.status.
+
+### `node.build.read`
+
+A runner reads a piece of a file of the master's own build. Only on a runner's link (gate `node`). The files are the handlined this master runs and the hl beside it, as opened at its start; gate `build` when it serves none (one was not found beside it).
 
 ### `node.promote`
 
