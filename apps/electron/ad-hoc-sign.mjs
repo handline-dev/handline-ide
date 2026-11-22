@@ -6,7 +6,7 @@ import path from 'node:path';
 export default function adHocSign(context) {
   if (process.env.HANDLINE_SIGN_IDENTITY) return;
   const app = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
-  for (const bin of ['handlined', 'hl']) {
+  for (const bin of ['handlined', 'hl', 'tmux']) {
     execFileSync('codesign', ['--force', '--sign', '-', path.join(app, 'Contents', 'Resources', 'bin', bin)], { stdio: 'inherit' });
   }
   execFileSync('codesign', ['--force', '--deep', '--sign', '-', app], { stdio: 'inherit' });

@@ -2,7 +2,8 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
-import { ipcMain } from 'electron';
+import path from 'node:path';
+import { app, ipcMain } from 'electron';
 import type { DaemonClient } from '@handline/client';
 import { CHANNELS } from '#src/bridge.ts';
 import { OpenIn } from '#src/open-in.ts';
@@ -22,6 +23,7 @@ export function handleOpenIn(origin: string, client: DaemonClient, tmp: string):
         () => true,
         () => false,
       ),
+    ...(app.isPackaged && { toolsDir: path.join(process.resourcesPath, 'bin') }),
     later: (fn, ms) => void setTimeout(fn, ms).unref(),
   });
   ipcMain.handle(CHANNELS.openIn, (e, arg) => openIn.open(e, arg));

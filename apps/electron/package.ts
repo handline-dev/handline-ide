@@ -26,7 +26,9 @@ const release = path.join(here, 'release');
 fs.rmSync(release, { recursive: true, force: true });
 for (const arch of archs) {
   const bin = path.join(top, 'dist', `darwin-${arch}`);
-  run('bash', ['tools/build-darwin.sh', version, arch === 'x64' ? 'amd64' : 'arm64', bin]);
+  const goarch = arch === 'x64' ? 'amd64' : 'arm64';
+  run('bash', ['tools/build-darwin.sh', version, goarch, bin]);
+  run('bash', ['tools/build-tmux.sh', goarch, bin]);
   const out = path.join(release, arch);
   run(
     'pnpm',
