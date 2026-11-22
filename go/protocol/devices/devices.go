@@ -174,13 +174,17 @@ func (m *Manager) PairAt(ttl time.Duration, door Door, person string) (c string,
 	return c, expires, door.Fingerprint, "handline://pair?" + q.Encode()
 }
 
-// WebLink is the browser's invite to door: the page opened with the code, which it trades for a device token.
+// WebLink is the browser's invite to door: the page opened with the code, which it trades for a device token. The certificate's
+// fingerprint rides after it, so a Mac given the link joins with the certificate pinned (the page reads only the code).
 func WebLink(door Door, code string) string {
-	scheme := "http"
+	scheme, fp := "http", ""
 	if door.TLS {
 		scheme = "https"
+		if door.Fingerprint != "" {
+			fp = "&fp=" + door.Fingerprint
+		}
 	}
-	return scheme + "://" + door.Addr + "/#pair=" + url.QueryEscape(code)
+	return scheme + "://" + door.Addr + "/#pair=" + url.QueryEscape(code) + fp
 }
 
 func hostOf(addr string) string {

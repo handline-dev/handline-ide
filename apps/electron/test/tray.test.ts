@@ -15,7 +15,6 @@ const view = (over: Partial<TrayView> = {}): TrayView => ({
   unread: 0,
   working: 3,
   openAtLogin: true,
-  remote: null,
   details: false,
   ...over,
 });
@@ -39,12 +38,11 @@ test('the menu, top to bottom: status, Open, Open at login, Quit; no daemon cont
   assert.deepEqual(calls.splice(0), ['open', 'quit']);
 });
 
-test('the status line: how many agents work, starting, paired with another device', () => {
-  const v = (over: Partial<TrayView> = {}) => ({ working: 1, remote: null, ...over });
+test('the status line: how many agents work, starting', () => {
+  const v = (over: Partial<TrayView> = {}) => ({ working: 1, ...over });
   assert.equal(statusLine('running', v()), 'Handline · 1 agent working');
   assert.equal(statusLine('running', v({ working: null })), 'Handline');
   assert.equal(statusLine('starting', v()), 'Handline is starting…');
-  assert.equal(statusLine('running', v({ remote: 'mac.ts.net:7443' })), 'Paired with mac.ts.net:7443');
 });
 
 test('Open at login is a checkbox that turns the setting the other way', () => {
@@ -69,12 +67,6 @@ test('a stopped daemon or a failed update: "Handline needs attention" first, whi
     assert.equal(trayIcon(s, { ...v, unread: 5 }), 'trouble'); // trouble outranks the rest
     assert.ok(!labels(s, v).some((x) => /daemon|Try again|not updated/i.test(x)));
   }
-});
-
-test('paired with another device: this Mac’s daemon being off is no trouble', () => {
-  const v = view({ remote: 'mac.ts.net:7443' });
-  assert.equal(labels('stopped', v)[0], 'Paired with mac.ts.net:7443');
-  assert.equal(trayIcon('stopped', v), 'plain');
 });
 
 test('items waiting on the person add Needs you, which opens the Inbox, and a red dot', () => {

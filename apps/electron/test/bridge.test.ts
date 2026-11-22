@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { NavigateTo } from '@handline/app-core';
 import { makeApi, type Ipc } from '#src/api.ts';
-import { Cli, CHANNELS, Connection, fromWindow, Page, Settings, Update, UpdateChannelCalls, type Sender } from '#src/bridge.ts';
+import { Cli, CHANNELS, ClusterCalls, Connection, fromWindow, Page, Settings, Update, UpdateChannelCalls, type Sender } from '#src/bridge.ts';
 import { noticeFor } from '#src/notices.ts';
 import type { Event } from '@handline/client';
 
@@ -155,39 +155,50 @@ test('a finished task shows its title and result, else Task N done over the agen
   for (const n of [full, bare]) assert.equal(`${n.title} ${n.body}`.split('5720').length - 1, n === full ? 0 : 1);
 });
 
-test('the page switches the mode and pairs another device only from the window and with the right arguments', async () => {
+test('follow and the update check only from the window', async () => {
   const seen: unknown[] = [];
   const c = new Connection(ORIGIN, {
-    mode: () => ({ mode: 'connect', remote: 'mac.ts.net:7443' }),
     build: () => ({ sha: 'abc123def456', canRestart: false }),
-    restartDaemon: async () => {
-      throw new Error('on another device');
-    },
+    restartDaemon: async () => undefined,
     follow: () => ({ sha: 'abc1234', state: 'available', next: 'def5678' }),
     check: async () => void seen.push('check'),
-    setMode: (m) => void seen.push(m),
-    pair: async (i) => {
-      if (i.code === 'bad') throw new Error('the daemon at x cannot be paired with: nothing answered');
-      seen.push(i);
-    },
   });
   const evil: Sender = { senderFrame: { url: 'https://evil.example/', parent: null } };
-  assert.deepEqual(c.mode(top), { ok: true, mode: 'connect', remote: 'mac.ts.net:7443' });
-  assert.equal(c.mode(evil).ok, false);
   assert.deepEqual(c.follow(top), { ok: true, following: true, sha: 'abc1234', state: 'available', next: 'def5678' });
   assert.equal(c.follow(evil).ok, false);
   assert.deepEqual(await c.checkUpdate(top), { ok: true });
   assert.equal((await c.checkUpdate(evil)).ok, false);
-  assert.deepEqual(c.setMode(top, 'own'), { ok: true });
-  assert.equal(c.setMode(top, 'nonsense').ok, false);
-  assert.equal(c.setMode(evil, 'own').ok, false);
-  assert.deepEqual(await c.pairRemote(top, { address: 'a.ts.net', code: 'c' }), { ok: true });
-  assert.equal((await c.pairRemote(top, { address: 'a.ts.net', code: 'c', extra: 'x' })).ok, false);
-  assert.equal((await c.pairRemote(top, { code: 7 })).ok, false);
-  assert.equal((await c.pairRemote(evil, { link: 'handline://x' })).ok, false);
-  const failed = await c.pairRemote(top, { address: 'a.ts.net', code: 'bad' });
-  assert.deepEqual(failed, { ok: false, code: 'cannot_pair', message: 'the daemon at x cannot be paired with: nothing answered' });
-  assert.deepEqual(seen, ['check', 'own', { address: 'a.ts.net', code: 'c' }]);
+  assert.deepEqual(seen, ['check']);
+});
+
+test('the page lists, joins and leaves clusters only from the window and with the right arguments', async () => {
+  const seen: unknown[] = [];
+  const blue = { id: 'abcd0123', name: 'Blue Harbor', daemon: 'wss://m.local:7443/rpc', token: 't', reachable: true };
+  const c = new ClusterCalls(ORIGIN, {
+    list: () => [blue],
+    join: async (i) => {
+      if (i.code === 'bad') throw new Error('cannot reach the master at x');
+      seen.push(i);
+      return blue;
+    },
+    leave: async (id) => void seen.push(id),
+  });
+  const evil: Sender = { senderFrame: { url: 'https://evil.example/', parent: null } };
+  assert.deepEqual(c.list(top), { ok: true, clusters: [blue] });
+  assert.equal(c.list(evil).ok, false);
+  assert.deepEqual(await c.join(top, { address: 'a.ts.net', code: 'c' }), { ok: true, ...blue });
+  assert.equal((await c.join(top, { address: 'a.ts.net', code: 'c', extra: 'x' })).ok, false);
+  assert.equal((await c.join(top, { code: 7 })).ok, false);
+  assert.equal((await c.join(evil, { link: 'handline://x' })).ok, false);
+  assert.deepEqual(await c.join(top, { address: 'a.ts.net', code: 'bad' }), {
+    ok: false,
+    code: 'cannot_join',
+    message: 'cannot reach the master at x',
+  });
+  assert.deepEqual(await c.leave(top, 'abcd0123'), { ok: true });
+  assert.equal((await c.leave(top, '../x')).ok, false);
+  assert.equal((await c.leave(evil, 'abcd0123')).ok, false);
+  assert.deepEqual(seen, [{ address: 'a.ts.net', code: 'c' }, 'abcd0123']);
 });
 
 test('update channel: read and picked only from the window, one of the three, and only on a build that reads updates', () => {
@@ -281,15 +292,12 @@ test('settings: the status bar resource area keys reach the daemon', async () =>
 
 test('the page asks for the app build and restarts the daemon only from the window; a refusal carries its reason', async () => {
   const c = new Connection(ORIGIN, {
-    mode: () => ({ mode: 'own', remote: null }),
     build: () => ({ sha: 'abc123def456', canRestart: true }),
     restartDaemon: async () => {
       throw new Error('build-go.sh: undefined: x');
     },
     follow: () => null,
     check: async () => undefined,
-    setMode: () => undefined,
-    pair: async () => undefined,
   });
   const win = { senderFrame: { url: `${ORIGIN}/`, parent: null } };
   const frame = { senderFrame: { url: `${ORIGIN}/`, parent: {} } };

@@ -246,7 +246,6 @@ test('the menu says an update only once it is ready (Restart to update); a faile
       unread: 0,
       working: 0,
       openAtLogin: true,
-      remote: null,
       details,
       update: { phase, restart: () => undefined },
       follow: { ...base, state: 'current' },

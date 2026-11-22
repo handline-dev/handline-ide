@@ -7,10 +7,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Tray } from 'electron';
 import { type ShellDaemon } from '@handline/app-core';
-import { PROTOCOL, webSocketTransport } from '@handline/client';
-import { pinnedWebSocketTransport, unixSocketTransport } from '@handline/client-node';
+import { PROTOCOL } from '@handline/client';
+import { unixSocketTransport } from '@handline/client-node';
 import { CHANNELS, fromWindow } from '#src/bridge.ts';
-import { Link, pairRemote, plainRemoteHost, helloOf, type OfferInput, type Remote, type Settings, type SettingsFile } from '#src/mode.ts';
+import { Link, type Settings } from '#src/mode.ts';
+import type { Engine } from '#src/clusters.ts';
 import {
   commands,
   daemonEnv,
@@ -26,7 +27,7 @@ import { answers, lockHolder, stopLeftovers } from '#src/leftovers.ts';
 import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#src/pair.ts';
 import { grant } from '#src/grant.ts';
 import { onTailnet } from '#src/tailnet.ts';
-import { quitQuietly, type Ask } from '#src/ask.ts';
+import { type Ask } from '#src/ask.ts';
 import {
   trayIcon as iconFor,
   trayMenu,
@@ -78,7 +79,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  * so it keeps running when the app quits. */
 function spawnDetached(cmd: Cmd, log: number, home: string): void {
   markPathTimedOut(home, !!cmd.pathTimedOut);
-  const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: daemonEnv(process.env, cmd.path) });
+  const p = spawn(cmd.file, cmd.args, { ...detachedSpawn(log), env: cmd.env ?? daemonEnv(process.env, cmd.path) });
   p.on('error', (e) => fs.writeSync(log, `${new Date().toISOString()} app: the daemon did not start: ${e.message}\n`));
   p.unref();
 }
@@ -113,16 +114,6 @@ export function readFounderKey(home: string): string | null {
   }
 }
 
-const openRemote = (url: string, fp: string | null) => (fp ? pinnedWebSocketTransport(url, fp) : webSocketTransport(url));
-
-const pairFrom = (i: OfferInput): Promise<Remote> => pairRemote(i, { open: openRemote, name: 'Handline desktop' });
-
-function relaunchWith(file: SettingsFile, next: Settings): void {
-  file.write(next);
-  app.relaunch();
-  quitQuietly(app);
-}
-
 export interface Own {
   /** The token to hand the open page if it read a stale one, '' when there is none to give, else null; marks it given. */
   freshToken(): string | null;
@@ -133,18 +124,13 @@ export interface Own {
   /** Agents mid-turn, for the tray's first line and the two questions; null while not known. */
   setWorking(n: number | null): void;
   working(): number | null;
-  /** Brings this Mac's daemon up (or reaches the paired device's) and pairs; resolves with the address the listener ended up on. */
+  /** Brings this Mac's daemon up and pairs; resolves with the address the listener ended up on. */
   ready(): Promise<string | undefined>;
   /** What the tray says about the daemon; its version is set once the shell's own connection says hello. */
   link: Link;
-  /** The other device this app is paired with: where the window reaches it. */
-  remote: Remote | null;
-  /** The page's calls: pair with another device, or go back to this Mac's daemon; both relaunch the app. */
-  pair(i: OfferInput): Promise<void>;
-  useThisMac(): void;
   /** Starts this Mac's daemon again on the app's build (a checkout builds it first); rejects with the reason. */
   restartDaemon(): Promise<void>;
-  /** The daemon as the tray shows it, its changes, and a Start; `canStart` is false while the app uses another device's. */
+  /** The daemon as the tray shows it, its changes, and a Start. */
   daemon(): ShellDaemon;
   onDaemon(f: () => void): void;
   startDaemon(): void;
@@ -152,18 +138,6 @@ export interface Own {
   stopDaemon(): Promise<void>;
   /** Whether this Mac's daemon runs: quitting asks first only then. */
   running(): boolean;
-}
-
-/** The paired device's daemon: where it is, the device token, and the host named for a phone. */
-async function attach(remote: Remote, link: Link): Promise<{ address: string; token: string; host: string | null }> {
-  try {
-    const version = await helloOf(remote, openRemote);
-    link.set('connected', { address: remote.host });
-    link.setVersion(version);
-  } catch (e) {
-    link.set('cannot-pair', { address: remote.host, reason: e instanceof Error ? e.message : String(e) });
-  }
-  return { address: remote.host, token: remote.token, host: plainRemoteHost(remote) };
 }
 
 /** The login shell's PATH as a daemon start asked it; timedOut when the shell did not answer in time. */
@@ -230,6 +204,56 @@ const signals = {
   killPid: (pid: number) => process.kill(pid, 'SIGKILL'),
 };
 
+/** The environment of a cluster engine's processes (its daemon, and the hl that joins it): this app's, on the engine's home, with
+ * none of the HANDLINE_ variables that name this Mac's own daemon (its socket, listener, tmux server, binaries); a test's stand-in
+ * user home stays. */
+export function engineEnv(home: string, pathVar?: string): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('HANDLINE_') || k === 'HANDLINE_TEST_ROOT'));
+  return { ...env, ...(pathVar ? { PATH: pathVar } : {}), HANDLINE_HOME: home };
+}
+
+/** A cluster engine's daemon (clusters.ts): a handlined on its own home with no listener, kept as this Mac's daemon is (adopted at
+ * launch, started again when it exits), of whatever build answers: a runner runs its master's build. */
+export function engineDaemon(o: {
+  env: (k: string) => string | undefined;
+  root: string;
+  home: string;
+  loginPath: () => Promise<LoginPath>;
+}): Engine {
+  const log = fs.openSync(path.join(o.home, 'daemon.log'), 'a');
+  const socket = path.join(o.home, 'daemon.sock');
+  const owner = new Owner({
+    socketUp: () => answers(socket),
+    daemonBuild: () => daemonBuild(socket),
+    holder: () => lockHolder(o.home),
+    ...signals,
+    stopLeftovers: async () => undefined,
+    spawn: (cmd) => spawnDetached(cmd, log, o.home),
+    daemon: async () => {
+      const login = (await o.loginPath()).path;
+      return {
+        file: o.env('HANDLINED') ?? `${o.root}/go/handlined`,
+        args: ['-home', o.home],
+        env: engineEnv(o.home, daemonPath(login, process.env.PATH)),
+      };
+    },
+    wait: sleep,
+    now: () => Date.now(),
+    build: null,
+  });
+  return {
+    start: () => owner.start(),
+    stop: () => owner.stop(),
+    close: () => (owner.close(), fs.closeSync(log)),
+    get state() {
+      return owner.state;
+    },
+    get reason() {
+      return owner.reason;
+    },
+  };
+}
+
 /** Builds and starts this Mac's daemon again for the page; rejects with why it could not. */
 async function restartOwn(
   o: Parameters<typeof daemonCmd>[0] & { buildDaemon?: () => Promise<unknown> },
@@ -264,7 +288,6 @@ export function ownDaemon(o: {
   openWindow: () => void;
   /** Shows the window on a page that has no id: 'inbox' or 'settings'. */
   openPage: (screen: 'inbox' | 'settings') => void;
-  settings: SettingsFile;
   current: Settings;
   /** Open at login, as the tray's checkbox changes it: kept in the settings and handed to the system. */
   setOpenAtLogin: (on: boolean) => void;
@@ -279,16 +302,13 @@ export function ownDaemon(o: {
    * daemon starts it again; an installed app has no build step, so its daemon is started again from the bundle it carries. */
   build: string | null;
   buildDaemon?: () => Promise<void>;
-  /** On a runner Mac, the master its daemon obeys, with this machine's device token there: the window goes to it (runner-mac.ts). */
-  master?: Remote | null;
 }): Own {
   const log = fs.openSync(path.join(app.getPath('userData'), 'daemon.log'), 'a');
-  const remote = o.current.remote;
   // HANDLINE_ATTACH=1: a dev run on a home whose daemon is not this app's to start or stop (hl dev, try-prototype beside the installed app).
   const attachOnly = o.env('ATTACH') === '1';
-  const mine = !remote && !attachOnly;
-  // The window's loopback door: the listen port on 127.0.0.1 (windowDaemon). A runner does not listen.
-  const door = o.listen && !o.master ? Number(o.listen.slice(o.listen.lastIndexOf(':') + 1)) : null;
+  const mine = !attachOnly;
+  // The window's loopback door: the listen port on 127.0.0.1 (windowDaemon).
+  const door = o.listen ? Number(o.listen.slice(o.listen.lastIndexOf(':') + 1)) : null;
   const owner = new Owner({
     socketUp: () => answers(o.socket),
     ...(door !== null && { doorUp: () => answers(door) }),
@@ -306,9 +326,7 @@ export function ownDaemon(o: {
   const tray = makeTray(o.tray);
   const link = new Link();
   link.app = o.build;
-  link.set('connecting', { address: remote?.host ?? o.master?.host ?? o.listen ?? null });
-  const relaunchAs = (next: Settings) => relaunchWith(o.settings, next);
-  const pair = async (i: OfferInput) => relaunchAs({ ...o.current, remote: await pairFrom(i) });
+  link.set('connecting', { address: o.listen ?? null });
   link.onChange(() => draw());
   const restartDaemon = () => restartOwn(o, owner, mine);
   const counts = { working: null as number | null, unread: 0 };
@@ -316,7 +334,6 @@ export function ownDaemon(o: {
   const draw = trayControls(tray, owner, actions, () => ({
     ...counts,
     openAtLogin: o.current.openAtLogin,
-    remote: remote?.host ?? null,
     link,
     update: o.update?.(),
     follow: o.follow?.(),
@@ -326,8 +343,8 @@ export function ownDaemon(o: {
   draw();
   // The key stays in this process; the page gets the device token only, from its own origin's top frame.
   const tokens = new TokenFile(path.join(app.getPath('userData'), 'device.json'));
-  let token: string | null = remote ? null : (o.master?.token ?? tokens.read()?.token ?? null);
-  let ownHost: string | null = o.master ? plainRemoteHost(o.master) : null;
+  let token: string | null = tokens.read()?.token ?? null;
+  let ownHost: string | null = null;
   let settled = false; // ready() has ended: the token is what it will be
   let given: string | null | undefined; // the token the page last read; it reads once per load
   ipcMain.on(CHANNELS.token, (e) => {
@@ -348,15 +365,12 @@ export function ownDaemon(o: {
     setWorking: (n) => (counts.working = n),
     working: () => counts.working,
     link,
-    remote,
     restartDaemon,
-    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: !remote, pathTimedOut: pathTimedOut(o.home) }),
+    daemon: () => ({ state: owner.state, reason: owner.reason, canStart: true, pathTimedOut: pathTimedOut(o.home) }),
     onDaemon: (f) => owner.onChange(f),
     startDaemon: () => void owner.start(),
     stopDaemon: () => stopOwn(owner, mine),
     running: () => mine && owner.state === 'running',
-    pair,
-    useThisMac: () => relaunchAs({ ...o.current, remote: null }),
     async ready() {
       try {
         return await bringUp();
@@ -366,13 +380,6 @@ export function ownDaemon(o: {
     },
   };
   async function bringUp() {
-    if (remote) {
-      const c = await attach(remote, link);
-      token = c.token;
-      ownHost = c.host;
-      return c.address;
-    }
-    if (o.master) return (await owner.start(), o.master.host); // the tray's link follows the shell's connection to it (main.ts)
     if (!o.listen) return undefined;
     await owner.start();
     ownHost = onTailnet(o.listen) ? o.listen.split(':')[0]! : null; // named even when nothing started: the page shows the reason (grant)
