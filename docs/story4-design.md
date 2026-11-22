@@ -241,7 +241,8 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 17 | The board's copy: Litestream inside the master writing to a folder; each of the owner's runners mirrors it; how far behind, in `node.status`; the copy and the takeover kept in one package, so a vote can replace them | daemon | 10 | 4 |
 | 18 | Taking over by hand: `node.promote` on an owner's runner; with the master reachable it loses nothing, without it the runner restores the copy; either way the master number goes up; runners obey the highest; an old master that returns becomes a runner with its board set aside; tested with a master and two runners on one Mac | daemon, hl | 6 | 9, 17 |
 | 19 | The app after a new master: the machine list and token kept, the new master found and joined; "Make this Mac the master"; a set-aside board said so | app | 4 | 14, 18 |
+| 20 | The desktop app on a runner Mac: the window and the shell's own connection go to the master its daemon obeys (the joined master and the owner's machines it was told of, each certificate pinned), with this machine's device token; with none answering, the page on the master it joined says "Can't reach the master" with "Make this Mac the master"; made the master, the app starts again on this Mac's own door | app | 4 | 19 |
 
-About 157 hours: phase 1 (slices 1 to 14 and 17 to 19) about 139, phase 2 about 18. Not in this list:
+About 161 hours: phase 1 (slices 1 to 14 and 17 to 20) about 143, phase 2 about 18. Not in this list:
 taking over by itself, a majority vote among three or more machines, lending only at night, resting while the
 person uses the machine, bringing a set-aside board's tasks over, the phone.

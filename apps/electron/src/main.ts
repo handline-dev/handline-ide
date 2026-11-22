@@ -2,11 +2,10 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Notification, session, shell, type WebContents } from 'electron';
+import { app, desktopCapturer, dialog, ipcMain, Notification, session, shell, type BrowserWindow } from 'electron';
 import { DaemonClient } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { drawsTray, inBackground } from '#src/background.ts';
-import { isDebugWindow } from '#src/debug-window.ts';
 import { setMenu } from '#src/menu.ts';
 import { Desk } from '#src/desk.ts';
 import { Composer, LOGIN_PROBE, loginAnswer, sweepTemp, type EditorEnv } from '#src/editor.ts';
@@ -16,12 +15,14 @@ import { gitView, scratch } from '#src/git-view.ts';
 import { Opener } from '#src/open.ts';
 import { handleOpenIn } from '#src/open-in-serve.ts';
 import { Devices } from '#src/devices.ts';
-import { capturePage, guardWebviews } from '#src/preview.ts';
+import { capturePage } from '#src/preview.ts';
 import { followMain } from '#src/follow-app.ts';
-import { keepPlace, savedFrame, savedRoute, type Frame } from '#src/window-place.ts';
+import { keepPlace, savedFrame, savedRoute } from '#src/window-place.ts';
+import { createWindow } from '#src/app-window.ts';
 import type { Follower } from '#src/follow.ts';
 import { remoteUrl, SettingsFile, type Link, type Remote } from '#src/mode.ts';
 import { Doors, serveOwnDaemon, trustFingerprints } from '#src/masters.ts';
+import { findMaster, joinedOf, masterTransport, type Joined } from '#src/runner-mac.ts';
 import { ownDaemon, readFounderKey, type Own } from '#src/own.ts';
 import { quitQuietly } from '#src/ask.ts';
 import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, trayFollow, trayUpdate } from '#src/app-life.ts';
@@ -146,7 +147,13 @@ function handleSettings(origin: string, client: DaemonClient, remote: Remote | n
   ipcMain.handle(CHANNELS.settingsSet, (e, arg) => s.set(e, arg));
 }
 
-function handleConnection(origin: string, own: Own, remote: Remote | null, client: DaemonClient, f?: Follower): void {
+/** Starts the app again: after a runner Mac was made the master, its window goes to this Mac's own door. */
+const relaunch = (): void => {
+  app.relaunch();
+  quitQuietly(app);
+};
+
+function handleConnection(origin: string, own: Own, remote: Remote | null, client: DaemonClient, f?: Follower, runnerMac = false): void {
   const c = new Connection(origin, {
     // Only a daemon this app started, and only when the build on disk is this one: a newer one (main moved) is the follow offer's to apply.
     build: () => ({ sha: runningBuild, canRestart: !remote && readBuildSha(import.meta.dirname) === runningBuild }),
@@ -172,6 +179,7 @@ function handleConnection(origin: string, own: Own, remote: Remote | null, clien
     home,
     doors: () => doors,
     send: (v) => win?.webContents.send(CHANNELS.daemon, v),
+    promoted: runnerMac ? relaunch : undefined, // the window then goes to this Mac's own door
   });
   ipcMain.handle(CHANNELS.follow, (e) => c.follow(e));
   ipcMain.handle(CHANNELS.checkUpdate, (e) => c.checkUpdate(e));
@@ -202,14 +210,27 @@ function handleDevices(origin: string): void {
   ipcMain.handle(CHANNELS.deviceText, (e, arg) => devices.text(e, arg));
 }
 
-/** The shell's own connection to the daemon. */
-const shellClient = (remote: Remote | null): DaemonClient =>
-  new DaemonClient({ client: 'electron', connect: () => unixSocketTransport(socket), key: founderKey, founder: !remote && !outsideHome() });
+/** The shell's own connection to the daemon; on a runner Mac, to its master with this machine's device token. */
+const shellClient = (remote: Remote | null, joined: Joined | null): DaemonClient =>
+  joined
+    ? new DaemonClient({ client: 'electron', connect: masterTransport(joined), token: joined.master.token })
+    : new DaemonClient({
+        client: 'electron',
+        connect: () => unixSocketTransport(socket),
+        key: founderKey,
+        founder: !remote && !outsideHome(),
+      });
 
 /** On every connect, a daemon restarted by an update included, the tray learns which build it now is. */
 function watchVersion(client: DaemonClient, link: Link): void {
   link.setVersion(client.hello?.daemon);
   client.onState((st) => st === 'open' && link.setVersion(client.hello?.daemon));
+}
+
+/** On a runner Mac the tray says whether the shell reaches the master. */
+function watchMaster(client: DaemonClient, link: Link): void {
+  link.set('connected');
+  client.onState((st) => link.set(st === 'open' ? 'connected' : 'connecting'));
 }
 
 /** Runs `f` until it stops throwing, two seconds apart. */
@@ -278,63 +299,20 @@ function handleUpdate(origin: string, flow: UpdateFlow, redraw: () => void): voi
   });
 }
 
-/** The calls the shell makes on its own founder connection for the page: settings, and openIn. */
+/** The calls the shell makes on its own connection for the page (the founder's, or a runner Mac's device at the master): settings, openIn, and opening an agent's worktree. */
 function handleFounderCalls(origin: string, client: DaemonClient, remote: Remote | null, tmp: string): void {
   handleSettings(origin, client, remote);
   handleOpenIn(origin, client, tmp);
-}
-
-/** The app window: the page gets window.handline and nothing else, and the window never leaves the loopback origin. */
-function createWindow(origin: string, onReady: () => void, frame: Frame | null): BrowserWindow {
-  const w = new BrowserWindow({
-    ...(frame ? { x: frame.x, y: frame.y } : {}),
-    width: frame?.width ?? 1280,
-    height: frame?.height ?? 860,
-    title: 'Handline',
-    icon: APP_ICON,
-    show: false,
-    // No OS title bar; the traffic lights sit over the sidebar (styles/base.css makes room).
-    ...(os.platform() === 'darwin' ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 15 } } : {}),
-    // The page gets window.handline from the preload and nothing else (docs/electron-bridge.md §2).
-    webPreferences: {
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      preload: path.join(import.meta.dirname, 'preload.cjs'),
-      webviewTag: true, // the web tab's pages, each held to preview.ts's rules
-      // A hidden window would be throttled; a background run's page must keep drawing for its checks and captures.
-      backgroundThrottling: !background,
-    },
+  // The worktree of an agent comes from the shell's own daemon connection, never from the page.
+  const opener = new Opener(origin, {
+    worktreeOf: async (agent) => (await client.call('agent.get', { agent })).worktree?.path ?? null,
+    open: (p) => shell.openPath(p),
+    reveal: (p) => shell.showItemInFolder(p),
+    git: gitView,
+    openExternal: (url) => shell.openExternal(url),
+    scratch: (name, bytes) => scratch(tmp, name, bytes),
   });
-  guardWebviews(w);
-  // The traffic lights are gone in full screen: the page drops the room it keeps for them (shell.ts).
-  const tellFull = () => w.webContents.send(CHANNELS.fullScreen, w.isFullScreen());
-  w.on('enter-full-screen', tellFull);
-  w.on('leave-full-screen', tellFull);
-  w.webContents.on('did-finish-load', tellFull);
-  w.once('ready-to-show', onReady);
-  if (frame?.maximized) w.maximize();
-  if (frame?.fullScreen) w.setFullScreen(true);
-  confine(w.webContents, origin);
-  return w;
-}
-
-/**
- * The window shows the app and nothing else: a link goes to the browser (http/https only), and the window never leaves the loopback
- * origin. The one window the page may open is the debug window, on the same origin and with the same preferences, and it is
- * confined the same way.
- */
-function confine(contents: WebContents, origin: string): void {
-  contents.setWindowOpenHandler(({ url }) => {
-    if (isDebugWindow(url, origin))
-      return { action: 'allow', overrideBrowserWindowOptions: { width: 1280, height: 820, title: 'Terminals (debug)' } };
-    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  contents.on('did-create-window', (child) => confine(child.webContents, origin));
-  contents.on('will-navigate', (e, url) => {
-    if (new URL(url).origin !== origin) e.preventDefault();
-  });
+  ipcMain.handle(CHANNELS.openPath, (e, arg) => opener.openPath(e, arg));
 }
 
 // A port for DevTools protocol checks of a run (HANDLINE_DEBUG_PORT=9333).
@@ -365,13 +343,18 @@ if (!app.requestSingleInstanceLock({ background })) {
     const remote = current.remote;
     const login = loginLaunch(current.openAtLogin, background);
     if (remote) useRemote(remote);
-    doors = trustFingerprints(app, new Doors(settings, current), { remote, window: () => win?.webContents });
+    // A runner Mac: the window goes to the master its daemon obeys; with none answering, to the one it joined, and the page says it
+    // cannot reach it, with "Make this Mac the master".
+    const joined = remote ? null : joinedOf(os.homedir(), home);
+    const master = joined && ((await findMaster(joined)) ?? joined.master);
+    if (master) ws = remoteUrl(master);
+    doors = trustFingerprints(app, new Doors(settings, current), { remote: remote ?? master, window: () => win?.webContents });
     // The device token, the layouts and the settings are kept per page origin, so the page keeps one port from launch to launch.
     const web = await pageServer();
     const origin = new URL(web.url).origin;
     const page = new Page(origin);
-    // The shell's own calls (an agent's worktree, the badge) are the founder's: hello carries the key from the protected store, as pairing does.
-    const client = shellClient(remote);
+    // The shell's own calls (an agent's worktree, the badge): the founder's key from the protected store, or a runner Mac's device token.
+    const client = shellClient(remote, joined);
     // Follow-main mode (pnpm app): the app runs from its own checkout of main and offers to restart when main moves.
     const following = env('FOLLOW') ? followMain({ dir: root, window: () => win, changed: () => own.redraw(), flow }) : null;
     const f = following?.follower;
@@ -396,29 +379,20 @@ if (!app.requestSingleInstanceLock({ background })) {
       setOpenAtLogin: saveOpenAtLogin(settings),
       build: runningBuild,
       buildDaemon: env('HANDLINED') ? undefined : buildDaemon, // a packaged app names its bundle's handlined
+      master,
       openWindow: () => void openWindow(),
       openPage: (screen) => void openWindow().then(() => win?.webContents.send(CHANNELS.navigate, { screen, id: '', event: 'tray' })),
       update: () => trayUpdate(flow),
       follow: f && (() => trayFollow(f)),
     });
-    handleConnection(origin, own, remote, client, f);
+    handleConnection(origin, own, remote, client, f, !!joined);
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
     ipcMain.handle(CHANNELS.unsent, (e, arg) => page.setUnsent(e, arg));
     ipcMain.handle(CHANNELS.capturePreview, (e, id) => capturePage(e, origin, id));
     handleDevices(origin);
     handleFounderCalls(origin, client, remote, app.getPath('temp'));
-    // The worktree of an agent comes from the shell's own daemon connection, never from the page.
-    const opener = new Opener(origin, {
-      worktreeOf: async (agent) => (await client.call('agent.get', { agent })).worktree?.path ?? null,
-      open: (p) => shell.openPath(p),
-      reveal: (p) => shell.showItemInFolder(p),
-      git: gitView,
-      openExternal: (url) => shell.openExternal(url),
-      scratch: (name, bytes) => scratch(app.getPath('temp'), name, bytes),
-    });
     const composer = new Composer(origin, { env: editorEnv, tmp: app.getPath('temp') });
-    ipcMain.handle(CHANNELS.openPath, (e, arg) => opener.openPath(e, arg));
     ipcMain.handle(CHANNELS.compose, (e, arg) => composer.compose(e, arg));
     ipcMain.handle(CHANNELS.cancelCompose, (e, arg) => composer.cancel(e, arg));
     app.on('quit', () => composer.dispose());
@@ -427,7 +401,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       login.shown();
       if (win && !win.isDestroyed()) return show();
       const frame = background ? null : savedFrame();
-      win = createWindow(origin, show, frame);
+      win = createWindow(origin, show, frame, { icon: APP_ICON, background });
       if (!background) keepPlace(win);
       await win.loadURL(`${web.url}?daemon=${encodeURIComponent(ws)}${background ? '' : savedRoute()}`);
     };
@@ -480,7 +454,8 @@ if (!app.requestSingleInstanceLock({ background })) {
     // The client reconnects once it has been up; a daemon that is down at launch is retried here.
     void (async () => {
       await untilUp(() => client.start());
-      if (!remote) watchVersion(client, own.link);
+      if (joined) watchMaster(client, own.link);
+      else if (!remote) watchVersion(client, own.link);
       await untilUp(() => desk.start());
     })();
     countWorking(client, own);

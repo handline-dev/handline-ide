@@ -5,7 +5,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { lockPid, oldGatewayPid, portHolder } from '#src/owner.ts';
-import { founderKeyFile } from '#src/pair.ts';
+import { protectedDir } from '#src/pair.ts';
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -23,7 +23,7 @@ export const answers = (where: string | number): Promise<boolean> =>
 async function stopOldGateway(home: string): Promise<void> {
   const sock = path.join(home, 'gateway.sock');
   if (!(await answers(sock))) return;
-  const dir = path.dirname(path.dirname(founderKeyFile(os.homedir(), home)));
+  const dir = protectedDir(os.homedir(), home);
   const pid = oldGatewayPid(dir);
   if (!pid) throw new Error(`an old gateway answers on ${sock} and ${path.join(dir, 'gateway', 'pid')} names no pid; stop it by hand`);
   process.kill(pid, 'SIGTERM');
