@@ -133,6 +133,7 @@ func main() {
 		fmt.Println(version.Sha)
 		return
 	}
+	paths.UseCarriedTools()
 	if agent := leaveAgentSession(); agent != "" {
 		log.Printf("handlined: started from %s's session; dropped its agent variables", agent)
 	}

@@ -15,11 +15,14 @@ export default {
   productName: 'Handline',
   directories: { output: 'release' },
   files: ['dist/**', 'assets/**', 'package.json'],
-  // The web build, and the daemon and CLI that `tools/build-darwin.sh` made: main.ts finds them under Resources when the app is packaged.
+  // The web build, and the daemon, CLI and tmux that `tools/build-darwin.sh` and `tools/build-tmux.sh` made: main.ts finds them under Resources when the app is packaged.
   extraResources: [
     { from: '../web/dist', to: 'web' },
     { from: `${bin}/handlined`, to: 'bin/handlined' },
     { from: `${bin}/hl`, to: 'bin/hl' },
+    // tmux, built with libevent inside (tools/build-tmux.sh), for a Mac that has none: the daemon finds it after the system's (go/kit/paths/carried.go).
+    { from: `${bin}/tmux`, to: 'bin/tmux' },
+    { from: `${bin}/licenses`, to: 'licenses' },
   ],
   npmRebuild: false,
   afterSign: 'ad-hoc-sign.mjs',

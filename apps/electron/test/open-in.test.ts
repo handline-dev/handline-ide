@@ -228,3 +228,13 @@ test('installTools runs the known install commands from a launcher in Terminal; 
   assert.doesNotMatch(fs.readFileSync(one.calls[0]!.args[2]!, 'utf8'), /xcode-select/);
   assert.equal(code(await make().o.install(top, { tool: 'tmux', argv: ['rm'] })), 'bad_request');
 });
+
+test('with tools the app carries, the Claude Code launcher puts their folder last on PATH before it runs tmux', async () => {
+  present.add(TERM);
+  const { o, calls } = make({ toolsDir: '/Applications/Handline.app/Contents/Resources/bin' });
+  assert.deepEqual(await o.open(top, { app: 'claude', agent: 'handline.x' }), { ok: true });
+  assert.equal(
+    fs.readFileSync(calls[0]!.args[2]!, 'utf8'),
+    "#!/bin/sh\nPATH=\"$PATH\":'/Applications/Handline.app/Contents/Resources/bin'; export PATH\nexec 'tmux' '-L' 'handline' 'attach-session' '-t' 'handline'\n",
+  );
+});

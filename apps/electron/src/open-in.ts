@@ -34,6 +34,8 @@ export interface OpenInDeps {
   exec(file: string, args: string[]): Promise<void>;
   /** Whether an app is at this path. */
   exists(p: string): Promise<boolean>;
+  /** The folder of the tools the app carries (tmux among them), when it is the installed app; the attach command finds a tmux there when the system has none. */
+  toolsDir?: string;
   /** Calls `fn` after `ms`; the delete of the launcher's folder. */
   later(fn: () => unknown, ms: number): void;
 }
@@ -142,7 +144,9 @@ export class OpenIn {
     if (!(await this.has('terminal'))) return fail('unavailable', 'Terminal is not installed');
     const argv = await this.deps.attachOf(agent).catch(() => null);
     if (!argv || !isAttach(argv)) return fail('unavailable', `${agent} has no terminal to open`);
-    return this.launch('handline-claude.command', `#!/bin/sh\nexec ${argv.map(quote).join(' ')}\n`);
+    // The system's tmux comes first, as for the daemon (go/kit/paths/carried.go): the client must be the server's version.
+    const path = this.deps.toolsDir ? `PATH="$PATH":${quote(this.deps.toolsDir)}; export PATH\n` : '';
+    return this.launch('handline-claude.command', `#!/bin/sh\n${path}exec ${argv.map(quote).join(' ')}\n`);
   }
 
   /** A script in a fresh folder, opened by Terminal; the folder goes after a minute, or at once when the open fails. */
