@@ -737,6 +737,13 @@ func (d *Daemon) typing() *sessionrpc.Env {
 	if d.cfg.Turns != nil {
 		t.Turns = d.cfg.Turns
 		env.Turns = d.cfg.Turns
+		env.Running = func(agent string) []sessionrpc.RunningJob {
+			var out []sessionrpc.RunningJob
+			for _, j := range d.cfg.Turns.Running(agent) {
+				out = append(out, sessionrpc.RunningJob{ID: j.ID, Type: j.Type, Name: j.Name})
+			}
+			return out
+		}
 	}
 	return env
 }

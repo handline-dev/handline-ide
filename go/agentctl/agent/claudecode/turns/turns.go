@@ -248,8 +248,9 @@ func (t *Tracker) hook(tr *turn, agent, event string, raw map[string]any, at int
 	}
 }
 
-// Job is one entry of Stop's background_tasks: its id, and its name, "<type>: <description>" (a shell's command when it has none).
-type Job struct{ ID, Name string }
+// Job is one entry of Stop's background_tasks: its id, its name, "<type>: <description>" (a shell's command when it has none), and
+// its type.
+type Job struct{ ID, Name, Type string }
 
 // runningTasks are the entries of Stop's background_tasks still running.
 func runningTasks(v any) []Job {
@@ -264,11 +265,12 @@ func runningTasks(v any) []Job {
 		if d == "" {
 			d, _ = m["command"].(string)
 		}
-		if typ, _ := m["type"].(string); typ != "" {
+		typ, _ := m["type"].(string)
+		if typ != "" {
 			d = typ + ": " + d
 		}
 		id, _ := m["id"].(string)
-		out = append(out, Job{ID: id, Name: d})
+		out = append(out, Job{ID: id, Name: d, Type: typ})
 	}
 	return out
 }

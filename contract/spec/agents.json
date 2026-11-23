@@ -1294,6 +1294,57 @@
      "since"
     ],
     "additionalProperties": false
+   },
+   "AgentJob": {
+    "type": "object",
+    "description": "One background job the agent's last Stop listed.",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "type": {
+      "type": "string",
+      "description": "shell, or what else Claude Code runs in the background (agent, monitor, ...)."
+     },
+     "name": {
+      "type": "string",
+      "description": "\"<type>: <description>\", a shell's command when it has none."
+     },
+     "started": {
+      "oneOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "When it started, epoch seconds; null when that is not recorded."
+     },
+     "output": {
+      "oneOf": [
+       {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 5
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "A shell's last 5 output lines that are not blank, each at most 200 characters; [] when its output file cannot be read; null for a job that is no shell."
+     }
+    },
+    "required": [
+     "id",
+     "type",
+     "name",
+     "started",
+     "output"
+    ],
+    "additionalProperties": false
    }
   }
  },
@@ -2506,6 +2557,166 @@
     "unsupported"
    ],
    "description": "Each call is recorded as an event of the agent (kind type, key or input) whose actor is the caller: for a paired device, kind device with its id. A daemon that runs structured agents need not serve this method (the Go daemon does not: it is absent from hello, so a client never calls it for one). One that serves it refuses an agent run as a structured session, gate unsupported: it has no terminal to type at, so a client sends chat.send and watches the transcript."
+  },
+  {
+   "name": "agent.jobs",
+   "summary": "The agent's background jobs, as its last turn's end listed them, with a shell's last output lines.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "jobs": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/AgentJob"
+       }
+      }
+     },
+     "required": [
+      "jobs"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "x-role": "owner",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "agent_jobs",
+    "feed": "agents"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "Read on demand (it reads each shell's output file): what the agent's last Stop said still runs, less a shell whose output nothing writes any more (stopped, or ended since). None while a turn runs, or before a Stop said."
+  },
+  {
+   "name": "agent.job.stop",
+   "summary": "Stop one background shell of the agent's.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "job",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The job's id, from agent.jobs."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "uncached",
+    "label": "stop job"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "type",
+    "state",
+    "terminal_lock",
+    "input_holder"
+   ],
+   "description": "Sends SIGTERM to the background shell's process group: the group of its own, under the agent's CLI, whose processes write the job's output file (fd 1 or 2). Never the CLI's group, one shared with what is above it, or the daemon's. Refused, gate type, for a job that is no shell (agent.jobs.stop stops those), and gate state when its output file is not recorded, its terminal's processes cannot be read on this machine, or no such group writes the file (it may have ended). terminal_lock and input_holder as session.input."
+  },
+  {
+   "name": "agent.jobs.stop",
+   "summary": "Stop all of the agent's background work.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "uncached",
+    "label": "stop all jobs"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "state",
+    "screen_blocker",
+    "wall",
+    "terminal_lock",
+    "input_holder"
+   ],
+   "description": "Presses Ctrl+X Ctrl+K twice in the agent's terminal: Claude Code stops its background work on the second, its confirm. Refused, gate state, while nothing runs (unclaimed, Ctrl+K would cut the person's draft) or the pane is a plain shell; gate screen_blocker with a dialog open; gate wall at the usage wall; terminal_lock and input_holder as session.input."
   },
   {
    "name": "session.interrupt",

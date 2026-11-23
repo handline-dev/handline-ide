@@ -53,6 +53,7 @@ export interface Session {
   strip?: Partial<Methods['agent.strip']['result']>; // what a test sets over the numbers agent.strip answers
   handle?: string; // a shell shell.open started: its terminal handle, with no agent session behind it
   received: { kind: 'text' | 'key'; value: string; actor: string }[]; // what reached the terminal
+  jobs?: Methods['agent.jobs']['result']['jobs']; // agent.jobs's, a test sets them; none by default
 }
 
 /** How one connection watches a terminal: the format it asked for, and its own notice counter when that is bytes. */

@@ -22,6 +22,7 @@ export const useAgentsList = (params: CallParams<"agents.list"> = {}, opts?: Rea
 export const useAgentGet = (params: CallParams<"agent.get">, opts?: ReadOpts) => useRead("agent.get", params, opts);
 export const useAgentTimeline = (params: CallParams<"agent.timeline">, opts?: ReadOpts) => useRead("agent.timeline", params, opts);
 export const useAgentOptions = (params: CallParams<"agent.options"> = {}, opts?: ReadOpts) => useRead("agent.options", params, opts);
+export const useAgentJobs = (params: CallParams<"agent.jobs">, opts?: ReadOpts) => useRead("agent.jobs", params, opts);
 export const usePromptList = (params: CallParams<"prompt.list">, opts?: ReadOpts) => useRead("prompt.list", params, opts);
 export const useAgentStrip = (params: CallParams<"agent.strip">, opts?: ReadOpts) => useRead("agent.strip", params, opts);
 export const useAccessList = (params: CallParams<"access.list">, opts?: ReadOpts) => useRead("access.list", params, opts);

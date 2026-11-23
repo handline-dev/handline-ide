@@ -139,6 +139,24 @@ const BASE: Record<string, (h: Call) => unknown> = {
     const { c, p, actor, script, agent } = h;
     return script.keys(agent(), p.keys, c, actor);
   },
+  'agent.jobs': ({ agent }) => ({ jobs: agent().jobs ?? [] }),
+  'agent.job.stop': ({ p, script, agent }) => {
+    const s = agent();
+    const job = (s.jobs ?? []).find((j) => j.id === p.job);
+    if (!job) throw new Failure('not_found', `${s.fx.name} runs no background job ${String(p.job)}`);
+    if (job.type !== 'shell') throw new Failure('refused', `${job.name} is no shell: only agent.jobs.stop stops it`, { gate: 'type' });
+    s.jobs = (s.jobs ?? []).filter((j) => j !== job);
+    return script.accepted(`${s.fx.name}: ${job.name} stopped`);
+  },
+  'agent.jobs.stop': (h) => {
+    const { c, actor, script, agent } = h;
+    const s = agent();
+    if (!s.jobs?.length) throw new Failure('refused', `${s.fx.name} runs nothing in the background`, { gate: 'state' });
+    script.gate(s, c);
+    for (let i = 0; i < 2; i++) script.record(s, 'key', 'ctrl-x ctrl-k', actor.name);
+    s.jobs = s.jobs.filter((j) => j.type !== 'shell'); // as the daemon lists them: the shells end, the rest until the next Stop
+    return script.accepted(`${s.fx.name}: agent.jobs.stop sent`);
+  },
   'session.interrupt': (h) => {
     const { c, actor, script, agent } = h;
     const s = agent();

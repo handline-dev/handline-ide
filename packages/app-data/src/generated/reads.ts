@@ -19,6 +19,7 @@ export const reads = {
   "agent.get": { resource: "agent", id: "agent", feed: "agents" },
   "agent.timeline": { resource: "timeline", feed: "agents" },
   "agent.options": { resource: "agent-options" },
+  "agent.jobs": { resource: "agent_jobs", feed: "agents" },
   "prompt.list": { resource: "prompts", id: "agent", feed: "notifications" },
   "agent.strip": { resource: "strip", id: "agent", feed: "agents" },
   "access.list": { resource: "access", id: "agent", feed: "agents" },

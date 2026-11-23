@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"database/sql"
 	"sort"
 
 	"github.com/handline/handline/go/accounts/subscriptions"
@@ -16,7 +15,6 @@ import (
 	"github.com/handline/handline/go/scheduler/cronspec"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/schedules"
-	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -256,11 +254,7 @@ func (t timeboxPorts) BgJobs(q db.Q, agent string, count int, _ int64) []tick.Bg
 	for _, r := range running {
 		j := tick.BgJob{Name: r.Name}
 		if r.ID != "" {
-			var at sql.NullInt64
-			_ = q.QueryRow("SELECT MIN(ts) FROM events e WHERE agent = ?1 AND ts >= ?2 AND (kind = ?3 AND json_extract(payload, '$.job') = ?4 "+
-				"OR kind = 'Stop' AND EXISTS (SELECT 1 FROM json_each(e.payload, '$.background_tasks') WHERE json_extract(value, '$.id') = ?4))",
-				agent, from, session.BackgroundKind, r.ID).Scan(&at)
-			j.Started = at.Int64
+			j.Started = db.BgJobStarted(q, agent, from, r.ID)
 		}
 		jobs = append(jobs, j)
 	}

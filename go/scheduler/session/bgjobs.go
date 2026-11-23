@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
@@ -17,7 +18,7 @@ import (
 // killed leaves no exit line).
 
 // BackgroundKind is the event Note writes.
-const BackgroundKind = "background_started"
+const BackgroundKind = db.BackgroundStartedKind
 
 // CommandWidth is how much of a job's command Line shows.
 const CommandWidth = 100
