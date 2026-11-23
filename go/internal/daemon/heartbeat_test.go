@@ -143,6 +143,9 @@ func TestAStoppedRunnerIsOfflineThenItsSessionIsTakenBackAndItsLeftoversRescued(
 	}
 
 	os.WriteFile(filepath.Join(wt, "left.txt"), []byte("not committed\n"), 0o644)
+	for _, k := range []string{"GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"} {
+		t.Setenv(k, "") // a lent machine may have no git identity: the rescue still commits
+	}
 	r2, err := runner.Start(runner.Config{Home: home, Sha: master.nodes.Version, Master: joinedMaster(t, home), Term: runnerTerm(home),
 		HL: "true", Log: t.Logf}) // the same home, started again
 	if err != nil {

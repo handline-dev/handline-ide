@@ -274,6 +274,8 @@ func (r *Runner) snapshot(folder string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Handline's commit, as worktreeprune's rescue is: a machine lent with no git identity still saves the work
+	env = append(env, "GIT_AUTHOR_NAME=handline", "GIT_COMMITTER_NAME=handline", "GIT_AUTHOR_EMAIL=handline@localhost", "GIT_COMMITTER_EMAIL=handline@localhost")
 	return r.gitEnv(env, "-C", folder, "commit-tree", tree, "-p", "HEAD", "-m", "Left on this machine when its session was taken back")
 }
 
