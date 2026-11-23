@@ -133,7 +133,8 @@ the master.
   The copy is only ever restored, never read from. It is `go/internal/boardcopy`: the master writes
   `<home>/board-copy` (a snapshot an hour, two hours kept), each owner's runner pulls what it lacks every second
   (`node.copy.files`), and `node.status` shows per runner how long since its copy last held all of it.
-- **Taking over, by hand:** "Make this Mac the master" on one of the owner's runners (or `hl node promote`).
+- **Taking over, by hand:** "Make this Mac the master" on one of the owner's runners (or `hl node promote`);
+  in the Mac app it acts on the engine of that cluster, which becomes its master in its own home (slice 27).
   When the master is reachable, it stops its writes, waits until the copy has them all and hands over, so
   nothing is lost. When it is gone, the runner restores its copy and starts as master the way the daemon
   starts today, with timers and deliveries rebuilt from the board; what the old master wrote in its last
@@ -253,7 +254,8 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 22 | A lent Mac runs the master's build: a heartbeat's answer names the master's build to a runner of its platform on another version (node_build_auto, or its row's Update, device.update); the runner reads it over its link (node.build.read), checks each sha256, keeps the newest under its home and starts again on it, and at a later start runs it while its master is on that version | daemon | 6 | 9 |
 | 23 | Cluster names: every cluster has a name, the global setting `cluster_name` kept on the board (so a new master keeps it), two random words in Title Case given at the first start without one and renamed by the owner only; hello's capabilities and `node.status` give the name with how many machines the cluster has, so a joined app draws a device or a cluster without another call | daemon | 2 | 1 |
 | 24 | Joining a cluster from the Mac app: a link from that cluster's Connect a device; `hl device join` on an engine home of its own (on Off) run beside this Mac's daemon, which keeps its board; the page gets the clusters, join and Leave; the connect mode and the runner-Mac window go | app | 6 | 22 |
+| 27 | Make this Mac the master in the Mac app: `node.promote` on the engine of that cluster, which listens on a port kept for it; made the master, the cluster stays listed at its door on this Mac and cannot be left; the app's own daemon is never a runner, so the own-runner path goes | app | 2 | 24 |
 
-About 175 hours: phase 1 (slices 1 to 14, 17 to 20 and 22 to 24) about 157, phase 2 about 18. Not in this list:
+About 177 hours: phase 1 (slices 1 to 14, 17 to 20, 22 to 24 and 27) about 159, phase 2 about 18. Not in this list:
 taking over by itself, a majority vote among three or more machines, lending only at night, resting while the
 person uses the machine, bringing a set-aside board's tasks over, the phone.

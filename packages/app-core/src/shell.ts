@@ -50,13 +50,14 @@ export interface ShellUpdate {
 }
 
 /** One cluster this Mac joined: its name (the master's, else its address), its master's WebSocket and this Mac's device token there,
- * and whether the master answers now. */
+ * whether the master answers now, and whether this Mac is that master (promoteCluster). */
 export interface ShellCluster {
   id: string;
   name: string;
   daemon: string;
   token: string;
   reachable: boolean;
+  master: boolean;
 }
 
 /** This Mac's daemon, as the tray shows it: starting (also while it restarts), running, stopped, or failed with the reason. `canStart` is
@@ -68,8 +69,6 @@ export interface ShellDaemon {
   /** True when the login shell did not answer in time at the daemon's last start, so it runs on the app's own PATH: its missing_tools
    * may name tools that are installed. A restart asks the shell again. Absent from an app that does not say. */
   pathTimedOut?: boolean;
-  /** This Mac's daemon is one of the owner's runners, with its node id: `promote` can make it the master. */
-  runner?: { node: string } | null;
 }
 
 export interface ShellApi {
@@ -175,9 +174,6 @@ export interface ShellApi {
   startDaemon?(): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** Stops the app's own daemon, which stays stopped until started; `cannot_stop` says why not. */
   stopDaemon?(): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_stop'>>;
-  /** Makes this Mac's daemon, a runner, the master (node.promote on its socket): the master hands over, or, when it is gone, this Mac takes
-   * over from its copy. `cannot_promote` carries the daemon's reason. */
-  promote?(): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>>;
   /** The owner's machines' doors from node.status (fp '' for a plain door), so the window may join whichever is master next. */
   keepDoors?(doors: { addr: string; fp: string }[]): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** The clusters this Mac joined (docs/story4-design.md slice 24): each one's master, as the page opens it, and this Mac's device token
@@ -191,8 +187,12 @@ export interface ShellApi {
     address?: string;
     code?: string;
   }): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join'>>;
-  /** Leaves a joined cluster: Off there first (its agents here hand over), this Mac's device revoked, its engine stopped and removed. */
+  /** Leaves a joined cluster: Off there first (its agents here hand over), this Mac's device revoked, its engine stopped and removed.
+   * Refused while this Mac is that cluster's master. */
   leaveCluster?(id: string): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_leave'>>;
+  /** Makes this Mac a joined cluster's master: its engine takes the board, handed over by the master or, when it is gone, from its copy
+   * (node.promote); this Mac's own board is untouched. `cannot_promote` carries the engine's reason. */
+  promoteCluster?(id: string): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>>;
   /** The page's zoom factor (1 = 100%), read from the window itself: `outerWidth` lags a full-screen change, so the page cannot tell it from its own size. */
   zoom?(): number;
   /** The window entered or left full screen (the traffic lights are gone in it); called once with the current state on registering. Returns the way to stop listening. */

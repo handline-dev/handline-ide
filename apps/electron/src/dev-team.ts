@@ -67,7 +67,7 @@ export function teamEnv(base: NodeJS.ProcessEnv, i: Instance, devUrl: string): N
   };
 }
 
-/** A loopback port free now, for the team's vite server: two teams' pages then run side by side. */
+/** A loopback port free now: the team's vite server (two teams' pages then run side by side), a cluster engine's door. */
 export const freePort = (): Promise<number> =>
   new Promise((resolve, reject) => {
     const s = net.createServer().once('error', reject);

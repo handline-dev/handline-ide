@@ -212,12 +212,14 @@ export function engineEnv(home: string, pathVar?: string): NodeJS.ProcessEnv {
   return { ...env, ...(pathVar ? { PATH: pathVar } : {}), HANDLINE_HOME: home };
 }
 
-/** A cluster engine's daemon (clusters.ts): a handlined on its own home with no listener, kept as this Mac's daemon is (adopted at
- * launch, started again when it exits), of whatever build answers: a runner runs its master's build. */
+/** A cluster engine's daemon (clusters.ts): a handlined on its own home, kept as this Mac's daemon is (adopted at launch, started again
+ * when it exits), of whatever build answers: a runner runs its master's build. `listen` is where it serves once made the master (a
+ * runner does not listen). */
 export function engineDaemon(o: {
   env: (k: string) => string | undefined;
   root: string;
   home: string;
+  listen: string | undefined;
   loginPath: () => Promise<LoginPath>;
 }): Engine {
   const log = fs.openSync(path.join(o.home, 'daemon.log'), 'a');
@@ -233,7 +235,7 @@ export function engineDaemon(o: {
       const login = (await o.loginPath()).path;
       return {
         file: o.env('HANDLINED') ?? `${o.root}/go/handlined`,
-        args: ['-home', o.home],
+        args: ['-home', o.home, ...(o.listen ? ['-listen', o.listen] : [])],
         env: engineEnv(o.home, daemonPath(login, process.env.PATH)),
       };
     },
