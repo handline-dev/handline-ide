@@ -18,7 +18,7 @@ A name that does not exist is an error.
 | Seed | What it adds |
 |---|---|
 | `inbox-terminal` | An inbox card for `handline.auditor` with `fix: open_terminal`. |
-| `proposals` | Three proposals: add `handline.new-builder` (team `handline`, model `sonnet`), a setting change `model: sonnet -> opus`, and a retire to reject. |
+| `proposals` | Four proposals: add `handline.new-builder` (team `handline`, model `sonnet`), a setting change `model: sonnet -> opus`, a retire to reject, and a command to run (`run`). |
 | `tasks-200` | 200 tasks, T6000 to T6199, in every state. |
 | `agent-held` | `handline.architect` waits on the machine load (`status.reason` load): its chat shows the line and Start now, and `agent.force_start` ends it. |
 | `agent-blocked` | `handline.architect` waits on T1684 (`status.reason` task): its chat shows the blocked-by card with the task as a link. |

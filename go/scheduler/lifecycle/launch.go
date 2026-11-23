@@ -1042,7 +1042,7 @@ func (l *Launcher) yourTeam(agent string) string {
 			"text is not shown to them. A `... waiting for you:` delivery of a task comment is not typing: answer it on that task. " + talk
 	}
 	lines = append(lines, talk, team.Protocol("land"), team.Protocol("legacy"), team.Protocol("memory"), team.Protocol("progress"),
-		"`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"))
+		"`hl team` shows who you may reach and what each is doing now. "+team.Protocol("founder"), team.Protocol("command"))
 	return strings.Join(lines, "\n")
 }
 

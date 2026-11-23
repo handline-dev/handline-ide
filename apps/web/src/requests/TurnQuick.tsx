@@ -9,7 +9,7 @@ import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
-/** A proposal's Allow or Deny; a step-down offer's Yes or Not now; a daemon warning's dismiss, kept by the daemon while its cause
+/** A proposal's Allow (Run for a command) or Deny; a step-down offer's Yes or Not now; a daemon warning's dismiss, kept by the daemon while its cause
  *  lasts; else a dismiss until tomorrow 09:00 (Later). An Allow names the subject proposal.list showed; one the daemon refuses as
  *  changed since stays off on this row, so a changed proposal is opened and read before it is allowed. */
 export function TurnQuick({ p }: { p: PendingRequest }) {
@@ -43,7 +43,7 @@ export function TurnQuick({ p }: { p: PendingRequest }) {
           title={changed ? 'Changed since it was listed: open it to read it' : listed ? undefined : 'Reading the proposal'}
           onClick={() => answer('approve')}
         >
-          Allow
+          {listed?.kind === 'run' ? 'Run' : 'Allow'}
         </Button>
       </>
     );

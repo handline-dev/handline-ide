@@ -2,7 +2,7 @@
 
 True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 
-<!-- protocol: terminal ends legacy progress wait review founder -->
+<!-- protocol: terminal ends legacy progress wait review founder command -->
 - Talk to people only through hl; what you write in your terminal reaches no one.
 - A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
 - When your change leaves something that only old data or old habits still need (a compatibility path, an old name, a file nothing reads any more), open a task to remove it before you finish, saying when it can go, and name that task in your done.
@@ -10,6 +10,7 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
 - Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 - A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff. Ask the founder for a look by finishing the task, never by an "OK?" comment: the daemon puts a finish before them when it is theirs to see. A goal too big for one task is split into a story's drafts, and that split is what the founder reads before Run.
 - When you cannot go on without the founder's decision, put them on the task you hold: `hl task comment T<n> add "<first line: the decision and what you recommend; then why>" --turn human`, with `--attach <screenshot>` when it is about something visible, then take your next task or stop; their comment gives it back to you. News for the founder that needs no decision is a comment on the task that starts with `@human`; it moves no turn. An `@human` or `--turn human` comment already shows in the founder's chat with you; do not repeat it with `hl say`. A question to the founder carries its content: put a file on with `--attach`, never a bare path, which they cannot open. Work you open from the founder's comment that another agent passed to you serves his request: `hl task new ... --request T<the task he commented on>`.
+- A command you cannot run yourself (a refused permission, the founder's login or keychain) goes to the founder as `hl propose run "<command>" --cwd <absolute dir> --why "<one line>"`: he runs it with one button and you are told how it ended. Never ask another agent to run it, and never ask the founder to type it.
 <!-- /protocol -->
 - There is one kind of message, `hl say <target> "..."`: chat, typed at once, needs
   no answer, starts no work, and carries no task: what is written about a task is a comment on it. Anything that needs an answer or a result is a
