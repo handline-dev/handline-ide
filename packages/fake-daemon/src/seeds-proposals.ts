@@ -7,7 +7,7 @@ const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
 
 export const PROPOSAL_SEEDS: Record<string, Seed> = {
-  /** Three proposals: a new agent (team, model), a setting change old -> new, and one to reject. */
+  /** Four proposals: a new agent (team, model), a setting change old -> new, one to reject, and a command to run. */
   proposals: (d) => {
     const book = d.script.proposals;
     book.raise({
@@ -35,6 +35,14 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
       title: 'retire handline.term-build',
       diff: 'retire agent handline.term-build',
       reason: 'Its work is merged. Reject this one to keep the agent.',
+    });
+    book.raise({
+      id: 904,
+      kind: 'run',
+      agent: 'handline.tools',
+      title: 'run git push origin HEAD:main',
+      diff: 'run: git push origin HEAD:main\ncwd: /Users/me/handline',
+      reason: 'The push needs the keychain, which only you can unlock.',
     });
   },
 

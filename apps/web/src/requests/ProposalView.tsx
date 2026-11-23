@@ -73,7 +73,7 @@ export function ProposalView({ id }: { id: number }) {
           </section>
         )}
         <section className="flex flex-col gap-1">
-          <h2 className="text-xs font-medium text-muted">What changes</h2>
+          <h2 className="text-xs font-medium text-muted">{p.kind === 'run' ? 'Command' : 'What changes'}</h2>
           {steps.map((c, i) =>
             c.after != null ? (
               <div key={i} className="flex flex-col gap-1">
