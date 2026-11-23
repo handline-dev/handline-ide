@@ -45,7 +45,7 @@ Close a shell shell.open started. Closes the shell's window. A handle that is no
 
 ### `tools.install`
 
-Run a missing tool's install command in a window the app shows in its own terminal pane. Runs the fix daemon.status names for the tool in a new window of the terminal host, in the home folder, and answers its handle; attach it with terminal.attach (terminal) and type at it with terminal.input, as a shell shell.open started. The window stays after the command ends, its exit shown, until shell.close. While the tool's install window still runs, the call answers that window again; an ended one's window is closed for the new run. A tool that is neither missing nor a vendor not installed is not_found (tool); another tool is bad_request. Refused with gate `unsupported` on a host that cannot run a command.
+Run a missing tool's install command in a window the app shows in its own terminal pane. Runs the fix daemon.status names for the tool in a new window of the terminal host, in the home folder, and answers its handle; attach it with terminal.attach (terminal) and type at it with terminal.input, as a shell shell.open started. The window stays after the command ends, its last line `Done.` or `Failed (exit N).`, until shell.close. While the tool's install window still runs, the call answers that window again; an ended one's window is closed for the new run. A tool that is neither missing nor a vendor not installed is not_found (tool); another tool is bad_request. Refused with gate `unsupported` on a host that cannot run a command.
 
 ### `terminal.detach`
 

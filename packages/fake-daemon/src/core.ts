@@ -170,7 +170,7 @@ function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
   d.admin.missingTools = d.admin.missingTools.filter((m) => m.tool !== tool);
   if (vendor) vendor.installed = true;
   const terminal = `%sh${++d.script.shellCount}`;
-  const lines = [`$ ${fix}`, '', 'Pane is dead (status 0)'];
+  const lines = [`$ ${fix}`, '', 'Done.'];
   d.script.shells.set(terminal, { ...newSession(INSTALL_FX, d.iso()), handle: terminal, lines, hasTerminal: true, open: false });
   return { tool, terminal, host: 'fake' };
 }

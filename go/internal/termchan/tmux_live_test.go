@@ -143,6 +143,11 @@ func liveTmux(t *testing.T, sock string, file *string) {
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
+		// The line under an ended command says how it ended, in words a person reads.
+		ended := map[int]string{0: "Done.", 3: "Failed (exit 3)."}[c.status]
+		if screen := strings.Join(tm.ReadScreen(run, 40).Tail, "|"); c.dead && !strings.Contains(screen, ended) {
+			t.Fatalf("%s: the window's foot: %q", c.command, screen)
+		}
 		// What the command printed is the window's last rows, without the line tmux draws under a dead pane or the blank rows above it.
 		if out := strings.Join(tm.RunOutput(run, 40), "|"); c.status == 3 && out != "one|two" {
 			t.Fatalf("the run's output: %q", out)

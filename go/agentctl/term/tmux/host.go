@@ -69,7 +69,8 @@ const RunOption = "@hl_run"
 
 // CreateRun opens a window in cwd, stamped as a shell of agent and tagged tag, whose own command is `$SHELL -lc command`. The window
 // stays after the command ends (remain-on-exit), so tmux keeps its exit status and end time. The option is set on a plain window that
-// is then respawned with the command, so a command that ends at once cannot close it first.
+// is then respawned with the command, so a command that ends at once cannot close it first. Its last line says how the command ended
+// (endedFormat); a tmux before 3.3, which has no remain-on-exit-format, keeps its own "Pane is dead" line.
 func (t Tmux) CreateRun(cwd, title, agent, tag, command string) (string, string) {
 	pane, why := t.newPane(cwd, title, "")
 	if pane == "" {
@@ -81,12 +82,19 @@ func (t Tmux) CreateRun(cwd, title, agent, tag, command string) (string, string)
 			return "", "could not set up the new window: " + err
 		}
 	}
+	t.tmux(tmuxTimeout, "", "set-option", "-p", "-t", pane, "remain-on-exit-format", endedFormat)
 	if code, _, err := t.tmux(tmuxTimeout, "", "respawn-pane", "-k", "-t", pane, "/bin/sh", "-c", `exec "${SHELL:-/bin/zsh}" -lc "$1"`, "sh", command); code != 0 {
 		t.CloseTerminal(pane, true)
 		return "", "could not run the command in the new window: " + err
 	}
 	return pane, ""
 }
+
+// endedFormat is the line a run window shows once its command ends: "Done." for exit 0, else "Failed (exit N)." or "Failed (signal S).".
+const endedFormat = "#{?pane_dead_signal,Failed (signal #{pane_dead_signal}).,#{?#{==:#{pane_dead_status},0},Done.,Failed (exit #{pane_dead_status}).}}"
+
+// endedLine matches what tmux draws at the foot of a run window once its command ends: endedFormat's line, or an older tmux's own.
+var endedLine = regexp.MustCompile(`^(Done\.|Failed \((exit|signal) [^)]*\)\.|Pane is dead.*)$`)
 
 // signalNumber is the number of the signal pane_dead_signal names, as a number, a name with or without SIG in any case, or the system's
 // words for it ("interrupt"); 0 when it is none of these.
@@ -134,8 +142,8 @@ func (t Tmux) PaneRuns() map[string]term.PaneRun {
 	return runs
 }
 
-// RunOutput is the last rows of a run window above what tmux draws once its command ends ("Pane is dead (status 2, ...)" at the foot of
-// the screen): the output sits at the top of a screen taller than it, so the blank rows between are dropped too.
+// RunOutput is the last rows of a run window above what tmux draws once its command ends (endedLine, at the foot of the screen): the
+// output sits at the top of a screen taller than it, so the blank rows between are dropped too.
 func (t Tmux) RunOutput(handle string, rows int) []string {
 	if !paneRE.MatchString(handle) {
 		return nil
@@ -149,7 +157,7 @@ func (t Tmux) RunOutput(handle string, rows int) []string {
 		lines[i] = strings.TrimRightFunc(lines[i], unicode.IsSpace)
 	}
 	lines = dropBlankFoot(lines)
-	if n := len(lines); n > 0 && strings.HasPrefix(lines[n-1], "Pane is dead") {
+	if n := len(lines); n > 0 && endedLine.MatchString(lines[n-1]) {
 		lines = dropBlankFoot(lines[:n-1])
 	}
 	return lines[max(len(lines)-rows, 0):]
