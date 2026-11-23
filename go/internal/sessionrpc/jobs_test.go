@@ -33,9 +33,12 @@ func jobsRig(t *testing.T, jobs []RunningJob) (*rig, *host, *conn) {
 }
 
 // shell starts `sh -c command` under this test's process in a group of its own, and ends it when the test does.
-func shell(t *testing.T, command string) *exec.Cmd {
+func shell(t *testing.T, command string) *exec.Cmd { return start(t, "sh", "-c", command) }
+
+// start starts argv under this test's process in a group of its own, and ends it when the test does.
+func start(t *testing.T, argv ...string) *exec.Cmd {
 	t.Helper()
-	cmd := exec.Command("sh", "-c", command)
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -87,7 +90,8 @@ func TestTheJobsGroupIsItsOwnBelowTheCLI(t *testing.T) {
 func TestStopOneShellEndsItAndNothingAbove(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "b1.output")
 	os.WriteFile(out, nil, 0o644)
-	cli := shell(t, fmt.Sprintf("set -m; sleep 300 >>%q & wait; sleep 300", out)) // a group of its own, as Claude Code's tool shell is
+	// the agent's CLI, which starts the job's shell in a group of its own as Claude Code does, writing the job's output
+	cli := start(t, "python3", "-c", fmt.Sprintf(`import subprocess, time; subprocess.Popen(["sleep", "300"], stdout=open(%q, "a"), start_new_session=True); time.sleep(300)`, out))
 	r, _, c := jobsRig(t, []RunningJob{{ID: "b1", Type: "shell", Name: "shell: sleeper"}, {ID: "a1", Type: "agent", Name: "agent: review"}})
 	started(r, "b1", out)
 	for end := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) { // until the job holds its output
