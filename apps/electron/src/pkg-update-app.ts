@@ -1,12 +1,14 @@
 // The installed app's update in Electron terms: the network, the files and the restart behind PkgPorts (pkg-update.ts).
 import fs from 'node:fs';
 import path from 'node:path';
-import { app } from 'electron';
+import { app, ipcMain } from 'electron';
+import { CHANNELS, UpdateChannelCalls } from '#src/bridge.ts';
 import { downloadTo, sha512Of, unpackApp } from '#src/pkg-files.ts';
 import { SelfUpdater, type PkgPorts } from '#src/pkg-update.ts';
 import { leftovers, STAGING, swapBundle } from '#src/swap.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
 import { quitQuietly } from '#src/ask.ts';
+import { channelOf, withChannel, type UpdateChannel } from '#src/update-channel.ts';
 
 /** The installed Handline.app: three folders above the executable (Contents/MacOS/Handline). */
 const installedApp = () => path.resolve(app.getPath('exe'), '../../..');
@@ -54,17 +56,48 @@ function ports(o: { idle: () => Promise<boolean> }): PkgPorts {
   };
 }
 
-/** Starts looking for a newer build of the installed app, once a minute after launch and then every half hour. Returns what stops it. */
-export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean> }): () => void {
+/** The channel the build was made for, null for a build that has no update address (a checkout). */
+export function builtChannel(): UpdateChannel | null {
   const base = packagedUpdateUrl(app.getAppPath());
-  if (!base) return () => undefined;
+  return base ? channelOf(base) : null;
+}
+
+/** Starts looking for a newer build of the installed app on `channel()`'s release (the build's own unless the person picked one), once a minute
+ * after launch and then every half hour. Returns what stops it, and `look` to check at once (a channel was picked). */
+export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean>; channel: () => UpdateChannel | undefined }): {
+  stop: () => void;
+  look: () => void;
+} {
+  const base = packagedUpdateUrl(app.getAppPath());
+  if (!base) return { stop: () => undefined, look: () => undefined };
   sweepSwap();
-  const updater = new SelfUpdater(ports(o), o.flow, base);
+  const updater = new SelfUpdater(ports(o), o.flow, () => withChannel(base, o.channel() ?? channelOf(base) ?? 'nightly'));
   const look = () => void updater.check();
   const first = setTimeout(look, 60_000);
   const every = setInterval(look, 30 * 60_000);
-  return () => {
-    clearTimeout(first);
-    clearInterval(every);
+  return {
+    stop: () => {
+      clearTimeout(first);
+      clearInterval(every);
+    },
+    look,
   };
+}
+
+/** Settings' Updates channel: which release the app reads, and picking another. */
+export function handleUpdateChannel(
+  origin: string,
+  get: () => UpdateChannel | undefined,
+  set: (c: UpdateChannel) => void,
+  look: () => void,
+): void {
+  const u = new UpdateChannelCalls(origin, {
+    get: () => get() ?? null,
+    set: (c) => {
+      set(c);
+      look();
+    },
+  });
+  ipcMain.handle(CHANNELS.updateChannel, (e) => u.get(e));
+  ipcMain.handle(CHANNELS.setUpdateChannel, (e, arg) => u.set(e, arg));
 }

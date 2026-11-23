@@ -79,6 +79,8 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     build: () => call(CHANNELS.build),
     restartDaemon: () => call(CHANNELS.restartDaemon),
     update: () => call(CHANNELS.update),
+    updateChannel: () => call(CHANNELS.updateChannel),
+    setUpdateChannel: (c) => call(CHANNELS.setUpdateChannel, c),
     updateAct: (what) => call(CHANNELS.updateAct, what),
     onUpdate(cb) {
       updateListeners.add(cb);

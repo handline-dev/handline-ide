@@ -112,3 +112,7 @@ test('Option adds the daemon’s address and build and the commit, which copy on
   assert.ok(!l.some((x) => /mode|connect/i.test(x)));
   assert.ok(!labels('running', view({ follow: follow() })).includes('Check for update'));
 });
+
+test('the menu has no update channel: it is picked in Settings', () => {
+  assert.equal(labels('running').includes('Update channel'), false);
+});

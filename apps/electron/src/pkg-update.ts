@@ -60,11 +60,12 @@ export class SelfUpdater implements PkgUpdater {
   private going = false;
   private ports: PkgPorts;
   private flow: UpdateFlow;
-  private base: string;
-  constructor(ports: PkgPorts, flow: UpdateFlow, base: string) {
+  /** The address of the channel the person is on, asked at each check: it can change between two. */
+  private base: () => string;
+  constructor(ports: PkgPorts, flow: UpdateFlow, base: () => string) {
     this.ports = ports;
     this.flow = flow;
-    this.base = base.replace(/\/+$/, '');
+    this.base = () => base().replace(/\/+$/, '');
   }
 
   async check(): Promise<void> {
@@ -72,7 +73,7 @@ export class SelfUpdater implements PkgUpdater {
     if (this.busy || this.flow.view.phase !== 'idle') return; // told already, or being prepared
     this.busy = true;
     try {
-      const latest = parseLatest(await this.ports.text(`${this.base}/latest-mac.yml`));
+      const latest = parseLatest(await this.ports.text(`${this.base()}/latest-mac.yml`));
       if (!latest || !isNewer(latest.version, this.ports.current())) return;
       if (!(await this.ports.idle())) return; // owed: the next check offers again
       await this.prepare(latest);
@@ -86,7 +87,7 @@ export class SelfUpdater implements PkgUpdater {
   private async prepare(latest: Latest): Promise<void> {
     try {
       this.flow.preparing('Downloading', 0);
-      const zip = await this.ports.download(`${this.base}/${latest.path}`, (f) => this.flow.preparing('Downloading', f));
+      const zip = await this.ports.download(`${this.base()}/${latest.path}`, (f) => this.flow.preparing('Downloading', f));
       this.flow.preparing('Checking', 1);
       if ((await this.ports.sha512(zip)) !== latest.sha512) throw new Error('the download does not match its checksum');
       const staged = await this.ports.stage(zip);

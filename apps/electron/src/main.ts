@@ -25,13 +25,13 @@ import { Doors, serveOwnDaemon, trustFingerprints } from '#src/masters.ts';
 import { findMaster, joinedOf, masterTransport, type Joined } from '#src/runner-mac.ts';
 import { ownDaemon, readFounderKey, type Own } from '#src/own.ts';
 import { quitQuietly } from '#src/ask.ts';
-import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, trayFollow, trayUpdate } from '#src/app-life.ts';
+import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, saveUpdateChannel, trayFollow, trayUpdate } from '#src/app-life.ts';
 import { addressesChosen, listenAddress, magicDnsName, onTailnet, TAILSCALE_CLIS, windowDaemon } from '#src/tailnet.ts';
 import { Cli, Connection, Page, Settings, Update, CHANNELS } from '#src/bridge.ts';
 import { serveDir } from '#src/serve.ts';
 import { buildId, UNSENT_PROBE, Updater } from '#src/update.ts';
 import { UpdateFlow } from '#src/update-flow.ts';
-import { startPkgUpdate } from '#src/pkg-update-app.ts';
+import { builtChannel, handleUpdateChannel, startPkgUpdate } from '#src/pkg-update-app.ts';
 import { bundleAt } from '#src/bundle.ts';
 import { readBuildSha } from '#src/build-id.ts';
 import { removeOldService } from '#src/old-service.ts';
@@ -342,6 +342,9 @@ if (!app.requestSingleInstanceLock({ background })) {
     const current = settings.read();
     const remote = current.remote;
     const login = loginLaunch(current.openAtLogin, background);
+    // The channel the person picked, else the one this build was made for; none for a build that reads no updates.
+    const channelNow = () => (builtChannel() ? (current.updateChannel ?? builtChannel() ?? undefined) : undefined);
+    let lookNow: () => void = () => undefined;
     if (remote) useRemote(remote);
     // A runner Mac: the window goes to the master its daemon obeys; with none answering, to the one it joined, and the page says it
     // cannot reach it, with "Make this Mac the master".
@@ -385,6 +388,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       update: () => trayUpdate(flow),
       follow: f && (() => trayFollow(f)),
     });
+    handleUpdateChannel(origin, channelNow, saveUpdateChannel(settings, current), () => lookNow());
     handleConnection(origin, own, remote, client, f, !!joined);
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
@@ -431,7 +435,9 @@ if (!app.requestSingleInstanceLock({ background })) {
       .then(() => following?.start());
     const checking = setInterval(() => void updater.check().catch(() => undefined), 30_000);
     app.on('quit', () => clearInterval(checking));
-    app.on('quit', startPkgUpdate({ flow, idle: idleOf(page, composer) }));
+    const pkg = startPkgUpdate({ flow, idle: idleOf(page, composer), channel: channelNow });
+    lookNow = pkg.look;
+    app.on('quit', pkg.stop);
 
     const desk = new Desk(client, {
       setBadge: (t, n) => {

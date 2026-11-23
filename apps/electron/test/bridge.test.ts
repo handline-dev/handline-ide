@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { NavigateTo } from '@handline/app-core';
 import { makeApi, type Ipc } from '#src/api.ts';
-import { Cli, CHANNELS, Connection, fromWindow, Page, Settings, Update, type Sender } from '#src/bridge.ts';
+import { Cli, CHANNELS, Connection, fromWindow, Page, Settings, Update, UpdateChannelCalls, type Sender } from '#src/bridge.ts';
 import { noticeFor } from '#src/notices.ts';
 import type { Event } from '@handline/client';
 
@@ -188,6 +188,22 @@ test('the page switches the mode and pairs another device only from the window a
   const failed = await c.pairRemote(top, { address: 'a.ts.net', code: 'bad' });
   assert.deepEqual(failed, { ok: false, code: 'cannot_pair', message: 'the daemon at x cannot be paired with: nothing answered' });
   assert.deepEqual(seen, ['check', 'own', { address: 'a.ts.net', code: 'c' }]);
+});
+
+test('update channel: read and picked only from the window, one of the three, and only on a build that reads updates', () => {
+  let now: 'stable' | 'nightly' | 'canary' | null = 'nightly';
+  const picked: string[] = [];
+  const u = new UpdateChannelCalls(ORIGIN, { get: () => now, set: (c) => void picked.push(c) });
+  const top: Sender = { senderFrame: { url: `${ORIGIN}/`, parent: null } };
+  const evil: Sender = { senderFrame: { url: 'https://evil.example/', parent: null } };
+  assert.deepEqual(u.get(top), { ok: true, channel: 'nightly' });
+  assert.equal(u.get(evil).ok, false);
+  assert.deepEqual(u.set(top, 'canary'), { ok: true });
+  assert.equal(u.set(top, 'edge').ok, false);
+  assert.equal(u.set(evil, 'stable').ok, false);
+  now = null;
+  assert.equal(u.set(top, 'stable').ok, false);
+  assert.deepEqual(picked, ['canary']);
 });
 
 test('settings: only get and set with checked arguments reach the daemon, and only from the window', async () => {

@@ -93,3 +93,11 @@ test('connected means a hello with our token was accepted, and the version comes
     /this device is not paired/,
   );
 });
+
+test('a picked update channel is kept; a name that is none of the three is dropped', () => {
+  const file = tmp();
+  new SettingsFile(file).write({ remote: null, openAtLogin: true, updateChannel: 'canary' });
+  assert.equal(new SettingsFile(file).read().updateChannel, 'canary');
+  fs.writeFileSync(file, JSON.stringify({ updateChannel: 'edge' }));
+  assert.equal(new SettingsFile(file).read().updateChannel, undefined);
+});

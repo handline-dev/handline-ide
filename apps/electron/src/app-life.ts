@@ -4,9 +4,10 @@ import type { DaemonClient } from '@handline/client';
 import { askQuit, guardQuit, quietNext, quitQuietly } from '#src/ask.ts';
 import { applyOpenAtLogin, openedAtLogin, workingOf } from '#src/login.ts';
 import type { Follower } from '#src/follow.ts';
-import type { SettingsFile } from '#src/mode.ts';
+import type { Settings, SettingsFile } from '#src/mode.ts';
 import type { TrayFollow, TrayUpdate } from '#src/tray.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
+import type { UpdateChannel } from '#src/update-channel.ts';
 import { electronAsk, type Own } from '#src/own.ts';
 
 /** Hands Open at login to the system, and says whether this run was opened at login: then it keeps to the tray (no window, no dock icon)
@@ -60,6 +61,14 @@ export const saveOpenAtLogin =
   (on: boolean): void => {
     settings.write({ ...settings.read(), openAtLogin: on });
     applyOpenAtLogin(app, app.isPackaged, on);
+  };
+
+/** The Update channel picked in Settings: kept in the settings file. */
+export const saveUpdateChannel =
+  (settings: SettingsFile, current: Settings) =>
+  (channel: UpdateChannel): void => {
+    current.updateChannel = channel;
+    settings.write({ ...settings.read(), updateChannel: channel });
   };
 
 /** What the tray reads of the update flow. */

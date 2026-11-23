@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { mismatch } from '@handline/app-core';
 import { once } from '#src/pair.ts';
+import { isChannel, type UpdateChannel } from '#src/update-channel.ts';
 import {
   isTailscaleHost,
   listenerUrl,
@@ -49,6 +50,8 @@ export interface Settings {
   doors?: Door[];
   /** Open Handline at login, in the tray only. On unless turned off. */
   openAtLogin: boolean;
+  /** The release channel updates come from, when the person picked one; else the one the build was made for (update-channel.ts). */
+  updateChannel?: UpdateChannel;
   /** Quit without asking first ("Don't show again"). */
   quietQuit?: boolean;
 }
@@ -81,6 +84,7 @@ export class SettingsFile {
     return {
       remote: isRemote(kept.remote) && kept.mode !== 'own' ? kept.remote : null,
       openAtLogin: kept.openAtLogin !== false,
+      ...(isChannel(kept.updateChannel) ? { updateChannel: kept.updateChannel } : {}),
       ...(kept.quietQuit === true ? { quietQuit: true } : {}),
       ...(doors ? { doors } : {}),
     };
