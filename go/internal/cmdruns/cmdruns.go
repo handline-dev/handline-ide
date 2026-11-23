@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -167,13 +168,18 @@ func Replies(q db.Q) (map[int64][]Run, error) {
 	return out, err
 }
 
-// Settle ends every running run the host's answer shows over: its window is dead (exit status and end time are tmux's own), or gone, or is
-// another pane now (stopped). panes nil is "could not ask": nothing ends. Rows that ended long ago are dropped. The write ended returns for
-// each run it ends stands or falls with that end; a run started again since it was read is left alone.
-func Settle(d *sql.DB, panes map[string]term.PaneRun, now int64, ended func(r Run) func(db.Q) error) error {
+// Settle ends every running run the host's answer shows over: its window is dead (exit status and end time are tmux's own), or gone, or
+// is another pane now (stopped). The host is asked after the rows are read: StartRun opens a run's window before writing its row. An
+// answer of nil is "could not ask": nothing ends. Rows that ended long ago are dropped. The write ended returns for each run it ends
+// stands or falls with that end; a run started again since it was read is left alone.
+func Settle(d *sql.DB, host func() map[string]term.PaneRun, now int64, ended func(r Run) func(db.Q) error) error {
 	runs, err := All(d)
 	if err != nil {
 		return err
+	}
+	var panes map[string]term.PaneRun
+	if slices.ContainsFunc(runs, func(r Run) bool { return r.State == "running" }) {
+		panes = host()
 	}
 	for _, r := range runs {
 		if r.State != "running" {
@@ -256,13 +262,13 @@ func end(d *sql.DB, r Run, now int64, ended func(Run) func(db.Q) error) error {
 		}
 	}
 	enc, _ := json.Marshal(r)
-	res, err := tx.Exec("UPDATE meta SET value = ?, updated = ? WHERE name = ? AND json_extract(value, '$.state') = 'running' AND json_extract(value, '$.started') = ?",
-		string(enc), now, prefix+r.Block, r.Started)
+	res, err := tx.Exec("UPDATE meta SET value = ?, updated = ? WHERE name = ? AND json_extract(value, '$.state') = 'running' AND json_extract(value, '$.started') = ? AND json_extract(value, '$.terminal') = ?",
+		string(enc), now, prefix+r.Block, r.Started, r.Terminal)
 	if err != nil {
 		return err
 	}
 	if n, err := res.RowsAffected(); err != nil || n == 0 {
-		return err // started again since it was read: that run is not over, and nothing is told
+		return err // started again since it was read (another window, maybe in the same second): that run is not over, and nothing is told
 	}
 	return tx.Commit()
 }

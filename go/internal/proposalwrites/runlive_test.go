@@ -48,7 +48,7 @@ func TestARunProposalRunsInARealWindowAndItsAgentIsToldHowItEnded(t *testing.T) 
 		t.Helper()
 		n, _ := hexNum(pid)
 		for deadline := time.Now().Add(15 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-			if err := cmdruns.Settle(r.db, tc.PaneRuns(), cmdruns.Now(), cmdruns.Telling(tc.Tail)); err != nil {
+			if err := cmdruns.Settle(r.db, tc.PaneRuns, cmdruns.Now(), cmdruns.Telling(tc.Tail)); err != nil {
 				t.Fatal(err)
 			}
 			if run, ok, _ := cmdruns.OfProposalRun(r.db, n); ok && run.State != "running" {

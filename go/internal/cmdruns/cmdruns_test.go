@@ -44,7 +44,7 @@ func TestSettleEndsARunFromWhatItsWindowSays(t *testing.T) {
 			}
 			panes["%5"] = p
 		}
-		if err := Settle(q, panes, 2000, nil); err != nil {
+		if err := Settle(q, answer(panes), 2000, nil); err != nil {
 			t.Fatal(err)
 		}
 		runs, err := Of(q, 7)
@@ -74,7 +74,7 @@ func TestACommandThatCannotBeAskedAboutKeepsItsRunAndARerunReplacesIt(t *testing
 	defer q.Close()
 	b := Block{Message: 3, N: 0}
 	Start(q, b, "%1", "", "", 100)
-	if err := Settle(q, nil, 500, nil); err != nil { // tmux could not answer: nothing ended
+	if err := Settle(q, answer(nil), 500, nil); err != nil { // tmux could not answer: nothing ended
 		t.Fatal(err)
 	}
 	if runs, _ := Of(q, 3); len(runs) != 1 || runs[0].State != "running" {
@@ -102,12 +102,12 @@ func TestAnEndedRunIsDroppedAfterThirtyDays(t *testing.T) {
 	defer q.Close()
 	Start(q, Block{Message: 5, N: 0}, "%1", "", "", 1000)
 	Start(q, Block{Message: 5, N: 1}, "%2", "", "", 1000)
-	Settle(q, map[string]term.PaneRun{"%1": {Tag: "5:0@1000", Dead: true, DeadTime: 1005}, "%2": {Tag: "5:1@1000"}}, 1010, nil)
-	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1005+keep, nil)
+	Settle(q, answer(map[string]term.PaneRun{"%1": {Tag: "5:0@1000", Dead: true, DeadTime: 1005}, "%2": {Tag: "5:1@1000"}}), 1010, nil)
+	Settle(q, answer(map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}), 1005+keep, nil)
 	if runs, _ := Of(q, 5); len(runs) != 2 {
 		t.Fatalf("a run that ended just now stays: %+v", runs)
 	}
-	Settle(q, map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}, 1006+keep, nil)
+	Settle(q, answer(map[string]term.PaneRun{"%2": {Tag: "5:1@1000"}}), 1006+keep, nil)
 	runs, _ := Of(q, 5)
 	if len(runs) != 1 || runs[0].Block != "5:1" {
 		t.Fatalf("the ended one is gone, the running one stays: %+v", runs)
@@ -121,7 +121,7 @@ func TestADeadWindowWithNoEndTimeEndsNow(t *testing.T) {
 	}
 	defer q.Close()
 	Start(q, Block{Message: 2, N: 0}, "%1", "", "", 1000)
-	Settle(q, map[string]term.PaneRun{"%1": {Tag: "2:0@1000", Dead: true, Status: 2}}, 1007, nil)
+	Settle(q, answer(map[string]term.PaneRun{"%1": {Tag: "2:0@1000", Dead: true, Status: 2}}), 1007, nil)
 	if runs, _ := Of(q, 2); len(runs) != 1 || runs[0].Ended != 1007 || runs[0].Seconds() != 7 || runs[0].State != "failed" {
 		t.Fatalf("%+v", runs)
 	}
@@ -213,13 +213,13 @@ func TestARunWhoseTellFailedIsStillRunningAndToldNextTime(t *testing.T) {
 			return nil
 		}
 	}
-	if err := Settle(q, panes, 1003, tell); err == nil {
+	if err := Settle(q, answer(panes), 1003, tell); err == nil {
 		t.Fatal("the failed tell is the settle's error")
 	}
 	if runs, _ := Of(q, 4); runs[0].State != "running" {
 		t.Fatalf("a run whose tell failed ended: %+v", runs[0])
 	}
-	if err := Settle(q, panes, 1004, tell); err != nil {
+	if err := Settle(q, answer(panes), 1004, tell); err != nil {
 		t.Fatal(err)
 	}
 	var n int
@@ -227,7 +227,7 @@ func TestARunWhoseTellFailedIsStillRunningAndToldNextTime(t *testing.T) {
 	if runs, _ := Of(q, 4); runs[0].State != "done" || n != 1 || len(told) != 2 {
 		t.Fatalf("%+v told %v, %d rows", runs[0], told, n)
 	}
-	if err := Settle(q, panes, 1005, tell); err != nil || len(told) != 2 {
+	if err := Settle(q, answer(panes), 1005, tell); err != nil || len(told) != 2 {
 		t.Fatalf("an ended run is told once: %v %v", err, told)
 	}
 }
@@ -279,7 +279,7 @@ func TestARunReplacedByARerunIsNotToldAndTheTellReadsOutsideTheLock(t *testing.T
 		return func(db.Q) error { told = append(told, r.Block); return nil }
 	}
 	panes := map[string]term.PaneRun{"%2": {Tag: b.Tag(), Dead: true, DeadTime: 1002}}
-	if err := Settle(q, panes, 1003, tell); err != nil {
+	if err := Settle(q, answer(panes), 1003, tell); err != nil {
 		t.Fatal(err)
 	}
 	if runs, _ := Of(q, 4); runs[0].State != "stopped" || runs[1].State != "done" || len(told) != 1 || told[0] != b.Block {
@@ -305,5 +305,42 @@ func TestARunReplacedAfterItsCommandEndedIsToldItsResult(t *testing.T) {
 	q.QueryRow("SELECT body FROM requests WHERE target = 'bob'").Scan(&said)
 	if runs[0].State != "failed" || runs[0].Exit == nil || *runs[0].Exit != 2 || len(rows) != 1 || !strings.Contains(said, "boom") {
 		t.Fatalf("%+v read %v said %q", runs[0], rows, said)
+	}
+}
+
+// answer is a host that answers panes.
+func answer(panes map[string]term.PaneRun) func() map[string]term.PaneRun {
+	return func() map[string]term.PaneRun { return panes }
+}
+
+// A run whose row is written after Settle read the rows is not stopped, however late its window shows in the host's answer.
+func TestARunStartedDuringASettleIsNotStopped(t *testing.T) {
+	q, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	first := Block{Message: 3, N: 0}
+	if _, err := Start(q, first, "%1", "", "", 1000); err != nil {
+		t.Fatal(err)
+	}
+	second := Block{Message: 3, N: 1}
+	host := func() map[string]term.PaneRun {
+		answer := map[string]term.PaneRun{"%1": {Tag: Run{Block: first.String(), Started: 1000}.Tag(), Dead: true, DeadTime: 1001}}
+		if _, err := Start(q, second, "%2", "", "", 1001); err != nil { // its window opens after this answer, its row is written now
+			t.Fatal(err)
+		}
+		return answer
+	}
+	if err := Settle(q, host, 1002, nil); err != nil {
+		t.Fatal(err)
+	}
+	runs, _ := Of(q, 3)
+	states := map[string]string{}
+	for _, r := range runs {
+		states[r.Block] = r.State
+	}
+	if states[first.String()] != "done" || states[second.String()] != "running" {
+		t.Fatalf("%v", states)
 	}
 }

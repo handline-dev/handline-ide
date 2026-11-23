@@ -197,7 +197,7 @@ func (c *Chat) tell(emit Emit, req *reads.ChatRequest) error {
 // look says nothing.
 func (c *Chat) runs(q *sql.DB, emit Emit) error {
 	if c.Panes != nil {
-		if err := cmdruns.Settle(q, c.Panes(), cmdruns.Now(), cmdruns.Telling(c.Tail)); err != nil {
+		if err := cmdruns.Settle(q, c.Panes, cmdruns.Now(), cmdruns.Telling(c.Tail)); err != nil {
 			return err
 		}
 	}
