@@ -14,6 +14,8 @@ export interface Joined {
   /** The master number it obeys: an app goes to none below it. */
   floor: MasterSays | null;
   doors: Door[];
+  /** The home was made that cluster's master: `master` is its own door on this machine (ledOf). */
+  led?: true;
 }
 
 const readJson = (file: string): unknown => {
@@ -30,6 +32,15 @@ export function joinedOf(userHome: string, home: string): Joined | null {
   if (!m || typeof m.token !== 'string' || !m.token || typeof m.device !== 'string') return null;
   const [door] = doorsOf([{ addr: m.master, fp: m.fp }]) ?? [];
   if (!door) return null;
+  return {
+    master: { host: door.addr, fingerprint: door.fp || null, token: m.token, device: m.device },
+    floor: typeof m.node === 'string' && m.node && typeof m.number === 'number' ? { node: m.node, number: m.number } : null,
+    doors: othersOf(home),
+  };
+}
+
+/** The owner's other machines as the home's last heartbeat's answer listed them (master-doors.json), without itself. */
+function othersOf(home: string): Door[] {
   let self = '';
   try {
     self = fs.readFileSync(path.join(home, 'node_id'), 'utf8').trim();
@@ -38,11 +49,15 @@ export function joinedOf(userHome: string, home: string): Joined | null {
   }
   const listed = readJson(path.join(home, 'master-doors.json'));
   const others = (Array.isArray(listed) ? listed : []) as { node?: unknown }[];
-  return {
-    master: { host: door.addr, fingerprint: door.fp || null, token: m.token, device: m.device },
-    floor: typeof m.node === 'string' && m.node && typeof m.number === 'number' ? { node: m.node, number: m.number } : null,
-    doors: others.filter((d) => !self || d.node !== self).flatMap((d) => doorsOf([d]) ?? []),
-  };
+  return others.filter((d) => !self || d.node !== self).flatMap((d) => doorsOf([d]) ?? []);
+}
+
+/** A home made its cluster's master (node.promote): reached at `door` on this machine with its own device's token, the one it joined
+ * with, kept where a master keeps it; null for a home that was not. A master outranked joins again, and joinedOf reads it then. */
+export function ledOf(userHome: string, home: string, door: string): Joined | null {
+  const o = readJson(path.join(protectedDir(userHome, home), 'master', 'own')) as Record<string, unknown> | null;
+  if (!o || typeof o.token !== 'string' || !o.token || typeof o.device !== 'string') return null;
+  return { master: { host: door, fingerprint: null, token: o.token, device: o.device }, floor: null, doors: othersOf(home), led: true };
 }
 
 const open = (url: string, fp: string): Promise<Transport> => (fp ? pinnedWebSocketTransport(url, fp) : webSocketTransport(url));

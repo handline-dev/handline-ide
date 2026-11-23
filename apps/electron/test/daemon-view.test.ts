@@ -15,7 +15,6 @@ test('the page reads the daemon state and presses Start or Stop only from the wi
     view: () => ({ state: 'failed', reason: 'the daemon exited at start (exit 1)', canStart }),
     start: () => void started++,
     stop: async () => void stopped++,
-    promote: async () => ({ number: 2, handed_over: true }),
     keepDoors: () => {},
   });
   assert.deepEqual(d.view(win), { ok: true, state: 'failed', reason: 'the daemon exited at start (exit 1)', canStart: true });
@@ -37,22 +36,14 @@ test('the page reads the daemon state and presses Start or Stop only from the wi
   assert.equal(stopped, 1);
 });
 
-test("Make this Mac the master goes to this Mac's daemon only from the window and only on a runner; doors are checked", async () => {
-  let runner: { node: string } | null = null;
+test('the doors the page hands over are checked, and only from the window', () => {
   const kept: unknown[] = [];
   const d = new DaemonView(ORIGIN, {
-    view: () => ({ state: 'running', reason: '', canStart: true, runner }),
+    view: () => ({ state: 'running', reason: '', canStart: true }),
     start: () => {},
     stop: async () => {},
-    promote: async () => {
-      throw new Error('this machine keeps no copy of the board');
-    },
     keepDoors: (doors) => void kept.push(doors),
   });
-  assert.equal((await d.promote(win)).ok, false);
-  runner = { node: 'n-1' };
-  assert.equal((await d.promote(frame)).ok, false);
-  assert.deepEqual(await d.promote(win), { ok: false, code: 'cannot_promote', message: 'this machine keeps no copy of the board' });
   const fp = 'ab'.repeat(32);
   assert.deepEqual(d.keepDoors(win, [{ addr: '10.0.0.2:7443', fp }]), { ok: true });
   assert.equal(d.keepDoors(win, [{ addr: '10.0.0.2', fp }]).ok, false);

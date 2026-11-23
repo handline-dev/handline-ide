@@ -11,7 +11,7 @@ import { openSettings } from '#src/settings/open.ts';
 import { MASTER, MODES, useOwnMac, useSetAsideUnseen, type Mode } from '#src/settings/data/devices.ts';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
 import { useConnection } from '@handline/app-react';
-import { confirmPromote, useMasterName, useThisMacRunner } from '#src/connection/master.tsx';
+import { useMasterName } from '#src/connection/master.tsx';
 
 const AWAKE: { mode: KeepAwake; label: string; line: string }[] = [
   { mode: 'off', label: 'Off', line: 'The Mac sleeps as usual.' },
@@ -61,21 +61,15 @@ export function StatusRow() {
   );
 }
 
-/** While the link to the master is lost: that it is, and "Make this Mac the master" when this Mac can become it. */
+/** While the link to the master is lost: that it is. */
 function MasterGone() {
   const lost = useConnection() === 'reconnecting';
   const { name, several } = useMasterName();
-  const runner = useThisMacRunner();
   if (!lost || !several) return null; // one Mac: a daemon restart, which the page rides out
   return (
     <span role="status" className="flex shrink-0 items-center gap-2">
       <Unplug size={14} className="text-danger" />
       <span className="text-fg">{name ? `Can't reach the master, ${name}` : "Can't reach the master"}</span>
-      {runner && (
-        <button type="button" onClick={() => confirmPromote(true)} className="text-accent hover:underline">
-          Make this Mac the master
-        </button>
-      )}
     </span>
   );
 }

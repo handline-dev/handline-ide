@@ -51,13 +51,23 @@ export interface Settings {
 export interface KeptCluster {
   id: string;
   name: string;
+  /** The port its engine listens on, to serve as that cluster's master once made it. */
+  port?: number;
 }
 
 const ID = /^[0-9a-f]{8}$/;
 const clustersOf = (v: unknown): KeptCluster[] | null =>
   Array.isArray(v)
     ? v.flatMap((c: Partial<KeptCluster> | null) =>
-        c && typeof c.id === 'string' && ID.test(c.id) ? [{ id: c.id, name: typeof c.name === 'string' ? c.name.slice(0, 200) : '' }] : [],
+        c && typeof c.id === 'string' && ID.test(c.id)
+          ? [
+              {
+                id: c.id,
+                name: typeof c.name === 'string' ? c.name.slice(0, 200) : '',
+                ...(typeof c.port === 'number' && Number.isInteger(c.port) && c.port > 0 && c.port < 65536 ? { port: c.port } : {}),
+              },
+            ]
+          : [],
       )
     : null;
 

@@ -2,14 +2,17 @@
 // `hl device join` run on its home, the shell's connection to each master, and the page's calls.
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import path from 'node:path';
 import { ipcMain } from 'electron';
 import { DaemonClient } from '@handline/client';
+import { unixSocketTransport } from '@handline/client-node';
 import { ClusterCalls, CHANNELS } from '#src/bridge.ts';
 import { Clusters } from '#src/clusters.ts';
 import type { SettingsFile } from '#src/mode.ts';
-import { engineDaemon, engineEnv, type LoginPath } from '#src/own.ts';
+import { engineDaemon, engineEnv, readFounderKey, type LoginPath } from '#src/own.ts';
+import { freePort } from '#src/dev-team.ts';
 import { protectedDir } from '#src/pair.ts';
-import { joinedOf, masterTransport } from '#src/joined.ts';
+import { joinedOf, ledOf, masterTransport } from '#src/joined.ts';
 
 /** `hl device join <link>` on an engine's home, the one way a machine joins a master; rejects with what hl said. */
 const hlJoin = (hl: string, link: string, home: string): Promise<void> =>
@@ -29,10 +32,28 @@ const hlJoin = (hl: string, link: string, home: string): Promise<void> =>
     ),
   );
 
+/** node.promote on an engine's socket, as its founder: the engine starts again as master once it has answered. */
+async function promoteEngine(home: string): Promise<{ number: number; handed_over: boolean }> {
+  const c = new DaemonClient({
+    client: 'electron',
+    connect: () => unixSocketTransport(path.join(home, 'daemon.sock')),
+    key: () => readFounderKey(home),
+    reconnect: false,
+  });
+  try {
+    await c.start();
+    return await c.call('node.promote', {});
+  } finally {
+    c.close();
+  }
+}
+
 export function serveClusters(o: {
   origin: string;
   /** This Mac's own home. */
   home: string;
+  /** The host this Mac's daemon listens on: each engine listens there on a port of its own. */
+  listenHost: string;
   settings: SettingsFile;
   /** The hl this app carries (a checkout's go/hl). */
   hl: string;
@@ -45,19 +66,25 @@ export function serveClusters(o: {
     home: o.home,
     file: o.settings,
     join: (link, home) => hlJoin(o.hl, link, home),
-    joined: (home) => joinedOf(os.homedir(), home),
+    joined: (home, port) => joinedOf(os.homedir(), home) ?? (port ? ledOf(os.homedir(), home, `127.0.0.1:${port}`) : null),
     store: (home) => protectedDir(os.homedir(), home),
-    engine: (home) => engineDaemon({ env: o.env, root: o.root, home, loginPath: o.loginPath }),
-    link: (j) => new DaemonClient({ client: 'electron', connect: masterTransport(j), token: j.master.token }),
+    engine: (home, port) =>
+      engineDaemon({ env: o.env, root: o.root, home, listen: port ? `${o.listenHost}:${port}` : undefined, loginPath: o.loginPath }),
+    // The token stays the same as the master moves: the engine made the master keeps the one it joined with as its own device's.
+    link: (current) => new DaemonClient({ client: 'electron', connect: () => masterTransport(current())(), token: current().master.token }),
+    port: freePort,
+    promote: promoteEngine,
     changed: () => o.send(clusters.list()),
   });
   const calls = new ClusterCalls(o.origin, {
     list: () => clusters.list(),
     join: (i) => clusters.join(i),
     leave: (id) => clusters.leave(id),
+    promote: (id) => clusters.promote(id),
   });
   ipcMain.handle(CHANNELS.clusters, (e) => calls.list(e));
   ipcMain.handle(CHANNELS.joinCluster, (e, arg) => calls.join(e, arg));
   ipcMain.handle(CHANNELS.leaveCluster, (e, arg) => calls.leave(e, arg));
+  ipcMain.handle(CHANNELS.promoteCluster, (e, arg) => calls.promote(e, arg));
   return clusters;
 }

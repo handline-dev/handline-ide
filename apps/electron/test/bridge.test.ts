@@ -2,7 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { NavigateTo } from '@handline/app-core';
 import { makeApi, type Ipc } from '#src/api.ts';
-import { Cli, CHANNELS, ClusterCalls, Connection, fromWindow, Page, Settings, Update, UpdateChannelCalls, type Sender } from '#src/bridge.ts';
+import {
+  Cli,
+  CHANNELS,
+  ClusterCalls,
+  Connection,
+  fromWindow,
+  Page,
+  Settings,
+  Update,
+  UpdateChannelCalls,
+  type Sender,
+} from '#src/bridge.ts';
 import { noticeFor } from '#src/notices.ts';
 import type { Event } from '@handline/client';
 
@@ -171,9 +182,9 @@ test('follow and the update check only from the window', async () => {
   assert.deepEqual(seen, ['check']);
 });
 
-test('the page lists, joins and leaves clusters only from the window and with the right arguments', async () => {
+test('the page lists, joins, leaves and takes over clusters only from the window and with the right arguments', async () => {
   const seen: unknown[] = [];
-  const blue = { id: 'abcd0123', name: 'Blue Harbor', daemon: 'wss://m.local:7443/rpc', token: 't', reachable: true };
+  const blue = { id: 'abcd0123', name: 'Blue Harbor', daemon: 'wss://m.local:7443/rpc', token: 't', reachable: true, master: false };
   const c = new ClusterCalls(ORIGIN, {
     list: () => [blue],
     join: async (i) => {
@@ -182,6 +193,10 @@ test('the page lists, joins and leaves clusters only from the window and with th
       return blue;
     },
     leave: async (id) => void seen.push(id),
+    promote: async (id) => {
+      if (id !== 'abcd0123') throw new Error('this machine keeps no copy of the board');
+      return { number: 2, handed_over: true };
+    },
   });
   const evil: Sender = { senderFrame: { url: 'https://evil.example/', parent: null } };
   assert.deepEqual(c.list(top), { ok: true, clusters: [blue] });
@@ -199,6 +214,14 @@ test('the page lists, joins and leaves clusters only from the window and with th
   assert.equal((await c.leave(top, '../x')).ok, false);
   assert.equal((await c.leave(evil, 'abcd0123')).ok, false);
   assert.deepEqual(seen, [{ address: 'a.ts.net', code: 'c' }, 'abcd0123']);
+  assert.deepEqual(await c.promote(top, 'abcd0123'), { ok: true, number: 2, handed_over: true });
+  assert.deepEqual(await c.promote(top, '0000ffff'), {
+    ok: false,
+    code: 'cannot_promote',
+    message: 'this machine keeps no copy of the board',
+  });
+  assert.equal((await c.promote(top, '../x')).ok, false);
+  assert.equal((await c.promote(evil, 'abcd0123')).ok, false);
 });
 
 test('update channel: read and picked only from the window, one of the three, and only on a build that reads updates', () => {

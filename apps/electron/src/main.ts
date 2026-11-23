@@ -147,7 +147,7 @@ function handleSettings(origin: string, client: DaemonClient): void {
   ipcMain.handle(CHANNELS.settingsSet, (e, arg) => s.set(e, arg));
 }
 
-function handleConnection(origin: string, own: Own, client: DaemonClient, f?: Follower): void {
+function handleConnection(origin: string, own: Own, f?: Follower): void {
   const c = new Connection(origin, {
     // Only when the build on disk is this one: a newer one (main moved) is the follow offer's to apply.
     build: () => ({ sha: runningBuild, canRestart: readBuildSha(import.meta.dirname) === runningBuild }),
@@ -160,10 +160,6 @@ function handleConnection(origin: string, own: Own, client: DaemonClient, f?: Fo
   serveOwnDaemon({
     origin,
     own,
-    shellClient: client,
-    connect: () => unixSocketTransport(socket),
-    key: founderKey,
-    home,
     doors: () => doors,
     send: (v) => win?.webContents.send(CHANNELS.daemon, v),
   });
@@ -310,6 +306,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     const clusters = serveClusters({
       origin,
       home,
+      listenHost: listen ? listen.slice(0, listen.lastIndexOf(':')) : '127.0.0.1',
       settings,
       hl: carried?.hl ?? path.join(root, 'go', 'hl'),
       env,
@@ -318,7 +315,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       send: (v) => win?.webContents.send(CHANNELS.clusters, v),
     });
     doors = trustFingerprints(app, new Doors(settings, current, () => clusters.doors()), () => win?.webContents);
-    clusters.start();
+    void clusters.start();
     // The shell's own calls (an agent's worktree, the badge).
     const client = shellClient();
     // Follow-main mode (pnpm app): the app runs from its own checkout of main and offers to restart when main moves.
@@ -344,7 +341,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       update: () => trayUpdate(flow),
       follow: f && (() => trayFollow(f)),
     });
-    handleConnection(origin, own, client, f);
+    handleConnection(origin, own, f);
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
     ipcMain.handle(CHANNELS.unsent, (e, arg) => page.setUnsent(e, arg));

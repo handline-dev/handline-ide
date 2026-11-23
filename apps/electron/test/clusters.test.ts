@@ -19,9 +19,12 @@ function world() {
   roots.push(root);
   let kept: Settings = { openAtLogin: true };
   const joinedHomes = new Map<string, Joined>();
-  const engines: (Engine & { home: string; closed: boolean; finishStart: () => void })[] = [];
+  const engines: (Engine & { home: string; port: number | undefined; closed: boolean; finishStart: () => void })[] = [];
+  const promoted: string[] = [];
+  let ports = 50100;
+  let handover: Promise<void> = Promise.resolve();
   let slow = false;
-  const links: (MasterLink & { calls: unknown[]; set: (s: ConnectionState) => void })[] = [];
+  const links: (MasterLink & { calls: unknown[]; set: (s: ConnectionState) => void; current: () => Joined })[] = [];
   let refuse = '';
   const d: ClusterDeps = {
     home: path.join(root, 'home'),
@@ -36,12 +39,24 @@ function world() {
       });
       fs.mkdirSync(path.join(root, 'store', path.basename(home)), { recursive: true });
     },
-    joined: (home) => joinedHomes.get(home) ?? null,
+    joined: (home, port) => {
+      const j = joinedHomes.get(home) ?? null;
+      // Made the master: reached at its own door, with the token it joined with (ledOf).
+      return j && promoted.includes(home) ? { ...j, master: { ...j.master, host: `127.0.0.1:${port}`, fingerprint: null }, led: true } : j;
+    },
+    port: async () => ports++,
+    promote: async (home) => {
+      if (!joinedHomes.has(home)) throw new Error('this machine keeps no copy of the board');
+      await handover;
+      promoted.push(home);
+      return { number: 2, handed_over: false };
+    },
     store: (home) => path.join(root, 'store', path.basename(home)),
-    engine: (home) => {
+    engine: (home, port) => {
       let begun: () => void = () => undefined;
       const e = {
         home,
+        port,
         state: 'stopped',
         reason: '',
         closed: false,
@@ -54,9 +69,11 @@ function world() {
       engines.push(e);
       return e;
     },
-    link: () => {
+    link: (current) => {
       const fns: ((s: ConnectionState) => void)[] = [];
+      current(); // as the real one reads the token when it is made
       const l = {
+        current,
         state: 'connecting' as ConnectionState,
         hello: null as MasterLink['hello'],
         calls: [] as unknown[],
@@ -75,7 +92,19 @@ function world() {
     },
     changed: () => undefined,
   };
-  return { d, kept: () => kept, engines, links, refuse: (why: string) => (refuse = why), slowStart: () => (slow = true) };
+  return {
+    d,
+    kept: () => kept,
+    engines,
+    links,
+    refuse: (why: string) => (refuse = why),
+    slowStart: () => (slow = true),
+    slowHandover: () => {
+      let done: () => void = () => undefined;
+      handover = new Promise<void>((ok) => (done = ok));
+      return () => done();
+    },
+  };
 }
 
 const settle = () => new Promise((r) => setImmediate(r));
@@ -91,8 +120,11 @@ test('a join keeps the cluster, starts its engine on a home of its own and names
     w.engines.map((e) => [e.home, e.state]),
     [[home, 'running']],
   );
-  assert.deepEqual(c.list(), [{ id: got.id, name: 'Blue Harbor', daemon: `wss://mac.local:7443/rpc`, token: 'tok', reachable: true }]);
-  assert.deepEqual(w.kept().clusters, [{ id: got.id, name: 'Blue Harbor' }]);
+  assert.deepEqual(c.list(), [
+    { id: got.id, name: 'Blue Harbor', daemon: `wss://mac.local:7443/rpc`, token: 'tok', reachable: true, master: false },
+  ]);
+  assert.deepEqual(w.kept().clusters, [{ id: got.id, name: 'Blue Harbor', port: 50100 }]);
+  assert.equal(w.engines[0]!.port, 50100);
   assert.deepEqual(c.doors(), [
     { addr: 'mac.local:7443', fp: FP },
     { addr: '10.0.0.2:7443', fp: FP },
@@ -186,9 +218,15 @@ test('after a restart each kept cluster comes back with its engine; one whose ho
   const first = new Clusters(w.d);
   const { id } = await first.join({ link: LINK });
   await settle();
-  w.d.file.write({ ...w.kept(), clusters: [...w.kept().clusters!, { id: '0000ffff', name: 'Gone' }] });
+  w.d.file.write({
+    ...w.kept(),
+    clusters: [
+      { id, name: 'Blue Harbor' },
+      { id: '0000ffff', name: 'Gone', port: 50200 },
+    ],
+  });
   const again = new Clusters(w.d);
-  again.start();
+  await again.start();
   await settle();
   assert.deepEqual(
     again.list().map((x) => [x.id, x.name, x.reachable]),
@@ -198,5 +236,43 @@ test('after a restart each kept cluster comes back with its engine; one whose ho
     w.engines.map((e) => e.state),
     ['running', 'running'],
   );
-  assert.deepEqual(w.kept().clusters, [{ id, name: 'Blue Harbor' }]);
+  // Kept without a port (joined before engines listened): it gets one, and its engine listens there.
+  assert.deepEqual(w.kept().clusters, [{ id, name: 'Blue Harbor', port: 50101 }]);
+  assert.equal(w.engines[1]!.port, 50101);
+});
+
+test("Make this Mac the master makes the cluster's engine its master: reached at its own door, kept as it, and not left", async () => {
+  const w = world();
+  const c = new Clusters(w.d);
+  const { id } = await c.join({ link: LINK });
+  await settle();
+  assert.deepEqual(await c.promote(id), { number: 2, handed_over: false });
+  const [got] = c.list();
+  assert.equal(got!.master, true);
+  assert.equal(got!.daemon, 'ws://127.0.0.1:50100/rpc');
+  assert.equal(got!.token, 'tok');
+  assert.equal(w.links[0]!.current().master.host, '127.0.0.1:50100'); // the next connect goes to it
+  assert.deepEqual(c.doors()[0], { addr: '127.0.0.1:50100', fp: '' });
+  await assert.rejects(c.promote(id), /master already/);
+  await assert.rejects(c.leave(id), /make another of its machines the master first/);
+  assert.equal(w.engines[0]!.state, 'running');
+  const again = new Clusters(w.d); // after a restart it is still this cluster's master
+  await again.start();
+  await settle();
+  assert.equal(again.list()[0]!.master, true);
+  await assert.rejects(c.promote('0000ffff'), /not joined/);
+});
+
+test('while this Mac is being made the master, Leave and a second promote are refused', async () => {
+  const w = world();
+  const c = new Clusters(w.d);
+  const { id } = await c.join({ link: LINK });
+  await settle();
+  const finish = w.slowHandover();
+  const promoting = c.promote(id);
+  await assert.rejects(c.leave(id), /being made/);
+  await assert.rejects(c.promote(id), /being made/);
+  finish();
+  await promoting;
+  assert.equal(c.list()[0]!.master, true);
 });

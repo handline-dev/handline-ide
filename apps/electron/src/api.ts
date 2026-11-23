@@ -80,7 +80,6 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     daemon: () => call(CHANNELS.daemon),
     startDaemon: () => call(CHANNELS.startDaemon),
     stopDaemon: () => call(CHANNELS.stopDaemon),
-    promote: () => call(CHANNELS.promote),
     keepDoors: (doors) => call(CHANNELS.keepDoors, doors),
     onDaemon: daemon.on,
     cli: () => call(CHANNELS.cli),
@@ -88,6 +87,7 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     clusters: () => call(CHANNELS.clusters),
     joinCluster: (a) => call(CHANNELS.joinCluster, a),
     leaveCluster: (id) => call(CHANNELS.leaveCluster, id),
+    promoteCluster: (id) => call(CHANNELS.promoteCluster, id),
     onClusters: clusters.on,
     onToken(cb) {
       tokenListeners.add(cb);

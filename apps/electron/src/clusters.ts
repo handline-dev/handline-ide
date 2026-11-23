@@ -2,6 +2,8 @@
 // shell runs an engine beside it: a handlined in a home of its own that joined that cluster's master as `hl device join` joins a
 // machine (this person's Mac, on Off), so it runs that cluster's agents only once it is set to Run there. The page reaches each master
 // itself, its certificate pinned, with the engine's device token; the shell keeps a connection to each to say whether it answers.
+// "Make this Mac the master" of a cluster makes its engine that cluster's master in its own home (node.promote on its socket); this Mac's
+// own daemon and board stay as they are.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,12 +31,18 @@ export interface ClusterDeps {
   file: Pick<SettingsFile, 'read' | 'write'>;
   /** `hl device join <link>` on an engine's home; rejects with hl's reason. */
   join(link: string, home: string): Promise<void>;
-  /** What the engine's home joined (joined.ts joinedOf), null when it joined none. */
-  joined(home: string): Joined | null;
+  /** What the engine's home joined (joined.ts joinedOf), or, made that cluster's master, itself at its port; null for neither. */
+  joined(home: string, port: number | undefined): Joined | null;
   /** The engine's protected store, removed with its home on Leave. */
   store(home: string): string;
-  engine(home: string): Engine;
-  link(j: Joined): MasterLink;
+  /** Listens on `port` to serve as master once made it; none for a cluster kept without one. */
+  engine(home: string, port: number | undefined): Engine;
+  /** Each connect goes by what the home holds then: a master that moved, or this Mac's engine made it. */
+  link(current: () => Joined): MasterLink;
+  /** A free port for a new engine. */
+  port(): Promise<number>;
+  /** node.promote on the engine's socket. */
+  promote(home: string): Promise<{ number: number; handed_over: boolean }>;
   /** The list changed: a join, a leave, a master that answers or stops answering, a name learned. */
   changed(): void;
 }
@@ -45,11 +53,14 @@ export const engineHome = (home: string, id: string): string => path.join(`${pat
 interface Live {
   id: string;
   home: string;
-  /** Read again each time the master answers: its master and the owner's machines change as it moves. */
+  port: number | undefined;
+  /** Read again at each change of the connection: its master and the owner's machines change as it moves. */
   joined: Joined;
   engine: Engine;
   starting: Promise<void>;
   link: MasterLink;
+  /** A promote not answered yet: Leave and a second promote wait for its answer. */
+  promoting: boolean;
 }
 
 export class Clusters {
@@ -59,13 +70,19 @@ export class Clusters {
     this.d = d;
   }
 
-  /** At launch: an engine and a connection for each cluster kept. A kept one whose home joined nothing is dropped. */
-  start(): void {
+  /** At launch: an engine and a connection for each cluster kept. A kept one whose home joined nothing is dropped; one kept without a
+   * port (joined before engines listened) gets one. */
+  async start(): Promise<void> {
     for (const c of this.kept()) {
       const home = engineHome(this.d.home, c.id);
-      const j = this.d.joined(home);
-      if (j) this.run(c.id, home, j);
-      else this.keep(this.kept().filter((k) => k.id !== c.id));
+      const port = c.port ?? (await this.d.port());
+      const j = this.d.joined(home, port);
+      if (!j) {
+        this.keep(this.kept().filter((k) => k.id !== c.id));
+        continue;
+      }
+      if (port !== c.port) this.keep(this.kept().map((k) => (k.id === c.id ? { ...k, port } : k)));
+      this.run(c.id, home, port, j);
     }
   }
 
@@ -77,6 +94,7 @@ export class Clusters {
       daemon: masterUrl(l.joined.master),
       token: l.joined.master.token,
       reachable: l.link.state === 'open',
+      master: !!l.joined.led,
     }));
   }
 
@@ -92,20 +110,21 @@ export class Clusters {
   async join(i: OfferInput): Promise<ShellCluster> {
     const link = joinLink(i); // a bad link throws before anything is made
     const id = crypto.randomBytes(4).toString('hex');
+    const port = await this.d.port();
     const home = engineHome(this.d.home, id);
     fs.mkdirSync(path.dirname(home), { recursive: true });
     fs.mkdirSync(home); // throws for an id taken already, whose home is not this join's to remove
     let j: Joined | null;
     try {
       await this.d.join(link, home);
-      j = this.d.joined(home);
+      j = this.d.joined(home, port);
       if (!j) throw new Error('the join kept no credential');
     } catch (e) {
       this.remove(home);
       throw e;
     }
-    this.keep([...this.kept(), { id, name: '' }]);
-    return this.run(id, home, j);
+    this.keep([...this.kept(), { id, name: '', port }]);
+    return this.run(id, home, port, j);
   }
 
   /** Leaves a cluster: Off there, so its agents here hand over, then this Mac's device revoked, the engine stopped and its home
@@ -113,6 +132,8 @@ export class Clusters {
   async leave(id: string): Promise<void> {
     const l = this.live.get(id);
     if (!l) throw new Error('this Mac has not joined that cluster');
+    if (l.joined.led) throw new Error("this Mac is that cluster's master: make another of its machines the master first");
+    if (l.promoting) throw new Error("this Mac is being made that cluster's master");
     this.live.delete(id); // a second Leave meanwhile finds nothing to leave
     this.d.changed();
     if (l.link.state === 'open') {
@@ -135,16 +156,32 @@ export class Clusters {
     this.remove(l.home);
   }
 
-  private run(id: string, home: string, joined: Joined): ShellCluster {
-    const engine = this.d.engine(home);
-    const link = this.d.link(joined);
-    const l: Live = { id, home, joined, engine, starting: engine.start(), link };
+  /** Makes this Mac that cluster's master: its engine takes the board over, handed by the master or, when it is gone, from its copy, and
+   * starts again as master. The connection follows by itself, as it follows any master that moves. */
+  async promote(id: string): Promise<{ number: number; handed_over: boolean }> {
+    const l = this.live.get(id);
+    if (!l) throw new Error('this Mac has not joined that cluster');
+    if (l.joined.led) throw new Error("this Mac is that cluster's master already");
+    if (l.promoting) throw new Error("this Mac is being made that cluster's master");
+    l.promoting = true;
+    try {
+      return await this.d.promote(l.home);
+    } finally {
+      l.promoting = false;
+      l.joined = this.d.joined(l.home, l.port) ?? l.joined;
+      this.d.changed();
+    }
+  }
+
+  private run(id: string, home: string, port: number | undefined, joined: Joined): ShellCluster {
+    const engine = this.d.engine(home, port);
+    const now = { joined }; // the link reads it at each connect, so it exists before the link
+    const link = this.d.link(() => now.joined);
+    const l: Live = Object.assign(now, { id, home, port, engine, starting: engine.start(), link, promoting: false });
     this.live.set(id, l);
     link.onState((s) => {
-      if (s === 'open') {
-        l.joined = this.d.joined(home) ?? l.joined;
-        this.learnName(id, link);
-      }
+      l.joined = this.d.joined(home, port) ?? l.joined;
+      if (s === 'open') this.learnName(id, link);
       this.d.changed();
     });
     void untilUp(() => (this.live.get(id) === l ? link.start() : Promise.resolve()));

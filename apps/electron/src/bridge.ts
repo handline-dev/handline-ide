@@ -28,6 +28,7 @@ export const CHANNELS = {
   clusters: 'handline:clusters',
   joinCluster: 'handline:joinCluster',
   leaveCluster: 'handline:leaveCluster',
+  promoteCluster: 'handline:promoteCluster',
   update: 'handline:update',
   updateChannel: 'handline:updateChannel',
   setUpdateChannel: 'handline:setUpdateChannel',
@@ -47,7 +48,6 @@ export const CHANNELS = {
   deviceList: 'handline:deviceList',
   deviceSwipe: 'handline:deviceSwipe',
   deviceText: 'handline:deviceText',
-  promote: 'handline:promote',
   keepDoors: 'handline:keepDoors',
 } as const;
 
@@ -147,7 +147,12 @@ export interface ClusterDeps {
   join(i: OfferInput): Promise<ShellCluster>;
   /** Leaves that cluster; rejects with a sentence when it cannot. */
   leave(id: string): Promise<void>;
+  /** Makes this Mac that cluster's master (node.promote on its engine); rejects with the engine's reason when it cannot. */
+  promote(id: string): Promise<Promoted>;
 }
+
+type Promoted = { number: number; handed_over: boolean };
+const isId = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}$/.test(v);
 
 const OFFER_KEYS = ['link', 'address', 'code'];
 const MAX_OFFER = 2048;
@@ -180,12 +185,21 @@ export class ClusterCalls {
   }
   async leave(e: Sender, arg: unknown): Promise<Reply | Fail<'cannot_leave'>> {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');
-    if (typeof arg !== 'string' || !/^[0-9a-f]{8}$/.test(arg)) return bad('leaveCluster takes a cluster id');
+    if (!isId(arg)) return bad('leaveCluster takes a cluster id');
     try {
       await this.d.leave(arg);
       return { ok: true };
     } catch (err) {
       return { ok: false, code: 'cannot_leave', message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+  async promote(e: Sender, arg: unknown): Promise<({ ok: true } & Promoted) | Fail<'bad_request' | 'cannot_promote'>> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    if (!isId(arg)) return bad('promoteCluster takes a cluster id');
+    try {
+      return { ok: true, ...(await this.d.promote(arg)) };
+    } catch (err) {
+      return { ok: false, code: 'cannot_promote', message: err instanceof Error ? err.message : String(err) };
     }
   }
 }
@@ -352,8 +366,6 @@ export interface DaemonDeps {
   /** Brings the app's own daemon up. */
   start(): void;
   stop(): Promise<void>;
-  /** node.promote on this Mac's daemon, a runner. */
-  promote(): Promise<{ number: number; handed_over: boolean }>;
   /** Trusts these doors' certificates from now on, and keeps them for the next launch. */
   keepDoors(doors: Door[]): void;
 }
@@ -383,15 +395,6 @@ export class DaemonView {
       return { ok: true };
     } catch (err) {
       return { ok: false, code: 'cannot_stop', message: err instanceof Error ? err.message : String(err) };
-    }
-  }
-  async promote(e: Sender): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>> {
-    if (!fromWindow(e, this.origin)) return bad('not from the app window');
-    if (!this.d.view().runner) return bad("this Mac's daemon is not one of the owner's runners");
-    try {
-      return { ok: true, ...(await this.d.promote()) };
-    } catch (err) {
-      return { ok: false, code: 'cannot_promote', message: err instanceof Error ? err.message : String(err) };
     }
   }
   keepDoors(e: Sender, arg: unknown): Reply {
