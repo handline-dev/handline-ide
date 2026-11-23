@@ -105,6 +105,15 @@ export const SEEDS: Record<string, Seed> = {
       status: { state: 'running', reason: 'background', text: 'waiting for tools/check.sh', until: null, since, tasks: [] },
       background: [{ kind: 'shell', label: 'tools/check.sh', since }],
     };
+    s.jobs = [
+      {
+        id: 'b7f2',
+        type: 'shell',
+        name: 'shell: tools/check.sh',
+        started: Math.floor(Date.parse(since) / 1000),
+        output: ['ok  go/internal/sessionrpc  4.112s', 'ok  go/scheduler/lifecycle  9.870s', 'running apps/web vitest…'],
+      },
+    ];
   },
 
   /** What waits on the founder, for the Requests view's first section and the bell: a decision, a question and a daemon warning. */

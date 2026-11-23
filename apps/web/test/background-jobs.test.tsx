@@ -23,6 +23,6 @@ it('lists each job with its kind, label and how long it has run', async () => {
 });
 
 it('the status line counts the jobs, and says nothing when none run', async () => {
-  expect((await render(<BackgroundItem jobs={jobs} />)).textContent).toBe('2 running');
-  expect((await render(<BackgroundItem jobs={[]} />)).textContent).toBe('');
+  expect((await render(<BackgroundItem agent="a" jobs={jobs} />)).textContent).toBe('2 running');
+  expect((await render(<BackgroundItem agent="a" jobs={[]} />)).textContent).toBe('');
 });

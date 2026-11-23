@@ -14,12 +14,18 @@ function useNeedsLogin(a: { account: string | null } | undefined, act: string | 
   return act === 'error' && accounts?.find((x) => x.name === a?.account)?.login_state === 'needs_login';
 }
 
+/** While working with background jobs and no other hold line: how many. */
+function jobsLine(a: { background?: unknown[] }, act: string | null) {
+  const n = a.background?.length ?? 0;
+  return act === 'working' && n > 0 ? `Waiting on ${n} background ${n === 1 ? 'job' : 'jobs'}` : null;
+}
+
 /** A wait by design, for the foot's dots row while the turn is still: its mark and its line; null when the card says it. */
 export function useHoldLine(agent: string) {
   const a = useAgents().data?.agents.find((x) => x.key === agent);
   const act = a ? activityOf(a) : null;
   const login = useNeedsLogin(a, act);
-  const line = a && !restarting(a) && holdLine(a); // a restart shows in the turn's row already
+  const line = a && !restarting(a) && (holdLine(a) ?? jobsLine(a, act)); // a restart shows in the turn's row already
   if (!a || !act || !line || login || a.needs_you?.source === 'daemon') return null;
   return { act, line };
 }

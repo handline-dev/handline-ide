@@ -16,7 +16,7 @@ export function StatusLine({ agent }: { agent: string }) {
     <div className="flex h-8 items-center gap-5 overflow-hidden pb-2 pl-2 text-xs text-muted">
       {detail?.worktree && <BranchItem agent={agent} branch={detail.worktree.branch} path={detail.worktree.path} />}
       {detail?.account && <AccountItem agent={agent} account={detail.account} fire={detail.fire ?? null} />}
-      <BackgroundItem jobs={jobs} />
+      <BackgroundItem agent={agent} jobs={jobs} />
       {detail?.terminal && <TerminalButton />}
     </div>
   );
