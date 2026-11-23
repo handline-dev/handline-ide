@@ -13,14 +13,14 @@ import (
 )
 
 // What an agent's settings are and how they are written (handline/team/agent_settings.py): the one place the chat page's
-// Settings tab, the Proposals tab and `hl agent set` all read and write them. The model names the code prices by name, and the idle-close
-// switch (which belongs to the daemon's own settings), are passed in.
+// Settings tab, the Proposals tab (`hl propose settings`) and agent.set all read and write them. The model names the code prices
+// by name, and the idle-close switch (which belongs to the daemon's own settings), are passed in.
 
 var (
 	Editable = []string{"model", "effort", "weight", "repo", "browser", "browser_sites",
-		"context_k", "idle_close", "handoff_note", "sandbox", "mode"}
+		"context_k", "idle_close", "handoff_note", "sandbox", "sandbox_allow", "mode"}
 	// Optional fields are not on every form: the settings tab does not draw them yet, so a form without them leaves them be.
-	Optional      = map[string]bool{"sandbox": true, "mode": true}
+	Optional      = map[string]bool{"sandbox": true, "sandbox_allow": true, "mode": true}
 	BrowserModes  = []string{"off", "chrome", "playwright"}
 	BrowserCustom = "custom"
 	Weights       = []string{"light", "heavy"}
@@ -32,6 +32,16 @@ var (
 
 // Nothing is said when a change is already so.
 const Nothing = "nothing to change"
+
+// sandboxAllowanceList is the allowance words sandbox_allow takes, sorted.
+func sandboxAllowanceList() []string {
+	out := make([]string, 0, len(SandboxAllowanceNames))
+	for w := range SandboxAllowanceNames {
+		out = append(out, w)
+	}
+	sortStrings(out)
+	return out
+}
 
 // Privileged is whether a field raises what the agent may do.
 func Privileged(field string) bool { return !Ordinary[field] }
@@ -72,8 +82,8 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 	return Settings{"model_id": modelID, "session_account": account,
 		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
-		"sandbox": onOff(r.SandboxOn(agent, cfg)),
-		"mode":    r.ModeOf(agent, cfg), "browser": BrowserMode(cfg), "browser_sites": strings.Join(BrowserOrigins(cfg), " "),
+		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": strings.Join(SandboxAllowWords(cfg), " "),
+		"mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg), "browser_sites": strings.Join(BrowserOrigins(cfg), " "),
 		"context_k": strconv.FormatInt(ContextTokensOf(cfg)/1000, 10), "handoff_note": note, "idle_close": idle}, nil
 }
 
@@ -96,6 +106,13 @@ func SettingsProblem(form map[string]string) string {
 	}
 	if v, has := form["sandbox"]; has && v != "on" && v != "off" {
 		return "sandbox must be on or off"
+	}
+	if v, has := form["sandbox_allow"]; has {
+		for _, w := range strings.Fields(v) {
+			if SandboxAllowanceNames[w] == nil {
+				return fmt.Sprintf("sandbox_allow is allowance words separated by spaces, of %s; %s is none", strings.Join(sandboxAllowanceList(), ", "), pyQuote(w))
+			}
+		}
 	}
 	if v, has := form["mode"]; has && !contains(Modes, v) {
 		return "mode must be one of " + strings.Join(Modes, ", ")
@@ -151,6 +168,9 @@ func SettingsChanges(current Settings, form map[string]string) ([]Change, error)
 		next := strings.TrimSpace(form[key])
 		if key == "repo" && next == "" {
 			continue
+		}
+		if key == "sandbox_allow" { // each word once, in order, so the same allowances are no change
+			next = strings.Join(SandboxAllowWords(Config{"sandbox_allow": next}), " ")
 		}
 		if key == "browser_sites" {
 			if form["browser"] != "playwright" { // Claude in Chrome has no site list
@@ -231,6 +251,9 @@ func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (b
 		if v, ok := next["sandbox"]; ok {
 			b := v == "on"
 			o.Sandbox = &b
+		}
+		if v, ok := next["sandbox_allow"]; ok {
+			o.SandboxAllow = strp(v)
 		}
 		if v, ok := next["context_k"]; ok {
 			n := int64(mustAtoi(v)) * 1000
@@ -346,7 +369,7 @@ func (r *Roster) SetByAgent(db *sql.DB, agent string, values map[string]string, 
 		if who == "" {
 			who = "someone"
 		}
-		return false, fmt.Sprintf("%s may not change %s's settings; an agent changes its own. For another's, propose it: `hl agent set %s <setting>=<value> --why \"...\"`", addr.Ref(who), addr.Ref(agent), addr.Address(db, speaker, agent))
+		return false, fmt.Sprintf("%s may not change %s's settings; an agent changes its own. For another's, ask the founder: `hl propose settings %s <setting>=<value> --why \"...\"`", addr.Ref(who), addr.Ref(agent), addr.Address(db, speaker, agent))
 	}
 	var held []string
 	for k := range values {
@@ -356,7 +379,11 @@ func (r *Roster) SetByAgent(db *sql.DB, agent string, values map[string]string, 
 	}
 	if len(held) > 0 {
 		sortStrings(held)
-		return false, strings.Join(held, ", ") + " needs the founder's approval: propose it with `hl agent set`"
+		asks := make([]string, len(held))
+		for i, k := range held {
+			asks[i] = k + "=<value>"
+		}
+		return false, fmt.Sprintf("%s needs the founder's approval: ask with `hl propose settings %s %s --why \"...\"`", strings.Join(held, ", "), addr.Address(db, speaker, agent), strings.Join(asks, " "))
 	}
 	return r.SetValues(db, agent, values, modelID, idleMinutes, idle)
 }

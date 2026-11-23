@@ -216,3 +216,32 @@ func TestASecondApproveThatRacedTheFirstLeavesItApplied(t *testing.T) {
 		t.Fatalf("%v %s %v %q %s", ok, said, err, f.started, r.state(pid))
 	}
 }
+
+// `hl propose settings` raises a settings proposal for a setting the agent may not change itself; approved, it is written.
+func TestAnAgentAsksForASandboxAllowanceAndTheFounderApprovesIt(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"sandbox_allow":"pnpm-install"},"request_id":"own"}`); res["error"] == nil {
+		t.Fatalf("an agent gave itself an allowance: %v", res)
+	}
+	bad := r.callAs("alice", "proposal.propose", `{"kind":"settings","args":{"name":"alice","sets":{"sandbox_allow":"root"}},"why":"x","request_id":"ps-0"}`)
+	if bad["error"] == nil {
+		t.Fatalf("an allowance no word names was raised: %v", bad)
+	}
+	m := r.callAs("alice", "proposal.propose", `{"kind":"settings","args":{"name":"alice","sets":{"sandbox_allow":"pnpm-install"}},"why":"the build installs","request_id":"ps-1"}`)
+	res, _ := m["result"].(map[string]any)
+	if res == nil {
+		t.Fatalf("not raised: %v", m)
+	}
+	n, _ := res["proposal"].(float64)
+	v := r.e.ProposalView(fmt.Sprintf("%08x", int64(n)))
+	if v["kind"] != "settings" || v["state"] != "open" {
+		t.Fatalf("%v", v)
+	}
+	if strings.Contains(r.settingsText("alice"), "sandbox_allow") {
+		t.Fatal("written before the founder decided")
+	}
+	if d := r.decide(int64(n), "approve", fmt.Sprint(v["subject"]), "ps-d"); d["result"] == nil || !strings.Contains(r.settingsText("alice"), "sandbox_allow: pnpm-install") {
+		t.Fatalf("%v\n%s", d, r.settingsText("alice"))
+	}
+}

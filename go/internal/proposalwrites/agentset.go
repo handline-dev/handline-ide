@@ -32,7 +32,7 @@ func (e *Env) agentSetMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	for k, v := range raw {
 		s, isText := v.(string)
 		if !isText {
-			return nil, bad(k+" is text, as `hl agent set` takes it", "values")
+			return nil, bad(k+" is text, as `hl propose settings` writes it", "values")
 		}
 		values[k] = s
 	}

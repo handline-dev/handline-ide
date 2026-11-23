@@ -18,8 +18,8 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// proposable are the kinds `hl propose` raises from a session: the roster changes, and an agent's schedule, that need no settings or global checks.
-var proposable = []string{"add", "retire", "rename", "team", "context", "schedule", "run"}
+// proposable are the kinds `hl propose` raises from a session: the roster changes, an agent's settings and schedule, and a command.
+var proposable = []string{"add", "retire", "rename", "team", "context", "settings", "schedule", "run"}
 
 // maxSteps bounds a team diff (MAX_STEPS in handline/team/proposals.py).
 const maxSteps = 40
@@ -182,6 +182,17 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		for k, v := range raw {
 			s, _ := v.(string)
 			sets[k] = s
+		}
+	}
+	if kind == "settings" {
+		if len(sets) == 0 {
+			return nil, "name the settings to change, key to value"
+		}
+		r := e.roster()
+		if _, err := r.Read(name); err == nil { // an agent a bundle's earlier step makes is checked when it is applied
+			if changes, problem := r.ChangesFor(e.DB, name, sets, "", idleMinutes); len(changes) == 0 {
+				return nil, problem
+			}
 		}
 	}
 	if kind == "context" {

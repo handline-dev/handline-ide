@@ -240,7 +240,7 @@ export type OperationStarted = Accepted & {
   operation: string;
 };
 
-/** An agent's settings, every value a string as `hl agent set <agent> key=value` takes it. Keys an agent may change on itself: model, effort, context_k, handoff_note. Every other key is the founder's (an agent proposes it with proposal.propose kind settings). */
+/** An agent's settings, every value a string, as `hl propose settings <agent> key=value` writes it. Keys an agent may change on itself: model, effort, context_k, handoff_note. Every other key is the founder's: an agent asks for it with `hl propose settings` (proposal.propose kind settings). */
 export type AgentSettingValues = {
   model?: string;
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
@@ -256,10 +256,12 @@ export type AgentSettingValues = {
   idle_close?: string;
   /** default follows the global switch. */
   handoff_note?: "default" | "on" | "off";
-  /** Why a key, not an is_off/back_on pair: it is already an agent setting (agents.sandbox_on, `hl agent set sandbox=on`), read in AgentDetail.settings and written the same way as every other key. `on` takes effect at once (the key and the grant go now; a running session restarts on the next idle sweep). `off` needs the founder's grant. */
+  /** Why a key, not an is_off/back_on pair: it is already an agent setting (agents.sandbox_on, agent.set sandbox=on), read in AgentDetail.settings and written the same way as every other key. `on` takes effect at once (the key and the grant go now; a running session restarts on the next idle sweep). `off` needs the founder's grant. */
   sandbox?: "on" | "off";
   /** Permission mode. */
   mode?: "default" | "auto" | "acceptEdits" | "plan";
+  /** What the agent's sandboxed sessions may do beyond the sandbox, the founder's: allowance words separated by spaces, of weaker-network (Go module downloads on macOS reach trustd) and pnpm-install (pnpm install runs outside the sandbox); "" allows nothing more. A word that names no allowance is bad_request. Read only while its sandbox is on; a session takes it at its next launch. An agent asks for it with `hl propose settings <agent> sandbox_allow=<words> --why "..."`. */
+  sandbox_allow?: string;
 };
 
 export type NeedsYou = {
