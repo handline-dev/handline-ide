@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/handline/handline/go/accounts/weblogin"
+	"github.com/handline/handline/go/internal/termchan"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 
@@ -73,6 +74,8 @@ type Env struct {
 	NodeLacks func(agent, node string) string
 	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.
 	Claude string
+	// Installs is each tool's install window tools.install keeps, by its tool (termchan.Env.Installs); nil shows none.
+	Installs func() map[string]termchan.ToolInstall
 	// HealthClock keeps since when DaemonStatus.health has had its level, shared by every server of the daemon; nil is since the start.
 	HealthClock *HealthClock
 	// KeepAwake is whether the daemon holds the sleep lock now, and since when (DaemonStatus.keep_awake); nil reads as not held.

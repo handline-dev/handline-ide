@@ -21,7 +21,7 @@ func TestDaemonStatusNamesTheMissingToolsOfTheAgentSide(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin)
 	e := testEnv(t)
-	all := []MissingTool{{"claude", "curl -fsSL https://claude.ai/install.sh | bash"}, {"git", "xcode-select --install"}, {"tmux", "brew install tmux"}}
+	all := []MissingTool{{Tool: "claude", Fix: "curl -fsSL https://claude.ai/install.sh | bash"}, {Tool: "git", Fix: "xcode-select --install"}, {Tool: "tmux", Fix: "brew install tmux"}}
 	if got := e.missingTools(e.vendors()); got != nil {
 		t.Fatalf("no agent side: %v", got)
 	}
@@ -51,7 +51,7 @@ func TestTheMacGitStubIsNoGitWithoutTheCommandLineTools(t *testing.T) {
 	t.Setenv("PATH", bin)
 	claude, stub := tool(t, bin, "claude"), tool(t, bin, "git")
 	tool(t, bin, "tmux")
-	gitRow := []MissingTool{{"git", "xcode-select --install"}}
+	gitRow := []MissingTool{{Tool: "git", Fix: "xcode-select --install"}}
 	if got := missingTools(claude, stub, func() bool { return false }); !reflect.DeepEqual(got, gitRow) {
 		t.Fatalf("the stub without the tools: %v", got)
 	}

@@ -60,8 +60,10 @@ func (e *Env) StatusHealth(srv *rpc.Server) (map[string]any, Health, error) {
 	}
 	if e.Claude != "" { // as missing_tools: a daemon that runs no agent side has no vendor to pick
 		vendors := e.vendors()
+		missing := e.missingTools(vendors)
+		e.withInstalls(vendors, missing)
 		out["vendors"] = vendors
-		if missing := e.missingTools(vendors); len(missing) > 0 {
+		if len(missing) > 0 {
 			out["missing_tools"] = missing
 		}
 	}

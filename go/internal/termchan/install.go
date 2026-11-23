@@ -2,6 +2,7 @@ package termchan
 
 import (
 	"os"
+	"strings"
 
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -16,6 +17,12 @@ const installStamp = "(install)"
 var installable = map[string]bool{"claude": true, "codex": true, "git": true}
 
 func installTag(tool string) string { return "install:" + tool }
+
+// installerWait follows xcode-select --install, which only asks for Apple's installer and exits: the window waits up to 30 seconds for
+// the installer to open, runs on until it closes, then ends 0 if the command line tools came, else 1. The bracket keeps pgrep from
+// finding this shell, whose own command line names the installer too.
+const installerWait = "; i=0; until pgrep -qf \"$p\" || [ $i -ge 30 ]; do sleep 1; i=$((i+1)); done; " +
+	"while pgrep -qf \"$p\"; do sleep 2; done; xcode-select -p >/dev/null"
 
 func (e *Env) toolsInstall(_ *rpc.Conn, params map[string]any) (any, error) {
 	tool, _ := params["tool"].(string)
@@ -52,6 +59,9 @@ func (e *Env) toolsInstall(_ *rpc.Conn, params map[string]any) (any, error) {
 			c.CloseTerminal(h, true)
 		}
 	}
+	if fix == "xcode-select --install" {
+		fix = "p='Install Command Line Developer Tools[.]app'; " + fix + installerWait
+	}
 	cwd, _ := os.UserHomeDir() // none: the host's own default folder
 	handle, why := runner.CreateRun(cwd, "install-"+tool, installStamp, installTag(tool), fix)
 	if handle == "" {
@@ -62,4 +72,28 @@ func (e *Env) toolsInstall(_ *rpc.Conn, params map[string]any) (any, error) {
 
 func (e *Env) installing(tool, handle string) map[string]any {
 	return map[string]any{"tool": tool, "terminal": handle, "host": e.Backend().Name()}
+}
+
+// ToolInstall is DaemonStatus' install of a missing tool: its install window while the host keeps it, and whether its command ended.
+type ToolInstall struct {
+	Terminal string `json:"terminal"`
+	Ended    bool   `json:"ended"`
+}
+
+// Installs is each tool's install window the host keeps, running or ended and not yet closed, by its tool: a running one over an
+// ended one, else the one that ended last.
+func (e *Env) Installs() map[string]ToolInstall {
+	out := map[string]ToolInstall{}
+	ended := map[string]int64{}
+	for h, r := range e.PaneRuns() {
+		tool, ok := strings.CutPrefix(r.Tag, installTag(""))
+		if !ok {
+			continue
+		}
+		if cur, seen := out[tool]; seen && (!cur.Ended || r.Dead && r.DeadTime <= ended[tool]) {
+			continue
+		}
+		out[tool], ended[tool] = ToolInstall{Terminal: h, Ended: r.Dead}, r.DeadTime
+	}
+	return out
 }

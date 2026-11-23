@@ -9,6 +9,8 @@ import (
 	_ "github.com/handline/handline/go/agentctl/agent/claudecode" // opencode left out on purpose: see accounts_test
 	_ "github.com/handline/handline/go/agentctl/agent/codex"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/internal/termchan"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 const codexFix = "npm install -g @openai/codex"
@@ -20,8 +22,8 @@ func TestVendorsListsEachLaunchableVendorAndWhetherItIsInstalled(t *testing.T) {
 	e := testEnv(t)
 	e.Claude = tool(t, t.TempDir(), "my-claude")
 	want := []VendorStatus{
-		{"claude", "claude", true, "curl -fsSL https://claude.ai/install.sh | bash"},
-		{"codex", "codex", false, codexFix},
+		{Vendor: "claude", Binary: "claude", Installed: true, Fix: "curl -fsSL https://claude.ai/install.sh | bash"},
+		{Vendor: "codex", Binary: "codex", Installed: false, Fix: codexFix},
 	}
 	if got := e.vendors(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("codex not on PATH: %+v", got)
@@ -48,12 +50,44 @@ func TestMissingToolsNamesCodexOnlyWhileInUse(t *testing.T) {
 		t.Fatalf("no codex account or agent: %v", got)
 	}
 	codexAccount(t, e)
-	if got, want := e.missingTools(e.vendors()), []MissingTool{{"codex", codexFix}}; !reflect.DeepEqual(got, want) {
+	if got, want := e.missingTools(e.vendors()), []MissingTool{{Tool: "codex", Fix: codexFix}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("codex in use, not installed: %v", got)
 	}
 	tool(t, bin, "codex")
 	if got := e.missingTools(e.vendors()); got != nil {
 		t.Fatalf("codex in use and installed: %v", got)
+	}
+}
+
+// daemon.status carries a tool's install window on its missing_tools entry and its vendors row while the tool is not installed.
+func TestStatusCarriesEachMissingToolsInstall(t *testing.T) {
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	tool(t, bin, "claude")
+	e := testEnv(t)
+	e.Claude = "claude"
+	codexAccount(t, e)
+	e.Installs = func() map[string]termchan.ToolInstall {
+		return map[string]termchan.ToolInstall{"codex": {Terminal: "%3", Ended: true}, "claude": {Terminal: "%2"}, "git": {Terminal: "%1"}}
+	}
+	st, err := e.Status(&rpc.Server{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	installs := map[string]any{}
+	for _, m := range st["missing_tools"].([]MissingTool) {
+		installs["missing "+m.Tool] = m.Install
+	}
+	for _, v := range st["vendors"].([]VendorStatus) {
+		installs["vendor "+v.Vendor] = v.Install
+	}
+	want := map[string]any{
+		"missing git": &termchan.ToolInstall{Terminal: "%1"}, "missing tmux": (*termchan.ToolInstall)(nil),
+		"missing codex": &termchan.ToolInstall{Terminal: "%3", Ended: true},
+		"vendor claude": (*termchan.ToolInstall)(nil), "vendor codex": &termchan.ToolInstall{Terminal: "%3", Ended: true},
+	}
+	if !reflect.DeepEqual(installs, want) {
+		t.Fatalf("%v", installs)
 	}
 }
 
