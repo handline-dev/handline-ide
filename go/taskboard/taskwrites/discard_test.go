@@ -27,6 +27,7 @@ func TestDiscardIsTheAskersAndTellsTheOwnerAndFreesWhatWaitedOnIt(t *testing.T) 
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1), (2, 'u', 'other', 'other', 1), (3, 'child', 'worker', 'worker', 1)",
 		"UPDATE tasks SET parent_task = 1 WHERE id = 3",
+		"UPDATE tasks SET queued_by = 'other' WHERE id = 2", // queued: a draft is told nothing
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 1, 1)",
 	} {
 		if _, err := db.Exec(keyed(db, q)); err != nil {
@@ -165,6 +166,7 @@ func TestADiscardedChildUnblocksItsParentsOwnerWithoutAResultNotice(t *testing.T
 	exec(t, db,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(20, 'parent', 'worker', 'manager', 1), (21, 'kid', 'other', 'other', 1)",
 		"UPDATE tasks SET parent_task = 20 WHERE id = 21",
+		"UPDATE tasks SET queued_by = 'manager' WHERE id = 20",
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(20, 21, 1)")
 	if r := call(t, mk("other"), discardLine(2, 21, "not needed", "o1")); r[0]["result"] == nil {
 		t.Fatalf("%v", r[0])
@@ -271,5 +273,27 @@ func TestTheAskerOrTheFounderDiscardsATaskWhoseRequestLandedAndTheHolderIsTold(t
 	}
 	if r := call(t, mk("crew.asker"), discardLine(2, 9, "x", "m2")); r[0]["error"] == nil {
 		t.Fatalf("a request still waiting to be typed refuses as before: %v", r[0])
+	}
+}
+
+// A chain of drafts is thrown away from the top: each one's closed blocker leaves the next a draft, told to nobody and given to nobody,
+// and a task whose blockers have all closed can be discarded.
+func TestAChainOfDraftsIsDiscardedFromTheTopWithNoDelivery(t *testing.T) {
+	t.Parallel()
+	db, mk := discardEnv(t)
+	f := &fakeTeller{}
+	exec(t, db,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(30, 'a', 'worker', 'manager', 1), (31, 'b', 'other', 'manager', 1), (32, 'c', 'other', 'manager', 1)",
+		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(31, 30, 1), (32, 31, 1)")
+	for _, tid := range []int{30, 31, 32} {
+		if r := call(t, mk("manager", f), discardLine(2, tid, "not needed", fmt.Sprintf("m%d", tid))); r[0]["result"] == nil {
+			t.Fatalf("T%d: %v", tid, r[0])
+		}
+		if next := tid + 1; next <= 32 && taskState(t, db, int64(next)) != "draft" {
+			t.Fatalf("T%d is %s once its blocker was discarded", next, taskState(t, db, int64(next)))
+		}
+	}
+	if n := count(t, db, "SELECT COUNT(*) FROM requests WHERE target = 'other' AND (kind = 'task' OR body LIKE 'task T% is unblocked%')"); n != 0 || len(f.freed) != 0 { // local-ref-ok
+		t.Fatalf("a draft was told it is unblocked or given out: %d requests, freed %v", n, f.freed)
 	}
 }

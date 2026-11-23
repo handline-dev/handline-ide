@@ -274,7 +274,7 @@ func TestAnOwnerBusyWithItsCurrentTaskIsStillToldTheUnblock(t *testing.T) {
 	}
 }
 
-func TestTheUnblockIsStillTypedWhenTheAdvanceSendsSomethingElseOrNothing(t *testing.T) {
+func TestTheUnblockIsTypedWhenTheAdvanceSendsSomethingElseAndADraftHearsNothing(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		draft bool
@@ -301,8 +301,15 @@ func TestTheUnblockIsStillTypedWhenTheAdvanceSendsSomethingElseOrNothing(t *test
 			if _, err := r.ReleaseEndedBlockers(); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(strings.Join(r.term.typed, "\n"), fmt.Sprintf("task T%d is unblocked - T%d, its last open blocker, discarded", waiting, blocker)) {
-				t.Fatalf("%q", r.term.typed)
+			told := strings.Contains(strings.Join(r.term.typed, "\n"), fmt.Sprintf("task T%d is unblocked - T%d, its last open blocker, discarded", waiting, blocker))
+			if c.draft && told {
+				t.Fatalf("a draft's owner was told it is unblocked: %q", r.term.typed)
+			}
+			if !c.draft && !told {
+				t.Fatalf("a queued task's owner was not told it is unblocked: %q", r.term.typed)
+			}
+			if st, _ := db.TaskState(r.DB, must(db.GetTask(r.DB, waiting))); c.draft && st != "draft" {
+				t.Fatalf("a draft whose blocker closed is %s", st)
 			}
 			if cur, _, _ := db.CurrentTask(r.DB, r.k(("bob"))); cur != other {
 				t.Fatalf("current %d, want %d", cur, other)
@@ -765,5 +772,36 @@ func TestAStoryWaitingOnItsOwnChildGivesItsAgentTheChild(t *testing.T) {
 	r.must(err)
 	if cur, ok, _ := db.CurrentTask(r.DB, r.k("bob")); !ok || cur != story {
 		t.Fatalf("bob holds T%d, not the story T%d again", cur, story)
+	}
+}
+
+// A draft whose blocker is done stays a draft: its owner is neither told nor given it until someone queues it.
+func TestADraftWhoseBlockerIsDoneStaysADraft(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	blocker := r.newTask(r.k("alice"), r.k("alice"), "blocker")
+	waiting, _ := db.NewTask(r.DB, "second", r.k("bob"), r.k("alice"), 0, db.DefaultPriority, "", 0, "")
+	db.AddBlock(r.DB, waiting, blocker)
+	db.MarkTaskDone(r.DB, blocker, "built", "")
+	if _, err := r.ReleaseEndedBlockers(); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := db.TaskState(r.DB, must(db.GetTask(r.DB, waiting))); st != "draft" || len(r.term.typed) != 0 {
+		t.Fatalf("the draft is %s and bob was typed %q", st, r.term.typed)
+	}
+	if cur, _, _ := db.CurrentTask(r.DB, r.k("bob")); cur != 0 {
+		t.Fatalf("bob was given T%d", cur)
+	}
+	r.ReleaseEndedBlockers() // a second sweep: the release is closed for this finish
+	db.SetTaskQueued(r.DB, waiting, r.k("alice"))
+	if _, _, err := r.AdvanceCurrentTask(r.DB, r.k("bob")); err != nil {
+		t.Fatal(err)
+	}
+	r.ReleaseEndedBlockers()
+	if cur, _, _ := db.CurrentTask(r.DB, r.k("bob")); cur != waiting {
+		t.Fatalf("once queued, bob holds T%d, not T%d", cur, waiting)
+	}
+	if strings.Contains(strings.Join(r.term.typed, "\n"), "is unblocked") {
+		t.Fatalf("a late unblock after the queue: %q", r.term.typed)
 	}
 }
