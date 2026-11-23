@@ -33,6 +33,8 @@ export type ModalOptions = {
 type Entry = {
   id: number;
   node: ReactNode;
+  /** The scope it was opened in (scopeModals). */
+  scope: string;
   open: boolean;
   options: ModalOptions;
   resolve: (value: unknown) => void;
@@ -42,6 +44,13 @@ type Entry = {
 
 /** Default button text, in one place so a locale can replace it. */
 export const modalText = { ok: 'OK', cancel: 'Cancel', close: 'Close' };
+
+/** Where a modal draws: the scope (a cluster) of the control last pressed, as scopeModals is told it, so its reads and writes go where
+ * its opener's did. */
+let pressed = '';
+let wrap = (_scope: string, node: ReactNode): ReactNode => node;
+export const pressedIn = (scope: string) => void (pressed = scope);
+export const scopeModals = (w: typeof wrap) => void (wrap = w);
 
 let entries: Entry[] = [];
 let nextId = 0;
@@ -84,7 +93,7 @@ export function openModal<R>(render: (close: Close<R>) => ReactNode, options: Mo
     const onAbort = () => void close(id, undefined, true);
     signal?.addEventListener('abort', onAbort, { once: true });
     const detach = () => signal?.removeEventListener('abort', onAbort);
-    set([...entries, { id, node, open: true, options, resolve: resolve as (v: unknown) => void, detach }]);
+    set([...entries, { id, node, scope: pressed, open: true, options, resolve: resolve as (v: unknown) => void, detach }]);
     if (signal?.aborted) onAbort();
   });
 }
@@ -110,7 +119,9 @@ export function ModalHost() {
         {/* Back closes it as Esc would; one that must be answered stays. */}
         <Layer open={e.open} onBack={() => (e.options.dismissible === false ? undefined : void close(e.id, undefined))} />
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-fg/40 transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Viewport className={`fixed inset-0 z-50 flex items-center justify-center ${narrow ? '' : 'p-4'}`}>{e.node}</Dialog.Viewport>
+        <Dialog.Viewport className={`fixed inset-0 z-50 flex items-center justify-center ${narrow ? '' : 'p-4'}`}>
+          {wrap(e.scope, e.node)}
+        </Dialog.Viewport>
       </Dialog.Portal>
     </Dialog.Root>
   ));

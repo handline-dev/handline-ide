@@ -1,5 +1,4 @@
-// The app's bottom bar, full width: a quiet status dot, the host, keep-awake, this device's Run · Pause · Off, the bell (a preview of Requests),
-// the week's Usage %; the host opens this Mac's page in Settings > Devices.
+// The app's bottom bar: the status dot and this device (ClusterButton), the week's Usage %, keep-awake, Run · Pause · Off, the bell.
 import { ArchiveX, Check, Coffee, Pause, Unplug } from 'lucide-react';
 import { Confirm, MODE_WORD, OFF_TEXT, StateWord, refused } from '#src/settings/DeviceControls.tsx';
 import { openModal } from '#src/ui/modal.tsx';
@@ -8,8 +7,9 @@ import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
 import { openSettings } from '#src/settings/open.ts';
-import { MASTER, MODES, useOwnMac, useSetAsideUnseen, type Mode } from '#src/settings/data/devices.ts';
+import { MODES, useOwnMac, useSetAsideUnseen, type Mode } from '#src/settings/data/devices.ts';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
+import { ClusterButton } from '#src/sidebar/ClusterButton.tsx';
 import { useConnection } from '@handline/app-react';
 import { confirmPromote, useMasterName, useThisMacRunner } from '#src/connection/master.tsx';
 
@@ -42,16 +42,13 @@ export function StatusRow() {
       ref={bar}
       className={`flex h-7 shrink-0 items-center gap-2 border-t border-border bg-surface px-3 text-xs text-muted ${busy ? 'opacity-60' : ''}`}
     >
-      <button
-        type="button"
+      <ClusterButton
+        bar={bar}
         title={s.text || undefined}
-        onClick={() => openSettings({ section: 'devices', device: MASTER })}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-fg"
-      >
-        <span aria-label={s.level} className={`size-2 shrink-0 rounded-full ${s.paused ? 'bg-warning' : DOT[s.level]}`} />
-        <span className="truncate">{s.host}</span>
-        {s.usagePct !== null && <span className="tabular-nums">Week {s.usagePct}% used</span>}
-      </button>
+        host={s.host}
+        lead={<span aria-label={s.level} className={`size-2 shrink-0 rounded-full ${s.paused ? 'bg-warning' : DOT[s.level]}`} />}
+      />
+      <span className="min-w-0 flex-1 truncate tabular-nums">{s.usagePct !== null && `Week ${s.usagePct}% used`}</span>
       <MasterGone />
       <SetAside />
       <KeepAwakeButton s={s} busy={busy} bar={bar} />

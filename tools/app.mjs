@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // An agent runs, looks at and presses a separate test instance of this worktree's desktop app, never the user's window: it has its own
 // scratch home, data folder, free ports (never 9333) and a DevTools port only it knows. Clicks are the page's own (DevTools input).
-// Usage: app.mjs start [--fake | --attach HOME ADDR] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
+// Usage: app.mjs start [--fake [--cluster[=offline]] | --attach HOME ADDR] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
 //   | drag-check (clickable things whose middle is an `-webkit-app-region: drag` area)
 //   | overflow [width ...] (what runs past the window's right edge at each width; default 480 768 1280) | status | stop [--all]
 // --attach HOME ADDR: the app adopts the daemon already running on HOME and listening on ADDR (hl dev cluster's master), never stopping it.
@@ -208,6 +208,38 @@ const commands = {
         state.pids.push(String(fake.pid));
         env.HANDLINE_WS = `ws://127.0.0.1:${wsPort}`;
         delete env.HANDLINE_LISTEN;
+        // --cluster: a second fake daemon (seed second-cluster) the shell lists as a joined cluster; --cluster=offline lists it not
+        // answering, with no daemon behind it.
+        const cluster = rest.find((r) => r.startsWith('--cluster'));
+        if (cluster) {
+          let port = await freePort();
+          while (port === wsPort) port = await freePort(); // the first fake may not be listening yet
+          if (cluster !== '--cluster=offline') {
+            const second = spawn(
+              'node',
+              [
+                'packages/fake-daemon/src/serve.ts',
+                '--seed',
+                'second-cluster',
+                '--ws',
+                String(port),
+                '--socket',
+                path.join(s.root, 'fake2.sock'),
+              ],
+              {
+                cwd: top,
+                stdio: 'ignore',
+                detached: true,
+              },
+            );
+            second.unref();
+            state.pids.push(String(second.pid));
+          }
+          const reachable = cluster !== '--cluster=offline';
+          env.HANDLINE_FAKE_CLUSTERS = JSON.stringify([
+            { id: 'a1b2c3d4', name: 'Amber Fox', daemon: `ws://127.0.0.1:${port}`, token: '', reachable },
+          ]);
+        }
         fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
       }
       const attach = opt('--attach');

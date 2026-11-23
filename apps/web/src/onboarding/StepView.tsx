@@ -7,6 +7,8 @@ import { closeOnboarding } from '#src/onboarding/data/progress.ts';
 import { STEPS } from '#src/onboarding/data/steps.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
+import { joinCluster } from '#src/sidebar/ClusterButton.tsx';
+import { shell } from '#src/shell.ts';
 
 /** The primary button of a step: its words, and what it does. */
 export type Primary = { label: ReactNode; onClick: () => void; disabled?: boolean };
@@ -92,6 +94,8 @@ export function StepView({ title, line, primary, children }: { title: string; li
       </div>
       <div className="flex items-center gap-2 border-t border-border px-6 py-3">
         {nav.back && <Button onClick={nav.back}>Back</Button>}
+        {/* The first step also offers joining a cluster set up on another machine. */}
+        {!nav.back && shell()?.joinCluster && <Button onClick={() => void joinCluster()}>Join a cluster</Button>}
         <span className="flex-1" />
         {skip}
         {main}

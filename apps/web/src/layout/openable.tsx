@@ -1,5 +1,6 @@
 // The one way anything opens a tab: clicks and keys by howOf, a drag onto a tab bar or pane, and a right-click menu (openItems).
 // Every element that opens a tab takes its props from useOpenable, so a new one gets all of it.
+import { useOpensHere } from '#src/connection/clusters.tsx';
 import { Menu as M } from '@base-ui/react/menu';
 import { Copy, ExternalLink, PanelBottom, PanelRight, SquareArrowOutUpRight } from 'lucide-react';
 import { useEffect, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
@@ -34,13 +35,14 @@ function useGo(opens: string | null, { onOpen, focus, here }: Options) {
 
 /** Opens `opens` in a new tab, for a button that does only that (a Requests row's new-tab icon). */
 export function useNewTab(opens: string | null, options: Options = {}) {
-  const go = useGo(opens, options);
+  const go = useGo(useOpensHere(opens), options);
   return () => go('tab');
 }
 
 /** The props that make an element open `opens` (null: it opens no tab, only `here`). Plain Enter on a button or a link with an href
  * is left to its own click, so it does not open twice. */
-export function useOpenable(opens: string | null, options: Options = {}) {
+export function useOpenable(what: string | null, options: Options = {}) {
+  const opens = useOpensHere(what);
   const go = useGo(opens, options);
   return {
     onClick: (e: MouseEvent) => go(howOf(e)),
@@ -101,7 +103,8 @@ function Items({ items, run }: { items: OpenItem[]; run: (item: OpenItem) => voi
 }
 
 /** The open items at the top of an element's own right-click menu (a sidebar agent, a Requests row). */
-export function OpenItems({ opens, ...options }: { opens: string } & Options) {
+export function OpenItems({ opens: what, ...options }: { opens: string } & Options) {
+  const opens = useOpensHere(what);
   const go = useGo(opens, options);
   return <Items items={openItems(opens)} run={(item) => runItem(item, go)} />;
 }

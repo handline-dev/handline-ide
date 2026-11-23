@@ -56,6 +56,16 @@ export function DataProvider(props: { daemonId: string; client?: QueryClient; ch
   );
 }
 
+/** Makes a subtree read and write one daemon whose DataProvider is mounted elsewhere (another cluster's), with its own query client;
+ * it sits inside that daemon's store (DaemonProvider with connect off). */
+export function DataScope(props: { daemonId: string; client: QueryClient; children?: ReactNode }) {
+  return createElement(
+    QueryClientProvider,
+    { client: props.client },
+    createElement(DataContext.Provider, { value: { daemon: props.daemonId } }, props.children),
+  );
+}
+
 export function useData(): Data {
   const data = useContext(DataContext);
   if (!data) throw new Error('useData needs a DataProvider above it');

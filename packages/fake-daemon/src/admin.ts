@@ -106,6 +106,8 @@ export class FakeAdmin {
   private memoryMax = new Map<string, number>();
   /** A seeded lent machine's node: its id and what its row says beyond the defaults, by device id. */
   private lent = new Map<string, { node: string; row: Lent }>();
+  /** A seed's cluster name. */
+  rename = (name: string) => void (this.values.cluster_name = name);
   /** hello's and node.status's cluster: its name and machines, the master's own and those lent on Run or Pause. */
   cluster = (at: Timestamp) => ({ name: String(this.values.cluster_name), machines: 1 + this.lentNodes(at).length });
   /** node.status's rows of the machines lent on Run or Pause: a device with a node. */

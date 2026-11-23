@@ -24,7 +24,7 @@ export function Popover({
   /** Held by the caller, to close it from inside (a choice made). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** The bar it opens flush on: its bottom on the bar's top edge, its end on the bar's end, with no gap. */
+  /** The bar it opens flush on: its bottom on the bar's top edge, its aligned side on the window's edge, with no gap. */
   corner?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
@@ -43,7 +43,7 @@ export function Popover({
           className="z-50"
         >
           <P.Popup
-            className={`${floatingSurface} p-3 text-sm ${corner ? 'max-h-(--available-height) overflow-y-auto rounded-b-none rounded-tr-none border-r-0 border-b-0' : ''}`}
+            className={`${floatingSurface} p-3 text-sm ${corner ? `max-h-(--available-height) overflow-y-auto rounded-b-none border-b-0 ${align === 'start' ? 'rounded-tl-none border-l-0' : 'rounded-tr-none border-r-0'}` : ''}`}
           >
             {children}
           </P.Popup>

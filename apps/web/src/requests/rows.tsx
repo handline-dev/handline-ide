@@ -29,7 +29,8 @@ import type { TaskRequest } from '#src/requests/data.ts';
 import { chatOf, proposalOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import type { Gesture } from '#src/layout/openTab.tsx';
-import { openSettingsFor } from '#src/settings/open.ts';
+import { openSettings, settingsFor } from '#src/settings/open.ts';
+import { useCluster } from '#src/connection/clusters.tsx';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
 import { WARN, WARN_WORD } from '#src/requests/warnings.ts';
@@ -96,7 +97,10 @@ function Line({
   answers,
   onPick,
   chosen,
+  word,
 }: {
+  /** Another cluster's name, at the row's end. */
+  word?: ReactNode;
   /** A plain click calls this instead of opening; `chosen` marks the shown row. */
   onPick?: () => void;
   chosen?: boolean;
@@ -177,6 +181,7 @@ function Line({
               <span className="truncate font-medium text-fg">{title}</span>
               {who && <span className="shrink-0 text-muted">{who}</span>}
               {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
+              {word && <span className={`flex shrink-0 items-center ${wait ? '' : 'ml-auto pl-3'}`}>{word}</span>}
             </span>
             {/* The answers sit over the row's bottom-right: the text keeps their room. */}
             {meta && <span className={`line-clamp-2 break-words text-muted ${answers ? 'pr-36' : ''}`}>{meta}</span>}
@@ -246,7 +251,9 @@ export function TurnLine({
   full,
   onPick,
   chosen,
+  word,
 }: {
+  word?: ReactNode;
   p: PendingRequest;
   onOpened?: () => void;
   until?: string;
@@ -256,6 +263,7 @@ export function TurnLine({
 }) {
   const nameOf = useNameOf();
   const refs = useRefs();
+  const cluster = useCluster();
   const daemon = p.kind === 'warning' || p.agent === null;
   // An HR proposal is called by what it does, under it its reason; the daemon's title is `<kind> <agent>`.
   const proposal = useProposals().data?.proposals.find((x) => p.source === 'proposal' && String(x.id) === p.id);
@@ -265,6 +273,7 @@ export function TurnLine({
     <Line
       mark
       row={turnRow(p)}
+      word={word}
       onPick={onPick}
       chosen={chosen}
       title={proposal ? proposalTitle(proposal, nameOf) : refs(p.title)}
@@ -295,7 +304,7 @@ export function TurnLine({
               .join(' · ')
       }
       opens={opens}
-      here={opens ? undefined : () => openSettingsFor(p.warning)}
+      here={opens ? undefined : () => openSettings({ ...settingsFor(p.warning), cluster })}
       trailing={full && answersShown(p) ? undefined : <TurnQuick p={p} />}
       hint={
         p.task !== null && (p.kind === 'ask' || p.kind === 'decide')

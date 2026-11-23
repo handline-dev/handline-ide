@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { read, write } from '#src/persist/kv.ts';
 import { sweepTabState, tabIds } from '#src/persist/tabState.ts';
 import { canonical, carry, labelOf } from '#src/layout/kinds.tsx';
+import { splitSpace } from '#src/connection/clusters.tsx';
 import {
   CLOSED_KEPT,
   closedBy,
@@ -126,7 +127,7 @@ export function useAgentLayouts() {
     /** Moves tabs of pane `pane` in workspace `from` to workspace `to` (at `at`, else the end of its first pane) and goes there.
      *  Pinned tabs stay; one already open there comes up instead. */
     moveTabs: (from: string, pane: string, tabs: string[], shown: string, to: string, at?: Target) => {
-      if (from === to) return;
+      if (from === to || splitSpace(from).cluster !== splitSpace(to).cluster) return; // a tab stays in its cluster
       step.current = 'push';
       setSaved((s) => {
         const src = s.layouts[from];

@@ -9,6 +9,8 @@ import { classify, sentence, useGiveBack, useNameOf, useTasks } from '@handline/
 import { useMe } from '@handline/app-react';
 import { ago, useNow } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
+import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
+import { HereWord } from '#src/connection/ClusterWord.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -45,8 +47,45 @@ export function TasksTab({ agent }: { agent: string | null }) {
   const [held, setHeld] = useTabState('held', false);
   const owner = agent && only ? agent : undefined;
   const open = show === 'mine' || show === 'own';
-  const q = useTasks(show === 'closed' ? { state: 'closed', order: 'closed', owner } : { state: open ? 'open' : show, owner });
-  const all = q.data?.items ?? [];
+  const params = show === 'closed' ? { state: 'closed', order: 'closed' as const, owner } : { state: open ? 'open' : show, owner };
+  const useListed = () => useTasks(params);
+  // The Tasks page lists every cluster's; an agent's pane, its own cluster's.
+  return (
+    <Across hook={useListed} alone={!!agent} sig={(q) => JSON.stringify([q.isPending, q.isError, q.data])}>
+      {(all) => <Tasks agent={agent} all={all} show={show} setShow={setShow} only={only} setOnly={setOnly} held={held} setHeld={setHeld} />}
+    </Across>
+  );
+}
+
+type Q = ReturnType<typeof useTasks>;
+/** A task and the cluster it is from ('' for this one). */
+type At = Task & { cluster: string };
+
+function Tasks({
+  agent,
+  all: got,
+  show,
+  setShow,
+  only,
+  setOnly,
+  held,
+  setHeld,
+}: {
+  agent: string | null;
+  all: Of<Q>[];
+  show: Show;
+  setShow: (s: Show) => void;
+  only: boolean;
+  setOnly: (b: boolean) => void;
+  held: boolean;
+  setHeld: (b: boolean) => void;
+}) {
+  const owner = agent && only ? agent : undefined;
+  const open = show === 'mine' || show === 'own';
+  const q = got.find((g) => g.cluster === '')?.data;
+  const several = got.length > 1;
+  const merged: At[] = got.flatMap((g) => (g.data.data?.items ?? []).map((t) => ({ ...t, cluster: g.cluster })));
+  const all = several ? merged.sort((a, b) => (b.done ?? b.created).localeCompare(a.done ?? a.created)) : merged;
   const items = open ? all.filter((t) => !!t.my_request === (show === 'mine')) : all;
   const mine = all.filter((t) => t.my_request).length;
   const now = useNow(60_000 * 10);
@@ -54,7 +93,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
     show === 'mine'
       ? [{ title: 'In progress', items: items.filter((t) => !onHold(t, now)) }]
       : show === 'own'
-        ? GROUPS.reduce<{ title: string; items: Task[] }[]>((out, g) => {
+        ? GROUPS.reduce<{ title: string; items: At[] }[]>((out, g) => {
             const taken = new Set(out.flatMap((o) => o.items));
             out.push({ title: g.title, items: items.filter((t) => !taken.has(t) && g.has(t)) });
             return out;
@@ -69,7 +108,7 @@ export function TasksTab({ agent }: { agent: string | null }) {
             {SHOWS.map((x) => (
               <Chip key={x.key} on={show === x.key} onClick={() => setShow(x.key)}>
                 {x.label}
-                {x.key === 'mine' && q.data ? <span className="ml-1.5 text-accent">{mine}</span> : null}
+                {x.key === 'mine' && q?.data ? <span className="ml-1.5 text-accent">{mine}</span> : null}
               </Chip>
             ))}
             {agent && (
@@ -78,9 +117,9 @@ export function TasksTab({ agent }: { agent: string | null }) {
               </Chip>
             )}
           </div>
-          {q.isPending && <ListLoading label="Loading tasks" />}
-          {q.isError && <p className="text-sm text-danger">Tasks did not load.</p>}
-          {q.data && !items.length && <p className="text-sm text-muted">No tasks here.</p>}
+          {(!q || q.isPending) && <ListLoading label="Loading tasks" />}
+          {q?.isError && <p className="text-sm text-danger">Tasks did not load.</p>}
+          {q?.data && !items.length && <p className="text-sm text-muted">No tasks here.</p>}
           {groups
             .filter((g) => g.items.length)
             .map((g) => (
@@ -92,7 +131,15 @@ export function TasksTab({ agent }: { agent: string | null }) {
                 )}
                 <div className="flex flex-col overflow-hidden rounded-lg border border-border">
                   {g.items.map((t, i) => (
-                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} kids={all.filter((c) => c.parent === t.id).map((c) => c.id)} />
+                    <InCluster key={`${t.cluster}/${t.id}`} id={t.cluster} dim>
+                      <Row
+                        t={t}
+                        ruled={i > 0}
+                        owner={owner}
+                        word={several && <HereWord />}
+                        kids={all.filter((c) => c.cluster === t.cluster && c.parent === t.id).map((c) => c.id)}
+                      />
+                    </InCluster>
                   ))}
                 </div>
               </section>
@@ -111,7 +158,9 @@ export function TasksTab({ agent }: { agent: string | null }) {
               {held ? (
                 <div className="flex flex-col overflow-hidden rounded-lg border border-border">
                   {hold.map((t, i) => (
-                    <Row key={t.id} t={t} ruled={i > 0} owner={owner} kids={[]} />
+                    <InCluster key={`${t.cluster}/${t.id}`} id={t.cluster} dim>
+                      <Row t={t} ruled={i > 0} owner={owner} kids={[]} word={several && <HereWord />} />
+                    </InCluster>
                   ))}
                 </div>
               ) : (
@@ -151,7 +200,7 @@ function waitWords(t: Task, kids: number[]): string | null {
   return text ? text.split(/[,;(]/)[0].trim() : null;
 }
 
-function Row({ t, ruled, owner, kids }: { t: Task; ruled: boolean; owner?: string; kids: number[] }) {
+function Row({ t, ruled, owner, kids, word }: { t: Task; ruled: boolean; owner?: string; kids: number[]; word?: ReactNode }) {
   const nameOf = useNameOf();
   const me = useMe();
   const back = useGiveBack();
@@ -203,6 +252,7 @@ function Row({ t, ruled, owner, kids }: { t: Task; ruled: boolean; owner?: strin
           </div>
         </div>
       </button>
+      {word && <span className="mr-3 flex min-w-0 shrink items-center">{word}</span>}
       {yours && (
         <button
           type="button"

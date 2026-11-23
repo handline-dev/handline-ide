@@ -10,6 +10,7 @@ import { deviceName, forgetToken, inviteCode, loadToken, needsToken, pairWith, t
 import { Button } from '#src/ui/Button.tsx';
 import { ModalHost } from '#src/ui/modal.tsx';
 import { doorUrl, Machines, masterConnect } from '#src/connection/cluster.ts';
+import { JoinedClusters } from '#src/connection/clusters.tsx';
 import { KeepMachines, MasterName, PromoteButton, useThisMacRunner } from '#src/connection/master.tsx';
 
 export function Connect({ children }: { children: ReactNode }) {
@@ -96,7 +97,9 @@ export function Connect({ children }: { children: ReactNode }) {
       ) : (
         <DataProvider daemonId={url}>
           <KeepMachines seen={seen} />
-          <MasterName.Provider value={master}>{children}</MasterName.Provider>
+          <MasterName.Provider value={master}>
+            <JoinedClusters>{children}</JoinedClusters>
+          </MasterName.Provider>
         </DataProvider>
       )}
     </DaemonProvider>

@@ -1,8 +1,8 @@
-import { TabId } from '#src/persist/tabState.ts';
 import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
+import { TabScope, tabIn } from '#src/connection/clusters.tsx';
 import { PlanTab } from '#src/tools/Story.tsx';
 import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { useTabKeys } from '#src/layout/tabKeys.ts';
@@ -190,7 +190,7 @@ function PaneView({
   const body = useRef<HTMLDivElement>(null);
   const [line, setLine] = useState<number | null>(null);
   const [zone, setZone] = useState<Zone | null>(null);
-  const current = pane.tabs.find((t) => t.id === pane.active);
+  const { tab: current, cluster: there } = tabIn(pane.tabs.find((t) => t.id === pane.active));
   // A tab of another agent's own (its terminal, its changes) names that agent; any other draws with this workspace's.
   const own = ownedBy(current?.opens ?? '');
   const shown = own?.kind ?? current?.opens;
@@ -280,7 +280,7 @@ function PaneView({
       </div>
       <div ref={body} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
-          <TabId.Provider value={current?.id ?? null}>
+          <TabScope id={current?.id ?? null} cluster={there}>
             <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)}>
               {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
               {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
@@ -304,7 +304,7 @@ function PaneView({
               {current?.opens === 'requests' && <RequestsTab />}
               {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
             </PaneOpen.Provider>
-          </TabId.Provider>
+          </TabScope>
         </Boundary>
         {current && !current.opens && (
           <EmptyTab

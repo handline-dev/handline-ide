@@ -62,7 +62,9 @@ export function hello(d: CoreHost, c: Conn, p: Record<string, unknown>): unknown
       transcript: d.replyItems,
       review: false,
       ...(d.serveBytes ? TERMINAL_CAPS : TEXT_CAPS),
-      ...(d.master ? { master: d.master, cluster: d.admin.cluster(d.iso()) } : {}),
+      // Its cluster's name, as the Go daemon's hello gives it (a runner, which the fake never is, gives none).
+      ...(d.master ? { master: d.master } : {}),
+      cluster: d.admin.cluster(d.iso()),
     },
     transport: c.network ? 'network' : 'local',
     methods: Object.entries(METHODS)

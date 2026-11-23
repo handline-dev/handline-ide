@@ -1,7 +1,10 @@
 // Settings: over the whole app so the founder can focus on it, its sections in a menu on the left; Back at the menu's top, or Escape, leaves.
 // The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Bot, FolderGit2, ListChecks, MonitorSmartphone, UserRound, Wrench } from 'lucide-react';
+import { ArrowLeft, Bell, Bot, FolderGit2, ListChecks, MonitorSmartphone, Settings2, UserRound, Wrench } from 'lucide-react';
+import { InCluster, useJoined } from '#src/connection/clusters.tsx';
+import { ClusterPicker } from '#src/settings/ClusterPicker.tsx';
+import { GeneralTab } from '#src/settings/GeneralTab.tsx';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AgentsTab } from '#src/settings/AgentsTab.tsx';
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
@@ -17,8 +20,9 @@ import { useBackCloses } from '#src/ui/backCloses.ts';
 import { closeSettings, isSection, settingsTarget, useSettingsOpen, type Section } from '#src/settings/open.ts';
 
 /** The menu's groups: the setup first, then the details of each part, then the devices. */
-const GROUPS: Section[][] = [['onboarding'], ['accounts', 'agents', 'tools', 'notifications', 'projects'], ['devices']];
+const GROUPS: Section[][] = [['general', 'onboarding'], ['accounts', 'agents', 'tools', 'notifications', 'projects'], ['devices']];
 const MENU: Record<Section, { word: string; icon: ReactNode }> = {
+  general: { word: 'General', icon: <Settings2 size={14} /> },
   onboarding: { word: 'Onboarding', icon: <ListChecks size={14} /> },
   accounts: { word: 'Accounts', icon: <UserRound size={14} /> },
   agents: { word: 'Agents', icon: <Bot size={14} /> },
@@ -59,6 +63,10 @@ function Frame() {
   const section = isSection(kept) ? kept : 'onboarding';
   const onboarding = useOnboarding();
   const setSection = (s: Section) => (pick(s), save(s));
+  // With several clusters, whose settings show; a cluster left meanwhile goes back to this Mac's.
+  const joined = useJoined();
+  const [chosen, setCluster] = useState(to.cluster ?? '');
+  const cluster = joined.some((j) => j.id === chosen) ? chosen : '';
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && closeSettings();
     window.addEventListener('keydown', onKey);
@@ -83,7 +91,11 @@ function Frame() {
             <ArrowLeft size={14} />
             Back to app
           </button>
-          <div className="px-2 pb-2 text-xs text-muted">Settings</div>
+          {joined.length > 0 ? (
+            <ClusterPicker value={cluster} onChange={setCluster} />
+          ) : (
+            <div className="px-2 pb-2 text-xs text-muted">Settings</div>
+          )}
           {GROUPS.map((group, i) => (
             <div key={group[0]} className={`flex flex-col gap-0.5 ${i ? 'mt-3 border-t border-border pt-3' : ''}`}>
               {group.map((s) => (
@@ -111,14 +123,17 @@ function Frame() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {/* Empty tab bar, matching the app's. */}
           <LayerDragStrip height="40px" className="shrink-0 border-b border-border bg-surface" />
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
-            {section === 'onboarding' && <OnboardingTab go={setSection} />}
-            {section === 'accounts' && <AccountsTab focus={to.account} />}
-            {section === 'agents' && <AgentsTab open={to.agent} />}
-            {section === 'tools' && <ToolsTab />}
-            {section === 'notifications' && <NotificationsTab />}
-            {section === 'projects' && <ProjectsTab />}
-            {section === 'devices' && <DevicesTab open={to.device} />}
+          <main key={cluster} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
+            <InCluster id={cluster}>
+              {section === 'general' && <GeneralTab />}
+              {section === 'onboarding' && <OnboardingTab go={setSection} />}
+              {section === 'accounts' && <AccountsTab focus={to.account} />}
+              {section === 'agents' && <AgentsTab open={to.agent} />}
+              {section === 'tools' && <ToolsTab />}
+              {section === 'notifications' && <NotificationsTab />}
+              {section === 'projects' && <ProjectsTab />}
+              {section === 'devices' && <DevicesTab open={to.device} />}
+            </InCluster>
           </main>
         </div>
       </div>

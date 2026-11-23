@@ -2,6 +2,7 @@
 import type { FakeDaemon } from '#src/daemon.ts';
 import { task } from '#src/seedkit.ts';
 import { CHAT_SEEDS } from '#src/seeds-chat.ts';
+import { CLUSTER_SEEDS } from '#src/seeds-clusters.ts';
 import { DEVICE_SEEDS } from '#src/seeds-devices.ts';
 import { LEARNING_SEEDS } from '#src/seeds-learning.ts';
 import { PROPOSAL_SEEDS } from '#src/seeds-proposals.ts';
@@ -387,6 +388,7 @@ export const SEEDS: Record<string, Seed> = {
   ...STORY_SEEDS,
   ...CHAT_SEEDS,
   ...DEVICE_SEEDS,
+  ...CLUSTER_SEEDS,
   ...LEARNING_SEEDS,
 };
 
@@ -403,10 +405,13 @@ function switching(
   s.fx.view = { ...s.fx.view, account_switch: { cause: 'usage', from: 'alpha', since, until: null, ...sw } };
 }
 
+/** What `all` seeds: every seed but another cluster's, which is asked for by name. */
+export const ALL = Object.keys(SEEDS).filter((n) => n !== 'second-cluster');
+
 /** Switches the named seeds on: a comma-separated list, or `all`. An unknown name is an error, not a silent no-op. */
 export function applySeeds(d: FakeDaemon, names: string | string[]): string[] {
   const list = (Array.isArray(names) ? names : names.split(',')).map((n) => n.trim()).filter(Boolean);
-  const on = list.includes('all') ? Object.keys(SEEDS) : list;
+  const on = [...new Set(list.flatMap((n) => (n === 'all' ? ALL : [n])))];
   for (const n of on) {
     const seed = SEEDS[n];
     if (!seed) throw new Error(`no seed "${n}"; known: ${Object.keys(SEEDS).join(', ')}, all`);
