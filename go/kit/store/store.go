@@ -207,7 +207,7 @@ func refuseOldLayout(db *sql.DB, path string) error {
 		return err
 	}
 	if n > 0 {
-		return fmt.Errorf("%w: %s is the old layout: move the home aside and bring it over with hl-import-v1", ErrSchema, path)
+		return fmt.Errorf("%w: %s is the old layout, which this daemon does not read: move the home aside and start a new one", ErrSchema, path)
 	}
 	return nil
 }
@@ -259,7 +259,7 @@ func bringUp(db *sql.DB, path string, locked bool) error {
 			return err
 		}
 		if n > 0 {
-			return fmt.Errorf("%w: %s predates schema versions: move the home aside and bring it over with hl-import-v1", ErrSchema, path)
+			return fmt.Errorf("%w: %s predates schema versions, which this daemon does not read: move the home aside and start a new one", ErrSchema, path)
 		}
 	}
 	for _, m := range ms {

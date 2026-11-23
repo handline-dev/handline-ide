@@ -106,7 +106,7 @@ The founder: no migration code in the product. A temporary importer is enough, s
   - The first segment of a dotted name is the workspace (`shop.ui-review` is in `shop`), and the rest is the agent name (`ui-review`). The agent named just the segment becomes the lead, `lead`. The project folder is the lead's `repo`. Reports to comes from today's parent name. `human` becomes `p1`.
   - It brings agent config, agent folders, account folders (label = old name), tasks with their ids, comments, turns, links, tags, blockers, chat requests and prefs. Names in who columns become keys, and `@name` in bodies becomes `<@key>`.
   - It leaves behind events (468k rows), usage samples, token calls, transcripts, delivery state, operations and sessions. These start empty.
-- The importer is deleted one week after the cutover.
+- The importer is deleted one week after the cutover (done 11-23).
 
 ## Build: phase 1
 

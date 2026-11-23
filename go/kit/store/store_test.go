@@ -208,7 +208,7 @@ func TestTheOldLayoutIsRefused(t *testing.T) {
 	db, _ := Open(p)
 	db.Exec("INSERT INTO schema_version(version, name, applied_at, additive) VALUES(1, 'baseline', 0, 1)") // the old home's step 1
 	db.Close()
-	if _, err := Open(p); !errors.Is(err, ErrSchema) || !strings.Contains(err.Error(), "hl-import-v1") {
+	if _, err := Open(p); !errors.Is(err, ErrSchema) || !strings.Contains(err.Error(), "old layout") {
 		t.Fatalf("got %v", err)
 	}
 }
