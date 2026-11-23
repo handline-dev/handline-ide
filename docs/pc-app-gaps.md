@@ -158,20 +158,20 @@ Order: **X1 and X2 together, then X3, then X4, then X5.** X3 before X4 because s
 
 Daemon side, for the team: N19 and N20 above, and N9, N11, N15, N18 for a better create (the form works without them). `agent.create` is also the only unit that needs a daemon task to be useful outside the fake; X1 and X4's reading half work on the real daemon today.
 
-Not proposed, and why: **Add an account** (catalog gap 3) needs `account.add` in the contract first, which is a request, not a unit; **key lists per panel** (catalog gap 7) and **Login from the account's settings** (gap 8) are small and can ride on any web unit that touches those screens; the screenshot gaps in `design-gaps.md` were not compared again, so I do not know how many remain.
+Not proposed, and why: **Add an account** (catalog gap 3) needs `account.add` in the contract first, which is a request, not a unit; **key lists per panel** (catalog gap 7) and **Login from the account's settings** (gap 8) are small and can ride on any web unit that touches those screens; the screenshot gaps in the gap list (local, not in the repo) were not compared again, so I do not know how many remain.
 
 ## 9. Next units, 2026-10-11 (after §8)
 
-Read on main `0efaa40d`. X1 to X5 of §8 are on main. Nothing was run and no screenshot was taken: every claim below comes from reading the source, with file and line. The checks of `design-gaps.md` and `tui-catalog/app-gaps.md` are redone against it. New features are built on the Go daemon only, and the Python daemon goes at the cutover. `agent.create` and `worktree.set_status` are served by Go and the fake; Go does not serve `account.remove` yet (`go/conformance-missing.txt`).
+Read on main `0efaa40d`. X1 to X5 of §8 are on main. Nothing was run and no screenshot was taken: every claim below comes from reading the source, with file and line. The checks of the gap list (local, not in the repo) and `tui-catalog/app-gaps.md` are redone against it. New features are built on the Go daemon only, and the Python daemon goes at the cutover. `agent.create` and `worktree.set_status` are served by Go and the fake; Go does not serve `account.remove` yet (`go/conformance-missing.txt`).
 
 ### 9.1 The screenshot gaps, rechecked
 
-`design-gaps.md` lists 40 gaps for the web at 1280 px. By source, groups A to H are built and what is left is small.
+the gap list (local, not in the repo) lists 40 gaps for the web at 1280 px. By source, groups A to H are built and what is left is small.
 
 - **Built** (code and a test name them): G01 `State` glyph on the rail, Team, Tasks and Accounts; G02, G10, G11 rail nav with icons, Back and Forward, `⌘B`; G12 status bar with the usage popup; G14 `⌘K` palette; G20 to G24 panes, composer, delivery glyphs, empty state; B1 to B3, B5 to B9 send now, take back, `#N` links, the "new" pill, slash and hash menus, reply from All, the strip, the banner, HR cards; G30 to G36 Tasks (search, Open / Mine / Closed pills, Filters popover, drawer, icons); G40 to G42 Inbox rows; G50 to G52 Team cards; G60, G61 gauges with warn and full glyphs; G70 to G72 Stats; G80 to G82 Settings; the cost chart has a pattern per series.
 - **Left, buildable** (units below): characters instead of icons (G05) in `Schedules.tsx:52,61,64`, `Tasks.tsx:209`, `Sidebar.tsx:108,176,326`, `PromptCard.tsx:80`, `TeamPage.tsx:38`, `taskui.tsx:36`; HR diff lines carry the `+` or `-` only as a colour (`HrTab.tsx:237` prints `l.text` and not `l.mark`); `.fnote.bad` and `.fnote.warn` have no leading icon (`HrTab.tsx:121,243`, `Schedules.tsx:41,71`). On the phone, the agent dot is a colour alone and `idle` has the colour of `running` (`theme.ts:5`, `AgentList.tsx:53`, `AgentPage.tsx:59`); the web fixed this in G01 and the founder is colour-blind.
 - **Left, blocked by the contract or the daemon, not proposed:** B4 the `!command` card (no method), the composer's attach and model chips of G23 (no backend), G13 Detailed / Compact and a popup per provider (the usage popup is one line per account; no daemon fact is missing, but nothing asks for it), B11 per-agent share and "~ week %" in the Stats table (the Outlook table has day, agent and cost).
-- **Not covered:** the phone has no gap list (`design-gaps.md` is 1280 px only); the Terminal and Bytes tabs, dialogs and the usage popup were never compared.
+- **Not covered:** the phone has no gap list (the gap list (local, not in the repo) is 1280 px only); the Terminal and Bytes tabs, dialogs and the usage popup were never compared.
 
 ### 9.2 The catalog gaps
 

@@ -34,7 +34,7 @@ drop the terminal for stream-json or the SDK, which Handline cannot do for a ter
   comment on why it is needed. The rules that turn them into working, waiting and done are
   [`server-claude-status-rules.ts`](https://example.invalid/link-removed)
   and its neighbours in `src/main/agent-hooks/server/`: a permission stays visible over later progress, and a child
-  agent's prompt is held over the parent. `docs/ide_a-cli-survey.md` §4 covers what IDE A reports from them.
+  agent's prompt is held over the parent. IDE A's survey (local, not in the repo) §4 covers what IDE A reports from them.
 - **cmux.** Hooks set in
   [`CMUXCLI+ClaudeHookSettings.swift`](https://github.com/manaflow-ai/cmux/blob/main/CLI/CMUXCLI+ClaudeHookSettings.swift)
   (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Notification`, `Stop`,

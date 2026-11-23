@@ -5,7 +5,7 @@ Reference design. Built: §7 steps 1 and 2 (`handline/vendors/`) and, under `des
 One place that answers, per vendor, the fifteen questions enumerated in
 `docs/vendor-extension-board.md` (local, not in the repo) §11. Everything else in ocp stays where it is.
 
-Sources: the survey (`docs/ide_a-cli-survey.md`), the seam board, and the
+Sources: IDE A's survey (local, not in the repo), the seam board, and the
 decisions (`docs/vendor-extension-decisions.md`, D1-D10). Where codex's answer
 was measured on this machine it says so; where it was not, it says that too.
 
