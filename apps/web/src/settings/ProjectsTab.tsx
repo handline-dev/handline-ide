@@ -2,6 +2,7 @@
 import { classify, Hooks, sentence, useRepos, useWrite } from '@handline/app-data';
 import { FolderGit2, Link, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { NeedsGit, useMissing } from '#src/install/install.tsx';
 import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { Block } from '#src/settings/Meter.tsx';
 import { ProjectWorktrees } from '#src/settings/ProjectWorktrees.tsx';
@@ -34,6 +35,7 @@ export function ProjectsTab() {
   const open = repos.data?.repos ?? [];
   const found = (recent.data?.folders ?? []).filter((f) => !open.some((r) => r.path === f.path));
   const here = useStartIn();
+  const noGit = useMissing('git') !== null;
   const [mode, setMode] = useState<'folder' | 'clone' | 'new' | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   return (
@@ -68,7 +70,7 @@ export function ProjectsTab() {
           </div>
         ))}
       </Block>
-      {found.length > 0 && (
+      {found.length > 0 && !noGit && (
         <Block title="Found on this Mac" note="Git folders near your home. Add one to start an agent in it.">
           {found.map((f) => (
             <div key={f.path} data-found={f.path} className="flex items-center gap-3 text-sm">
@@ -83,23 +85,25 @@ export function ProjectsTab() {
         </Block>
       )}
       <Block title="Other ways to add">
-        <div className="flex flex-wrap gap-2">
-          <Button aria-expanded={mode === 'folder'} onClick={() => setMode('folder')}>
-            <FolderGit2 size={14} />
-            Browse folder…
-          </Button>
-          <Button aria-expanded={mode === 'clone'} onClick={() => setMode('clone')}>
-            <Link size={14} />
-            Clone from URL…
-          </Button>
-          <Button aria-expanded={mode === 'new'} onClick={() => setMode('new')}>
-            <Plus size={14} />
-            Create new…
-          </Button>
-        </div>
-        {mode === 'folder' && <FolderForm key="folder" />}
-        {mode === 'new' && <FolderForm key="new" init />}
-        {mode === 'clone' && <CloneForm />}
+        <NeedsGit>
+          <div className="flex flex-wrap gap-2">
+            <Button aria-expanded={mode === 'folder'} onClick={() => setMode('folder')}>
+              <FolderGit2 size={14} />
+              Browse folder…
+            </Button>
+            <Button aria-expanded={mode === 'clone'} onClick={() => setMode('clone')}>
+              <Link size={14} />
+              Clone from URL…
+            </Button>
+            <Button aria-expanded={mode === 'new'} onClick={() => setMode('new')}>
+              <Plus size={14} />
+              Create new…
+            </Button>
+          </div>
+          {mode === 'folder' && <FolderForm key="folder" />}
+          {mode === 'new' && <FolderForm key="new" init />}
+          {mode === 'clone' && <CloneForm />}
+        </NeedsGit>
       </Block>
       {!!here.error && (
         <p className="text-sm text-danger" role="alert">

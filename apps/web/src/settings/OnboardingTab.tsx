@@ -1,8 +1,8 @@
-// Settings > Onboarding: the five setup items, done or not by what is true on this machine, each leading to its own Settings page, and Continue,
+// Settings > Onboarding: the four setup items, done or not by what is true on this machine, each leading to its own Settings page, and Continue,
 // which opens the setup where it was left.
-import { Hooks, useAgents, useRepos, useStatus } from '@handline/app-data';
+import { Hooks, useAgents, useRepos } from '@handline/app-data';
 import { ArrowRight, Check } from 'lucide-react';
-import { BASE_TOOLS, STEPS, type StepId } from '#src/onboarding/data/steps.ts';
+import { STEPS, type StepId } from '#src/onboarding/data/steps.ts';
 import { openOnboarding, useAiTools, useOnboarding } from '#src/onboarding/data/progress.ts';
 import { Block } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
@@ -11,14 +11,12 @@ import { Button } from '#src/ui/Button.tsx';
 
 const TITLE: Record<StepId, string> = {
   ai: 'AI tools',
-  tools: 'Git & tmux',
   notify: 'Notifications',
   project: 'Project',
   agent: 'First agent',
 };
 const PAGE: Partial<Record<StepId, { section: Section; word: string }>> = {
   ai: { section: 'accounts', word: 'Accounts' },
-  tools: { section: 'tools', word: 'Tools' },
   notify: { section: 'notifications', word: 'Notifications' },
   project: { section: 'projects', word: 'Projects' },
 };
@@ -26,7 +24,6 @@ const PAGE: Partial<Record<StepId, { section: Section; word: string }>> = {
 export function OnboardingTab({ go }: { go: (s: Section) => void }) {
   const o = useOnboarding();
   const ai = useAiTools();
-  const missing = (useStatus().data?.missing_tools ?? []).filter((m) => BASE_TOOLS.includes(m.tool));
   const repos = useRepos().data?.repos.length ?? 0;
   const found = Hooks.useReposRecent().data?.folders.length ?? 0;
   const agents = useAgents().data?.agents.length ?? 0;
@@ -36,7 +33,6 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
     ai: ready.length
       ? ready.map((r) => `${r.vendor === 'codex' ? 'Codex' : 'Claude Code'}${r.email ? ` · ${r.email}` : ''}`).join(', ')
       : 'No AI tool is logged in yet.',
-    tools: missing.length ? `${missing.map((m) => m.tool).join(' and ')} missing` : 'git and tmux are installed.',
     notify: o.done.notify ? (o.notify === 'granted' ? 'On' : 'Skipped') : 'Not set',
     project: repos ? `${repos} ${repos === 1 ? 'project' : 'projects'}` : `None yet${found ? ` · ${found} found on this Mac` : ''}`,
     agent: agents ? `${agents} ${agents === 1 ? 'agent' : 'agents'}` : 'Not started',

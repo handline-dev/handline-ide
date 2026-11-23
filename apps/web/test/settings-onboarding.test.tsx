@@ -32,10 +32,9 @@ const mount = async (ui: React.ReactNode) => {
 };
 beforeEach(() => {
   resetOnboardingForTest();
-  openOnboarding(2);
+  openOnboarding(1);
   Object.assign(machine, {
     accounts: [{ login_state: 'ok' }],
-    missing: [{ tool: 'tmux', fix: 'brew install tmux' }],
     repos: 0,
     agents: 0,
     push: {},
@@ -45,11 +44,11 @@ beforeEach(() => {
 afterEach(() => act(() => root.unmount()));
 
 describe('Settings > Onboarding', () => {
-  it('shows which of the five are done, the count, and where Continue opens', async () => {
+  it('shows which of the four are done, the count, and where Continue opens', async () => {
     await mount(<OnboardingTab go={() => {}} />);
-    expect(el.textContent).toContain('1 of 5 done');
+    expect(el.textContent).toContain('1 of 4 done');
     expect(el.querySelector('[data-step=ai] [aria-label=Done]')).not.toBeNull();
-    expect(el.querySelector('[data-step=tools]')?.textContent).toContain('tmux missing');
+    expect(el.querySelector('[data-step=tools]')).toBeNull();
     expect(el.querySelector('[data-step=project]')?.textContent).toContain('None yet · 2 found on this Mac');
     expect(el.textContent).toContain('Continue onboarding');
     expect(el.textContent).toContain('Opens where you left off: Notifications.');
@@ -57,8 +56,8 @@ describe('Settings > Onboarding', () => {
   it('leads each item to its own page', async () => {
     const go = vi.fn();
     await mount(<OnboardingTab go={go} />);
-    await act(async () => (el.querySelector('[data-step=tools] button') as HTMLElement).click());
-    expect(go).toHaveBeenCalledWith('tools');
+    await act(async () => (el.querySelector('[data-step=project] button') as HTMLElement).click());
+    expect(go).toHaveBeenCalledWith('projects');
   });
 });
 

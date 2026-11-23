@@ -7,7 +7,7 @@ import { useAiTools } from '#src/onboarding/data/progress.ts';
 import type { AiRow } from '#src/onboarding/data/steps.ts';
 import { Block } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
-import { copy } from '#src/ui/copy.ts';
+import { installTool } from '#src/install/install.tsx';
 
 const NAME: Record<string, string> = { claude: 'Claude Code', codex: 'Codex' };
 
@@ -70,9 +70,9 @@ export function AiToolsCard() {
               Log in again
             </Button>
           )}
-          {!r.installed && r.fix && (
-            <Button variant="ghost" onClick={() => void copy(r.fix, 'command')}>
-              Copy install command
+          {!r.installed && (
+            <Button variant="ghost" onClick={() => void installTool(r.vendor)}>
+              Install
             </Button>
           )}
         </div>

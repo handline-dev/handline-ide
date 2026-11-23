@@ -37,6 +37,9 @@ export const SEEDS: Record<string, Seed> = {
       fix: 'open_terminal',
     }),
 
+  /** A Mac without the command line tools: git is missing, so adding a project asks to install it. */
+  'no-git': (d) => void (d.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }]),
+
   /** A review: a task tagged review under the agent's own, a first comment naming two pictures, and a decision card asking for a look. */
   review: (d) => {
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -403,10 +406,13 @@ function switching(
   s.fx.view = { ...s.fx.view, account_switch: { cause: 'usage', from: 'alpha', since, until: null, ...sw } };
 }
 
+/** What `all` seeds: every seed but a machine's lack, which is asked for by name. */
+export const ALL = Object.keys(SEEDS).filter((n) => n !== 'no-git');
+
 /** Switches the named seeds on: a comma-separated list, or `all`. An unknown name is an error, not a silent no-op. */
 export function applySeeds(d: FakeDaemon, names: string | string[]): string[] {
   const list = (Array.isArray(names) ? names : names.split(',')).map((n) => n.trim()).filter(Boolean);
-  const on = list.includes('all') ? Object.keys(SEEDS) : list;
+  const on = list.includes('all') ? ALL : list;
   for (const n of on) {
     const seed = SEEDS[n];
     if (!seed) throw new Error(`no seed "${n}"; known: ${Object.keys(SEEDS).join(', ')}, all`);

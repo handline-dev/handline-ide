@@ -29,7 +29,7 @@ const mount = async () => {
 };
 beforeEach(() => {
   resetOnboardingForTest();
-  Object.assign(machine, { accounts: [], missing: [{ tool: 'tmux' }], repos: 0, agents: 0 });
+  Object.assign(machine, { accounts: [], repos: 0, agents: 0 });
 });
 afterEach(() => act(() => root.unmount()));
 
@@ -40,7 +40,7 @@ describe('useOnboarding', () => {
     expect(seen.o.cardVisible).toBe(true);
     await act(async () => closeOnboarding());
     expect(seen.open).toBe(false);
-    expect([seen.o.doneCount, seen.o.total, seen.o.cardVisible]).toEqual([0, 5, true]);
+    expect([seen.o.doneCount, seen.o.total, seen.o.cardVisible]).toEqual([0, 4, true]);
   });
   it('does not open again after the first time, and keeps the step it was left on', async () => {
     await mount();
@@ -62,7 +62,7 @@ describe('useOnboarding', () => {
     await act(async () => seen.o.hideCard());
     expect(seen.o.cardVisible).toBe(false);
     resetOnboardingForTest();
-    Object.assign(machine, { accounts: [{ login_state: 'ok' }], missing: [], repos: 1, agents: 1 });
+    Object.assign(machine, { accounts: [{ login_state: 'ok' }], repos: 1, agents: 1 });
     await act(async () => seen.o.skipNotify());
     expect([seen.o.allDone, seen.o.cardVisible]).toEqual([true, false]);
   });

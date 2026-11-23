@@ -62,9 +62,25 @@ export function ShellTab({ agent, handle }: { agent: string; handle: string }) {
   return <BytesTab agent={agent} shell={handle} detail={{ terminal: handle }} />;
 }
 
+/** A window that belongs to no agent (a tool's install), by the handle the daemon gave for it. */
+export function PaneTab({ handle, label }: { handle: string; label: string }) {
+  return <BytesTab agent="" label={label} shell={handle} detail={{ terminal: handle }} />;
+}
+
 /** `shell`: a shell's handle instead of the agent's own terminal. It has no input holder, so typing needs no take. */
-function BytesTab({ agent, shell, detail }: { agent: string; shell?: string; detail: Pick<AgentDetail, 'terminal'> }) {
-  const word = useNameOf()(agent);
+function BytesTab({
+  agent,
+  label,
+  shell,
+  detail,
+}: {
+  agent: string;
+  label?: string;
+  shell?: string;
+  detail: Pick<AgentDetail, 'terminal'>;
+}) {
+  const nameOf = useNameOf();
+  const word = label ?? nameOf(agent);
   const store = useStore();
   const host = useRef<HTMLDivElement>(null);
   const takeInput = useWrite('input.take', agent);
