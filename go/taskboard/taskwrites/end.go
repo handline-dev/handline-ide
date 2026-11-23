@@ -255,7 +255,7 @@ func closeDeliveries(tx *sql.Tx, tid int64) ([]linked, error) {
 }
 
 // clearBlocksOn drops every block row naming tid after it was discarded, and for each task left with no open blocker writes the
-// notice for its owner (none for the closer's own task) (_clear_blocks_on).
+// notice for its owner (none for the closer's own task, nor for a draft) (_clear_blocks_on).
 func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string, error) {
 	deps, err := db.IDs(tx, "SELECT task_id FROM task_blocks WHERE blocks_on = ? ORDER BY task_id", tid)
 	if err != nil {
@@ -273,6 +273,11 @@ func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string,
 			return nil, nil, err
 		}
 		if d == nil || d.done() || d.DiscardedBy.Valid && d.DiscardedBy.String != "" {
+			continue
+		}
+		if st, err := state(tx, d); err != nil {
+			return nil, nil, err
+		} else if st == "draft" { // as supervisor's isDraft
 			continue
 		}
 		if n, err := childResultNotice(tx, d, closer, tid); err != nil {

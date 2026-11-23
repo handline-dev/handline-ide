@@ -86,6 +86,7 @@ func TestADiscardHandsItsSaysItsFreedOwnersToTheTeller(t *testing.T) {
 	sdb, mk := discardEnv(t)
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1), (2, 'u', 'other', 'other', 1)",
+		"UPDATE tasks SET queued_by = 'other' WHERE id = 2",
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(2, 1, 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, kind, state, edge_ok) VALUES(5, 1, 'manager', 'worker', 'do t', 'task', 'queued', 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)",

@@ -320,7 +320,7 @@ func (e *Env) clearBlocksOn(q db.Q, tid int64, closer, how string) ([]db.Notice,
 	for _, depID := range must(db.TasksBlockedBy(q, tid)) {
 		must(db.RemoveBlock(q, depID, tid))
 		dep := must(db.GetTask(q, depID))
-		if dep == nil || dep.Ended() {
+		if dep == nil || dep.Ended() || isDraft(q, dep) {
 			continue
 		}
 		if n := e.childResultNotice(q, dep, closer, tid); n != nil {
@@ -345,6 +345,9 @@ func (e *Env) clearBlocksOn(q db.Q, tid int64, closer, how string) ([]db.Notice,
 	return notices, freed
 }
 
+// isDraft: dep is not queued yet, so nothing linked to it may be sent (a linked request marks it sent).
+func isDraft(q db.Q, dep *db.Task) bool { return must(db.TaskState(q, dep)) == "draft" }
+
 // releasedAtDone: was dep already released for blocker tid's latest finish? A reopen voids it.
 func (e *Env) releasedAtDone(q db.Q, tid, dep int64) bool {
 	var since sql.NullInt64
@@ -367,6 +370,10 @@ func (e *Env) freeBlockedBy(q db.Q, tid int64, by string) ([]db.Notice, []string
 	for _, depID := range must(db.TasksBlockedBy(q, tid)) {
 		dep := must(db.GetTask(q, depID))
 		if dep == nil || dep.Ended() || e.releasedAtDone(q, tid, depID) {
+			continue
+		}
+		if isDraft(q, dep) { // released for this finish, told nothing: a queue delivers it
+			must(db.AddEvent(q, by, "released_at_done", db.KV{K: "task_id", V: depID}, db.KV{K: "blocks_on", V: tid}, db.KV{K: "freed", V: false}, db.KV{K: "told", V: false}))
 			continue
 		}
 		if n := e.childResultNotice(q, dep, by, tid); n != nil {
