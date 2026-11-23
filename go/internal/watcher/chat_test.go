@@ -489,6 +489,8 @@ func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 	var read []string
 	c := r.chat()
 	c.Panes = func() map[string]term.PaneRun { return panes }
+	var logged []string
+	c.Log = func(format string, args ...any) { logged = append(logged, fmt.Sprintf(format, args...)) }
 	c.Tail = func(handle string, rows int) []string {
 		read = append(read, fmt.Sprintf("%s/%d", handle, rows))
 		return []string{"ok  \tpkg/a", "FAIL\tpkg/b"}
@@ -519,6 +521,9 @@ func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 	}
 	if strings.Join(read, ",") != "%4/40" {
 		t.Fatalf("the rows read: %v", read)
+	}
+	if want := fmt.Sprintf(`  run r1000:1 stopped: window %%5, run tag %q; the host listed [%%4=%s %%6=%s]`, reply.Tag(), failed.Tag(), unowned.Tag()); strings.Join(logged, "\n") != want {
+		t.Fatalf("logged %q, want %q", logged, want)
 	}
 	if n := len(toldAbout(t, r.d, "")); n != 0 {
 		t.Fatalf("a run with no agent told %d", n)

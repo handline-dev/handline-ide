@@ -33,7 +33,9 @@ type Chat struct {
 	// Panes is what the terminal host says of the windows that run commands; nil, or nil from it, ends no run.
 	Panes func() map[string]term.PaneRun
 	// Tail is the last rows of a run window, told to the run's agent when the run ends; nil tells no output.
-	Tail        func(handle string, rows int) []string
+	Tail func(handle string, rows int) []string
+	// Log, when set, says why each run it ends as stopped was taken for gone: what the host listed of its window.
+	Log         func(format string, args ...any)
 	runSeen     map[string]string // run block -> the run as last said
 	done        map[int64]string  // request -> the message as last said, for the ones touched in the second the cursor is at
 	open        map[int64]bool    // the prompts told open and not yet told closed
@@ -197,7 +199,21 @@ func (c *Chat) tell(emit Emit, req *reads.ChatRequest) error {
 // look says nothing.
 func (c *Chat) runs(q *sql.DB, emit Emit) error {
 	if c.Panes != nil {
-		if err := cmdruns.Settle(q, c.Panes, cmdruns.Now(), cmdruns.Telling(c.Tail)); err != nil {
+		var panes map[string]term.PaneRun
+		host := func() map[string]term.PaneRun { panes = c.Panes(); return panes }
+		tell := cmdruns.Telling(c.Tail)
+		ended := func(r cmdruns.Run) func(db.Q) error {
+			if r.State == "stopped" && c.Log != nil {
+				listed := make([]string, 0, len(panes))
+				for h, p := range panes {
+					listed = append(listed, h+"="+p.Tag)
+				}
+				slices.Sort(listed)
+				c.Log("  run %s stopped: window %s, run tag %q; the host listed %v", r.Block, r.Terminal, r.Tag(), listed)
+			}
+			return tell(r)
+		}
+		if err := cmdruns.Settle(q, host, cmdruns.Now(), ended); err != nil {
 			return err
 		}
 	}
