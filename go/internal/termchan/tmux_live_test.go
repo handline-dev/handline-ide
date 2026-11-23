@@ -125,7 +125,7 @@ func liveTmux(t *testing.T, sock string, file *string) {
 		dead    bool
 		status  int
 	}{{"true", true, 0}, {"echo one; echo two >&2; exit 3", true, 3}, {"sleep 60", false, 0}} {
-		run, why := tm.CreateRun(dir, "ann-run", "ann", "9:0@1", c.command)
+		run, why := tm.CreateRun(dir, "ann-run", "ann", "9:0@1", c.command, true)
 		if run == "" {
 			t.Fatalf("%s: %s", c.command, why)
 		}
@@ -160,8 +160,23 @@ func liveTmux(t *testing.T, sock string, file *string) {
 		}
 	}
 
+	// A window kept only for a failure (an install's) closes itself when its command ends 0, and stays when it fails.
+	gone, _ := tm.CreateRun(dir, "install-git", "(install)", "install:git", "true", false)
+	failed, _ := tm.CreateRun(dir, "install-git", "(install)", "install:git", "exit 2", false)
+	for deadline := time.Now().Add(15 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		runs := tm.PaneRuns()
+		_, here := runs[gone]
+		if !here && runs[failed].Dead && runs[failed].Status == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("an install that ended 0 is listed %v, the failed one %+v", here, runs[failed])
+		}
+	}
+	tm.CloseTerminal(failed, true)
+
 	// A command a signal ended has no exit status in tmux: it reads as a shell would say it, 128 plus the signal, never as 0.
-	killed, why := tm.CreateRun(dir, "ann-run", "ann", "9:1@1", "sleep 60")
+	killed, why := tm.CreateRun(dir, "ann-run", "ann", "9:1@1", "sleep 60", true)
 	if killed == "" {
 		t.Fatal(why)
 	}

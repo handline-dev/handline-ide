@@ -61,9 +61,11 @@ func (e *Env) toolsInstall(_ *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if fix == "xcode-select --install" {
 		fix = "p='Install Command Line Developer Tools[.]app'; " + fix + installerWait
+	} else { // a fix ends 0 only when the tool came: a curl that failed into bash's pipe ends 0 too, and its window then closed on its error
+		fix = "set -o pipefail; " + fix + " && command -v " + tool + " >/dev/null"
 	}
-	cwd, _ := os.UserHomeDir() // none: the host's own default folder
-	handle, why := runner.CreateRun(cwd, "install-"+tool, installStamp, installTag(tool), fix)
+	cwd, _ := os.UserHomeDir()                                                                        // none: the host's own default folder
+	handle, why := runner.CreateRun(cwd, "install-"+tool, installStamp, installTag(tool), fix, false) // one that ends 0 closes: the tool came
 	if handle == "" {
 		return nil, rpc.Refused("no window was opened: "+why, "state", "")
 	}

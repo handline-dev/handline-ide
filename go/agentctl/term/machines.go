@@ -198,9 +198,9 @@ func (m *Machines) CreateShell(cwd, title, agent string) (string, string) {
 	return "", "the terminal host (" + m.Name() + ") cannot open a shell"
 }
 
-func (m *Machines) CreateRun(cwd, title, agent, tag, command string) (string, string) {
+func (m *Machines) CreateRun(cwd, title, agent, tag, command string, keepDone bool) (string, string) {
 	if l, ok := m.Local.(Runs); ok {
-		return l.CreateRun(cwd, title, agent, tag, command)
+		return l.CreateRun(cwd, title, agent, tag, command, keepDone)
 	}
 	return "", "the terminal host (" + m.Name() + ") cannot run a command"
 }

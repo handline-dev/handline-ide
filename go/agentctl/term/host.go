@@ -46,15 +46,16 @@ func (d dynamic) PaneShell(handle string) (string, bool) {
 
 // Runs is what a host adds to run a command in a window of its own and read how it ended.
 type Runs interface {
-	CreateRun(cwd, title, agent, tag, command string) (handle, why string)
+	// CreateRun's window stays once its command ends; with keepDone false it closes when the command ends 0.
+	CreateRun(cwd, title, agent, tag, command string, keepDone bool) (handle, why string)
 	PaneRuns() map[string]PaneRun
 	// RunOutput is the last rows a run's window shows of what its command printed; nil when the host cannot say.
 	RunOutput(handle string, rows int) []string
 }
 
-func (d dynamic) CreateRun(cwd, title, agent, tag, command string) (string, string) {
+func (d dynamic) CreateRun(cwd, title, agent, tag, command string, keepDone bool) (string, string) {
 	if h, ok := d.cur().(Runs); ok {
-		return h.CreateRun(cwd, title, agent, tag, command)
+		return h.CreateRun(cwd, title, agent, tag, command, keepDone)
 	}
 	return "", "the terminal host (" + d.Name() + ") cannot run a command"
 }

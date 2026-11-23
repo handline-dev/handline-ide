@@ -4,7 +4,7 @@ import { type RpcError } from '@handline/client';
 import { setup } from '#src/helpers.ts';
 import { applySeeds } from '#src/seeds.ts';
 
-test('tools.install runs a missing tool or an uninstalled vendor in a window shell.close ends, and the tool is installed', async () => {
+test('tools.install runs a missing tool or an uninstalled vendor in a window that closes once the tool is installed and stays when it fails', async () => {
   const { client, daemon } = setup();
   await client.start();
   daemon.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }];
@@ -27,7 +27,7 @@ test('tools.install runs a missing tool or an uninstalled vendor in a window she
   daemon.endInstall('codex');
   assert.equal((await client.call('daemon.status', {})).vendors?.find((v) => v.vendor === 'codex')?.installed, true);
   await assert.rejects(client.call('tools.install', { tool: 'claude', request_id: 'i5' }), (e: RpcError) => e.data?.what === 'tool');
-  await client.call('shell.close', { terminal: git.terminal, request_id: 'i6' });
+  await assert.rejects(client.call('shell.close', { terminal: git.terminal, request_id: 'i6' })); // it closed when git came
 });
 
 test('the installing-git seed has git missing and its install running, which shell.close takes away', async () => {

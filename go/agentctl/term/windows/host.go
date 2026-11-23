@@ -24,7 +24,7 @@ func (Host) RespawnTerminal(string) (bool, string)                          { re
 func (Host) CreateShell(string, string, string) (string, string) { return "", Unsupported }
 func (Host) PaneShell(string) (string, bool)                     { return "", false }
 
-func (Host) CreateRun(string, string, string, string, string) (string, string) {
+func (Host) CreateRun(string, string, string, string, string, bool) (string, string) {
 	return "", Unsupported
 }
 func (Host) PaneRuns() map[string]term.PaneRun { return nil }

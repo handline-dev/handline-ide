@@ -195,13 +195,16 @@ export function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
   return { tool, terminal, host: 'fake' };
 }
 
-/** Ends a tool's running install: its window says how, and on success the tool is installed. */
+/** Ends a tool's running install: a failed one's window says so and stays; on success the window closes and the tool is installed. */
 export function endInstall(d: CoreHost, tool: string, ok: boolean): void {
   const run = installOf(d, tool);
   if (!run || run.ended) throw new Error(`no install of ${tool} is running`);
   run.ended = true;
-  d.script.shells.get(run.terminal)!.lines.push('', ok ? 'Done.' : 'Failed (exit 1).');
-  if (!ok) return;
+  if (!ok) {
+    d.script.shells.get(run.terminal)!.lines.push('', 'Failed (exit 1).');
+    return;
+  }
+  d.script.shells.delete(run.terminal);
   d.admin.missingTools = d.admin.missingTools.filter((m) => m.tool !== tool);
   const vendor = d.admin.vendors.find((v) => v.binary === tool);
   if (vendor) vendor.installed = true;

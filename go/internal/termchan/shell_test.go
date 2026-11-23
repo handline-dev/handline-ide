@@ -138,7 +138,7 @@ func TestShellCloseClosesAShellAndNothingElse(t *testing.T) {
 	}
 }
 
-func (h *shellHost) CreateRun(cwd, title, agent, tag, command string) (string, string) {
+func (h *shellHost) CreateRun(cwd, title, agent, tag, command string, _ bool) (string, string) {
 	handle, why := h.CreateShell(cwd, title, agent)
 	h.runs = append(h.runs, tag+" "+command)
 	return handle, why
