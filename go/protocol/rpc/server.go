@@ -758,11 +758,15 @@ func (c *Conn) writeOut(task int64, result any, err error) (any, error) {
 	return walk(generic(result), false), err
 }
 
-// whoFields are the reply fields that hold a who's key, as the contract names them.
-var whoFields = map[string]bool{"acting": true, "agent": true, "agents": true, "asker": true, "assignee": true, "author": true, "by": true,
-	"discarded_by": true, "edited_by": true, "from": true, "opened_by": true, "owner": true, "pushed_by": true, "reporter": true, "requested_by": true,
-	"requester": true, "target": true, "to": true, "who": true,
-	"holder": true, "last_agent": true, "pinned_to": true} // a desk's (desks.list)
+// whoFields are the reply fields that hold a who's key, as the contract names them; the last three are a desk's (desks.list).
+var whoFields = func() map[string]bool {
+	set := map[string]bool{}
+	for _, f := range strings.Fields(`acting agent agents asker assignee author by discarded_by edited_by from opened_by owner pushed_by
+		reporter requested_by requester target to who holder last_agent pinned_to`) {
+		set[f] = true
+	}
+	return set
+}()
 
 // rewrap is err with inner, which it wraps, replaced by out: a wrapper the handler gave (CommitThen) stays around the written-out error.
 func rewrap(err error, inner, out *Error) error {
