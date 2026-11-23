@@ -3,16 +3,19 @@ package reads
 import (
 	"os/exec"
 	"runtime"
+	"slices"
 
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/internal/termchan"
 	"github.com/handline/handline/go/kit/paths"
 )
 
 // MissingTool is DaemonStatus.missing_tools' item: a tool agents are run with that this machine lacks, and the shell command that installs it.
 type MissingTool struct {
-	Tool string `json:"tool"`
-	Fix  string `json:"fix"`
+	Tool    string                `json:"tool"`
+	Fix     string                `json:"fix"`
+	Install *termchan.ToolInstall `json:"install,omitempty"`
 }
 
 // missingTools is DaemonStatus.missing_tools: none when the daemon runs no agent side. Another vendor's CLI is listed only while
@@ -31,7 +34,7 @@ func (e *Env) missingTools(vendors []VendorStatus) []MissingTool {
 			inUse = e.vendorsInUse()
 		}
 		if inUse[v.Vendor] {
-			out = append(out, MissingTool{v.Binary, v.Fix})
+			out = append(out, MissingTool{Tool: v.Binary, Fix: v.Fix})
 		}
 	}
 	return out
@@ -39,10 +42,11 @@ func (e *Env) missingTools(vendors []VendorStatus) []MissingTool {
 
 // VendorStatus is DaemonStatus.vendors' item: a vendor agents can run on, its command, whether that is on PATH and how to install it.
 type VendorStatus struct {
-	Vendor    string `json:"vendor"`
-	Binary    string `json:"binary"`
-	Installed bool   `json:"installed"`
-	Fix       string `json:"fix"`
+	Vendor    string                `json:"vendor"`
+	Binary    string                `json:"binary"`
+	Installed bool                  `json:"installed"`
+	Fix       string                `json:"fix"`
+	Install   *termchan.ToolInstall `json:"install,omitempty"`
 }
 
 // vendors is DaemonStatus.vendors: every registered vendor CLI, read at each call; claude at the path agents are run with.
@@ -54,7 +58,7 @@ func (e *Env) vendors() []VendorStatus {
 			look = e.Claude
 		}
 		_, err := exec.LookPath(look)
-		out = append(out, VendorStatus{t.Vendor, t.Command, err == nil, t.Fix})
+		out = append(out, VendorStatus{Vendor: t.Vendor, Binary: t.Command, Installed: err == nil, Fix: t.Fix})
 	}
 	return out
 }
@@ -101,7 +105,7 @@ func missingTools(claude, stub string, devTools func() bool) []MissingTool {
 	} {
 		p, err := exec.LookPath(m.name)             // a path is checked as it is, a name on PATH
 		if err != nil || p == stub && !devTools() { // only git can be the stub
-			out = append(out, MissingTool{m.tool, m.fix})
+			out = append(out, MissingTool{Tool: m.tool, Fix: m.fix})
 		}
 	}
 	return out
@@ -122,4 +126,22 @@ func (e *Env) Installable() map[string]string {
 		out[m.Tool] = m.Fix
 	}
 	return out
+}
+
+// withInstalls puts on each missing tool and each vendor not installed its install window, while tools.install keeps one.
+func (e *Env) withInstalls(vendors []VendorStatus, missing []MissingTool) {
+	if e.Installs == nil || len(missing) == 0 && !slices.ContainsFunc(vendors, func(v VendorStatus) bool { return !v.Installed }) {
+		return
+	}
+	runs := e.Installs()
+	for i := range vendors {
+		if r, ok := runs[vendors[i].Binary]; ok && !vendors[i].Installed {
+			vendors[i].Install = &r
+		}
+	}
+	for i := range missing {
+		if r, ok := runs[missing[i].Tool]; ok {
+			missing[i].Install = &r
+		}
+	}
 }

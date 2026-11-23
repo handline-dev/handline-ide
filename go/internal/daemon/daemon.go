@@ -793,6 +793,9 @@ func (d *Daemon) readsEnv() reads.Env {
 	if d.logins != nil {
 		renv.Login = d.logins.Of
 	}
+	if d.tchan != nil {
+		renv.Installs = d.tchan.Installs
+	}
 	return renv
 }
 

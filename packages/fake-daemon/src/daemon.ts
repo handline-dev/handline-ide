@@ -30,7 +30,7 @@ import { Replies } from '#src/replies.ts';
 import { stamped } from '#src/resume.ts';
 import { byTerminal, newSession, type Session } from '#src/session.ts';
 import { EventLog } from '#src/eventlog.ts';
-import { coreCall, hello, mayCall } from '#src/core.ts';
+import { coreCall, endInstall, hello, mayCall } from '#src/core.ts';
 import { moduleCall } from '#src/modules.ts';
 
 export class FakeDaemon {
@@ -159,6 +159,11 @@ export class FakeDaemon {
   /** Runs the script until every session waits for a person or is idle. */
   settle(): void {
     while (this.tick());
+  }
+
+  /** Ends a tool's running install (tools.install), installed when ok, else failed. */
+  endInstall(tool: string, ok = true): void {
+    endInstall(this, tool, ok);
   }
 
   /** The daemon's own typing: refused while a person holds the terminal, marked in the stream otherwise. */

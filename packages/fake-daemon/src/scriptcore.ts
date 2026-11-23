@@ -29,6 +29,8 @@ export class ScriptCore {
   /** The shells shell.open started and shell.close has not ended, by handle. */
   readonly shells = new Map<string, Session>();
   shellCount = 0;
+  /** The install windows tools.install opened, by tool: DaemonStatus' install while its shell is open. */
+  readonly installs = new Map<string, { terminal: string; ended: boolean }>();
   readonly proposals: FakeProposals;
   protected host: Host;
   get sessions() {

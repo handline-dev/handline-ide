@@ -1,5 +1,6 @@
 // Seeds a UI check needs that the first-load fixtures leave out: switch them on by name, in a test or at serve time.
 import type { FakeDaemon } from '#src/daemon.ts';
+import { installTool } from '#src/core.ts';
 import { task } from '#src/seedkit.ts';
 import { CHAT_SEEDS } from '#src/seeds-chat.ts';
 import { CLUSTER_SEEDS } from '#src/seeds-clusters.ts';
@@ -399,6 +400,11 @@ export const SEEDS: Record<string, Seed> = {
   ...DEVICE_SEEDS,
   ...CLUSTER_SEEDS,
   ...LEARNING_SEEDS,
+  /** git missing and its install running: daemon.status carries the run until a test ends it with `endInstall`. */
+  'installing-git': (d) => {
+    d.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }];
+    installTool(d, { tool: 'git' });
+  },
 };
 
 const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();

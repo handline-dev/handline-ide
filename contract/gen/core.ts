@@ -149,6 +149,8 @@ export type MissingTool = {
   tool: "claude" | "git" | "tmux" | "codex";
   /** A shell command that installs the tool, for a client to show and copy, for example "brew install tmux". */
   fix: string;
+  /** The install window tools.install opened for it, while the terminal host keeps that window: running, or ended and not yet replaced by a new run or closed; absent otherwise and on a daemon that does not serve it. */
+  install?: ToolInstall;
 };
 
 export type DaemonStatus = {
@@ -774,6 +776,15 @@ export type VendorStatus = {
   installed: boolean;
   /** A shell command that installs it, for a client to show and copy, for example "npm install -g @openai/codex". */
   fix: string;
+  /** As MissingTool.install, while installed is false. */
+  install?: ToolInstall;
+};
+
+export type ToolInstall = {
+  /** The install window's handle, as tools.install answered it and terminal.attach takes it. */
+  terminal: string;
+  /** Whether its command ended: false while it runs; git's runs until Apple's installer closes, and fails when the command line tools did not come. The window's last line says how it ended. */
+  ended: boolean;
 };
 
 export interface CoreMethods {

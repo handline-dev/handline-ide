@@ -99,8 +99,8 @@ export function coreCall(
         d.admin.machineNeeds,
         d.admin.keepAwake(),
         d.admin.paused,
-        missingTools(d),
-        d.admin.vendors,
+        withInstall(d, missingTools(d)),
+        withInstall(d, d.admin.vendors),
       );
     case 'load.get':
       return loadReply(d.sessions, d.iso(), p);
@@ -173,19 +173,52 @@ const INSTALL_FX = {
   session: null,
 };
 
-/** tools.install: a window that prints the tool's fix and ends 0 at once, and the tool is installed. */
-function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
+/** tools.install: a window that prints the tool's fix and runs until `endInstall` ends it; a running one is answered again. */
+export function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
   const tool = p.tool;
   if (tool !== 'claude' && tool !== 'codex' && tool !== 'git') throw badRequest('tool is claude, codex or git', 'tool');
+  const was = installOf(d, tool);
+  if (was && !was.ended) return { tool, terminal: was.terminal, host: 'fake' };
   const vendor = d.admin.vendors.find((v) => v.binary === tool && !v.installed);
   const fix = missingTools(d).find((m) => m.tool === tool)?.fix ?? vendor?.fix;
   if (!fix) throw new Failure('not_found', `${tool} is not missing`, { what: 'tool', name: tool });
-  d.admin.missingTools = d.admin.missingTools.filter((m) => m.tool !== tool);
-  if (vendor) vendor.installed = true;
+  if (was) d.script.shells.delete(was.terminal); // an ended run's window gives way to the new one
   const terminal = `%sh${++d.script.shellCount}`;
-  const lines = [`$ ${fix}`, '', 'Done.'];
-  d.script.shells.set(terminal, { ...newSession(INSTALL_FX, d.iso()), handle: terminal, lines, hasTerminal: true, open: false });
+  d.script.shells.set(terminal, {
+    ...newSession(INSTALL_FX, d.iso()),
+    handle: terminal,
+    lines: [`$ ${fix}`],
+    hasTerminal: true,
+    open: false,
+  });
+  d.script.installs.set(tool, { terminal, ended: false });
   return { tool, terminal, host: 'fake' };
+}
+
+/** Ends a tool's running install: its window says how, and on success the tool is installed. */
+export function endInstall(d: CoreHost, tool: string, ok: boolean): void {
+  const run = installOf(d, tool);
+  if (!run || run.ended) throw new Error(`no install of ${tool} is running`);
+  run.ended = true;
+  d.script.shells.get(run.terminal)!.lines.push('', ok ? 'Done.' : 'Failed (exit 1).');
+  if (!ok) return;
+  d.admin.missingTools = d.admin.missingTools.filter((m) => m.tool !== tool);
+  const vendor = d.admin.vendors.find((v) => v.binary === tool);
+  if (vendor) vendor.installed = true;
+}
+
+/** A tool's install window while its shell is open. */
+function installOf(d: CoreHost, tool: string): { terminal: string; ended: boolean } | undefined {
+  const run = d.script.installs.get(tool);
+  return run && d.script.shells.has(run.terminal) ? run : undefined;
+}
+
+/** DaemonStatus' install on each missing tool and each vendor not installed, while its window is open. */
+function withInstall<T extends { tool?: string; binary?: string; installed?: boolean }>(d: CoreHost, rows: readonly T[]): T[] {
+  return rows.map((r) => {
+    const run = r.installed ? undefined : installOf(d, (r.tool ?? r.binary)!);
+    return run ? { ...r, install: { ...run } } : r;
+  });
 }
 
 /** missing_tools: the seeded ones, and codex while it is not installed and an account uses it. */
