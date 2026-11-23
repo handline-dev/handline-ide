@@ -30,6 +30,11 @@ type Pick = {
 };
 const PickCtx = createContext<Pick | null>(null);
 
+/** Rows that are not picked with the rest (another cluster's): `off` leaves the pick on. */
+export function NoPick({ off, children }: { off?: boolean; children: ReactNode }) {
+  return off ? children : <PickCtx.Provider value={null}>{children}</PickCtx.Provider>;
+}
+
 /** Holds the picked rows of one Requests view; the bell's preview has none, so its rows only open. */
 export function PickProvider({ children }: { children: ReactNode }) {
   const [picked, setPicked] = useState(new Map<string, Picked>()); // not kept: a selection lasts while it is acted on

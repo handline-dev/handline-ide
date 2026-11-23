@@ -11,6 +11,8 @@ import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
+import { Across, InCluster, spaceOf, splitSpace, useCluster, useJoined, type Joined } from '#src/connection/clusters.tsx';
+import { ClusterWord } from '#src/connection/ClusterWord.tsx';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
@@ -74,6 +76,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
   const now = useNow();
   // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
   const nameOf = useNameOf(here);
+  const cluster = useCluster();
   const names = agents.map((a) => a.key);
   const group = names.join('|');
   const [line, setLine] = useState<{ at: string; after: boolean } | null>(null);
@@ -116,7 +119,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
           <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
             <Row
               opens={opens}
-              space={agent.key}
+              space={spaceOf(cluster, agent.key)}
               menu={false}
               title={nameOf(agent.key)}
               selected={pick.agent === agent.key}
@@ -164,9 +167,12 @@ export function Section({
   folded,
   onFold,
   opens,
+  word,
   children,
 }: {
   title: string;
+  /** Whose it is, after the title: another cluster's name. */
+  word?: ReactNode;
   /** What the title opens as a tab: a workspace's page. */
   opens?: string;
   /** Folded: header only. onFold adds the chevron. */
@@ -189,8 +195,8 @@ export function Section({
       {...take.handlers}
     >
       {/* Its buttons show while the pointer is on the heading or one has focus; their room is kept, so nothing moves. */}
-      <div className="group flex h-7 items-center justify-between pl-2">
-        <h2 className="flex items-center gap-1.5 text-xs font-medium text-muted">
+      <div className="group @container flex h-7 items-center justify-between gap-2 pl-2">
+        <h2 className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted">
           {onFold && (
             <button
               type="button"
@@ -205,6 +211,7 @@ export function Section({
           {icon}
           {opens ? <TitleLink opens={opens} title={title} /> : title}
         </h2>
+        {word}
         <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">{action}</span>
       </div>
       {!folded && children}
@@ -213,20 +220,23 @@ export function Section({
 }
 
 /** The agents in sections: Pinned (when any are), then a flat list per workspace. */
-function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew: (ws: Workspace) => void }) {
+function Agents({ pick, page, onNew, joined }: { pick: Pick; page: string | null; onNew: (ws: Workspace) => void; joined?: Joined }) {
   const list = useAgents();
   const { nav, change, togglePin, toggleFold } = useNav();
   const first = list.data?.agents[0]?.key;
-  // Nothing picked yet, neither agent nor page (a first visit): the first agent's workspace.
+  // Nothing picked yet, neither agent nor page (a first visit): the first agent's workspace, this Mac's.
   useEffect(() => {
-    if (!pick.agent && !page && first) pick.onSelect(first);
-  }, [pick, page, first]);
+    if (!joined && !pick.agent && !page && first) pick.onSelect(first);
+  }, [joined, pick, page, first]);
+  // Another cluster's workspaces carry its name, and no Pinned of their own.
+  const word = joined && <ClusterWord cluster={joined} />;
   // A section's new order goes first in nav.order; the rest of the order stays as it was.
   const reorder = (names: string[]) => change({ order: [...names, ...nav.order.filter((n) => !names.includes(n))] });
-  const { pinned, rest } = splitPinned(ordered(list.data?.agents ?? [], nav.order), nav.pins);
+  const all = ordered(list.data?.agents ?? [], nav.order);
+  const { pinned, rest } = joined ? { pinned: [], rest: all } : splitPinned(all, nav.pins);
   // A section per workspace. With none, one Agents section still holds New agent, the loading rows and a dropped pin.
   const groups = byWorkspace(useDirectory(), rest);
-  const sections = groups.length ? groups : [{ workspace: null, agents: [] }];
+  const sections = groups.length || joined ? groups : [{ workspace: null, agents: [] }];
   return (
     <>
       {pinned.length > 0 && (
@@ -245,6 +255,7 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           // Dragging a pinned agent down here unpins it.
           accepts={(name) => nav.pins.includes(name)}
           onAgentDrop={togglePin}
+          word={word}
           folded={!!workspace && nav.folded.includes(workspace.key)}
           onFold={workspace ? () => toggleFold(workspace.key) : undefined}
           opens={workspace ? workspaceOf(workspace.key) : undefined}
@@ -273,17 +284,33 @@ function Agents({ pick, page, onNew }: { pick: Pick; page: string | null; onNew:
           <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} />
         </Section>
       ))}
-      <div className="-mx-2 mt-1 border-t border-border">
-        <button
-          type="button"
-          onClick={newWorkspace}
-          className="flex h-9 w-full items-center gap-1.5 px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
-        >
-          <Plus size={14} />
-          Add workspace
-        </button>
-      </div>
     </>
+  );
+}
+
+/** A joined cluster's agents, in its own cluster, dimmed while it does not answer; picking one opens it there. */
+function JoinedAgents({ joined, pick, page }: { joined: Joined; pick: Pick; page: string | null }) {
+  const here = splitSpace(pick.agent ?? '');
+  const inIt: Pick = {
+    agent: here.cluster === joined.id ? here.agent : null,
+    onSelect: (name) => pick.onSelect(spaceOf(joined.id, name)),
+    onSettings: (name) => pick.onSettings(spaceOf(joined.id, name)),
+  };
+  return (
+    <InCluster id={joined.id} dim>
+      <Agents joined={joined} page={page} pick={inIt} onNew={(ws) => void newAgent(ws).then((name) => name && inIt.onSelect(name))} />
+    </InCluster>
+  );
+}
+
+const useWaitingCount = () => useRequests().count;
+
+/** How many requests wait on the founder, in every cluster; nothing for none. */
+function Waiting() {
+  return (
+    <Across hook={useWaitingCount} sig={String}>
+      {(all) => all.reduce((n, a) => n + a.data, 0) || null}
+    </Across>
   );
 }
 
@@ -304,7 +331,7 @@ export function Sidebar({
   onSelectAgent: (name: string) => void;
   onAgentSettings: (name: string) => void;
 }) {
-  const waiting = useRequests().count;
+  const joined = useJoined();
   // Only the agents scroll; the pages above and the buttons below stay put.
   const scroller = useRef<HTMLDivElement>(null);
   useKeptScroll(scroller, 'sidebar');
@@ -321,7 +348,7 @@ export function Sidebar({
             icon={p.icon}
             selected={page === p.kind}
             onShow={() => onSelectPage(p.kind, p.label)}
-            trail={p.kind === 'requests' && waiting > 0 ? waiting : undefined}
+            trail={p.kind === 'requests' ? <Waiting /> : undefined}
           />
         ))}
       </nav>
@@ -331,6 +358,19 @@ export function Sidebar({
           pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings }}
           onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
         />
+        {joined.map((j) => (
+          <JoinedAgents key={j.id} joined={j} page={page} pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings }} />
+        ))}
+        <div className="-mx-2 mt-1 border-t border-border">
+          <button
+            type="button"
+            onClick={newWorkspace}
+            className="flex h-9 w-full items-center gap-1.5 px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
+          >
+            <Plus size={14} />
+            Add workspace
+          </button>
+        </div>
       </div>
       <SetupCard />
       <nav className="mt-auto flex gap-0.5 border-t border-border pt-2">

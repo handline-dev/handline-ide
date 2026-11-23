@@ -5,6 +5,7 @@ import os from 'node:os';
 import { ipcMain } from 'electron';
 import { DaemonClient } from '@handline/client';
 import { ClusterCalls, CHANNELS } from '#src/bridge.ts';
+import type { ShellCluster } from '@handline/app-core';
 import { Clusters } from '#src/clusters.ts';
 import type { SettingsFile } from '#src/mode.ts';
 import { engineDaemon, engineEnv, type LoginPath } from '#src/own.ts';
@@ -51,11 +52,22 @@ export function serveClusters(o: {
     link: (j) => new DaemonClient({ client: 'electron', connect: masterTransport(j), token: j.master.token }),
     changed: () => o.send(clusters.list()),
   });
-  const calls = new ClusterCalls(o.origin, {
-    list: () => clusters.list(),
-    join: (i) => clusters.join(i),
-    leave: (id) => clusters.leave(id),
-  });
+  // tools/app.mjs --fake: the clusters its second fake daemon stands for, listed as joined; Leave drops one, a join is refused.
+  const fake = o.env('FAKE_CLUSTERS');
+  let fakes: ShellCluster[] = fake ? (JSON.parse(fake) as ShellCluster[]) : [];
+  const calls = new ClusterCalls(
+    o.origin,
+    fake
+      ? {
+          list: () => fakes,
+          join: () => Promise.reject(new Error('the test app joins no cluster')),
+          leave: async (id) => {
+            fakes = fakes.filter((c) => c.id !== id);
+            o.send(fakes);
+          },
+        }
+      : { list: () => clusters.list(), join: (i) => clusters.join(i), leave: (id) => clusters.leave(id) },
+  );
   ipcMain.handle(CHANNELS.clusters, (e) => calls.list(e));
   ipcMain.handle(CHANNELS.joinCluster, (e, arg) => calls.join(e, arg));
   ipcMain.handle(CHANNELS.leaveCluster, (e, arg) => calls.leave(e, arg));

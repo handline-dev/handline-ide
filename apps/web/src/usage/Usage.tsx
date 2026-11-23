@@ -3,7 +3,9 @@ import { AccountFacts } from '#src/usage/AccountFacts.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts, useWrite } from '@handline/app-data';
 import { RefreshCw, Settings, TriangleAlert } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { InCluster, useCluster, useJoined } from '#src/connection/clusters.tsx';
+import { HereWord } from '#src/connection/ClusterWord.tsx';
 import { useFocused } from '#src/layout/focus.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -33,11 +35,7 @@ import { usePersisted } from '#src/persist/kv.ts';
  * elsewhere (an agent's account line) comes into view, marked for a moment. */
 export function Usage() {
   const list = useAccounts();
-  // The plan (max, pro) comes only with the usage read.
-  const usage = useAccountUsage().data?.accounts ?? [];
-  const plans = new Map(usage.map((u) => [u.name, u.plan]));
-  // Why the daemon would not pick an account now (its week cap, an ended subscription); absent when it would.
-  const notPicked = new Map(usage.flatMap((u) => (u.not_picked ? [[u.name, u.not_picked] as const] : [])));
+  const joined = useJoined();
   const [view, setView] = usePersisted<View>('usage:view', 'accounts');
   const [win, setWin] = usePersisted<Win>('usage:window', '24h');
   const [range, setRange] = usePersisted<CostRange>('usage:cost-range', '7d');
@@ -71,26 +69,11 @@ export function Usage() {
           {view === 'accounts' && list.isPending && <RowsLoading rows={6} />}
           {view === 'accounts' && list.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
           <div className={`@container flex flex-col ${view === 'accounts' ? '' : 'hidden'}`}>
-            {accounts.map((a) => (
-              <section
-                key={a.name}
-                data-account={a.name}
-                className={`relative flex scroll-mt-4 flex-col gap-2 border-b @md:flex-row @md:items-center @md:gap-x-6 border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
-              >
-                <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
-                  <AccountFacts
-                    account={a}
-                    plan={plans.get(a.name)}
-                    note={<NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />}
-                  />
-                </div>
-                <div className="absolute top-3 right-0 flex @md:static">
-                  <ReadAgain account={a} />
-                  <IconButton label={`Settings for ${a.label}`} onClick={() => openSettings({ section: 'accounts', account: a.name })}>
-                    <Settings size={14} />
-                  </IconButton>
-                </div>
-              </section>
+            <AccountRows marked={marked} />
+            {joined.map((j) => (
+              <InCluster key={j.id} id={j.id} dim>
+                <AccountRows marked={null} word={<HereWord />} />
+              </InCluster>
             ))}
           </div>
           {/* One way to manage them, at the end of the list. */}
@@ -102,6 +85,43 @@ export function Usage() {
         </div>
       </Page>
     </ScrollFade>
+  );
+}
+
+/** Each account on one row, to read them all at once: its name, its two windows, and the agents on it; another cluster's with its name. */
+function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode }) {
+  const cluster = useCluster();
+  const accounts = useAccounts().data?.accounts ?? [];
+  // The plan (max, pro) comes only with the usage read.
+  const usage = useAccountUsage().data?.accounts ?? [];
+  const plans = new Map(usage.map((u) => [u.name, u.plan]));
+  // Why the daemon would not pick an account now (its week cap, an ended subscription); absent when it would.
+  const notPicked = new Map(usage.flatMap((u) => (u.not_picked ? [[u.name, u.not_picked] as const] : [])));
+  return (
+    <>
+      {accounts.map((a) => (
+        <section
+          key={a.name}
+          data-account={a.name}
+          className={`relative flex scroll-mt-4 flex-col gap-2 border-b @md:flex-row @md:items-center @md:gap-x-6 border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
+        >
+          <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
+            <AccountFacts
+              account={a}
+              plan={plans.get(a.name)}
+              note={<NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />}
+            />
+          </div>
+          <div className="absolute top-3 right-0 flex @md:static">
+            {word}
+            <ReadAgain account={a} />
+            <IconButton label={`Settings for ${a.label}`} onClick={() => openSettings({ section: 'accounts', account: a.name, cluster })}>
+              <Settings size={14} />
+            </IconButton>
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 

@@ -46,6 +46,11 @@ export class FakeInbox {
     }
   }
 
+  /** A seed's clean start: no items. */
+  clear(): void {
+    this.items = [];
+  }
+
   unread(): number {
     return this.items.filter((i) => !i.read).length;
   }

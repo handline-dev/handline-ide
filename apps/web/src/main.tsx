@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Connect } from '#src/connection/Connect.tsx';
+import { InCluster, SpaceCluster, splitSpace, useJoined, useJoinedReady } from '#src/connection/clusters.tsx';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { Gallery } from '#src/Gallery.tsx';
 import { WebPages } from '#src/tools/webPages.tsx';
@@ -30,6 +31,15 @@ function App() {
   const [dragging, setDragging] = useState(false);
   const { agent, page, space, layout, select, selectPage, dispatch, reopenClosed, moveTabs } = useAgentLayouts();
   const root = useRef<HTMLDivElement>(null);
+  // A joined cluster's agent opens in its own cluster.
+  const here = splitSpace(agent ?? '');
+  // A cluster left while one of its agents was on screen: Requests instead.
+  const joined = useJoined();
+  const joinedKnown = useJoinedReady();
+  const gone = joinedKnown && !!here.cluster && !joined.some((j) => j.id === here.cluster);
+  useEffect(() => {
+    if (gone) selectPage('requests', 'Requests');
+  }, [gone, selectPage]);
   // Settings covers the app instead of taking a tab.
   const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
   setPageGo(goPage);
@@ -65,7 +75,7 @@ function App() {
                 page={page}
                 onSelectPage={goPage}
                 onSelectAgent={select}
-                onAgentSettings={(name) => openSettings({ section: 'agents', agent: name })}
+                onAgentSettings={(name) => openSettings({ section: 'agents', ...splitSpace(name) })}
               />
             </TabsTo.Provider>
           </motion.div>
@@ -80,30 +90,34 @@ function App() {
               label="Resize sidebar"
             />
           )}
-          <Workspace
-            root={layout}
-            agent={agent}
-            space={space}
-            moveTabs={moveTabs}
-            dispatch={dispatch}
-            reopenClosed={reopenClosed}
-            lead={
-              <AnimatePresence initial={false}>
-                {!open && (
-                  <motion.div
-                    key="lead"
-                    initial={{ width: 0 }}
-                    animate={{ width: 'auto' }}
-                    exit={{ width: 0 }}
-                    transition={spring}
-                    className="shrink-0"
-                  >
-                    <div style={{ width: 'calc(104px + var(--lights-w, 0px))' }} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            }
-          />
+          <InCluster key={here.cluster} id={here.cluster}>
+            <SpaceCluster.Provider value={here.cluster}>
+              <Workspace
+                root={layout}
+                agent={agent === null ? null : here.agent}
+                space={space}
+                moveTabs={moveTabs}
+                dispatch={dispatch}
+                reopenClosed={reopenClosed}
+                lead={
+                  <AnimatePresence initial={false}>
+                    {!open && (
+                      <motion.div
+                        key="lead"
+                        initial={{ width: 0 }}
+                        animate={{ width: 'auto' }}
+                        exit={{ width: 0 }}
+                        transition={spring}
+                        className="shrink-0"
+                      >
+                        <div style={{ width: 'calc(104px + var(--lights-w, 0px))' }} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                }
+              />
+            </SpaceCluster.Provider>
+          </InCluster>
         </div>
         <StatusRow />
       </div>

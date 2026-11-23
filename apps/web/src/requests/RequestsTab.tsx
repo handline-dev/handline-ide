@@ -15,7 +15,9 @@ import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { laterWords, pickAllState, pickGroup, turnKey, turnRow, type Picked } from '@handline/app-core';
 import { useRequests } from '#src/requests/data.ts';
-import { BulkButtons, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
+import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
+import { HereWord } from '#src/connection/ClusterWord.tsx';
+import { BulkButtons, NoPick, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
@@ -52,12 +54,15 @@ function Rows({ children }: { children?: ReactNode }) {
 function Section({
   title,
   rows,
+  count = rows.length,
   empty,
   action,
   children,
 }: {
   title: string;
+  /** The rows it picks from; `count`, every row it shows (another cluster's too). */
   rows: Picked[];
+  count?: number;
   empty: string;
   action?: ReactNode;
   children?: ReactNode;
@@ -85,11 +90,11 @@ function Section({
           />
         )}
         <span>{title}</span>
-        <span className="flex-1 text-muted tabular-nums">{rows.length > 0 ? rows.length : ''}</span>
+        <span className="flex-1 text-muted tabular-nums">{count > 0 ? count : ''}</span>
         {action}
       </h2>
       <Rows>{children}</Rows>
-      {rows.length === 0 && <p className="px-2 py-3 text-muted">{empty}</p>}
+      {count === 0 && <p className="px-2 py-3 text-muted">{empty}</p>}
     </section>
   );
 }
@@ -100,16 +105,35 @@ const isProposal = (p: PendingRequest) => p.source === 'proposal' && !!p.id;
 export function RequestsTab() {
   return (
     <PickProvider>
-      <Requests />
+      <Across hook={useRequests} sig={(r) => JSON.stringify([r.loaded, r.failed, r.turn, r.notes, r.later])}>
+        {(all) => <Requests all={all} />}
+      </Across>
     </PickProvider>
   );
 }
 
+/** A row and the cluster it is from ('' for this Mac's). */
+type At = { p: PendingRequest; cluster: string };
+const keyOf = (x: At) => (x.cluster ? `${x.cluster}/${turnKey(x.p)}` : turnKey(x.p));
+
 /** The list keeps at least 320px, and leaves the task at least 360px. */
 const fitList = (px: number, size: number) => Math.max(320, Math.min(px, size - 360));
 
-function Requests() {
-  const r = useRequests();
+/** Every cluster's requests in one list: with several, newest first, each joined one's row with its name; only this Mac's are picked. */
+function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
+  const own = all.find((a) => a.cluster === '')?.data;
+  const several = all.length > 1;
+  const merged = (of: (d: ReturnType<typeof useRequests>) => PendingRequest[]): At[] => {
+    const xs = all.flatMap((a) => of(a.data).map((p) => ({ p, cluster: a.cluster })));
+    return several ? xs.sort((a, b) => b.p.last_at.localeCompare(a.p.last_at)) : xs;
+  };
+  const r = {
+    loaded: !!own?.loaded,
+    failed: !!own?.failed,
+    turn: merged((d) => d.turn),
+    notes: merged((d) => d.notes),
+    later: all.flatMap((a) => a.data.later.map((x) => ({ x: { p: x.p, cluster: a.cluster }, at: x.at }))),
+  };
   // The task view shows beside the list only from 48rem (@3xl); narrower, a row opens its task the standard way.
   const box = useRef<HTMLDivElement>(null);
   // The list's width beside the task, dragged on the handle between them; kept with the tab.
@@ -124,11 +148,8 @@ function Requests() {
     return () => ro.disconnect();
   }, []);
   const pick = usePick();
-  const rows = {
-    turn: r.turn.map((p) => turnRow(p)),
-    notes: r.notes.map((p) => turnRow(p)),
-    later: r.later.map((x) => turnRow(x.p)),
-  };
+  const mine = (xs: At[]) => xs.filter((x) => !x.cluster).map((x) => turnRow(x.p));
+  const rows = { turn: mine(r.turn), notes: mine(r.notes), later: mine(r.later.map((l) => l.x)) };
   // A picked row that leaves the list (answered, or done elsewhere) is not picked any more.
   const listed = Object.values(rows)
     .flat()
@@ -137,21 +158,23 @@ function Requests() {
   useEffect(() => pick?.keep(new Set(listed.split('|'))), [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = pick?.picked.size ?? 0;
   // The rows the split view shows (a task's, or a proposal), in list order: it steps through them.
-  const showable = [...r.turn, ...r.notes, ...r.later.map((x) => x.p)].filter((p) => p.task !== null || isProposal(p));
-  type Chosen = { key: string | null; at: number; task: number | null; proposal?: number };
-  const [{ key: chosenKey, at: lastAt, task: chosenTask, proposal: chosenProposal }, setChosen] = useState<Chosen>({
+  const showable = [...r.turn, ...r.notes, ...r.later.map((l) => l.x)].filter((x) => x.p.task !== null || isProposal(x.p));
+  type Chosen = { key: string | null; at: number; task: number | null; proposal?: number; cluster: string };
+  const [{ key: chosenKey, at: lastAt, task: chosenTask, proposal: chosenProposal, cluster: chosenCluster }, setChosen] = useState<Chosen>({
     key: null,
     at: 0,
     task: null,
+    cluster: '',
   });
-  const choose = (p: PendingRequest, i: number) =>
-    setChosen({ key: turnKey(p), at: i, task: p.task, proposal: isProposal(p) ? Number(p.id) : undefined });
-  const found = showable.findIndex((p) => turnKey(p) === chosenKey);
+  const choose = (x: At, i: number) =>
+    setChosen({ key: keyOf(x), at: i, task: x.p.task, proposal: isProposal(x.p) ? Number(x.p.id) : undefined, cluster: x.cluster });
+  const found = showable.findIndex((x) => keyOf(x) === chosenKey);
   // A shown row that left the list (answered, put off) stays shown; until one is chosen, the first.
   const left = found < 0 && (chosenTask !== null || chosenProposal !== undefined);
   const at = found >= 0 ? found : Math.min(lastAt, Math.max(0, showable.length - 1));
-  const shown = left ? (chosenProposal !== undefined ? null : chosenTask) : (showable[at]?.task ?? null);
-  const chosen: PendingRequest | undefined = left ? undefined : showable[at];
+  const shown = left ? (chosenProposal !== undefined ? null : chosenTask) : (showable[at]?.p.task ?? null);
+  const chosen: At | undefined = left ? undefined : showable[at];
+  const shownIn = left ? chosenCluster : (chosen?.cluster ?? '');
   // The row shown first counts as chosen, so it too stays when answered (set while rendering: it adjusts state, no effect).
   const first = showable[0];
   if (chosenKey === null && first) choose(first, 0);
@@ -175,15 +198,20 @@ function Requests() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  const line = (p: PendingRequest, until?: string) => (
-    <TurnLine
-      key={turnKey(p)}
-      p={p}
-      until={until}
-      full
-      chosen={chosen === p}
-      onPick={split && (p.task !== null || isProposal(p)) ? () => choose(p, showable.indexOf(p)) : undefined}
-    />
+  // Another cluster's row is drawn in it, so its answers and menu go there; it is not picked with this Mac's.
+  const line = (x: At, until?: string) => (
+    <InCluster key={keyOf(x)} id={x.cluster} dim>
+      <NoPick off={!x.cluster}>
+        <TurnLine
+          p={x.p}
+          until={until}
+          full
+          word={several && <HereWord />}
+          chosen={!!chosen && keyOf(chosen) === keyOf(x)}
+          onPick={split && (x.p.task !== null || isProposal(x.p)) ? () => choose(x, showable.indexOf(x)) : undefined}
+        />
+      </NoPick>
+    </InCluster>
   );
   return (
     // A pane too narrow for both keeps the list alone.
@@ -201,20 +229,32 @@ function Requests() {
             {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
             {r.loaded && (
               <>
-                <Section title="Your turn" rows={rows.turn} empty="Nothing waits on you.">
+                <Section title="Your turn" rows={rows.turn} count={r.turn.length} empty="Nothing waits on you.">
                   {r.turn.map((p) => line(p))}
                 </Section>
                 {r.notes.length > 0 && (
-                  <Section title="Notes" rows={rows.notes} empty="">
+                  <Section title="Notes" rows={rows.notes} count={r.notes.length} empty="">
                     {r.notes.map((p) => line(p))}
                   </Section>
                 )}
                 {r.later.length > 0 && (
-                  <Section title="Later" rows={rows.later} empty="">
-                    {r.later.map(({ p, at: back }) => line(p, laterWords(back)))}
+                  <Section title="Later" rows={rows.later} count={r.later.length} empty="">
+                    {r.later.map(({ x, at: back }) => line(x, laterWords(back)))}
                   </Section>
                 )}
-                <Decided shown={shown} onPick={split ? (id) => setChosen({ key: `decided:${id}`, at: lastAt, task: id }) : undefined} />
+                {all.map((a) => (
+                  <InCluster key={a.cluster} id={a.cluster}>
+                    <Decided
+                      shown={shownIn === a.cluster ? shown : null}
+                      word={several && <HereWord />}
+                      onPick={
+                        split
+                          ? (id) => setChosen({ key: `${a.cluster}/decided:${id}`, at: lastAt, task: id, cluster: a.cluster })
+                          : undefined
+                      }
+                    />
+                  </InCluster>
+                ))}
               </>
             )}
           </div>
@@ -232,15 +272,17 @@ function Requests() {
         />
       )}
       <div className="hidden min-w-0 flex-1 flex-col @3xl:flex">
-        {left && chosenProposal !== undefined ? (
-          <ProposalView key={chosenProposal} id={chosenProposal} />
-        ) : chosen && isProposal(chosen) ? (
-          <ProposalView key={chosen.id} id={Number(chosen.id)} />
-        ) : shown !== null ? (
-          <TaskTab key={shown} id={shown} />
-        ) : (
-          r.loaded && <p className="m-auto text-sm text-muted">No task to show.</p>
-        )}
+        <InCluster id={shownIn}>
+          {left && chosenProposal !== undefined ? (
+            <ProposalView key={chosenProposal} id={chosenProposal} />
+          ) : chosen && isProposal(chosen.p) ? (
+            <ProposalView key={chosen.p.id} id={Number(chosen.p.id)} />
+          ) : shown !== null ? (
+            <TaskTab key={`${shownIn}/${shown}`} id={shown} />
+          ) : (
+            r.loaded && <p className="m-auto text-sm text-muted">No task to show.</p>
+          )}
+        </InCluster>
       </div>
     </div>
   );
@@ -251,7 +293,7 @@ function Requests() {
 const PAGE = 10;
 const EVER = new Date(0).toISOString();
 
-function Decided({ shown, onPick }: { shown: number | null; onPick?: (task: number) => void }) {
+function Decided({ shown, onPick, word }: { shown: number | null; onPick?: (task: number) => void; word?: ReactNode }) {
   // One read that grows (the daemon's newest decisions first, at most 200): it stays live as decisions come, and Show more asks for
   // ten more, which come below.
   const [limit, setLimit] = useState(PAGE);
@@ -271,10 +313,14 @@ function Decided({ shown, onPick }: { shown: number | null; onPick?: (task: numb
       .filter((x) => x.settled && (!reach || x.settled >= reach))
       .map((x) => ({ kind: 'proposal' as const, at: x.settled!, x })),
   ].sort((a, b) => b.at.localeCompare(a.at));
-  if (!items.length) return <Section title="Decided" rows={[]} empty={q.isPending ? '' : 'Nothing decided yet.'} />;
+  // Another cluster's decisions show only when there are some, under a heading with its name.
+  if (!items.length) return word ? null : <Section title="Decided" rows={[]} empty={q.isPending ? '' : 'Nothing decided yet.'} />;
   return (
     <section className="flex flex-col">
-      <h2 className="sticky top-0 z-20 flex min-h-9 items-center border-b border-border bg-bg px-2 text-sm font-medium text-fg">Decided</h2>
+      <h2 className="sticky top-0 z-20 flex min-h-9 items-center justify-between gap-2 border-b border-border bg-bg px-2 text-sm font-medium text-fg">
+        Decided
+        {word}
+      </h2>
       <Rows>
         {items.map((d) =>
           d.kind === 'task' ? (

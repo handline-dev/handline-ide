@@ -62,7 +62,9 @@ export function hello(d: CoreHost, c: Conn, p: Record<string, unknown>): unknown
       transcript: d.replyItems,
       review: false,
       ...(d.serveBytes ? TERMINAL_CAPS : TEXT_CAPS),
-      ...(d.master ? { master: d.master, cluster: d.admin.cluster(d.iso()) } : {}),
+      // Its cluster's name, as the Go daemon's hello gives it (a runner, which the fake never is, gives none).
+      ...(d.master ? { master: d.master } : {}),
+      cluster: d.admin.cluster(d.iso()),
     },
     transport: c.network ? 'network' : 'local',
     methods: Object.entries(METHODS)
@@ -158,7 +160,18 @@ export function coreCall(
 }
 
 /** The install window's session: no agent's, as a shell is the person's. */
-const INSTALL_FX = { name: '(install)', role: '', model: '', effort: '', state: 'idle', account: null, task: null, worktree: '~', branch: '', session: null };
+const INSTALL_FX = {
+  name: '(install)',
+  role: '',
+  model: '',
+  effort: '',
+  state: 'idle',
+  account: null,
+  task: null,
+  worktree: '~',
+  branch: '',
+  session: null,
+};
 
 /** tools.install: a window that prints the tool's fix and ends 0 at once, and the tool is installed. */
 function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
