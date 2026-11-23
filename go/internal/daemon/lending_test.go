@@ -220,7 +220,7 @@ func TestNodeStatusNamesEachMachinesDeviceAndItsOwnMemoryCap(t *testing.T) {
 	}
 }
 
-// device.set moves the nodes feed, and the devices topic rides with the others on one subscribe, each event sent once.
+// device.set moves the nodes feed, and the devices topic rides with the others on one subscribe.
 func TestDeviceSetMovesTheNodesFeedAndDevicesRidesWithTheOtherTopics(t *testing.T) {
 	cfg := tlsConfig(t, t.TempDir())
 	cfg.Auth, cfg.Watch = fakeAuth{key: "k", agent: "a"}, true
@@ -240,16 +240,19 @@ func TestDeviceSetMovesTheNodesFeedAndDevicesRidesWithTheOtherTopics(t *testing.
 	}
 	c.ws.WriteMessage(websocket.TextMessage, []byte(`{"jsonrpc":"2.0","id":21,"method":"device.set","params":{"device":"`+dev+
 		`","lending":"run","request_id":"set-run"}}`))
+	// device.changed is live; nodes.changed comes from the watcher's next look at the board. That each comes once is
+	// TestASubscribeReplacesTheConnectionsSubscriptionsItCovers's (data/stream).
 	seen := map[string]int{}
-	for m, ok := c.next(5 * time.Second); ok; m, ok = c.next(time.Second) {
+	for end := time.Now().Add(15 * time.Second); seen["nodes.changed"] == 0 || seen["device.changed"] == 0; {
+		m, ok := c.next(time.Until(end))
+		if !ok {
+			t.Fatalf("after device.set: %v", seen)
+		}
 		if m["id"] == float64(21) && m["result"] == nil {
 			t.Fatalf("device.set: %v", m)
 		}
 		if m["method"] == "event" {
 			seen[m["params"].(map[string]any)["type"].(string)]++
 		}
-	}
-	if seen["nodes.changed"] != 1 || seen["device.changed"] != 1 {
-		t.Fatalf("after device.set: %v", seen)
 	}
 }

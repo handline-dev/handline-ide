@@ -1,10 +1,13 @@
 package stream
 
 import (
+	"bufio"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -380,5 +383,62 @@ func TestSubscribedIsWhetherAConnectionHasTheTopic(t *testing.T) {
 	subscribe(t, h, []string{"tasks"}, "", nil, nil)
 	if h.Subscribed("accounts") || !h.Subscribed("tasks") {
 		t.Fatal("Subscribed does not follow the subscribers' topics")
+	}
+}
+
+type founder struct{}
+
+func (founder) AgentOf(int) string         { return "" }
+func (founder) FounderKeyOK(k string) bool { return k == "key" }
+func (founder) SessionsReadable() error    { return nil }
+
+// A client sends every topic it follows in each subscribe: the later subscribe replaces the earlier ones it covers, devices
+// among them, so each event goes out once; one naming fewer topics is kept beside them.
+func TestASubscribeReplacesTheConnectionsSubscriptionsItCovers(t *testing.T) {
+	h, _ := rig(t)
+	srv := rpc.NewServer(founder{}, "x", 0, "local", func(string, ...any) {})
+	Register(srv, h)
+	open := func() int {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		return len(h.subs)
+	}
+	sub := func(id int, topics string) string {
+		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"subscribe","params":{"topics":%s}}`, id, topics)
+	}
+	var counts []int
+	srv.Wrap("subscribe", func(next func(*rpc.Conn, map[string]any) (any, error)) func(*rpc.Conn, map[string]any) (any, error) {
+		return func(c *rpc.Conn, p map[string]any) (any, error) {
+			r, err := next(c, p)
+			counts = append(counts, open())
+			return r, err
+		}
+	})
+	cl, sv := net.Pipe()
+	go srv.Serve(rpc.NewLineTransport(sv), 0)
+	t.Cleanup(func() { cl.Close() })
+	rd := bufio.NewReader(cl)
+	cl.SetDeadline(time.Now().Add(30 * time.Second))
+	hello := `{"jsonrpc":"2.0","id":1,"method":"hello","params":{"client":"t","protocol":1,"key":"key"}}`
+	for _, line := range []string{hello, sub(2, `["tasks"]`), sub(3, `["tasks","devices","nodes"]`), sub(4, `["tasks","devices","nodes"]`), sub(5, `["nodes"]`)} {
+		cl.Write([]byte(line + "\n"))
+		for { // the reply to this line, past any notice
+			b, err := rd.ReadBytes('\n')
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]any
+			json.Unmarshal(b, &m)
+			if m["id"] == nil {
+				continue
+			}
+			if m["result"] == nil {
+				t.Fatalf("%s: %v", line, m)
+			}
+			break
+		}
+	}
+	if !slices.Equal(counts, []int{1, 1, 1, 2}) {
+		t.Fatalf("subscriptions after each subscribe: %v, want 1 1 1 2", counts)
 	}
 }
