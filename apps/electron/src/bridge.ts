@@ -61,7 +61,7 @@ export interface Sender {
 }
 
 export type Reply = { ok: true } | Fail<'bad_request'>;
-const bad = (message: string): Reply => ({ ok: false, code: 'bad_request', message });
+const bad = (message: string): Fail<'bad_request'> => ({ ok: false, code: 'bad_request', message });
 
 /** True only for the window's top frame, on the origin the shell serves. */
 export function fromWindow(e: Sender, origin: string): boolean {
@@ -130,15 +130,15 @@ export class Connection {
     this.d = d;
   }
   mode(e: Sender): ({ ok: true } & ReturnType<ConnectionDeps['mode']>) | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, ...this.d.mode() } : (bad('not from the app window') as Fail<'bad_request'>);
+    return fromWindow(e, this.origin) ? { ok: true, ...this.d.mode() } : bad('not from the app window');
   }
   follow(e: Sender) {
-    if (!fromWindow(e, this.origin)) return bad('not from the app window') as Fail<'bad_request'>;
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
     const f = this.d.follow();
     return { ok: true as const, following: !!f, sha: f?.sha ?? '', state: f?.state ?? 'current', next: f?.next ?? null };
   }
   build(e: Sender) {
-    return fromWindow(e, this.origin) ? { ok: true as const, ...this.d.build() } : (bad('not from the app window') as Fail<'bad_request'>);
+    return fromWindow(e, this.origin) ? { ok: true as const, ...this.d.build() } : bad('not from the app window');
   }
   async restartDaemon(e: Sender): Promise<Reply | Fail<'cannot_restart'>> {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');
@@ -194,7 +194,7 @@ export class Cli {
     this.d = d;
   }
   state(e: Sender): ({ ok: true } & CliState) | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, ...this.d.state() } : (bad('not from the app window') as Fail<'bad_request'>);
+    return fromWindow(e, this.origin) ? { ok: true, ...this.d.state() } : bad('not from the app window');
   }
   link(e: Sender): Reply | Fail<'cannot_link'> {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');
@@ -297,7 +297,7 @@ export class UpdateChannelCalls {
     this.d = d;
   }
   get(e: Sender): { ok: true; channel: UpdateChannel | null } | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, channel: this.d.get() } : (bad('not from the app window') as Fail<'bad_request'>);
+    return fromWindow(e, this.origin) ? { ok: true, channel: this.d.get() } : bad('not from the app window');
   }
   set(e: Sender, arg: unknown): Reply {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');
@@ -325,7 +325,7 @@ export class Update {
     this.d = d;
   }
   view(e: Sender): ({ ok: true } & UpdateView) | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, ...this.d.view() } : (bad('not from the app window') as Fail<'bad_request'>);
+    return fromWindow(e, this.origin) ? { ok: true, ...this.d.view() } : bad('not from the app window');
   }
   act(e: Sender, arg: unknown): Reply {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');
@@ -356,7 +356,7 @@ export class DaemonView {
     this.d = d;
   }
   view(e: Sender): ({ ok: true } & ShellDaemon) | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, ...this.d.view() } : (bad('not from the app window') as Fail<'bad_request'>);
+    return fromWindow(e, this.origin) ? { ok: true, ...this.d.view() } : bad('not from the app window');
   }
   start(e: Sender): Reply {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');
@@ -375,8 +375,8 @@ export class DaemonView {
     }
   }
   async promote(e: Sender): Promise<({ ok: true } & { number: number; handed_over: boolean }) | Fail<'bad_request' | 'cannot_promote'>> {
-    if (!fromWindow(e, this.origin)) return bad('not from the app window') as Fail<'bad_request'>;
-    if (!this.d.view().runner) return bad("this Mac's daemon is not one of the owner's runners") as Fail<'bad_request'>;
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    if (!this.d.view().runner) return bad("this Mac's daemon is not one of the owner's runners");
     try {
       return { ok: true, ...(await this.d.promote()) };
     } catch (err) {

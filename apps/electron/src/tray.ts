@@ -7,8 +7,7 @@ import type { DaemonState } from '#src/owner.ts';
 
 export interface TrayItem {
   label?: string;
-  type?: 'separator' | 'checkbox' | 'radio';
-  submenu?: TrayItem[];
+  type?: 'separator' | 'checkbox';
   checked?: boolean;
   enabled?: boolean;
   click?: () => void;

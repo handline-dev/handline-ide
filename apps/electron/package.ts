@@ -5,6 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { latestFile } from '#src/pkg-update.ts';
 
 const here = import.meta.dirname;
 const top = path.resolve(here, '../..');
@@ -47,7 +48,7 @@ for (const arch of archs) {
   );
   for (const f of fs.readdirSync(out)) {
     if (!/\.(dmg|zip|blockmap|yml)$/.test(f)) continue;
-    fs.renameSync(path.join(out, f), path.join(release, f === 'latest-mac.yml' && arch === 'x64' ? 'latest-x64-mac.yml' : f));
+    fs.renameSync(path.join(out, f), path.join(release, f === latestFile('arm64') ? latestFile(arch === 'x64' ? 'x64' : 'arm64') : f));
   }
   fs.rmSync(out, { recursive: true, force: true });
 }

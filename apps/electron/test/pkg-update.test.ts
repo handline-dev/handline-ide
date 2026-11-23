@@ -48,7 +48,7 @@ function rig(o: { current?: string; idle?: boolean; sum?: string; arch?: 'arm64'
   const calls: string[] = [];
   const flow = new UpdateFlow();
   const ports = rigPorts(o, calls);
-  return { flow, calls, u: new SelfUpdater(ports, flow, () => 'https://example.org/dl/') };
+  return { flow, calls, u: new SelfUpdater(ports, flow, () => ({ base: 'https://example.org/dl/', switched: false })) };
 }
 
 test('a newer build is downloaded, checked and unpacked, then offered once; Restart now swaps it in', async () => {
@@ -80,7 +80,7 @@ test('Restart now pressed twice swaps once; after a failure it can be pressed ag
     ...rigPorts(),
     swapAndRestart: (s: string) => (swaps.push(s), new Promise<void>((res, rej) => (release = fail ? () => rej(new Error('no')) : res))),
   };
-  const u = new SelfUpdater(ports, flow, () => 'https://example.org/dl');
+  const u = new SelfUpdater(ports, flow, () => ({ base: 'https://example.org/dl', switched: false }));
   await u.check();
   flow.act('restart');
   flow.act('restart');
@@ -174,9 +174,24 @@ test(
 );
 
 test('an Intel build reads its own file, an Apple silicon one the file every build had', async () => {
-  for (const [arch, file] of [['x64', 'latest-x64-mac.yml'], ['arm64', 'latest-mac.yml']] as const) {
+  for (const [arch, file] of [
+    ['x64', 'latest-x64-mac.yml'],
+    ['arm64', 'latest-mac.yml'],
+  ] as const) {
     const r = rig({ arch });
     await r.u.check();
     assert.equal(r.calls[0], `text https://example.org/dl/${file}`);
+  }
+});
+
+test('on a channel the person switched to, any other version is offered, even a lower one; on the build’s own channel only a newer one', async () => {
+  for (const [switched, current, offered] of [
+    [true, '0.1.50', true],
+    [true, '0.1.42', false],
+    [false, '0.1.50', false],
+  ] as const) {
+    const flow = new UpdateFlow();
+    await new SelfUpdater(rigPorts({ current }), flow, () => ({ base: 'https://example.org/dl', switched })).check();
+    assert.equal(flow.view.phase === 'ready', offered, `${switched} ${current}`);
   }
 });
