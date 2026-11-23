@@ -82,6 +82,13 @@ export type ShellOpening = {
   host: string;
 };
 
+export type ToolInstalling = {
+  tool: string;
+  /** The install window's handle, as terminal.attach and shell.close take it. */
+  terminal: string;
+  host: string;
+};
+
 export interface TerminalMethods {
   "terminal.attach": { params: {
   agent?: Who;
@@ -125,6 +132,10 @@ export interface TerminalMethods {
   terminal: string;
   request_id: RequestId;
 }; result: Accepted };
+  "tools.install": { params: {
+  tool: "claude" | "codex" | "git";
+  request_id: RequestId;
+}; result: ToolInstalling };
   "terminal.detach": { params: {
   terminal: string;
   /** With it, ends only that format's attach of the terminal on this connection; without it, every attach of that terminal on the connection. Neither is an error when there is nothing to end; any other word is bad_request naming `format`. */
@@ -140,6 +151,7 @@ export const TERMINAL_METHODS: { [K in keyof TerminalMethods]: { role: Role; cal
   "terminal.open": { role: "member", callers: null, write: false, since: 1 },
   "shell.open": { role: "owner", callers: null, write: true, since: 1 },
   "shell.close": { role: "owner", callers: null, write: true, since: 1 },
+  "tools.install": { role: "owner", callers: null, write: true, since: 1 },
   "terminal.detach": { role: "member", callers: null, write: false, since: 1 },
 };
 
@@ -152,9 +164,10 @@ export const TERMINAL_APP_CACHE: { [K in "terminal.attach" | "terminal.history" 
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const TERMINAL_APP_WRITES: { [K in "terminal.resize" | "terminal.input" | "shell.open" | "shell.close"]: { kind: WriteKind; label: string } | false } = {
+export const TERMINAL_APP_WRITES: { [K in "terminal.resize" | "terminal.input" | "shell.open" | "shell.close" | "tools.install"]: { kind: WriteKind; label: string } | false } = {
   "terminal.resize": {"kind": "uncached", "label": "resize"},
   "terminal.input": {"kind": "uncached", "label": "key"},
   "shell.open": {"kind": "uncached", "label": "open shell"},
   "shell.close": {"kind": "uncached", "label": "close shell"},
+  "tools.install": {"kind": "uncached", "label": "install tool"},
 };

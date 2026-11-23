@@ -39,6 +39,8 @@ type Env struct {
 	Holds *inputhold.Store
 	// Relay reaches a runner's terminal (a <node>:<handle> handle) in the bytes format; nil: there are no runners.
 	Relay Relay
+	// Missing is what tools.install may run, read at the call: each fix by its tool (reads.Env.Installable); nil serves no tools.install.
+	Missing func() map[string]string
 
 	mu    sync.Mutex
 	link  *ControlLink
@@ -87,6 +89,9 @@ func Register(s *rpc.Server, e *Env) {
 	s.Register("terminal.open", rpc.Method{Handler: e.open})
 	s.Register("shell.open", rpc.Method{Handler: e.shellOpen})
 	s.Register("shell.close", rpc.Method{Handler: e.shellClose})
+	if e.Missing != nil {
+		s.Register("tools.install", rpc.Method{Handler: e.toolsInstall})
+	}
 	if e.Holds != nil {
 		s.Register("terminal.input", rpc.Method{Handler: e.input})
 		s.Register("terminal.resize", rpc.Method{Handler: e.resize})

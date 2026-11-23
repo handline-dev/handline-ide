@@ -393,6 +393,45 @@
      }
     }
    ]
+  },
+  {
+   "name": "tools.install.only_the_known_tools",
+   "spec": "tools.install",
+   "about": "A tool other than claude, codex or git is bad_request naming tool, whatever this machine lacks.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools.install",
+      "params": {
+       "tool": "make",
+       "request_id": "t1"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "tool"
+      }
+     }
+    }
+   ]
   }
  ]
 }

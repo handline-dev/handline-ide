@@ -12,6 +12,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `terminal.open` | member |  | `agent` | `TerminalOpening` | `not_found`, `bad_request`, `refused` | role, unsupported | not cached |
 | `shell.open` | owner | yes | `agent`, `command?`, `block?`, `request_id` | `ShellOpening` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: open shell |
 | `shell.close` | owner | yes | `terminal`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: close shell |
+| `tools.install` | owner | yes | `tool`, `request_id` | `ToolInstalling` | `refused`, `not_found`, `bad_request` | unsupported, state | uncached: install tool |
 | `terminal.detach` | member |  | `terminal`, `format?` | `object` | `not_found`, `bad_request` |  | not cached |
 
 ### `terminal.attach`
@@ -41,6 +42,10 @@ Open a new plain shell in an agent's worktree (the New tab menu's Terminal), or 
 ### `shell.close`
 
 Close a shell shell.open started. Closes the shell's window. A handle that is not a shell (an agent's own terminal included) is not_found, so this cannot end an agent's session.
+
+### `tools.install`
+
+Run a missing tool's install command in a window the app shows in its own terminal pane. Runs the fix daemon.status names for the tool in a new window of the terminal host, in the home folder, and answers its handle; attach it with terminal.attach (terminal) and type at it with terminal.input, as a shell shell.open started. The window stays after the command ends, its exit shown, until shell.close. While the tool's install window still runs, the call answers that window again; an ended one's window is closed for the new run. A tool that is neither missing nor a vendor not installed is not_found (tool); another tool is bad_request. Refused with gate `unsupported` on a host that cannot run a command.
 
 ### `terminal.detach`
 

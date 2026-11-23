@@ -106,3 +106,20 @@ func missingTools(claude, stub string, devTools func() bool) []MissingTool {
 	}
 	return out
 }
+
+// Installable is each fix tools.install may run, by its tool: missing_tools and every vendor not installed (codex before an account uses it).
+func (e *Env) Installable() map[string]string {
+	out := map[string]string{}
+	if e.Claude == "" {
+		return out
+	}
+	for _, v := range e.vendors() {
+		if !v.Installed {
+			out[v.Binary] = v.Fix
+		}
+	}
+	for _, m := range MissingTools(e.Claude) {
+		out[m.Tool] = m.Fix
+	}
+	return out
+}

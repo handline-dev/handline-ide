@@ -380,6 +380,7 @@ func Start(cfg Config) (*Daemon, error) {
 		return &term.Machines{Local: local, Remote: runners} // a runner's terminal is read and typed into over its link
 	})
 	d.tchan.Relay = d.nodes
+	d.tchan.Missing = func() map[string]string { e := d.readsEnv(); return e.Installable() }
 	d.holds = &inputhold.Store{DB: db, Changed: d.tchan.HoldersChanged, IdleS: func() int64 {
 		return (&settings.Settings{Home: cfg.Home}).ConfigSeconds("input_hold_idle_s", inputhold.DefaultIdleS)
 	}}

@@ -3,14 +3,15 @@ import { METHODS, PROTOCOL, ROLE_ORDER, type MethodName, type Role, type Timesta
 import type { FakeAccounts } from '#src/accounts.ts';
 import { MASTER_VERSION, type FakeAdmin } from '#src/admin.ts';
 import { TERMINAL_CAPS, TEXT_CAPS, type Conn } from '#src/conn.ts';
-import { badRequest, refused } from '#src/errors.ts';
+import { badRequest, Failure, refused } from '#src/errors.ts';
+import type { Script } from '#src/script.ts';
 import type { EventLog } from '#src/eventlog.ts';
 import type { ReviewLevel, ReviewWork } from '#src/tasks.ts';
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakePairing } from '#src/pairing.ts';
 import { OWNER, PEOPLE } from '#src/names.ts';
 import { subscribeTopics } from '#src/resume.ts';
-import { detail, loadReply, statusReply, view, type Session, type TaskCounter } from '#src/session.ts';
+import { detail, loadReply, newSession, statusReply, view, type Session, type TaskCounter } from '#src/session.ts';
 
 /** What these methods need of the daemon that hosts them. */
 export interface CoreHost {
@@ -18,6 +19,7 @@ export interface CoreHost {
   readonly tasks: TaskCounter & { reviewSummary(agent: string): { level: ReviewLevel; work: ReviewWork | null } };
   readonly inbox: FakeInbox;
   readonly admin: FakeAdmin;
+  readonly script: Script;
   readonly accounts: FakeAccounts;
   readonly spaces: { folderFor(key: string): string | null };
   readonly replyItems: boolean;
@@ -144,6 +146,8 @@ export function coreCall(
       const s = agent();
       return { prompts: s.prompt ? [s.prompt] : [] };
     }
+    case 'tools.install':
+      return installTool(d, p);
     case 'device.pair':
       return d.pairing.pair(ok, d.now());
     case 'device.redeem':
@@ -151,6 +155,24 @@ export function coreCall(
     default:
       throw refused('unsupported', `the fake daemon does not serve ${method}`);
   }
+}
+
+/** The install window's session: no agent's, as a shell is the person's. */
+const INSTALL_FX = { name: '(install)', role: '', model: '', effort: '', state: 'idle', account: null, task: null, worktree: '~', branch: '', session: null };
+
+/** tools.install: a window that prints the tool's fix and ends 0 at once, and the tool is installed. */
+function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
+  const tool = p.tool;
+  if (tool !== 'claude' && tool !== 'codex' && tool !== 'git') throw badRequest('tool is claude, codex or git', 'tool');
+  const vendor = d.admin.vendors.find((v) => v.binary === tool && !v.installed);
+  const fix = missingTools(d).find((m) => m.tool === tool)?.fix ?? vendor?.fix;
+  if (!fix) throw new Failure('not_found', `${tool} is not missing`, { what: 'tool', name: tool });
+  d.admin.missingTools = d.admin.missingTools.filter((m) => m.tool !== tool);
+  if (vendor) vendor.installed = true;
+  const terminal = `%sh${++d.script.shellCount}`;
+  const lines = [`$ ${fix}`, '', 'Pane is dead (status 0)'];
+  d.script.shells.set(terminal, { ...newSession(INSTALL_FX, d.iso()), handle: terminal, lines, hasTerminal: true, open: false });
+  return { tool, terminal, host: 'fake' };
 }
 
 /** missing_tools: the seeded ones, and codex while it is not installed and an account uses it. */

@@ -278,6 +278,26 @@
      "cwd",
      "host"
     ]
+   },
+   "ToolInstalling": {
+    "type": "object",
+    "properties": {
+     "tool": {
+      "type": "string"
+     },
+     "terminal": {
+      "type": "string",
+      "description": "The install window's handle, as terminal.attach and shell.close take it."
+     },
+     "host": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "tool",
+     "terminal",
+     "host"
+    ]
    }
   }
  },
@@ -709,6 +729,62 @@
     "state"
    ],
    "description": "Closes the shell's window. A handle that is not a shell (an agent's own terminal included) is not_found, so this cannot end an agent's session."
+  },
+  {
+   "name": "tools.install",
+   "summary": "Run a missing tool's install command in a window the app shows in its own terminal pane.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "tool",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "claude",
+       "codex",
+       "git"
+      ]
+     },
+     "description": "A tool daemon.status names in missing_tools, or a vendors row's binary with installed false."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/ToolInstalling"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "uncached",
+    "label": "install tool"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "unsupported",
+    "state"
+   ],
+   "description": "Runs the fix daemon.status names for the tool in a new window of the terminal host, in the home folder, and answers its handle; attach it with terminal.attach (terminal) and type at it with terminal.input, as a shell shell.open started. The window stays after the command ends, its exit shown, until shell.close. While the tool's install window still runs, the call answers that window again; an ended one's window is closed for the new run. A tool that is neither missing nor a vendor not installed is not_found (tool); another tool is bad_request. Refused with gate `unsupported` on a host that cannot run a command."
   },
   {
    "name": "terminal.detach",

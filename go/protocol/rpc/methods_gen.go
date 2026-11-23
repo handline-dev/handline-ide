@@ -201,5 +201,6 @@ var specMethods = []SpecMethod{
 	{Name: "terminal.open", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true, Who: true}}, Result: "TerminalOpening"},
 	{Name: "shell.open", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "agent", Type: "string", Required: true, Who: true}, {Name: "command", Type: "string", Required: false}, {Name: "block", Type: "string", Required: false}, {Name: "request_id", Type: "string", Required: true}}, Result: "ShellOpening"},
 	{Name: "shell.close", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "terminal", Type: "string", Required: true}, {Name: "request_id", Type: "string", Required: true}}, Result: "Accepted"},
+	{Name: "tools.install", Role: "owner", Write: true, Since: 1, Callers: nil, Params: []SpecParam{{Name: "tool", Type: "string", Required: true}, {Name: "request_id", Type: "string", Required: true}}, Result: "ToolInstalling"},
 	{Name: "terminal.detach", Role: "member", Write: false, Since: 1, Callers: nil, Params: []SpecParam{{Name: "terminal", Type: "string", Required: true}, {Name: "format", Type: "string", Required: false}}, Result: ""},
 }
