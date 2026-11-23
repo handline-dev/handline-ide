@@ -605,6 +605,7 @@ func TestAgentSetTakesEveryFieldOfTheContractForTheFounder(t *testing.T) {
 		{"handoff_note", "off", "handoff_note"},
 		{"sandbox", "on", "sandbox"},
 		{"mode", "plan", "plan"},
+		{"sandbox_allow", "pnpm-install weaker-network pnpm-install", "sandbox_allow: pnpm-install weaker-network"},
 	} {
 		res := r.call("agent.set", fmt.Sprintf(`{"agent":"alice","values":{%q:%q},"request_id":"as-%s"}`, c.key, c.val, c.key))
 		if got, _ := res["result"].(map[string]any); got["accepted"] != true {
@@ -613,6 +614,9 @@ func TestAgentSetTakesEveryFieldOfTheContractForTheFounder(t *testing.T) {
 		if all := r.settingsText("alice") + r.rosterText(); !strings.Contains(all, c.want) {
 			t.Errorf("%s=%s not written (wanted %q):\n%s", c.key, c.val, c.want, all)
 		}
+	}
+	if res := r.call("agent.set", `{"agent":"alice","values":{"sandbox_allow":""},"request_id":"as-clear"}`); res["result"] == nil || strings.Contains(r.settingsText("alice"), "sandbox_allow") {
+		t.Fatalf("an empty sandbox_allow did not clear it: %v\n%s", res, r.settingsText("alice"))
 	}
 	res := r.call("agent.set", `{"agent":"alice","values":{"browser":"playwright","browser_sites":"https://a.example https://b.example"},"request_id":"as-sites"}`)
 	if res["result"] == nil || !strings.Contains(r.settingsText("alice")+r.agentFile("alice", "mcp.json"), "b.example") {
@@ -628,10 +632,11 @@ func TestAgentSetRefusesWhatCannotBeSaved(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	for name, params := range map[string]string{
-		"a bad value":    `{"agent":"alice","values":{"effort":"extreme"},"request_id":"b1"}`,
-		"an unknown key": `{"agent":"alice","values":{"nope":"x"},"request_id":"b2"}`,
-		"skip prompts":   `{"agent":"alice","values":{"skip_permissions":"on"},"request_id":"b4"}`,
-		"no agent":       `{"agent":"ghost","values":{"effort":"high"},"request_id":"b3"}`,
+		"a bad value":          `{"agent":"alice","values":{"effort":"extreme"},"request_id":"b1"}`,
+		"an unknown key":       `{"agent":"alice","values":{"nope":"x"},"request_id":"b2"}`,
+		"skip prompts":         `{"agent":"alice","values":{"skip_permissions":"on"},"request_id":"b4"}`,
+		"an unknown allowance": `{"agent":"alice","values":{"sandbox_allow":"root"},"request_id":"b7"}`,
+		"no agent":             `{"agent":"ghost","values":{"effort":"high"},"request_id":"b3"}`,
 	} {
 		if res := r.call("agent.set", params); res["error"] == nil {
 			t.Errorf("%s was saved: %v", name, res)

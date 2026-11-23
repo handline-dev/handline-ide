@@ -23,6 +23,8 @@ func propose(c *hlclient.Client, args []string) (int, bool) {
 	switch sub, rest := args[0], args[1:]; sub {
 	case "add", "retire", "rename", "team", "context":
 		return proposalPropose(c, sub, rest)
+	case "settings":
+		return proposalSettings(c, rest)
 	case "schedule":
 		return proposalSchedule(c, rest)
 	case "bundle":
@@ -133,6 +135,37 @@ func proposalPropose(c *hlclient.Client, kind string, args []string) (int, bool)
 		hargs["sets"] = sets
 	}
 	return said(c.Write("proposal.propose", params)), true
+}
+
+// proposalSettings asks the founder for settings of an agent: `hl propose settings <agent> <key>=<value> ... --why "..."`, a settings
+// proposal applied as agent.set once the founder OKs it. It is how an agent asks for a setting it may not change itself.
+func proposalSettings(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--why"}, nil, nil)
+	if !ok || len(p.pos) < 2 {
+		return 0, false
+	}
+	why, problem := proposalWhy(p)
+	if problem != "" {
+		return wrongArgs("%s", problem)
+	}
+	sets := map[string]any{}
+	for _, kv := range p.pos[1:] {
+		k, v, has := strings.Cut(kv, "=")
+		if !has || k == "" {
+			return wrongArgs("%q is not key=value", kv)
+		}
+		if !slices.Contains(team.Editable, k) {
+			return wrongArgs("%s is not a setting (settings: %s)", k, strings.Join(team.Editable, ", "))
+		}
+		sets[k] = v
+	}
+	me := c.AskingAgent()
+	if me == "" {
+		fmt.Println(hlclient.WhoRefusal("propos"))
+		return 1, true
+	}
+	c.NoteVerbChain([]string{"propose", "settings"})
+	return said(c.Write("proposal.propose", map[string]any{"kind": "settings", "why": why, "args": map[string]any{"name": p.pos[0], "sets": sets}})), true
 }
 
 // proposalSchedule raises a recurring message for an agent for the founder to decide: a new schedule, an edit of one (--was names it) or its removal.

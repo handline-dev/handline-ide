@@ -392,10 +392,10 @@ func TestSaveSettingsWritesThroughRegisterAndTheRest(t *testing.T) {
 	if ok, said := r.SaveSettings("worker", []Change{{"effort", "medium", "huge"}}, idle); ok || !strings.HasPrefix(said, "not saved: effort must be one of") {
 		t.Fatalf("%v %s", ok, said)
 	}
-	if ok, said := r.SetByAgent(nil, "worker", map[string]string{"repo": "/x"}, "worker", "", nil, idle); ok || !strings.Contains(said, "repo needs the founder's approval") {
+	if ok, said := r.SetByAgent(nil, "worker", map[string]string{"repo": "/x"}, "worker", "", nil, idle); ok || !strings.Contains(said, "repo needs the founder's approval: ask with `hl propose settings worker repo=<value>") {
 		t.Fatalf("%v %s", ok, said)
 	}
-	if ok, said := r.SetByAgent(nil, "worker", map[string]string{"model": "x"}, "other", "", nil, idle); ok || !strings.Contains(said, "other may not change worker's settings") {
+	if ok, said := r.SetByAgent(nil, "worker", map[string]string{"model": "x"}, "other", "", nil, idle); ok || !strings.Contains(said, "other may not change worker's settings") || !strings.Contains(said, "`hl propose settings ") {
 		t.Fatalf("%v %s", ok, said)
 	}
 }

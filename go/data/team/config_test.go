@@ -34,29 +34,23 @@ func TestTheFoundersSwitchTurnsTheSandboxOnWhereTheAgentSaysNothing(t *testing.T
 	}
 }
 
-func TestARepoHasOnlyTheSandboxAllowancesTheFounderGaveIt(t *testing.T) {
-	t.Setenv("HANDLINE_AGENT", "")
-	r := NewRoster(newHome(t))
-	ours, theirs := Config{"repo": "/ws/handline/"}, Config{"repo": "/ws/harbor-app"}
-	if got := r.RepoAllowancesOf(ours); got.WeakerNetwork || got.Excluded != nil {
-		t.Fatalf("a repo has none until the founder gives them: %+v", got)
+func TestAnAgentHasOnlyTheSandboxAllowancesItsRowNames(t *testing.T) {
+	if got := SandboxAllowancesOf(Config{}); got.WeakerNetwork || got.Excluded != nil {
+		t.Fatalf("an agent has none until the founder gives them: %+v", got)
 	}
-	if err := r.Store.Put(RepoAllowanceNS, "handline", "weaker-network\npnpm-install\nrm-rf"); err != nil {
-		t.Fatal(err)
+	cfg := Config{"sandbox_allow": "weaker-network pnpm-install rm-rf pnpm-install"}
+	if got := SandboxAllowWords(cfg); !slices.Equal(got, []string{"weaker-network", "pnpm-install"}) {
+		t.Fatalf("each known word once, in order: %v", got)
 	}
-	if got := r.RepoAllowancesOf(ours); !got.WeakerNetwork || !slices.Equal(got.Excluded, []string{"pnpm install", "pnpm install --frozen-lockfile"}) {
-		t.Fatalf("the repo's entry, and a line that names no allowance grants nothing: %+v", got)
+	got := SandboxAllowancesOf(cfg)
+	if !got.WeakerNetwork || !slices.Equal(got.Excluded, []string{"pnpm install", "pnpm install --frozen-lockfile"}) {
+		t.Fatalf("a word that names no allowance grants nothing: %+v", got)
 	}
 	// The CLI takes a pattern as the whole command, or as its start when it ends in " *": an add of a package stays in the sandbox.
-	for _, pattern := range r.RepoAllowancesOf(ours).Excluded {
+	for _, pattern := range got.Excluded {
 		start, prefix := strings.CutSuffix(pattern, " *")
 		if cmd := "pnpm install left-pad"; cmd == pattern || prefix && strings.HasPrefix(cmd, start+" ") {
 			t.Fatalf("%q runs %q outside the sandbox", pattern, cmd)
-		}
-	}
-	for _, cfg := range []Config{theirs, {}, {"repo": "/ws/@personal"}} {
-		if got := r.RepoAllowancesOf(cfg); got.WeakerNetwork || got.Excluded != nil {
-			t.Fatalf("%v: another repo has none: %+v", cfg, got)
 		}
 	}
 }

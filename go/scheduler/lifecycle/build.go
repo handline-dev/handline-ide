@@ -211,10 +211,10 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	sandboxed := l.Roster.SandboxOn(agent, cfg)
 	var allowWrite, allowDomains []string
 	var cacheDir string
-	var allowed team.RepoAllowances
+	var allowed team.SandboxAllowances
 	if sandboxed {
 		allowWrite, allowDomains, cacheDir = l.SandboxAllowWrite(agent), team.SandboxDomains(cfg), l.SandboxCacheDir(agent)
-		allowed = l.Roster.RepoAllowancesOf(cfg)
+		allowed = team.SandboxAllowancesOf(cfg)
 	}
 	var trusted []string
 	if len(mode) > 0 && chosen == team.DefaultMode {

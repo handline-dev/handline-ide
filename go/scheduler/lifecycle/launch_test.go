@@ -695,26 +695,25 @@ type argsVendors struct {
 
 func (v argsVendors) ForAgent(string) (cli.Agent, error) { return v.d, nil }
 
-func TestBuildHandsTheDriverTheAllowancesOfTheAgentsRepoOnly(t *testing.T) {
+// A launch hands the driver the agent's own sandbox_allow, and only while its sandbox is on.
+func TestBuildHandsTheDriverTheAgentsSandboxAllowancesOnlyWhenSandboxed(t *testing.T) {
 	r := newLaunchRig(t)
 	var got cli.LaunchArgs
 	r.l.Ports.Vendors = argsVendors{fakeVendors{"claude"}, argsDriver{fakeDriver{vendor: "claude"}, &got}}
-	if err := r.l.Roster.Store.Put(team.RepoAllowanceNS, "handline", "weaker-network\npnpm-install"); err != nil {
-		t.Fatal(err)
-	}
-	ws := t.TempDir()
-	for name, want := range map[string]bool{"handline": true, "harbor-app": false} {
-		repo := filepath.Join(ws, name) // a workspace's folder is a git checkout
-		gitIn(t, ws, "init", "-q", repo)
-		if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "sandbox", Val: true}, {Key: "repo", Val: repo}}); err != nil {
+	for _, c := range []struct {
+		sandbox bool
+		allow   any
+		want    bool
+	}{{true, "weaker-network pnpm-install", true}, {true, nil, false}, {false, "weaker-network pnpm-install", false}, {false, nil, false}} {
+		if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "sandbox", Val: c.sandbox}, {Key: "sandbox_allow", Val: c.allow}}); err != nil {
 			t.Fatal(err)
 		}
 		got = cli.LaunchArgs{}
 		if _, _, err := r.build("ann", nil, false, "main"); err != nil {
 			t.Fatal(err)
 		}
-		if got.WeakerNetwork != want || (len(got.Excluded) > 0) != want {
-			t.Errorf("%s: weaker %v, excluded %v", repo, got.WeakerNetwork, got.Excluded)
+		if got.WeakerNetwork != c.want || (len(got.Excluded) > 0) != c.want || got.SandboxOff == c.sandbox {
+			t.Errorf("sandbox %v, allow %v: weaker %v, excluded %v, sandbox off %v", c.sandbox, c.allow, got.WeakerNetwork, got.Excluded, got.SandboxOff)
 		}
 	}
 }

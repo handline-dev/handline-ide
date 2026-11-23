@@ -50,7 +50,7 @@ var usages = map[string][2]string{
 	"task plan":        {`hl task plan T<n> (--file PATH | --ok | --not-ok)`, `hl task plan T12 --file plan.md`}, // local-ref-ok: the usage example
 	"task merge":       {`hl task merge T<n> T<m> [...]`, `hl task merge T12 T13`},
 	"hook":             {`hl hook <event>`, `hl hook Stop`},
-	"propose":          {`hl propose <add|retire|rename|team|context|schedule|bundle|run|list|withdraw> ...`, `hl propose run "rm -r build" --cwd . --why "frees 2 GB"`},
+	"propose":          {`hl propose <add|retire|rename|team|context|settings|schedule|bundle|run|list|withdraw> ...`, `hl propose settings web sandbox_allow=pnpm-install --why "the build installs its packages"`},
 	"propose add":      {`hl propose add <agent> --repo PATH --why "<why>" [--team T] [--model M] [--effort E] [--vendor V]`, `hl propose add shop.sea --repo /code/sea --why "split the storefront work"`},
 	"propose retire":   {`hl propose retire <agent> --why "<why>" (refused when applied while a worktree of the agent holds work)`, `hl propose retire old.agent --why "its work moved to new.agent"`},
 	"propose rename":   {`hl propose rename <agent> --to <new name> --why "<why>" [--team T]`, `hl propose rename shop.sea --to shop.ocean --why "clearer name"`},
@@ -62,7 +62,6 @@ var usages = map[string][2]string{
 	"propose withdraw": {`hl propose withdraw <proposal id>`, `hl propose withdraw 1a2b3c4d`},
 	"init":             {`hl init`, `hl init`},
 	"launch":           {launchUsage, `hl launch shop.sea`},
-	"sandbox-repo":     {sandboxRepoUsage, `hl sandbox-repo /code/sea npm`},
 	"device":           {`hl device pair [--name N] [--host ADDR] | hl device join <link>`, `hl device pair --name phone --host 192.168.0.5`},
 	"node":             {`hl node promote (run on one of the owner's machines that joined: it becomes the master)`, `hl node promote`},
 	"workspace":        {`hl workspace <new|rename|delete> ... (the founder's; an agent proposes a team)`, `hl workspace new shop --folder ~/code/shop`},

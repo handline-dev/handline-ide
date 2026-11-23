@@ -19,7 +19,7 @@ model is asked to do any of it (a model rightly declines to read a key, and an a
 through the sandbox, so it cannot read what it is told). Each step's output is in <root>/<repo>-<step>.out.
 srt is not the CLI's own sandbox: it has no enableWeakerNetworkIsolation, so the work that needs it (a Go module download)
 runs in the CLI's own sandbox instead, through `claude -p` with the session's --settings: SESSION below. The founder's
-repo allowances are given as `hl sandbox-repo` gives them (ALLOWED), and each session must carry its repo's and no other.
+allowances are each agent's sandbox_allow setting (ALLOWED), and each session must carry its own and no other.
 """
 from __future__ import annotations
 
@@ -91,17 +91,14 @@ def setup(root: Path, account: dict, names: list[str]) -> tuple[Path, str, Path]
     home, key = le.scratch(root, account)
     store = next((root / ".config" / "handline" / "protected").iterdir())
     (store / "switches" / "sandbox_default").write_text("on")
-    (store / "sandbox_repos").mkdir(mode=0o700)
-    for n in names:
-        if n in ALLOWED:
-            (store / "sandbox_repos" / REPOS[n][0].name).write_text("\n".join(ALLOWED[n]))
     subprocess.run(["git", "worktree", "remove", "--force", str(root / "work")], cwd=le.REPO, capture_output=True)
     shutil.rmtree(home / "agents" / le.AGENT)
     team = "agents:\n" + "".join(f"  sbx.{n}: {{}}\n" for n in names)
     (home / "team.yaml").write_text(team + 'edges:\n  - { from: "human", to: "*", relation: supervisor, response: fire_and_forget }\n')
     for n in names:
         (home / "agents" / f"sbx.{n}").mkdir(parents=True)
-        (home / "agents" / f"sbx.{n}" / "agent.yaml").write_text(f"model: haiku\nmode: default\nrepo: {REPOS[n][0]}\n")
+        allow = f"sandbox_allow: {' '.join(ALLOWED[n])}\n" if n in ALLOWED else ""
+        (home / "agents" / f"sbx.{n}" / "agent.yaml").write_text(f"model: haiku\nmode: default\nrepo: {REPOS[n][0]}\n{allow}")
     return home, key, store / "founder-keys" / "key"
 
 
