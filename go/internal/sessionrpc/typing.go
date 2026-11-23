@@ -28,8 +28,8 @@ var keyBytes = map[string]string{"esc": term.Escape, "enter": "", "up": "\x1b[A"
 
 const keyNames = "esc, enter, up, down, tab, shift-tab, ctrl-c, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9"
 
-// RegisterTyping adds input.take and release, and session.input and keys when the Env has the terminal to type at. They stand on
-// their own: the daemon that serves them needs no structured sessions.
+// RegisterTyping adds input.take and release, and session.input and keys and the agent.jobs calls when the Env has the terminal
+// to type at. They stand on their own: the daemon that serves them needs no structured sessions.
 func RegisterTyping(s *rpc.Server, e *Env) {
 	if e.Holds == nil {
 		return
@@ -39,6 +39,7 @@ func RegisterTyping(s *rpc.Server, e *Env) {
 	if e.Term != nil {
 		s.Register("session.input", rpc.Method{Handler: e.sessionInput})
 		s.Register("session.keys", rpc.Method{Handler: e.sessionKeys})
+		registerJobs(s, e)
 	}
 }
 

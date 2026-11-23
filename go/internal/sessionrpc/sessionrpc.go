@@ -60,6 +60,8 @@ type Env struct {
 	InterruptTerminal func(c *rpc.Conn, agent string) error
 	// Turns closes a turn an Esc ended on screen (turns.Tracker); nil leaves it to the transcript.
 	Turns TurnEnder
+	// Running is the background work the agent's last Stop listed (turns.Tracker.Running); nil lists none.
+	Running func(agent string) []RunningJob
 	// Marker tells whoever watches the agent's terminal that a control call happened (termchan.Env.Marker); nil tells no one.
 	Marker func(agent, kind string, actor map[string]any, text string)
 	Now    func() time.Time

@@ -26,6 +26,9 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `session.park` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: park |
 | `session.input` | owner | yes | `agent`, `text`, `enter?`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder, wall, screen_blocker, unsupported | uncached: type |
 | `session.keys` | owner | yes | `agent`, `keys`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, terminal_lock, input_holder, unsupported | uncached: key |
+| `agent.jobs` | owner |  | `agent` | `{jobs}` | `not_found` |  | `agent_jobs`, fed by agents |
+| `agent.job.stop` | owner | yes | `agent`, `job`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, type, state, terminal_lock, input_holder | uncached: stop job |
+| `agent.jobs.stop` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, state, screen_blocker, wall, terminal_lock, input_holder | uncached: stop all jobs |
 | `session.interrupt` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder | decided: interrupt |
 | `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings}` | `refused`, `not_found` | role, state | not cached |
 | `prompt.list` | member |  | `agent` | `{prompts} & ReadCursor` | `not_found` |  | `prompts` by agent, fed by notifications |
@@ -125,6 +128,18 @@ Type text at the prompt; Enter optional. Refused at a shell prompt (gate state, 
 ### `session.keys`
 
 Named keys for menus and dialogs. Each call is recorded as an event of the agent (kind type, key or input) whose actor is the caller: for a paired device, kind device with its id. A daemon that runs structured agents need not serve this method (the Go daemon does not: it is absent from hello, so a client never calls it for one). One that serves it refuses an agent run as a structured session, gate unsupported: it has no terminal to type at, so a client sends chat.send and watches the transcript.
+
+### `agent.jobs`
+
+The agent's background jobs, as its last turn's end listed them, with a shell's last output lines. Read on demand (it reads each shell's output file): what the agent's last Stop said still runs, less a shell whose output nothing writes any more (stopped, or ended since). None while a turn runs, or before a Stop said.
+
+### `agent.job.stop`
+
+Stop one background shell of the agent's. Sends SIGTERM to the background shell's process group: the group of its own, under the agent's CLI, whose processes write the job's output file (fd 1 or 2). Never the CLI's group, one shared with what is above it, or the daemon's. Refused, gate type, for a job that is no shell (agent.jobs.stop stops those), and gate state when its output file is not recorded, its terminal's processes cannot be read on this machine, or no such group writes the file (it may have ended). terminal_lock and input_holder as session.input.
+
+### `agent.jobs.stop`
+
+Stop all of the agent's background work. Presses Ctrl+X Ctrl+K twice in the agent's terminal: Claude Code stops its background work on the second, its confirm. Refused, gate state, while nothing runs (unclaimed, Ctrl+K would cut the person's draft) or the pane is a plain shell; gate screen_blocker with a dialog open; gate wall at the usage wall; terminal_lock and input_holder as session.input.
 
 ### `session.interrupt`
 

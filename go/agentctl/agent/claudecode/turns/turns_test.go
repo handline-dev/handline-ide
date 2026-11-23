@@ -171,7 +171,7 @@ func TestStopSaysWhetherBackgroundWorkStillRuns(t *testing.T) {
 	if running, known := tr.Background("%1"); running != "1 background task" || !known {
 		t.Fatalf("%q %v", running, known)
 	}
-	if got := tr.Running("amy"); len(got) != 1 || got[0] != (Job{ID: "b1", Name: "shell: sleep 60"}) {
+	if got := tr.Running("amy"); len(got) != 1 || got[0] != (Job{ID: "b1", Name: "shell: sleep 60", Type: "shell"}) {
 		t.Fatalf("named %q", got)
 	}
 	// The shell ending while idle: a prompt, then a Stop with nothing left.

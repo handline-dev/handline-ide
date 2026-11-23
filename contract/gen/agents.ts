@@ -317,6 +317,19 @@ export type AgentServer = {
   since: Timestamp;
 };
 
+/** One background job the agent's last Stop listed. */
+export type AgentJob = {
+  id: string;
+  /** shell, or what else Claude Code runs in the background (agent, monitor, ...). */
+  type: string;
+  /** "<type>: <description>", a shell's command when it has none. */
+  name: string;
+  /** When it started, epoch seconds; null when that is not recorded. */
+  started: number | null;
+  /** A shell's last 5 output lines that are not blank, each at most 200 characters; [] when its output file cannot be read; null for a job that is no shell. */
+  output: string[] | null;
+};
+
 export interface AgentsMethods {
   "agents.list": { params: {
   /** Add the status-line fields of each agent (started, has_repo, has_terminal, screen_word, screen_detail, unreached, task_waits, wake_wait_reason), read at the call; screen_word and screen_detail may be as old as the stored view. Default false. */
@@ -445,6 +458,20 @@ export interface AgentsMethods {
   agent: Who;
   /** esc, enter, up, down, tab, shift-tab, ctrl-c, 0-9. */
   keys: string[];
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.jobs": { params: {
+  agent: Who;
+}; result: {
+    jobs: AgentJob[];
+  } };
+  "agent.job.stop": { params: {
+  agent: Who;
+  job: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.jobs.stop": { params: {
+  agent: Who;
   request_id: RequestId;
 }; result: Accepted };
   "session.interrupt": { params: {
@@ -632,6 +659,9 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "session.park": { role: "agent", callers: null, write: true, since: 1 },
   "session.input": { role: "owner", callers: null, write: true, since: 1 },
   "session.keys": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.jobs": { role: "owner", callers: null, write: false, since: 1 },
+  "agent.job.stop": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.jobs.stop": { role: "owner", callers: null, write: true, since: 1 },
   "session.interrupt": { role: "owner", callers: null, write: true, since: 1 },
   "session.launch_prepare": { role: "anonymous", callers: null, write: false, since: 1 },
   "prompt.list": { role: "member", callers: null, write: false, since: 1 },
@@ -650,11 +680,12 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "agent.jobs" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "agents.list": {"resource": "agents", "feed": "agents"},
   "agent.get": {"resource": "agent", "id": "agent", "feed": "agents"},
   "agent.timeline": {"resource": "timeline", "feed": "agents"},
   "agent.options": {"resource": "agent-options", "feed": null},
+  "agent.jobs": {"resource": "agent_jobs", "feed": "agents"},
   "session.launch_prepare": false,
   "prompt.list": {"resource": "prompts", "id": "agent", "feed": "notifications"},
   "permission.ask": false,
@@ -665,7 +696,7 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
@@ -683,6 +714,8 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move
   "session.park": {"kind": "decided", "label": "park"},
   "session.input": {"kind": "uncached", "label": "type"},
   "session.keys": {"kind": "uncached", "label": "key"},
+  "agent.job.stop": {"kind": "uncached", "label": "stop job"},
+  "agent.jobs.stop": {"kind": "uncached", "label": "stop all jobs"},
   "session.interrupt": {"kind": "decided", "label": "interrupt"},
   "prompt.answer": {"kind": "decided", "label": "answer"},
   "input.take": {"kind": "decided", "label": "take control"},
