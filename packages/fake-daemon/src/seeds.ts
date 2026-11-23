@@ -409,10 +409,10 @@ function switching(
 /** What `all` seeds: every seed but a machine's lack, which is asked for by name. */
 export const ALL = Object.keys(SEEDS).filter((n) => n !== 'no-git');
 
-/** Switches the named seeds on: a comma-separated list, or `all`. An unknown name is an error, not a silent no-op. */
+/** Switches the named seeds on: a comma-separated list, where `all` stands for ALL. An unknown name is an error, not a silent no-op. */
 export function applySeeds(d: FakeDaemon, names: string | string[]): string[] {
   const list = (Array.isArray(names) ? names : names.split(',')).map((n) => n.trim()).filter(Boolean);
-  const on = list.includes('all') ? ALL : list;
+  const on = [...new Set(list.flatMap((n) => (n === 'all' ? ALL : [n])))];
   for (const n of on) {
     const seed = SEEDS[n];
     if (!seed) throw new Error(`no seed "${n}"; known: ${Object.keys(SEEDS).join(', ')}, all`);
