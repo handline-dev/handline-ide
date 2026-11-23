@@ -2,7 +2,7 @@
 import { classify, Hooks, sentence, useRepos } from '@handline/app-data';
 import { Bell, Check, Folder, FolderGit2, LoaderCircle } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { installTool, useMissing } from '#src/install/install.tsx';
+import { InstallButton, Installing, useInstall, useMissing } from '#src/install/install.tsx';
 import { shell } from '#src/shell.ts';
 import { useAiTools, useOnboarding } from '#src/onboarding/data/progress.ts';
 import { type AiRow } from '#src/onboarding/data/steps.ts';
@@ -63,6 +63,7 @@ export function AiStep() {
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState('');
   const first = ai.rows[0];
+  const install = useInstall(first?.vendor ?? '');
   const ready = ai.rows.filter((r) => r.state === 'ready');
   const found = ai.rows.filter((r) => r.state === 'found');
   const logIn = (vendor: string) =>
@@ -81,7 +82,7 @@ export function AiStep() {
     : found.length
       ? { label: 'Use these', onClick: () => run(Promise.all(found.map(use))), disabled: ai.busy }
       : first && !first.installed
-        ? { label: `Install ${vendorOf(first.vendor).name}`, onClick: () => void installTool(first.vendor) }
+        ? { label: `Install ${vendorOf(first.vendor).name}`, onClick: install.start, disabled: install.running }
         : {
             label: `Log in to ${vendorOf(ai.rows[0]?.vendor ?? 'claude').name}`,
             onClick: () => run(logIn(ai.rows[0]?.vendor ?? 'claude')),
@@ -117,18 +118,25 @@ export function AiStep() {
               <Check size={14} className="text-accent" />
             ) : r.state === 'logging_in' ? (
               <Pill tone="accent">Waiting for your browser</Pill>
-            ) : (
+            ) : r.installed ? (
               <button
                 type="button"
                 disabled={ai.busy}
-                onClick={() => (r.installed ? run(logIn(r.vendor)) : void installTool(r.vendor))}
+                onClick={() => run(logIn(r.vendor))}
                 className="text-xs text-accent hover:underline disabled:opacity-50"
               >
-                {r.installed ? 'Log in' : 'Install'}
+                Log in
               </button>
+            ) : (
+              <InstallButton tool={r.vendor} variant="ghost" size="sm">
+                Install
+              </InstallButton>
             )
           }
         />
+      ))}
+      {ai.rows.map((r) => (
+        <Installing key={r.vendor} tool={r.vendor} />
       ))}
       {code && (
         <p className="text-xs text-muted">
@@ -204,13 +212,16 @@ export function ProjectStep() {
   const pick = shell()?.pickFolder;
   const [error, setError] = useState('');
   const noGit = useMissing('git') !== null;
+  const git = useInstall('git');
   if (noGit)
     return (
       <StepView
         title="What should agents work on?"
         line="git is needed for a project."
-        primary={{ label: 'Install git', onClick: () => void installTool('git') }}
-      />
+        primary={{ label: 'Install git', onClick: git.start, disabled: git.running }}
+      >
+        <Installing tool="git" />
+      </StepView>
     );
   return (
     <StepView

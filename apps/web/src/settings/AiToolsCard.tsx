@@ -7,7 +7,7 @@ import { useAiTools } from '#src/onboarding/data/progress.ts';
 import type { AiRow } from '#src/onboarding/data/steps.ts';
 import { Block } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
-import { installTool } from '#src/install/install.tsx';
+import { InstallButton, Installing } from '#src/install/install.tsx';
 
 const NAME: Record<string, string> = { claude: 'Claude Code', codex: 'Codex' };
 
@@ -71,10 +71,11 @@ export function AiToolsCard() {
             </Button>
           )}
           {!r.installed && (
-            <Button variant="ghost" onClick={() => void installTool(r.vendor)}>
+            <InstallButton tool={r.vendor} variant="ghost">
               Install
-            </Button>
+            </InstallButton>
           )}
+          <Installing tool={r.vendor} />
         </div>
       ))}
       {!!error && (

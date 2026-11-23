@@ -4,7 +4,7 @@ import { Check, TriangleAlert } from 'lucide-react';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { AI_VENDORS, BASE_TOOLS } from '#src/onboarding/data/steps.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { canInstall, installTool } from '#src/install/install.tsx';
+import { canInstall, InstallButton, Installing } from '#src/install/install.tsx';
 
 const FOR: Record<string, string> = {
   git: 'Version control. Every agent works on its own branch.',
@@ -44,7 +44,7 @@ export function ToolsTab() {
         {status.isError && <p className="py-3 text-sm text-danger">The tools did not load.</p>}
         {ok &&
           rows.map((r) => (
-            <div key={r.tool} data-tool={r.tool} className="flex items-center gap-3 border-t border-border py-3 first:border-t-0">
+            <div key={r.tool} data-tool={r.tool} className="flex flex-wrap items-center gap-3 border-t border-border py-3 first:border-t-0">
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-fg">{r.tool}</div>
                 <p className="text-xs text-muted">{FOR[r.tool]}</p>
@@ -54,10 +54,11 @@ export function ToolsTab() {
                 {r.installed ? 'Installed' : 'Missing'}
               </span>
               {!r.installed && canInstall(r.tool) && (
-                <Button size="sm" onClick={() => void installTool(r.tool)}>
+                <InstallButton tool={r.tool} size="sm">
                   Install
-                </Button>
+                </InstallButton>
               )}
+              <Installing tool={r.tool} />
             </div>
           ))}
       </div>
