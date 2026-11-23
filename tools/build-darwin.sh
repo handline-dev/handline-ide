@@ -20,9 +20,13 @@ for cmd in handlined hl; do
     GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
         -ldflags "-s -w -X github.com/handline/handline/go/kit/version.Sha=$stamp" -o "$out/$cmd" "./cmd/$cmd" || exit 1
 done
-# The binary says its version only where it can run: on its own architecture.
+# The binary says its version where it can run: on its own architecture, or Intel's under Rosetta.
 host="$(uname -m)"; [ "$host" = x86_64 ] && host=amd64
-if [ "$host" = "$arch" ]; then
-    [ "$("$out/handlined" -version)" = "$stamp" ] || { echo "tools/build-darwin.sh: $out/handlined does not say $stamp" >&2; exit 1; }
+run=()
+if [ "$host" != "$arch" ]; then
+    if [ "$arch" = amd64 ] && arch -x86_64 /usr/bin/true 2>/dev/null; then run=(arch -x86_64); else run=(); skip=1; fi
+fi
+if [ -z "$skip" ]; then
+    [ "$("${run[@]}" "$out/handlined" -version)" = "$stamp" ] || { echo "tools/build-darwin.sh: $out/handlined does not say $stamp" >&2; exit 1; }
 fi
 echo "$out: handlined, hl $stamp ($arch)"

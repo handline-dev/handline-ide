@@ -198,12 +198,7 @@ export const electronAsk: Ask = (o) => {
 
 /** What the tray's items do. */
 function trayActions(
-  o: {
-    openWindow: () => void;
-    openPage: (screen: 'inbox' | 'settings') => void;
-    current: Settings;
-    setOpenAtLogin: (on: boolean) => void;
-  },
+  o: { openWindow: () => void; openPage: (screen: 'inbox' | 'settings') => void; current: Settings; setOpenAtLogin: (on: boolean) => void },
   draw: () => void,
 ): TrayActions {
   return {

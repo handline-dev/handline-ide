@@ -41,6 +41,12 @@ export function isNewer(candidate: string, current: string): boolean {
   return current.includes('-') && !candidate.includes('-');
 }
 
+/** The release the app reads, and whether the person moved it off the channel the build was made for. */
+export interface Where {
+  base: string;
+  switched: boolean;
+}
+
 export interface PkgPorts {
   /** The version of the app that runs. */
   current(): string;
@@ -65,13 +71,14 @@ export class SelfUpdater implements PkgUpdater {
   private going = false;
   private ports: PkgPorts;
   private flow: UpdateFlow;
-  /** The address of the channel the person is on, asked at each check: it can change between two. */
-  private base: () => string;
-  constructor(ports: PkgPorts, flow: UpdateFlow, base: () => string) {
+  /** The channel the person is on, asked at each check: it can change between two. `switched` is true when it is not the build's own. */
+  private where: () => Where;
+  constructor(ports: PkgPorts, flow: UpdateFlow, where: () => Where) {
     this.ports = ports;
     this.flow = flow;
-    this.base = () => base().replace(/\/+$/, '');
+    this.where = where;
   }
+  private base = () => this.where().base.replace(/\/+$/, '');
 
   async check(): Promise<void> {
     this.flow.remind();
@@ -79,7 +86,10 @@ export class SelfUpdater implements PkgUpdater {
     this.busy = true;
     try {
       const latest = parseLatest(await this.ports.text(`${this.base()}/${latestFile(this.ports.arch())}`));
-      if (!latest || !isNewer(latest.version, this.ports.current())) return;
+      // Another channel's builds are not ordered with this one's (Canary's numbers run ahead of Stable's): any other version is the update.
+      const current = this.ports.current();
+      const next = this.where().switched ? latest?.version !== current : latest && isNewer(latest.version, current);
+      if (!latest || !next) return;
       if (!(await this.ports.idle())) return; // owed: the next check offers again
       await this.prepare(latest);
     } catch {

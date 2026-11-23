@@ -57,22 +57,19 @@ function ports(o: { idle: () => Promise<boolean> }): PkgPorts {
   };
 }
 
-/** The channel the build was made for, null for a build that has no update address (a checkout). */
-export function builtChannel(): UpdateChannel | null {
-  const base = packagedUpdateUrl(app.getAppPath());
-  return base ? channelOf(base) : null;
-}
-
-/** Starts looking for a newer build of the installed app on `channel()`'s release (the build's own unless the person picked one), once a minute
- * after launch and then every half hour. Returns what stops it, and `look` to check at once (a channel was picked). */
-export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean>; channel: () => UpdateChannel | undefined }): {
+/** Looks for a newer build once a minute after launch and then every half hour, on the release of the channel the person picked (`picked`), else the
+ * build's own. `channel` is the one in use, null for a build with no update address (a checkout); `look` checks at once. */
+export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean>; picked: () => UpdateChannel | undefined }): {
   stop: () => void;
   look: () => void;
+  channel: () => UpdateChannel | null;
 } {
   const base = packagedUpdateUrl(app.getAppPath());
-  if (!base) return { stop: () => undefined, look: () => undefined };
+  const built = base ? channelOf(base) : null;
+  if (!base || !built) return { stop: () => undefined, look: () => undefined, channel: () => null };
   sweepSwap();
-  const updater = new SelfUpdater(ports(o), o.flow, () => withChannel(base, o.channel() ?? channelOf(base) ?? 'nightly'));
+  const channel = () => o.picked() ?? built;
+  const updater = new SelfUpdater(ports(o), o.flow, () => ({ base: withChannel(base, channel()), switched: channel() !== built }));
   const look = () => void updater.check();
   const first = setTimeout(look, 60_000);
   const every = setInterval(look, 30 * 60_000);
@@ -82,18 +79,19 @@ export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolea
       clearInterval(every);
     },
     look,
+    channel,
   };
 }
 
 /** Settings' Updates channel: which release the app reads, and picking another. */
 export function handleUpdateChannel(
   origin: string,
-  get: () => UpdateChannel | undefined,
+  get: () => UpdateChannel | null,
   set: (c: UpdateChannel) => void,
   look: () => void,
 ): void {
   const u = new UpdateChannelCalls(origin, {
-    get: () => get() ?? null,
+    get,
     set: (c) => {
       set(c);
       look();

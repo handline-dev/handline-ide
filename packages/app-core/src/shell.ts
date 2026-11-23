@@ -27,6 +27,10 @@ export const PAGE_SETTINGS = [
 ] as const satisfies readonly (keyof SettingsChanges)[];
 export type PageSettings = Pick<SettingsChanges, (typeof PAGE_SETTINGS)[number]>;
 
+/** The release channels of the Mac app. */
+export const UPDATE_CHANNELS = ['stable', 'nightly', 'canary'] as const;
+export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
+
 /** What every call returns when it does not succeed: calls never throw across the window's edge. */
 export type Fail<C extends string> = { ok: false; code: C; message: string };
 
@@ -159,8 +163,8 @@ export interface ShellApi {
   updateAct?(what: 'restart' | 'later' | 'retry' | 'details'): Promise<{ ok: true } | Fail<'bad_request'>>;
   onUpdate?(cb: (v: ShellUpdate) => void): () => void;
   /** The release channel the app reads updates from (null for a build that reads none), and picking another; it looks there at once. */
-  updateChannel?(): Promise<{ ok: true; channel: 'stable' | 'nightly' | 'canary' | null } | Fail<'bad_request'>>;
-  setUpdateChannel?(channel: 'stable' | 'nightly' | 'canary'): Promise<{ ok: true } | Fail<'bad_request'>>;
+  updateChannel?(): Promise<{ ok: true; channel: UpdateChannel | null } | Fail<'bad_request'>>;
+  setUpdateChannel?(channel: UpdateChannel): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** The app's own daemon: its state now, its last state and every change, and a Start that brings it up again (a no-op while it starts or runs). */
   daemon?(): Promise<({ ok: true } & ShellDaemon) | Fail<'bad_request'>>;
   onDaemon?(cb: (v: ShellDaemon) => void): () => void;
