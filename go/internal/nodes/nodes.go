@@ -80,6 +80,7 @@ type Registry struct {
 	beats   map[string]heard           // each runner's newest heartbeat since this master started
 	opening map[string]map[string]bool // by node, the agents whose session Open is opening there now
 	updates map[string]bool            // the nodes whose Update was asked (AskUpdate), until one runs the master's build
+	appAsks map[string]string          // the app version each node's Update asked it to install, until its app has none ready
 	started time.Time
 	Clock   func() time.Time // the time heartbeats are judged by; nil is time.Now
 
@@ -103,7 +104,7 @@ func (r *Registry) now() time.Time {
 
 func New(db *sql.DB, home string) *Registry {
 	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, streams: map[string]*stream{},
-		beats: map[string]heard{}, updates: map[string]bool{}, opening: map[string]map[string]bool{}, started: time.Now()}
+		beats: map[string]heard{}, updates: map[string]bool{}, appAsks: map[string]string{}, opening: map[string]map[string]bool{}, started: time.Now()}
 }
 
 // Link keeps c as node's link, in place of any before it, until c ends, which ends every stream on it.

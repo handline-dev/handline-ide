@@ -25,6 +25,8 @@ type Beat struct {
 	Door *Door `json:"door,omitempty"`
 	// SetAside is the board this machine set aside when a newer master outranked it as master, nil when it set none aside so.
 	SetAside *joined.SetAside `json:"set_aside,omitempty"`
+	// App is the Mac app around this runner (a cluster engine's), nil for none.
+	App *App `json:"app,omitempty"`
 }
 
 // Door is an address a master serves (host:port) and its certificate's fingerprint, "" for a plain door.

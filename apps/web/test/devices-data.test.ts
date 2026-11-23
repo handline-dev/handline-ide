@@ -99,4 +99,12 @@ describe('a Mac on another build', () => {
     expect(canUpdate(bobs)).toBe(true);
     expect(canUpdate(row({ person: 'p2' }, { person: 'p2' }))).toBe(false);
   });
+  it('says an app version ready on a Mac online, which its own person may have installed', () => {
+    const ready = { version: 'new', app: { version: '0.1.16', ready: '0.1.17' } };
+    expect(row(ready).appReady).toBe('0.1.17');
+    expect(canUpdate(row(ready))).toBe(true);
+    expect(canUpdate(row(ready, { me: 'p2' }))).toBe(false);
+    expect(row({ ...ready, online: false }).appReady).toBe('');
+    expect(row({ version: 'new', app: { version: '0.1.17', ready: '' } }).appReady).toBe('');
+  });
 });

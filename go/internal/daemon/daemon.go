@@ -773,6 +773,12 @@ func (d *Daemon) readsEnv() reads.Env {
 			return map[string]any{"cores": l.Cores, "load1": l.Load1, "ram_total": l.RAMTotal, "ram_free": l.RAMFree, "agents_rss": l.AgentsRSS},
 				b.Battery, b.Version, ok
 		}
+		renv.NodeApp = func(node string) any {
+			if b, _, ok := d.nodes.Heard(node); ok && b.App != nil {
+				return map[string]any{"version": b.App.Version, "ready": b.App.Ready}
+			}
+			return nil
+		}
 		renv.NodeSetAside = func(node string) any {
 			if b, _, ok := d.nodes.Heard(node); ok && b.SetAside != nil {
 				return map[string]any{"since": time.Unix(b.SetAside.Since, 0).UTC().Format("2006-01-02T15:04:05Z"), "master": b.SetAside.Master}

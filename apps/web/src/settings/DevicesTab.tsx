@@ -2,8 +2,8 @@
 // Manual for a lent Mac taking the master's build, and the reclaim time.
 import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { ArchiveX, BatteryCharging, ChevronRight, Plus, RefreshCw, SlidersHorizontal, Timer, TriangleAlert, Zap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArchiveX, ArrowUpCircle, BatteryCharging, ChevronRight, Plus, RefreshCw, SlidersHorizontal, Timer, TriangleAlert, Zap } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
   Confirm,
@@ -76,20 +76,25 @@ function Detail({ r, q }: { r: DeviceRow; q: Devices }) {
               {canUpdate(r) && (
                 <>
                   {' · '}
-                  <button
-                    type="button"
-                    className="text-fg underline"
-                    disabled={q.pending !== null}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void q.update(r).catch(refused);
-                    }}
-                  >
+                  <UpdateLink r={r} q={q}>
                     Update
-                  </button>
+                  </UpdateLink>
                 </>
               )}
             </>
+          )}
+        </span>
+      ) : r.appReady ? (
+        <span>
+          {' · '}
+          {canUpdate(r) ? (
+            <UpdateLink r={r} q={q}>
+              <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update to {r.appReady}
+            </UpdateLink>
+          ) : (
+            <span className="text-fg">
+              <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update ready {r.appReady}
+            </span>
           )}
         </span>
       ) : lack && (
@@ -99,6 +104,23 @@ function Detail({ r, q }: { r: DeviceRow; q: Devices }) {
         </span>
       )}
     </div>
+  );
+}
+
+/** The row's Update: the machine takes the master's build, and its Mac app installs the version it has ready. */
+function UpdateLink({ r, q, children }: { r: DeviceRow; q: Devices; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="text-fg underline"
+      disabled={q.pending !== null}
+      onClick={(e) => {
+        e.stopPropagation();
+        void q.update(r).catch(refused);
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

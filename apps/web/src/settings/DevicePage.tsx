@@ -118,7 +118,7 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
             <span className="flex-1" />
             {canUpdate(row) && (
               <Button busy={q.pending === `update:${row.id}`} disabled={q.pending !== null} onClick={() => void q.update(row).catch(refused)}>
-                Update
+                {row.appReady && !row.behind ? `Update to ${row.appReady}` : 'Update'}
               </Button>
             )}
             {row.runner && row.mode && <ModeControl row={row} busy={q.pending !== null} setMode={(m) => q.setMode(row, m)} />}

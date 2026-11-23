@@ -23,12 +23,14 @@ const row = (id: string, o: Partial<DeviceRow>): DeviceRow => ({
   stale: false,
   behind: false,
   updating: false,
+  appReady: '',
   ...o,
 });
 const rows = [
   row('mbp', { kind: 'mac', runner: true, master: true, here: true, mode: 'run', state: 'running', agents: ['ui', 'core'] }),
   row('studio', { kind: 'mac', runner: true, mode: 'run', state: 'running', lacks: [{ agent: 'ui', why: 'needs pencil' }] }),
   row('laptop', { kind: 'mac', runner: true, mode: 'run', state: 'running', behind: true }),
+  row('mini', { kind: 'mac', runner: true, mode: 'run', state: 'running', appReady: '0.1.17' }),
   row('bob-mac', { kind: 'mac', runner: true, mine: false, mode: 'off', state: 'off' }),
   row('phone', {}),
   row('old-phone', { state: 'seen', since: new Date(NOW - 40 * day).toISOString(), stale: true }),
@@ -90,6 +92,7 @@ describe('Devices', () => {
       'mbp',
       'studio',
       'laptop',
+      'mini',
       'bob-mac',
       'phone',
     ]);
@@ -159,6 +162,15 @@ describe('Devices', () => {
     await act(async () => b.click());
     expect(update).toHaveBeenCalledTimes(1);
     expect(document.querySelector('[data-device="studio"]')!.textContent).not.toContain('other build');
+  });
+
+  it("says a Mac's app has a newer version ready, as the Update its own person presses", async () => {
+    update.mockClear();
+    expect(at('mini').textContent).toContain('Update to 0.1.17');
+    expect(at('mini').textContent).not.toContain('other build');
+    const b = [...at('mini').querySelectorAll('button')].find((x) => x.textContent?.trim() === 'Update to 0.1.17')!;
+    await act(async () => b.click());
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
   it('says why when the daemon refuses', async () => {

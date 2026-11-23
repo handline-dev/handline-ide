@@ -49,6 +49,7 @@ func (r *Runner) SendBeat() error {
 	if doors, ok := got["doors"]; ok {
 		r.keepDoors(doors)
 	}
+	r.keepAppUpdate(got["app_update"])
 	if raw, ok := got["build"]; ok {
 		var o BuildOffer
 		if b, err := json.Marshal(raw); err == nil && json.Unmarshal(b, &o) == nil {
@@ -92,6 +93,7 @@ func (r *Runner) Beat() map[string]any {
 	if s, ok := joined.SetAsideOf(r.cfg.Home); ok {
 		b.SetAside = &s
 	}
+	b.App = appOf(r.cfg.Home)
 	if m, err := sysres.Read(); err == nil {
 		b.Load = Load{Cores: m.Cores, Load1: m.Load1, RAMTotal: m.RAMTotal, RAMFree: m.RAMFree}
 	}

@@ -31,6 +31,8 @@ export const RETRY_MAX_MS = 60 * 60_000;
 
 export class UpdateFlow {
   view: UpdateView = { phase: 'idle', step: '', fraction: 0, reason: '' };
+  /** The version a ready (or put-off) update installs, '' when none is or the updater does not say. */
+  readyVersion = '';
   /** The command output behind a failure, for "Details". */
   log = '';
   private listeners: (() => void)[] = [];
@@ -58,6 +60,7 @@ export class UpdateFlow {
   }
   private set(view: UpdateView): void {
     this.cancelRetry();
+    if (view.phase !== 'ready' && view.phase !== 'later') this.readyVersion = '';
     this.view = view;
     for (const f of this.listeners) f();
   }
@@ -69,10 +72,11 @@ export class UpdateFlow {
   preparing(step: string, fraction: number): void {
     this.set({ phase: 'preparing', step, fraction, reason: '' });
   }
-  /** The update is built: "Restart now" runs `restart`. */
-  ready(restart: () => void): void {
+  /** The update is built: "Restart now" runs `restart`, which installs `version`. */
+  ready(restart: () => void, version = ''): void {
     this.failures = 0;
     this.restartFn = restart;
+    this.readyVersion = version;
     this.set({ phase: 'ready', step: '', fraction: 0, reason: '' });
   }
   failed(reason: string, retry: () => void, log = ''): void {

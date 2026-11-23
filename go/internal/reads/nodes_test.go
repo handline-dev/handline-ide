@@ -2,6 +2,7 @@ package reads
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
@@ -26,8 +27,8 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 		t.Fatal(err)
 	}
 	b, _ := json.Marshal(v)
-	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null,"version":null`
-	self := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null,"version":"` + version.Sha + `"`
+	none := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null,"version":null,"app":null`
+	self := `"device":null,"memory_max_gb":null,"load":null,"battery":null,"set_aside":null,"version":"` + version.Sha + `","app":null`
 	want := `{"cluster":{"machines":3,"name":""},"master":{"id":"` + id + `","number":1},"nodes":[` +
 		`{"id":"` + id + `","person":"p1","name":"mac","joined_at":"1970-01-01T00:01:40Z","last_seen":"1970-01-01T00:01:40Z","master_number":1,"master":true,"self":true,"online":true,"lending":"run","door":null,` + self + `},` +
 		`{"id":"aaaa","person":"p1","name":"box","joined_at":"1970-01-01T00:00:50Z","last_seen":null,"master_number":1,"master":false,"self":false,"online":false,"lending":"pause","door":null,` + none + `},` +
@@ -48,5 +49,16 @@ func TestNodeStatusListsThisMachineFirstAsMasterSelfAndOnlineThenTheMachinesOnRu
 	}
 	if json.Unmarshal(b, &got) != nil || len(got.Nodes) != 3 || got.Nodes[1].Version != nil || got.Nodes[2].Version == nil || *got.Nodes[2].Version != "older1" {
 		t.Fatalf("a runner's version is its heartbeat's: %s", b)
+	}
+	e.NodeApp = func(node string) any {
+		if node != "bbbb" {
+			return nil
+		}
+		return map[string]any{"version": "0.1.16", "ready": "0.1.17"}
+	}
+	v, _ = e.nodeStatus(nil, nil)
+	b, _ = json.Marshal(v)
+	if !strings.Contains(string(b), `"app":{"ready":"0.1.17","version":"0.1.16"}`) {
+		t.Fatalf("a runner's Mac app is its heartbeat's: %s", b)
 	}
 }

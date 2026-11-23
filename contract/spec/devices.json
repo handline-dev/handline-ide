@@ -379,6 +379,30 @@
        }
       ],
       "description": "It was master, and a newer master outranked it: since when its own board is set aside, unchanged, and the master number that outranked it. null otherwise."
+     },
+     "app": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "version": {
+          "type": "string"
+         },
+         "ready": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "version",
+         "ready"
+        ],
+        "additionalProperties": false
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The Mac app around a lent machine's engine, as its heartbeat says: its version, and ready, the newer one its update channel has downloaded ('' for none); null for none (a server, a phone, an older app)."
      }
     },
     "required": [
@@ -754,7 +778,7 @@
   },
   {
    "name": "device.update",
-   "summary": "Have a lent machine take the master's own build.",
+   "summary": "Have a lent machine take the master's own build, and its Mac app install the version it has ready.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -798,7 +822,7 @@
     "kind",
     "build"
    ],
-   "description": "The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none)."
+   "description": "The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. A Mac app with a newer version ready (node.status app.ready) installs it too (node.heartbeat's app_update). Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build with no app version ready, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none)."
   },
   {
    "name": "device.push_token",
@@ -1192,6 +1216,14 @@
       "type": "string",
       "description": "Why it refused the master's build it was offered (a file whose sha256 is not the one named); its row says so in place of taking work."
      }
+    },
+    {
+     "name": "app",
+     "required": false,
+     "schema": {
+      "type": "object",
+      "description": "The Mac app around this runner (a cluster engine's), as its shell wrote it: version, and ready when a newer one is downloaded."
+     }
     }
    ],
    "result": {
@@ -1223,6 +1255,10 @@
       "build": {
        "type": "object",
        "description": "When the master wants it on its own build: it runs another version on the master's platform, and it is the owner's with node_build_auto on, or its row's Update was asked (device.update). version, and files: each {name, size, sum} (handlined and hl, sum their sha256). The runner reads each with node.build.read, checks it, keeps it under its home (build/, the newest only) and starts again on it; at a later start it runs the kept build while its master is on that version. Sessions there go on through the restart."
+      },
+      "app_update": {
+       "type": "object",
+       "description": "When its Mac app is to install the version it has ready: version, and auto (Auto on the owner's Mac with node_build_auto on, installed once no Handline window is open there) or not (its row's Update, device.update, installed at once). The app starts again on it; sessions there go on."
       }
      },
      "required": [

@@ -98,13 +98,56 @@ func (r *Registry) offer(node string, beat runner.Beat) *runner.BuildOffer {
 	return &runner.BuildOffer{Version: r.Version, Files: files}
 }
 
-// AskUpdate has node's next heartbeat answer name the master's build, as Auto would (the Manual row's Update); refused when node
-// cannot take it.
+// appUpdate is the app version a heartbeat's answer has node's Mac app install, nil for none: the newer one its app has ready, once its
+// row's Update asked for it, or by itself (Auto) on the owner's Mac with node_build_auto on, when no window is open there.
+func (r *Registry) appUpdate(node string, b runner.Beat) *runner.AppUpdate {
+	r.mu.Lock()
+	asked := r.appAsks[node]
+	if b.App == nil || b.App.Ready == "" {
+		delete(r.appAsks, node) // installed, or none ready any more
+	}
+	r.mu.Unlock()
+	if b.App == nil || b.App.Ready == "" {
+		return nil
+	}
+	if asked == b.App.Ready {
+		return &runner.AppUpdate{Version: b.App.Ready}
+	}
+	if owner, err := r.ownerNode(node); err == nil && owner && r.BuildAuto != nil && r.BuildAuto() {
+		return &runner.AppUpdate{Version: b.App.Ready, Auto: true}
+	}
+	return nil
+}
+
+// AskUpdate has node's next heartbeat answer name the master's build, as Auto would (the Manual row's Update), and the app version its
+// Mac app has ready; refused when node can take neither.
 func (r *Registry) AskUpdate(node string) error {
 	b, _, ok := r.Heard(node)
-	switch {
-	case !ok || !r.Online(node):
+	if !ok || !r.Online(node) {
 		return rpc.Refused("it is offline", "build", "")
+	}
+	build := r.buildRefused(b)
+	ready := ""
+	if b.App != nil {
+		ready = b.App.Ready
+	}
+	if build != nil && ready == "" {
+		return build
+	}
+	r.mu.Lock()
+	if build == nil {
+		r.updates[node] = true
+	}
+	if ready != "" {
+		r.appAsks[node] = ready
+	}
+	r.mu.Unlock()
+	return nil
+}
+
+// buildRefused is why node, last heard as b, cannot take the master's build, nil when it can.
+func (r *Registry) buildRefused(b runner.Beat) error {
+	switch {
 	case r.Build == nil:
 		return rpc.Refused("this master serves no build of its own", "build", "")
 	case b.Version == r.Version:
@@ -112,9 +155,6 @@ func (r *Registry) AskUpdate(node string) error {
 	case b.Platform != r.Build.Platform:
 		return rpc.Refused(fmt.Sprintf("it is %s, not the master's %s: install Handline there", orUnknown(b.Platform), r.Build.Platform), "build", "")
 	}
-	r.mu.Lock()
-	r.updates[node] = true
-	r.mu.Unlock()
 	return nil
 }
 

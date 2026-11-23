@@ -44,7 +44,7 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		row := map[string]any{"id": id, "person": who, "name": name, "joined_at": ts(joined), "last_seen": last,
 			"master_number": master, "master": id == self, "self": id == self, "online": id == self || e.NodeOnline != nil && e.NodeOnline(id),
 			"lending": lending, "device": nil, "memory_max_gb": nil, "load": nil, "battery": nil, "version": nil, "door": nil,
-			"set_aside": nil}
+			"set_aside": nil, "app": nil}
 		if id == self {
 			row["version"] = version.Sha
 		}
@@ -53,6 +53,9 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		if id != self && e.NodeSetAside != nil {
 			row["set_aside"] = e.NodeSetAside(id)
+		}
+		if id != self && e.NodeApp != nil {
+			row["app"] = e.NodeApp(id)
 		}
 		if device.Valid && id != self { // the master's own device is its own, which no one paired
 			row["device"] = device.String

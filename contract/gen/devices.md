@@ -16,7 +16,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 | `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
-| `node.heartbeat` | member |  | `version`, `platform?`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?`, `door?`, `set_aside?`, `build_refused?` | `{stop, check, doors, build}` | `refused`, `bad_request` | node | not cached |
+| `node.heartbeat` | member |  | `version`, `platform?`, `boot?`, `load?`, `sessions?`, `accounts?`, `has?`, `battery?`, `door?`, `set_aside?`, `build_refused?`, `app?` | `{stop, check, doors, build, app_update}` | `refused`, `bad_request` | node | not cached |
 | `node.tokens` | member |  | `account`, `calls` | `object` | `refused`, `bad_request` | node | not cached |
 | `node.copy.files` | member |  | `have?`, `parts?` | `{send, gone, more}` | `refused` | node, owner, copy | not cached |
 | `node.build.read` | member |  | `name`, `offset` | `{data}` | `refused`, `bad_request` | node, build | not cached |
@@ -48,7 +48,7 @@ Set a lent machine's Run · Pause · Off and its own memory cap. Only the device
 
 ### `device.update`
 
-Have a lent machine take the master's own build. The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none).
+Have a lent machine take the master's own build, and its Mac app install the version it has ready. The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. A Mac app with a newer version ready (node.status app.ready) installs it too (node.heartbeat's app_update). Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build with no app version ready, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none).
 
 ### `device.push_token`
 

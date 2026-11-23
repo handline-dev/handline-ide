@@ -313,6 +313,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       root,
       loginPath,
       send: (v) => win?.webContents.send(CHANNELS.clusters, v),
+      app: { version: app.getVersion(), flow, windowOpen: () => !!win && !win.isDestroyed() && win.isVisible() },
     });
     doors = trustFingerprints(app, new Doors(settings, current, () => clusters.doors()), () => win?.webContents);
     void clusters.start();
