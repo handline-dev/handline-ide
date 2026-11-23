@@ -11,6 +11,7 @@ import type { ShellCluster } from '@handline/app-core';
 import type { DaemonClient } from '@handline/client';
 import { joinLink, masterUrl, type Door, type KeptCluster, type OfferInput, type SettingsFile } from '#src/mode.ts';
 import type { Joined } from '#src/joined.ts';
+import type { Cmd } from '#src/owner.ts';
 
 /** The engine's daemon, as owner.ts keeps one. */
 export interface Engine {
@@ -221,4 +222,30 @@ export async function untilUp(f: () => Promise<unknown>): Promise<void> {
       await new Promise((r) => setTimeout(r, 2000));
     }
   }
+}
+
+/** The environment of a cluster engine's processes (its daemon, and the hl that joins it): this app's, on the engine's home, with
+ * none of the HANDLINE_ variables that name this Mac's own daemon (its socket, listener, tmux server, binaries); a test's stand-in
+ * user home stays. */
+export function engineEnv(home: string, pathVar?: string): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('HANDLINE_') || k === 'HANDLINE_TEST_ROOT'));
+  return { ...env, ...(pathVar ? { PATH: pathVar } : {}), HANDLINE_HOME: home };
+}
+
+export interface EngineOpts {
+  env: (k: string) => string | undefined;
+  root: string;
+  home: string;
+  listen: string | undefined;
+  /** This Mac's own home: the engine serves the network_addresses chosen there, read live, never copied into its own. */
+  ownHome: string;
+}
+
+/** The engine's command: its home, its door once made the master, and the addresses this Mac's own daemon was told to serve. */
+export function engineCmd(o: EngineOpts, pathVar: string): Cmd {
+  return {
+    file: o.env('HANDLINED') ?? `${o.root}/go/handlined`,
+    args: ['-home', o.home, ...(o.listen ? ['-listen', o.listen, '-addresses-home', o.ownHome] : [])],
+    env: engineEnv(o.home, pathVar),
+  };
 }

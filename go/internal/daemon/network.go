@@ -179,7 +179,7 @@ func (n *netDoors) watch() {
 // chosen host this machine has an address for now. Either way there is a plain loopback door for the desktop app on this machine.
 func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool) {
 	tls = map[string]bool{loopback: false} // the desktop app's door
-	list := chosenHosts(n.cfg.Home)
+	list := chosenHosts(n.cfg.addressesHome())
 	if list == nil {
 		host, _, _ := net.SplitHostPort(n.cfg.Listen)
 		ip := net.ParseIP(host) // checkBind made it an IP literal
@@ -436,6 +436,13 @@ func (n *netDoors) close() {
 
 // plain is plain mode: a listener given no certificate serves plain HTTP/ws, and only on a Tailscale or loopback address.
 func (c Config) plain() bool { return c.CertFile == "" && c.KeyFile == "" }
+
+func (c Config) addressesHome() string {
+	if c.AddressesHome != "" {
+		return c.AddressesHome
+	}
+	return c.Home
+}
 
 // ifaceAddr is one IPv4 address of one network interface.
 type ifaceAddr struct {

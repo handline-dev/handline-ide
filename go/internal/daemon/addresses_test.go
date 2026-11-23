@@ -59,8 +59,9 @@ func serveHosts(t *testing.T, hosts ...netAddress) {
 
 var loop = []net.IP{net.ParseIP("127.0.0.1")}
 
-// startDoors is a daemon on loopback (plain, as with no -cert) with the founder's local socket and, when web is set, the web page.
-func startDoors(t *testing.T, web bool) (*Daemon, *client) {
+// startDoors is a daemon on loopback (plain, as with no -cert) with the founder's local socket and, when web is set, the web page;
+// `more` changes its config before it starts.
+func startDoors(t *testing.T, web bool, more ...func(*Config)) (*Daemon, *client) {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "hl")
 	if err != nil {
@@ -73,6 +74,9 @@ func startDoors(t *testing.T, web bool) (*Daemon, *client) {
 		cfg.WebDir = filepath.Join(dir, "web")
 		os.MkdirAll(cfg.WebDir, 0o755)
 		os.WriteFile(filepath.Join(cfg.WebDir, "index.html"), []byte("<html>handline</html>"), 0o644)
+	}
+	for _, f := range more {
+		f(&cfg)
 	}
 	d, err := Start(cfg)
 	if err != nil {
@@ -147,6 +151,33 @@ func boundAddr(t *testing.T, d *Daemon, ip string) string {
 		return ""
 	}
 	return l.ln.Addr().String()
+}
+
+// A cluster engine serves the hosts its Mac's own daemon was told to (AddressesHome), over TLS with a certificate of its own home, and
+// follows a change there at its next relisten.
+func TestAnEngineServesTheAddressesChosenInItsMacsOwnHome(t *testing.T) {
+	own, c := startDoors(t, false)
+	engine, _ := startDoors(t, false, func(cfg *Config) { cfg.AddressesHome = own.cfg.Home })
+	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
+	setAddresses(t, c, `["127.0.0.1"]`)
+	engine.net.relisten()
+	ls := listeners(engine)
+	if len(ls) != 1 || !ls[0].TLS || ls[0].Addr != boundAddr(t, engine, "127.0.0.1") {
+		t.Fatalf("the engine does not serve the host chosen in its Mac's own home over TLS: %v", ls)
+	}
+	if _, err := os.Stat(filepath.Join(engine.cfg.Home, "network", "lan.crt")); err != nil {
+		t.Fatalf("the engine's LAN door has no certificate of its own home: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(engine.cfg.Home, "config.yaml")); err == nil {
+		if b, _ := os.ReadFile(filepath.Join(engine.cfg.Home, "config.yaml")); strings.Contains(string(b), "network_addresses") {
+			t.Fatalf("the choice was copied into the engine's home: %s", b)
+		}
+	}
+	setAddresses(t, c, `[]`)
+	engine.net.relisten()
+	if l := listeners(engine); len(l) != 0 {
+		t.Fatalf("the engine still serves %v after the choice was emptied", l)
+	}
 }
 
 func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t *testing.T) {

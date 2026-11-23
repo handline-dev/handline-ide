@@ -118,6 +118,7 @@ func main() {
 	serveFDs := flag.String("serve-fds", "", "comma-separated file descriptors of connections already open (socketpairs "+
 		"made by the parent, for a run where no socket can be bound); each is served and no socket file is made")
 	web := flag.String("web", "", "the built web UI to serve on the listener's own origin; empty serves none")
+	addressesHome := flag.String("addresses-home", "", "the home whose network_addresses the network listener serves, when not -home's (a cluster engine follows its Mac's own daemon)")
 	advertise := flag.String("advertise", "", "the host:port a pairing code names, when it differs from -listen (a host name, or a proxy in front)")
 	serveNetFDs := flag.String("serve-net-fds", "", "like -serve-fds, but each connection is served as one of the network listener's "+
 		"(past TLS), so it is unpaired until a device token says otherwise; needs -listen")
@@ -152,7 +153,8 @@ func main() {
 	}
 	if m, ok := joined.Of(homeDir); ok {
 		door := func() *runner.Door { // read again at each heartbeat: an address can change
-			d, err := daemon.OwnDoor(daemon.Config{Home: homeDir, Listen: *listen, CertFile: *cert, KeyFile: *key, Advertise: *advertise})
+			d, err := daemon.OwnDoor(daemon.Config{Home: homeDir, Listen: *listen, CertFile: *cert, KeyFile: *key, Advertise: *advertise,
+				AddressesHome: *addressesHome})
 			if err != nil {
 				log.Printf("handlined: no network door, so this machine is not made the master: %v", err)
 			}
@@ -164,7 +166,7 @@ func main() {
 		return
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
-		WebDir: *web, Advertise: *advertise, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey, BoardCopy: true}
+		WebDir: *web, Advertise: *advertise, AddressesHome: *addressesHome, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey, BoardCopy: true}
 	work, stopWork := context.WithCancel(context.Background()) // the tick runs only while work is not done
 	tickEnded := make(chan struct{})                           // closed once the tick has returned, or is not to run
 	cfg.StopWork = func() {
