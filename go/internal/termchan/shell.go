@@ -157,7 +157,7 @@ func (e *Env) StartRun(agent, cwd, command string, block cmdruns.Block) (string,
 		return "", rpc.Refused("the terminal host ("+e.Backend().Name()+") cannot run a command", "unsupported", "")
 	}
 	started := cmdruns.Now()
-	handle, why := runner.CreateRun(cwd, agent+"-run", agent, cmdruns.Run{Block: block.String(), Started: started}.Tag(), command)
+	handle, why := runner.CreateRun(cwd, agent+"-run", agent, cmdruns.Run{Block: block.String(), Started: started}.Tag(), command, true)
 	if handle == "" {
 		return "", rpc.Refused("no shell was opened: "+why, "state", "")
 	}

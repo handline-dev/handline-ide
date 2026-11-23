@@ -68,10 +68,11 @@ func (t Tmux) CreateShell(cwd, title, agent string) (string, string) {
 const RunOption = "@hl_run"
 
 // CreateRun opens a window in cwd, stamped as a shell of agent and tagged tag, whose own command is `$SHELL -lc command`. The window
-// stays after the command ends (remain-on-exit), so tmux keeps its exit status and end time. The option is set on a plain window that
-// is then respawned with the command, so a command that ends at once cannot close it first. Its last line says how the command ended
+// stays after the command ends (remain-on-exit), so tmux keeps its exit status and end time; with keepDone false only a failed one stays
+// (remain-on-exit failed, which a tmux before 3.2 refuses: its windows all stay). The options are set on a plain window that is then
+// respawned with the command, so a command that ends at once cannot close it first. Its last line says how the command ended
 // (endedFormat); a tmux before 3.3, which has no remain-on-exit-format, keeps its own "Pane is dead" line.
-func (t Tmux) CreateRun(cwd, title, agent, tag, command string) (string, string) {
+func (t Tmux) CreateRun(cwd, title, agent, tag, command string, keepDone bool) (string, string) {
 	pane, why := t.newPane(cwd, title, "")
 	if pane == "" {
 		return "", why
@@ -81,6 +82,9 @@ func (t Tmux) CreateRun(cwd, title, agent, tag, command string) (string, string)
 			t.CloseTerminal(pane, true)
 			return "", "could not set up the new window: " + err
 		}
+	}
+	if !keepDone {
+		t.tmux(tmuxTimeout, "", "set-option", "-p", "-t", pane, "remain-on-exit", "failed")
 	}
 	t.tmux(tmuxTimeout, "", "set-option", "-p", "-t", pane, "remain-on-exit-format", endedFormat)
 	if code, _, err := t.tmux(tmuxTimeout, "", "respawn-pane", "-k", "-t", pane, "/bin/sh", "-c", `exec "${SHELL:-/bin/zsh}" -lc "$1"`, "sh", command); code != 0 {

@@ -149,7 +149,7 @@ export type MissingTool = {
   tool: "claude" | "git" | "tmux" | "codex";
   /** A shell command that installs the tool, for a client to show and copy, for example "brew install tmux". */
   fix: string;
-  /** The install window tools.install opened for it, while the terminal host keeps that window: running, or ended and not yet replaced by a new run or closed; absent otherwise and on a daemon that does not serve it. */
+  /** The install window tools.install opened for it, while the terminal host keeps that window: running, or failed and not yet replaced by a new run or closed (one that ends 0 closes itself); absent otherwise and on a daemon that does not serve it. */
   install?: ToolInstall;
 };
 
@@ -783,7 +783,7 @@ export type VendorStatus = {
 export type ToolInstall = {
   /** The install window's handle, as tools.install answered it and terminal.attach takes it. */
   terminal: string;
-  /** Whether its command ended: false while it runs; git's runs until Apple's installer closes, and fails when the command line tools did not come. The window's last line says how it ended. */
+  /** Whether its command failed (one that ends 0, the tool found, closes its window): false while it runs; git's runs until Apple's installer closes, and fails when the command line tools did not come. The window's last line says how it failed. */
   ended: boolean;
 };
 

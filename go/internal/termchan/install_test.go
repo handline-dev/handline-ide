@@ -51,4 +51,12 @@ func TestToolsInstallRunsTheMissingToolsFixInAShellWindow(t *testing.T) {
 	if _, err := r.e.shellClose(person("casey"), map[string]any{"terminal": again.(map[string]any)["terminal"].(string)}); err != nil {
 		t.Fatal(err)
 	}
+	// any other fix ends 0 only once the tool is found, as its window then closes: a curl that failed into bash's pipe fails
+	r.e.Missing = func() map[string]string {
+		return map[string]string{"claude": "curl -fsSL https://claude.ai/install.sh | bash"}
+	}
+	r.e.toolsInstall(person("casey"), map[string]any{"tool": "claude"})
+	if last := h.runs[len(h.runs)-1]; last != "install:claude set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash && command -v claude >/dev/null" {
+		t.Fatalf("the claude fix as run: %q", last)
+	}
 }
