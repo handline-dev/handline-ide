@@ -4,6 +4,7 @@ import type { AgentOptions, Operation, Repo, Timestamp } from '@handline/contrac
 import { AGENTS, type AgentFixture } from '#src/fixtures.ts';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { newSession, view, type Session, type TaskCounter } from '#src/session.ts';
+import { EFFORTS } from '#src/settings-defaults.ts';
 import type { FakeWorktrees } from '#src/worktrees.ts';
 
 /** What the workroom needs of the daemon that hosts it: its topics, its agents and the repos and worktrees of its admin surface. */
@@ -20,7 +21,6 @@ interface Host {
 }
 type Accepted = (said: string, extra?: object) => unknown;
 
-const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const MODELS = ['fable', 'mythos', 'opus', 'sonnet', 'haiku'];
 const ROLE_NOTES: Record<string, string> = {
   implementer: 'Builds a change on a branch and opens the pull request.',
