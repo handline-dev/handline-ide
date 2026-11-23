@@ -80,3 +80,50 @@ func TestTheMastersBuildIsOfferedOnAutoOrUpdate(t *testing.T) {
 		t.Fatalf("refused: %q", why)
 	}
 }
+
+// A Mac app with a newer version ready is told to install it on Auto when it is the owner's, else once its Update was asked; Update
+// is not refused for a machine on the master's build whose app has one ready, and the ask ends once none is ready.
+func TestTheAppsReadyVersionIsInstalledOnAutoOrUpdate(t *testing.T) {
+	r := registry(t)
+	now := time.Now()
+	r.Clock = func() time.Time { return now }
+	for _, q := range []string{"INSERT OR IGNORE INTO people(id, display_name, role, created_at) VALUES(1, 'Ron', 'owner', 0), (2, 'Kim', 'member', 0)",
+		"UPDATE nodes SET person = 2 WHERE id = 'n1'"} {
+		if _, err := r.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.Build = buildOf(t)
+	auto := true
+	r.BuildAuto = func() bool { return auto }
+	beat := runner.Beat{Version: "v1", Platform: runner.Platform(), App: &runner.App{Version: "0.1.16", Ready: "0.1.17"}}
+	r.beats["n1"] = heard{at: now, beat: beat}
+	if u := r.appUpdate("n1", beat); u != nil {
+		t.Fatalf("another person's Mac, not asked: %+v", u)
+	}
+	if err := r.AskUpdate("n1"); err != nil {
+		t.Fatalf("Update with an app version ready, on the master's build: %v", err)
+	}
+	if u := r.appUpdate("n1", beat); u == nil || *u != (runner.AppUpdate{Version: "0.1.17"}) {
+		t.Fatalf("asked: %+v", u)
+	}
+	if r.updates["n1"] {
+		t.Fatal("the master's build was asked for a machine that runs it")
+	}
+	installed := runner.Beat{Version: "v1", Platform: runner.Platform(), App: &runner.App{Version: "0.1.17"}}
+	if u := r.appUpdate("n1", installed); u != nil || r.appAsks["n1"] != "" {
+		t.Fatalf("installed: %+v, asked %q", u, r.appAsks["n1"])
+	}
+	r.DB.Exec("UPDATE nodes SET person = 1 WHERE id = 'n1'")
+	if u := r.appUpdate("n1", beat); u == nil || *u != (runner.AppUpdate{Version: "0.1.17", Auto: true}) {
+		t.Fatalf("the owner's Mac on Auto: %+v", u)
+	}
+	auto = false
+	if u := r.appUpdate("n1", beat); u != nil {
+		t.Fatalf("Manual: %+v", u)
+	}
+	r.beats["n1"] = heard{at: now, beat: runner.Beat{Version: "v1", Platform: runner.Platform(), App: &runner.App{Version: "0.1.17"}}}
+	if err := r.AskUpdate("n1"); err == nil || !strings.Contains(err.Error(), "runs the master's build already") {
+		t.Fatalf("nothing to update: %v", err)
+	}
+}

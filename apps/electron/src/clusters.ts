@@ -64,8 +64,22 @@ interface Live {
   promoting: boolean;
 }
 
+/** The app around the engines, as each engine's heartbeat tells its master (app.json in its home): this app's version, and the newer
+ * one its update channel has ready ('' for none). */
+export interface AppState {
+  version: string;
+  ready: string;
+}
+
+/** What a master asked of this app through an engine: app-update.json, where its runner keeps node.heartbeat's app_update. */
+export interface AppUpdate {
+  version: string;
+  auto: boolean;
+}
+
 export class Clusters {
   private live = new Map<string, Live>();
+  private app: AppState | null = null;
   private d: ClusterDeps;
   constructor(d: ClusterDeps) {
     this.d = d;
@@ -175,6 +189,7 @@ export class Clusters {
   }
 
   private run(id: string, home: string, port: number | undefined, joined: Joined): ShellCluster {
+    if (this.app) writeApp(home, this.app);
     const engine = this.d.engine(home, port);
     const now = { joined }; // the link reads it at each connect, so it exists before the link
     const link = this.d.link(() => now.joined);
@@ -188,6 +203,26 @@ export class Clusters {
     void untilUp(() => (this.live.get(id) === l ? link.start() : Promise.resolve()));
     this.d.changed();
     return this.list().find((c) => c.id === id)!;
+  }
+
+  /** Tells each engine's master, through its heartbeat, what this app runs and has ready. */
+  tellApp(a: AppState): void {
+    if (this.app?.version === a.version && this.app.ready === a.ready) return; // a download's progress changes nothing here
+    this.app = a;
+    for (const l of this.live.values()) writeApp(l.home, a);
+  }
+
+  /** The app update a master asked for through any engine; one asked by an Update before one on Auto. */
+  appUpdate(): AppUpdate | null {
+    const asked = [...this.live.values()].flatMap((l) => {
+      try {
+        const u = JSON.parse(fs.readFileSync(path.join(l.home, 'app-update.json'), 'utf8')) as Partial<AppUpdate>;
+        return typeof u.version === 'string' && u.version ? [{ version: u.version, auto: u.auto === true }] : [];
+      } catch {
+        return [];
+      }
+    });
+    return asked.find((u) => !u.auto) ?? asked[0] ?? null;
   }
 
   /** The cluster's name, as its master's hello gives it, kept for when it does not answer. */
@@ -210,6 +245,18 @@ export class Clusters {
   private remove(home: string): void {
     fs.rmSync(this.d.store(home), { recursive: true, force: true });
     fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
+/** app.json in an engine's home, replaced whole so its heartbeat never reads half of it. A write that fails leaves the master with what
+ * it heard last: it never stops a join, an engine's start or the app's own update. */
+function writeApp(home: string, a: AppState): void {
+  const file = path.join(home, 'app.json');
+  try {
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify({ version: a.version, ready: a.ready }), { mode: 0o600 });
+    fs.renameSync(`${file}.tmp`, file);
+  } catch (e) {
+    console.error(`clusters: ${file} not written:`, e);
   }
 }
 

@@ -94,6 +94,11 @@ export type Node = {
     since: Timestamp;
     master: number;
   } | null;
+  /** The Mac app around a lent machine's engine, as its heartbeat says: its version, and ready, the newer one its update channel has downloaded ('' for none); null for none (a server, a phone, an older app). */
+  app?: {
+    version: string;
+    ready: string;
+  } | null;
 };
 
 export interface DevicesMethods {
@@ -212,6 +217,8 @@ export interface DevicesMethods {
   set_aside?: { [key: string]: unknown };
   /** Why it refused the master's build it was offered (a file whose sha256 is not the one named); its row says so in place of taking work. */
   build_refused?: string;
+  /** The Mac app around this runner (a cluster engine's), as its shell wrote it: version, and ready when a newer one is downloaded. */
+  app?: { [key: string]: unknown };
 }; result: {
     /** The agents of the sessions it holds that the master no longer places there: the runner pushes what each left to a rescue branch and stops it. */
     stop: string[];
@@ -221,6 +228,8 @@ export interface DevicesMethods {
     doors?: { [key: string]: unknown }[];
     /** When the master wants it on its own build: it runs another version on the master's platform, and it is the owner's with node_build_auto on, or its row's Update was asked (device.update). version, and files: each {name, size, sum} (handlined and hl, sum their sha256). The runner reads each with node.build.read, checks it, keeps it under its home (build/, the newest only) and starts again on it; at a later start it runs the kept build while its master is on that version. Sessions there go on through the restart. */
     build?: { [key: string]: unknown };
+    /** When its Mac app is to install the version it has ready: version, and auto (Auto on the owner's Mac with node_build_auto on, installed once no Handline window is open there) or not (its row's Update, device.update, installed at once). The app starts again on it; sessions there go on. */
+    app_update?: { [key: string]: unknown };
   } };
   "node.tokens": { params: {
   /** The account's name on that runner. */

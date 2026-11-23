@@ -79,11 +79,16 @@ describe('deviceRows', () => {
 describe('a Mac on another build', () => {
   const m = { ...master, version: 'new' };
   const row = (n: Partial<Node>, o: { me?: string; buildAuto?: boolean; person?: string } = {}) =>
-    deviceRows([dev('d', { kind: 'mac', lending: 'run', person: o.person ?? 'p1' })], [m, node('n', { device: 'd', version: 'old', ...n })], [], {
-      ...opts,
-      me: o.me ?? 'p1',
-      buildAuto: o.buildAuto,
-    }).find((r) => r.id === 'd')!;
+    deviceRows(
+      [dev('d', { kind: 'mac', lending: 'run', person: o.person ?? 'p1' })],
+      [m, node('n', { device: 'd', version: 'old', ...n })],
+      [],
+      {
+        ...opts,
+        me: o.me ?? 'p1',
+        buildAuto: o.buildAuto,
+      },
+    ).find((r) => r.id === 'd')!;
   it("is behind while online on a version that is not the master's", () => {
     expect(row({}).behind).toBe(true);
     expect(row({ version: 'new' }).behind).toBe(false);
@@ -98,5 +103,13 @@ describe('a Mac on another build', () => {
     expect(bobs.updating).toBe(false);
     expect(canUpdate(bobs)).toBe(true);
     expect(canUpdate(row({ person: 'p2' }, { person: 'p2' }))).toBe(false);
+  });
+  it('says an app version ready on a Mac online, which its own person may have installed', () => {
+    const ready = { version: 'new', app: { version: '0.1.16', ready: '0.1.17' } };
+    expect(row(ready).appReady).toBe('0.1.17');
+    expect(canUpdate(row(ready))).toBe(true);
+    expect(canUpdate(row(ready, { me: 'p2' }))).toBe(false);
+    expect(row({ ...ready, online: false }).appReady).toBe('');
+    expect(row({ version: 'new', app: { version: '0.1.17', ready: '' } }).appReady).toBe('');
   });
 });

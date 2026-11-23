@@ -43,10 +43,12 @@ export type DeviceRow = {
   behind: boolean;
   /** Behind and taking the master's build by itself: Auto, on one of the owner's machines (another person's waits for its Update). */
   updating: boolean;
+  /** The newer version its Mac app has downloaded, '' for none: its Update installs it (on Auto, also once no window is open there). */
+  appReady: string;
 };
 
-/** Its own person updates a Mac on another build that does not take the master's by itself. */
-export const canUpdate = (r: DeviceRow): boolean => r.behind && r.mine && !r.updating;
+/** Its own person updates a Mac on another build that does not take the master's by itself, or whose app has a newer version ready. */
+export const canUpdate = (r: DeviceRow): boolean => r.mine && ((r.behind && !r.updating) || !!r.appReady);
 
 const RUNNER_KINDS: ReadonlySet<string> = new Set(['mac', 'server']);
 
@@ -84,6 +86,7 @@ export function deviceRows(
       stale: false,
       behind: false,
       updating: false,
+      appReady: '',
     });
   }
   const sorted = [...devices].sort(
@@ -116,6 +119,7 @@ export function deviceRows(
       stale: isStale(d, opts.now),
       behind,
       updating: behind && opts.buildAuto !== false && !!node?.person && node.person === self?.person,
+      appReady: (node?.online && node.app?.ready) || '',
     });
   }
   return rows;

@@ -78,3 +78,13 @@ test('a failed update is tried again by itself after RETRY_MS; anything newer ca
   f.failed('x', () => tries++);
   assert.equal(timers.at(-1)!.ms, RETRY_MS);
 });
+
+test('the version a ready update installs is kept while it is ready or put off, and goes with it', () => {
+  const f = new UpdateFlow();
+  f.ready(() => undefined, '0.1.17');
+  assert.equal(f.readyVersion, '0.1.17');
+  f.later();
+  assert.equal(f.readyVersion, '0.1.17');
+  f.failed('ENOSPC', () => undefined);
+  assert.equal(f.readyVersion, '');
+});

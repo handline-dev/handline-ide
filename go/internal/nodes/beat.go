@@ -243,6 +243,9 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 	} else if offer := r.offer(node, b); offer != nil {
 		reply["build"] = offer
 	}
+	if u := r.appUpdate(node, b); u != nil {
+		reply["app_update"] = u
+	}
 	if owner, err := r.ownerNode(node); err != nil {
 		return nil, err
 	} else if owner { // only the owner's machines can be made the master, so only they look for one

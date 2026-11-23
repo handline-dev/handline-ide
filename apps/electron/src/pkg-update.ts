@@ -106,7 +106,7 @@ export class SelfUpdater implements PkgUpdater {
       this.flow.preparing('Checking', 1);
       if ((await this.ports.sha512(zip)) !== latest.sha512) throw new Error('the download does not match its checksum');
       const staged = await this.ports.stage(zip);
-      this.flow.ready(() => void this.go(staged));
+      this.flow.ready(() => void this.go(staged), latest.version);
     } catch (e) {
       this.flow.failed(e instanceof Error ? e.message : String(e), () => void this.retry(latest));
     }

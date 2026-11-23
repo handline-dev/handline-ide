@@ -285,3 +285,20 @@ test("an engine listens where this Mac's daemon does, on its own port, and serve
   assert.equal(cmd.env!.HANDLINE_HOME, o.home);
   assert.deepEqual(engineCmd({ ...o, listen: undefined }, '/usr/bin').args, ['-home', o.home]); // kept without a port: no door
 });
+
+test("each engine's home says what this app runs and has ready, and gives back what a master asked of it", async () => {
+  const w = world();
+  const c = new Clusters(w.d);
+  c.tellApp({ version: '0.1.16', ready: '' });
+  const { id } = await c.join({ link: LINK });
+  const home = engineHome(w.d.home, id);
+  const app = () => JSON.parse(fs.readFileSync(path.join(home, 'app.json'), 'utf8'));
+  assert.deepEqual(app(), { version: '0.1.16', ready: '' }); // a join after the app said it
+  c.tellApp({ version: '0.1.16', ready: '0.1.17' });
+  assert.deepEqual(app(), { version: '0.1.16', ready: '0.1.17' });
+  assert.equal(c.appUpdate(), null);
+  fs.writeFileSync(path.join(home, 'app-update.json'), JSON.stringify({ version: '0.1.17', auto: true }));
+  assert.deepEqual(c.appUpdate(), { version: '0.1.17', auto: true });
+  fs.writeFileSync(path.join(home, 'app-update.json'), '{nope');
+  assert.equal(c.appUpdate(), null);
+});

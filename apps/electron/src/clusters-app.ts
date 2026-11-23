@@ -3,12 +3,13 @@
 import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import { DaemonClient } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { ClusterCalls, CHANNELS } from '#src/bridge.ts';
 import type { ShellCluster } from '@handline/app-core';
 import { Clusters, engineEnv } from '#src/clusters.ts';
+import type { UpdateFlow } from '#src/update-flow.ts';
 import type { SettingsFile } from '#src/mode.ts';
 import { engineDaemon, readFounderKey, type LoginPath } from '#src/own.ts';
 import { freePort } from '#src/dev-team.ts';
@@ -62,6 +63,8 @@ export function serveClusters(o: {
   root: string;
   loginPath: () => Promise<LoginPath>;
   send: (v: unknown) => void;
+  /** This app's version, its update, and whether a Handline window is open: a master may have it install the version ready. */
+  app: { version: string; flow: UpdateFlow; windowOpen: () => boolean };
 }): Clusters {
   const clusters: Clusters = new Clusters({
     home: o.home,
@@ -110,5 +113,23 @@ export function serveClusters(o: {
   ipcMain.handle(CHANNELS.joinCluster, (e, arg) => calls.join(e, arg));
   ipcMain.handle(CHANNELS.leaveCluster, (e, arg) => calls.leave(e, arg));
   ipcMain.handle(CHANNELS.promoteCluster, (e, arg) => calls.promote(e, arg));
+  serveAppUpdate(clusters, o.app);
   return clusters;
 }
+
+/** Each engine tells its master what this app runs and has ready, and installs what a master's answer asks (node.heartbeat's
+ * app_update), looked at as often as a heartbeat comes. Quitting says nothing is ready: an engine that outlives the app has none to
+ * offer. */
+function serveAppUpdate(clusters: Clusters, a: { version: string; flow: UpdateFlow; windowOpen: () => boolean }): void {
+  const tell = () => clusters.tellApp({ version: a.version, ready: a.flow.readyVersion });
+  a.flow.onChange(tell);
+  tell();
+  app.on('will-quit', () => clusters.tellApp({ version: a.version, ready: '' }));
+  setInterval(() => {
+    const u = clusters.appUpdate();
+    if (u && u.version === a.flow.readyVersion && !(u.auto && a.windowOpen())) a.flow.act('restart');
+  }, BEAT_MS).unref();
+}
+
+/** How often an engine's runner hears from its master (runner.BeatEvery). */
+const BEAT_MS = 15_000;

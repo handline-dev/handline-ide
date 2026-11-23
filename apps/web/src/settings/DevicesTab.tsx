@@ -2,8 +2,19 @@
 // Manual for a lent Mac taking the master's build, and the reclaim time.
 import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
-import { ArchiveX, BatteryCharging, ChevronRight, Plus, RefreshCw, SlidersHorizontal, Timer, TriangleAlert, Zap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+  ArchiveX,
+  ArrowUpCircle,
+  BatteryCharging,
+  ChevronRight,
+  Plus,
+  RefreshCw,
+  SlidersHorizontal,
+  Timer,
+  TriangleAlert,
+  Zap,
+} from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
   Confirm,
@@ -18,7 +29,16 @@ import {
 } from '#src/settings/DeviceControls.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { openPairSheet } from '#src/settings/PairSheet.tsx';
-import { MASTER, MODES, canUpdate, markSetAsideSeen, useDevices, useSetAside, type DeviceRow, type Mode } from '#src/settings/data/devices.ts';
+import {
+  MASTER,
+  MODES,
+  canUpdate,
+  markSetAsideSeen,
+  useDevices,
+  useSetAside,
+  type DeviceRow,
+  type Mode,
+} from '#src/settings/data/devices.ts';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
@@ -76,29 +96,53 @@ function Detail({ r, q }: { r: DeviceRow; q: Devices }) {
               {canUpdate(r) && (
                 <>
                   {' · '}
-                  <button
-                    type="button"
-                    className="text-fg underline"
-                    disabled={q.pending !== null}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void q.update(r).catch(refused);
-                    }}
-                  >
+                  <UpdateLink r={r} q={q}>
                     Update
-                  </button>
+                  </UpdateLink>
                 </>
               )}
             </>
           )}
         </span>
-      ) : lack && (
-        <span className="text-warning" title={why}>
-          {' · '}cannot run {nameOf(lack.agent)}: {lack.why}
-          {r.lacks.length > 1 && ` (+${r.lacks.length - 1})`}
+      ) : r.appReady ? (
+        <span>
+          {' · '}
+          {canUpdate(r) ? (
+            <UpdateLink r={r} q={q}>
+              <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update to {r.appReady}
+            </UpdateLink>
+          ) : (
+            <span className="text-fg">
+              <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update ready {r.appReady}
+            </span>
+          )}
         </span>
+      ) : (
+        lack && (
+          <span className="text-warning" title={why}>
+            {' · '}cannot run {nameOf(lack.agent)}: {lack.why}
+            {r.lacks.length > 1 && ` (+${r.lacks.length - 1})`}
+          </span>
+        )
       )}
     </div>
+  );
+}
+
+/** The row's Update: the machine takes the master's build, and its Mac app installs the version it has ready. */
+function UpdateLink({ r, q, children }: { r: DeviceRow; q: Devices; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      className="text-fg underline"
+      disabled={q.pending !== null}
+      onClick={(e) => {
+        e.stopPropagation();
+        void q.update(r).catch(refused);
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
