@@ -1,11 +1,16 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { calls, write, ok, ladder } = vi.hoisted(() => {
+const { calls, write, ok, ladder, settings } = vi.hoisted(() => {
+  const settings: Record<string, string> = {};
   const calls: { method: string; params: unknown }[] = [];
   const write = (method: string) => {
-    const send = (params: unknown) => (calls.push({ method, params }), Promise.resolve({}));
+    const send = (params: unknown) => {
+      calls.push({ method, params });
+      if (method === 'agent.set') Object.assign(settings, (params as { values: object }).values);
+      return Promise.resolve({});
+    };
     return { mutate: send, mutateAsync: send, isPending: false, error: null };
   };
   const ok = (data: unknown) => ({ isSuccess: true, data });
@@ -15,11 +20,12 @@ const { calls, write, ok, ladder } = vi.hoisted(() => {
     { work: 'screen', level: 'one_in_two', record: record([false, true, true, true, true, true, true]), looks: 7, suggested: null },
     { work: 'daemon', level: 'every', record: [], looks: 0, suggested: null },
   ];
-  return { calls, write, ok, ladder };
+  return { calls, write, ok, ladder, settings };
 });
 vi.mock('#src/settings/data/devices.ts', () => ({ useAgentDevice: () => null }));
 vi.mock('@handline/app-data', () => ({
   useAgentReview: () => ok({ agent: 'ui', ladder, lessons: 0 }),
+  useAgentDetail: () => ok({ settings: { ...settings } }),
   useLessons: () => ok({ items: [] }),
   useNameOf: () => (k: string) => k,
   useProposals: () => ok({ proposals: [] }),
@@ -39,6 +45,7 @@ const mount = async (node: React.ReactNode) => {
   const r = (root = createRoot(el));
   await act(async () => r.render(node));
 };
+beforeEach(() => void Object.assign(settings, { sandbox: 'off', sandbox_allow: 'weaker-network' }));
 afterEach(async () => {
   calls.length = 0;
   await act(async () => root?.unmount());
@@ -63,6 +70,30 @@ describe('the review ladder', () => {
       ([...document.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent === '1 in 3') as HTMLElement).click(),
     );
     expect(calls).toEqual([{ method: 'agent.review_set', params: { agent: 'ui', work: 'screen', level: 'one_in_three' } }]);
+  });
+});
+
+describe('the sandbox block', () => {
+  const sw = (label: string) => document.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!;
+  it('keeps the allowances in place and greyed while the sandbox is off, and turns the sandbox on with agent.set', async () => {
+    await mount(<AgentPage agent="ui" back={() => {}} />);
+    expect(sw('Allow Go module downloads').disabled).toBe(true);
+    expect(sw('Allow Go module downloads').getAttribute('aria-checked')).toBe('true');
+    await act(async () => sw('Run in a sandbox').click());
+    expect(calls).toEqual([{ method: 'agent.set', params: { agent: 'ui', values: { sandbox: 'on' } } }]);
+  });
+  it('adds and removes an allowance word, keeping the others', async () => {
+    settings.sandbox = 'on';
+    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await act(async () => sw('Allow pnpm install').click());
+    await act(async () => root?.unmount()); // the mock has no cache to re-render from: mount again on what the write left
+    document.body.innerHTML = '';
+    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await act(async () => sw('Allow Go module downloads').click());
+    expect(calls.map((c) => (c.params as { values: object }).values)).toEqual([
+      { sandbox_allow: 'weaker-network pnpm-install' },
+      { sandbox_allow: 'pnpm-install' },
+    ]);
   });
 });
 

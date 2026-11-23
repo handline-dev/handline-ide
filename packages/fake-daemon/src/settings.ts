@@ -14,6 +14,7 @@ export const defaultSettings = (model: string, effort: string): Record<string, s
   idle_close: '',
   handoff_note: 'default',
   sandbox: 'on',
+  sandbox_allow: '',
   mode: 'default',
 });
 
@@ -28,6 +29,8 @@ const ONE_OF: Record<string, string[]> = {
   mode: ['default', 'auto', 'acceptEdits', 'plan'],
 };
 const WHOLE = new Set(['context_k', 'idle_close']);
+/** sandbox_allow's allowance words. */
+const ALLOW = new Set(['weaker-network', 'pnpm-install']);
 
 function check(key: string, v: unknown): string {
   if (typeof v !== 'string') throw badRequest(`${key} takes a string`, key);
@@ -36,6 +39,8 @@ function check(key: string, v: unknown): string {
   if (WHOLE.has(key) && !/^[0-9]*$/.test(v)) throw badRequest(`${key} is a whole number`, key);
   if (key === 'context_k' && !v) throw badRequest('context_k is a whole number', key);
   if (key === 'model' && !v.trim()) throw badRequest('model is not empty', key);
+  if (key === 'sandbox_allow' && v.split(/\s+/).some((w) => w && !ALLOW.has(w)))
+    throw badRequest(`sandbox_allow takes ${[...ALLOW].join(', ')}`, key);
   return v;
 }
 

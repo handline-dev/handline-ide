@@ -1,15 +1,17 @@
-// Settings › Agents › one agent: what it learned (its lessons, each removable) and how its finished work is reviewed, per kind of work.
-import { classify, sentence, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
+// Settings › Agents › one agent: what it learned (its lessons, each removable), what its sandbox allows, and how its finished work is
+// reviewed, per kind of work.
+import { classify, sentence, useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { AppWindow, ArrowLeft, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { Block } from '#src/settings/Meter.tsx';
+import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { InfoTip } from '#src/ui/InfoTip.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
+import { Toggle } from '#src/ui/Toggle.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 
@@ -48,7 +50,7 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
       title={name}
       note={
         <>
-          What it learned, and how much of its finished work you check.
+          What it learned, and what it may do.
           {device && <DeviceLine device={device} />}
         </>
       }
@@ -60,6 +62,7 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
       }
     >
       <Lessons agent={agent} />
+      <Sandbox agent={agent} />
       <Review agent={agent} />
     </SettingsPage>
   );
@@ -119,6 +122,44 @@ export function Lessons({ agent, founder = false }: { agent: string; founder?: b
           {all ? 'Fewer' : `${items.length - SHOWN} more`}
         </button>
       )}
+    </Block>
+  );
+}
+
+/** sandbox_allow's words, each a switch. */
+const ALLOW: { word: string; title: string }[] = [
+  { word: 'weaker-network', title: 'Allow Go module downloads' },
+  { word: 'pnpm-install', title: 'Allow pnpm install' },
+];
+
+/** Its sandbox and what the sandbox allows; each switch writes at once, the allowances greyed while the sandbox is off. */
+export function Sandbox({ agent }: { agent: string }) {
+  const settings = useAgentDetail(agent).data?.settings;
+  const set = useWrite('agent.set', agent);
+  if (!settings) return null;
+  const on = settings.sandbox === 'on';
+  const words = new Set((settings.sandbox_allow ?? '').split(' ').filter(Boolean));
+  const allow = (word: string, yes: boolean) => {
+    const next = new Set(words);
+    if (yes) next.add(word);
+    else next.delete(word);
+    set.mutate({ agent, values: { sandbox_allow: [...next].join(' ') } });
+  };
+  return (
+    <Block title="Sandbox">
+      <Setting title="Run in a sandbox">
+        <Toggle
+          label="Run in a sandbox"
+          on={on}
+
+          onChange={(v) => set.mutate({ agent, values: { sandbox: v ? 'on' : 'off' } })}
+        />
+      </Setting>
+      {ALLOW.map((a) => (
+        <Setting key={a.word} title={<span className={on ? '' : 'text-muted'}>{a.title}</span>}>
+          <Toggle label={a.title} on={words.has(a.word)} disabled={!on} onChange={(v) => allow(a.word, v)} />
+        </Setting>
+      ))}
     </Block>
   );
 }
