@@ -116,6 +116,8 @@ export class Clusters {
     this.live.delete(id); // a second Leave meanwhile finds nothing to leave
     this.d.changed();
     if (l.link.state === 'open') {
+      // The revoke ends this very connection, and a call on a lost one waits for a reconnect that never comes: closing it fails the call.
+      l.link.onState((s) => s !== 'open' && l.link.close());
       const device = l.joined.master.device;
       await l.link.call('device.set', { device, lending: 'off', request_id: `leave-off-${id}` }).catch(() => undefined);
       await l.link.call('device.revoke', { device, request_id: `leave-revoke-${id}` }).catch(() => undefined);

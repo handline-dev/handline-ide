@@ -150,6 +150,26 @@ test('a Leave while the engine still starts waits for it, then stops it; a maste
   assert.deepEqual(w.kept().clusters, []);
 });
 
+test('a revoke that ends the connection before it answers does not hold Leave up', async () => {
+  const w = world();
+  const c = new Clusters(w.d);
+  const { id } = await c.join({ link: LINK });
+  await settle();
+  const l = w.links[0]!;
+  let fail: (e: Error) => void = () => undefined;
+  const close = l.close;
+  l.close = () => (close(), fail(new Error('client closed')));
+  l.call = (async (method: string) => {
+    if (method !== 'device.revoke') return;
+    // The master drops this device's connection with the revoke; the client keeps the call for a reconnect.
+    setImmediate(() => l.set('reconnecting'));
+    return new Promise((_, no) => (fail = no));
+  }) as MasterLink['call'];
+  await c.leave(id);
+  assert.equal(w.engines[0]!.state, 'stopped');
+  assert.deepEqual(w.kept().clusters, []);
+});
+
 test('a master that does not answer does not keep this Mac in its cluster', async () => {
   const w = world();
   const c = new Clusters(w.d);
