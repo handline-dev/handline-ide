@@ -346,6 +346,9 @@ func (n *Node) Exe() string {
 	if pid == 0 {
 		return ""
 	}
+	if exe, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/exe"); err == nil { // Linux: ps's comm is the name alone there
+		return exe
+	}
 	out, err := exec.Command("ps", "-o", "comm=", "-p", strconv.Itoa(pid)).Output()
 	if err != nil {
 		return ""
