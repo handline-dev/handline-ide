@@ -69,7 +69,6 @@ export function useOnboarding() {
   const loaded = status.isSuccess && accounts.isSuccess && repos.isSuccess && agents.isSuccess;
   const done = stepsDone({
     accounts: accounts.data?.accounts ?? [],
-    missingTools: status.data?.missing_tools ?? [],
     notify: perm,
     notifySkipped: k.notifySkipped,
     repos: repos.data?.repos.length ?? 0,

@@ -1,14 +1,14 @@
-// The five steps' bodies. Each has one button that does the step; what is true on the machine already shows as done.
-import { classify, Hooks, sentence, useRead, useRepos, useStatus } from '@handline/app-data';
-import { Bell, Check, Copy, Folder, FolderGit2, GitBranch, LoaderCircle, Terminal } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+// The steps' bodies. Each has one button that does the step; what is true on the machine already shows as done.
+import { classify, Hooks, sentence, useRepos } from '@handline/app-data';
+import { Bell, Check, Folder, FolderGit2, LoaderCircle } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { InstallButton, Installing, useInstall, useMissing } from '#src/install/install.tsx';
 import { shell } from '#src/shell.ts';
 import { useAiTools, useOnboarding } from '#src/onboarding/data/progress.ts';
-import { BASE_TOOLS, type AiRow } from '#src/onboarding/data/steps.ts';
+import { type AiRow } from '#src/onboarding/data/steps.ts';
 import { setPicked, usePicked } from '#src/onboarding/data/picked.ts';
 import { StepView, useStepNav } from '#src/onboarding/StepView.tsx';
 import { ago } from '#src/format/time.ts';
-import { copy } from '#src/ui/copy.ts';
 
 const VENDOR: Record<string, { name: string; mark: string; tone: string }> = {
   claude: { name: 'Claude Code', mark: 'CC', tone: 'bg-warning text-bg' },
@@ -62,6 +62,9 @@ export function AiStep() {
   const ai = useAiTools();
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const first = ai.rows[0];
+  const installed = ai.rows.find((r) => r.installed);
+  const install = useInstall(first?.vendor ?? '');
   const ready = ai.rows.filter((r) => r.state === 'ready');
   const found = ai.rows.filter((r) => r.state === 'found');
   const logIn = (vendor: string) =>
@@ -79,11 +82,15 @@ export function AiStep() {
     ? { label: 'Continue', onClick: nav.next }
     : found.length
       ? { label: 'Use these', onClick: () => run(Promise.all(found.map(use))), disabled: ai.busy }
-      : {
-          label: `Log in to ${vendorOf(ai.rows[0]?.vendor ?? 'claude').name}`,
-          onClick: () => run(logIn(ai.rows[0]?.vendor ?? 'claude')),
-          disabled: ai.busy || !ai.rows.length,
-        };
+      : installed
+        ? {
+            label: `Log in to ${vendorOf(installed.vendor).name}`,
+            onClick: () => run(logIn(installed.vendor)),
+            disabled: ai.busy,
+          }
+        : first
+          ? { label: `Install ${vendorOf(first.vendor).name}`, onClick: install.start, disabled: ai.busy || install.running }
+          : { label: `Log in to ${vendorOf('claude').name}`, onClick: () => {}, disabled: true };
   const line = ready.length
     ? `${ready.map((r) => vendorOf(r.vendor).name).join(' and ')} ${ready.length > 1 ? 'are' : 'is'} ready.${ai.rows.length > ready.length ? ' Add the other too if you use it.' : ''}`
     : found.length
@@ -106,7 +113,7 @@ export function AiStep() {
                 : r.state === 'logging_in'
                   ? 'Finish logging in in your browser'
                   : !r.installed
-                    ? `Not installed: it installs when you log in (${r.fix})`
+                    ? 'Not installed'
                     : 'Not logged in'
           }
           end={
@@ -114,7 +121,7 @@ export function AiStep() {
               <Check size={14} className="text-accent" />
             ) : r.state === 'logging_in' ? (
               <Pill tone="accent">Waiting for your browser</Pill>
-            ) : (
+            ) : r.installed ? (
               <button
                 type="button"
                 disabled={ai.busy}
@@ -123,9 +130,16 @@ export function AiStep() {
               >
                 Log in
               </button>
+            ) : (
+              <InstallButton tool={r.vendor} variant="ghost" size="sm">
+                Install
+              </InstallButton>
             )
           }
         />
+      ))}
+      {ai.rows.map((r) => (
+        <Installing key={r.vendor} tool={r.vendor} />
       ))}
       {code && (
         <p className="text-xs text-muted">
@@ -138,82 +152,6 @@ export function AiStep() {
           ? 'One tool is enough. You can continue now.'
           : 'Handline uses the logins claude and codex already have in Terminal. Nothing to type.'}{' '}
         Other accounts and API keys are in Settings › Accounts.
-      </p>
-    </StepView>
-  );
-}
-
-const TOOL_NOTE: Record<string, { note: string; icon: ReactNode }> = {
-  git: { note: 'Every agent works on its own branch.', icon: <GitBranch size={14} /> },
-  tmux: { note: 'Keeps agents running when you close the window.', icon: <Terminal size={14} /> },
-};
-
-export function ToolsStep() {
-  const nav = useStepNav();
-  const status = useStatus();
-  const missing = (status.data?.missing_tools ?? []).filter((m) => BASE_TOOLS.includes(m.tool));
-  const install = shell()?.installTools;
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState('');
-  // Terminal installing a tool tells the daemon nothing: while it runs, the list is asked again every few seconds.
-  useRead('daemon.status', {}, { refetchMs: running ? 3000 : undefined });
-  const names = missing.map((m) => m.tool).join(' and ');
-  // Once what was installing has landed, the step moves on by itself.
-  useEffect(() => {
-    if (running && status.isSuccess && !missing.length) nav.next();
-  }, [running, status.isSuccess, missing.length, nav]);
-  const line = !status.isSuccess
-    ? 'Checking this Mac…'
-    : missing.length
-      ? `${BASE_TOOLS.filter((t) => !missing.some((m) => m.tool === t)).join(' and ') || 'Nothing'} is here. ${names} ${missing.length > 1 ? 'are' : 'is'} missing.`
-      : 'Both are here.';
-  const primary =
-    missing.length && install
-      ? {
-          label: running ? `Installing ${names}…` : `Install ${names} and continue`,
-          disabled: running,
-          onClick: () => {
-            setError('');
-            void install().then(
-              (r) => (r.ok ? setRunning(true) : setError(r.message)),
-              (e: unknown) => setError(sentence(classify(e))),
-            );
-          },
-        }
-      : { label: 'Continue', onClick: nav.next, disabled: !status.isSuccess };
-  return (
-    <StepView title="Two tools every agent needs" line={line} primary={primary}>
-      <div className="flex flex-col divide-y divide-border rounded-md border border-border">
-        {BASE_TOOLS.map((t) => {
-          const m = missing.find((x) => x.tool === t);
-          return (
-            <div key={t} className="flex items-center gap-3 p-3">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border text-muted">
-                {TOOL_NOTE[t]?.icon}
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="font-medium text-fg">{t}</span>
-                <span className="truncate text-xs text-muted">{TOOL_NOTE[t]?.note}</span>
-                {m && !install && (
-                  <button
-                    type="button"
-                    onClick={() => void copy(m.fix, 'command')}
-                    className="mt-1 flex w-fit items-center gap-1 text-xs text-fg"
-                  >
-                    <code className="font-mono">{m.fix}</code>
-                    <Copy size={11} className="text-muted" />
-                  </button>
-                )}
-              </span>
-              {status.isSuccess && (m ? <Pill tone="warning">Missing</Pill> : <Pill tone="success">Installed</Pill>)}
-            </div>
-          );
-        })}
-      </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
-      <p className="text-xs text-muted">
-        {install ? 'Installs with Homebrew in Terminal, where you can watch it.' : 'Run the command in Terminal, then come back.'} Settings
-        › Tools has more.
       </p>
     </StepView>
   );
@@ -276,6 +214,18 @@ export function ProjectStep() {
   const sel = chosen ?? folders[0] ?? null;
   const pick = shell()?.pickFolder;
   const [error, setError] = useState('');
+  const noGit = useMissing('git') !== null;
+  const git = useInstall('git');
+  if (noGit)
+    return (
+      <StepView
+        title="What should agents work on?"
+        line="git is needed for a project."
+        primary={{ label: 'Install git', onClick: git.start, disabled: git.running }}
+      >
+        <Installing tool="git" />
+      </StepView>
+    );
   return (
     <StepView
       title="What should agents work on?"

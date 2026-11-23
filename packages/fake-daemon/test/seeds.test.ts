@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FakeDaemon } from '#src/daemon.ts';
-import { ALL, applySeeds, SEEDS } from '#src/seeds.ts';
+import { ALL, applySeeds, BY_NAME, SEEDS } from '#src/seeds.ts';
 import { setup } from '#src/helpers.ts';
 
 test('an unknown seed is refused with the known names', () => {
@@ -37,11 +37,11 @@ test('chat-actions puts the OK and No buttons on a message', async () => {
   client.close();
 });
 
-test('tasks-200 seeds 200 tasks, and all switches on every seed but second-cluster', () => {
+test('tasks-200 seeds 200 tasks, and all switches on every seed but those asked for by name', () => {
   const d = new FakeDaemon();
   d.tasks.verbs = true;
   assert.deepEqual(applySeeds(d, 'all'), ALL);
-  assert.ok(!ALL.includes('second-cluster') && 'second-cluster' in SEEDS);
+  assert.ok(BY_NAME.every((n) => !ALL.includes(n) && n in SEEDS));
   assert.equal(d.tasks.find(6000).id, 6000);
   assert.equal(d.tasks.find(6199).id, 6199);
 });

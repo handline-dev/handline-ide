@@ -1,6 +1,6 @@
 // Seeds a UI check needs that the first-load fixtures leave out: switch them on by name, in a test or at serve time.
 import type { FakeDaemon } from '#src/daemon.ts';
-import { installTool } from '#src/core.ts';
+import { endInstall, installTool } from '#src/core.ts';
 import { task } from '#src/seedkit.ts';
 import { CHAT_SEEDS } from '#src/seeds-chat.ts';
 import { CLUSTER_SEEDS } from '#src/seeds-clusters.ts';
@@ -38,6 +38,9 @@ export const SEEDS: Record<string, Seed> = {
       body: 'Every step the daemon could take was taken; the terminal is the last one.',
       fix: 'open_terminal',
     }),
+
+  /** A Mac without the command line tools: git is missing, so adding a project asks to install it. */
+  'no-git': (d) => void (d.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }]),
 
   /** A review: a task tagged review under the agent's own, a first comment naming two pictures, and a decision card asking for a look. */
   review: (d) => {
@@ -405,6 +408,12 @@ export const SEEDS: Record<string, Seed> = {
     d.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }];
     installTool(d, { tool: 'git' });
   },
+  /** git missing after an install that failed: its window is kept, ended. */
+  'git-install-failed': (d) => {
+    d.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }];
+    installTool(d, { tool: 'git' });
+    endInstall(d, 'git', false);
+  },
 };
 
 const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();
@@ -420,10 +429,11 @@ function switching(
   s.fx.view = { ...s.fx.view, account_switch: { cause: 'usage', from: 'alpha', since, until: null, ...sw } };
 }
 
-/** What `all` seeds: every seed but another cluster's, which is asked for by name. */
-export const ALL = Object.keys(SEEDS).filter((n) => n !== 'second-cluster');
+/** Seeds `all` leaves out, asked for by name: another cluster, and a machine without git. */
+export const BY_NAME = ['second-cluster', 'no-git', 'installing-git', 'git-install-failed'];
+export const ALL = Object.keys(SEEDS).filter((n) => !BY_NAME.includes(n));
 
-/** Switches the named seeds on: a comma-separated list, or `all`. An unknown name is an error, not a silent no-op. */
+/** Switches the named seeds on: a comma-separated list, where `all` stands for ALL. An unknown name is an error, not a silent no-op. */
 export function applySeeds(d: FakeDaemon, names: string | string[]): string[] {
   const list = (Array.isArray(names) ? names : names.split(',')).map((n) => n.trim()).filter(Boolean);
   const on = [...new Set(list.flatMap((n) => (n === 'all' ? ALL : [n])))];

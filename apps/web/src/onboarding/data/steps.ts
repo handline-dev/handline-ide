@@ -1,15 +1,14 @@
-// Onboarding's five steps, each done by what is true on the machine, not by having walked through it: Settings ticks them too.
+// Onboarding's four steps, each done by what is true on the machine, not by having walked through it: Settings ticks them too.
 import type { Account, Methods, VendorStatus } from '@handline/client';
 
-export const STEPS = ['ai', 'tools', 'notify', 'project', 'agent'] as const;
+export const STEPS = ['ai', 'notify', 'project', 'agent'] as const;
 export type StepId = (typeof STEPS)[number];
 
-/** The tools every agent needs, whatever AI tool it runs; an AI tool's own command is installed from its row on the AI step. */
-export const BASE_TOOLS: readonly string[] = ['git', 'tmux'];
+/** The tool every agent needs, whatever AI tool it runs; tmux comes with the app. */
+export const BASE_TOOLS: readonly string[] = ['git'];
 
 export type Facts = {
   accounts: Pick<Account, 'login_state'>[];
-  missingTools: { tool: string }[];
   /** The browser's notification permission, or 'unsupported'. */
   notify: NotificationPermission | 'unsupported';
   /** The person chose Skip on the notifications step; notifications are optional, so that ticks it. */
@@ -21,7 +20,6 @@ export type Facts = {
 export function stepsDone(f: Facts): Record<StepId, boolean> {
   return {
     ai: f.accounts.some((a) => a.login_state === 'ok'),
-    tools: !f.missingTools.some((m) => BASE_TOOLS.includes(m.tool)),
     notify: f.notify === 'granted' || f.notify === 'unsupported' || f.notifySkipped,
     project: f.repos > 0,
     agent: f.agents > 0,
