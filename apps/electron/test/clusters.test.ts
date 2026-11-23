@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ConnectionState } from '@handline/client';
-import { Clusters, engineHome, type ClusterDeps, type Engine, type MasterLink } from '#src/clusters.ts';
+import { Clusters, engineCmd, engineHome, type ClusterDeps, type Engine, type MasterLink } from '#src/clusters.ts';
 import type { Settings } from '#src/mode.ts';
 import type { Joined } from '#src/joined.ts';
 
@@ -275,4 +275,13 @@ test('while this Mac is being made the master, Leave and a second promote are re
   finish();
   await promoting;
   assert.equal(c.list()[0]!.master, true);
+});
+
+test("an engine listens where this Mac's daemon does, on its own port, and serves the addresses chosen in this Mac's own home", () => {
+  const o = { env: () => undefined, root: '/app', home: '/u/.handline-clusters/abcd0123', ownHome: '/u/.handline' };
+  const cmd = engineCmd({ ...o, listen: '100.64.0.2:50100' }, '/usr/bin');
+  assert.equal(cmd.file, '/app/go/handlined');
+  assert.deepEqual(cmd.args, ['-home', o.home, '-listen', '100.64.0.2:50100', '-addresses-home', '/u/.handline']);
+  assert.equal(cmd.env!.HANDLINE_HOME, o.home);
+  assert.deepEqual(engineCmd({ ...o, listen: undefined }, '/usr/bin').args, ['-home', o.home]); // kept without a port: no door
 });

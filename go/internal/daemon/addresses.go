@@ -152,7 +152,7 @@ func (d *Daemon) connectionAddresses(_ *rpc.Conn, _ map[string]any) (any, error)
 		items = append(items, map[string]any{"host": a.Host, "kind": a.Kind, "interface": a.Iface, "listening": listening, "encryption": enc})
 	}
 	var chosen any
-	if h := chosenHosts(d.cfg.Home); h != nil {
+	if h := chosenHosts(d.cfg.addressesHome()); h != nil {
 		chosen = h
 	}
 	return map[string]any{"addresses": items, "network_addresses": chosen}, nil

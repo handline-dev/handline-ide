@@ -11,7 +11,7 @@ import { PROTOCOL } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { CHANNELS, fromWindow } from '#src/bridge.ts';
 import { Link, type Settings } from '#src/mode.ts';
-import type { Engine } from '#src/clusters.ts';
+import { engineCmd, type Engine, type EngineOpts } from '#src/clusters.ts';
 import {
   commands,
   daemonEnv,
@@ -204,24 +204,10 @@ const signals = {
   killPid: (pid: number) => process.kill(pid, 'SIGKILL'),
 };
 
-/** The environment of a cluster engine's processes (its daemon, and the hl that joins it): this app's, on the engine's home, with
- * none of the HANDLINE_ variables that name this Mac's own daemon (its socket, listener, tmux server, binaries); a test's stand-in
- * user home stays. */
-export function engineEnv(home: string, pathVar?: string): NodeJS.ProcessEnv {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('HANDLINE_') || k === 'HANDLINE_TEST_ROOT'));
-  return { ...env, ...(pathVar ? { PATH: pathVar } : {}), HANDLINE_HOME: home };
-}
-
 /** A cluster engine's daemon (clusters.ts): a handlined on its own home, kept as this Mac's daemon is (adopted at launch, started again
  * when it exits), of whatever build answers: a runner runs its master's build. `listen` is where it serves once made the master (a
  * runner does not listen). */
-export function engineDaemon(o: {
-  env: (k: string) => string | undefined;
-  root: string;
-  home: string;
-  listen: string | undefined;
-  loginPath: () => Promise<LoginPath>;
-}): Engine {
+export function engineDaemon(o: EngineOpts & { loginPath: () => Promise<LoginPath> }): Engine {
   const log = fs.openSync(path.join(o.home, 'daemon.log'), 'a');
   const socket = path.join(o.home, 'daemon.sock');
   const owner = new Owner({
@@ -231,14 +217,7 @@ export function engineDaemon(o: {
     ...signals,
     stopLeftovers: async () => undefined,
     spawn: (cmd) => spawnDetached(cmd, log, o.home),
-    daemon: async () => {
-      const login = (await o.loginPath()).path;
-      return {
-        file: o.env('HANDLINED') ?? `${o.root}/go/handlined`,
-        args: ['-home', o.home, ...(o.listen ? ['-listen', o.listen] : [])],
-        env: engineEnv(o.home, daemonPath(login, process.env.PATH)),
-      };
-    },
+    daemon: async () => engineCmd(o, daemonPath((await o.loginPath()).path, process.env.PATH)),
     wait: sleep,
     now: () => Date.now(),
     build: null,

@@ -90,6 +90,9 @@ type Config struct {
 
 	WebDir    string // the built web UI the listener serves on its own origin; empty serves none
 	Advertise string // the host:port a pairing code names, when it differs from where the listener binds
+	// AddressesHome is the home whose network_addresses the doors serve, "" for Home: a cluster engine serves those of its Mac's own
+	// daemon, a fact about the machine, read live so a change in that home's Settings reaches the engine at its next relisten.
+	AddressesHome string
 
 	Terminal term.Backend // the host the daemon reads panes from; nil is the configured one (tests give a fake)
 	// Turns, when set, says whether a terminal agent is mid-turn from its hooks and transcript; nil reads its screen (-turns-from-hooks).

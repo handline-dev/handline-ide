@@ -8,9 +8,9 @@ import { DaemonClient } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { ClusterCalls, CHANNELS } from '#src/bridge.ts';
 import type { ShellCluster } from '@handline/app-core';
-import { Clusters } from '#src/clusters.ts';
+import { Clusters, engineEnv } from '#src/clusters.ts';
 import type { SettingsFile } from '#src/mode.ts';
-import { engineDaemon, engineEnv, readFounderKey, type LoginPath } from '#src/own.ts';
+import { engineDaemon, readFounderKey, type LoginPath } from '#src/own.ts';
 import { freePort } from '#src/dev-team.ts';
 import { protectedDir } from '#src/pair.ts';
 import { joinedOf, ledOf, masterTransport } from '#src/joined.ts';
@@ -70,7 +70,14 @@ export function serveClusters(o: {
     joined: (home, port) => joinedOf(os.homedir(), home) ?? (port ? ledOf(os.homedir(), home, `127.0.0.1:${port}`) : null),
     store: (home) => protectedDir(os.homedir(), home),
     engine: (home, port) =>
-      engineDaemon({ env: o.env, root: o.root, home, listen: port ? `${o.listenHost}:${port}` : undefined, loginPath: o.loginPath }),
+      engineDaemon({
+        env: o.env,
+        root: o.root,
+        home,
+        listen: port ? `${o.listenHost}:${port}` : undefined,
+        ownHome: o.home,
+        loginPath: o.loginPath,
+      }),
     // The token stays the same as the master moves: the engine made the master keeps the one it joined with as its own device's.
     link: (current) => new DaemonClient({ client: 'electron', connect: () => masterTransport(current())(), token: current().master.token }),
     port: freePort,
