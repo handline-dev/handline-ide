@@ -30,7 +30,7 @@ import { Cli, Connection, Page, Settings, Update, CHANNELS } from '#src/bridge.t
 import { serveDir } from '#src/serve.ts';
 import { buildId, UNSENT_PROBE, Updater } from '#src/update.ts';
 import { UpdateFlow } from '#src/update-flow.ts';
-import { builtChannel, startPkgUpdate } from '#src/pkg-update-app.ts';
+import { builtChannel, handleUpdateChannel, startPkgUpdate } from '#src/pkg-update-app.ts';
 import { bundleAt } from '#src/bundle.ts';
 import { readBuildSha } from '#src/build-id.ts';
 import { removeOldService } from '#src/old-service.ts';
@@ -397,11 +397,6 @@ if (!app.requestSingleInstanceLock({ background })) {
       settings,
       current,
       setOpenAtLogin: saveOpenAtLogin(settings),
-      setUpdateChannel: (c) => {
-        saveUpdateChannel(settings)(c);
-        lookNow();
-      },
-      updateChannel: channelNow,
       build: runningBuild,
       buildDaemon: env('HANDLINED') ? undefined : buildDaemon, // a packaged app names its bundle's handlined
       openWindow: () => void openWindow(),
@@ -409,6 +404,7 @@ if (!app.requestSingleInstanceLock({ background })) {
       update: () => trayUpdate(flow),
       follow: f && (() => trayFollow(f)),
     });
+    handleUpdateChannel(origin, channelNow, saveUpdateChannel(settings, current), () => lookNow());
     handleConnection(origin, own, remote, client, f);
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));

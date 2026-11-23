@@ -27,7 +27,6 @@ import { ensureToken, founderKeyFile, once, TokenFile, type PairDeps } from '#sr
 import { grant } from '#src/grant.ts';
 import { onTailnet } from '#src/tailnet.ts';
 import { quitQuietly, type Ask } from '#src/ask.ts';
-import type { UpdateChannel } from '#src/update-channel.ts';
 import {
   trayIcon as iconFor,
   trayMenu,
@@ -204,7 +203,6 @@ function trayActions(
     openPage: (screen: 'inbox' | 'settings') => void;
     current: Settings;
     setOpenAtLogin: (on: boolean) => void;
-    setUpdateChannel: (channel: UpdateChannel) => void;
   },
   draw: () => void,
 ): TrayActions {
@@ -214,11 +212,6 @@ function trayActions(
     setOpenAtLogin: (on) => {
       o.current.openAtLogin = on;
       o.setOpenAtLogin(on);
-      draw();
-    },
-    setUpdateChannel: (channel) => {
-      o.current.updateChannel = channel;
-      o.setUpdateChannel(channel);
       draw();
     },
     quit: () => app.quit(),
@@ -280,10 +273,6 @@ export function ownDaemon(o: {
   current: Settings;
   /** Open at login, as the tray's checkbox changes it: kept in the settings and handed to the system. */
   setOpenAtLogin: (on: boolean) => void;
-  /** The release channel updates come from, as the tray's Update channel changes it: kept in the settings, and looked at at once. */
-  setUpdateChannel: (channel: UpdateChannel) => void;
-  /** The channel in use; absent for a build with no update address, whose tray has no Update channel. */
-  updateChannel: () => UpdateChannel | undefined;
   loginPath: () => Promise<LoginPath>;
   /** Follow-main mode adds its items to the tray. */
   follow?: () => TrayFollow;
@@ -330,7 +319,6 @@ export function ownDaemon(o: {
   const draw = trayControls(tray, owner, actions, () => ({
     ...counts,
     openAtLogin: o.current.openAtLogin,
-    channel: o.updateChannel(),
     remote: remote?.host ?? null,
     link,
     update: o.update?.(),

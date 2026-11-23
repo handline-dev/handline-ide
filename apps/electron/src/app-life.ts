@@ -4,7 +4,7 @@ import type { DaemonClient } from '@handline/client';
 import { askQuit, guardQuit, quietNext, quitQuietly } from '#src/ask.ts';
 import { applyOpenAtLogin, openedAtLogin, workingOf } from '#src/login.ts';
 import type { Follower } from '#src/follow.ts';
-import type { SettingsFile } from '#src/mode.ts';
+import type { Settings, SettingsFile } from '#src/mode.ts';
 import type { TrayFollow, TrayUpdate } from '#src/tray.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
 import type { UpdateChannel } from '#src/update-channel.ts';
@@ -63,11 +63,13 @@ export const saveOpenAtLogin =
     applyOpenAtLogin(app, app.isPackaged, on);
   };
 
-/** The tray's Update channel: kept in the settings. */
+/** The Update channel picked in Settings: kept in the settings file. */
 export const saveUpdateChannel =
-  (settings: SettingsFile) =>
-  (channel: UpdateChannel): void =>
+  (settings: SettingsFile, current: Settings) =>
+  (channel: UpdateChannel): void => {
+    current.updateChannel = channel;
     settings.write({ ...settings.read(), updateChannel: channel });
+  };
 
 /** What the tray reads of the update flow. */
 export const trayUpdate = (flow: UpdateFlow): TrayUpdate => ({ phase: flow.view.phase, restart: () => flow.act('restart') });

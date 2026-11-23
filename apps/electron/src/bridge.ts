@@ -5,6 +5,7 @@ import type { Methods } from '@handline/client';
 import type { CliState } from '#src/cli.ts';
 import { UPDATE_ACTS, type UpdateAct, type UpdateView } from '#src/update-flow.ts';
 import { doorsOf, type Door, type OfferInput } from '#src/mode.ts';
+import { isChannel, type UpdateChannel } from '#src/update-channel.ts';
 
 /** The page's word for which daemon the app uses: own is this Mac's, connect another device's it is paired with. */
 type Mode = 'connect' | 'own';
@@ -32,6 +33,8 @@ export const CHANNELS = {
   linkCli: 'handline:linkCli',
   pairRemote: 'handline:pairRemote',
   update: 'handline:update',
+  updateChannel: 'handline:updateChannel',
+  setUpdateChannel: 'handline:setUpdateChannel',
   daemon: 'handline:daemon',
   startDaemon: 'handline:startDaemon',
   stopDaemon: 'handline:stopDaemon',
@@ -277,6 +280,32 @@ function isObject(v: unknown, keys: string[]): v is Record<string, unknown> {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   const have = Object.keys(v);
   return have.length === keys.length && keys.every((k) => have.includes(k));
+}
+
+export interface UpdateChannelDeps {
+  /** The channel updates come from; null for a build that reads none (a checkout). */
+  get(): UpdateChannel | null;
+  set(channel: UpdateChannel): void;
+}
+
+/** The update channel in Settings: which one the app reads, and picking another. */
+export class UpdateChannelCalls {
+  private origin: string;
+  private d: UpdateChannelDeps;
+  constructor(origin: string, d: UpdateChannelDeps) {
+    this.origin = origin;
+    this.d = d;
+  }
+  get(e: Sender): { ok: true; channel: UpdateChannel | null } | Fail<'bad_request'> {
+    return fromWindow(e, this.origin) ? { ok: true, channel: this.d.get() } : (bad('not from the app window') as Fail<'bad_request'>);
+  }
+  set(e: Sender, arg: unknown): Reply {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    if (!isChannel(arg) || this.d.get() === null)
+      return bad('setUpdateChannel takes stable, nightly or canary, on a build that reads updates');
+    this.d.set(arg);
+    return { ok: true };
+  }
 }
 
 export interface UpdateDeps {

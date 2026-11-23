@@ -1,7 +1,8 @@
 // The installed app's update in Electron terms: the network, the files and the restart behind PkgPorts (pkg-update.ts).
 import fs from 'node:fs';
 import path from 'node:path';
-import { app } from 'electron';
+import { app, ipcMain } from 'electron';
+import { CHANNELS, UpdateChannelCalls } from '#src/bridge.ts';
 import { downloadTo, sha512Of, unpackApp } from '#src/pkg-files.ts';
 import { SelfUpdater, type PkgPorts } from '#src/pkg-update.ts';
 import { leftovers, STAGING, swapBundle } from '#src/swap.ts';
@@ -82,4 +83,22 @@ export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolea
     },
     look,
   };
+}
+
+/** Settings' Updates channel: which release the app reads, and picking another. */
+export function handleUpdateChannel(
+  origin: string,
+  get: () => UpdateChannel | undefined,
+  set: (c: UpdateChannel) => void,
+  look: () => void,
+): void {
+  const u = new UpdateChannelCalls(origin, {
+    get: () => get() ?? null,
+    set: (c) => {
+      set(c);
+      look();
+    },
+  });
+  ipcMain.handle(CHANNELS.updateChannel, (e) => u.get(e));
+  ipcMain.handle(CHANNELS.setUpdateChannel, (e, arg) => u.set(e, arg));
 }
