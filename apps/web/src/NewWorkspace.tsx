@@ -6,6 +6,7 @@ import { Field, Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { shell } from '#src/shell.ts';
 import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
+import { NeedsGit } from '#src/install/install.tsx';
 
 /** The create the daemon started: its step while it runs, then closed once done, or its failure. */
 function Progress({ operation, close }: { operation: string; close: Close<string> }) {
@@ -165,7 +166,9 @@ function Start({ close }: { close: Close<string> }) {
 export function newWorkspace() {
   void openModal<string>((close) => (
     <ModalFrame title="Add workspace" onClose={() => close()}>
-      <Start close={close} />
+      <NeedsGit>
+        <Start close={close} />
+      </NeedsGit>
     </ModalFrame>
   ));
 }

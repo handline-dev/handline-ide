@@ -1,18 +1,17 @@
-// The setup modal: five steps, each one button; it opens by itself on first launch and Continue on the sidebar card reopens it where it stopped.
+// The setup modal: four steps, each one button; it opens by itself on first launch and Continue on the sidebar card reopens it where it stopped.
 import { Dialog } from '@base-ui/react/dialog';
 import { Check } from 'lucide-react';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { closeOnboarding, useOnboarding, useOnboardingOpen } from '#src/onboarding/data/progress.ts';
 import { STEPS, type StepId } from '#src/onboarding/data/steps.ts';
 import { AgentStep } from '#src/onboarding/AgentStep.tsx';
-import { AiStep, NotifyStep, ProjectStep, ToolsStep } from '#src/onboarding/Steps.tsx';
+import { AiStep, NotifyStep, ProjectStep } from '#src/onboarding/Steps.tsx';
 import { NavContext, type Nav } from '#src/onboarding/StepView.tsx';
 import { useBackCloses } from '#src/ui/backCloses.ts';
 import { useNarrow } from '#src/ui/narrow.ts';
 
 export const STEP_NAME: Record<StepId, { title: string; note: string }> = {
   ai: { title: 'AI tools', note: 'Claude Code, Codex' },
-  tools: { title: 'Git & tmux', note: 'git and tmux' },
   notify: { title: 'Notifications', note: 'When agents need you' },
   project: { title: 'Project', note: 'What agents work on' },
   agent: { title: 'First agent', note: 'Give it a task' },
@@ -64,7 +63,6 @@ function Body({ ob }: { ob: ReturnType<typeof useOnboarding> }) {
       {!narrow && <Rail ob={ob} />}
       <NavContext.Provider value={nav}>
         {id === 'ai' && <AiStep />}
-        {id === 'tools' && <ToolsStep />}
         {id === 'notify' && <NotifyStep />}
         {id === 'project' && <ProjectStep />}
         {id === 'agent' && <AgentStep />}

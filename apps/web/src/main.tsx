@@ -7,6 +7,7 @@ import { InCluster, SpaceCluster, splitSpace, useJoined, useJoinedReady } from '
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { Gallery } from '#src/Gallery.tsx';
 import { WebPages } from '#src/tools/webPages.tsx';
+import { InstallPoll } from '#src/install/install.tsx';
 import { instant, spring } from '#src/motion.ts';
 import { Sidebar, SidebarControls, sidebarWidth } from '#src/Sidebar.tsx';
 import { ModalHost } from '#src/ui/modal.tsx';
@@ -149,6 +150,7 @@ createRoot(document.getElementById('root')!).render(
       <Boundary loading={null} failed={brokenView('Handline')}>
         <App />
         <WebPages />
+        <InstallPoll />
         <Onboarding />
       </Boundary>
       <OpenMenuHost />
