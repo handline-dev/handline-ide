@@ -12,7 +12,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.set` | member | yes | `device`, `lending?`, `memory_max_gb?`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
 | `device.update` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind, build | decided: update |
 | `device.push_token` | member | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
-| `node.status` | agent |  | none | `{master, nodes, cluster}` |  |  | `nodes`, fed by nodes |
+| `node.status` | agent |  | none | `{master, nodes, cluster, placement}` |  |  | `nodes`, fed by nodes |
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
 | `node.turn` | member |  | `agent`, `view` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |
 | `node.transcript` | member |  | `agent`, `session`, `at`, `rows` | `object` | `refused`, `bad_request` | node, not_on_node | not cached |

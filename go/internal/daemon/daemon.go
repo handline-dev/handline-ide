@@ -299,7 +299,7 @@ func Start(cfg Config) (*Daemon, error) {
 		Here: d.room, Limits: func() placement.Limits {
 			c := usage.LoadConfig(cfg.Home)
 			return placement.Limits{Sessions: loadgate.LimitsOf(c).Agents, AgentsRSS: worktreepool.GB(c, worktreepool.AgentsMemoryMaxKey)}
-		}}
+		}, Manual: func() bool { return usage.LoadConfig(cfg.Home)[placement.Key] == placement.Manual }}
 	d.nodes.Placer, d.nodes.Check = placer, placer.Check
 	d.placer = placer
 	d.nodes.Turns = cfg.Turns
@@ -817,6 +817,8 @@ func (d *Daemon) readsEnv() reads.Env {
 	}
 	if d.placer != nil {
 		renv.NodeLacks = d.placer.Lacks
+		renv.NodePlacement = func(agent string) (any, error) { return d.placer.Status(agent) }
+		renv.NodeManual = d.placer.Manual
 	}
 	if d.res != nil {
 		renv.Resources = d.res.Latest

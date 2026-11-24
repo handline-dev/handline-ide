@@ -2200,6 +2200,15 @@
       "description": "Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on.",
       "default": false
      },
+     "agent_placement": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "manual"
+      ],
+      "default": "auto",
+      "description": "How agents are placed on the cluster's devices at each session's start: auto, the default, keeps a light agent on the master's machine and sends a heavy one (over 2 h of heavy commands or a 6 GB peak in its last 7 days) to the lent device with the most room that has all it needs; manual starts an agent pinned to a device (its device setting) there and places the others as auto does. Switching keeps the pins."
+     },
      "account_split": {
       "type": "string",
       "enum": [
@@ -2700,6 +2709,21 @@
      "subagent_pace_guard": {
       "type": "boolean",
       "description": "Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on."
+     },
+     "agent_placement": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "auto",
+         "manual"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "How agents are placed on the cluster's devices at each session's start: auto, the default, keeps a light agent on the master's machine and sends a heavy one (over 2 h of heavy commands or a 6 GB peak in its last 7 days) to the lent device with the most room that has all it needs; manual starts an agent pinned to a device (its device setting) there and places the others as auto does. Switching keeps the pins. null removes the key (back to the default)."
      },
      "account_split": {
       "oneOf": [

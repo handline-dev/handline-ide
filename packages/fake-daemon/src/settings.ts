@@ -16,6 +16,7 @@ export const defaultSettings = (model: string, effort: string): Record<string, s
   sandbox: 'on',
   sandbox_allow: '',
   mode: 'default',
+  device: '',
 });
 
 /** The keys an agent may change on itself; the rest are the founder's. */

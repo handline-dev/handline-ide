@@ -1,5 +1,6 @@
-// Package placement picks the machine an agent's session starts on (docs/story4-design.md section 2, slice 10): the agent's own while
-// it can take the session, else the one with the most free memory that can, which becomes the agent's.
+// Package placement picks the machine an agent's session starts on (docs/story4-design.md sections 2 and 7): on Auto a light agent stays
+// on the master's machine and a heavy one goes to the lent device with the most room that has all it needs; on Manual an agent pinned to
+// a device starts there.
 package placement
 
 import (
@@ -12,12 +13,33 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/scheduler/agentload"
 )
+
+// Key is the setting that says how agents are placed: Auto (the default) places them by load, Manual starts a pinned agent (agents.device)
+// on its device and places the others as Auto does.
+const (
+	Key    = "agent_placement"
+	Auto   = "auto"
+	Manual = "manual"
+)
+
+// What makes an agent heavy, from its last 7 days (agentload): this much heavy command time, or this peak memory (a simulator's).
+const (
+	HeavyTime   = 2 * time.Hour
+	HeavyMemory = int64(6) << 30
+)
+
+// Heavy is whether l makes its agent heavy.
+func Heavy(l agentload.Load) bool {
+	return l.HeavyS >= int64(HeavyTime/time.Second) || l.MemoryPeak >= HeavyMemory
+}
 
 // Room is a machine's room for one more session: the sessions on it, its agents' memory and its free memory, in bytes.
 type Room struct {
@@ -42,6 +64,8 @@ type Placer struct {
 	Holds  Holds
 	Here   func() (Room, error)
 	Limits func() Limits
+	// Manual is whether placement is Manual (Key); nil is Auto.
+	Manual func() bool
 	Log    func(format string, a ...any)
 
 	mu       sync.Mutex
@@ -55,27 +79,34 @@ type picking struct {
 	keep bool
 }
 
-// need is what an agent's session needs of a machine.
+// need is what an agent's session needs of a machine, and what placement goes by.
 type need struct {
 	workspace string
 	cli       string   // its vendor's CLI
-	programs  []string // the programs of its MCP servers
+	programs  []string // the programs of its own MCP servers, and of the shared ones it called in its last 7 days
+	pin       string   // the device it is pinned to (agents.device), "" for none
+	heavy     bool
+	load      agentload.Load
 }
 
 // Where is the runner agent's session opens on, "" for this machine (term.Machines.Where). The pick holds a slot there until Placed.
 func (p *Placer) Where(agent string) string {
+	key, n, err := p.agentNeed(agent) // read before the lock: a load read is not quick
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.reserved == nil {
 		p.reserved, p.picked = map[string]int{}, map[string]picking{}
 	}
 	p.release(agent) // a pick before it whose terminal never said
-	node, keep, why, err := p.pick(agent)
+	node, keep, why := p.Reg.Self, false, ""
+	if err == nil {
+		node, keep, why, err = p.pick(key, n)
+	}
 	if err != nil {
 		p.log("placement: %s: %v - it starts here", agent, err)
 		node, keep = p.Reg.Self, false
 	} else if why != "" {
-		p.log("placement: %s: %s", agent, why)
+		p.log("placement: %s: %s (%s)", agent, why, p.name(node))
 	}
 	p.reserved[node]++
 	p.picked[agent] = picking{node, keep}
@@ -87,20 +118,54 @@ func (p *Placer) Where(agent string) string {
 
 // Next is the runner agent's next session would open on now, "" for this machine; it holds nothing (nodes.Registry.DeviceOf).
 func (p *Placer) Next(agent string) string {
+	pl, err := p.Status(agent)
+	if err != nil {
+		p.log("placement: %s: %v - its account is chosen as this machine's", agent, err)
+		return ""
+	}
+	if pl.Device == p.Reg.Self {
+		return ""
+	}
+	return pl.Device
+}
+
+// Placement is one agent's row of node.status' placement: where its next session starts (a node id), why ("" for a light agent that
+// stays on the master's machine), its load, and its pin.
+type Placement struct {
+	Agent      string `json:"agent"`
+	Device     string `json:"device"`
+	Why        string `json:"why"`
+	HeavyS     int64  `json:"heavy_s"`
+	MemoryPeak int64  `json:"memory_peak"`
+	Pin        string `json:"pin,omitempty"`
+}
+
+// Status is agent's Placement now, what Devices shows; it holds nothing.
+func (p *Placer) Status(agent string) (Placement, error) {
+	pl := Placement{Agent: agent, Device: p.Reg.Self}
+	key, n, err := p.agentNeed(agent)
+	if err != nil || key == "" {
+		return pl, err
+	}
+	pl.HeavyS, pl.MemoryPeak, pl.Pin = n.load.HeavyS, n.load.MemoryPeak, n.pin
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if got, had := p.picked[agent]; had { // as Where picks: without the agent's own pick before
 		p.reserved[got.node]--
 		defer func() { p.reserved[got.node]++ }()
 	}
-	node, _, _, err := p.pick(agent)
-	if err != nil {
-		p.log("placement: %s: %v - its account is chosen as this machine's", agent, err)
+	pl.Device, _, pl.Why, err = p.pick(key, n)
+	return pl, err
+}
+
+// agentNeed is agent's key and need; key "" for one not on the roster, which starts here as before runners.
+func (p *Placer) agentNeed(agent string) (string, need, error) {
+	key, err := paths.AgentKeyIn(p.DB, agent)
+	if err != nil || key == "" {
+		return "", need{}, err
 	}
-	if err != nil || node == p.Reg.Self {
-		return ""
-	}
-	return node
+	n, err := p.needOf(key)
+	return key, n, err
 }
 
 // Placed is told whether agent's terminal opened where Where picked (term.Machines.Placed): its slot is given back, and once it opened
@@ -130,48 +195,110 @@ func (p *Placer) release(agent string) {
 	}
 }
 
-// pick is the machine for agent's next session, whether it becomes the agent's, and why it moved ("" when it stays).
-func (p *Placer) pick(agent string) (node string, keep bool, why string, err error) {
-	key, err := paths.AgentKeyIn(p.DB, agent)
-	if err != nil || key == "" {
-		return p.Reg.Self, false, "", err // not on the roster: as before runners, here
+// pick is the machine for agent's next session, whether it becomes the agent's, and why it is placed so ("" when it stays here as a
+// light agent does).
+func (p *Placer) pick(key string, n need) (node string, keep bool, why string, err error) {
+	if key == "" {
+		return p.Reg.Self, false, "", nil // not on the roster: as before runners, here
 	}
-	n, err := p.needOf(key)
-	if err != nil {
+	var current sql.NullString
+	if err := p.DB.QueryRow("SELECT node FROM agent_state WHERE agent = ?", key).Scan(&current); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return "", false, "", err
-	}
-	var current, worktree sql.NullString
-	err = p.DB.QueryRow("SELECT node, worktree FROM agent_state WHERE agent = ?", key).Scan(&current, &worktree)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", false, "", err
-	}
-	if !current.Valid && worktree.String != "" { // it ran before runners: on this machine
-		current = sql.NullString{String: p.Reg.Self, Valid: true}
 	}
 	l := p.Limits()
-	if current.String != "" {
-		lacks := p.lacks(current.String, n, l)
+	if n.pin != "" && p.Manual != nil && p.Manual() {
+		if n.pin == p.Reg.Self {
+			return p.Reg.Self, true, "", nil
+		}
+		lacks := p.lacks(n.pin, n, l)
 		if lacks == "" {
-			return current.String, current.Valid && current.String != "", "", nil
+			return n.pin, true, "pinned to " + p.name(n.pin), nil
 		}
-		why = fmt.Sprintf("leaves %s: %s", p.name(current.String), lacks)
+		return p.Reg.Self, false, fmt.Sprintf("pinned to %s, which cannot take it now (%s), so it starts here", p.name(n.pin), lacks), nil
 	}
-	best, room := "", int64(-1)
-	for _, d := range p.machines() {
-		if d == current.String || p.lacks(d, n, l) != "" {
-			continue
+	if !n.heavy {
+		if lacks := p.lacks(p.Reg.Self, n, l); lacks == "" {
+			return p.Reg.Self, true, "", nil
+		} else {
+			why = "this machine is " + lacks
 		}
-		if r, err := p.room(d); err == nil && r.RAMFree > room {
-			best, room = d, r.RAMFree
+	} else {
+		why = "heavy: " + heavyWhy(n.load)
+		if current.String != "" && current.String != p.Reg.Self {
+			lacks := p.lacks(current.String, n, l)
+			if lacks == "" {
+				return current.String, true, why, nil // a heavy agent stays on its lent device while it can
+			}
+			why += "; leaves " + p.name(current.String) + ": " + lacks
 		}
 	}
-	if best == "" { // nowhere fits: this machine, which waits or starts as today; the agent's own stays its own
-		return p.Reg.Self, false, strings.TrimPrefix(why+"; no machine can take it, so it starts here", "; "), nil
-	}
-	if why != "" {
-		why += " - goes to " + p.name(best)
+	best, kept := p.best(n, l, n.heavy)
+	if best == "" { // nowhere else fits: this machine, which waits or starts as today
+		if kept == "" {
+			kept = "no device is lent"
+		}
+		return p.Reg.Self, false, why + "; " + kept + ", so it stays here", nil
 	}
 	return best, true, why, nil
+}
+
+// best is the device with the most room that can take a session needing n, a lent one only when lent; one that has the programs the
+// agent's heavy commands ran comes first. kept is why a lent device could not, one that takes work first ("" when none is lent).
+func (p *Placer) best(n need, l Limits, lent bool) (best, kept string) {
+	want := usedPrograms(n.load)
+	room, used := int64(-1), -1
+	keptTakes := false
+	for _, d := range p.machines() {
+		if d == p.Reg.Self && lent {
+			continue
+		}
+		if lacks := p.lacks(d, n, l); lacks != "" {
+			if takes := d != p.Reg.Self && p.Reg.Takes(d) == ""; d != p.Reg.Self && (kept == "" || takes && !keptTakes) {
+				kept, keptTakes = p.name(d)+" "+lacks, takes
+			}
+			continue
+		}
+		r, err := p.room(d)
+		if err != nil {
+			continue
+		}
+		b, _, _ := p.Reg.Heard(d)
+		has := 0
+		for _, prog := range want {
+			if contains(b.Has.Programs, prog) {
+				has++
+			}
+		}
+		if has > used || has == used && r.RAMFree > room {
+			best, used, room = d, has, r.RAMFree
+		}
+	}
+	return best, kept
+}
+
+// heavyWhy is a heavy agent's load in a few words: "checks 18 h this week", "peaks at 7 GB".
+func heavyWhy(l agentload.Load) string {
+	if l.HeavyS >= int64(HeavyTime/time.Second) {
+		what := "heavy commands"
+		if len(l.Shapes) > 0 {
+			what = l.Shapes[0].Name
+		}
+		return fmt.Sprintf("%s %d h this week", what, (l.HeavyS+1800)/3600)
+	}
+	return fmt.Sprintf("peaks at %d GB", (l.MemoryPeak+(1<<29))>>30)
+}
+
+// usedPrograms is the programs an agent's heavy commands ran (xcodebuild, gradle): a device that has them is preferred, though an agent
+// installs what it lacks.
+func usedPrograms(l agentload.Load) []string {
+	var out []string
+	for _, s := range l.Shapes {
+		prog, _, _ := strings.Cut(s.Name, " ")
+		if !strings.HasPrefix(prog, "@") && !strings.Contains(prog, ".") { // a script (check.sh, run.py) is the repo's, not the device's
+			out = append(out, prog)
+		}
+	}
+	return uniq(out)
 }
 
 // Lacks is why agent's session cannot start on node now, "" when it can ("needs pencil"): what node.status shows for each agent.
@@ -282,49 +409,102 @@ func (p *Placer) name(node string) string {
 	return name
 }
 
-// needOf is what the agent keyed key needs: its workspace, its vendor's CLI, and the programs of its own MCP servers and the shared ones.
+// needOf is what the agent keyed key needs: its workspace, its vendor's CLI, the programs of its own MCP servers and of the shared ones
+// it called in its last 7 days (one it did not call is left out where it is missing), its pin and its load.
 func (p *Placer) needOf(key string) (need, error) {
 	_, id, ok := actor.Parse(key)
 	if !ok {
 		return need{}, fmt.Errorf("%s is not an agent's key", key)
 	}
 	var ws int64
-	var vendor, mcp sql.NullString
-	if err := p.DB.QueryRow("SELECT workspace, vendor, mcp_config FROM agents WHERE id = ?", id).Scan(&ws, &vendor, &mcp); err != nil {
+	var vendor, mcp, pin sql.NullString
+	if err := p.DB.QueryRow("SELECT workspace, vendor, mcp_config, device FROM agents WHERE id = ?", id).Scan(&ws, &vendor, &mcp, &pin); err != nil {
 		return need{}, err
 	}
-	n := need{workspace: actor.Key(actor.Workspace, ws), cli: team.DefaultVendor}
+	n := need{workspace: actor.Key(actor.Workspace, ws), cli: team.DefaultVendor, pin: pin.String}
 	if vendor.String != "" {
 		n.cli = vendor.String
 	}
 	n.programs = Programs(mcp.String)
+	now := p.now()
 	if b, err := os.ReadFile(paths.MCPConfig(p.Home)); err == nil {
-		n.programs = append(n.programs, Programs(string(b))...)
+		used := map[string]bool{}
+		rs, err := p.DB.Query("SELECT server FROM mcp_used WHERE agent = ? AND at >= ?", key, now-int64(agentload.Window/time.Second))
+		if err != nil {
+			return need{}, err
+		}
+		for rs.Next() {
+			var s string
+			if rs.Scan(&s) == nil {
+				used[s] = true
+			}
+		}
+		if err := errors.Join(rs.Err(), rs.Close()); err != nil {
+			return need{}, err
+		}
+		for name, prog := range servers(string(b)) {
+			if used[toolName(name)] {
+				n.programs = append(n.programs, prog)
+			}
+		}
 	}
 	n.programs = uniq(n.programs)
+	var err error
+	if n.load, err = agentload.Of(p.DB, key, now); err != nil {
+		return need{}, err
+	}
+	n.heavy = Heavy(n.load)
 	return n, nil
 }
 
-// Programs is the programs a {"mcpServers": {...}} config runs, by their file name: a server reached at a URL runs none.
-func Programs(config string) []string {
+func (p *Placer) now() int64 {
+	if p.Reg != nil && p.Reg.Clock != nil {
+		return p.Reg.Clock().Unix()
+	}
+	return time.Now().Unix()
+}
+
+// toolName is a server's name as its tools carry it (mcp__<name>__<tool>): what is not a letter, a digit, _ or - is _.
+func toolName(server string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '_' || r == '-' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' {
+			return r
+		}
+		return '_'
+	}, server)
+}
+
+// servers is the program each server of a {"mcpServers": {...}} config runs, by the server's name, by its file name: a server reached at
+// a URL runs none.
+func servers(config string) map[string]string {
 	var cfg struct {
 		Servers map[string]struct {
 			Command string `json:"command"`
 		} `json:"mcpServers"`
 	}
+	out := map[string]string{}
 	if json.Unmarshal([]byte(config), &cfg) != nil {
-		return nil
+		return out
 	}
-	var out []string
-	for _, s := range cfg.Servers {
+	for name, s := range cfg.Servers {
 		if s.Command != "" {
-			out = append(out, filepath.Base(s.Command))
+			out[name] = filepath.Base(s.Command)
 		}
+	}
+	return out
+}
+
+// Programs is the programs a {"mcpServers": {...}} config runs, by their file name.
+func Programs(config string) []string {
+	var out []string
+	for _, prog := range servers(config) {
+		out = append(out, prog)
 	}
 	return uniq(out)
 }
 
-// Check is every program an agent's MCP servers run: what a runner is asked to say it has (nodes.Registry.Check).
+// Check is every program an agent's MCP servers run, and every one its heavy commands ran: what a runner is asked to say it has
+// (nodes.Registry.Check).
 func (p *Placer) Check() []string {
 	var out []string
 	rs, err := p.DB.Query("SELECT mcp_config FROM agents WHERE mcp_config IS NOT NULL")
@@ -342,6 +522,13 @@ func (p *Placer) Check() []string {
 	}
 	if b, err := os.ReadFile(paths.MCPConfig(p.Home)); err == nil {
 		out = append(out, Programs(string(b))...)
+	}
+	loads, err := agentload.All(p.DB, p.now())
+	if err != nil {
+		p.log("placement: the agents' loads could not be read: %v", err)
+	}
+	for _, l := range loads {
+		out = append(out, usedPrograms(l)...)
 	}
 	return uniq(out)
 }

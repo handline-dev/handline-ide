@@ -87,7 +87,10 @@ func read(q db.Q, now int64, agent string) (map[string]*Load, error) {
 		s.Seconds += secs
 		s.Runs++
 	}
-	only := " AND (?2 = '' OR agent = ?2)"
+	only := "" // one agent's rows by its index: an OR of both cases would scan them all
+	if agent != "" {
+		only = " AND agent = ?2"
+	}
 	runs, err := q.Query("SELECT agent, seconds, shape FROM heavy_runs WHERE ended >= ?1"+only, since, agent)
 	if err != nil {
 		return nil, err

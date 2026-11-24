@@ -133,7 +133,21 @@ export function coreCall(
         battery: null,
         version: MASTER_VERSION,
       };
-      return { master: { id: own.id, number: 1 }, nodes: [mine, ...d.admin.lentNodes(at)], cluster: d.admin.cluster(at) };
+      const manual = d.admin.settings().values.agent_placement === 'manual';
+      const agents = [...d.sessions.values()].map((s) => {
+        const { key, name } = view(s, d.tasks);
+        const pin = s.settings.device ?? '';
+        const placed = d.admin.placed.get(key);
+        const device = manual && pin ? pin : (placed ?? own.id);
+        const why = manual && pin ? `pinned to ${pin}` : placed ? 'heavy: check.sh 3 h this week' : '';
+        return { agent: name, device, why, heavy_s: placed ? 3 * 3600 : 0, memory_peak: 2 ** 30, ...(pin ? { pin } : {}) };
+      });
+      return {
+        master: { id: own.id, number: 1 },
+        nodes: [mine, ...d.admin.lentNodes(at)],
+        cluster: d.admin.cluster(at),
+        placement: { mode: manual ? 'manual' : 'auto', agents },
+      };
     }
     case 'agent.get':
       return detail(agent(), d.tasks);

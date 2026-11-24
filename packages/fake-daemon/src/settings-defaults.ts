@@ -24,6 +24,7 @@ export const DEFAULTS: Settings['values'] = {
   push_only_away: false,
   push_sound: true,
   account_split: 'auto',
+  agent_placement: 'auto',
   review_flow: false,
   pace_target_pct: 98,
   pace_burst_pct: 10,

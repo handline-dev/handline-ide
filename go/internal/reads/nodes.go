@@ -87,8 +87,24 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		nodes = append(nodes, row)
 	}
-	return map[string]any{"master": map[string]any{"id": self, "number": number}, "nodes": nodes,
-		"cluster": map[string]any{"name": ClusterName(e.DB), "machines": len(nodes)}}, rs.Err()
+	out := map[string]any{"master": map[string]any{"id": self, "number": number}, "nodes": nodes,
+		"cluster": map[string]any{"name": ClusterName(e.DB), "machines": len(nodes)}}
+	if e.NodePlacement != nil && e.NodeManual != nil {
+		agents := []any{}
+		for _, a := range e.listAgents() {
+			pl, err := e.NodePlacement(a)
+			if err != nil { // one agent's row says it, and the others still show
+				pl = map[string]any{"agent": a, "device": self, "why": "where it starts could not be read: " + err.Error(), "heavy_s": 0, "memory_peak": 0}
+			}
+			agents = append(agents, pl)
+		}
+		mode := "auto"
+		if e.NodeManual() {
+			mode = "manual"
+		}
+		out["placement"] = map[string]any{"mode": mode, "agents": agents}
+	}
+	return out, rs.Err()
 }
 
 // ClusterName is the cluster's name (cluster_name, the board's); "" with no board or before the daemon's start gave it one.

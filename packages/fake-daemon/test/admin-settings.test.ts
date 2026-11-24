@@ -22,6 +22,7 @@ const KEYS = [
   'push_only_away',
   'push_sound',
   'account_split',
+  'agent_placement',
   'review_flow',
   'pace_target_pct',
   'pace_burst_pct',

@@ -922,6 +922,64 @@
       },
       "cluster": {
        "$ref": "#/components/schemas/Cluster"
+      },
+      "placement": {
+       "type": "object",
+       "description": "Where each agent's next session starts and why (docs/story4-design.md section 7). Absent on a daemon that does not place agents.",
+       "properties": {
+        "mode": {
+         "type": "string",
+         "enum": [
+          "auto",
+          "manual"
+         ],
+         "description": "The agent_placement setting."
+        },
+        "agents": {
+         "type": "array",
+         "description": "One row per agent of this home.",
+         "items": {
+          "type": "object",
+          "properties": {
+           "agent": {
+            "type": "string",
+            "description": "The agent's name."
+           },
+           "device": {
+            "type": "string",
+            "description": "The node id its next session starts on: the master's own while it stays."
+           },
+           "why": {
+            "type": "string",
+            "description": "Why it is placed so, in words a person reads (\"heavy: check.sh 18 h this week\", \"heavy: ...; Studio needs pencil, so it stays here\", \"pinned to Studio\"); \"\" for a light agent on the master's machine."
+           },
+           "heavy_s": {
+            "type": "integer",
+            "description": "Seconds its heavy commands ran in its last 7 days."
+           },
+           "memory_peak": {
+            "type": "integer",
+            "description": "The most bytes its processes held in one minute in its last 7 days."
+           },
+           "pin": {
+            "type": "string",
+            "description": "The device it is pinned to (its device setting), kept on auto too; absent for none."
+           }
+          },
+          "required": [
+           "agent",
+           "device",
+           "why",
+           "heavy_s",
+           "memory_peak"
+          ]
+         }
+        }
+       },
+       "required": [
+        "mode",
+        "agents"
+       ]
       }
      },
      "required": [
