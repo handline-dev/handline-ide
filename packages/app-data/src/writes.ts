@@ -164,12 +164,8 @@ const settings: Record<string, Patch> = {
       const { agent, values } = as<{ agent: string; values: object }>(p);
       edit<{ settings?: object }>(c.qc, qk.agent(c.d, agent), (a) => ({ ...a, settings: { ...a.settings, ...values } }));
     },
-    // The strip's numbers and a pin's node.status ride no event of their own: read them again.
-    reconcile: (c, p) => {
-      const { agent, values } = as<{ agent: string; values: object }>(p);
-      void c.qc.invalidateQueries({ queryKey: keyOf(c.d, 'agent.strip', { agent }) });
-      if ('device' in values) void c.qc.invalidateQueries({ queryKey: qk.resource(c.d, 'node.status') });
-    },
+    // The strip's numbers (the context maximum among them) come from the settings but ride no event of their own: read them again.
+    reconcile: (c, p) => void c.qc.invalidateQueries({ queryKey: keyOf(c.d, 'agent.strip', { agent: as<{ agent: string }>(p).agent }) }),
   },
   // A shared run's turns show on lease.get as well as run.list.
   'run.set': { touches: (d) => [qk.resource(d, 'run.list'), qk.resource(d, 'lease.get')] },
@@ -182,11 +178,6 @@ const settings: Record<string, Patch> = {
       const { agent, changes } = as<{ agent?: string; changes: PageSettings }>(p);
       const set = Object.fromEntries(Object.entries(changes).filter(([, v]) => v !== null));
       if (!agent) edit<Settings>(c.qc, qk.resource(c.d, 'settings.get'), (s) => ({ ...s, values: { ...s.values, ...set } }));
-    },
-    // agent_placement moves agents on node.status, which rides no event for it: read it again.
-    reconcile: (c, p) => {
-      if ('agent_placement' in as<{ changes: object }>(p).changes)
-        void c.qc.invalidateQueries({ queryKey: qk.resource(c.d, 'node.status') });
     },
   },
   'prefs.set': {
