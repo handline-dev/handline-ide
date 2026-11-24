@@ -11,12 +11,11 @@ import { DocTab } from '#src/tools/DocTab.tsx';
 import { ProposalView } from '#src/requests/ProposalView.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
-import { RequestsTab } from '#src/requests/RequestsTab.tsx';
 import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
 import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
-import { Usage } from '#src/usage/Usage.tsx';
 import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
+import { PageTab } from '#src/layout/pageTab.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
@@ -298,9 +297,8 @@ function PaneView({
               {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}
               {current?.opens?.startsWith('proposal:') && <ProposalView key={current.opens} id={Number(current.opens.slice(9))} />}
               {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
-              {current?.opens === 'usage' && <Usage />}
+              <PageTab opens={current?.opens} />
               {opened(current?.opens ?? '', 'ws') && <WorkspacePage key={current!.opens} ws={opened(current!.opens!, 'ws')!} />}
-              {current?.opens === 'requests' && <RequestsTab />}
               {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
             </PaneOpen.Provider>
           </TabScope>

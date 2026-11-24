@@ -10,6 +10,7 @@ import { PROPOSAL_SEEDS } from '#src/seeds-proposals.ts';
 import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
 import { STORY_SEEDS } from '#src/seeds-story.ts';
 import { TURN_SEEDS } from '#src/seeds-turns.ts';
+import { TOWN_SEEDS } from '#src/seeds-town.ts';
 
 const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
@@ -414,6 +415,7 @@ export const SEEDS: Record<string, Seed> = {
     installTool(d, { tool: 'git' });
     endInstall(d, 'git', false);
   },
+  ...TOWN_SEEDS,
 };
 
 const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();

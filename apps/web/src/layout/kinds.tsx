@@ -5,6 +5,7 @@ import {
   FileText,
   Globe,
   Gauge,
+  House,
   Inbox,
   SlidersHorizontal,
   Settings,
@@ -14,28 +15,31 @@ import {
   Plus,
   Smartphone,
   SquareTerminal,
+  type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { workspaceIcon } from '#src/workspace/icon.tsx';
 
 /** Every kind of tab: its title and icon, shown alike in the tab bar, the + menu and an Empty tab's picker. */
+const tab = (label: string, Icon: LucideIcon) => ({ label, icon: <Icon size={14} /> });
 const kinds: Record<string, { label: string; icon: ReactNode }> = {
-  chat: { label: 'Chat', icon: <MessageSquare size={14} /> },
+  chat: tab('Chat', MessageSquare),
   workspace: { label: 'Workspace', icon: workspaceIcon },
-  shell: { label: 'Agent terminal', icon: <SquareTerminal size={14} /> },
-  newshell: { label: 'Terminal', icon: <SquareTerminal size={14} /> },
-  diff: { label: 'Changes', icon: <FileDiff size={14} /> },
-  tasks: { label: 'Tasks', icon: <ListTodo size={14} /> },
-  plan: { label: 'Plan', icon: <Workflow size={14} /> },
-  markdown: { label: 'Markdown', icon: <FileText size={14} /> },
-  web: { label: 'Web', icon: <Globe size={14} /> },
-  android: { label: 'Android', icon: <Smartphone size={14} /> },
-  ios: { label: 'iOS', icon: <Smartphone size={14} /> },
-  requests: { label: 'Requests', icon: <Inbox size={14} /> },
-  usage: { label: 'Usage', icon: <Gauge size={14} /> },
-  settings: { label: 'Settings', icon: <Settings size={14} /> },
-  preferences: { label: 'Settings', icon: <SlidersHorizontal size={14} /> },
-  help: { label: 'Help', icon: <CircleHelp size={14} /> },
+  shell: tab('Agent terminal', SquareTerminal),
+  newshell: tab('Terminal', SquareTerminal),
+  diff: tab('Changes', FileDiff),
+  tasks: tab('Tasks', ListTodo),
+  plan: tab('Plan', Workflow),
+  markdown: tab('Markdown', FileText),
+  web: tab('Web', Globe),
+  android: tab('Android', Smartphone),
+  ios: tab('iOS', Smartphone),
+  requests: tab('Requests', Inbox),
+  usage: tab('Usage', Gauge),
+  town: tab('Town', House),
+  settings: tab('Settings', Settings),
+  preferences: tab('Settings', SlidersHorizontal),
+  help: tab('Help', CircleHelp),
 };
 
 /** Another agent's chat, dragged in from the sidebar, opens `chat:<name>`. */
@@ -135,5 +139,5 @@ export const iconOf = (kind?: string): ReactNode => {
 };
 
 /** The sidebar's pages: above the agents, and at the bottom (the app's settings and help). */
-export const pages = ['tasks', 'requests', 'usage'].map((kind) => ({ kind, ...kinds[kind] }));
+export const pages = ['tasks', 'requests', 'usage', 'town'].map((kind) => ({ kind, ...kinds[kind] }));
 export const footerPages = ['preferences', 'help'].map((kind) => ({ kind, ...kinds[kind] }));
