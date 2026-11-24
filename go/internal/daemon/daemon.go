@@ -700,6 +700,13 @@ func (d *Daemon) accountAdded(name string) {
 	}
 }
 
+// nodesChanged sends nodes.changed: node.status reads anew.
+func (d *Daemon) nodesChanged() {
+	if _, err := d.hub.Append(stream.Entry{Topic: "nodes", Type: "nodes.changed", Data: map[string]any{}}); err != nil {
+		d.cfg.Log("  stream: nodes.changed: %v", err)
+	}
+}
+
 // writeRegistrars are the packages that register methods once the hooks are wired, one per line in alphabetical order of the package: a port
 // adds its line at its own place, so two ports do not edit the same spot and git merges them.
 func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
@@ -712,7 +719,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 		},
 		func(s *rpc.Server) {
 			adminwrites.Register(s, &adminwrites.Env{DB: d.db, Home: d.cfg.Home, Logins: d.logins, Changed: d.accountAdded,
-				LabelKey: (&reads.Env{DB: d.db, Home: d.cfg.Home}).LabelKey, Network: d.networkSetting()})
+				NodesChanged: d.nodesChanged, LabelKey: (&reads.Env{DB: d.db, Home: d.cfg.Home}).LabelKey, Network: d.networkSetting()})
 		},
 		func(s *rpc.Server) {
 			attachments.Register(s, attachments.New(d.cfg.Home), func(topic, typ string, data map[string]any) error {

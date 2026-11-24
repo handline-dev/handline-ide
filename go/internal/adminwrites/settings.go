@@ -270,6 +270,12 @@ func (e *Env) settingsSet(c *rpc.Conn, p map[string]any) (any, error) {
 	if hasAgent {
 		out += " for " + agent
 	}
+	_, placed := changes[placement.Key]
+	_, build := changes[nodes.BuildAutoKey]
+	_, named := changes[settings.ClusterNameKey]
+	if (placed || build || named) && e.NodesChanged != nil {
+		e.NodesChanged()
+	}
 	var more map[string]any
 	if _, moved := changes[usage.NetworkAddressesKey]; moved && e.Network != nil {
 		more = map[string]any{"unreachable_devices": e.Network.Relisten()}
