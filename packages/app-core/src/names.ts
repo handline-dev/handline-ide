@@ -4,7 +4,7 @@ import type { AgentView, Person, Workspace } from '@handline/client';
 
 /** The three lists the app keeps cached: agents.list, people.list and workspaces.list. */
 export interface Directory {
-  agents: readonly Pick<AgentView, 'key' | 'name' | 'workspace'>[];
+  agents: readonly Pick<AgentView, 'key' | 'name' | 'workspace' | 'hired_from'>[];
   people: readonly Person[];
   workspaces: readonly Workspace[];
 }
@@ -27,6 +27,7 @@ function agentWord(d: Directory, a: Pick<AgentView, 'key' | 'name' | 'workspace'
  * name, a workspace's name, `task-board` for the daemon. A key the lists do not hold yet is shown as it is. */
 export function nameOf(d: Directory, key: string, here?: string): string {
   const a = d.agents.find((x) => x.key === key);
+  if (a?.hired_from) return nameOf(d, a.hired_from, here);
   if (a) return agentWord(d, a, here);
   const p = d.people.find((x) => x.key === key);
   if (p) return p.display_name;

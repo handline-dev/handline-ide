@@ -1,3 +1,4 @@
+import { WorkTab } from '#src/chat/agent/WorkTab.tsx';
 import { MAC, primaryMod } from '#src/ui/keys.ts';
 import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
@@ -275,6 +276,7 @@ function PaneView({
               )}
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('plan:') && <PlanTab key={current.opens} id={Number(current.opens.slice(5))} />}
+              {opened(current?.opens ?? '', 'work') && <WorkTab key={current!.opens} at={opened(current!.opens!, 'work')!} />}
               {current?.opens?.startsWith('code:') && <CodeTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {shown?.startsWith('file:') && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} start={shown.slice(5)} />}
               {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}

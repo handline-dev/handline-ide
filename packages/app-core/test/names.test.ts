@@ -24,6 +24,11 @@ test('a key reads as an agent by its name, or workspace/name when two share it, 
   );
 });
 
+test('a seat (hired_from) reads as the agent it works for', () => {
+  const seats = { ...dir, agents: [...dir.agents, { key: 'a7', name: 'a7', workspace: 'w2', hired_from: 'a5' }] };
+  assert.equal(nameOf(seats, 'a7'), 'auditor');
+});
+
 test('inside its own workspace an agent reads by its name alone', () => {
   assert.deepEqual(
     ['a1', 'a2', 'a3'].map((k) => nameOf(dir, k, 'w1')),

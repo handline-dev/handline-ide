@@ -105,6 +105,9 @@ export const qk = {
   chatMessagesOf: (d: string, agent: string) => [...resourceKey(d, 'chat.messages'), agent] as const,
   chatMessages: (d: string, agent: string, scope: string) => [...resourceKey(d, 'chat.messages'), agent, scope] as const,
   transcript: (d: string, agent: string) => keyOf(d, 'chat.transcript', { agent }),
+  /** A seat's conversation for one task (chat.transcript with task), apart from its agent-wide transcript. */
+  workOf: (d: string, seat: string) => [...resourceKey(d, 'chat.transcript'), 'work', seat] as const,
+  work: (d: string, seat: string, task: number) => [...qk.workOf(d, seat), task] as const,
   /** Every workspace's kept rules, the machine default's among them. */
   allRules: (d: string) => ['d', d, 'workspace.rules'] as const,
   /** A workspace's kept rules; null for the machine default's. */

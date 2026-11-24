@@ -35,11 +35,17 @@ export function useRead<M extends ReadMethod>(
   });
 }
 
-export const useAgents = () => useRead('agents.list', {});
+/** The agents, without seats (hired_from: a temp beside an agent's own work), which show only under their agent's name. */
+export function useAgents(): ReadResult<'agents.list'> {
+  const q = useRead('agents.list', {});
+  const all = q.data;
+  const data = useMemo(() => all && { ...all, agents: all.agents.filter((a) => !a.hired_from) }, [all]);
+  return { ...q, data } as ReadResult<'agents.list'>;
+}
 
 /** The three lists every key is written out through (app-core names.ts); a list not read yet is empty, so its keys show as they are. */
 export function useDirectory(): Directory {
-  const agents = useAgents().data?.agents;
+  const agents = useRead('agents.list', {}).data?.agents; // seats too: nameOf writes a seat's key as its agent
   const people = useRead('people.list', {}).data?.people;
   const workspaces = useRead('workspaces.list', {}).data?.workspaces;
   return useMemo(

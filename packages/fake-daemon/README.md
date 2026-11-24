@@ -26,6 +26,7 @@ A name that does not exist is an error.
 | `founder-turn` | What waits on the founder (a decision, a question, a daemon warning): Requests' first section and the bell. |
 | `paused` | This machine is paused and holds T8642 from `handline.auditor`: its chat ends in the pause card; `daemon.resume` and `task.send_now` are served. |
 | `starting` | `handline.auditor` is starting a session for its work: its chat foot says "Starting in a moment" with the waking mark. |
+| `alongside` | `handline.architect` with two tasks done beside its own by its seats `a7` (T9460, running) and `a8` (T9458, done): start and end lines in its chat; `a7` has its record of T9460. |
 | `pictures` | T9302 with a comment of five pasted pictures, on one line and on lines of their own: one row that wraps. |
 | `agent-usage` | `handline.architect` hit the session limit (`needs_you` kind usage): its chat shows the needs-you card. |
 | `proposal-apply-failed` | An approved proposal for `handline.architect` that did not apply, with the daemon's raw error: the chat card shows one line and the words behind Details. |

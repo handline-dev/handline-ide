@@ -40,6 +40,7 @@ export interface AgentFixture {
       | 'doing'
       | 'background'
       | 'servers'
+      | 'hired_from'
     >
   >;
 }

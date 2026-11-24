@@ -16,11 +16,16 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 import { clock, useNow } from '#src/format/time.ts';
 import { spring } from '#src/motion.ts';
 import { CommandsOf } from '#src/chat/CommandBlock.tsx';
+import { WorkLine } from '#src/chat/agent/WorkLine.tsx';
+export { endedWork } from '#src/chat/agent/WorkLine.tsx';
 
 /** Whether a line draws nothing (what others said to the agent, an empty item): the rules ChatLine follows, so a run of task
  * cards is not cut by a line nobody sees. */
 export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
-  if (e.kind === 'item') return !e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed;
+  if (e.kind === 'item')
+    return (
+      !e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed && !e.item.concurrent_work
+    );
   if (e.kind === 'proposal') return true;
   // The daemon's own bookkeeping (sys digests and nudges) is not shown anywhere.
   if (isSystem(e.message.from)) return true;
@@ -45,6 +50,7 @@ export function ChatLine({
   parentText,
   bash,
   moveNote,
+  workOver,
   fade: fades = true,
 }: {
   e: TimelineEntry;
@@ -57,6 +63,8 @@ export function ChatLine({
   bash?: TranscriptItem;
   /** For a Moved to line: the handoff note of the session the move started. */
   moveNote?: string | null;
+  /** For a start line of work beside the agent's own: that work has ended (its end line is in the chat). */
+  workOver?: boolean;
   fade?: boolean;
 }) {
   const key = `${e.kind}:${e.id}`;
@@ -68,6 +76,12 @@ export function ChatLine({
     return (
       <motion.div data-id={key} {...fade}>
         <CompactionLine at={e.at} {...e.item.session} />
+      </motion.div>
+    );
+  if (e.kind === 'item' && e.item.concurrent_work)
+    return (
+      <motion.div data-id={key} {...fade} className="flex">
+        <WorkLine work={e.item.concurrent_work} at={e.at} over={!!workOver} />
       </motion.div>
     );
   if (e.kind === 'item' && (e.item.account_moved || e.item.move_failed))

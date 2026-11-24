@@ -38,7 +38,7 @@ import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
 import { onePerTask, TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
-import { ChatLine, drawsNothing, type Reply } from '#src/chat/ChatLine.tsx';
+import { ChatLine, drawsNothing, endedWork, type Reply } from '#src/chat/ChatLine.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
@@ -356,8 +356,9 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // The words of each loaded message, for the line above a reply.
   const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
   const tasks = useTaskActivity(agent);
+  const ended = endedWork(entries);
   // Each task once, as a row at the newest thing on it: a change or a comment.
-  const rows = onePerTask(runs(foldTurns(entries), agent, me, nameOf, tasks)); // a task shows once, in the newest card it is in
+  const rows = onePerTask(runs(foldTurns(entries), agent, me, nameOf, tasks));
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
     margin: 400,
@@ -413,6 +414,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                     parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
                     bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
                     moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
+                    workOver={r.kind === 'item' && !!r.item.concurrent_work && ended.has(r.item.concurrent_work.task_id)}
                     fade={i > known(all)}
                   />
                 ),

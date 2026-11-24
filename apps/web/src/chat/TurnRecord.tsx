@@ -53,7 +53,7 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
 }
 
 /** A tool call as `Tool text` in mono, a permission ask in words, the agent's text as it wrote it. */
-function Step({ i }: { i: TranscriptItem }) {
+export function Step({ i }: { i: TranscriptItem }) {
   if (i.kind === 'reply') return <div className="min-w-0 text-sm text-muted">{i.text && <Markdown text={i.text} />}</div>;
   const text =
     i.kind === 'prompt'

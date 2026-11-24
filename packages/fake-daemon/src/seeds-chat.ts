@@ -3,6 +3,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import type { TranscriptItem } from '@handline/client';
 import type { FakeDaemon } from '#src/daemon.ts';
 import { task } from '#src/seedkit.ts';
+import { newSession } from '#src/session.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
@@ -44,6 +45,26 @@ const sampleHandoff = [
 ].join('\n');
 
 export const CHAT_SEEDS: Record<string, Seed> = {
+  /** handline.architect works with two tasks beside its own, done by its seats a7 (T9460, running) and a8 (T9458, done): a line at
+   * each start and end in its chat; a7's record of T9460 reads as chat.transcript with agent a7. */
+  alongside: (d) => {
+    const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+    for (const [seat, id, title] of [['a7', 9460, 'Tab bar dimming'], ['a8', 9458, 'Spinner sizes']] as const) {
+      task(d, id, { id, from: ME, to: ARCH, title, state: id === 9458 ? 'done' : 'doing' });
+      d.sessions.set(seat, newSession({ ...d.sessions.get(ARCH)!.fx, name: seat, view: { hired_from: ARCH } }, ago(10)));
+    }
+    d.chat.seedItem(ARCH, { kind: 'reply', text: 'Checking each settings page in dark…', at: ago(9) });
+    d.chat.seedItem(ARCH, { kind: 'concurrent_work', concurrent_work: { task_id: 9458, seat: 'a8', phase: 'started' }, at: ago(8) });
+    d.chat.seedItem(ARCH, { kind: 'concurrent_work', concurrent_work: { task_id: 9460, seat: 'a7', phase: 'started' }, at: ago(3) });
+    d.chat.seedItem(ARCH, {
+      kind: 'concurrent_work',
+      concurrent_work: { task_id: 9458, seat: 'a8', phase: 'ended', ended: 'done' },
+      at: ago(1),
+    });
+    d.chat.seedItem('a7', { kind: 'tool', tool: 'Read', text: 'src/Workspace.tsx', at: ago(3) });
+    d.chat.seedItem('a7', { kind: 'reply', text: 'The dimmed tab bar uses opacity; switching it to the unfocused colours.', at: ago(2) });
+    d.chat.seedItem('a7', { kind: 'tool', tool: 'Edit', text: 'src/styles.css', at: ago(2) });
+  },
   /** Two restarts back to back for changed team rules, as the daemon words them: the chat shows one line. */
   restarts: (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

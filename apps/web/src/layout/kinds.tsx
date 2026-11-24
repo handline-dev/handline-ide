@@ -77,9 +77,11 @@ export const textOf = (when: string, name: string) => `text:${when}/${name}`;
 export const docOf = (id: string, name: string) => `doc:${id}/${name}`;
 /** An HR proposal's detail (requests/ProposalView): `proposal:41`. */
 export const proposalOf = (id: number) => `proposal:${id}`;
+/** What a seat of an agent did for a task beside the agent's own work (chat/agent/WorkTab), read only: `work:<seat>/<task>`. */
+export const workOf = (seat: string, task: number) => `work:${seat}/${task}`;
 /** A workspace's page. */
 export const workspaceOf = (key: string) => `ws:${key}`;
-export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws') =>
+export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws' | 'work') =>
   kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
@@ -88,6 +90,8 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (task) return { label: `T${task}`, icon: kinds.tasks.icon };
   const plan = opened(kind, 'plan');
   if (plan) return { label: `Plan · T${plan}`, icon: kinds.plan.icon };
+  const work = opened(kind, 'work');
+  if (work) return { label: `T${work.slice(work.indexOf('/') + 1)}`, icon: kinds.chat.icon };
   const code = opened(kind, 'code');
   if (code) return { label: `T${code} Code`, icon: kinds.diff.icon };
   const web = opened(kind, 'web');
