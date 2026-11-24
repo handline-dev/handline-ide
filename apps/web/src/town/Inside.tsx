@@ -85,6 +85,8 @@ function groundOf(pic: Picture, frame: Frame, room: Room): Ground {
     kinds: frame.meta.map((m) => m.kind),
     floor: floorOf(room.w, room.d, frame.solid),
     entry: room.entry,
+    speed: 1.4,
+    stride: 0.16,
     toPixel: frame.toPixel,
     toFloor,
     depthOf: (x, y, z) => -new Vector3(x, y, z).applyMatrix4(toCamera).z,
@@ -133,7 +135,11 @@ export function Inside({
   const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
-  const { me, go } = useWalker(drawn?.ground ?? null, house.key);
+  // Walking up into the door goes back out to the city.
+  const { me, go } = useWalker(drawn?.ground ?? null, house.key, ([x, z], [, dz]) => {
+    const entry = drawn?.ground.entry;
+    if (entry && dz < 0 && Math.abs(x - entry[0]) < 0.35 && z < entry[1]) onBack();
+  });
   const near = me && drawn ? nearOf(drawn.cast, me.at) : null;
   const nearPerson = near && near !== 'mine' ? (house.people.find((p) => p.key === near) ?? null) : null;
   const font = 11 / scale; // names stay 11px on screen whatever the scale

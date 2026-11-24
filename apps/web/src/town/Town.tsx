@@ -10,6 +10,8 @@ import { useRequests } from '#src/requests/data.ts';
 import { townOf, type House } from '#src/town/model.ts';
 import { Decisions, Panel } from '#src/town/panel.tsx';
 import { Inside } from '#src/town/Inside.tsx';
+import { CityFounder, useWalker } from '#src/town/founder.tsx';
+import { CITY_TALL, cityWalk, doorOf, lotAbove } from '#src/town/cityWalk.ts';
 import { CARS, cityOf, draw, HQ, seatsOf, SHEET, T, windowsOf, type Art, type City, type Lot } from '#src/town/city.ts';
 
 const MAX_CARS = 8;
@@ -72,6 +74,24 @@ export function TownTab() {
   const working = town.houses.reduce((n, h) => n + h.working, 0);
   const W = city.w * T;
   const H = city.h * T;
+  // The founder starts in the city at the HQ's door, and comes back out of a house at its own.
+  const [left, setLeft] = useState<string>(HQ);
+  // Laid out again only when the buildings move, not on each render.
+  const plan = `${city.w}x${city.h} ${city.lots.map((l) => `${l.key}:${l.x}:${l.y}:${l.w}:${l.h}`).join(' ')}`;
+  const walk = useMemo(
+    () =>
+      cityWalk(
+        city,
+        city.lots.find((l) => l.key === left),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `plan` is all of the city the walk depends on
+    [plan, left],
+  );
+  const enter = (key: string) => (key === HQ ? setPicked(HQ) : (setLeft(key), setPicked(key)));
+  const { me, go } = useWalker(house ? null : walk, 'city', (at, [, dy]) => {
+    const lot = dy < 0 ? lotAbove(city, at) : undefined;
+    if (lot) enter(lot.key);
+  });
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 bg-bg">
@@ -95,7 +115,20 @@ export function TownTab() {
               role="img"
               aria-label="Your team as a city"
             >
-              {picture && <image href={picture} width={W} height={H} style={PIXEL} />}
+              {picture && (
+                <image
+                  href={picture}
+                  width={W}
+                  height={H}
+                  style={PIXEL}
+                  onClick={(e) => {
+                    const m = e.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();
+                    if (!m) return;
+                    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
+                    go([p.x / T, p.y / T]);
+                  }}
+                />
+              )}
               {picture && <Traffic cars={Math.min(working, MAX_CARS)} roads={city.roads} w={W} h={H} />}
               {city.lots.map((lot) => {
                 const h = lot.key === HQ ? null : houseOf(lot.key);
@@ -109,10 +142,11 @@ export function TownTab() {
                     waiting={h ? h.people.filter((p) => p.activity === 'you').length : 0}
                     more={h ? Math.max(0, h.people.length - seatsOf(lot.w)) : 0}
                     picked={picked === lot.key}
-                    onPick={() => setPicked(lot.key)}
+                    onPick={() => go(doorOf(lot), () => enter(lot.key))}
                   />
                 );
               })}
+              {me && <CityFounder me={me} tile={T} tall={CITY_TALL} stride={walk.stride} />}
             </svg>
           </div>
           <Legend windows={art?.windows} />

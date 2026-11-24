@@ -1,33 +1,34 @@
-// Where the founder can walk in an office: the floor as a grid of 5 cm cells, blocked where furniture stands (with room for the body),
-// the shortest way to a clicked spot, and a step for held keys that slides along what it meets.
+// Where the founder can walk, in an office (metres) or the city (tiles): the ground as a grid of small cells, blocked where something
+// stands (with room for the body), the shortest way to a clicked spot, and a step for held keys that slides along what it meets.
 
-/** A footprint on the floor, in metres. */
+/** A footprint on the ground. */
 export type Rect = { x0: number; z0: number; x1: number; z1: number };
-export type Floor = { cols: number; rows: number; free: Uint8Array };
+export type Floor = { cols: number; rows: number; cell: number; free: Uint8Array };
 export type Spot = [number, number];
 
-const CELL = 0.05;
-const BODY = 0.12; // how far the body keeps from anything
-const BACK = 0.12; // the baseboard along the back wall
+/** `cell`: the grid's step; `body`: how far the body keeps from anything; `top`: what is blocked along the top edge (an office's
+ *  baseboard). The defaults are an office's, in metres. */
+export type Grid = { cell: number; body: number; top: number };
+const OFFICE: Grid = { cell: 0.05, body: 0.12, top: 0.12 };
 
-export function floorOf(w: number, d: number, solid: readonly Rect[]): Floor {
-  const [cols, rows] = [Math.ceil(w / CELL), Math.ceil(d / CELL)];
+export function floorOf(w: number, d: number, solid: readonly Rect[], { cell, body, top }: Grid = OFFICE): Floor {
+  const [cols, rows] = [Math.ceil(w / cell), Math.ceil(d / cell)];
   const free = new Uint8Array(cols * rows);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const [x, z] = [(c + 0.5) * CELL, (r + 0.5) * CELL];
-      const inside = x > BODY && x < w - BODY && z > BACK + BODY && z < d - BODY;
-      free[r * cols + c] = inside && !solid.some((s) => x > s.x0 - BODY && x < s.x1 + BODY && z > s.z0 - BODY && z < s.z1 + BODY) ? 1 : 0;
+      const [x, z] = [(c + 0.5) * cell, (r + 0.5) * cell];
+      const inside = x > body && x < w - body && z > top + body && z < d - body;
+      free[r * cols + c] = inside && !solid.some((s) => x > s.x0 - body && x < s.x1 + body && z > s.z0 - body && z < s.z1 + body) ? 1 : 0;
     }
   }
-  return { cols, rows, free };
+  return { cols, rows, cell, free };
 }
 
 const cellOf = (f: Floor, [x, z]: Spot): [number, number] => [
-  Math.min(f.cols - 1, Math.max(0, Math.floor(x / CELL))),
-  Math.min(f.rows - 1, Math.max(0, Math.floor(z / CELL))),
+  Math.min(f.cols - 1, Math.max(0, Math.floor(x / f.cell))),
+  Math.min(f.rows - 1, Math.max(0, Math.floor(z / f.cell))),
 ];
-const centre = (c: number, r: number): Spot => [(c + 0.5) * CELL, (r + 0.5) * CELL];
+const centreOf = (f: Floor, c: number, r: number): Spot => [(c + 0.5) * f.cell, (r + 0.5) * f.cell];
 export const freeAt = (f: Floor, at: Spot) => {
   const [c, r] = cellOf(f, at);
   return f.free[r * f.cols + c] === 1;
@@ -46,14 +47,14 @@ export function nearestFree(f: Floor, at: Spot): Spot | null {
         if (!best || d < best[2]) best = [c, r, d];
       }
     }
-    if (best) return k === 0 ? at : centre(best[0], best[1]);
+    if (best) return k === 0 ? at : centreOf(f, best[0], best[1]);
   }
   return null;
 }
 
 /** Whether a straight walk from a to b stays on free cells. */
 function clear(f: Floor, a: Spot, b: Spot): boolean {
-  const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (CELL / 2));
+  const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (f.cell / 2));
   for (let i = 1; i <= n; i++) if (!freeAt(f, [a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n])) return false;
   return true;
 }
@@ -101,7 +102,7 @@ export function pathTo(f: Floor, from: Spot, to: Spot): Spot[] | null {
   }
   if (cost[target] === Infinity) return null;
   const cells: Spot[] = [];
-  for (let i = target; i !== -1; i = prev[i]) cells.unshift(centre(i % f.cols, Math.floor(i / f.cols)));
+  for (let i = target; i !== -1; i = prev[i]) cells.unshift(centreOf(f, i % f.cols, Math.floor(i / f.cols)));
   cells[cells.length - 1] = goal;
   const turns: Spot[] = [];
   let at = from;
