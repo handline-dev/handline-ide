@@ -1,23 +1,43 @@
 # How much the web app draws in everyday scenarios (apps/web/scripts/perf/run.ts), checked against apps/web/perf-budget.json:
-# nightly (about 18:30 UTC) and on a manual run only, not on pull requests. Headless Chrome only.
+# on the first push to main of each UTC day and on a manual run only, not on pull requests. Headless Chrome only.
 # A failed run comments on one open issue titled "Nightly perf run failed" (opened if none), so a bad week is one thread.
 name: perf
 
 on:
-  schedule:
-    - cron: '30 18 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: perf-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
   contents: read
   issues: write
 
 jobs:
+  due:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.d.outputs.run }}
+    steps:
+      - id: d
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub's cron never ran in this repository, so the daily run is the first push of a UTC day: the head before it was committed on an earlier day.
+          # A manual run always goes.
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            day="$(gh api "repos/$GITHUB_REPOSITORY/commits/${{ github.event.before }}" --jq '.commit.committer.date[:10]' 2>/dev/null || true)"
+            [ "$day" != "$(date -u +%F)" ] || run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   web:
+    needs: due
+    if: needs.due.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

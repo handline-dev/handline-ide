@@ -1,14 +1,15 @@
 # The Mac app on GitHub Releases, one rolling prerelease per channel at a fixed tag (mac-canary, mac-nightly, mac-stable), each with an Apple silicon
 # and an Intel dmg and zip and the file each architecture's app reads (latest-mac.yml, latest-x64-mac.yml).
 # The version is one above the highest on any of the three releases, so it never goes back (a run number restarts in a new repository).
-#   canary  every 30 minutes, nightly every night: only when main has commits the last build of the channel lacks (a manual run always builds);
+#   a push to main builds: the Nightly when the last one is 20 hours old, else the Canary, and not when the channel's last build already has that commit (a manual
+#   run always builds the channel and commit it names; GitHub's own cron never ran in this repository). One build runs per channel and one waits, a newer push
+#   replacing the one waiting.
 #   stable  by hand: the current Nightly's commit built again under its version, so a Stable dmg reads Stable updates.
 name: mac-release
 
 on:
-  schedule:
-    - cron: '7,37 * * * *'
-    - cron: '47 18 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       channel:
@@ -21,7 +22,7 @@ on:
         default: main
 
 concurrency:
-  group: mac-release-${{ inputs.channel || (github.event.schedule == '47 18 * * *' && 'nightly' || 'canary') }}
+  group: mac-release-${{ inputs.channel || 'canary' }}
   cancel-in-progress: false
 
 permissions:
@@ -37,17 +38,20 @@ jobs:
       version: ${{ steps.p.outputs.version }}
     steps:
       - id: p
-        name: Pick the channel, and build only when main has moved since the channel's last build (a manual run always builds)
+        name: Pick the channel, and build only when the pushed commit is not the channel's last build (a manual run always builds)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.event_name }}" = schedule ]; then
-            if [ "${{ github.event.schedule }}" = '47 18 * * *' ]; then channel=nightly; else channel=canary; fi
+          if [ "${{ github.event_name }}" = push ]; then
+            # The Nightly is due when its yml was last written 20 hours ago or more (or never).
+            last="$(gh release view mac-nightly --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[]|select(.name=="latest-mac.yml").updatedAt' 2>/dev/null || true)"
+            if [ -z "$last" ] || [ $(( $(date +%s) - $(date -d "$last" +%s) )) -ge 72000 ]; then channel=nightly; else channel=canary; fi
+            ref="$GITHUB_SHA"
           else
             channel="${{ inputs.channel }}"
+            ref="${{ inputs.ref }}"
           fi
           build=true
-          ref="${{ inputs.ref || 'main' }}"
           # The next version: one above the highest named by a Mac release, 0.1.1 when there is none.
           top="$(for c in canary nightly stable; do gh release view "mac-$c" --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null; done | sed -n 's/^Handline for Mac 0\.1\.\([0-9][0-9]*\).*/\1/p' | sort -n | tail -1)"
           version="0.1.$(( ${top:-0} + 1 ))"
@@ -57,7 +61,7 @@ jobs:
             ref="$(at nightly)"
             version="$(gh release view mac-nightly --repo "$GITHUB_REPOSITORY" --json name -q .name | sed -n 's/^Handline for Mac \([0-9.]*\).*/\1/p')"
             [ -n "$ref" ] && [ -n "$version" ] || { echo "there is no Nightly to make Stable from"; exit 1; }
-          elif [ "${{ github.event_name }}" = schedule ]; then
+          elif [ "${{ github.event_name }}" = push ]; then
             [ "$(at "$channel")" != "$GITHUB_SHA" ] || build=false
           fi
           { echo "build=$build"; echo "channel=$channel"; echo "ref=$ref"; echo "version=$version"; } >> "$GITHUB_OUTPUT"
