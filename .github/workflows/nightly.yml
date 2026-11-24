@@ -1,16 +1,16 @@
-# The whole Go suite with -race on main's head, nightly (about 19:30 UTC) and on a manual run: a push tests only the modules and
+# The whole Go suite with -race on main's head, on the first push of each UTC day and on a manual run: a push tests only the modules and
 # packages it reaches (tools/go-modules.py), so this is what catches a wrong selection. The same groups and shards as check.yml.
 # A failed run comments on one open issue titled "Nightly Go run failed" (opened if none), naming the sha and the failing packages.
 name: nightly
 
 on:
-  schedule:
-    - cron: '30 19 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: nightly-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
   contents: read
@@ -20,7 +20,27 @@ env:
   HANDLINE_GO_RACE: 1
 
 jobs:
+  due:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.d.outputs.run }}
+    steps:
+      - id: d
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub's cron never ran in this repository, so the daily run is the first push of a UTC day: the head before it was committed on an earlier day.
+          # A manual run always goes.
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            day="$(gh api "repos/$GITHUB_REPOSITORY/commits/${{ github.event.before }}" --jq '.commit.committer.date[:10]' 2>/dev/null || true)"
+            [ "$day" != "$(date -u +%F)" ] || run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   go:
+    needs: due
+    if: needs.due.outputs.run == 'true'
     name: go (${{ matrix.group }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     strategy:
       fail-fast: false
