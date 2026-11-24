@@ -1,7 +1,7 @@
-// The Town tab: the team as a small city from Kenney's Roguelike Modern City tiles (city.ts lays it out and draws it). Every workspace is
-// a building with a window per agent, lit while it works; a building nobody works in goes grey, and cars drive while anyone works. The
-// city fills the pane. The founder's glass HQ holds every decision and the pinned agents. A click on a building goes inside its office
-// (Inside.tsx).
+// The town, over the whole app (town/mode.tsx): the team as a small city from Kenney's Roguelike Modern City tiles (city.ts lays it out
+// and draws it). Every workspace is a building with a window per agent, lit while it works; a building nobody works in goes grey, and
+// cars drive while anyone works. The city fills the pane. The founder's glass HQ holds every decision and the pinned agents. A click on
+// a building goes inside its office (Inside.tsx).
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Hooks, useAgents, useNav } from '@handline/app-data';
 import { taskOf } from '#src/layout/kinds.tsx';
