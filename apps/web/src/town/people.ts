@@ -21,17 +21,19 @@ const TALL: Record<Pose, number[]> = {
   walk_down: [220, 226, 220, 230, 220, 211],
 };
 const PEOPLE = TALL.walk_down.length;
-const SCALE = PERSON_PX / SHEET.walk; // a walking figure of median height stands PERSON_PX tall in the room
+export const SCALE = PERSON_PX / SHEET.walk; // a walking figure of median height stands PERSON_PX tall in the room
 type Pose = (typeof POSES)[number];
 
 /** A box in picture pixels. */
-type Box = { x: number; y: number; w: number; h: number };
-/** What a click opens an agent's chat from, in picture pixels: its figure, or its desk with its chair. */
-export type Spot = Box & { person: Person };
+export type Box = { x: number; y: number; w: number; h: number };
+/** What a click opens an agent's chat from, in picture pixels: its figure, or its desk with its chair; `at` is the floor spot (metres)
+ *  the founder walks to first. */
+export type Spot = Box & { person: Person; at: [number, number] };
 /** A person's name, centred on x with its top at y. */
 export type Name = { person: Person; x: number; y: number };
 /** A person drawn: its cell of the sheet (`col`, `row`) in `box`, and the room's nearer pixels to lay over it, as an image in `front`. */
-export type Figure = { person: Person; col: number; row: number; box: Box; front?: { url: string } & Box };
+/** `z`: how far into the room it stands, so the founder walks in front of or behind it. */
+export type Figure = { person: Person; col: number; row: number; box: Box; z: number; front?: { url: string } & Box };
 /** `mine`: the founder's desk, with where its name goes. */
 export type Cast = {
   figures: Figure[];
@@ -39,7 +41,7 @@ export type Cast = {
   spots: Spot[];
   desks: Spot[];
   names: Name[];
-  mine?: Box & { name: [number, number] };
+  mine?: Box & { name: [number, number]; at: [number, number] };
 };
 
 const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
@@ -69,7 +71,7 @@ function boxOf(pic: Picture, frame: Frame, tag: string): Box | null {
 }
 
 /** The room's pixels inside `box` that `covers` picks, as a small image; none when nothing is picked. */
-function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean): Figure['front'] {
+export function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean): Figure['front'] {
   const [x0, y0] = [Math.max(0, Math.floor(box.x)), Math.max(0, Math.floor(box.y))];
   const [x1, y1] = [Math.min(pic.w, Math.ceil(box.x + box.w)), Math.min(pic.h, Math.ceil(box.y + box.h))];
   if (x1 <= x0 || y1 <= y0) return undefined;
@@ -110,7 +112,7 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const draw = (pose: Pose, cx: number, bottom: number, covers: (i: number) => boolean) => {
       const box = boxFor(pose, cx, bottom);
       const tall = TALL[pose][row] * SCALE;
-      const figure: Figure = { person: p, col: POSES.indexOf(pose), row, box, front: frontOf(pic, box, covers) };
+      const figure: Figure = { person: p, col: POSES.indexOf(pose), row, box, z: place.z, front: frontOf(pic, box, covers) };
       cast.figures.push(figure);
       return { x: cx - box.w / 2, y: bottom - tall, w: box.w, h: tall };
     };
@@ -139,15 +141,20 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     // A sitter sinks into the sofa: only what stands well in front of it hides it.
     const depth = depthAt(place.x, place.z);
     const seen = draw(sofa ? 'sit_mug' : 'walk_down', fx, fy, (i) => pic.depth[i] < depth - (sofa ? 0.6 : 0.08));
-    cast.spots.push({ person: p, ...seen });
+    cast.spots.push({ person: p, ...seen, at: sofa ? [place.x, place.z + 0.55] : [place.x - 0.4, place.z] });
     cast.names.push({ person: p, x: seen.x + seen.w / 2, y: seen.y + seen.h + 1 });
   }
+  /** Behind a desk's chair, where the founder stands to talk. */
+  const behind = (tag: string): [number, number] => {
+    const t = room.things.find((d) => d.model === 'desk' && d.tag === tag);
+    return t ? [t.x + 0.37, t.z + 0.85] : room.entry;
+  };
   for (const person of room.people) {
     const desk = boxOf(pic, frame, `desk:${person.key}`);
-    if (desk) cast.desks.push({ ...desk, person });
+    if (desk) cast.desks.push({ ...desk, person, at: behind(`desk:${person.key}`) });
   }
   const mine = boxOf(pic, frame, MY_DESK);
-  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1] };
+  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: behind(MY_DESK) };
   return cast;
 }
 

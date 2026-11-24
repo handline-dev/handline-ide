@@ -1,6 +1,7 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
 // scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
-// A click on a person or a desk opens that agent's chat.
+// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and opens that
+// agent's chat, one on the founder's own desk opens the decisions.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WebGLRenderer } from 'three';
 import { WORDS } from '#src/town/panel.tsx';
@@ -11,12 +12,18 @@ import { viewOf } from '#src/town/view.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
+import { FounderDrawing, useWalker, type Ground } from '#src/town/founder.tsx';
+import { floorOf, type Spot as FloorSpot } from '#src/town/walk.ts';
+import { Vector3 } from 'three';
+import type { Frame } from '#src/town/scene3d.ts';
+import type { Room } from '#src/town/room.ts';
+import type { Picture } from '#src/town/shade.ts';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 
 let renderer: WebGLRenderer | null = null;
 
-type Drawn = { url: string; w: number; h: number; cast: Cast };
+type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground };
 
 /** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
 const sigOf = (house: House, cols: number) =>
@@ -42,7 +49,7 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
       const canvas = document.createElement('canvas');
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast };
+      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground: groundOf(pic, frame, room) };
       drawings.set(house.key, { sig: sig ?? '', drawn: next });
       setDrawn(next);
     });
@@ -51,6 +58,35 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
     };
   }, [room]); // eslint-disable-line react-hooks/exhaustive-deps -- room changes exactly when sig does
   return drawn;
+}
+
+/** What the founder walks on: the room's footprints as a grid, and the camera's sums both ways. */
+function groundOf(pic: Picture, frame: Frame, room: Room): Ground {
+  const toCamera = frame.camera.matrixWorldInverse;
+  const toFloor = (px: number, py: number): FloorSpot => {
+    // Newton's method on the floor's projection, from the room's middle: it is smooth, so a few steps land within a millimetre.
+    let [x, z] = [room.w / 2, room.d / 2];
+    for (let k = 0; k < 8; k++) {
+      const [ax, ay] = frame.toPixel(x, 0, z);
+      const [bx, by] = frame.toPixel(x + 0.01, 0, z);
+      const [cx, cy] = frame.toPixel(x, 0, z + 0.01);
+      const [j11, j21, j12, j22] = [(bx - ax) / 0.01, (by - ay) / 0.01, (cx - ax) / 0.01, (cy - ay) / 0.01];
+      const det = j11 * j22 - j12 * j21;
+      const [ex, ey] = [px - ax, py - ay];
+      x += (j22 * ex - j12 * ey) / det;
+      z += (-j21 * ex + j11 * ey) / det;
+    }
+    return [x, z];
+  };
+  return {
+    pic,
+    kinds: frame.meta.map((m) => m.kind),
+    floor: floorOf(room.w, room.d, frame.solid),
+    entry: room.entry,
+    toPixel: frame.toPixel,
+    toFloor,
+    depthOf: (x, y, z) => -new Vector3(x, y, z).applyMatrix4(toCamera).z,
+  };
 }
 
 /** The bench width whose room fills a pane of (w, h) the most. */
@@ -95,6 +131,7 @@ export function Inside({
   const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
+  const { me, go } = useWalker(drawn?.ground ?? null, house.key);
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
@@ -116,7 +153,7 @@ export function Inside({
       stroke="transparent"
       strokeWidth={1 / scale}
       className="cursor-pointer hover:stroke-accent"
-      onClick={() => onTalk(s.person)}
+      onClick={() => go(s.at, () => onTalk(s.person))}
     >
       <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
     </rect>
@@ -153,10 +190,27 @@ export function Inside({
               role="img"
               aria-label={`${house.name}'s office`}
             >
-              <image href={drawn.url} width={drawn.w} height={drawn.h} style={PIXEL} />
-              {drawn.cast.figures.map((f) => (
-                <Drawing key={f.person.key} figure={f} />
-              ))}
+              <image
+                href={drawn.url}
+                width={drawn.w}
+                height={drawn.h}
+                style={PIXEL}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
+                }}
+              />
+              {drawn.cast.figures
+                .filter((f) => !me || f.z <= me.at[1])
+                .map((f) => (
+                  <Drawing key={f.person.key} figure={f} />
+                ))}
+              {me && <FounderDrawing me={me} ground={drawn.ground} />}
+              {drawn.cast.figures
+                .filter((f) => me && f.z > me.at[1])
+                .map((f) => (
+                  <Drawing key={f.person.key} figure={f} />
+                ))}
               {drawn.cast.bubbles.map((b) => (
                 <image
                   key={`${b.x},${b.y}`}
@@ -185,7 +239,7 @@ export function Inside({
                     stroke="transparent"
                     strokeWidth={1 / scale}
                     className="cursor-pointer hover:stroke-accent"
-                    onClick={onMail}
+                    onClick={() => drawn.cast.mine && go(drawn.cast.mine.at, onMail)}
                   >
                     <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
                   </rect>

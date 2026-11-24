@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Kind, Room } from '#src/town/room.ts';
 import { PROJECT_GLSL, viewOf, type View } from '#src/town/view.ts';
+import type { Rect } from '#src/town/walk.ts';
 import { colourOf, KIND_COLOUR, LIT_KINDS, WALL_TOP } from '#src/town/palette.ts';
 
 type RGB = [number, number, number];
@@ -14,7 +15,11 @@ const SUN = new THREE.Vector3(0.45, -1, -0.3).normalize(); // from the windows, 
 
 /** What a pixel's object is: a block's kind or a model's name, and the tag the room gave it. */
 export type Meta = { kind: Kind | string; tag?: string };
-export type Frame = View & { base: Uint8Array; light: Uint8Array; info: Float32Array; meta: Meta[] };
+/** `solid`: what stands on the floor, as footprints (the founder walks around them). */
+export type Frame = View & { base: Uint8Array; light: Uint8Array; info: Float32Array; meta: Meta[]; solid: Rect[] };
+
+/** Floor things the founder walks over. */
+const WALK_OVER = new Set(['rugRectangle']);
 
 const loader = new GLTFLoader();
 const models = new Map<string, Promise<THREE.Mesh[]>>();
@@ -146,8 +151,10 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     add(mesh, id, KIND_COLOUR[b.kind], LIT_KINDS.includes(b.kind), pattern, wall ? WALL_TOP : undefined);
   }
   const loaded = await Promise.all(room.things.map((t) => model(t.model)));
+  const solid: Rect[] = [];
   room.things.forEach((t, i) => {
     const id = meta.push({ kind: t.model, tag: t.tag }) - 1;
+    const foot = new THREE.Box3();
     for (const part of loaded[i]) {
       const mesh = new THREE.Mesh(part.geometry);
       mesh.position.set(t.x, t.y ?? 0, t.z);
@@ -156,7 +163,10 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
       const name = (part.material as THREE.MeshStandardMaterial).name;
       const { colour, glow } = colourOf(t, name, (part.material as THREE.MeshStandardMaterial).color);
       add(mesh, id, colour, glow, glow && t.model === 'computerScreen' ? 3 : 0);
+      mesh.updateMatrixWorld();
+      foot.expandByObject(mesh);
     }
+    if (!t.y && !WALK_OVER.has(t.model)) solid.push({ x0: foot.min.x, z0: foot.min.z, x1: foot.max.x, z1: foot.max.z });
   });
 
   const sun = new THREE.DirectionalLight(0xffffff, Math.PI); // Lambert divides by pi: the light buffer holds N·L
@@ -191,6 +201,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     light: run('light', THREE.UnsignedByteType) as Uint8Array,
     info: run('info', THREE.FloatType) as Float32Array,
     meta,
+    solid,
   };
   for (const [, m] of mats) {
     m.base.dispose();

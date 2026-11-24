@@ -12,7 +12,17 @@ export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'glass' | 'frame' | 'sil
 export type Block = { from: [number, number, number]; to: [number, number, number]; kind: Kind; part?: string; tag?: string };
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing; (x, z) on the floor. */
 export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
-export type Room = { w: number; d: number; wallH: number; people: Person[]; things: Thing[]; blocks: Block[]; places: Place[] };
+/** `entry`: where the founder comes in, inside the door. */
+export type Room = {
+  w: number;
+  d: number;
+  wallH: number;
+  people: Person[];
+  things: Thing[];
+  blocks: Block[];
+  places: Place[];
+  entry: [number, number];
+};
 
 export const WALL_H = 1.29;
 export const WALL_T = 0.12;
@@ -111,7 +121,7 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
     .filter((p) => p.activity === 'waking')
     .forEach((p, i) => places.push({ person: p, x: door + 0.35 - i * 0.4, z: 0.55, how: 'door' }));
 
-  return { w, d, wallH: WALL_H, people, things, blocks: [...shell(w, d, door), ...papers], places };
+  return { w, d, wallH: WALL_H, people, things, blocks: [...shell(w, d, door), ...papers], places, entry: [door + 0.35, 0.45] };
 }
 
 /** The box itself: floor on a slab, three walls (palette.ts darkens their tops), a long window, a baseboard and the door. */
