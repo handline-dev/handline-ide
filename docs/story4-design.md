@@ -211,8 +211,11 @@ built, and an agent that drives a simulator over many commands keeps it beside i
 - **Skills installed by themselves (T3890 8667):** Handline writes its own skills into the shared skills folder
   every account sees, which runners already receive, and replaces them with each version; it never asks and
   never touches a skill it did not write.
-- **What a lent Mac still needs:** a Claude login once, and Xcode for app work. Pencil is another company's app
-  and cannot ship inside Handline: an agent that needs it stays where it is installed.
+- **What a lent Mac still needs:** a Claude login once. Build tools (Xcode, the Android SDK, command-line
+  tools) are the agent's to install when it needs them, never Handline's (T3890 8673): placement prefers a
+  device that has what the agent used and otherwise lets it install there; Xcode needs an Apple login, the one
+  thing the agent asks the founder for. What an agent cannot install alone keeps it off a device: Pencil is
+  another company's app that needs a person, so an agent that uses it stays where it is installed.
 - **Auto and Manual:** one setting in Settings > Devices, Auto by default. Manual pins an agent to a device.
 
 ## Decisions
