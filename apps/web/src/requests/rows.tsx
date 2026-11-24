@@ -19,7 +19,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { type MouseEvent, type ReactNode } from 'react';
+import { useEffect, type MouseEvent, type ReactNode } from 'react';
 import { RowMenu, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -138,10 +138,17 @@ function Line({
   const apart = !!first && pickGroup(first) !== pickGroup(row);
   // In Requests the row has its own menu (RowMenu), with the open items at its top.
   const open = useOpenable(opens, { onOpen, focus, here, menu: !pick });
+  const listed = pick?.listed;
+  useEffect(() => {
+    if (!listed) return;
+    listed.set(row.key, row);
+    return () => void listed.delete(row.key);
+  }, [listed, row]);
   const newTab = useNewTab(opens, { onOpen, focus, here });
   const line = (
     // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
+      data-pick-key={pick ? row.key : undefined}
       className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked || chosen ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : apart ? 'opacity-40' : ''}`}
     >
       {pick && (
@@ -149,7 +156,9 @@ function Line({
           type="checkbox"
           aria-label={`Pick ${title}`}
           checked={picked}
-          onChange={() => (apart ? toast(APART, { tone: 'warning' }) : pick.toggle(row))}
+          onChange={() => undefined}
+          // A Shift-click picks every row from the last one toggled to this one.
+          onClick={(e) => (apart ? toast(APART, { tone: 'warning' }) : e.shiftKey ? pick.range(row) : pick.toggle(row))}
           className={`size-4 shrink-0 accent-accent ${BOX} ${picking ? '' : BOX_HIDDEN}`}
         />
       )}
@@ -157,15 +166,14 @@ function Line({
       <button
         type="button"
         {...open}
-        // While rows are picked, a click picks more and the other ways to open wait.
+        // A click opens the row, picked or not: only its box picks.
         onClick={(e: MouseEvent<HTMLButtonElement>) => {
           if (pick && apart) return void toast(APART, { tone: 'warning' });
-          if (pick && (e.shiftKey || picking)) return pick.toggle(row);
           if (onPick && !e.metaKey && !e.ctrlKey && !e.altKey) return onPick();
           open.onClick(e);
         }}
-        onAuxClick={picking ? undefined : open.onAuxClick}
-        onKeyDown={picking ? undefined : open.onKeyDown}
+        onAuxClick={open.onAuxClick}
+        onKeyDown={open.onKeyDown}
         title={hint}
         className={`flex min-w-0 flex-1 gap-2.5 text-left ${lead !== undefined ? 'px-2 py-3' : 'px-2 py-1.5'}`}
       >

@@ -4,7 +4,7 @@ import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, pickGroup, typ
 import { useNameOf, useProposals, useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Ban, Check, Clock, Eye, MessageSquare, Undo2, X } from 'lucide-react';
-import { createContext, useContext, useEffect, useState, type ComponentProps, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { OpenItems } from '#src/layout/openable.tsx';
 import { sayRefusal } from '#src/ui/refusal.tsx';
@@ -16,6 +16,10 @@ import { toast } from '#src/ui/toast.tsx';
 type Pick = {
   picked: Map<string, Picked>;
   toggle: (x: Picked) => void;
+  /** Picks every row from the last one toggled to `x`, in the order they are listed (a Shift-click on a box). */
+  range: (x: Picked) => void;
+  /** Each listed row says it is there, so a range can find the rows between two. */
+  listed: Map<string, Picked>;
   /** Picks, or with `on` false unpicks, every row given: a section's box. */
   pickAll: (rows: Picked[], on: boolean) => void;
   /** The rows an action of the bar would act on, while the pointer is on it: they stand out. */
@@ -40,18 +44,31 @@ export function PickProvider({ children }: { children: ReactNode }) {
   const [picked, setPicked] = useState(new Map<string, Picked>()); // not kept: a selection lasts while it is acted on
   const [busy, setBusyKeys] = useState(new Set<string>());
   const [hint, setHint] = useState<ReadonlySet<string> | null>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const [listed] = useState(() => new Map<string, Picked>());
+  const anchor = useRef<string | null>(null);
   const value: Pick = {
     picked,
     busy,
     hint,
-    toggle: (x) =>
+    listed,
+    range: (x) => {
+      const keys = [...(list.current?.querySelectorAll<HTMLElement>('[data-pick-key]') ?? [])].map((el) => el.dataset.pickKey!);
+      const [a, b] = [keys.indexOf(anchor.current ?? x.key), keys.indexOf(x.key)].sort((i, j) => i - j);
+      anchor.current = x.key;
+      const rows = (a < 0 ? [x.key] : keys.slice(a, b + 1)).filter((k) => !busy.has(k)).flatMap((k) => listed.get(k) ?? []);
+      value.pickAll(rows, true);
+    },
+    toggle: (x) => {
+      anchor.current = x.key;
       setPicked((m) => {
         const first = m.values().next().value;
         if (first && pickGroup(first) !== pickGroup(x)) return m; // the other kind is dimmed, not picked
         const n = new Map(m);
         if (!n.delete(x.key)) n.set(x.key, x);
         return n;
-      }),
+      });
+    },
     pickAll: (rows, on) =>
       setPicked((m) => {
         const n = new Map(m);
@@ -76,7 +93,13 @@ export function PickProvider({ children }: { children: ReactNode }) {
         return n;
       }),
   };
-  return <PickCtx.Provider value={value}>{children}</PickCtx.Provider>;
+  return (
+    <PickCtx.Provider value={value}>
+      <div ref={list} className="contents">
+        {children}
+      </div>
+    </PickCtx.Provider>
+  );
 }
 export const usePick = () => useContext(PickCtx);
 
