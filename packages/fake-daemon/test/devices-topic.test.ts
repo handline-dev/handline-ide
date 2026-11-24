@@ -72,7 +72,7 @@ test('placement: a heavy agent a lent Mac lacks something for stays here with wh
   assert.equal((await row('handline.term-build')).device, studio);
   const auditor = await row('handline.auditor');
   assert.equal(auditor.device, here);
-  assert.match(auditor.why, /Studio needs pencil, so it stays here/);
+  assert.match(auditor.why, /no lent device can take it, so it stays here/);
   await client.call('agent.set', { agent: 'handline.term-build', values: { device: server }, request_id: 'pl-1' });
   await client.call('agent.set', { agent: 'handline.auditor', values: { device: studio }, request_id: 'pl-2' });
   assert.equal((await row('handline.term-build')).device, studio);
@@ -82,7 +82,7 @@ test('placement: a heavy agent a lent Mac lacks something for stays here with wh
   assert.equal(term.why, 'pinned to build-server');
   const pinned = await row('handline.auditor');
   assert.equal(pinned.device, here);
-  assert.match(pinned.why, /pinned to Studio, which cannot take it now \(needs pencil\), so it starts here/);
+  assert.match(pinned.why, /pinned to Studio, which cannot take it now \(its project is not there\), so it starts here/);
   await client.call('settings.set', { changes: { agent_placement: 'auto' }, request_id: 'pl-4' });
   assert.equal((await row('handline.term-build')).pin, server);
   client.close();

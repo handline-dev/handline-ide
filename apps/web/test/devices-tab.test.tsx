@@ -28,7 +28,7 @@ const row = (id: string, o: Partial<DeviceRow>): DeviceRow => ({
 });
 const rows = [
   row('mbp', { kind: 'mac', runner: true, master: true, here: true, mode: 'run', state: 'running', agents: ['ui', 'core'] }),
-  row('studio', { kind: 'mac', runner: true, mode: 'run', state: 'running', lacks: [{ agent: 'ui', why: 'needs pencil' }] }),
+  row('studio', { kind: 'mac', runner: true, mode: 'run', state: 'running', lacks: [{ agent: 'ui', why: 'its project is not there' }] }),
   row('laptop', { kind: 'mac', runner: true, mode: 'run', state: 'running', behind: true }),
   row('mini', { kind: 'mac', runner: true, mode: 'run', state: 'running', appReady: '0.1.17' }),
   row('bob-mac', { kind: 'mac', runner: true, mine: false, mode: 'off', state: 'off' }),
@@ -109,7 +109,7 @@ describe('Devices', () => {
     expect(at('mbp').textContent).toContain('This device');
     expect(at('mbp').textContent).toContain('Master');
     expect(at('mbp').textContent).toContain('2 agents');
-    expect(at('studio').textContent).toContain('cannot run ui: needs pencil');
+    expect(at('studio').textContent).toContain('cannot run ui: its project is not there');
     expect(at('phone').querySelector('[role="radiogroup"]')).toBeNull();
   });
 

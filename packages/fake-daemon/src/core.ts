@@ -140,12 +140,12 @@ export function coreCall(
       const HEAVY = 'heavy: checks 3 h this week';
       const manual = d.admin.settings().values.agent_placement === 'manual';
       // As the daemon places them: a pin on manual when its device can take the agent; a heavy agent on the lent machine it was seeded
-      // on; one a lent machine lacks something for (the seed's "needs pencil", taken as heavy) here, saying why.
+      // on; one the seed has a lent machine unable to take (other than for its build) stays here.
       const agents = [...d.sessions.values()].map((s) => {
         const { key } = view(s, d.tasks);
         const pin = s.settings.device ?? '';
         const placed = d.admin.placed.get(key);
-        const kept = nodes.find((n) => !n.self && lackOn(n, key)?.startsWith('needs'));
+        const kept = nodes.some((n) => !n.self && lackOn(n, key) && !lackOn(n, key)!.startsWith('it runs Handline'));
         const pinned = manual && pin ? nodes.find((n) => n.id === pin) : undefined;
         const pinLack = pinned && lackOn(pinned, key);
         const [device, why] = pinned
@@ -157,7 +157,7 @@ export function coreCall(
           : placed
             ? [placed, HEAVY]
             : kept
-              ? [own.id, `${HEAVY}; ${String(kept.name)} ${lackOn(kept, key)}, so it stays here`]
+              ? [own.id, `${HEAVY}; no lent device can take it, so it stays here`]
               : [own.id, ''];
         return { agent: key, device, why, heavy_s: placed || kept ? 3 * 3600 : 0, memory_peak: 2 ** 30, ...(pin ? { pin } : {}) };
       });
