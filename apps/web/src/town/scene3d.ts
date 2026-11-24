@@ -134,7 +134,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
   const boxes: THREE.BufferGeometry[] = [];
   const parts = new Map<string, number>();
   for (const b of room.blocks) {
-    const id = (b.part && parts.get(b.part)) || meta.push({ kind: b.kind }) - 1;
+    const id = (b.part && parts.get(b.part)) || meta.push({ kind: b.kind, tag: b.tag }) - 1;
     if (b.part) parts.set(b.part, id);
     const size = b.to.map((v, i) => v - b.from[i]) as [number, number, number];
     const box = new THREE.BoxGeometry(...size);

@@ -4,7 +4,7 @@
 // a sofa with a mug; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
 // a sofa's arm) is laid back over it. Each person is one of the sheet's people, teammates different ones while there are enough.
 import type { Person } from '#src/town/model.ts';
-import type { Room } from '#src/town/room.ts';
+import { MY_DESK, type Room } from '#src/town/room.ts';
 import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { PERSON_PX } from '#src/town/view.ts';
@@ -32,7 +32,15 @@ export type Spot = Box & { person: Person };
 export type Name = { person: Person; x: number; y: number };
 /** A person drawn: its cell of the sheet (`col`, `row`) in `box`, and the room's nearer pixels to lay over it, as an image in `front`. */
 export type Figure = { person: Person; col: number; row: number; box: Box; front?: { url: string } & Box };
-export type Cast = { figures: Figure[]; bubbles: Box[]; spots: Spot[]; desks: Spot[]; names: Name[] };
+/** `mine`: the founder's desk, with where its name goes. */
+export type Cast = {
+  figures: Figure[];
+  bubbles: Box[];
+  spots: Spot[];
+  desks: Spot[];
+  names: Name[];
+  mine?: Box & { name: [number, number] };
+};
 
 const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
@@ -138,6 +146,8 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const desk = boxOf(pic, frame, `desk:${person.key}`);
     if (desk) cast.desks.push({ ...desk, person });
   }
+  const mine = boxOf(pic, frame, MY_DESK);
+  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1] };
   return cast;
 }
 

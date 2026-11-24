@@ -39,7 +39,10 @@ describe('Markdown', () => {
       <Markdown text={'also at /Users/ron/ide_a/workspaces/@legacy/legacy/research-questions-v2.md and ~/notes/a.md.'} />,
     );
     const links = [...container.querySelectorAll('a')];
-    expect(links.map((a) => a.textContent)).toEqual(['/Users/ron/ide_a/workspaces/@legacy/legacy/research-questions-v2.md', '~/notes/a.md']);
+    expect(links.map((a) => a.textContent)).toEqual([
+      '/Users/ron/ide_a/workspaces/@legacy/legacy/research-questions-v2.md',
+      '~/notes/a.md',
+    ]);
     expect(links.every((a) => a.getAttribute('draggable') === 'false')).toBe(true);
   });
   it('draws a pasted picture (attachment: link) as its image, not as the raw reference', () => {

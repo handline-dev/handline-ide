@@ -7,9 +7,9 @@ import type { House, Person } from '#src/town/model.ts';
 
 /** A model from public/town/models at (x, z), turned `rot` radians about its origin; `tag` names it for the pixels that show it. */
 export type Thing = { model: string; x: number; z: number; y?: number; rot?: number; scale?: number; tag?: string; lit?: boolean };
-export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'glass' | 'frame' | 'sill' | 'door' | 'baseboard';
+export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'glass' | 'frame' | 'sill' | 'door' | 'baseboard' | 'paper';
 /** A plain box: its two corners and what it is; boxes of one `part` are one object, outlined only around the whole. */
-export type Block = { from: [number, number, number]; to: [number, number, number]; kind: Kind; part?: string };
+export type Block = { from: [number, number, number]; to: [number, number, number]; kind: Kind; part?: string; tag?: string };
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing; (x, z) on the floor. */
 export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
 export type Room = { w: number; d: number; wallH: number; people: Person[]; things: Thing[]; blocks: Block[]; places: Place[] };
@@ -22,6 +22,11 @@ const ROW = 1.75; // from one bench to the next, with room for the names between
 const FIRST = 1.45; // the first bench's front edge
 const SOFA = 0.98;
 const SOFA_ROW = 1.6;
+const DESK_TOP = 0.384;
+const SHEET_T = 0.022; // one paper of a stack
+const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
+/** The founder's desk's tag; it holds the founder's decisions. */
+export const MY_DESK = 'desk:you';
 
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
@@ -39,17 +44,28 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
   const x0 = 0.6;
   const lounge = x0 + cols * PITCH + 1.0;
   const w = lounge + 2 * SOFA + 1.1;
-  const d = Math.max(FIRST + (rows - 1) * ROW + 0.95, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55);
+  // The founder's desk is a row of its own in front of the benches.
+  const d = Math.max(FIRST + rows * ROW + 0.95, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55);
   const things: Thing[] = [];
   const places: Place[] = [];
+  const papers: Block[] = [];
   const put = (model: string, x: number, z: number, more: Partial<Thing> = {}) => things.push({ model, x, z, ...more });
+  /** A desk at (x, z) with a stack of `n` papers on its back right corner, each a little askew. */
+  const desk = (x: number, z: number, tag: string, n: number) => {
+    put('desk', x, z, { tag });
+    for (let k = 0; k < Math.min(n, MOST_SHEETS); k++) {
+      const [dx, dz] = [((k * 37) % 5) * 0.006, ((k * 23) % 3) * 0.006];
+      const y = DESK_TOP + k * SHEET_T;
+      papers.push({ from: [x + 0.47 + dx, y, z - 0.37 + dz], to: [x + 0.66 + dx, y + SHEET_T, z - 0.2 + dz], kind: 'paper', tag });
+    }
+  };
 
-  // The benches: a desk, screen, keyboard and mouse per agent, a plant on every other desk, the chair in front.
+  // The benches: a desk, screen, keyboard and mouse per agent, its queue in papers, a plant on every other desk, the chair in front.
   people.forEach((p, i) => {
     const x = x0 + (i % cols) * PITCH;
     const z = FIRST + Math.floor(i / cols) * ROW;
     const chair = `chair:${p.key}`;
-    put('desk', x, z, { tag: `desk:${p.key}` });
+    desk(x, z, `desk:${p.key}`, p.queue);
     put('computerScreen', x + 0.17, z - 0.2, { y: 0.384, lit: LIT.includes(p.activity) });
     put('computerKeyboard', x + 0.22, z - 0.08, { y: 0.384 });
     put('computerMouse', x + 0.56, z - 0.06, { y: 0.384 });
@@ -57,6 +73,13 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
     put('chairDesk', x + 0.225, z + 0.3, { scale: 0.85, tag: chair });
     if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
   });
+
+  // The founder's desk, with a paper for every decision waiting on the founder and an empty chair.
+  const mine = { x: x0 + ((cols - 1) * PITCH) / 2, z: FIRST + rows * ROW };
+  desk(mine.x, mine.z, MY_DESK, house.decisions.length);
+  put('computerScreen', mine.x + 0.17, mine.z - 0.2, { y: DESK_TOP });
+  put('computerKeyboard', mine.x + 0.22, mine.z - 0.08, { y: DESK_TOP });
+  put('chairDesk', mine.x + 0.225, mine.z + 0.3, { scale: 0.85, tag: MY_DESK });
 
   // The lounge: rows of two sofas, a rug and a coffee table in front of each; four sit on a row.
   for (let r = 0; r < sofaRows; r++) {
@@ -88,7 +111,7 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
     .filter((p) => p.activity === 'waking')
     .forEach((p, i) => places.push({ person: p, x: door + 0.35 - i * 0.4, z: 0.55, how: 'door' }));
 
-  return { w, d, wallH: WALL_H, people, things, blocks: shell(w, d, door), places };
+  return { w, d, wallH: WALL_H, people, things, blocks: [...shell(w, d, door), ...papers], places };
 }
 
 /** The box itself: floor on a slab, three walls (palette.ts darkens their tops), a long window, a baseboard and the door. */

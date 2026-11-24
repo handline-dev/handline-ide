@@ -21,6 +21,7 @@ export const KIND_COLOUR: Record<Kind, RGB> = {
   sill: [220, 196, 170],
   door: [176, 116, 70],
   baseboard: [200, 160, 120],
+  paper: [248, 246, 238],
 };
 /** The cut along a wall's top: the top face of the walls takes it, so no thin box sits on the wall to show a sliver of its side. */
 export const WALL_TOP: RGB = [96, 70, 58];

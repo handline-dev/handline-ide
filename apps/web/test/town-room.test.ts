@@ -4,10 +4,17 @@ import type { House, Person } from '#src/town/model.ts';
 import { figuresOf } from '#src/town/people.ts';
 import { roomOf } from '#src/town/room.ts';
 
-const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null });
+const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0 });
 const house = (people: Person[]): House => ({ key: 'w', name: 'w', lead: people[0], people, working: 0, decisions: [] });
 
 describe('roomOf', () => {
+  it("stacks a paper per queued task on each desk and per decision on the founder's, up to a limit", () => {
+    const h = house([{ ...person('a', 'working'), queue: 3 }, { ...person('b', 'resting'), queue: 52 }, person('c', 'asleep')]);
+    const r = roomOf({ ...h, decisions: [{ id: '1', task: 1, title: 't', agent: 'a', house: 'w' }] });
+    const count = (tag: string) => r.blocks.filter((b) => b.kind === 'paper' && b.tag === tag).length;
+    expect([count('desk:a'), count('desk:b'), count('desk:c'), count('desk:you')]).toEqual([3, 14, 0, 1]);
+  });
+
   it('gives every agent a desk and puts each where its state says', () => {
     const r = roomOf(
       house([
@@ -19,9 +26,10 @@ describe('roomOf', () => {
         person('f', 'held'),
       ]),
     );
-    expect(r.things.filter((t) => t.tag?.startsWith('desk:')).map((t) => t.tag)).toEqual(
-      ['a', 'b', 'c', 'd', 'e', 'f'].map((k) => `desk:${k}`),
-    );
+    expect(r.things.filter((t) => t.model === 'desk').map((t) => t.tag)).toEqual([
+      ...['a', 'b', 'c', 'd', 'e', 'f'].map((k) => `desk:${k}`),
+      'desk:you',
+    ]);
     // At their desks: working, waiting for the founder and on hold; the idle one on a sofa, the starting one at the door, the asleep nowhere.
     const where = Object.fromEntries(r.places.map((p) => [p.person.key, p.how]));
     expect(where).toEqual({ a: 'desk', b: 'desk', f: 'desk', d: 'sofa', e: 'door' });

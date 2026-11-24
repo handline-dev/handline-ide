@@ -19,7 +19,8 @@ let renderer: WebGLRenderer | null = null;
 type Drawn = { url: string; w: number; h: number; cast: Cast };
 
 /** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
-const sigOf = (house: House, cols: number) => [house.key, cols, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}`)].join(' ');
+const sigOf = (house: House, cols: number) =>
+  [house.key, cols, house.decisions.length, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}:${p.queue}`)].join(' ');
 /** The last drawing of each house, so the office is there at once when its tab comes back. */
 const drawings = new Map<string, { sig: string; drawn: Drawn }>();
 
@@ -169,22 +170,27 @@ export function Inside({
                 />
               ))}
               {drawn.cast.names.map((n) => (
-                <text
-                  key={n.person.key}
-                  x={n.x}
-                  y={n.y + font}
-                  textAnchor="middle"
-                  fontSize={font}
-                  fontWeight={600}
-                  fill={NAME_INK}
-                  stroke={NAME_HALO}
-                  strokeWidth={2.5 / scale}
-                  paintOrder="stroke"
-                  className="pointer-events-none"
-                >
-                  {n.person.name}
-                </text>
+                <Label key={n.person.key} x={n.x} y={n.y} font={font} scale={scale} text={n.person.name} />
               ))}
+              {drawn.cast.mine && (
+                <>
+                  <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} scale={scale} text="You" />
+                  <rect
+                    x={drawn.cast.mine.x - 1}
+                    y={drawn.cast.mine.y - 1}
+                    width={drawn.cast.mine.w + 2}
+                    height={drawn.cast.mine.h + 2}
+                    rx={2}
+                    fill="transparent"
+                    stroke="transparent"
+                    strokeWidth={1 / scale}
+                    className="cursor-pointer hover:stroke-accent"
+                    onClick={onMail}
+                  >
+                    <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
+                  </rect>
+                </>
+              )}
               {drawn.cast.desks.map((d) => hit(d, `desk-${d.person.key}`))}
               {drawn.cast.spots.map((s) => hit(s, `at-${s.person.key}`))}
             </svg>
@@ -192,6 +198,26 @@ export function Inside({
         </div>
       </div>
     </div>
+  );
+}
+
+/** A name under a person or desk: `font` and the halo keep their screen size whatever the scale. */
+function Label({ x, y, font, scale, text }: { x: number; y: number; font: number; scale: number; text: string }) {
+  return (
+    <text
+      x={x}
+      y={y + font}
+      textAnchor="middle"
+      fontSize={font}
+      fontWeight={600}
+      fill={NAME_INK}
+      stroke={NAME_HALO}
+      strokeWidth={2.5 / scale}
+      paintOrder="stroke"
+      className="pointer-events-none"
+    >
+      {text}
+    </text>
   );
 }
 

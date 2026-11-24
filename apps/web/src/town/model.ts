@@ -3,7 +3,8 @@
 import type { AgentView, PendingRequest, Workspace } from '@handline/client';
 import { activityOf, type Activity } from '#src/layout/agentList.ts';
 
-export type Person = { key: string; name: string; activity: Activity; doing: string | null };
+/** `queue`: the tasks it owns that are not done. */
+export type Person = { key: string; name: string; activity: Activity; doing: string | null; queue: number };
 export type Decision = { id: string; task: number | null; title: string; agent: string | null; house: string | null };
 export type House = { key: string; name: string; lead: Person | null; people: Person[]; working: number; decisions: Decision[] };
 export type Town = { houses: House[]; decisions: Decision[] };
@@ -13,6 +14,7 @@ const personOf = (a: AgentView): Person => ({
   name: a.name,
   activity: activityOf(a),
   doing: a.task?.title ?? a.doing?.text ?? null,
+  queue: a.task_count ?? 0,
 });
 
 /** The town from workspaces.list, agents.list and the founder's turn. A request whose agent is in no house is only in the founder's. */
