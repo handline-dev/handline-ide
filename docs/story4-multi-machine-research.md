@@ -203,7 +203,7 @@ by hand once.
 
 Taken into Story 4 (`docs/story4-design.md` section 7, the founder's answers T3890 8654 to 8667): heavy agents
 go whole to the machine with the most room, the rest stay; Handline ships its own browser and simulator tools
-with skills it installs by itself, so a lent Mac needs only a Claude login and Xcode.
+with skills it installs by itself; a lent Mac needs only a Claude login, and agents install their own build tools.
 
 ## Sources
 
