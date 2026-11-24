@@ -61,6 +61,8 @@ type UsagePort interface {
 	// PickAccount is the best of the candidates for agent (bootstrap: a never-run account is a real place to go; live refresh: this is
 	// the one caller about to place an agent, so a carried or idle-floored candidate is asked fresh); "" when none.
 	PickAccount(candidates []string, agent string) string
+	// PickBeside is PickAccount for one more session like agent's beside the one it has: agent's own load counts.
+	PickBeside(candidates []string, agent string) string
 	// PickReasons is each candidate's line in the same pick, asked without a live refresh: why it was refused, or where it ranks.
 	PickReasons(candidates []string, agent string) []usage.Reason
 	// NotFor is whether the account is another vendor's than vendor.
@@ -664,6 +666,29 @@ func (l *Launcher) WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait 
 // WorkspaceWait is the wait of agent's workspace at its agent_cap: as many of its other agents mid-turn as the rule allows, nil when
 // fewer are. A count that cannot be read holds nothing.
 func (l *Launcher) WorkspaceWait(q db.Q, agent string) *WakeWait {
+	return l.workspaceWait(q, agent, agent)
+}
+
+// RoomBeside is why one more session like agent's, beside the one it runs (a temp of it, go/internal/temps), could not start on this
+// machine now: its workspace at its agent_cap with agent counted, or no account with room for it with agent's own load counted. ""
+// when it could. The machine's load is the caller's to ask (loadgate.Gate.Held).
+func (l *Launcher) RoomBeside(q db.Q, agent string) string {
+	if w := l.workspaceWait(q, agent, ""); w != nil {
+		return DescribeWakeWait(w)
+	}
+	m := l.machineAt("")
+	candidates := l.mayStartOn(m, agent)
+	if pin := l.heldTo(m, agent); pin != "" {
+		candidates = []string{pin}
+	}
+	if l.Ports.Usage.PickBeside(candidates, agent) == "" {
+		return l.noRoom(m, agent)
+	}
+	return ""
+}
+
+// workspaceWait is WorkspaceWait counting every agent of the workspace mid-turn but left ("" counts all).
+func (l *Launcher) workspaceWait(q db.Q, agent, left string) *WakeWait {
 	r, ws := l.rule(q, agent, team.RuleAgentCap)
 	if r == nil {
 		return nil
@@ -674,7 +699,7 @@ func (l *Launcher) WorkspaceWait(q db.Q, agent string) *WakeWait {
 		return nil
 	}
 	busy := 0
-	for _, a := range l.Ports.Usage.MidTurn(q, agent) {
+	for _, a := range l.Ports.Usage.MidTurn(q, left) {
 		if slices.Contains(members, a) {
 			busy++
 		}
@@ -780,6 +805,21 @@ func (l *Launcher) MainRefFiles(worktree string) []string {
 	return []string{ref, ref + ".lock", packed, packed + ".lock"}
 }
 
+// knowsAs is the agent a temp was hired from, whose lessons and memory folder it works with; agent itself for an agent of its own.
+func (l *Launcher) knowsAs(agent string) (string, error) {
+	from, err := paths.HiredFrom(l.Q, paths.AgentKey(l.Home, agent))
+	if from == "" || err != nil {
+		return agent, err
+	}
+	return from, nil
+}
+
+// MemoryDir is the folder agent's sessions keep their memory in: its own, or for a temp the agent's it was hired from, to read and write.
+func (l *Launcher) MemoryDir(agent string) (string, error) {
+	knows, err := l.knowsAs(agent)
+	return filepath.Join(paths.AgentDir(l.Home, knows), "memory"), err
+}
+
 // HiddenMemories are the memory folders agent may not read: every other agent's, with no exception for its reports.
 func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
 	keys, err := paths.AgentKeys(l.Home)
@@ -787,9 +827,13 @@ func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
 		return nil, err
 	}
 	own := paths.AgentKey(l.Home, agent)
+	knows, err := paths.KnowsAs(l.Q, own)
+	if err != nil {
+		return nil, err
+	}
 	var out []string
 	for _, k := range keys {
-		if k != own {
+		if k != own && k != knows { // a temp's memory folder is the agent's it was hired from
 			out = append(out, filepath.Join(paths.AgentsDir(l.Home), k, "memory"))
 		}
 	}
@@ -957,7 +1001,11 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	if err != nil && !errors.Is(err, actor.ErrNoOwner) {
 		return "", err
 	}
-	for _, whose := range []string{owner, agent} {
+	knows, err := l.knowsAs(agent)
+	if err != nil {
+		return "", err
+	}
+	for _, whose := range []string{owner, knows} {
 		if whose == "" { // no owner yet
 			continue
 		}

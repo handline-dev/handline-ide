@@ -191,3 +191,23 @@ func TestAResumeWithNowhereToGoTypesNothing(t *testing.T) {
 		t.Fatalf("not counted against it: %d", row.WakeFailures)
 	}
 }
+
+// Room beside an agent counts the agent itself: its workspace at agent_cap with it mid-turn has no room for one more like it, and no
+// account with room is no room.
+func TestRoomBesideAnAgentCountsTheAgent(t *testing.T) {
+	r, keys, set := keptRig(t)
+	shop := keys["shop"]
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, midTurn: []string{shop}, pick: "a"}
+	if why := r.l.RoomBeside(r.l.Q, shop); why != "" {
+		t.Fatalf("no rule, an account with room: %q", why)
+	}
+	set("shop", team.RuleAgentCap, int64(1))
+	if why := r.l.RoomBeside(r.l.Q, shop); !strings.HasPrefix(why, "waiting for a slot in workspace shop (1 of 1") {
+		t.Fatalf("at its cap with itself mid-turn: %q", why)
+	}
+	set("shop", team.RuleAgentCap, int64(2))
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, midTurn: []string{shop}}
+	if why := r.l.RoomBeside(r.l.Q, shop); why == "" {
+		t.Fatal("room with no account to start on")
+	}
+}

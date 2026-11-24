@@ -89,6 +89,9 @@ func AgentInstruction(q db.Q, who, part string) (string, error) {
 	if key == "" || err != nil {
 		return "", err
 	}
+	if key, err = paths.KnowsAs(q, key); err != nil { // a temp's role is the agent's it was hired from
+		return "", err
+	}
 	text, err := db.InstructionText(q, key, part)
 	return strings.TrimSpace(text), err
 }

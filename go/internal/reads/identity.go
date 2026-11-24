@@ -12,12 +12,13 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// Ident is who an agent is, as its view says it: its name within its workspace, the workspace's key and its owner's key.
-type Ident struct{ Name, Workspace, Owner string }
+// Ident is who an agent is, as its view says it: its name within its workspace, the workspace's key, its owner's key, and for a temp
+// the key of the agent it was hired from ("" for an agent of its own).
+type Ident struct{ Name, Workspace, Owner, HiredFrom string }
 
 // Idents is every agent's Ident by its key.
 func Idents(q db.Q) (map[string]Ident, error) {
-	rs, err := q.Query("SELECT id, name, workspace, owner FROM agents")
+	rs, err := q.Query("SELECT id, name, workspace, owner, COALESCE(hired_from, '') FROM agents")
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +27,7 @@ func Idents(q db.Q) (map[string]Ident, error) {
 	for rs.Next() {
 		var id, ws int64
 		var it Ident
-		if err := rs.Scan(&id, &it.Name, &ws, &it.Owner); err != nil {
+		if err := rs.Scan(&id, &it.Name, &ws, &it.Owner, &it.HiredFrom); err != nil {
 			return nil, err
 		}
 		it.Workspace = actor.Key(actor.Workspace, ws)
@@ -35,14 +36,17 @@ func Idents(q db.Q) (map[string]Ident, error) {
 	return out, rs.Err()
 }
 
-// WithIdent turns the stored view of the agent whose key is key into the wire's: key, and the agent's name, workspace and owner. An
-// agent with no row keeps its key as its name.
+// WithIdent turns the stored view of the agent whose key is key into the wire's: key, and the agent's name, workspace, owner and
+// hired_from. An agent with no row keeps its key as its name.
 func WithIdent(view map[string]any, key string, ids map[string]Ident) {
 	it, ok := ids[key]
 	if !ok {
 		it.Name = key
 	}
 	view["key"], view["name"], view["workspace"], view["owner"] = key, it.Name, it.Workspace, it.Owner
+	if it.HiredFrom != "" {
+		view["hired_from"] = it.HiredFrom
+	}
 }
 
 // peopleList is people.list: every person, by key.

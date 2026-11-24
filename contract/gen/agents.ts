@@ -17,6 +17,8 @@ export type AgentView = {
   workspace: string;
   /** The key of the person who owns it (p1); people.list gives the person's name. */
   owner: string;
+  /** For a temp, the key of the agent it was hired from (a<n>): it took a task that came to that agent mid-turn, and leaves once the task is over. Absent for an agent of its own. A message to the agent's name reaches the agent, never its temps. */
+  hired_from?: string;
   /** The first line of the agent's ROLE.md that is not blank and not a heading, as one line, at most 160 characters; empty when there is none. */
   role: string;
   model: string | null;
