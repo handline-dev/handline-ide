@@ -468,7 +468,25 @@ func Start(cfg Config) (*Daemon, error) {
 	d.hclock = &reads.HealthClock{}
 	d.local = d.newServer("local")
 	d.seedHealth()
-	d.armPause()          // a pause kept across a restart still ends at its until
+	d.armPause() // a pause kept across a restart still ends at its until
+	// The watcher's first look is a silent baseline, so it is taken before anything serves: else a client's write before it is in the
+	// baseline and never sent.
+	var w *watcher.Watcher
+	var notes chan stream.Entry
+	if cfg.Watch {
+		proposalSignature := watcher.ProposalSignature(cfg.Home)
+		emit := d.hub.Append
+		if d.push != nil { // each for_you event is also a note
+			notes = make(chan stream.Entry, 256)
+			emit = d.push.Tee(emit, notes)
+		}
+		w = &watcher.Watcher{DB: db, Emit: emit, Log: cfg.Log, Signature: func() string { return proposalSignature() + "/" + watcher.ForYouSignature(db) },
+			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
+				&watcher.Proposals{Reads: &reads.Env{DB: db, Home: cfg.Home}},
+				&watcher.ForYou{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Prefs{}, &watcher.Requests{Reads: &reads.Env{DB: db, Home: cfg.Home}},
+				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns, Tail: d.paneTail, Log: cfg.Log}}}
+		w.Scan()
+	}
 	if cfg.Listen != "" { // before the local socket serves, so no call reads d.net while it is set
 		if _, err := listenNetwork(cfg, d); err != nil {
 			d.Close()
@@ -515,23 +533,14 @@ func Start(cfg Config) (*Daemon, error) {
 	}()
 	d.wg.Add(1)
 	go d.usageLoop()
-	if cfg.Watch {
-		proposalSignature := watcher.ProposalSignature(cfg.Home)
-		emit := d.hub.Append
-		if d.push != nil { // each for_you event is also a note
-			notes := make(chan stream.Entry, 256)
-			emit = d.push.Tee(emit, notes)
+	if w != nil {
+		if notes != nil {
 			d.wg.Add(1)
 			go func() {
 				defer d.wg.Done()
 				d.push.Watch(d.stop, notes)
 			}()
 		}
-		w := &watcher.Watcher{DB: db, Emit: emit, Log: cfg.Log, Signature: func() string { return proposalSignature() + "/" + watcher.ForYouSignature(db) },
-			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
-				&watcher.Proposals{Reads: &reads.Env{DB: db, Home: cfg.Home}},
-				&watcher.ForYou{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Prefs{}, &watcher.Requests{Reads: &reads.Env{DB: db, Home: cfg.Home}},
-				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns, Tail: d.paneTail, Log: cfg.Log}}}
 		d.wg.Add(1)
 		go func() {
 			defer d.wg.Done()
