@@ -2,14 +2,13 @@
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
 // over it, as over the seated people.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { frontOf, SCALE, type Box, type Figure } from '#src/town/people.ts';
+import { FLAT, frontOf, SCALE, type Box, type Figure } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
 
 export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
 const CELL = [136, 226] as const;
 const SIZE = [816, 226] as const;
-const FLAT = new Set(['floor', 'baseboard', 'rugRectangle']);
 
 type Facing = 'down' | 'up' | 'left' | 'right';
 const COL: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 };

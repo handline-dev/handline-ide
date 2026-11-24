@@ -47,4 +47,11 @@ describe('roomOf', () => {
   it('gives teammates different figures while there are enough', () => {
     expect(new Set(figuresOf(['a', 'b', 'c', 'd', 'e', 'f'].map((k) => person(k, 'working'))).values()).size).toBe(6);
   });
+
+  it("stands the HQ's pinned agents together, whatever they are doing, with no desks but the founder's", () => {
+    const h = house([person('a', 'working'), person('b', 'resting'), person('c', 'waking'), person('d', 'asleep')]);
+    const r = roomOf({ ...h, hq: true });
+    expect(r.places.map((p) => [p.person.key, p.how])).toEqual(['a', 'b', 'c', 'd'].map((k) => [k, 'door']));
+    expect(r.things.filter((t) => t.model === 'desk').map((t) => t.tag)).toEqual(['desk:you']);
+  });
 });

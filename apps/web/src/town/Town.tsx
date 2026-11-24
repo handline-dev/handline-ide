@@ -1,8 +1,9 @@
 // The Town tab: the team as a small city from Kenney's Roguelike Modern City tiles (city.ts lays it out and draws it). Every workspace is
 // a building with a window per agent, lit while it works; a building nobody works in goes grey, and cars drive while anyone works. The
-// city fills the pane. The founder's glass HQ holds every decision. A click on a building goes inside its office (Inside.tsx).
+// city fills the pane. The founder's glass HQ holds every decision and the pinned agents. A click on a building goes inside its office
+// (Inside.tsx).
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Hooks, useAgents } from '@handline/app-data';
+import { Hooks, useAgents, useNav } from '@handline/app-data';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
@@ -70,7 +71,21 @@ export function TownTab() {
   const [mail, setMail] = useTabState('mail', false);
   const status = (h: House) => (h.working ? `${h.working} of ${h.people.length} at work` : 'Lights off');
   const houseOf = (key: string) => town.houses.find((h) => h.key === key);
-  const house = picked && picked !== HQ ? houseOf(picked) : undefined;
+  const pins = useNav().nav.pins;
+  const hq = useMemo((): House => {
+    const people = town.houses.flatMap((h) => h.people);
+    const pinned = pins.flatMap((k) => people.filter((p) => p.key === k));
+    return {
+      key: HQ,
+      name: 'Your HQ',
+      lead: null,
+      people: pinned,
+      working: pinned.filter((p) => p.activity === 'working').length,
+      decisions: town.decisions,
+      hq: true,
+    };
+  }, [town, pins]);
+  const house = picked === HQ ? hq : picked ? houseOf(picked) : undefined;
   const working = town.houses.reduce((n, h) => n + h.working, 0);
   const W = city.w * T;
   const H = city.h * T;
@@ -87,7 +102,10 @@ export function TownTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `plan` is all of the city the walk depends on
     [plan, left],
   );
-  const enter = (key: string) => (key === HQ ? setPicked(HQ) : (setLeft(key), setPicked(key)));
+  const enter = (key: string) => {
+    setLeft(key);
+    setPicked(key);
+  };
   const { me, go } = useWalker(house ? null : walk, 'city', (at, [, dy]) => {
     const lot = dy < 0 ? lotAbove(city, at) : undefined;
     if (lot) enter(lot.key);
@@ -151,15 +169,6 @@ export function TownTab() {
           </div>
           <Legend windows={art?.windows} />
         </div>
-      )}
-      {picked === HQ && (
-        <Panel title="Your HQ" sub="Every decision waiting for you" onClose={() => setPicked(null)}>
-          <Decisions
-            papers={town.decisions}
-            groups={[...town.houses, { key: '', name: 'Other' }]}
-            onOpen={(d) => open(d.task ? taskOf(d.task) : 'requests', 'side')}
-          />
-        </Panel>
       )}
       {house && mail && (
         <Panel title="Decisions" sub={house.name} onClose={() => setMail(false)}>

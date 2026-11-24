@@ -6,7 +6,16 @@ import { activityOf, type Activity } from '#src/layout/agentList.ts';
 /** `queue`: the tasks it owns that are not done. */
 export type Person = { key: string; name: string; activity: Activity; doing: string | null; queue: number };
 export type Decision = { id: string; task: number | null; title: string; agent: string | null; house: string | null };
-export type House = { key: string; name: string; lead: Person | null; people: Person[]; working: number; decisions: Decision[] };
+/** `hq`: the founder's HQ, where the pinned agents gather and every decision lands. */
+export type House = {
+  key: string;
+  name: string;
+  lead: Person | null;
+  people: Person[];
+  working: number;
+  decisions: Decision[];
+  hq?: boolean;
+};
 export type Town = { houses: House[]; decisions: Decision[] };
 
 const personOf = (a: AgentView): Person => ({

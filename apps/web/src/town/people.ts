@@ -7,6 +7,7 @@ import type { Person } from '#src/town/model.ts';
 import { MY_DESK, type Room } from '#src/town/room.ts';
 import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
+import { Vector3 } from 'three';
 import { PERSON_PX } from '#src/town/view.ts';
 
 export const PEOPLE_SHEET = `${import.meta.env.BASE_URL}town/people.png`;
@@ -43,6 +44,9 @@ export type Cast = {
   names: Name[];
   mine?: Box & { name: [number, number]; at: [number, number] };
 };
+
+/** What lies flat on the floor, under a standing person's feet. */
+export const FLAT = new Set(['floor', 'baseboard', 'rugRectangle']);
 
 const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
@@ -138,9 +142,13 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const sofa = place.how === 'sofa';
     const [fx, fy] = frame.toPixel(place.x, sofa ? 0.1 : 0, place.z);
     if (!sofa) shadowAt(pic, frame, place.x, place.z);
-    // A sitter sinks into the sofa: only what stands well in front of it hides it.
+    // A sitter sinks into the sofa: only what stands well in front of it hides it. One standing is hidden by what stands nearer than its
+    // body, never by the floor.
     const depth = depthAt(place.x, place.z);
-    const seen = draw(sofa ? 'sit_mug' : 'walk_down', fx, fy, (i) => pic.depth[i] < depth - (sofa ? 0.6 : 0.08));
+    const body = -new Vector3(place.x, 0.45, place.z).applyMatrix4(frame.camera.matrixWorldInverse).z;
+    const seen = sofa
+      ? draw('sit_mug', fx, fy, (i) => pic.depth[i] < depth - 0.6)
+      : draw('walk_down', fx, fy, (i) => !FLAT.has(frame.meta[pic.id[i]]?.kind ?? '') && pic.depth[i] < body);
     cast.spots.push({ person: p, ...seen, at: sofa ? [place.x, place.z + 0.55] : [place.x - 0.4, place.z] });
     cast.names.push({ person: p, x: seen.x + seen.w / 2, y: seen.y + seen.h + 1 });
   }
