@@ -21,6 +21,7 @@ export function createStore<T>(initial: T) {
       value = next;
       emit();
     },
-    use: () => useSyncExternalStore(subscribe, get),
+    // A use-name the React Compiler reads as a hook: a bare `.use()` is taken for React's `use` and memoised, so it never redrew.
+    useValue: () => useSyncExternalStore(subscribe, get),
   };
 }

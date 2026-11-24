@@ -9,7 +9,7 @@ import { TownTab } from '#src/town/Town.tsx';
 const open = createStore(false);
 export const openTown = () => open.set(true);
 const closeTown = () => open.set(false);
-const useTownOpen = open.use; // a use name, so the compiler treats it as the hook it is
+const useTownOpen = open.useValue;
 
 export function TownMode() {
   const shown = useTownOpen();

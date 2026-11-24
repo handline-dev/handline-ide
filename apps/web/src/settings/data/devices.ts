@@ -230,6 +230,6 @@ export function markSetAsideSeen(key: string): void {
 /** The set-aside board, while the person has not seen its note. */
 export function useSetAsideUnseen() {
   const a = useSetAside();
-  const was = seen.use();
+  const was = seen.useValue();
   return a && a.key !== was ? a : null;
 }

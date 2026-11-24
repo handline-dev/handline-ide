@@ -3,4 +3,4 @@ import { createStore } from '#src/persist/store.ts';
 
 const picked = createStore<{ path: string; name: string } | null>(null);
 export const setPicked = picked.set;
-export const usePicked = picked.use;
+export const usePicked = picked.useValue;

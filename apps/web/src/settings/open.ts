@@ -16,7 +16,7 @@ export const openSettings = (to: SettingsTarget = {}) => {
 };
 export const closeSettings = () => open.set(false);
 export const settingsTarget = () => target;
-export const useSettingsOpen = open.use;
+export const useSettingsOpen = open.useValue;
 
 /** The Settings a warning without a place of its own opens: an agent's page for a step-down offer, else Settings as it was left. */
 export const settingsFor = (w: { kind: string; agent?: string } | null | undefined): SettingsTarget =>
