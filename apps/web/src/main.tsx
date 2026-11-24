@@ -22,6 +22,7 @@ import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
+import '#src/theme.ts';
 import { trackShellInsets } from '#src/shellInsets.ts';
 
 const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, px));
