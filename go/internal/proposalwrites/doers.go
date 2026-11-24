@@ -196,10 +196,29 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 // row and settings go, and its folder is archived as label (uniq telling two of a day apart). name is its key. refused is the roster's
 // refusal, with nothing changed.
 func (e *Env) removeAgent(tx *sql.Tx, name, label, uniq string) (dest, refused string, err error) {
-	if temps, err := team.TempsOf(tx, name); err != nil {
+	seats, err := team.TempsOf(tx, name)
+	if err != nil {
 		return "", "", err
-	} else if len(temps) > 0 {
-		return "", fmt.Sprintf("%s has temps at work (%s): it can go once they have left.", addr.Ref(name), strings.Join(temps, ", ")), nil
+	}
+	var busy []string
+	for _, s := range seats {
+		if at, err := team.HiredFor(tx, s); err != nil {
+			return "", "", err
+		} else if at != 0 {
+			busy = append(busy, fmt.Sprintf("%s on T%d", s, at))
+		}
+	}
+	if len(busy) > 0 {
+		return "", fmt.Sprintf("%s has seats at work (%s): it can go once their tasks are over.", addr.Ref(name), strings.Join(busy, ", ")), nil
+	}
+	for _, s := range seats { // its idle seats go with it
+		seatLabel, err := paths.AgentNameIn(tx, s)
+		if err != nil {
+			return "", "", err
+		}
+		if _, refused, err := e.removeAgent(tx, s, seatLabel, uniq); err != nil || refused != "" {
+			return "", refused, err
+		}
 	}
 	var tell taskwrites.Teller // its turns go back to the agents below them; with nobody to tell they just go
 	if e.Say != nil {
@@ -241,30 +260,6 @@ func (e *Env) removeAgent(tx *sql.Tx, name, label, uniq string) (dest, refused s
 		e.logf("  %s: its build caches were not removed: %v", name, err)
 	}
 	return dest, "", nil
-}
-
-// Dismiss removes temp, a temp whose task is over and whose session is closed (go/internal/temps), as a retire does but for its desk,
-// which the pool kept. What names it afterwards names the agent it was hired from (team.LeftRows). refused is why it stays.
-func (e *Env) Dismiss(temp string) (refused string, err error) {
-	tx, err := e.DB.Begin()
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback()
-	label, err := paths.AgentNameIn(tx, temp)
-	if err != nil || label == "" {
-		return "", err
-	}
-	if held, err := team.Holds(tx, temp); err != nil || held {
-		return "it has work again", err
-	}
-	if _, err := team.LeftRows(tx, temp, time.Now().Unix()); err != nil {
-		return "", err
-	}
-	if _, refused, err = e.removeAgent(tx, temp, label, temp); err != nil || refused != "" {
-		return refused, err
-	}
-	return "", tx.Commit()
 }
 
 // doRename gives an identity another name. Its folder and rows are by key, so they stay as they are. Not while it is running.

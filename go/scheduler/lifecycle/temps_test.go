@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// A temp starts with what the agent it was hired from knows: its role and its lessons in the prompt, and its memory folder as the
+// A seat starts with what the agent it is of knows: its role and its lessons in the prompt, and its memory folder as the
 // session's own, to read and write, which the hide list leaves open. Not its handoff.
 func TestATempKnowsWhatItsAgentKnows(t *testing.T) {
 	r := newLaunchRig(t)
@@ -27,7 +27,7 @@ func TestATempKnowsWhatItsAgentKnows(t *testing.T) {
 	if err := db.SetHandoff(r.l.Q, ann, "ann was half way through the dark theme"); err != nil {
 		t.Fatal(err)
 	}
-	temp, err := team.HireRow(r.l.Q, ann, 0)
+	temp, err := team.NewSeat(r.l.Q, ann, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

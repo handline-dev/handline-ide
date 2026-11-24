@@ -408,3 +408,41 @@ func TestAnAgentInTheRepositorysOwnCheckoutIsDeletedAndTheCheckoutStays(t *testi
 		t.Fatalf("bob retired and its checkout kept (stat err %v)", err)
 	}
 }
+
+func TestRetiringAnAgentIsRefusedWhileASeatIsAtWorkAndTakesItsIdleSeats(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
+		t.Fatal(err)
+	}
+	kid := r.who("bob.kid")
+	var seats []string
+	for range 2 {
+		s, err := team.NewSeat(r.db, kid, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seats = append(seats, s)
+	}
+	if err := team.SetHiredFor(r.db, seats[1], 7); err != nil {
+		t.Fatal(err)
+	}
+	if msg := refusal(t, r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r2"}`)); !strings.Contains(msg, "has seats at work ("+seats[1]+" on T7)") {
+		t.Fatal(msg)
+	}
+	if got, _ := team.TempsOf(r.db, kid); len(got) != 2 || !slices.Contains(paths.ListAgents(r.home), kid) {
+		t.Fatalf("a refusal removed nothing: seats %v", got)
+	}
+
+	if err := team.SetHiredFor(r.db, seats[1], 0); err != nil {
+		t.Fatal(err)
+	}
+	if res, _ := r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r3"}`)["result"].(map[string]any); res == nil {
+		t.Fatal("an agent whose seats are idle is retired")
+	}
+	var rows int
+	r.db.QueryRow("SELECT COUNT(*) FROM agents WHERE hired_from = ?", kid).Scan(&rows)
+	if rows != 0 {
+		t.Fatalf("its idle seats go with it: %d left", rows)
+	}
+}

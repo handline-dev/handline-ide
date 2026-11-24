@@ -232,11 +232,11 @@ func (w *writes) send(c *rpc.Conn, p map[string]any) (any, error) {
 	for _, id := range ids {
 		named[id] = true
 	}
-	paths, err := refPaths(c, p, len(named))
+	refPathList, err := refPaths(c, p, len(named))
 	if err != nil {
 		return nil, err
 	}
-	refs, err := attachments.CheckPathRefs(paths)
+	refs, err := attachments.CheckPathRefs(refPathList)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +276,10 @@ func (w *writes) send(c *rpc.Conn, p map[string]any) (any, error) {
 	if _, err := w.agentNamed(p); err != nil {
 		return nil, err
 	}
-	if err := w.refsReadable(agent, paths); err != nil {
+	if err := w.refsReadable(agent, refPathList); err != nil {
+		return nil, err
+	}
+	if agent, err = paths.Reaches(w.e.DB, agent); err != nil {
 		return nil, err
 	}
 	if task != nil {

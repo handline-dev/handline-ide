@@ -117,23 +117,7 @@ func Resolve(q Q, c Who, word string) (string, error) {
 			return "", err
 		}
 	}
-	if from, err := leftTemp(q, c, word); from != "" || err != nil {
-		return from, err
-	}
 	return "", refusal(q, c, word)
-}
-
-// leftTemp is the agent a temp that left was hired from, when word names that temp (its key, its name in c's workspace, or
-// "workspace/name"): what is addressed to a temp after it left goes there. "" when word names none.
-func leftTemp(q Q, c Who, word string) (string, error) {
-	var from string
-	err := q.QueryRow(`SELECT t.hired_from FROM temps_left t JOIN workspaces w ON w.id = t.workspace
-		WHERE t.agent = ?1 OR (t.workspace = ?2 AND t.name = ?1) OR w.name || '/' || t.name = ?1
-		ORDER BY t.left_at DESC LIMIT 1`, word, c.Workspace).Scan(&from)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	return from, err
 }
 
 // OwnerOf is the person who owns key: an agent's owner, a person themself, else the install's owner.

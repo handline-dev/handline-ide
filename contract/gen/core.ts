@@ -418,7 +418,7 @@ export type SettingsValues = {
   agent_placement?: "auto" | "manual";
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. */
   account_split?: "auto" | "manual";
-  /** Whether a task that comes to an agent mid-turn on another goes to a temp of it: auto, the default, hires one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), which leaves once its task is over; manual keeps the task waiting for the agent. A temp starts only where a start would: the load, agent_cap and account limits hold. */
+  /** Whether a task that comes to an agent mid-turn on another goes to a seat of it: auto, the default, gives it to the agent's lowest idle seat, or a new one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), on a fresh conversation; the seat stays, idle, once the task is over. manual keeps the task waiting for the agent. A seat starts only where a start would: the load, agent_cap and account limits hold. */
   temp_workers?: "auto" | "manual";
   /** With it on, a task that serves the founder (in a founder request's tree, or the founder's own) is Ready for the founder when its assignee finishes it to its land_by agent, as a story's sub-task is; the founder's OK lands it and Redo sends it back. Off by default. */
   review_flow?: boolean;
@@ -526,7 +526,7 @@ export type SettingsChanges = {
   agent_placement?: ("auto" | "manual") | null;
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default). */
   account_split?: ("auto" | "manual") | null;
-  /** Whether a task that comes to an agent mid-turn on another goes to a temp of it: auto, the default, hires one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), which leaves once its task is over; manual keeps the task waiting for the agent. A temp starts only where a start would: the load, agent_cap and account limits hold. null removes the key (back to the default). */
+  /** Whether a task that comes to an agent mid-turn on another goes to a seat of it: auto, the default, gives it to the agent's lowest idle seat, or a new one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), on a fresh conversation; the seat stays, idle, once the task is over. manual keeps the task waiting for the agent. A seat starts only where a start would: the load, agent_cap and account limits hold. null removes the key (back to the default). */
   temp_workers?: ("auto" | "manual") | null;
   /** With it on, a task that serves the founder (in a founder request's tree, or the founder's own) is Ready for the founder when its assignee finishes it to its land_by agent, as a story's sub-task is; the founder's OK lands it and Redo sends it back. Off by default. */
   review_flow?: boolean;

@@ -44,19 +44,19 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	if lc.Env.Observer != nil {
 		held.Live = lc.Env.Observer.LiveSessions
 	}
-	hired := &temps.Env{DB: lc.Env.DB, Desks: lc.Desks, Room: func(a string) string {
+	hired := &temps.Env{DB: lc.Env.DB, Home: cfg.Home, Desks: lc.Desks, Room: func(a string) string {
 		if why := lc.Gate.Held(""); why != "" {
 			return why
 		}
 		return lc.Launch.RoomBeside(lc.Env.DB, a)
-	}, Dismiss: held.Dismiss, Log: cfg.Log, Now: cfg.Now,
+	}, Log: cfg.Log, Now: cfg.Now,
 		Mode:    func() string { return temps.ModeOf(usage.LoadConfig(cfg.Home)) },
 		Session: func(a string) (bool, bool) { return tk.Delivery.SessionPresent(a), tk.Host.SessionIdle(a) },
 		Close: func(a string) (bool, string) {
 			acct, _ := team.CurrentAccount(lc.Env.DB, a)
 			return tk.Lifecycle.CloseAgent(lc.Env.DB, a, tk.Usage.ReadForAgent(a, acct))
 		}}
-	hired.HandBack = func(tid int64, agent, note string) error {
+	hired.HandOff = func(tid int64, agent, note string) error {
 		return taskwrites.HandOffAsDaemon(lc.Env.DB, cfg.Home, lc.Env, tid, agent, note)
 	}
 	lc.Env.Temps = hired

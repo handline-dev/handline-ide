@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -179,6 +180,10 @@ func SayWrite(e *supervisor.Env, q db.Q, requester, target, body string, parent 
 // sayWrite is SayWrite with act, if set, doing what follows the commit in place of the usual push to the target.
 func sayWrite(e *supervisor.Env, q db.Q, requester, target, body string, parent int64, within func(q db.Q, note string, rid int64) error, act func(rid int64)) (*Result, error) {
 	var note string
+	target, err := paths.Reaches(q, target) // the push below goes to whom the say reaches
+	if err != nil {
+		return nil, err
+	}
 	res, err := e.Say(q, supervisor.SayIn{Target: target, Body: body, Requester: requester, ParentID: parent,
 		Within: func(c db.Q, n string, rid int64) error {
 			note = n

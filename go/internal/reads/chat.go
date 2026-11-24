@@ -3,6 +3,7 @@ package reads
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/cmdruns"
+	"github.com/handline/handline/go/internal/temps"
 	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -1020,13 +1022,13 @@ func (e *Env) transcriptItems(agent string, tools []transcript.Tool) ([]map[stri
 		batchKind+"' AND agent = ? UNION ALL SELECT id FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask', 'memo_add') AND agent = ? "+
 		"AND (kind != 'memo_add' OR json_extract(payload, '$.now') LIKE '%@human%') UNION ALL SELECT id FROM events WHERE kind = 'task_turn_pop' "+
 		"AND agent = '"+actor.OwnerKey+"' AND json_extract(payload, '$.to') = ? UNION ALL SELECT id FROM events WHERE kind IN ("+
-		placeholders(len(accountKinds))+") AND agent = ?)"+
-		" ORDER BY id DESC LIMIT ?", append(append(append(anySlice(kinds), agent, agent, agent, agent), anySlice(accountKinds)...), agent, perSource)...)
+		placeholders(len(ownKinds))+") AND agent = ?)"+
+		" ORDER BY id DESC LIMIT ?", append(append(append(anySlice(kinds), agent, agent, agent, agent), anySlice(ownKinds)...), agent, perSource)...)
 	if err != nil {
 		return nil, err
 	}
 	for _, ev := range evs {
-		if item, ok := accountItemOf(ev); ok {
+		if item, ok := ownItemOf(ev); ok {
 			items = append(items, item)
 			continue
 		}
@@ -1066,6 +1068,22 @@ func (e *Env) chatTranscript(c *rpc.Conn, params map[string]any) (any, error) {
 	agent, err := e.chatAgent(params, true)
 	if err != nil {
 		return nil, err
+	}
+	task, err := rangedInt(params, "task", 1, 0)
+	if err != nil {
+		return nil, err
+	}
+	var lo, hi int64 // with task: the ids of the seat's hire for it, from its start to its end (hi 0 while it runs)
+	if task != nil {
+		if lo, hi, err = e.hireSpan(agent, *task); err != nil {
+			return nil, err
+		}
+		if hi != 0 && (before == nil && since == nil || before != nil && *before > hi) {
+			before = &hi
+		}
+		if since != nil && *since < lo {
+			since = &lo
+		}
 	}
 	window := transcript.ToolWindow{Limit: limit + 1} // what a before page keeps, and one more to say there is more
 	if since != nil {
@@ -1110,6 +1128,18 @@ func (e *Env) chatTranscript(c *rpc.Conn, params map[string]any) (any, error) {
 	if items, err = e.withBashItems(agent, items, before, since, more); err != nil {
 		return nil, err
 	}
+	if task != nil {
+		var kept []map[string]any
+		for _, it := range items {
+			switch id := it["id"].(int64); {
+			case id < lo:
+				more = false // the page reached the hire's start
+			case hi == 0 || id < hi:
+				kept = append(kept, it)
+			}
+		}
+		items = kept
+	}
 	working, err := e.working(agent)
 	if err != nil {
 		return nil, err
@@ -1119,6 +1149,32 @@ func (e *Env) chatTranscript(c *rpc.Conn, params map[string]any) (any, error) {
 		out[i] = it
 	}
 	return map[string]any{"items": out, "more": more, "working": working}, nil
+}
+
+// hireSpan is the item ids of seat's latest hire for task tid: from the second it was hired to the end of the second it left, hi 0
+// while it is at work. A seat never hired for it is not_found (what: task).
+func (e *Env) hireSpan(seat string, tid int64) (lo, hi int64, err error) {
+	var id, at int64
+	err = e.DB.QueryRow("SELECT id, ts FROM events WHERE kind = ? AND "+eventTask+" = ? AND json_extract(payload, '$.seat') = ? ORDER BY id DESC LIMIT 1",
+		temps.HiredEvent, tid, seat).Scan(&id, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		nf := rpc.NotFoundError(fmt.Sprintf("%s was never hired for T%d", seat, tid))
+		nf.Data = map[string]any{"what": "task", "name": fmt.Sprint(tid)}
+		return 0, 0, nf
+	}
+	if err != nil {
+		return 0, 0, err
+	}
+	var left sql.NullInt64
+	if err := e.DB.QueryRow("SELECT MIN(ts) FROM events WHERE kind = ? AND "+eventTask+" = ? AND json_extract(payload, '$.seat') = ? AND id > ?",
+		temps.LeftEvent, tid, seat, id).Scan(&left); err != nil {
+		return 0, 0, err
+	}
+	lo = at * 1_000_000
+	if left.Valid {
+		hi = (left.Int64 + 1) * 1_000_000
+	}
+	return lo, hi, nil
 }
 
 // toolOutputBudget is the tool output, in bytes, one page carries between its items.
