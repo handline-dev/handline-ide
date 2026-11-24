@@ -1,9 +1,13 @@
 package supervisor
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 )
@@ -78,4 +82,27 @@ func quoted(r *db.Request) string {
 		return ""
 	}
 	return "> " + textsafe.Oneline(r.Quote.String) + "\n\n"
+}
+
+// besideLine is the line above a founder's message to agent while it is mid-turn or a seat of it is at work, "" otherwise: the tasks its
+// seats hold, where a word for one goes, and how the message becomes work of its own that a seat takes.
+func besideLine(q db.Q, agent string, row *db.Request) string {
+	var held []string
+	for _, seat := range must(team.TempsOf(q, agent)) {
+		if tid := must(team.HiredFor(q, seat)); tid != 0 {
+			title := ""
+			if t := must(db.GetTask(q, tid)); t != nil {
+				title = " " + strconv.Quote(textsafe.Oneline(t.Title))
+			}
+			held = append(held, fmt.Sprintf("T%d%s", tid, title))
+		}
+	}
+	if st := stateOf(q, agent); len(held) == 0 && (st == nil || st.State != states.Running) {
+		return ""
+	}
+	line := ""
+	if len(held) > 0 {
+		line = fmt.Sprintf("Your temps are on %s; a word for one goes there: `hl task comment T<n> add \"...\"`. ", strings.Join(held, ", "))
+	}
+	return line + fmt.Sprintf("If this is new work apart from your current task, `hl task request %s \"<title>\"` makes it a task a temp takes.", row.Ref)
 }

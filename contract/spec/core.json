@@ -2225,7 +2225,7 @@
        "manual"
       ],
       "default": "auto",
-      "description": "Whether a task that comes to an agent mid-turn on another goes to a temp of it: auto, the default, hires one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), which leaves once its task is over; manual keeps the task waiting for the agent. A temp starts only where a start would: the load, agent_cap and account limits hold."
+      "description": "Whether a task that comes to an agent mid-turn on another goes to a seat of it: auto, the default, gives it to the agent's lowest idle seat, or a new one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), on a fresh conversation; the seat stays, idle, once the task is over. manual keeps the task waiting for the agent. A seat starts only where a start would: the load, agent_cap and account limits hold."
      },
      "review_flow": {
       "type": "boolean",
@@ -2762,7 +2762,7 @@
         "type": "null"
        }
       ],
-      "description": "Whether a task that comes to an agent mid-turn on another goes to a temp of it: auto, the default, hires one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), which leaves once its task is over; manual keeps the task waiting for the agent. A temp starts only where a start would: the load, agent_cap and account limits hold. null removes the key (back to the default)."
+      "description": "Whether a task that comes to an agent mid-turn on another goes to a seat of it: auto, the default, gives it to the agent's lowest idle seat, or a new one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), on a fresh conversation; the seat stays, idle, once the task is over. manual keeps the task waiting for the agent. A seat starts only where a start would: the load, agent_cap and account limits hold. null removes the key (back to the default)."
      },
      "review_flow": {
       "type": "boolean",

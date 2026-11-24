@@ -351,6 +351,11 @@ func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what
 			folded, text = nil, founderText(q, row, e.imageLines(q, row))
 		}
 	}
+	if e.Temps != nil && must(db.FounderAuthored(q, rid)) {
+		if line := besideLine(q, agent, row); line != "" {
+			text = line + "\n\n" + text
+		}
+	}
 	text = e.arrivalLine(q, agent, text, requestOp(rid))
 	state, why := e.sendOnce(q, agent, requestOp(rid), text, d)
 	switch state {

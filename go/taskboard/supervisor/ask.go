@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
@@ -157,6 +158,7 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 		return nil, fmt.Errorf("a request sent on %s's behalf names what it forwards", in.Requester)
 	}
 	requester := in.Requester
+	in.Target = must(paths.Reaches(q, in.Target)) // a word to an idle seat reaches the agent it is of
 	// Nobody may send as the human: that name carries the routing table's reach to every agent and exempts a chain from the loop guards.
 	if actor.IsPerson(requester) && in.Speaker != nil && *in.Speaker != requester && !in.OnBehalfOf {
 		return refuse(fmt.Sprintf("%s may not ask as %s: that name is the human's, and it is exempt from the loop guards.", *in.Speaker, requester)), nil

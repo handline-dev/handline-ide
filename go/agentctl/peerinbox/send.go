@@ -449,8 +449,15 @@ func peerRecord(id string) matcher {
 	}
 }
 
-// ShowsTyped is whether a transcript line is text, typed at the session, as the session took it in.
-func ShowsTyped(line, text string) bool { return typedRecord(text, same)(line) == recSeen }
+// ShowsTyped is whether a transcript line is text, typed at the session, as the session took it in, or a prompt whose last lines are it (a
+// founder's message under the lines the daemon puts above it).
+func ShowsTyped(line, text string) bool { return typedRecord(text, endsWithLines)(line) == recSeen }
+
+// endsWithLines is same, or the recorded prompt ends with a blank line and then text (the daemon's line above it).
+func endsWithLines(v any, text string) bool {
+	s, ok := v.(string)
+	return same(v, text) || ok && text != "" && strings.HasSuffix(strings.TrimSpace(s), "\n\n"+text)
+}
 
 // typedRecord finds text typed at the session: seen as the person's user record, or a queued_command attachment that is not a peer's
 // (typed mid-turn, taken into it); queued by a queue-operation enqueue of it. is compares a record's prompt with text. A ! line is recorded
