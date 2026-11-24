@@ -135,8 +135,9 @@ func (w *Watcher) pending() bool {
 	return false
 }
 
-// Run scans at once (each detector's first look) and then whenever another connection has committed, until stop closes. The watch holds
-// one connection of its own, since data_version is per connection; one that fails is dropped and taken again after Retry.
+// Run scans at once (each detector's first look, unless Scan took it) and then whenever another connection has committed, until stop
+// closes. The watch holds one connection of its own, since data_version is per connection; one that fails is dropped and taken again
+// after Retry.
 func (w *Watcher) Run(stop <-chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
