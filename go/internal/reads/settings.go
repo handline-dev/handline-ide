@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/internal/nodes"
+	"github.com/handline/handline/go/internal/temps"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/keepawake"
@@ -141,6 +142,7 @@ func (e *Env) settingsValues() map[string]any {
 		usage.SubagentGuardKey:          s.Flag(usage.SubagentGuardKey, false),
 		usage.MoveBeforeKey:             usage.MoveBeforeOf(cfg),
 		usage.SplitKey:                  usage.SplitOf(cfg),
+		temps.Key:                       temps.ModeOf(cfg),
 		settings.ClearPastBackgroundKey: s.Flag(settings.ClearPastBackgroundKey, false),
 		settings.TranscriptRowsKey:      s.Flag(settings.TranscriptRowsKey, false),
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),

@@ -180,7 +180,10 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if err != nil {
 		return nil, nil, err
 	}
-	memoryDir := filepath.Join(paths.AgentDir(l.Home, agent), "memory")
+	memoryDir, err := l.MemoryDir(agent)
+	if err != nil {
+		return nil, nil, err
+	}
 	if err := os.MkdirAll(memoryDir, 0o755); err != nil {
 		return nil, nil, err
 	}

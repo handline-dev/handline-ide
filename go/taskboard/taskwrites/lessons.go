@@ -10,6 +10,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/requestref"
@@ -64,7 +65,7 @@ func aboutFounder(p map[string]any) (bool, error) {
 // whose is the key a lesson write is kept under: the caller's, or its owner's for one about the founder.
 func whose(tx *sql.Tx, me string, founder bool) (string, error) {
 	if !founder {
-		return me, nil
+		return paths.KnowsAs(tx, me) // a temp's lessons are the agent's it was hired from
 	}
 	return addr.OwnerOf(tx, me)
 }
@@ -204,6 +205,10 @@ func lessonsList(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, badParam("agent names whose lessons", "agent")
 		}
 		agent = c.Caller.Actor()
+	}
+	agent, err := paths.KnowsAs(c.Server().DB, agent)
+	if err != nil {
+		return nil, err
 	}
 	live, err := db.LiveLessons(c.Server().DB, agent)
 	if err != nil {

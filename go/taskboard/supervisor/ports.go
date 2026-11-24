@@ -96,6 +96,14 @@ type Stuck interface {
 	DeliveryBlock(q db.Q, agent string) (why string, clears bool)
 }
 
+// Temps is go/internal/temps: a temp of a busy agent, for a task that came to it mid-turn.
+type Temps interface {
+	// Hire adds a temp of agent and is its key; "" when none is hired, and the task waits for agent as it always did.
+	Hire(agent string) string
+	// Waiting is whether a temp of agent has work and no session yet.
+	Waiting(agent string) bool
+}
+
 // Agents is the session port the one send path delivers through (agent.Port; the peer inbox, go/internal/compose). A nil port means every
 // agent is a terminal agent, and the typing code is what delivers.
 type Agents = agent.Port
@@ -113,6 +121,7 @@ type Ports struct {
 	Evaluate  Evaluate
 	Proposals Proposals
 	Stuck     Stuck
+	Temps     Temps // optional: nil hires none
 }
 
 // Wired says every port has its owner: only then can a write's telling run, since a missing port is a nil call. A daemon that serves the

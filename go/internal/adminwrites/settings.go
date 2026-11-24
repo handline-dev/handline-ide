@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/placement"
+	"github.com/handline/handline/go/internal/temps"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -63,7 +64,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	"push_only_away": flag_, "push_sound": flag_,
 	keepawake.Key: awake, housekeeping.OrphansKey: reaper,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
-	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split, placement.Key: place,
+	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split, placement.Key: place, temps.Key: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	worktreepool.DiskKeepFreeKey: int0, worktreepool.AgentsMemoryMaxKey: int0,
 	nodes.BatteryKey: flag_, nodes.ReclaimKey: int1, nodes.BuildAutoKey: flag_, settings.ClusterNameKey: cname,

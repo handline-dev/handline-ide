@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/proposalwrites"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/internal/temps"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/cronspec"
 	"github.com/handline/handline/go/scheduler/keepawake"
@@ -43,6 +44,22 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	if lc.Env.Observer != nil {
 		held.Live = lc.Env.Observer.LiveSessions
 	}
+	hired := &temps.Env{DB: lc.Env.DB, Desks: lc.Desks, Room: func(a string) string {
+		if why := lc.Gate.Held(""); why != "" {
+			return why
+		}
+		return lc.Launch.RoomBeside(lc.Env.DB, a)
+	}, Dismiss: held.Dismiss, Log: cfg.Log, Now: cfg.Now,
+		Mode:    func() string { return temps.ModeOf(usage.LoadConfig(cfg.Home)) },
+		Session: func(a string) (bool, bool) { return tk.Delivery.SessionPresent(a), tk.Host.SessionIdle(a) },
+		Close: func(a string) (bool, string) {
+			acct, _ := team.CurrentAccount(lc.Env.DB, a)
+			return tk.Lifecycle.CloseAgent(lc.Env.DB, a, tk.Usage.ReadForAgent(a, acct))
+		}}
+	hired.HandBack = func(tid int64, agent, note string) error {
+		return taskwrites.HandOffAsDaemon(lc.Env.DB, cfg.Home, lc.Env, tid, agent, note)
+	}
+	lc.Env.Temps = hired
 	desks := &deskSweep{lc: lc, home: cfg.Home, log: cfg.Log}
 	prune := &deskPrune{pool: lc.Desks, q: lc.Env.DB, home: cfg.Home, free: cfg.DiskFree, log: cfg.Log}
 	return []tick.NamedSweep{
@@ -52,6 +69,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		}},
 		{Name: "timebox", Run: func(q db.Q, now int64) error { return timebox.Sweep(tk, now) }},
 		{Name: "notice-digest", Run: func(q db.Q, now int64) error { return lc.Env.SweepNotices(now) }},
+		{Name: "temps", Run: func(db.Q, int64) error { return hired.Sweep() }},
 		{Name: "task-queue", Run: func(q db.Q, now int64) error { return lc.Env.SweepTaskQueue(now) }},
 		{Name: "task-holds", Run: func(q db.Q, now int64) error { return lc.Env.SweepHolds(now) }},
 		{Name: "task-asks", Run: func(db.Q, int64) error { return lc.Env.SweepTaskAsks() }},

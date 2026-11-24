@@ -29,7 +29,16 @@ func (u *UsageAdapter) Read(acct string) AccountStatus {
 // PickAccount is status.pick_account as find_room asks it: a never-run account is a real place to go, and this is the one caller about
 // to place an agent, so a carried or idle-floored candidate is asked fresh. A load or a pick that cannot be read picks nobody: fail closed.
 func (u *UsageAdapter) PickAccount(candidates []string, agent string) string {
-	loads, err := u.Env.ReadAll(u.Q, agent)
+	return u.pick(candidates, agent, agent)
+}
+
+// PickBeside is PickAccount with agent's own load counted.
+func (u *UsageAdapter) PickBeside(candidates []string, agent string) string {
+	return u.pick(candidates, agent, "")
+}
+
+func (u *UsageAdapter) pick(candidates []string, agent, exclude string) string {
+	loads, err := u.Env.ReadAll(u.Q, exclude)
 	if err != nil {
 		return ""
 	}
