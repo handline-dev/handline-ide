@@ -31,12 +31,13 @@ const RESTARTS = new Set(['settings_applied', 'restart']);
 /** Whether a restart is under way: from the setting's change until the new session is up. */
 export const restarting = (a: Pick<AgentLike, 'handoff'>): boolean => !!a.handoff && RESTARTS.has(a.handoff.cause);
 
-/** Why the agent's mark is not plain, in one line: a restart under way, else the tasks it waits on, else the daemon's status line, else
+/** Why the agent's mark is not plain, in one line: a restart under way, else a start's status line, else the tasks it waits on, else the daemon's status line, else
  * its block's words; null while it works or rests. */
 export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters<typeof whyOf>[0]>): string | null {
   // A restart says so from the setting's change until the new session is up, while its mark shows it working.
   if (a.handoff && restarting(a)) return restartingLine(a.handoff);
   const act = activityOf(a);
+  if (act === 'waking') return a.status?.text.trim() || null; // the daemon's own words: Starting in a moment, Starting
   if (act !== 'you' && act !== 'held' && act !== 'error') return null;
   const tasks = a.status?.reason === 'task' ? a.status.tasks : [];
   if (tasks.length) return `Waiting on ${tasks.map((t) => `T${t}`).join(', ')}`;

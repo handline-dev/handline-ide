@@ -162,6 +162,16 @@ export const SEEDS: Record<string, Seed> = {
     };
   },
 
+  /** handline.auditor is starting a session for its work: its chat foot says the daemon's words with the waking mark. */
+  starting: (d) => {
+    const s = d.sessions.get(AUD)!;
+    s.state = 'queued';
+    s.fx.view = {
+      ...s.fx.view,
+      status: { state: 'preparing', reason: 'work', text: 'Starting in a moment', until: null, since: null, tasks: [] },
+    };
+  },
+
   /** handline.auditor waits on a question with several choices: its chat ends in the prompt card. */
   question: (d) => {
     const s = d.sessions.get(AUD)!;

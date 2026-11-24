@@ -8,11 +8,13 @@ import { toast } from '#src/ui/toast.tsx';
 export function PauseCard({ agent }: { agent: string }) {
   const status = useAgents().data?.agents.find((a) => a.key === agent)?.status;
   const held = status?.reason === 'paused' ? (status.tasks[0] ?? null) : null;
-  if (held === null) return null;
-  return <Card task={held} more={status!.tasks.length - 1} />;
+  // Gone at the click once accepted, not when agents.list next changes.
+  const [accepted, setAccepted] = useState<number | null>(null);
+  if (held === null || held === accepted) return null;
+  return <Card task={held} more={status!.tasks.length - 1} onAccepted={() => setAccepted(held)} />;
 }
 
-function Card({ task, more }: { task: number; more: number }) {
+function Card({ task, more, onAccepted }: { task: number; more: number; onAccepted: () => void }) {
   const title = useTask(task).data?.title;
   const machine = Hooks.useDaemonStatus().data?.paused?.machine?.name;
   const resume = Hooks.useDaemonResume();
@@ -21,6 +23,7 @@ function Card({ task, more }: { task: number; more: number }) {
   const act = (run: () => Promise<unknown>, failed: string) => {
     setBusy(true);
     run()
+      .then(onAccepted)
       .catch(() => toast(failed, { tone: 'warning' }))
       .finally(() => setBusy(false));
   };
