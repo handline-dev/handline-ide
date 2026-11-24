@@ -943,7 +943,7 @@
           "properties": {
            "agent": {
             "type": "string",
-            "description": "The agent's name."
+            "description": "The agent's key, as agent.set takes it."
            },
            "device": {
             "type": "string",
@@ -952,6 +952,10 @@
            "why": {
             "type": "string",
             "description": "Why it is placed so, in words a person reads (\"heavy: check.sh 18 h this week\", \"heavy: ...; Studio: codex not installed, so it stays here\", \"pinned to Studio\"); \"\" for a light agent on the master's machine."
+           },
+           "heavy": {
+            "type": "boolean",
+            "description": "Heavy by its last 7 days (over 2 h of heavy commands or a 6 GB peak): placed on the lent device with the most room."
            },
            "heavy_s": {
             "type": "integer",
@@ -970,6 +974,7 @@
            "agent",
            "device",
            "why",
+           "heavy",
            "heavy_s",
            "memory_peak"
           ]

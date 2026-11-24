@@ -133,18 +133,12 @@ export function coreCall(
         battery: null,
         version: MASTER_VERSION,
       };
+      const nodes: Record<string, unknown>[] = [mine, ...d.admin.lentNodes(at)];
       const manual = d.admin.settings().values.agent_placement === 'manual';
-      const agents = [...d.sessions.values()].map((s) => {
-        const { key, name } = view(s, d.tasks);
-        const pin = s.settings.device ?? '';
-        const placed = d.admin.placed.get(key);
-        const device = manual && pin ? pin : (placed ?? own.id);
-        const why = manual && pin ? `pinned to ${pin}` : placed ? 'heavy: check.sh 3 h this week' : '';
-        return { agent: name, device, why, heavy_s: placed ? 3 * 3600 : 0, memory_peak: 2 ** 30, ...(pin ? { pin } : {}) };
-      });
+      const agents = placementAgents(d, nodes, own.id, manual);
       return {
         master: { id: own.id, number: 1 },
-        nodes: [mine, ...d.admin.lentNodes(at)],
+        nodes,
         cluster: d.admin.cluster(at),
         placement: { mode: manual ? 'manual' : 'auto', agents },
       };
@@ -188,6 +182,43 @@ const INSTALL_FX = {
 };
 
 /** tools.install: a window that prints the tool's fix and runs until `endInstall` ends it; a running one is answered again. */
+function placementAgents(d: CoreHost, nodes: Record<string, unknown>[], ownId: string, manual: boolean) {
+  const nameOf = (id: string) => String(nodes.find((n) => n.id === id)?.name ?? id);
+  const lackOn = (node: Record<string, unknown>, key: string) =>
+    ((node.lacks ?? []) as { agent: string; why: string }[]).find((l) => l.agent === key)?.why;
+  const HEAVY = 'heavy: checks 3 h this week';
+  // As the daemon places them: a pin on manual when its device can take the agent; a heavy agent on the lent machine it was seeded
+  // on; one the seed has a lent machine unable to take (other than for its build) stays here.
+  return [...d.sessions.values()].map((s) => {
+    const { key } = view(s, d.tasks);
+    const pin = s.settings.device ?? '';
+    const placed = d.admin.placed.get(key);
+    const kept = nodes.some((n) => !n.self && lackOn(n, key) && !lackOn(n, key)!.startsWith('it runs Handline'));
+    const pinned = manual && pin ? nodes.find((n) => n.id === pin) : undefined;
+    const pinLack = pinned && lackOn(pinned, key);
+    const [device, why] = pinned
+      ? pinned.self
+        ? [ownId, '']
+        : pinLack
+          ? [ownId, `pinned to ${nameOf(pin)}, which cannot take it now (${pinLack}), so it starts here`]
+          : [pin, `pinned to ${nameOf(pin)}`]
+      : placed
+        ? [placed, HEAVY]
+        : kept
+          ? [ownId, `${HEAVY}; no lent device can take it, so it stays here`]
+          : [ownId, ''];
+    return {
+      agent: key,
+      device,
+      why,
+      heavy: !!(placed || kept),
+      heavy_s: placed || kept ? 3 * 3600 : 0,
+      memory_peak: 2 ** 30,
+      ...(pin ? { pin } : {}),
+    };
+  });
+}
+
 export function installTool(d: CoreHost, p: Record<string, unknown>): unknown {
   const tool = p.tool;
   if (tool !== 'claude' && tool !== 'codex' && tool !== 'git') throw badRequest('tool is claude, codex or git', 'tool');

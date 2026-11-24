@@ -173,12 +173,14 @@ export interface DevicesMethods {
       mode: "auto" | "manual";
       /** One row per agent of this home. */
       agents: {
-        /** The agent's name. */
+        /** The agent's key, as agent.set takes it. */
         agent: string;
         /** The node id its next session starts on: the master's own while it stays. */
         device: string;
         /** Why it is placed so, in words a person reads ("heavy: check.sh 18 h this week", "heavy: ...; Studio: codex not installed, so it stays here", "pinned to Studio"); "" for a light agent on the master's machine. */
         why: string;
+        /** Heavy by its last 7 days (over 2 h of heavy commands or a 6 GB peak): placed on the lent device with the most room. */
+        heavy: boolean;
         /** Seconds its heavy commands ran in its last 7 days. */
         heavy_s: number;
         /** The most bytes its processes held in one minute in its last 7 days. */

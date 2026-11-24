@@ -18,7 +18,7 @@ export const DEVICE_SEEDS: Record<string, Seed> = {
       lent: {
         load: { cores: 12, load1: 4.6, ram_total: 64 * GB, ram_free: 29 * GB, agents_rss: 9 * GB },
         battery: false,
-        lacks: [{ agent: 'handline.auditor', why: 'codex not installed' }],
+        lacks: [{ agent: 'handline.auditor', why: 'its project is not there' }],
       },
     });
     d.admin.lend({

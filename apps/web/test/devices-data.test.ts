@@ -54,7 +54,7 @@ describe('deviceRows', () => {
 
   it("joins a Mac's device to its node: its mode, online, agents and what it lacks", () => {
     const studio = dev('d-studio', { kind: 'mac', lending: 'run' });
-    const lacks = [{ agent: 'ui', why: 'needs pencil' }];
+    const lacks = [{ agent: 'ui', why: 'its project is not there' }];
     const rows = deviceRows([studio], [master, node('n-studio', { device: 'd-studio', lacks })], [{ key: 'core', node: 'n-studio' }], opts);
     expect(rows[1]).toMatchObject({ id: 'd-studio', runner: true, mode: 'run', state: 'running', agents: ['core'], lacks });
   });

@@ -131,6 +131,7 @@ type Placement struct {
 	Agent      string `json:"agent"`
 	Device     string `json:"device"`
 	Why        string `json:"why"`
+	Heavy      bool   `json:"heavy"`
 	HeavyS     int64  `json:"heavy_s"`
 	MemoryPeak int64  `json:"memory_peak"`
 	Pin        string `json:"pin,omitempty"`
@@ -143,7 +144,7 @@ func (p *Placer) Status(agent string) (Placement, error) {
 	if err != nil || key == "" {
 		return pl, err
 	}
-	pl.HeavyS, pl.MemoryPeak, pl.Pin = n.load.HeavyS, n.load.MemoryPeak, n.pin
+	pl.Heavy, pl.HeavyS, pl.MemoryPeak, pl.Pin = n.heavy, n.load.HeavyS, n.load.MemoryPeak, n.pin
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if got, had := p.picked[agent]; had { // as Where picks: without the agent's own pick before
