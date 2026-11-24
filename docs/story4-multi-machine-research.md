@@ -192,8 +192,18 @@ Reading across:
   check uses about 4 GB, all 13 agents together about 4.5 GB, one agent about 350 MB
   (`docs/story2-load-research.md`). Simulators were not measured here; forum reports put one at several GB.
 
-Taken into Story 4 (`docs/story4-design.md` section 7): agents stay on the master's machine, heavy jobs go to
-the machine with the most room, and a job runs here when no machine can take it.
+The same 7 days split by agent: one agent (the one that lands every branch, running the full check each time)
+did 48% of the heavy command time, the next 16%, the top four 84%. Heavy work sits in a few agents.
+
+An agent IDE that runs workers on several machines ships its own tools inside its app: a small helper app that
+holds the screen-control permission, a browser and a browser-driving program, simulator and emulator control,
+and its command line, taught to agents by skills it bundles (read from the installed app, 11-24). A second
+machine running that app has every tool with nothing to install; agent logins and build tools are still set up
+by hand once.
+
+Taken into Story 4 (`docs/story4-design.md` section 7, the founder's answers T3890 8654 to 8667): heavy agents
+go whole to the machine with the most room, the rest stay; Handline ships its own browser and simulator tools
+with skills it installs by itself, so a lent Mac needs only a Claude login and Xcode.
 
 ## Sources
 
