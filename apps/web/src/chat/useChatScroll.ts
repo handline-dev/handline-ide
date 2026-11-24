@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObje
 import { keptScroll } from '#src/ui/keptScroll.ts';
 import { START, chatScroll, type ChatEntry, type Geometry, type ScrollEvent, type ScrollState } from '@handline/app-core';
 
-const NEAR = 40; // px from the end that still counts as the bottom
+export const NEAR = 40; // px from the end that still counts as the bottom
 const GLIDE_MS = 600;
 
 /** The first line in view and how far below the top of `box` it sits: what a reader is looking at. */

@@ -7,7 +7,8 @@ import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvent
 import { useMe } from '@handline/app-react';
 import { Check, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { JumpDown } from '#src/ui/JumpDown.tsx';
 import { ago } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -17,7 +18,7 @@ import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { GO_TURN, goToTurn, openTurnRow, takeTyping, type OpenTurn } from '#src/tools/TaskTurn.ts';
+import { GO_TURN, goToTurn, openTurnRow, takeTyping, toBottom, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { ChangeSize } from '#src/tools/TaskCode.tsx';
@@ -44,6 +45,7 @@ export function TaskTab({ id }: { id: number }) {
   const me = useMe();
   const nameOf = useNameOf();
   useTaskSeen(id);
+  const scroller = useRef<HTMLDivElement>(null);
   // The comment the box below answers, picked by Reply or a comment's Reference.
   const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
@@ -129,75 +131,78 @@ export function TaskTab({ id }: { id: number }) {
           {t.review?.ready && <VerdictButtons t={t} />}
           <Verbs id={t.id} open={open} state={t.state} />
         </Page>
-        <ScrollFade keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
-          <Page className="flex flex-col gap-6 pt-2 pb-4 text-base text-fg">
-            <header className="flex flex-col gap-3">
-              <ChangeSize task={t.id} />
-              <p className="text-xs text-muted">
-                Reports to {isPerson(t.asker, me) ? 'you' : nameOf(t.asker)} · <span title={t.created}>created {ago(t.created)}</span>
-                {open && chain && <> · {chain}</>}
-                {t.done && (
-                  <>
-                    {' '}
-                    · <span title={t.done}>closed {ago(t.done)}</span>
-                  </>
-                )}
-                {t.parent && (
-                  <>
-                    {' '}
-                    · under <TaskLink id={t.parent} title={t.parent_title ?? undefined} />
-                  </>
-                )}
-              </p>
-              <Fields t={t} open={open} />
-              {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
-              {open && !mine && why && (
-                <p className="flex items-start gap-2 text-sm text-muted">
-                  {lease ? <LeaseIcon kind={lease.kind} size={14} /> : <Hourglass size={14} className="mt-0.5 shrink-0" />}
-                  <Linked text={why} />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <ScrollFade box={scroller} keep={`task:${id}`} fromEnd data-task-scroll={id} className="min-h-0 flex-1">
+            <Page className="flex flex-col gap-6 pt-2 pb-4 text-base text-fg">
+              <header className="flex flex-col gap-3">
+                <ChangeSize task={t.id} />
+                <p className="text-xs text-muted">
+                  Reports to {isPerson(t.asker, me) ? 'you' : nameOf(t.asker)} · <span title={t.created}>created {ago(t.created)}</span>
+                  {open && chain && <> · {chain}</>}
+                  {t.done && (
+                    <>
+                      {' '}
+                      · <span title={t.done}>closed {ago(t.done)}</span>
+                    </>
+                  )}
+                  {t.parent && (
+                    <>
+                      {' '}
+                      · under <TaskLink id={t.parent} title={t.parent_title ?? undefined} />
+                    </>
+                  )}
                 </p>
-              )}
-              {open &&
-                blockers.map((b, i) => (
-                  <p key={b.task} className={`flex min-w-0 items-center gap-2 text-sm ${i > 0 ? 'pl-6' : ''}`}>
-                    {i === 0 && <Hourglass size={14} className="shrink-0 text-muted" />}
-                    <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
-                    <TaskLink id={b.task} title={b.title} state={b} />
+                <Fields t={t} open={open} />
+                {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
+                {open && !mine && why && (
+                  <p className="flex items-start gap-2 text-sm text-muted">
+                    {lease ? <LeaseIcon kind={lease.kind} size={14} /> : <Hourglass size={14} className="mt-0.5 shrink-0" />}
+                    <Linked text={why} />
                   </p>
-                ))}
-            </header>
-            {t.body && (
-              <Flash text={t.body}>
-                <Clamped>
-                  <Markdown text={t.body} />
-                </Clamped>
-              </Flash>
-            )}
-            {t.state === 'draft' && t.plan && (
-              <Section title="Plan">
-                <Clamped>
-                  <Markdown text={t.plan.text} />
-                </Clamped>
-              </Section>
-            )}
-            {t.subtasks.length > 0 && <PlanFlow t={t} />}
-            {t.review ? (
-              <Section title="Result">
-                <Result t={t} review={t.review} />
-              </Section>
-            ) : (
-              t.evidence && (
-                <Section title="Result">
-                  <ResultChips evidence={t.evidence} title={t.title} />
-                  <Flash text={t.evidence}>
-                    <Markdown text={t.evidence} />
-                  </Flash>
+                )}
+                {open &&
+                  blockers.map((b, i) => (
+                    <p key={b.task} className={`flex min-w-0 items-center gap-2 text-sm ${i > 0 ? 'pl-6' : ''}`}>
+                      {i === 0 && <Hourglass size={14} className="shrink-0 text-muted" />}
+                      <span className="shrink-0 whitespace-nowrap text-muted">Waiting on</span>
+                      <TaskLink id={b.task} title={b.title} state={b} />
+                    </p>
+                  ))}
+              </header>
+              {t.body && (
+                <Flash text={t.body}>
+                  <Clamped>
+                    <Markdown text={t.body} />
+                  </Clamped>
+                </Flash>
+              )}
+              {t.state === 'draft' && t.plan && (
+                <Section title="Plan">
+                  <Clamped>
+                    <Markdown text={t.plan.text} />
+                  </Clamped>
                 </Section>
-              )
-            )}
-            {activity()}
-          </Page>
-        </ScrollFade>
+              )}
+              {t.subtasks.length > 0 && <PlanFlow t={t} />}
+              {t.review ? (
+                <Section title="Result">
+                  <Result t={t} review={t.review} />
+                </Section>
+              ) : (
+                t.evidence && (
+                  <Section title="Result">
+                    <ResultChips evidence={t.evidence} title={t.title} />
+                    <Flash text={t.evidence}>
+                      <Markdown text={t.evidence} />
+                    </Flash>
+                  </Section>
+                )
+              )}
+              {activity()}
+            </Page>
+          </ScrollFade>
+          <JumpDown box={scroller} />
+        </div>
         {box}
       </MarkReply.Provider>
     </FileDropArea>
@@ -316,14 +321,6 @@ function Verbs({ id, open, state }: { id: number; open: boolean; state: string }
       </Menu>
     </div>
   );
-}
-
-/** After the founder comments: the page goes to its end, where the new comment is, once it is drawn. */
-function toBottom(id: number) {
-  setTimeout(() => {
-    const el = document.querySelector(`[data-task-scroll="${id}"]`);
-    el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-  }, 50);
 }
 
 /** A line's key: a comment by its number and words, so an edit draws it again; an event by its time and words. */

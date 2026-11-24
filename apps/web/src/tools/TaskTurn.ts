@@ -55,3 +55,11 @@ export function showMemo(id: number) {
   el.classList.add('ring-2', 'ring-warning');
   setTimeout(() => el.classList.remove('ring-2', 'ring-warning'), 1500);
 }
+
+/** After the founder comments: the page goes to its end, where the new comment is, once it is drawn. */
+export function toBottom(id: number) {
+  setTimeout(() => {
+    const el = document.querySelector(`[data-task-scroll="${id}"]`);
+    el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, 50);
+}

@@ -46,6 +46,7 @@ import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
+import { JumpDown } from '#src/ui/JumpDown.tsx';
 import { Boundary } from '#src/ui/Boundary.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -363,78 +364,81 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   });
 
   return (
-    <div
-      ref={stream}
-      onScroll={scroll.onScroll}
-      onWheel={scroll.driven}
-      onTouchStart={scroll.driven}
-      onKeyDown={scroll.driven}
-      onPointerDown={scroll.driven}
-      className="min-h-0 flex-1 overflow-y-auto"
-      style={fade}
-    >
-      {/* At least as tall as the view, its lines at the bottom: a short chat sits on the box, as a messenger's does. */}
-      <div ref={content} className="flex min-h-full flex-col justify-end py-4">
-        <Page className="flex flex-col">
-          {/* Near the top (400px out), the older page is read; useChatScroll keeps the line in view where it was. */}
-          {chat.hasOlder && <div ref={top} aria-hidden className="h-px" />}
-          {chat.loadingOlder && (
-            <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted">
-              <LoaderCircle size={14} strokeWidth={3} className="animate-spin" />
-              Loading earlier messages
-            </div>
-          )}
-          <AnimatePresence initial={false}>
-            {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
-                an older page lands as one still block. */}
-            {rows.map((r, i, all) =>
-              'events' in r ? (
-                <motion.div
-                  key={r.id}
-                  data-id={r.key}
-                  initial={i <= known(all) ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={spring}
-                  className="flex"
-                >
-                  <TaskActivity events={r.events} />
-                </motion.div>
-              ) : r.kind === 'record' ? (
-                <TurnRecord key={`record:${r.id}`} r={r} fade={i > known(all)} />
-              ) : (
-                <ChatLine
-                  key={`${r.kind}:${r.id}`}
-                  e={r}
-                  agent={agent}
-                  me={me}
-                  onReply={onReply}
-                  parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
-                  bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
-                  moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
-                  fade={i > known(all)}
-                />
-              ),
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={stream}
+        onScroll={scroll.onScroll}
+        onWheel={scroll.driven}
+        onTouchStart={scroll.driven}
+        onKeyDown={scroll.driven}
+        onPointerDown={scroll.driven}
+        className="min-h-0 flex-1 overflow-y-auto"
+        style={fade}
+      >
+        {/* At least as tall as the view, its lines at the bottom: a short chat sits on the box, as a messenger's does. */}
+        <div ref={content} className="flex min-h-full flex-col justify-end py-4">
+          <Page className="flex flex-col">
+            {/* Near the top (400px out), the older page is read; useChatScroll keeps the line in view where it was. */}
+            {chat.hasOlder && <div ref={top} aria-hidden className="h-px" />}
+            {chat.loadingOlder && (
+              <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted">
+                <LoaderCircle size={14} strokeWidth={3} className="animate-spin" />
+                Loading earlier messages
+              </div>
             )}
-          </AnimatePresence>
-          {/* The dots' row is always there, so turning them on or off does not move the chat. */}
-          {/* A move kept for the turn's end takes the row, at its height: the move or the dots, never both. */}
-          {view?.pending_move ? (
-            <PendingMove agent={agent} />
-          ) : (
-            <FootRow
-              busy={busy}
-              hold={hold}
-              restart={restart}
-              move={!compacting && switching ? <MoveSteps agent={agent} /> : undefined}
-              held={held}
-              doing={doing}
-              turn={turnMinutes(chat.working.since, now)}
-            />
-          )}
-          <PauseCard agent={agent} />
-          <PromptCard agent={agent} />
-        </Page>
+            <AnimatePresence initial={false}>
+              {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
+                an older page lands as one still block. */}
+              {rows.map((r, i, all) =>
+                'events' in r ? (
+                  <motion.div
+                    key={r.id}
+                    data-id={r.key}
+                    initial={i <= known(all) ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={spring}
+                    className="flex"
+                  >
+                    <TaskActivity events={r.events} />
+                  </motion.div>
+                ) : r.kind === 'record' ? (
+                  <TurnRecord key={`record:${r.id}`} r={r} fade={i > known(all)} />
+                ) : (
+                  <ChatLine
+                    key={`${r.kind}:${r.id}`}
+                    e={r}
+                    agent={agent}
+                    me={me}
+                    onReply={onReply}
+                    parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
+                    bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
+                    moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
+                    fade={i > known(all)}
+                  />
+                ),
+              )}
+            </AnimatePresence>
+            {/* The dots' row is always there, so turning them on or off does not move the chat. */}
+            {/* A move kept for the turn's end takes the row, at its height: the move or the dots, never both. */}
+            {view?.pending_move ? (
+              <PendingMove agent={agent} />
+            ) : (
+              <FootRow
+                busy={busy}
+                hold={hold}
+                restart={restart}
+                move={!compacting && switching ? <MoveSteps agent={agent} /> : undefined}
+                held={held}
+                doing={doing}
+                turn={turnMinutes(chat.working.since, now)}
+              />
+            )}
+            <PauseCard agent={agent} />
+            <PromptCard agent={agent} />
+          </Page>
+        </div>
       </div>
+      <JumpDown box={stream} working={busy} onDown={scroll.bottom} />
     </div>
   );
 }

@@ -52,7 +52,7 @@ export function useScrollFade(ref: RefObject<HTMLElement | null>, fadeTop = true
 }
 
 /** A scroll area whose edges fade while there is more to scroll that way. With `keep`, it is found where it was left (ui/keptScroll); with `fromEnd`, first opened at its end.
- *  `fadeTop={false}` keeps the top edge sharp, for content whose sticky headers sit there. */
+ *  `fadeTop={false}` keeps the top edge sharp, for content whose sticky headers sit there. `box` is the ref for a caller that needs the element. */
 export function ScrollFade({
   className = '',
   style,
@@ -60,9 +60,11 @@ export function ScrollFade({
   keep,
   fromEnd,
   fadeTop,
+  box,
   ...props
-}: ComponentProps<'div'> & { keep?: string; fromEnd?: boolean; fadeTop?: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
+}: ComponentProps<'div'> & { keep?: string; fromEnd?: boolean; fadeTop?: boolean; box?: RefObject<HTMLDivElement | null> }) {
+  const own = useRef<HTMLDivElement>(null);
+  const ref = box ?? own;
   const fade = useScrollFade(ref, fadeTop);
   useKeptScroll(ref, keep, fromEnd);
   return (
