@@ -1,8 +1,5 @@
-Art in this folder is by Kenney (www.kenney.nl), released under Creative Commons Zero (CC0):
-http://creativecommons.org/publicdomain/zero/1.0/
+models/    Furniture Kit 2.0 (Models/GLTF format) by Kenney (www.kenney.nl), released under Creative Commons Zero (CC0):
+           http://creativecommons.org/publicdomain/zero/1.0/ - the office's furniture
 
-city.png   Roguelike Modern City (Tilemap/tilemap_packed.png): 16px tiles, 37 by 28
-
-office.png is Handline's own: the office's people drawn with an image model and cleaned by hand (sprite places in src/town/sprites.ts).
-
-models/    Furniture Kit 2.0 (Models/GLTF format), Kenney, CC0: the office's furniture
+people.png, founder.png and bubble.png are Handline's own: drawn with an image model, only the background taken out.
+The city (src/town/street.ts) is built in code.

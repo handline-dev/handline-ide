@@ -10,6 +10,10 @@ type RGB = [number, number, number];
 const css = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`;
 export const NAME_INK = css([74, 64, 56]);
 export const NAME_HALO = css([255, 250, 240]);
+/** The legend's marks: a lit and a dark window, and a building nobody works in. */
+export const SWATCH = { lit: css([255, 214, 112]), dark: css([76, 88, 106]), empty: css([168, 168, 168]) };
+/** A building's name on its dark sign. */
+export const SIGN_INK = css([244, 239, 226]);
 
 export const KIND_COLOUR: Record<Kind, RGB> = {
   floor: [226, 176, 124],
@@ -22,11 +26,19 @@ export const KIND_COLOUR: Record<Kind, RGB> = {
   door: [176, 116, 70],
   baseboard: [200, 160, 120],
   paper: [248, 246, 238],
+  road: [70, 72, 80],
+  walk: [196, 200, 206],
+  grass: [104, 168, 84],
+  lane: [236, 236, 228],
+  lit: [255, 214, 112],
+  win: [76, 88, 106],
+  trunk: [120, 84, 56],
+  leaf: [84, 150, 70],
 };
 /** The cut along a wall's top: the top face of the walls takes it, so no thin box sits on the wall to show a sliver of its side. */
 export const WALL_TOP: RGB = [96, 70, 58];
 /** Surfaces drawn at their own colour whatever the sun does: walls and what is set in them. */
-export const LIT_KINDS: Kind[] = ['wall', 'side', 'glass', 'frame', 'door'];
+export const LIT_KINDS: Kind[] = ['wall', 'side', 'glass', 'frame', 'door', 'lit'];
 
 const PARTS: Record<string, Record<string, RGB>> = {
   desk: { wood: [236, 236, 232], metal: [196, 200, 208] },

@@ -2,8 +2,9 @@
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
 // over it, as over the seated people. Its place lives outside React: only what draws it, or picks something by it, follows it.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { FLAT, frontPixels, SCALE, type Box } from '#src/town/people.ts';
+import { FLAT, frontPixels, type Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
+import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
 
 export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
@@ -35,6 +36,8 @@ export type Ground = Walk & {
   /** The floor spot drawn at picture pixel (px, py). */
   toFloor: (px: number, py: number) => Spot;
   depthOf: (x: number, y: number, z: number) => number;
+  /** How many picture pixels a sheet pixel of the founder takes here. */
+  sprite: number;
 };
 export type Walker = { at: Spot; facing: Facing; walked: number; moving: boolean };
 /** The founder's walk in one place: `go` walks to a spot and then does `then`; `get` and `subscribe` follow where it is. */
@@ -206,20 +209,14 @@ function Sprite({ me, box, stride }: { me: Walker; box: Box; stride: number }) {
   );
 }
 
-/** The founder in the city, `tall` tiles tall at `tile` pixels a tile; its spot is in tiles. */
-export function CityFounder({ founder, tile, tall, stride }: { founder: Founder; tile: number; tall: number; stride: number }) {
-  const me = useMe(founder);
-  if (!me) return null;
-  return <Sprite me={me} box={boxAt(me.at[0] * tile, me.at[1] * tile, (tall * tile) / CELL[1])} stride={stride} />;
-}
-
-/** The founder in an office, with whatever of the room stands nearer laid over it, drawn into one canvas as it walks. */
-export function FounderDrawing({ founder, ground }: { founder: Founder; ground: Ground }) {
+/** The founder in an office or the city, with whatever stands nearer laid over it, drawn into one canvas as it walks. */
+/** `label` is drawn under the feet, as each agent's name is. */
+export function FounderDrawing({ founder, ground, label }: { founder: Founder; ground: Ground; label?: string }) {
   const me = useMe(founder);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [x, z] = me?.at ?? ground.entry;
   const [fx, fy] = ground.toPixel(x, 0, z);
-  const box = boxAt(fx, fy, SCALE);
+  const box = boxAt(fx, fy, ground.sprite);
   // The overlay is whole picture pixels around the figure.
   const [bx, by, bw, bh] = [Math.floor(box.x), Math.floor(box.y), Math.ceil(box.w) + 1, Math.ceil(box.h) + 1];
   const depth = ground.depthOf(x, 0.45, z);
@@ -238,6 +235,21 @@ export function FounderDrawing({ founder, ground }: { founder: Founder; ground: 
       <foreignObject x={bx} y={by} width={bw} height={bh}>
         <canvas ref={canvas} style={{ display: 'block', width: '100%', height: '100%', imageRendering: 'pixelated' }} />
       </foreignObject>
+      {label && (
+        <text
+          x={fx}
+          y={fy + 9}
+          textAnchor="middle"
+          fontSize={8}
+          fontWeight={700}
+          fill={NAME_INK}
+          stroke={NAME_HALO}
+          strokeWidth={2.5}
+          paintOrder="stroke"
+        >
+          {label}
+        </text>
+      )}
     </g>
   );
 }

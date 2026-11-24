@@ -15,11 +15,8 @@ import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { FounderDrawing, useFounder, useWalker, type Ground } from '#src/town/founder.tsx';
-import { floorOf, type Spot as FloorSpot } from '#src/town/walk.ts';
-import { Vector3 } from 'three';
-import type { Frame } from '#src/town/scene3d.ts';
-import type { Room } from '#src/town/room.ts';
-import type { Picture } from '#src/town/shade.ts';
+import type { Spot as FloorSpot } from '#src/town/walk.ts';
+import { groundOf } from '#src/town/ground.ts';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 
@@ -54,7 +51,7 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
       const canvas = document.createElement('canvas');
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground: groundOf(pic, frame, room) };
+      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground: groundOf(pic, frame, room, { speed: 1.4, stride: 0.16 }) };
       drawings.delete(key);
       drawings.set(key, { sig: at, drawn: next });
       for (const old of drawings.keys()) if (drawings.size > MOST) drawings.delete(old);
@@ -65,29 +62,6 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
     };
   }, [laid]);
   return drawn;
-}
-
-/** What the founder walks on: the room's footprints as a grid, and the camera's sums both ways. */
-function groundOf(pic: Picture, frame: Frame, room: Room): Ground {
-  const camera = frame.camera;
-  const toCamera = camera.matrixWorldInverse;
-  // On the floor the picture is the camera's own projection, so a pixel's ray meets the floor where that pixel shows it.
-  const toFloor = (px: number, py: number): FloorSpot => {
-    const p = new Vector3((px / frame.w) * 2 - 1, 1 - (py / frame.h) * 2, 0.5).unproject(camera).sub(camera.position);
-    const t = -camera.position.y / p.y;
-    return [camera.position.x + t * p.x, camera.position.z + t * p.z];
-  };
-  return {
-    pic,
-    kinds: frame.meta.map((m) => m.kind),
-    floor: floorOf(room.w, room.d, frame.solid),
-    entry: room.entry,
-    speed: 1.4,
-    stride: 0.16,
-    toPixel: frame.toPixel,
-    toFloor,
-    depthOf: (x, y, z) => -new Vector3(x, y, z).applyMatrix4(toCamera).z,
-  };
 }
 
 /** The bench width whose room fills a pane of (w, h) the most. */

@@ -46,7 +46,7 @@ export type Cast = {
 };
 
 /** What lies flat on the floor, under a standing person's feet. */
-export const FLAT = new Set(['floor', 'baseboard', 'rugRectangle']);
+export const FLAT = new Set(['floor', 'baseboard', 'rugRectangle', 'road', 'walk', 'grass', 'lane']);
 
 const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
@@ -64,7 +64,21 @@ export function figuresOf(people: Person[]): Map<string, number> {
 }
 
 /** The pixels a room object covers, by its tag, as a box. */
-function boxOf(pic: Picture, frame: Frame, tag: string): Box | null {
+/** Every tagged object's box, in one pass over the picture. */
+export function boxesOf(pic: Picture, frame: Frame): Map<string, Box> {
+  const ends = new Map<string, [number, number, number, number]>();
+  for (let i = 0; i < pic.id.length; i++) {
+    const tag = frame.meta[pic.id[i]]?.tag;
+    if (!tag) continue;
+    const [x, y] = [i % pic.w, Math.floor(i / pic.w)];
+    const e = ends.get(tag);
+    if (e) [e[0], e[1], e[2], e[3]] = [Math.min(e[0], x), Math.min(e[1], y), Math.max(e[2], x), Math.max(e[3], y)];
+    else ends.set(tag, [x, y, x, y]);
+  }
+  return new Map([...ends].map(([tag, [x0, y0, x1, y1]]) => [tag, { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }]));
+}
+
+export function boxOf(pic: Picture, frame: Frame, tag: string): Box | null {
   let [x0, y0, x1, y1] = [Infinity, Infinity, -1, -1];
   for (let i = 0; i < pic.id.length; i++) {
     if (frame.meta[pic.id[i]]?.tag !== tag) continue;

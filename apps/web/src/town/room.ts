@@ -7,14 +7,51 @@ import type { House, Person } from '#src/town/model.ts';
 
 /** A model from public/town/models at (x, z), turned `rot` radians about its origin; `tag` names it for the pixels that show it. */
 export type Thing = { model: string; x: number; z: number; y?: number; rot?: number; scale?: number; tag?: string; lit?: boolean };
-export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'glass' | 'frame' | 'sill' | 'door' | 'baseboard' | 'paper';
+export type Kind =
+  | 'floor'
+  | 'slab'
+  | 'wall'
+  | 'side'
+  | 'glass'
+  | 'frame'
+  | 'sill'
+  | 'door'
+  | 'baseboard'
+  | 'paper'
+  | 'road'
+  | 'walk'
+  | 'grass'
+  | 'lane'
+  | 'lit'
+  | 'win'
+  | 'trunk'
+  | 'leaf';
 /** A plain box: its two corners and what it is; boxes of one `part` are one object, outlined only around the whole. */
-export type Block = { from: [number, number, number]; to: [number, number, number]; kind: Kind; part?: string; tag?: string };
+/** `colour` and `top` (its upward faces) set a block's colours over its kind's, `pattern` its surface (scene3d.ts); `round` makes it a
+ *  cylinder filling the box along that axis. */
+export type Block = {
+  from: [number, number, number];
+  to: [number, number, number];
+  kind: Kind;
+  part?: string;
+  tag?: string;
+  colour?: [number, number, number];
+  top?: [number, number, number];
+  pattern?: number;
+  round?: 'x' | 'y' | 'z';
+  /** The founder walks round it. */
+  solid?: boolean;
+};
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing (`door`, as one starting does inside the door, and the HQ's
  *  people do); (x, z) on the floor. */
 export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
 /** `entry`: where the founder comes in, inside the door. */
+/** `distance`, `pitch` and `personPx`: how far the camera stands, in metres, how steeply it looks down, in radians, and how many
+ *  pixels tall a person is drawn (view.ts). */
 export type Room = {
+  distance?: number;
+  pitch?: number;
+  personPx?: number;
   w: number;
   d: number;
   wallH: number;

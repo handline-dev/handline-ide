@@ -24,7 +24,8 @@ export type View = {
 /** The camera on a room and the picture's size: whole pixels, the room and its walls inside with a small margin. */
 export function viewOf(room: Room): View {
   const centre = new Vector3(room.w / 2, 0, room.d / 2);
-  const eye = centre.clone().add(new Vector3(0, Math.sin(PITCH), Math.cos(PITCH)).multiplyScalar(DISTANCE));
+  const pitch = room.pitch ?? PITCH;
+  const eye = centre.clone().add(new Vector3(0, Math.sin(pitch), Math.cos(pitch)).multiplyScalar(room.distance ?? DISTANCE));
   const camera = new PerspectiveCamera();
   camera.position.copy(eye);
   camera.lookAt(centre);
@@ -39,7 +40,7 @@ export function viewOf(room: Room): View {
   };
   const [, foot] = raw(centre.x, 0, centre.z);
   const [, head] = raw(centre.x, PERSON_M, centre.z);
-  const s = PERSON_PX / (head - foot);
+  const s = (room.personPx ?? PERSON_PX) / (head - foot);
   const [t, H] = [WALL_T, room.wallH];
   const corners = [-t, room.w + t].flatMap((x) =>
     [
@@ -56,7 +57,7 @@ export function viewOf(room: Room): View {
   const oy = MARGIN + Math.max(...ys) * s;
   // The projection that puts raw (x, y) at pixel (s x + ox, oy - s y); the shaders hand it the floor spot's x and y scaled to the
   // point's own depth, so the depth test still sees the true depth.
-  const [n, f] = [1, 100];
+  const [n, f] = [1, (room.distance ?? DISTANCE) + Math.max(room.w, room.d) + 20];
   // prettier-ignore
   camera.projectionMatrix = new Matrix4().set(
     (2 * s) / w, 0, 1 - (2 * ox) / w, 0,

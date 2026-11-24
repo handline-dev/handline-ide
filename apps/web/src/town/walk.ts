@@ -15,11 +15,18 @@ export function floorOf(w: number, d: number, solid: readonly Rect[], { cell, bo
   const [cols, rows] = [Math.ceil(w / cell), Math.ceil(d / cell)];
   const free = new Uint8Array(cols * rows);
   for (let r = 0; r < rows; r++) {
+    const z = (r + 0.5) * cell;
+    if (z <= top + body || z >= d - body) continue;
     for (let c = 0; c < cols; c++) {
-      const [x, z] = [(c + 0.5) * cell, (r + 0.5) * cell];
-      const inside = x > body && x < w - body && z > top + body && z < d - body;
-      free[r * cols + c] = inside && !solid.some((s) => x > s.x0 - body && x < s.x1 + body && z > s.z0 - body && z < s.z1 + body) ? 1 : 0;
+      const x = (c + 0.5) * cell;
+      free[r * cols + c] = x > body && x < w - body ? 1 : 0;
     }
+  }
+  // Each footprint, grown by the body, blocks the cells whose middles it covers.
+  for (const s of solid) {
+    const [c0, c1] = [Math.max(0, Math.ceil((s.x0 - body) / cell - 0.5)), Math.min(cols - 1, Math.floor((s.x1 + body) / cell - 0.5))];
+    const [r0, r1] = [Math.max(0, Math.ceil((s.z0 - body) / cell - 0.5)), Math.min(rows - 1, Math.floor((s.z1 + body) / cell - 0.5))];
+    for (let r = r0; r <= r1; r++) free.fill(0, r * cols + c0, r * cols + c1 + 1);
   }
   return { cols, rows, cell, free };
 }

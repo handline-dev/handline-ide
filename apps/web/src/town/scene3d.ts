@@ -59,8 +59,8 @@ const VERTEX = /* glsl */ `
     vDepth = -tTrue.z;
   }`;
 
-/** Flat colour (uTop on a face turned up, where set), or floor boards, the window's view or a screen's lines (uPattern 1, 2, 3); alpha
- *  marks a surface lit from within. */
+/** Flat colour (uTop on a face turned up, where set), or floor boards, the window's view, a screen's lines, bricks, paving, asphalt or a
+ *  curtain wall (uPattern 1 to 7); alpha marks a surface lit from within. */
 const BASE_FRAGMENT = /* glsl */ `
   uniform vec3 uColour;
   uniform vec3 uTop;
@@ -87,6 +87,27 @@ const BASE_FRAGMENT = /* glsl */ `
     } else if (uPattern == 3) {
       float r = floor(w.y / 0.03);
       if (mod(r, 2.0) == 0.0 && sin(w.x * 53.0 + r * 2.1) > -0.2) c *= 0.8;
+    } else if (uPattern == 4 && abs(vNormal.y) < 0.5) {
+      // Bricks on a wall's sides: courses 11 cm high, every other one shifted half a brick.
+      float u = abs(vNormal.z) > 0.5 ? w.x : w.z;
+      float row = floor(w.y / 0.11);
+      float b = (u + mod(row, 2.0) * 0.14) / 0.28;
+      bool mortar = fract(w.y / 0.11) < 0.14 || fract(b) < 0.07;
+      c *= mortar ? 0.8 : 1.0 + 0.05 * sin(row * 12.9898 + floor(b) * 7.13);
+    } else if (uPattern == 5 && vNormal.y > 0.5) {
+      // Paving slabs half a metre square.
+      vec2 t = w.xz / 0.5;
+      bool joint = fract(t.x) < 0.06 || fract(t.y) < 0.06;
+      c *= joint ? 0.86 : 1.0 + 0.03 * sin(dot(floor(t), vec2(12.9898, 78.233)));
+    } else if (uPattern == 6) {
+      // Asphalt: a fine grain of lighter and darker stones.
+      vec2 g = floor(w.xz / 0.07);
+      c *= 1.0 + 0.07 * (fract(sin(dot(g, vec2(12.9898, 78.233))) * 43758.5453) - 0.5);
+    } else if (uPattern == 7 && abs(vNormal.y) < 0.5) {
+      // A curtain wall: glass between mullions 60 cm apart and a transom at every floor.
+      float u = abs(vNormal.z) > 0.5 ? w.x : w.z;
+      if (fract(u / 0.6) < 0.09 || fract(w.y / 1.1) < 0.07) c = vec3(118.0, 128.0, 146.0) / 255.0;
+      else c *= 0.97 + 0.06 * step(0.5, fract((u + w.y) / 0.9));
     }
     gl_FragColor = vec4(c, uGlow);
   }`;
@@ -104,6 +125,16 @@ const INFO_FRAGMENT = /* glsl */ `
   }`;
 
 type Pass = 'base' | 'light' | 'info';
+
+/** A cylinder filling a box of `size` along `axis`, with flat facets. */
+function roundOf([w, h, d]: [number, number, number], axis: 'x' | 'y' | 'z'): THREE.BufferGeometry {
+  const [len, r] = axis === 'x' ? [w, Math.min(h, d) / 2] : axis === 'y' ? [h, Math.min(w, d) / 2] : [d, Math.min(w, h) / 2];
+  const g = new THREE.CylinderGeometry(r, r, len, 14).toNonIndexed();
+  if (axis === 'x') g.rotateZ(Math.PI / 2);
+  if (axis === 'z') g.rotateX(Math.PI / 2);
+  g.computeVertexNormals();
+  return g;
+}
 
 /** Draws the room once into the three buffers. */
 export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promise<Frame> {
@@ -142,16 +173,25 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     const id = (b.part && parts.get(b.part)) || meta.push({ kind: b.kind, tag: b.tag }) - 1;
     if (b.part) parts.set(b.part, id);
     const size = b.to.map((v, i) => v - b.from[i]) as [number, number, number];
-    const box = new THREE.BoxGeometry(...size);
+    // Faces no bigger than 30 cm: the camera's sum is not a straight projection, and depth drawn straight across one big face strays by
+    // more than a window stands out from its wall.
+    const box = b.round ? roundOf(size, b.round) : new THREE.BoxGeometry(...size, ...size.map((v) => Math.max(1, Math.ceil(v / 0.3))));
     boxes.push(box);
     const mesh = new THREE.Mesh(box);
     mesh.position.set(...(b.from.map((v, i) => v + size[i] / 2) as [number, number, number]));
-    const pattern = b.kind === 'floor' ? 1 : b.kind === 'glass' ? 2 : 0;
+    const pattern = b.pattern ?? (b.kind === 'floor' ? 1 : b.kind === 'glass' ? 2 : 0);
     const wall = b.kind === 'wall' || b.kind === 'side';
-    add(mesh, id, KIND_COLOUR[b.kind], LIT_KINDS.includes(b.kind), pattern, wall ? WALL_TOP : undefined);
+    add(
+      mesh,
+      id,
+      b.colour ?? KIND_COLOUR[b.kind],
+      LIT_KINDS.includes(b.kind),
+      pattern,
+      b.top ?? (wall && !b.colour ? WALL_TOP : undefined),
+    );
   }
   const loaded = await Promise.all(room.things.map((t) => model(t.model)));
-  const solid: Rect[] = [];
+  const solid: Rect[] = room.blocks.filter((b) => b.solid).map((b) => ({ x0: b.from[0], z0: b.from[2], x1: b.to[0], z1: b.to[2] }));
   room.things.forEach((t, i) => {
     const id = meta.push({ kind: t.model, tag: t.tag }) - 1;
     const foot = new THREE.Box3();
@@ -178,11 +218,20 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
   Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 1, far: 50 });
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0008;
+  // A face looks up its shadow a map texel out along its normal: a city's texel is centimetres wide, and a face the sun grazes would
+  // otherwise shade itself in specks.
+  sun.shadow.normalBias = (2 * r) / 2048;
   scene.add(sun, sun.target);
 
   const run = (pass: Pass, type: THREE.TextureDataType) => {
     for (const [mesh, m] of mats) mesh.material = m[pass];
-    const target = new THREE.WebGLRenderTarget(view.w, view.h, { type, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    // A float depth buffer: the default 16 bits cannot part a window frame from its wall a few centimetres behind, from far off.
+    const target = new THREE.WebGLRenderTarget(view.w, view.h, {
+      type,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      depthTexture: new THREE.DepthTexture(view.w, view.h, THREE.FloatType),
+    });
     renderer.setRenderTarget(target);
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
@@ -190,6 +239,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     const out = type === THREE.FloatType ? new Float32Array(view.w * view.h * 4) : new Uint8Array(view.w * view.h * 4);
     renderer.readRenderTargetPixels(target, 0, 0, view.w, view.h, out);
     renderer.setRenderTarget(null);
+    target.depthTexture?.dispose();
     target.dispose();
     return out;
   };
