@@ -167,6 +167,26 @@ export interface DevicesMethods {
     };
     nodes: Node[];
     cluster: Cluster;
+    /** Where each agent's next session starts and why (docs/story4-design.md section 7). Absent on a daemon that does not place agents. */
+    placement?: {
+      /** The agent_placement setting. */
+      mode: "auto" | "manual";
+      /** One row per agent of this home. */
+      agents: {
+        /** The agent's name. */
+        agent: string;
+        /** The node id its next session starts on: the master's own while it stays. */
+        device: string;
+        /** Why it is placed so, in words a person reads ("heavy: check.sh 18 h this week", "heavy: ...; Studio needs pencil, so it stays here", "pinned to Studio"); "" for a light agent on the master's machine. */
+        why: string;
+        /** Seconds its heavy commands ran in its last 7 days. */
+        heavy_s: number;
+        /** The most bytes its processes held in one minute in its last 7 days. */
+        memory_peak: number;
+        /** The device it is pinned to (its device setting), kept on auto too; absent for none. */
+        pin?: string;
+      }[];
+    };
   } };
   "node.forward": { params: {
   /** The agent whose session made the call, as the runner proved it. */

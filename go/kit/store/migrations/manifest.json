@@ -143,5 +143,20 @@
   "version": 128,
   "name": "heavy_runs",
   "additive": true
+ },
+ {
+  "version": 129,
+  "name": "agent_device",
+  "additive": true
+ },
+ {
+  "version": 130,
+  "name": "mcp_used",
+  "additive": true
+ },
+ {
+  "version": 131,
+  "name": "load_minutes_agent",
+  "additive": true
  }
 ]

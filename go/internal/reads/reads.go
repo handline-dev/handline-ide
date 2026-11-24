@@ -75,6 +75,9 @@ type Env struct {
 	NodeSetAside func(node string) any
 	// NodeLacks is why an agent cannot start on a machine now (placement.Placer.Lacks), "" when it can; nil shows none.
 	NodeLacks func(agent, node string) string
+	// NodePlacement is where an agent's next session starts and why (placement.Placer.Status); NodeManual whether placement is Manual.
+	NodePlacement func(agent string) (any, error)
+	NodeManual    func() bool
 	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.
 	Claude string
 	// Installs is each tool's install window tools.install keeps, by its tool (termchan.Env.Installs); nil shows none.

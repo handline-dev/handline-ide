@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -18,9 +19,9 @@ import (
 
 var (
 	Editable = []string{"model", "effort", "weight", "repo", "browser", "browser_sites",
-		"context_k", "idle_close", "handoff_note", "sandbox", "sandbox_allow", "mode"}
+		"context_k", "idle_close", "handoff_note", "sandbox", "sandbox_allow", "mode", "device"}
 	// Optional fields are not on every form: the settings tab does not draw them yet, so a form without them leaves them be.
-	Optional      = map[string]bool{"sandbox": true, "sandbox_allow": true, "mode": true}
+	Optional      = map[string]bool{"sandbox": true, "sandbox_allow": true, "mode": true, "device": true}
 	BrowserModes  = []string{"off", "chrome", "playwright"}
 	BrowserCustom = "custom"
 	Weights       = []string{"light", "heavy"}
@@ -83,7 +84,7 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
 		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": strings.Join(SandboxAllowWords(cfg), " "),
-		"mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg), "browser_sites": strings.Join(BrowserOrigins(cfg), " "),
+		"device": orDefault(cfg, "device", ""), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg), "browser_sites": strings.Join(BrowserOrigins(cfg), " "),
 		"context_k": strconv.FormatInt(ContextTokensOf(cfg)/1000, 10), "handoff_note": note, "idle_close": idle}, nil
 }
 
@@ -113,6 +114,9 @@ func SettingsProblem(form map[string]string) string {
 				return fmt.Sprintf("sandbox_allow is allowance words separated by spaces, of %s; %s is none", strings.Join(sandboxAllowanceList(), ", "), pyQuote(w))
 			}
 		}
+	}
+	if v, has := form["device"]; has && v != "" && !deviceID.MatchString(v) {
+		return "device is a device's node id, or empty for none"
 	}
 	if v, has := form["mode"]; has && !contains(Modes, v) {
 		return "mode must be one of " + strings.Join(Modes, ", ")
@@ -145,6 +149,9 @@ func SettingsProblem(form map[string]string) string {
 	}
 	return ""
 }
+
+// deviceID is what a node id may look like.
+var deviceID = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
 
 func mustAtoi(s string) int {
 	n, err := strconv.Atoi(s)
@@ -254,6 +261,9 @@ func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (b
 		}
 		if v, ok := next["sandbox_allow"]; ok {
 			o.SandboxAllow = strp(v)
+		}
+		if v, ok := next["device"]; ok {
+			o.Device = strp(v)
 		}
 		if v, ok := next["context_k"]; ok {
 			n := int64(mustAtoi(v)) * 1000

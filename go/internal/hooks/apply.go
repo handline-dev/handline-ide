@@ -183,6 +183,9 @@ func apply(tx *sql.Tx, home, agent, event string, raw map[string]any, at int64, 
 		if err := noteHeavy(tx, agent, raw, at); err != nil {
 			return err
 		}
+		if err := noteMCP(tx, agent, raw, at); err != nil {
+			return err
+		}
 	}
 	if answers[event] && !late {
 		clearNotified(home, agent)
@@ -409,6 +412,24 @@ func closeHookQuestion(tx *sql.Tx, agent string, raw map[string]any, at int64) e
 	command, _ := ToolCommand(input)
 	_, err := tx.Exec("UPDATE prompt_blocks SET gone_at = ? WHERE agent = ? AND gone_at IS NULL AND json_extract(detail, '$.source') = 'hook' "+
 		"AND json_extract(detail, '$.tool') = ? AND json_extract(detail, '$.command') = ?", at, agent, tool, command)
+	return err
+}
+
+// noteMCP keeps when the agent last called a tool of an MCP server (mcp__<server>__<tool>): placement reads it.
+func noteMCP(tx *sql.Tx, agent string, raw map[string]any, at int64) error {
+	tool, _ := raw["tool_name"].(string)
+	rest, ok := strings.CutPrefix(tool, "mcp__")
+	server, _, named := strings.Cut(rest, "__")
+	if !ok || !named || server == "" {
+		return nil
+	}
+	if k, err := paths.AgentKeyIn(tx, agent); err != nil {
+		return err
+	} else if k != "" {
+		agent = k
+	}
+	_, err := tx.Exec("INSERT INTO mcp_used(agent, server, at) VALUES(?, ?, ?) ON CONFLICT(agent, server) DO UPDATE SET at = MAX(at, excluded.at)",
+		agent, server, at)
 	return err
 }
 

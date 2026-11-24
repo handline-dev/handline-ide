@@ -2,6 +2,7 @@ package placement
 
 import (
 	"database/sql"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,10 +10,19 @@ import (
 
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/runner"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 )
 
 const gb = int64(1) << 30
+
+// heavy gives the agent keyed key heavy command time of hours over its last week, as shape.
+func heavy(t *testing.T, p *Placer, key, shape string, hours int64) {
+	t.Helper()
+	if _, err := p.DB.Exec("INSERT INTO heavy_runs(agent, ended, seconds, shape) VALUES(?, ?, ?, ?)", key, p.now()-3600, hours*3600, shape); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // start is a session's start for agent whose terminal opens where it was placed.
 func start(p *Placer, agent string) string {
@@ -58,12 +68,13 @@ func two(t *testing.T) (*Placer, func(node string, free int64, sessions int, pro
 	return p, hear
 }
 
-// A new agent lands on the machine with the most room; its next session stays there; when that one is full or on Pause it moves to the
+// A heavy agent lands on the runner with the most room; its next session stays there; when that one is full or on Pause it moves to the
 // other and stays there afterwards.
-func TestAnAgentStaysOnItsMachineWhileItHasRoom(t *testing.T) {
+func TestAHeavyAgentStaysOnItsRunnerWhileItHasRoom(t *testing.T) {
 	p, hear := two(t)
+	heavy(t, p, "a1", "check.sh", 3)
 	if got := start(p, "bob"); got != "r2" {
-		t.Fatalf("a new agent went to %q, not r2 with the most room", got)
+		t.Fatalf("a heavy agent went to %q, not r2 with the most room", got)
 	}
 	hear("r1", 16*gb, 0) // r1 has more room now: bob stays on r2
 	if got := start(p, "bob"); got != "r2" {
@@ -89,6 +100,7 @@ func TestAnAgentStaysOnItsMachineWhileItHasRoom(t *testing.T) {
 // An agent whose MCP server runs a program a runner lacks never lands there, and the reason reads as what it needs.
 func TestAnAgentNeverLandsWhereItsProgramIsMissing(t *testing.T) {
 	p, hear := two(t)
+	heavy(t, p, "a1", "check.sh", 3)
 	p.DB.Exec(`UPDATE agents SET mcp_config = '{"mcpServers": {"pencil": {"command": "/opt/bin/pencil", "args": ["mcp"]}}}' WHERE id = 1`)
 	hear("r1", 4*gb, 0, "pencil")
 	if why := p.Lacks("bob", "r2"); why != "needs pencil" {
@@ -102,21 +114,18 @@ func TestAnAgentNeverLandsWhereItsProgramIsMissing(t *testing.T) {
 	}
 }
 
-// With no runner able to take it, an agent starts on this machine, as before runners; one that ran before runners stays here.
+// With no runner able to take it, a heavy agent starts on this machine, as before runners; a light one stays here.
 func TestWithNoRoomElsewhereItStaysHere(t *testing.T) {
 	p, _ := two(t)
+	heavy(t, p, "a1", "check.sh", 3)
 	p.DB.Exec("UPDATE nodes SET lending = 'off' WHERE id != 'm0'")
 	if got := start(p, "bob"); got != "" {
 		t.Fatalf("it went to %q", got)
 	}
 	p.DB.Exec("UPDATE nodes SET lending = 'run'")
-	if got := start(p, "bob"); got != "" {
-		t.Fatalf("placed here, it moved to %q though here has room", got)
-	}
 	p.DB.Exec("INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(2, 1, 'ann', 'p1', 1)")
-	p.DB.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('a2', 'IDLE', 1, '/w/ann')")
 	if got := start(p, "ann"); got != "" {
-		t.Fatalf("an agent that ran here before runners moved to %q", got)
+		t.Fatalf("a light agent moved to %q though here has room", got)
 	}
 }
 
@@ -124,6 +133,8 @@ func TestWithNoRoomElsewhereItStaysHere(t *testing.T) {
 // at once never take the same last one.
 func TestAPickHoldsItsSlotAndIsKeptOnlyOnceItsTerminalOpens(t *testing.T) {
 	p, _ := two(t)
+	heavy(t, p, "a1", "check.sh", 3)
+	heavy(t, p, "a2", "check.sh", 3)
 	if got := p.Where("bob"); got != "r2" {
 		t.Fatalf("bob went to %q", got)
 	}
@@ -165,5 +176,95 @@ func TestARunnersOwnMemoryCapIsWhereItIsFull(t *testing.T) {
 	}
 	if why := p.Lacks("bob", "r2"); !strings.Contains(why, "3 of 3 GB") {
 		t.Fatalf("at its own 3 GB cap r2 is %q", why)
+	}
+}
+
+// On Auto a heavy agent goes to the runner with room and a light one stays on the master's machine; a heavy one whose runners all lack a
+// program it needs stays too, and says why.
+func TestAHeavyAgentGoesToARunnerWithRoomWhileALightOneStays(t *testing.T) {
+	p, _ := two(t)
+	p.DB.Exec("INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(2, 1, 'ann', 'p1', 1)")
+	heavy(t, p, "a1", "check.sh", 3)
+	heavy(t, p, "a2", "check.sh", 1) // under HeavyTime: light
+	if got := start(p, "bob"); got != "r2" {
+		t.Fatalf("the heavy agent went to %q", got)
+	}
+	if got := start(p, "ann"); got != "" {
+		t.Fatalf("the light agent went to %q", got)
+	}
+	st, err := p.Status("bob")
+	if err != nil || st.Device != "r2" || st.Why != "heavy: check.sh 3 h this week" || st.HeavyS != 3*3600 {
+		t.Fatalf("bob's placement: %+v %v", st, err)
+	}
+	p.DB.Exec(`UPDATE agents SET mcp_config = '{"mcpServers": {"pencil": {"command": "/opt/bin/pencil"}}}' WHERE id = 1`)
+	if got := start(p, "bob"); got != "" {
+		t.Fatalf("a heavy agent that needs pencil went to %q, which lacks it", got)
+	}
+	if st, _ := p.Status("bob"); st.Device != "m0" || st.Why != "heavy: check.sh 3 h this week; leaves two: needs pencil; one needs pencil, so it stays here" {
+		t.Fatalf("why it stays: %+v", st)
+	}
+}
+
+// A peak of HeavyMemory (a simulator) makes an agent heavy without heavy command time; a runner that has what its heavy commands ran
+// comes before one with more room.
+func TestAMemoryPeakMakesAnAgentHeavyAndARunnerWithItsProgramsComesFirst(t *testing.T) {
+	p, hear := two(t)
+	p.DB.Exec("INSERT INTO load_minutes(minute, agent, cpu_avg, cpu_max, rss_avg, rss_max, procs_max) VALUES(?, 'a1', 1, 1, 1, ?, 1)", p.now()-600, HeavyMemory)
+	if got := p.Next("bob"); got != "r2" {
+		t.Fatalf("an agent at a %d GB peak went to %q", HeavyMemory>>30, got)
+	}
+	heavy(t, p, "a1", "xcodebuild test", 3)
+	hear("r1", 4*gb, 0, "xcodebuild")
+	if got := p.Next("bob"); got != "r1" {
+		t.Fatalf("it went to %q, not r1 with xcodebuild", got)
+	}
+}
+
+// On Manual an agent pinned to a device starts there whatever its load; on Auto the pin is kept and not read.
+func TestAPinnedAgentOnManualStartsOnItsDevice(t *testing.T) {
+	p, _ := two(t)
+	manual := true
+	p.Manual = func() bool { return manual }
+	p.DB.Exec("UPDATE agents SET device = 'r1' WHERE id = 1")
+	if got := start(p, "bob"); got != "r1" {
+		t.Fatalf("a light agent pinned to r1 went to %q", got)
+	}
+	if st, _ := p.Status("bob"); st.Why != "pinned to one" || st.Pin != "r1" {
+		t.Fatalf("%+v", st)
+	}
+	p.DB.Exec("UPDATE nodes SET lending = 'off' WHERE id = 'r1'")
+	if got := p.Next("bob"); got != "" {
+		t.Fatalf("pinned to r1 on Off, it went to %q", got)
+	}
+	p.DB.Exec("UPDATE nodes SET lending = 'run' WHERE id = 'r1'")
+	manual = false
+	if got := start(p, "bob"); got != "" {
+		t.Fatalf("on Auto the light agent went to %q", got)
+	}
+	if st, _ := p.Status("bob"); st.Pin != "r1" {
+		t.Fatalf("Auto dropped the pin: %+v", st)
+	}
+}
+
+// A server of the shared MCP config counts only for an agent that called its tools in its last 7 days.
+func TestASharedServerCountsOnlyForAnAgentThatCalledIt(t *testing.T) {
+	p, _ := two(t)
+	heavy(t, p, "a1", "check.sh", 3)
+	if err := os.MkdirAll(filepath.Dir(paths.MCPConfig(p.Home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.MCPConfig(p.Home), []byte(`{"mcpServers": {"pencil": {"command": "/opt/bin/pencil"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Next("bob"); got != "r2" {
+		t.Fatalf("an agent that never called pencil went to %q", got)
+	}
+	p.DB.Exec("INSERT INTO mcp_used(agent, server, at) VALUES('a1', 'pencil', ?)", p.now()-8*24*3600)
+	if got := p.Next("bob"); got != "r2" {
+		t.Fatalf("a call 8 days ago kept it off r2: %q", got)
+	}
+	p.DB.Exec("UPDATE mcp_used SET at = ?", p.now()-24*3600)
+	if got := p.Next("bob"); got != "" {
+		t.Fatalf("an agent that called pencil yesterday went to %q, which lacks it", got)
 	}
 }

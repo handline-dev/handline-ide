@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/housekeeping"
 	"github.com/handline/handline/go/internal/nodes"
+	"github.com/handline/handline/go/internal/placement"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -37,6 +38,7 @@ const (
 	awake  = "off, on or working"
 	reaper = "dry, on or off"
 	split  = "auto or manual"
+	place  = "placement"
 	hosts  = "hosts"
 	ports  = "lo-hi"
 	model  = "model"
@@ -61,7 +63,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	"push_only_away": flag_, "push_sound": flag_,
 	keepawake.Key: awake, housekeeping.OrphansKey: reaper,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
-	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split,
+	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split, placement.Key: place,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	worktreepool.DiskKeepFreeKey: int0, worktreepool.AgentsMemoryMaxKey: int0,
 	nodes.BatteryKey: flag_, nodes.ReclaimKey: int1, nodes.BuildAutoKey: flag_, settings.ClusterNameKey: cname,
@@ -126,6 +128,10 @@ func settingValue(key string, v any) (any, error) {
 		if m, ok := v.(string); ok && (m == usage.SplitAuto || m == usage.SplitManual) {
 			return m, nil
 		}
+	case place:
+		if m, ok := v.(string); ok && (m == placement.Auto || m == placement.Manual) {
+			return m, nil
+		}
 	case reaper:
 		if m, ok := v.(string); ok && (m == housekeeping.OrphansDry || m == housekeeping.OrphansOn || m == housekeeping.OrphansOff) {
 			return m, nil
@@ -165,7 +171,7 @@ func settingValue(key string, v any) (any, error) {
 	}
 	what := map[string]string{int1: "a whole number, at least 1", int0: "a whole number, at least 0", pct: "a whole number from 0 to 100",
 		tgt: "a whole number from 50 to 100", burst: "a whole number from 0 to 50",
-		flag_: "true or false", awake: "off, on or working", reaper: "dry, on or off",
+		flag_: "true or false", awake: "off, on or working", reaper: "dry, on or off", place: "auto or manual",
 		line:  fmt.Sprintf("one line of text, at most %d characters", LineMax),
 		cname: fmt.Sprintf("a name of 1 to %d characters on one line", ClusterNameMax),
 		hosts: fmt.Sprintf("a list of at most %d different hosts from connection.addresses", HostsMax),

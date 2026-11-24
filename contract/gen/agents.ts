@@ -262,6 +262,8 @@ export type AgentSettingValues = {
   mode?: "default" | "auto" | "acceptEdits" | "plan";
   /** What the agent's sandboxed sessions may do beyond the sandbox, the founder's: allowance words separated by spaces, of weaker-network (Go module downloads on macOS reach trustd) and pnpm-install (pnpm install runs outside the sandbox); "" allows nothing more. A word that names no allowance is bad_request. Read only while its sandbox is on; a session takes it at its next launch. An agent asks for it with `hl propose settings <agent> sandbox_allow=<words> --why "..."`. */
   sandbox_allow?: string;
+  /** The device the agent is pinned to, a node id as node.status lists it; "" for none. Read only while agent_placement is manual: its sessions then start on that device whatever their load, or here, with the reason, while the device cannot take one. A device that lacks something the agent needs may be pinned. */
+  device?: string;
 };
 
 export type NeedsYou = {

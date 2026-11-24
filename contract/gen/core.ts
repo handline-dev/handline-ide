@@ -414,6 +414,8 @@ export type SettingsValues = {
   pace_burst_pct?: number;
   /** Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on. */
   subagent_pace_guard?: boolean;
+  /** How agents are placed on the cluster's devices at each session's start: auto, the default, keeps a light agent on the master's machine and sends a heavy one (over 2 h of heavy commands or a 6 GB peak in its last 7 days) to the lent device with the most room that has all it needs; manual starts an agent pinned to a device (its device setting) there and places the others as auto does. Switching keeps the pins. */
+  agent_placement?: "auto" | "manual";
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. */
   account_split?: "auto" | "manual";
   /** With it on, a task that serves the founder (in a founder request's tree, or the founder's own) is Ready for the founder when its assignee finishes it to its land_by agent, as a story's sub-task is; the founder's OK lands it and Redo sends it back. Off by default. */
@@ -518,6 +520,8 @@ export type SettingsChanges = {
   pace_burst_pct?: number | null;
   /** Refuse a subagent (the Agent tool) when one more would take the agent's account to its 5-hour or weekly limit before that window resets (subagent.start). Off: every start is recorded and none is refused. Off by default until the founder turns it on. */
   subagent_pace_guard?: boolean;
+  /** How agents are placed on the cluster's devices at each session's start: auto, the default, keeps a light agent on the master's machine and sends a heavy one (over 2 h of heavy commands or a 6 GB peak in its last 7 days) to the lent device with the most room that has all it needs; manual starts an agent pinned to a device (its device setting) there and places the others as auto does. Switching keeps the pins. null removes the key (back to the default). */
+  agent_placement?: ("auto" | "manual") | null;
   /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default). */
   account_split?: ("auto" | "manual") | null;
   /** With it on, a task that serves the founder (in a founder request's tree, or the founder's own) is Ready for the founder when its assignee finishes it to its land_by agent, as a story's sub-task is; the founder's OK lands it and Redo sends it back. Off by default. */
