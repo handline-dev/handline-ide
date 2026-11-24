@@ -40,6 +40,13 @@ func (e *Env) MemoRecipients(tid int64, by, text string, now bool) (out []taskwr
 	return e.memoRecipients(e.DB, row, by, text, "", now), true
 }
 
+// PassedPause is task.send_now's telling: the agent takes the task it let through the pause now (ActNow).
+func (e *Env) PassedPause(agent string) {
+	if e.ActNow != nil {
+		e.ActNow(agent)
+	}
+}
+
 // QueueDelivered is what queuing does after its write commits: the task goes out now if its owner is free. It answers the sentence the reply
 // carries for the task.
 func (e *Env) QueueDelivered(tid int64, by string, queued bool) (msg string) {

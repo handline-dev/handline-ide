@@ -400,6 +400,12 @@ func (m *Manager) wakeAgent(agent string, o WakeOpts) (bool, string) {
 	return false, "its session is still running; a handoff closes it and the wake starts a new one"
 }
 
+// PassesHold is whether agent's start passes the load and pause holds: it has a person's message (personHead).
+func (m *Manager) PassesHold(agent string) (yes bool, err error) {
+	defer catch(&err)
+	return m.personHead(agent) != nil, nil
+}
+
 // personHead is the person's message the agent would wake for, else nil: the head of its queue when it passes the pause (the founder's, or
 // a task task.send_now let go), or else the founder's oldest message not yet shown to it (a say is never a head, so it is looked for on
 // its own).

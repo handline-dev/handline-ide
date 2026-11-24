@@ -30,6 +30,8 @@ type Teller interface {
 	MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string)
 	// MemoRecipients is who MemoChanged would tell of a comment by `by` with this text, and why, without telling anyone. A missing task is nil, false.
 	MemoRecipients(tid int64, by, text string, now bool) ([]Recipient, bool)
+	// PassedPause has the agent take the task task.send_now let through at once.
+	PassedPause(agent string)
 	// QueueDelivered sends a queued task to its free owner, or raises the founder's card, and answers what happened.
 	QueueDelivered(tid int64, by string, queued bool) string
 	// Discarded types the says a discard wrote, moves the owner on to its next task, advances the owners it freed, and removes the inbox
@@ -98,7 +100,7 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.comment.delete", rpc.Method{Handler: memoDelete(tell)})
 	s.Register("task.comment.recipients", rpc.Method{Handler: memoRecipients(tell)})
 	s.Register("task.seen", rpc.Method{Handler: seenMethod})
-	s.Register("task.send_now", rpc.Method{Handler: sendNow})
+	s.Register("task.send_now", rpc.Method{Handler: sendNowMethod(tell)})
 }
 
 func claimImages(tx *sql.Tx, home, by, text, was, field string) error {

@@ -31,6 +31,8 @@ type Env struct {
 	// Paused is the founder's pause of new work (package pause), "" when there is none; nil is never. It holds a message an agent or the
 	// daemon sends to an agent not mid-turn: told, it would start a turn.
 	Paused func() string
+	// ActNow has work the pause let through go on at once, not at the next tick; nil leaves it to the tick.
+	ActNow func(agents ...string)
 	// FounderTyped says the founder's own messages to agent are typed into its terminal as its person's prompt, and the agent's plain text
 	// after one is its reply (founderchat.go); nil is never.
 	FounderTyped func(agent string) bool

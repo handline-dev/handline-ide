@@ -24,6 +24,7 @@ type fakeTeller struct {
 	deny      string
 	after     func() string // the telling that follows the commit of an ask, when set
 	handed    []Handover
+	passed    []string // PassedPause's agents
 	edited    []Edited
 	notified  []db.Notice
 	db        *sql.DB // the rig's task database: what is recorded is read by name (keys_test.go)
@@ -55,6 +56,7 @@ func (f *fakeTeller) MemoRecipients(int64, string, string, bool) ([]Recipient, b
 func (f *fakeTeller) MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
 	f.memos = append(f.memos, fmt.Sprintf("T%d %s %s %q%s", tid, f.n(by), what, text, map[bool]string{true: " now"}[now]))
 }
+func (f *fakeTeller) PassedPause(agent string) { f.passed = append(f.passed, f.n(agent)) }
 func (f *fakeTeller) QueueDelivered(tid int64, by string, queued bool) string {
 	f.queued = append(f.queued, fmt.Sprintf("T%d %s %v", tid, f.n(by), queued))
 	return fmt.Sprintf("delivered T%d", tid)

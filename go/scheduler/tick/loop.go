@@ -23,6 +23,8 @@ type Loop struct {
 	Sleep    func(time.Duration) bool // false when Stop came first; nil waits on Stop
 	// Wake runs the reconcile sweep alone between ticks, so a session that ended is recorded at once rather than at the next tick.
 	Wake <-chan struct{}
+	// Act carries agents to supervise at once between ticks (Tick.SuperviseNow); nil carries none.
+	Act *Acts
 }
 
 func (l *Loop) sleep(d time.Duration) bool {
@@ -39,6 +41,8 @@ func (l *Loop) sleep(d time.Duration) bool {
 			return true
 		case <-l.Wake:
 			l.Tick.Sweep()
+		case <-l.Act.Ready():
+			l.Tick.SuperviseNow(l.Act.Take())
 		}
 	}
 }

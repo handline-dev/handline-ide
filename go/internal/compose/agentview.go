@@ -99,9 +99,20 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			pct := *st.TrustedCtxUsed * 100 / limit
 			return &pct
 		},
-		Now:      func() int64 { return nowOf(cfg.Now)().Unix() },
-		Log:      func(s string) { cfg.Log("%s", s) },
-		LoadHeld: lc.Gate.Held,
+		Now: func() int64 { return nowOf(cfg.Now)().Unix() },
+		Log: func(s string) { cfg.Log("%s", s) },
+		LoadHeld: func(agent string) string {
+			if why := lc.Gate.Held(agent); why != "" {
+				passes, err := lc.Manager.PassesHold(agent)
+				if err != nil {
+					cfg.Log("  agent view: %s: %v", agent, err)
+				}
+				if !passes {
+					return why
+				}
+			}
+			return ""
+		},
 		Doing: func(agent string) (string, int64, bool) {
 			if cfg.Turns == nil || !terminals {
 				return "", 0, false

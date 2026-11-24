@@ -156,3 +156,37 @@ func TestAPauseClockThatComesEarlyWaitsForItsUntil(t *testing.T) {
 		t.Fatalf("an early clock told: %v at %v", p, time.Now())
 	}
 }
+
+// When the pause ends, by a resume or at its until, the agents it may have held are handed to ActNow: those whose views say so and those
+// with work not yet told. A pause hands nobody.
+func TestTheAgentsAPauseHeldGoOnWhenItEnds(t *testing.T) {
+	d := startStream(t)
+	got := make(chan []string, 4)
+	d.env().ActNow = func(agents ...string) { got <- agents }
+	if _, err := d.db.Exec(`INSERT INTO agent_view(agent, view, updated) VALUES('a1', '{"status":{"reason":"paused"}}', 1), ('a2', '{"status":{"reason":"none"}}', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.db.Exec(`INSERT INTO requests(id, requester, target, kind, state, ts, body, queue_order) VALUES(1, 'a2', 'a3', 'task', 'queued', 1, 'x', 1), (2, 'a3', 'p1', 'say', 'queued', 1, 'x', 2)`); err != nil {
+		t.Fatal(err)
+	}
+	f := readAll(t, pipeTo(t, d, "k"), 2, 3, 4)
+	handed := func() []string {
+		select {
+		case a := <-got:
+			return a
+		case <-time.After(5 * time.Second):
+			t.Fatal("nobody was handed on")
+			return nil
+		}
+	}
+	f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"daemon.pause","params":{"request_id":"p1"}}`)
+	f.ask(3, `{"jsonrpc":"2.0","id":3,"method":"daemon.resume","params":{"request_id":"r1"}}`)
+	if a := handed(); !reflect.DeepEqual(a, []string{"a1", "a3"}) {
+		t.Fatalf("a resume handed on %v", a)
+	}
+	until := time.Now().Add(2 * time.Second).Truncate(time.Second).Add(time.Second)
+	f.ask(4, fmt.Sprintf(`{"jsonrpc":"2.0","id":4,"method":"daemon.pause","params":{"until":%q,"request_id":"p2"}}`, until.UTC().Format(time.RFC3339)))
+	if a := handed(); !reflect.DeepEqual(a, []string{"a1", "a3"}) || time.Now().Before(until) {
+		t.Fatalf("the until handed on %v at %v", a, time.Now())
+	}
+}

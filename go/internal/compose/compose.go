@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/sysres"
+	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
 
@@ -75,6 +76,7 @@ type Parts struct {
 	awake    *keepawake.Holder
 	plans    []*subscriptions.Env // each tick's subscriptions pass, whose plan question runs off it
 	summary  *handoff.Summarizer  // the handoff notes Handline writes off the tick
+	acts     *tick.Acts           // agents the tick loop supervises at once between ticks (ActNow)
 }
 
 // Wait returns once the heal steps still running off the tick have ended: the daemon closes the database only after.
@@ -107,11 +109,21 @@ func New(cfg Config) *Parts {
 		peer = PeerFromRows(cfg.Home)
 	}
 	p := &Parts{Locks: &lifecycle.AgentLocks{}, Peer: peer, log: cfg.Log, home: cfg.Home, notified: cfg.NotifiedNeedsYou, turns: cfg.Turns,
-		awake: &keepawake.Holder{Log: func(s string) { cfg.Log("%s", s) }}}
+		awake: &keepawake.Holder{Log: func(s string) { cfg.Log("%s", s) }}, acts: tick.NewActs()}
 	if cfg.DB != nil {
 		p.Bind(cfg.DB, nil)
 	}
 	return p
+}
+
+// ActNow is supervisor.Env.ActNow: each agent's view is stored now and the tick loop supervises it between ticks.
+func (p *Parts) ActNow(agents ...string) {
+	if v := p.view.Load(); v != nil {
+		for _, a := range agents {
+			v.RefreshOne(a)
+		}
+	}
+	p.acts.Add(agents...)
 }
 
 // KeepAwake is whether the tick holds the sleep lock now, and since when (daemon.Config.KeepAwake).
