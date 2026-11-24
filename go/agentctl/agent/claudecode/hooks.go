@@ -53,6 +53,9 @@ var _ agent.Hooks = Hooks{}
 
 func (h Hooks) shared() string { return filepath.Join(h.Home, "shared", ".claude") }
 
+// SkillsDir is the skills folder every account sees.
+func (h Hooks) SkillsDir() string { return filepath.Join(h.shared(), "skills") }
+
 // Target is the shared settings file.
 func (h Hooks) Target() string { return filepath.Join(h.shared(), "settings.json") }
 
