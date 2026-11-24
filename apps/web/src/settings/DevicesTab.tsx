@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 // Settings > Devices: every device in one flat list, the master first; a row opens its page. At the foot, the battery switch, Auto or
 // Manual for a lent Mac taking the master's build, and the reclaim time.
 import { useNameOf } from '@handline/app-data';
@@ -75,9 +76,7 @@ function Detail({ r, q }: { r: DeviceRow; q: Devices }) {
   const nameOf = useNameOf();
   const kind = r.kind ? KIND_WORD[r.kind] : null;
   const cap = r.node?.memory_max_gb ?? memoryMax;
-  const parts = r.runner
-    ? [kind, `${r.agents.length} ${r.agents.length === 1 ? 'agent' : 'agents'}`, cap ? `up to ${cap} GB` : null]
-    : [kind, 'runs no agents'];
+  const parts = r.runner ? [kind, `${count(r.agents.length, 'agent')}`, cap ? `up to ${cap} GB` : null] : [kind, 'runs no agents'];
   const lack = r.lacks[0];
   const why = r.lacks.map((l) => `${nameOf(l.agent)}: ${l.why}`).join('\n');
   return (

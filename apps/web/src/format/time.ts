@@ -35,3 +35,15 @@ export function since(iso: string, now: number = Date.now()): string {
   if (a === 'now') return 'just now';
   return /^\d+[mhd]$/.test(a) ? `${a} ago` : a;
 }
+
+/** A date as month and day: Nov 2. */
+export const day = (iso: string) => new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+/** A time today as its clock (14:02), an older one with its day first (Nov 2 14:02). */
+export function clockOrDay(iso: string): string {
+  const hm = clock(iso);
+  return new Date(iso).toDateString() === new Date().toDateString() ? hm : `${day(iso)} ${hm}`;
+}
+
+/** Milliseconds left as a countdown: 4:05. */
+export const countdown = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;

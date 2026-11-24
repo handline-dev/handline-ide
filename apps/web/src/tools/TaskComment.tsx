@@ -1,18 +1,7 @@
 // The box under a task: a comment (the chat's own box, with @ and / and files), who it will reach, and someone to hand the task to with it.
 import { foundersTurn, refsIn, renderRefs, toRefs, withImages } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import {
-  classify,
-  Hooks,
-  knownAttachments,
-  sentence,
-  useAgents,
-  useDirectory,
-  useGiveBack,
-  useNameOf,
-  useServes,
-  useWrite,
-} from '@handline/app-data';
+import { Hooks, knownAttachments, useAgents, useDirectory, useGiveBack, useNameOf, useServes, useWrite, why } from '@handline/app-data';
 import { Who } from '#src/ui/Who.tsx';
 import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
@@ -115,7 +104,7 @@ export function CommentBox({
       }))
     )
       return;
-    back.give(t.id, { onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) });
+    back.give(t.id, { onError: (e) => toast(`Give back did not work: ${why(e)}`, { tone: 'warning' }) });
   };
   const read = useWrite('inbox.mark_read');
   const box = `task:${t.id}`;

@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 // The words a story's sub-task is shown with: one word per state, on its node, its header and the Plan line.
 import { foundersTurn } from '@handline/app-core';
 import type { Task, TaskDetail } from '@handline/client';
@@ -15,7 +16,7 @@ export type Word = { text: string; kind: 'you' | 'waiting' | 'other' };
 export function wordOf(x: Task, sub: Sub | undefined, me: string, open: Set<number>): Word {
   if (sub?.review?.ready) return { text: 'Ready for you', kind: 'you' };
   const asks = x.state !== 'done' && foundersTurn(x, me) ? (x.turns ?? []).filter((r) => r.agent === me).length || 1 : 0;
-  if (asks) return { text: `${asks} ${asks === 1 ? 'question' : 'questions'} for you`, kind: 'you' };
+  if (asks) return { text: `${count(asks, 'question')} for you`, kind: 'you' };
   if (x.state === 'draft') {
     const plan = sub?.plan_state ?? 'none';
     const text = { none: 'No plan yet', asked: 'Writing plan…', writing: 'Writing plan…', written: 'Plan to read', ok: 'Plan OK' }[plan];

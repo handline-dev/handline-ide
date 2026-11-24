@@ -1,4 +1,5 @@
-import { classify, sentence, useOperation, useWrite } from '@handline/app-data';
+import { baseName } from '#src/format/path.ts';
+import { useOperation, useWrite, why } from '@handline/app-data';
 import { FolderOpen, GitBranch } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
@@ -29,13 +30,7 @@ function Progress({ operation, close }: { operation: string; close: Close<string
 }
 
 /** A folder's workspace name, from its last part, as onboarding names it. */
-export const nameOf = (folder: string) =>
-  workspaceNameOf(
-    folder
-      .replace(/[\\/]+$/, '')
-      .split(/[\\/]/)
-      .pop() ?? '',
-  );
+export const nameOf = (folder: string) => workspaceNameOf(baseName(folder));
 
 /** Where no folder picker is (a browser): the folder typed, its name shown as it will be. */
 function Form({ close }: { close: Close<string> }) {
@@ -59,7 +54,7 @@ function Form({ close }: { close: Close<string> }) {
       <Field label="Folder">
         <Input autoFocus value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="/path/to/folder" />
       </Field>
-      {!!create.error && <p className="text-sm text-danger">{sentence(classify(create.error))}</p>}
+      {!!create.error && <p className="text-sm text-danger">{why(create.error)}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button onClick={() => close()}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={!ready || create.isPending}>
@@ -80,7 +75,7 @@ function Picked({ folder, close }: { folder: string; close: Close<string> }) {
       <p>
         <span className="font-medium">{nameOf(folder)}</span> <span className="text-muted">· {folder}</span>
       </p>
-      {!!create.error && <p className="text-sm text-danger">{sentence(classify(create.error))}</p>}
+      {!!create.error && <p className="text-sm text-danger">{why(create.error)}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button onClick={() => close()}>Cancel</Button>
         <Button
@@ -116,7 +111,7 @@ function Clone({ close }: { close: Close<string> }) {
       <Field label="Repository address">
         <Input autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/you/project.git" />
       </Field>
-      {!!clone.error && <p className="text-sm text-danger">{sentence(classify(clone.error))}</p>}
+      {!!clone.error && <p className="text-sm text-danger">{why(clone.error)}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button onClick={() => close()}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={!ready}>

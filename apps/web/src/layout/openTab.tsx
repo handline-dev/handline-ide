@@ -1,3 +1,4 @@
+import { MAC } from '#src/ui/keys.ts';
 // Where the app opens a tab: here, beside (a split to the right, or the pane next to it when there is a split already) or below (a
 // split down). What an element does to ask for one is openable.tsx.
 import { createContext, useContext, type KeyboardEvent, type MouseEvent } from 'react';
@@ -16,7 +17,6 @@ export const howOf = (e: MouseEvent | KeyboardEvent): Gesture =>
 /** In a pane a new tab is a plain open. */
 export const inPane = (g: Gesture): How => (g === 'tab' ? 'here' : g);
 
-const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 /** The shortcut a menu shows beside a way to open. */
 export const SHORTCUT: Partial<Record<Gesture, string>> = { tab: MAC ? '⌘ click' : 'Ctrl click', side: MAC ? '⌥ click' : 'Alt click' };
 

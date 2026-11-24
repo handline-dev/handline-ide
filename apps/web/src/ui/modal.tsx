@@ -2,7 +2,7 @@ import { Dialog } from '@base-ui/react/dialog';
 import { ArrowLeft, X } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
-import { classify, sentence } from '@handline/app-data';
+import { why } from '@handline/app-data';
 import { Button, useAction } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -251,7 +251,7 @@ function Confirm({
         </>
       }
     >
-      {!!call.error && <p className="text-sm text-danger">{sentence(classify(call.error))}</p>}
+      {!!call.error && <p className="text-sm text-danger">{why(call.error)}</p>}
     </ModalFrame>
   );
 }

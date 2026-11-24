@@ -1,3 +1,4 @@
+import { baseName } from '#src/format/path.ts';
 import {
   CircleHelp,
   FileDiff,
@@ -102,7 +103,7 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
     return { label: host, icon: kinds.web.icon };
   }
   const file = opened(kind, 'file');
-  if (file) return { label: file.split('/').pop() ?? file, icon: kinds.markdown.icon };
+  if (file) return { label: baseName(file), icon: kinds.markdown.icon };
   const hr = opened(kind, 'proposal');
   if (hr) return { label: `HR ${hr}`, icon: kinds.markdown.icon };
   const text = opened(kind, 'text') ?? opened(kind, 'doc');

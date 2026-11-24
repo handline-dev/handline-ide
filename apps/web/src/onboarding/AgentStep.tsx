@@ -1,5 +1,5 @@
 // The last step: what the first agent does, which AI tool it runs on, and starting it.
-import { classify, Hooks, sentence, useCreateProgress, useRepos, useWrite } from '@handline/app-data';
+import { Hooks, useCreateProgress, useRepos, useWrite, why } from '@handline/app-data';
 import { LoaderCircle, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { usePicked } from '#src/onboarding/data/picked.ts';
@@ -93,7 +93,7 @@ export function AgentStep() {
           {!ready.length && <p className="text-xs text-warning">Log in to an AI tool first (step 1).</p>}
         </>
       )}
-      {!!create.error && <p className="text-xs text-danger">{sentence(classify(create.error))}</p>}
+      {!!create.error && <p className="text-xs text-danger">{why(create.error)}</p>}
       {startFailed && !operation && <p className="text-xs text-danger">The agent did not start. Try again.</p>}
       {operation && <Starting operation={operation} task={task} onFailed={() => (setOperation(null), setStartFailed(true))} />}
     </StepView>
@@ -113,7 +113,7 @@ function Starting({ operation, task, onFailed }: { operation: string; task: stri
     <p className="flex items-center gap-2 text-xs text-muted">
       <LoaderCircle size={12} className="animate-spin" />
       Starting the agent…
-      {!!p.ask.error && <span className="text-danger">The first task was not sent: {sentence(classify(p.ask.error))}</span>}
+      {!!p.ask.error && <span className="text-danger">The first task was not sent: {why(p.ask.error)}</span>}
     </p>
   );
 }

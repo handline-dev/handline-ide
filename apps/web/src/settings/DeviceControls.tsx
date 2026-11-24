@@ -1,3 +1,4 @@
+import { clockOrDay } from '#src/format/time.ts';
 // A device's Run · Pause · Off, its state as a shape and a word, and the confirm that waits for the daemon. Shared by the Devices list, a
 // device's page and the status bar's pause popover.
 import { Circle, CircleDot, Globe, Laptop, Loader, Pause, Play, Server, Smartphone, TriangleAlert, type LucideIcon } from 'lucide-react';
@@ -28,13 +29,6 @@ export const KIND_ICON: Record<keyof typeof KIND_WORD, LucideIcon> = {
 export const MODE_WORD: Record<Mode, string> = { run: 'Run', pause: 'Pause', off: 'Off' };
 const MODE_ICON: Record<Mode, ReactNode> = { run: <Play size={12} />, pause: <Pause size={12} />, off: <Circle size={12} /> };
 
-/** A time today as 14:02, an older one as its date too. */
-const clock = (at: string) => {
-  const d = new Date(at);
-  const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return d.toDateString() === new Date().toDateString() ? hm : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${hm}`;
-};
-
 /** The state's word with its own shape, never colour alone. */
 export function StateWord({ row }: { row: Pick<DeviceRow, 'state' | 'since'> }) {
   const word: Record<State, ReactNode> = {
@@ -55,7 +49,7 @@ export function StateWord({ row }: { row: Pick<DeviceRow, 'state' | 'since'> }) 
     ),
     offline: (
       <>
-        <TriangleAlert size={12} /> {row.since ? `Offline since ${clock(row.since)}` : 'Offline'}
+        <TriangleAlert size={12} /> {row.since ? `Offline since ${clockOrDay(row.since)}` : 'Offline'}
       </>
     ),
     starting: (
@@ -203,7 +197,7 @@ export function DeviceLine({ device }: { device: { name: string; online: boolean
   return (
     <span data-agent-device className={`flex items-center gap-1.5 text-xs ${device.online ? 'text-muted' : 'text-warning'}`}>
       <Icon size={12} />
-      {device.online ? `On ${device.name}` : `Offline: ${device.name}${device.since ? ` since ${clock(device.since)}` : ''}`}
+      {device.online ? `On ${device.name}` : `Offline: ${device.name}${device.since ? ` since ${clockOrDay(device.since)}` : ''}`}
     </span>
   );
 }

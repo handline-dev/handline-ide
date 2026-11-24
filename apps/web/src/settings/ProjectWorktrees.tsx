@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 // A project's worktree folders (desks): how many it keeps, Auto or Manual, and each folder, who uses it, its size and its pin.
 import { bytesText } from '@handline/app-core';
 import { useDesks, useNameOf, useWrite } from '@handline/app-data';
@@ -99,7 +100,7 @@ export function ProjectWorktrees({ repo }: { repo: Repo }) {
       {desks.length > 0 && (
         <div className="max-h-96 overflow-auto rounded-md border border-border">
           <div className="sticky top-0 border-b border-border bg-surface px-3 py-1.5 text-xs font-medium tracking-wide text-muted uppercase">
-            {desks.length} {desks.length === 1 ? 'folder' : 'folders'} · {bytesText(total)}
+            {count(desks.length, 'folder')} · {bytesText(total)}
           </div>
           <ul>
             {desks.map((d) => {

@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 // Settings > Onboarding: the four setup items, done or not by what is true on this machine, each leading to its own Settings page, and Continue,
 // which opens the setup where it was left.
 import { Hooks, useAgents, useRepos } from '@handline/app-data';
@@ -34,8 +35,8 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
       ? ready.map((r) => `${r.vendor === 'codex' ? 'Codex' : 'Claude Code'}${r.email ? ` · ${r.email}` : ''}`).join(', ')
       : 'No AI tool is logged in yet.',
     notify: o.done.notify ? (o.notify === 'granted' ? 'On' : 'Skipped') : 'Not set',
-    project: repos ? `${repos} ${repos === 1 ? 'project' : 'projects'}` : `None yet${found ? ` · ${found} found on this Mac` : ''}`,
-    agent: agents ? `${agents} ${agents === 1 ? 'agent' : 'agents'}` : 'Not started',
+    project: repos ? `${count(repos, 'project')}` : `None yet${found ? ` · ${found} found on this Mac` : ''}`,
+    agent: agents ? `${count(agents, 'agent')}` : 'Not started',
   };
   return (
     <SettingsPage

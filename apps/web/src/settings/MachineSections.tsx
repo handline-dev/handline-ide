@@ -1,3 +1,4 @@
+import { pct } from '#src/format/count.ts';
 // The master's own Mac on its Devices page: resources, agents, shared runs and keep-awake. A refused write says why under its control.
 import { useNameOf } from '@handline/app-data';
 import { Bot, Coffee, Cpu, Gauge, HardDrive, MemoryStick, TriangleAlert, Zap } from 'lucide-react';
@@ -87,7 +88,7 @@ export function MachineSections() {
   const run = (key: string, go: () => Promise<unknown>) => void send(key, go);
   const r = m.resources;
   const mc = r?.machine;
-  const diskUsed = mc?.disk_total_bytes ? Math.round((1 - mc.disk_free_bytes / mc.disk_total_bytes) * 100) : 0;
+  const diskUsed = mc ? pct(mc.disk_total_bytes - mc.disk_free_bytes, mc.disk_total_bytes) : 0;
   const diskLow = !!mc && mc.disk_free_bytes < LOW_DISK_BYTES;
   const why = (key: string) =>
     refused?.key === key ? (

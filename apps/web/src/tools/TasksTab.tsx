@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 import { ListLoading } from '#src/ui/Loading.tsx';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
@@ -5,7 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 import type { Task } from '@handline/client';
 import { foundersTurn, turnChain } from '@handline/app-core';
-import { classify, sentence, useGiveBack, useNameOf, useTasks } from '@handline/app-data';
+import { useGiveBack, useNameOf, useTasks, why } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { ago, useNow } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
@@ -195,7 +196,7 @@ function waitWords(t: Task, kids: number[]): string | null {
   if (w?.on === 'founder') return 'Waiting on you';
   const others = w?.tasks.filter((n) => !kids.includes(n)) ?? [];
   if (others.length) return `Waits on ${others.map((n) => `T${n}`).join(', ')}`;
-  if (w?.tasks.length) return `${w.tasks.length} sub-task${w.tasks.length > 1 ? 's' : ''} open`;
+  if (w?.tasks.length) return `${count(w.tasks.length, 'sub-task')} open`;
   const text = w?.text ?? t.block_reason ?? t.hold_reason;
   return text ? text.split(/[,;(]/)[0].trim() : null;
 }
@@ -206,7 +207,7 @@ function Row({ t, ruled, owner, kids, word }: { t: Task; ruled: boolean; owner?:
   const back = useGiveBack();
   const s = look(t);
   const lease = useLeaseWaits().get(t.id);
-  const why: ReactNode = lease ? (
+  const held: ReactNode = lease ? (
     <>
       <LeaseIcon kind={lease.kind} /> {lease.text}
     </>
@@ -227,7 +228,7 @@ function Row({ t, ruled, owner, kids, word }: { t: Task; ruled: boolean; owner?:
     : [
         chain || (owner ? null : `Assigned to ${nameOf(t.to)}`),
         t.priority && `P${t.priority}`,
-        why,
+        held,
         failedLine(t.evidence, t.title),
         t.done ? `Closed ${ago(t.done)}` : `Created ${ago(t.created)}`,
       ];
@@ -257,9 +258,7 @@ function Row({ t, ruled, owner, kids, word }: { t: Task; ruled: boolean; owner?:
         <button
           type="button"
           disabled={back.pending}
-          onClick={() =>
-            back.give(t.id, { onError: (e) => toast(`Give back did not work: ${sentence(classify(e))}`, { tone: 'warning' }) })
-          }
+          onClick={() => back.give(t.id, { onError: (e) => toast(`Give back did not work: ${why(e)}`, { tone: 'warning' }) })}
           className="mr-3 shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-hover/30 disabled:opacity-40"
         >
           Give back

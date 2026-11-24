@@ -1,4 +1,4 @@
-import { classify, Hooks, sentence, useDirectory, useNewAgentForm, useOperation } from '@handline/app-data';
+import { Hooks, useDirectory, useNewAgentForm, useOperation, why } from '@handline/app-data';
 import type { Workspace } from '@handline/client';
 import { Check, Eye, Folder, GitBranch } from 'lucide-react';
 import { useState } from 'react';
@@ -82,7 +82,7 @@ function Form({ ws, close }: { ws: Workspace; close: Close<string> }) {
   const [started, setStarted] = useState<{ operation: string; name: string } | null>(null);
   const { f, set, ready, send, create } = useNewAgentForm(ws.key, (operation, name) => setStarted({ operation, name }));
   if (started) return <Progress {...started} workspace={ws.key} close={close} />;
-  const error = create.error ? sentence(classify(create.error)) : null;
+  const error = create.error ? why(create.error) : null;
   return (
     <form
       className="flex flex-col gap-3 pb-4"

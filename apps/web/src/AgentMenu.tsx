@@ -1,3 +1,4 @@
+import { baseName } from '#src/format/path.ts';
 import { deleteSaid, heldWords, type HeldWorktree, type WorktreeAnswer } from '@handline/app-core';
 import { classify, sentence, useAgentDetail, useNameOf, useNav, useRetireAgent } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
@@ -102,10 +103,7 @@ export function AgentMenu({
               Copy folder path
             </MenuItem>
             {detail?.worktree && (
-              <MenuItem
-                icon={<Copy size={14} />}
-                onClick={() => copy(detail.worktree!.path.split('/').pop() ?? detail.worktree!.path, 'worktree name')}
-              >
+              <MenuItem icon={<Copy size={14} />} onClick={() => copy(baseName(detail.worktree!.path), 'worktree name')}>
                 Copy worktree name
               </MenuItem>
             )}

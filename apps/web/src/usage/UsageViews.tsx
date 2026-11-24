@@ -1,3 +1,4 @@
+import { pct } from '#src/format/count.ts';
 // Under the Usage graph, one of four views at a time: the accounts, who used it (by agent), which models used it (each agent's use under
 // the model it runs on now), and the cost per day stacked by agent. The figures are the daemon's (stats.get, stats.outlook).
 import { costByAgent, nameOf, spentText } from '@handline/app-core';
@@ -339,7 +340,7 @@ export function CostPerDay({ range }: { range: CostRange }) {
           <Ranked
             key={a}
             name={a === UNMATCHED ? <Unmatched /> : costName(a)}
-            figures={`$${sum.toFixed(2)} · ${Math.round((sum / (all || 1)) * 100)}%`}
+            figures={`$${sum.toFixed(2)} · ${pct(sum, all)}%`}
             fill={sum / (order[0]?.sum || 1)}
             tone={tone.get(a)}
           />

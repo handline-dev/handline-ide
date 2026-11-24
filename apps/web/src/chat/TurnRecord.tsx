@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 import type { TurnRecord as Turn } from '@handline/app-core';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
@@ -12,7 +13,7 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
   const [open, setOpen] = useState(false);
   const notes = r.items.filter((i) => i.kind === 'reply').length;
-  const what = r.steps ? `${r.steps} ${r.steps === 1 ? 'step' : 'steps'}` : `${notes} ${notes === 1 ? 'note' : 'notes'}`;
+  const what = r.steps ? `${count(r.steps, 'step')}` : `${count(notes, 'note')}`;
   const min = Math.floor((Date.parse(r.until) - Date.parse(r.at)) / 60_000);
   return (
     <motion.div

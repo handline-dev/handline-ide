@@ -1,3 +1,4 @@
+import { pct } from '#src/format/count.ts';
 // One device's page: its state and Run · Pause · Off, then This Mac's sections for the master, or a lent machine's agents, load and cap.
 import { useNameOf } from '@handline/app-data';
 import { bytesText } from '@handline/app-core';
@@ -45,9 +46,9 @@ type Devices = ReturnType<typeof useDevices>;
 /** A lent machine's load from its newest heartbeat, and its own cap on the agents' memory (empty: the master's cap holds). */
 function Resources({ row, q }: { row: DeviceRow; q: Devices }) {
   const load = row.node?.load;
-  const cpu = load && load.cores ? Math.round((load.load1 / load.cores) * 100) : 0;
+  const cpu = load ? pct(load.load1, load.cores) : 0;
   const used = load ? load.ram_total - load.ram_free : 0;
-  const mem = load && load.ram_total ? Math.round((used / load.ram_total) * 100) : 0;
+  const mem = load ? pct(used, load.ram_total) : 0;
   const own = row.node?.memory_max_gb ?? 0;
   return (
     <Block title="Resources" icon={<Gauge size={16} />}>

@@ -1,5 +1,5 @@
 // Settings > General: the cluster's name, renamed by its owner (setting cluster_name).
-import { classify, sentence, useServes, useSettings, useWrite } from '@handline/app-data';
+import { useServes, useSettings, useWrite, why } from '@handline/app-data';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Button } from '#src/ui/Button.tsx';
@@ -13,10 +13,7 @@ export function GeneralTab() {
   const rename = async () => {
     const next = (await prompt({ title: 'Rename the cluster', initial: name, submitText: 'Rename' }))?.trim();
     if (!next || next === name) return;
-    save.mutate(
-      { changes: { cluster_name: next } },
-      { onError: (e) => toast(`It was not renamed: ${sentence(classify(e))}`, { tone: 'warning' }) },
-    );
+    save.mutate({ changes: { cluster_name: next } }, { onError: (e) => toast(`It was not renamed: ${why(e)}`, { tone: 'warning' }) });
   };
   return (
     <SettingsPage keep="settings-general" title="General" note="This cluster.">

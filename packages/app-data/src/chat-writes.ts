@@ -2,7 +2,7 @@
 // a refused one is put back.
 import type { ChatMessage, Receipt } from '@handline/client';
 import { knownAttachments } from '#src/attachments.ts';
-import { classify, sentence } from '#src/errors.ts';
+import { why } from '#src/errors.ts';
 import { edit, mapPages, provisionalId, type Ctx, type Pages } from '#src/cache.ts';
 import { qk } from '#src/reads.ts';
 import { forgetOperation, laterReceipt, rememberOperation, type SendTask } from '#src/send-ops.ts';
@@ -105,9 +105,7 @@ export const chatWrites: Record<string, Patch> = {
         mapPages(d, (page) => ({
           ...page,
           messages: page.messages.map((m) =>
-            m.id < 0 && m.to === agent && m.body === body && m.state !== 'failed'
-              ? { ...m, state: 'failed', sending_reason: sentence(classify(e)) }
-              : m,
+            m.id < 0 && m.to === agent && m.body === body && m.state !== 'failed' ? { ...m, state: 'failed', sending_reason: why(e) } : m,
           ),
         })),
       );

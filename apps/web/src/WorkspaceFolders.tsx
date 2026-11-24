@@ -1,6 +1,6 @@
 // A workspace's folders in a window of their own: each with its git or plain mark, the default tagged, the agents working in it, a
 // remove on hover; Add folder at the end.
-import { classify, Hooks, sentence, useAgents, useNameOf, useWrite } from '@handline/app-data';
+import { Hooks, useAgents, useNameOf, useWrite, why } from '@handline/app-data';
 import type { Workspace } from '@handline/client';
 import { Folder, FolderPlus, GitBranch, X } from 'lucide-react';
 import { useState } from 'react';
@@ -64,7 +64,7 @@ export function AddFolder({ wsKey, onAdded }: { wsKey: string; onAdded?: (path: 
           </Button>
         </div>
       )}
-      {!!set.error && <p className="px-3 py-1 text-xs text-danger">{sentence(classify(set.error))}</p>}
+      {!!set.error && <p className="px-3 py-1 text-xs text-danger">{why(set.error)}</p>}
     </>
   );
 }
@@ -105,7 +105,7 @@ export function Folders({ wsKey }: { wsKey: string }) {
         })}
         <AddFolder wsKey={ws.key} />
       </div>
-      {!!set.error && <p className="text-danger">{sentence(classify(set.error))}</p>}
+      {!!set.error && <p className="text-danger">{why(set.error)}</p>}
     </div>
   );
 }

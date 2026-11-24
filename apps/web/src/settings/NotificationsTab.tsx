@@ -1,5 +1,5 @@
 // Settings > Notifications: whether this browser may show them, which events raise one and how (the daemon's settings, for every device), and a test.
-import { classify, sentence, useSettings, useWrite } from '@handline/app-data';
+import { useSettings, useWrite, why } from '@handline/app-data';
 import { AppWindow, Bell, BellRing, CircleCheck, CircleHelp, Gauge, Monitor, TriangleAlert, Volume2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useOnboarding } from '#src/onboarding/data/progress.ts';
@@ -89,7 +89,7 @@ export function NotificationsTab() {
       </Block>
       {!!save.error && (
         <p className="text-xs text-danger" role="alert">
-          {sentence(classify(save.error))}
+          {why(save.error)}
         </p>
       )}
     </SettingsPage>

@@ -1,5 +1,5 @@
 // A write that names what it writes: `pending` is a key in flight (its row dims); the promise rejects with the refusal as a sentence.
-import { classify, sentence } from '@handline/app-data';
+import { why } from '@handline/app-data';
 import { useCallback, useState } from 'react';
 
 export function useKeyed() {
@@ -9,7 +9,7 @@ export function useKeyed() {
     try {
       return await call();
     } catch (e) {
-      throw sentence(classify(e));
+      throw why(e);
     } finally {
       setFlying((f) => f.filter((_, i) => i !== f.indexOf(key)));
     }

@@ -1,5 +1,6 @@
+import { baseName } from '#src/format/path.ts';
 // Settings > Projects: the git folders agents work in, each with its worktree setup, and the ones found on this Mac. A project is listed once an agent works in it, so every way to add one starts an agent.
-import { classify, Hooks, sentence, useRepos, useWrite } from '@handline/app-data';
+import { Hooks, useRepos, useWrite, why } from '@handline/app-data';
 import { FolderGit2, Link, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { NeedsGit, useMissing } from '#src/install/install.tsx';
@@ -13,8 +14,6 @@ import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
-const nameOf = (p: string) => p.replace(/\/+$/, '').split('/').pop() ?? p;
-
 /** Makes a workspace on `path` and starts its lead there, which is what makes it a project. */
 function useStartIn() {
   const create = useWrite('workspace.create');
@@ -23,8 +22,8 @@ function useStartIn() {
     error: create.error,
     start: (path: string) =>
       create.mutate(
-        { name: workspaceNameOf(nameOf(path)), folder: path },
-        { onSuccess: () => toast(`${nameOf(path)} is added: an agent is starting in it.`) },
+        { name: workspaceNameOf(baseName(path)), folder: path },
+        { onSuccess: () => toast(`${baseName(path)} is added: an agent is starting in it.`) },
       ),
   };
 }
@@ -107,7 +106,7 @@ export function ProjectsTab() {
       </Block>
       {!!here.error && (
         <p className="text-sm text-danger" role="alert">
-          {sentence(classify(here.error))}
+          {why(here.error)}
         </p>
       )}
     </SettingsPage>
@@ -142,7 +141,7 @@ function Form({
         </Button>
         {!!error && (
           <span className="text-xs text-danger" role="alert">
-            {sentence(classify(error))}
+            {why(error)}
           </span>
         )}
       </div>

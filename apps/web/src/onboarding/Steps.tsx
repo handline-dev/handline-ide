@@ -1,5 +1,6 @@
+import { baseName } from '#src/format/path.ts';
 // The steps' bodies. Each has one button that does the step; what is true on the machine already shows as done.
-import { classify, Hooks, sentence, useRepos } from '@handline/app-data';
+import { Hooks, useRepos, why } from '@handline/app-data';
 import { Bell, Check, Folder, FolderGit2, LoaderCircle } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { InstallButton, Installing, useInstall, useMissing } from '#src/install/install.tsx';
@@ -76,7 +77,7 @@ export function AiStep() {
   const use = (r: AiRow) => (r.adoptable && r.source ? ai.adopt(r.vendor, r.source) : logIn(r.vendor));
   const run = (p: Promise<unknown>) => {
     setError('');
-    p.catch((e: unknown) => setError(sentence(classify(e))));
+    p.catch((e: unknown) => setError(why(e)));
   };
   const primary = ready.length
     ? { label: 'Continue', onClick: nav.next }
@@ -200,8 +201,6 @@ export function NotifyStep() {
   );
 }
 
-const folderName = (p: string) => p.replace(/\/+$/, '').split('/').pop() ?? p;
-
 export function ProjectStep() {
   const nav = useStepNav();
   const recent = Hooks.useReposRecent();
@@ -271,8 +270,8 @@ export function ProjectStep() {
           type="button"
           onClick={() =>
             void pick().then(
-              (r) => (r.ok ? r.path && setPicked({ path: r.path, name: folderName(r.path) }) : setError(r.message)),
-              (e: unknown) => setError(sentence(classify(e))),
+              (r) => (r.ok ? r.path && setPicked({ path: r.path, name: baseName(r.path) }) : setError(r.message)),
+              (e: unknown) => setError(why(e)),
             )
           }
           className="flex w-fit items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-fg hover:bg-hover/30"

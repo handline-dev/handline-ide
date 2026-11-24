@@ -1,7 +1,7 @@
 // The images being attached to the next text, for any app: each is uploaded as soon as it is added, a failed one keeps its place with Retry, and
 // the text waits while one is still going. The app brings the picture ready (picked, shrunk, a Blob and a preview address).
 import type { Attachment } from '@handline/client';
-import { classify, sentence } from '#src/errors.ts';
+import { why } from '#src/errors.ts';
 import { keptState } from '#src/kept.ts';
 import { MAX_PER_MESSAGE, forgetAttachment, rememberAttachment, useUploadImage, whyNotFile, whyNotImage } from '#src/attachments.ts';
 
@@ -50,7 +50,7 @@ export function useImageDrafts(max = MAX_PER_MESSAGE, agent?: string, anyFile = 
     patch(key, { progress: 0, error: undefined });
     upload(src.blob, src.name, src.mime, (sent, total) => patch(key, { progress: sent / total }), l).then(
       (attachment) => !l.aborted && (rememberAttachment(attachment), patch(key, { attachment, progress: 1 })),
-      (e) => !l.aborted && patch(key, { error: sentence(classify(e)) }),
+      (e) => !l.aborted && patch(key, { error: why(e) }),
     );
   };
 

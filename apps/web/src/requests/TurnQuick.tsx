@@ -1,5 +1,5 @@
 // A Requests row's answers: a proposal's Allow or Deny, a step-down offer's Yes or Not now, a warning's dismiss, or Later.
-import { classify, sentence, useProposals, useWrite } from '@handline/app-data';
+import { classify, sentence, useProposals, useWrite, why } from '@handline/app-data';
 import type { PendingRequest } from '@handline/client';
 import { laterKey, tomorrowAt9, turnKey } from '@handline/app-core';
 import { X } from 'lucide-react';
@@ -60,7 +60,7 @@ export function TurnQuick({ p }: { p: PendingRequest }) {
             { id },
             {
               onError: (e) => {
-                const s = sentence(classify(e));
+                const s = why(e);
                 if (s) toast(`Did not dismiss: ${s}`, { tone: 'warning' });
               },
             },
@@ -89,7 +89,7 @@ function ReviewOffer({ id, warning: w }: { id: string; warning: NonNullable<Pend
   const set = useWrite('agent.review_set');
   const dismiss = useWrite('warning.dismiss');
   const busy = set.isPending || dismiss.isPending;
-  const fail = (what: string) => (e: unknown) => toast(`Did not ${what}: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' });
+  const fail = (what: string) => (e: unknown) => toast(`Did not ${what}: ${why(e) || 'try again'}`, { tone: 'warning' });
   if (!w.agent || !w.work || !w.level) return null;
   const answer = { agent: w.agent, work: w.work, level: w.level };
   return (

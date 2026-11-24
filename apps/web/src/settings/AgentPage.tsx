@@ -1,6 +1,8 @@
+import { day } from '#src/format/time.ts';
+import { count } from '#src/format/count.ts';
 // Settings › Agents › one agent: what it learned (its lessons, each removable), what its sandbox allows, and how its finished work is
 // reviewed, per kind of work.
-import { classify, sentence, useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite } from '@handline/app-data';
+import { useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { AppWindow, ArrowLeft, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
@@ -39,8 +41,6 @@ const RUN = 10;
 /** Lessons shown before the rest fold into "N more". */
 const SHOWN = 8;
 
-const day = (iso: string) => new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
-
 export function AgentPage({ agent, back }: { agent: string; back: () => void }) {
   const name = useNameOf()(agent);
   const device = useAgentDevice(agent);
@@ -77,9 +77,7 @@ export function Lessons({ agent, founder = false }: { agent: string; founder?: b
   const shown = all ? items : items.slice(0, SHOWN);
   return (
     <Block
-      title={
-        founder ? `Your preferences · ${items.length}` : `What it learned · ${items.length} ${items.length === 1 ? 'lesson' : 'lessons'}`
-      }
+      title={founder ? `Your preferences · ${items.length}` : `What it learned · ${count(items.length, 'lesson')}`}
       note={founder ? 'What you said you want. Every agent follows these.' : undefined}
     >
       {lessons.data && !items.length && (
@@ -104,10 +102,7 @@ export function Lessons({ agent, founder = false }: { agent: string; founder?: b
                 className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                 disabled={remove.isPending}
                 onClick={() =>
-                  remove.mutate(
-                    { id: l.id },
-                    { onError: (e) => toast(`Did not remove: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' }) },
-                  )
+                  remove.mutate({ id: l.id }, { onError: (e) => toast(`Did not remove: ${why(e) || 'try again'}`, { tone: 'warning' }) })
                 }
               >
                 <Trash2 size={14} />
@@ -243,7 +238,7 @@ function LevelMenu({ agent, rung }: { agent: string; rung: Rung }) {
     level !== rung.level &&
     set.mutate(
       { agent, work: rung.work, level },
-      { onError: (e) => toast(`Did not change it: ${sentence(classify(e)) || 'try again'}`, { tone: 'warning' }) },
+      { onError: (e) => toast(`Did not change it: ${why(e) || 'try again'}`, { tone: 'warning' }) },
     );
   return (
     <Menu

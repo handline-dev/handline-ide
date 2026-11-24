@@ -1,6 +1,6 @@
 // Settings: the shared runs of This Mac or of one workspace. A shared run is a set of commands only N agents run at once; the others
 // wait their turn (hl use). Agents set them; the founder sees them here and may add, change or remove any.
-import { classify, Hooks, sentence, useNameOf, useWrite } from '@handline/app-data';
+import { Hooks, useNameOf, useWrite, why } from '@handline/app-data';
 import { Clock, Bot, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Block } from '#src/settings/Meter.tsx';
@@ -146,7 +146,7 @@ function RunForm({
       }
     >
       <div className="flex flex-col gap-3 text-sm">
-        {!!saving.error && <p className="text-danger">{sentence(classify(saving.error))}</p>}
+        {!!saving.error && <p className="text-danger">{why(saving.error)}</p>}
         <label className="flex flex-col gap-1">
           Name
           <Input value={d.name} disabled={!!run} onChange={(e) => setD({ ...d, name: e.target.value })} placeholder="ios-build" />

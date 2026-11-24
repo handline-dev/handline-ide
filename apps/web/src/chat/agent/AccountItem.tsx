@@ -1,5 +1,5 @@
 import { since } from '#src/format/time.ts';
-import { classify, sentence, useAccounts, useServes, useWrite } from '@handline/app-data';
+import { useAccounts, useServes, useWrite, why } from '@handline/app-data';
 import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, LoaderCircle, TriangleAlert, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { CardAction, chip, MenuFact, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
@@ -113,7 +113,7 @@ function MoveTo({ agent, account }: { agent: string; account: string }) {
             </span>
           </button>
         ))}
-      {open && !!moving.error && <p className="pl-8 text-xs text-danger">{sentence(classify(moving.error))}</p>}
+      {open && !!moving.error && <p className="pl-8 text-xs text-danger">{why(moving.error)}</p>}
     </>
   );
 }

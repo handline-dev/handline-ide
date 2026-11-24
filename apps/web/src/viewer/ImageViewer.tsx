@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 // The one picture viewer of the web, for looking and for marking up: full screen on a dark scrim, zoom and pan (Stage.tsx), the
 // pictures stepped with the arrows. Where the caller takes comments (`onMarked`), Mark turns a drag into a numbered mark with a comment
 // at it; Done hands each marked picture back with the marks drawn in and their words, for the caller to send (a chat reply, a
@@ -252,9 +253,7 @@ export function ImageViewer({
       <div className="flex h-14 flex-none items-center justify-center gap-3 px-4 text-sm text-muted">
         {canMark && (kept > 0 || sendBare) ? (
           <>
-            <span className="tabular-nums">
-              {kept > 0 ? `${kept} ${kept === 1 ? 'comment' : 'comments'}` : 'M to mark, or send it as it is'}
-            </span>
+            <span className="tabular-nums">{kept > 0 ? `${count(kept, 'comment')}` : 'M to mark, or send it as it is'}</span>
             <button
               type="button"
               onClick={() => void done()}

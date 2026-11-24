@@ -1,3 +1,4 @@
+import { count } from '#src/format/count.ts';
 // A task's code: its commits with All changes first, and the files of what is picked, each opening its diff in the look of the agent's
 // Changes. In a tab of its own (code:<id>, CodeTab) and in a story sub-task's Code tab; the task's change size opens the tab (ChangeSize).
 import { Hooks } from '@handline/app-data';
@@ -15,7 +16,6 @@ const FIRST = 20;
 
 type Changes = NonNullable<ReturnType<typeof Hooks.useTaskChanges>['data']>;
 
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 const sum = (rows: { added: number; deleted: number }[]) => ({
   added: rows.reduce((n, r) => n + r.added, 0),
   deleted: rows.reduce((n, r) => n + r.deleted, 0),
@@ -42,7 +42,7 @@ export function ChangeSize({ task }: { task: number }) {
       title="Open its code"
       className="self-start rounded-sm text-sm text-muted hover:bg-hover/30 hover:text-fg"
     >
-      <span className="text-success">+{added}</span> <span className="text-danger">−{deleted}</span> · {plural(all.files.length, 'file')}
+      <span className="text-success">+{added}</span> <span className="text-danger">−{deleted}</span> · {count(all.files.length, 'file')}
     </button>
   );
 }
@@ -75,7 +75,7 @@ export function TaskCode({ task }: { task: number }) {
         <button type="button" aria-pressed={!commit} onClick={() => pick(null)} className={`${row(!commit)} rounded-md`}>
           <span className="font-medium text-fg">All changes</span>
           <span className="min-w-0 flex-1 truncate text-muted">
-            {plural(commits.length, 'commit')} · {plural(all.data.files.length, 'file')}
+            {count(commits.length, 'commit')} · {count(all.data.files.length, 'file')}
           </span>
           <Lines {...whole} />
         </button>
@@ -126,7 +126,7 @@ function Files({ changes }: { changes: Changes }) {
       ))}
       {changes.files.length > FIRST && !every && (
         <button type="button" onClick={() => setEvery(true)} className="self-start px-2 text-xs text-muted hover:text-fg">
-          Show {plural(changes.files.length - FIRST, 'more file')}
+          Show {count(changes.files.length - FIRST, 'more file')}
         </button>
       )}
     </section>

@@ -5,7 +5,7 @@ import { removeAccount, Row } from '#src/usage/AccountParts.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
-import { classify, sentence, useAccounts, useAccountUsage, useSettings, useWrite } from '@handline/app-data';
+import { useAccounts, useAccountUsage, useSettings, useWrite, why } from '@handline/app-data';
 import { ChevronRight, LoaderCircle, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
@@ -62,7 +62,7 @@ function AutoManual({
         <p className="text-xs text-muted">{about}</p>
         {!!save.error && (
           <p className="text-xs text-danger" role="alert">
-            {sentence(classify(save.error))}
+            {why(save.error)}
           </p>
         )}
       </div>
@@ -84,8 +84,6 @@ function AutoManual({
     </section>
   );
 }
-
-const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 
 /** `focus`: an account whose card opens and scrolls into view. */
 export function AccountsTab({ focus }: { focus?: string }) {

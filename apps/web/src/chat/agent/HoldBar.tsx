@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { classify, sentence, useAccounts, useAgents, useUnstall } from '@handline/app-data';
+import { useAccounts, useAgents, useUnstall, why } from '@handline/app-data';
 import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -100,7 +100,7 @@ export function HoldCard({ agent }: { agent: string }) {
       <Button
         busy={wake.busy}
         // A refused wake has cleared the stall all the same, so this card may be gone by the answer: the reason is a toast.
-        onClick={() => void wake.go(() => unstall().catch((e: unknown) => toast(sentence(classify(e)), { tone: 'warning' })))}
+        onClick={() => void wake.go(() => unstall().catch((e: unknown) => toast(why(e), { tone: 'warning' })))}
       >
         Try again
       </Button>

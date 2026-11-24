@@ -1,7 +1,6 @@
+import { MAC, primaryMod } from '#src/ui/keys.ts';
 // The keys that move between a pane's tabs, as browsers and editors have them. Pure: the key and the pane give the tab to show.
 import { useEffect } from 'react';
-
-const MAC = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '');
 
 type Key = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>;
 
@@ -23,7 +22,7 @@ function tabIndex(e: Key, count: number, at: number, mac: boolean): number | nul
   if ((e.key === 'PageDown' || e.key === 'PageUp') && e.ctrlKey && !e.metaKey && !e.shiftKey) return step(e.key === 'PageDown' ? 1 : -1);
   if (mac && e.metaKey && e.shiftKey && !e.ctrlKey && (e.code === 'BracketRight' || e.code === 'BracketLeft'))
     return step(e.code === 'BracketRight' ? 1 : -1);
-  const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  const mod = primaryMod(e, mac);
   if (mod && !e.shiftKey && /^[1-9]$/.test(e.key)) {
     const n = Number(e.key);
     return n === 9 ? count - 1 : n <= count ? n - 1 : null;

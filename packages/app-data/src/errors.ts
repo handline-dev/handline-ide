@@ -58,6 +58,9 @@ export function sentence(f: Failure): string {
   }
 }
 
+/** What went wrong with `e`, as the sentence a screen shows; empty when there is no error. */
+export const why = (e: unknown): string => (e ? sentence(classify(e)) : '');
+
 /** React Query's retry rule: only a busy daemon is asked again, a few times, after the wait it named. */
 export const retryRead = (count: number, e: unknown) => count < 3 && classify(e).kind === 'busy';
 export const retryDelay = (_count: number, e: unknown) => {

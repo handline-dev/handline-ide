@@ -1,3 +1,4 @@
+import { baseName } from '#src/format/path.ts';
 // A project's setup: the files copied and the script run in every new worktree an agent gets, and how the last one went.
 import { classify, sentence, useWrite } from '@handline/app-data';
 import { RpcError, type Repo } from '@handline/client';
@@ -77,7 +78,7 @@ export function ProjectSetup({ repo, close }: { repo: Repo; close: () => void })
 }
 
 function LastRun({ last }: { last: NonNullable<Repo['setup']['last']> }) {
-  const where = last.worktree.split('/').pop();
+  const where = baseName(last.worktree);
   return (
     <div className="flex flex-col gap-1 text-xs">
       <span className={`flex items-center gap-1.5 ${last.ok ? 'text-muted' : 'text-danger'}`}>

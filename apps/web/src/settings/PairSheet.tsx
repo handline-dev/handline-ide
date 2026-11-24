@@ -1,3 +1,4 @@
+import { countdown } from '#src/format/time.ts';
 // The pair sheet: pick the one address to share (.local, a LAN IP, a Tailscale IP or hostname), make a code, and show it with its expiry, a QR and
 // the link. The code and link live only in this sheet. It closes with a notice when the device that used the code appears in the list.
 import type { NetworkAddress } from '@handline/client';
@@ -18,8 +19,6 @@ const KIND_WORD: Record<NetworkAddress['kind'], string> = {
   tailscale_name: 'Tailscale name',
 };
 const ORDER: NetworkAddress['kind'][] = ['mdns', 'lan', 'tailscale', 'tailscale_name'];
-
-const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 
 /** The text as an SVG QR, drawn on white so a scanner reads it in the dark theme too. */
 function Qr({ text }: { text: string }) {
@@ -135,7 +134,7 @@ function Sheet({ close }: { close: () => void }) {
           </>
         )}
         <span className="text-xs text-muted">
-          Valid for <b className="tabular-nums text-fg">{clock(left)}</b>
+          Valid for <b className="tabular-nums text-fg">{countdown(left)}</b>
         </span>
         <span className="text-xs text-muted">The other device shows a certificate warning the first time.</span>
       </div>

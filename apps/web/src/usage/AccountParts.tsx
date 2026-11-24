@@ -1,13 +1,11 @@
 // The pieces of an opened account card: its Login row and Remove.
 import type { Account } from '@handline/client';
-import { classify, sentence, useWrite } from '@handline/app-data';
+import { useWrite, why } from '@handline/app-data';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { Refs } from '#src/ui/refs.tsx';
-
-const why = (e: unknown) => (e ? sentence(classify(e)) : null);
 
 export function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
