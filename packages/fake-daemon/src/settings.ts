@@ -9,7 +9,6 @@ export const defaultSettings = (model: string, effort: string): Record<string, s
   weight: 'heavy',
   repo: '',
   browser: 'off',
-  browser_sites: '',
   context_k: '300',
   idle_close: '',
   handoff_note: 'default',
@@ -25,7 +24,7 @@ const ONE_OF: Record<string, string[]> = {
   effort: ['low', 'medium', 'high', 'xhigh', 'max'],
   weight: ['light', 'heavy'],
   sandbox: ['on', 'off'],
-  browser: ['off', 'chrome', 'playwright'],
+  browser: ['off', 'chrome'],
   handoff_note: ['default', 'on', 'off'],
   mode: ['default', 'auto', 'acceptEdits', 'plan'],
 };

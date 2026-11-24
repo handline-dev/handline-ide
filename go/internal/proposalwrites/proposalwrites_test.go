@@ -618,11 +618,7 @@ func TestAgentSetTakesEveryFieldOfTheContractForTheFounder(t *testing.T) {
 	if res := r.call("agent.set", `{"agent":"alice","values":{"sandbox_allow":""},"request_id":"as-clear"}`); res["result"] == nil || strings.Contains(r.settingsText("alice"), "sandbox_allow") {
 		t.Fatalf("an empty sandbox_allow did not clear it: %v\n%s", res, r.settingsText("alice"))
 	}
-	res := r.call("agent.set", `{"agent":"alice","values":{"browser":"playwright","browser_sites":"https://a.example https://b.example"},"request_id":"as-sites"}`)
-	if res["result"] == nil || !strings.Contains(r.settingsText("alice")+r.agentFile("alice", "mcp.json"), "b.example") {
-		t.Fatalf("sites: %v", res)
-	}
-	res = r.call("agent.set", `{"agent":"bob","values":{"effort":"low","context_k":"90"},"request_id":"as-two"}`)
+	res := r.call("agent.set", `{"agent":"bob","values":{"effort":"low","context_k":"90"},"request_id":"as-two"}`)
 	if res["result"] == nil || !strings.Contains(r.settingsText("bob"), "effort: low") {
 		t.Fatalf("%v\n%s", res, r.settingsText("bob"))
 	}

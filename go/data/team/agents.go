@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/handline/handline/go/kit/paths"
@@ -23,9 +22,8 @@ const (
 	// ContextTokens is the default context-handoff threshold: an absolute figure, so it means the same on every model.
 	ContextTokens = 300_000
 
-	BrowserServer      = "browser"
-	DefaultBrowserProf = "Profile 17"
-	DefaultMode        = "auto"
+	BrowserServer = "browser"
+	DefaultMode   = "auto"
 )
 
 var (
@@ -157,12 +155,6 @@ func MCPConfigArgs(cfg Config) []string {
 	return []string{"--mcp-config", text}
 }
 
-var (
-	originRe   = regexp.MustCompile(`^https?://[A-Za-z0-9.-]+(:[0-9]+)?$`)
-	originsArg = regexp.MustCompile(`--allowed-origins "([^"]*)"`)
-	profileArg = regexp.MustCompile(`--profile-dir-name "([^"]*)"`)
-)
-
 // browserCommand is the shell line of the agent's own browser MCP server, or "".
 func browserCommand(cfg Config) string {
 	text := "{}"
@@ -205,84 +197,23 @@ func jsonText(v any) string {
 	return fmt.Sprint(v)
 }
 
-// BrowserMode is how this agent browses: "chrome", "playwright" (its own sandboxed browser server with a site list), "custom" (a
-// browser server set by hand that has none, left alone) or "off".
+// BrowserMode is how this agent browses: "chrome" (Claude in Chrome), "custom" (a browser server set by hand, left alone) or "off".
 func BrowserMode(cfg Config) string {
 	if Chrome(cfg) {
 		return "chrome"
 	}
-	cmd := browserCommand(cfg)
-	if cmd == "" {
+	if browserCommand(cfg) == "" {
 		return "off"
-	}
-	if originsArg.MatchString(cmd) {
-		return "playwright"
 	}
 	return "custom"
 }
 
-// BrowserOrigins are the sites its Playwright server may open.
-func BrowserOrigins(cfg Config) []string {
-	m := originsArg.FindStringSubmatch(browserCommand(cfg))
-	out := []string{}
-	if m == nil {
-		return out
+// BrowserMCPConfig is the mcp_config text for mode: the agent's other MCP servers as they are, its browser server removed; "" when
+// nothing is left.
+func BrowserMCPConfig(cfg Config, mode string) (string, error) {
+	if mode == "custom" {
+		return "", errors.New("a custom browser config is set in a terminal, not here")
 	}
-	for _, o := range strings.Split(m[1], ";") {
-		if o != "" {
-			out = append(out, o)
-		}
-	}
-	return out
-}
-
-// ParseOrigins are the origins in text (separated by spaces, commas, semicolons or lines); an error for one that is not
-// http(s)://host[:port]. They end up inside a shell line, so nothing else is let through.
-func ParseOrigins(text string) ([]string, error) {
-	out := []string{}
-	for _, o := range strings.Fields(strings.NewReplacer(",", " ", ";", " ").Replace(text)) {
-		o = strings.TrimRight(o, "/")
-		if !originRe.MatchString(o) {
-			return nil, fmt.Errorf("%s is not a site like https://example.com", pyQuote(o))
-		}
-		seen := false
-		for _, x := range out {
-			seen = seen || x == o
-		}
-		if !seen {
-			out = append(out, o)
-		}
-	}
-	return out, nil
-}
-
-func pyQuote(s string) string {
-	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
-		return `"` + s + `"`
-	}
-	return "'" + strings.ReplaceAll(s, "'", `\'`) + "'"
-}
-
-// CheckOrigin is text as one origin, if it is one and others does not have it.
-func CheckOrigin(text string, others []string) (string, error) {
-	sites, err := ParseOrigins(text)
-	if err != nil {
-		return "", err
-	}
-	if len(sites) != 1 {
-		return "", errors.New("write one site, like https://example.com")
-	}
-	for _, o := range others {
-		if strings.EqualFold(o, sites[0]) {
-			return "", fmt.Errorf("%s is already in the list", sites[0])
-		}
-	}
-	return sites[0], nil
-}
-
-// BrowserMCPConfig is the mcp_config text for mode: the agent's other MCP servers as they are, and its browser server set to
-// origins for "playwright" or removed otherwise; "" when nothing is left.
-func BrowserMCPConfig(home string, cfg Config, mode string, origins []string) (string, error) {
 	servers := newJobj()
 	text := "{}"
 	if truthy(cfg["mcp_config"]) {
@@ -297,31 +228,20 @@ func BrowserMCPConfig(home string, cfg Config, mode string, origins []string) (s
 			}
 		}
 	}
-	profile := DefaultBrowserProf
-	if m := profileArg.FindStringSubmatch(browserCommand(cfg)); m != nil {
-		profile = m[1]
-	}
-	if mode == "custom" {
-		return "", errors.New("a custom browser config is set in a terminal, not here")
-	}
 	servers.del(BrowserServer) // any mode picked replaces a server set by hand
-	if mode == "playwright" {
-		if len(origins) == 0 {
-			return "", errors.New("name at least one site for the sandboxed browser")
-		}
-		srv := newJobj()
-		srv.set("command", "sh")
-		srv.set("args", []any{"-c", fmt.Sprintf(`PLAYWRIGHT_MCP_EXTENSION_TOKEN=$(cat %s) exec %s --extension --profile-dir-name "%s" --allowed-origins "%s"`,
-			shlexQuote(filepath.Join(home, "browser", "token")),
-			shlexQuote(filepath.Join(home, "browser", "node_modules", ".bin", "playwright-mcp")), profile, strings.Join(origins, ";"))})
-		servers.set(BrowserServer, srv)
-	}
 	if len(servers.keys) == 0 {
 		return "", nil
 	}
 	top := newJobj()
 	top.set("mcpServers", servers)
 	return encodeCompact(top), nil
+}
+
+func pyQuote(s string) string {
+	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
+		return `"` + s + `"`
+	}
+	return "'" + strings.ReplaceAll(s, "'", `\'`) + "'"
 }
 
 // Kind is what an agent is, for a column: the model and its effort, the vendor drawn only when it is not the default's.

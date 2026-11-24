@@ -247,9 +247,7 @@ export type AgentSettingValues = {
   weight?: "light" | "heavy";
   repo?: string;
   /** custom is read-only: set in a terminal. */
-  browser?: "off" | "chrome" | "playwright" | "custom";
-  /** Space-separated origins. */
-  browser_sites?: string;
+  browser?: "off" | "chrome" | "custom";
   /** Handoff threshold in thousands of tokens, a whole number. */
   context_k?: string;
   /** Idle close in whole minutes, 0 never, empty follows the global park_timeout_s. */

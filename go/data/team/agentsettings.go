@@ -18,11 +18,11 @@ import (
 // by name, and the idle-close switch (which belongs to the daemon's own settings), are passed in.
 
 var (
-	Editable = []string{"model", "effort", "weight", "repo", "browser", "browser_sites",
+	Editable = []string{"model", "effort", "weight", "repo", "browser",
 		"context_k", "idle_close", "handoff_note", "sandbox", "sandbox_allow", "mode", "device"}
 	// Optional fields are not on every form: the settings tab does not draw them yet, so a form without them leaves them be.
 	Optional      = map[string]bool{"sandbox": true, "sandbox_allow": true, "mode": true, "device": true}
-	BrowserModes  = []string{"off", "chrome", "playwright"}
+	BrowserModes  = []string{"off", "chrome"}
 	BrowserCustom = "custom"
 	Weights       = []string{"light", "heavy"}
 	HandoffNotes  = []string{"default", "on", "off"}
@@ -84,7 +84,7 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
 		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": strings.Join(SandboxAllowWords(cfg), " "),
-		"device": orDefault(cfg, "device", ""), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg), "browser_sites": strings.Join(BrowserOrigins(cfg), " "),
+		"device": orDefault(cfg, "device", ""), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg),
 		"context_k": strconv.FormatInt(ContextTokensOf(cfg)/1000, 10), "handoff_note": note, "idle_close": idle}, nil
 }
 
@@ -122,16 +122,7 @@ func SettingsProblem(form map[string]string) string {
 		return "mode must be one of " + strings.Join(Modes, ", ")
 	}
 	if !contains(BrowserModes, form["browser"]) && form["browser"] != BrowserCustom {
-		return "browser must be off, chrome or playwright"
-	}
-	if form["browser"] == "playwright" {
-		sites, err := ParseOrigins(form["browser_sites"])
-		if err != nil {
-			return err.Error()
-		}
-		if len(sites) == 0 {
-			return "name at least one site for the sandboxed browser"
-		}
+		return "browser must be off or chrome"
 	}
 	if !contains(HandoffNotes, form["handoff_note"]) {
 		return "handoff note must be on, off or default"
@@ -178,16 +169,6 @@ func SettingsChanges(current Settings, form map[string]string) ([]Change, error)
 		}
 		if key == "sandbox_allow" { // each word once, in order, so the same allowances are no change
 			next = strings.Join(SandboxAllowWords(Config{"sandbox_allow": next}), " ")
-		}
-		if key == "browser_sites" {
-			if form["browser"] != "playwright" { // Claude in Chrome has no site list
-				continue
-			}
-			sites, err := ParseOrigins(next)
-			if err != nil {
-				return nil, err
-			}
-			next = strings.Join(sites, " ")
 		}
 		if next != current[key] {
 			out = append(out, Change{key, current[key], next})
@@ -269,23 +250,13 @@ func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (b
 			n := int64(mustAtoi(v)) * 1000
 			o.ContextTokens = &n
 		}
-		if hasKey(next, "browser") || hasKey(next, "browser_sites") {
+		if mode, ok := next["browser"]; ok {
 			cfg, err := r.Read(agent)
 			if err != nil {
 				return false, "not saved: " + err.Error()
 			}
-			mode := next["browser"]
-			if mode == "" {
-				mode = BrowserMode(cfg)
-			}
-			origins := BrowserOrigins(cfg)
-			if v, ok := next["browser_sites"]; ok {
-				if origins, err = ParseOrigins(v); err != nil {
-					return false, "not saved: " + err.Error()
-				}
-			}
 			chrome := mode == "chrome"
-			mcp, err := BrowserMCPConfig(r.Home, cfg, mode, origins)
+			mcp, err := BrowserMCPConfig(cfg, mode)
 			if err != nil {
 				return false, "not saved: " + err.Error()
 			}
@@ -325,8 +296,6 @@ func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (b
 	}
 	return true, "saved: " + strings.Join(parts, ", ")
 }
-
-func hasKey(m map[string]string, k string) bool { _, ok := m[k]; return ok }
 
 func sortStrings(s []string) {
 	for i := 1; i < len(s); i++ {

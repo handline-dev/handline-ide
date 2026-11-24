@@ -1071,14 +1071,9 @@
       "enum": [
        "off",
        "chrome",
-       "playwright",
        "custom"
       ],
       "description": "custom is read-only: set in a terminal."
-     },
-     "browser_sites": {
-      "type": "string",
-      "description": "Space-separated origins."
      },
      "context_k": {
       "type": "string",

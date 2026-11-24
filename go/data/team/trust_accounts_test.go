@@ -325,14 +325,14 @@ func TestUsersOfAndRemovePlan(t *testing.T) {
 
 func TestSettingsProblemAndChanges(t *testing.T) {
 	good := map[string]string{"model": "opus", "repo": "", "effort": "high", "weight": "light", "browser": "off",
-		"browser_sites": "", "context_k": "200", "idle_close": "", "handoff_note": "default", "sandbox": "on", "mode": "auto"}
+		"context_k": "200", "idle_close": "", "handoff_note": "default", "sandbox": "on", "mode": "auto"}
 	if p := SettingsProblem(good); p != "" {
 		t.Fatalf("%s", p)
 	}
 	for field, c := range map[string][2]string{"model": {"", "model cannot be empty"}, "effort": {"huge", "effort must be one of low, medium, high, xhigh, max"},
 		"weight": {"mid", "weight must be one of light, heavy"}, "context_k": {"0", "context must be a whole number of thousands of tokens, at least 1"},
 		"idle_close": {"x", "idle close must be a whole number of minutes (0 = never), or blank to follow the global time"},
-		"browser":    {"ie", "browser must be off, chrome or playwright"}, "mode": {"wild", "mode must be one of default, auto, acceptEdits, plan"},
+		"browser":    {"ie", "browser must be off or chrome"}, "mode": {"wild", "mode must be one of default, auto, acceptEdits, plan"},
 		"repo": {"/no/such/folder", "repo '/no/such/folder' is not a folder"}, "model ": {"on", "model 'on' would not be read back as text"}} {
 		form := map[string]string{}
 		for k, v := range good {
@@ -343,21 +343,12 @@ func TestSettingsProblemAndChanges(t *testing.T) {
 			t.Errorf("%s=%q: %q, want %q", field, c[0], got, c[1])
 		}
 	}
-	form := map[string]string{}
-	for k, v := range good {
-		form[k] = v
-	}
-	form["browser"], form["browser_sites"] = "playwright", ""
-	if SettingsProblem(form) != "name at least one site for the sandboxed browser" {
-		t.Fatal("a sandboxed browser needs sites")
-	}
 	current := Settings{"model": "sonnet", "effort": "medium", "weight": "light", "repo": "/r", "browser": "off",
-		"browser_sites": "", "context_k": "200", "idle_close": "", "handoff_note": "default", "sandbox": "on", "mode": "auto"}
-	next := map[string]string{"model": "opus", "effort": "medium", "weight": "light", "repo": "", "browser": "playwright",
-		"browser_sites": "https://a.com, https://b.com", "context_k": "100", "idle_close": "", "handoff_note": "on"}
+		"context_k": "200", "idle_close": "", "handoff_note": "default", "sandbox": "on", "mode": "auto"}
+	next := map[string]string{"model": "opus", "effort": "medium", "weight": "light", "repo": "", "browser": "chrome",
+		"context_k": "100", "idle_close": "", "handoff_note": "on"}
 	got, err := SettingsChanges(current, next)
-	want := []Change{{"model", "sonnet", "opus"}, {"browser", "off", "playwright"}, {"browser_sites", "", "https://a.com https://b.com"},
-		{"context_k", "200", "100"}, {"handoff_note", "default", "on"}}
+	want := []Change{{"model", "sonnet", "opus"}, {"browser", "off", "chrome"}, {"context_k", "200", "100"}, {"handoff_note", "default", "on"}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("%v %v", got, err)
 	}
