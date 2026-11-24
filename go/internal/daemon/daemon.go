@@ -56,6 +56,7 @@ import (
 	"github.com/handline/handline/go/protocol/devices"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
+	"github.com/handline/handline/go/scheduler/agentload"
 	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/leasestore"
 	"github.com/handline/handline/go/scheduler/loadgate"
@@ -371,6 +372,11 @@ func Start(cfg Config) (*Daemon, error) {
 		} else {
 			d.leases.ReleaseAgent(agent, "", true, "the turn ended")
 		}
+		if kind == "Stop" {
+			if err := agentload.KeepBackground(db, agent, time.Now().Unix()); err != nil {
+				cfg.Log("load: %s's background shells: %v", agent, err)
+			}
+		}
 	}
 	d.logins = newLogins(cfg)
 	d.prompts = prompts.New(db, cfg.Home, &reads.Env{DB: db, Home: cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion()})
@@ -449,6 +455,15 @@ func Start(cfg Config) (*Daemon, error) {
 			d.load = &procload.Tracker{Home: cfg.Home, Log: func(s string) { cfg.Log("%s", s) }}
 		}
 		d.load.DB, d.load.Panes = db, d.agentPanes
+		if d.load.SimulatorOf == nil {
+			d.load.SimulatorOf = func(start int64) string {
+				a, err := agentload.SimulatorOf(db, start)
+				if err != nil {
+					cfg.Log("load: whose the simulator is: %v", err)
+				}
+				return a
+			}
+		}
 	}
 	d.hclock = &reads.HealthClock{}
 	d.local = d.newServer("local")

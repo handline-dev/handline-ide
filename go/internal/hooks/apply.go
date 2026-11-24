@@ -14,8 +14,10 @@ import (
 
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/rowstate"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/policy"
 	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 const hookKeep = policy.HookKeep
@@ -176,6 +178,9 @@ func apply(tx *sql.Tx, home, agent, event string, raw map[string]any, at int64, 
 	if answers[event] {
 		// One row per agent, only ever forward: db.LastActivity reads it.
 		if _, err := tx.Exec("INSERT INTO agent_heard(agent, at) VALUES(?, ?) ON CONFLICT(agent) DO UPDATE SET at = MAX(at, excluded.at)", agent, at); err != nil {
+			return err
+		}
+		if err := noteHeavy(tx, agent, raw, at); err != nil {
 			return err
 		}
 	}
@@ -404,5 +409,29 @@ func closeHookQuestion(tx *sql.Tx, agent string, raw map[string]any, at int64) e
 	command, _ := ToolCommand(input)
 	_, err := tx.Exec("UPDATE prompt_blocks SET gone_at = ? WHERE agent = ? AND gone_at IS NULL AND json_extract(detail, '$.source') = 'hook' "+
 		"AND json_extract(detail, '$.tool') = ? AND json_extract(detail, '$.command') = ?", at, agent, tool, command)
+	return err
+}
+
+// Heavy is the field hl adds to a heavy Bash call's PostToolUse: {"shape": session.HeavyShape, "seconds": how long it ran}.
+const Heavy = "handline_heavy"
+
+// noteHeavy keeps the heavy Bash call a PostToolUse ended in heavy_runs, by the agent's key, and drops the runs older than
+// policy.HeavyKeep.
+func noteHeavy(tx *sql.Tx, agent string, raw map[string]any, at int64) error {
+	h, _ := raw[Heavy].(map[string]any)
+	shape, _ := h["shape"].(string)
+	secs, ok := rpc.AsInt(h["seconds"])
+	if shape == "" || !ok || secs < 0 {
+		return nil
+	}
+	if k, err := paths.AgentKeyIn(tx, agent); err != nil {
+		return err
+	} else if k != "" {
+		agent = k
+	}
+	if _, err := tx.Exec("DELETE FROM heavy_runs WHERE ended < ?", at-int64(policy.HeavyKeep/time.Second)); err != nil {
+		return err
+	}
+	_, err := tx.Exec("INSERT INTO heavy_runs(agent, ended, seconds, shape) VALUES(?, ?, ?, ?)", agent, at, secs, cut(shape, 60))
 	return err
 }

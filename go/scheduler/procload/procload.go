@@ -8,8 +8,10 @@ package procload
 import (
 	"database/sql"
 	"os"
+	"path"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +35,7 @@ const (
 // How a process was found to be an agent's.
 const (
 	ViaEnv  = "env"  // HANDLINE_AGENT in its environment
-	ViaTree = "tree" // a descendant of the agent's terminal pane or of a process found by its environment
+	ViaTree = "tree" // a descendant of the agent's terminal pane or of a process found by its environment, or a simulator it booted
 )
 
 // Proc is one process at a sample.
@@ -90,6 +92,9 @@ type Tracker struct {
 	AgentOf func(pid int) (agent string, ok bool)
 	// Machine reads the machine's memory and load; nil reads this one.
 	Machine func() (sysres.Machine, error)
+	// SimulatorOf is whose a simulator that began at start is, asked once per process, "" for none: it holds no agent in its
+	// environment and no agent is its ancestor. nil leaves simulators unowned.
+	SimulatorOf func(start int64) string
 	// Listen reads the machine's listening TCP sockets; nil runs lsof.
 	Listen func() ([]Listener, error)
 	// Disk is the free and total bytes of the volume holding a path; nil is statfs.
@@ -103,6 +108,7 @@ type Tracker struct {
 	marks     map[key]cpuMark
 	owners    map[key]string // the environment's answer, kept per process: "" is read and has none
 	sticky    map[key]string // an owner found once by the tree, kept: a child whose parent ended and was reparented stays its agent's
+	simAsked  map[key]bool   // the simulators SimulatorOf was asked of
 	cur       []Proc
 	listeners []Listener
 	listenAt  int64
@@ -172,6 +178,7 @@ func (t *Tracker) Sample(now int64) error {
 	defer t.mu.Unlock()
 	if t.marks == nil {
 		t.marks, t.owners, t.sticky, t.ended, t.acc = map[key]cpuMark{}, map[key]string{}, map[key]string{}, map[key]Proc{}, map[string]*minuteAcc{}
+		t.simAsked = map[key]bool{}
 	}
 	procs := t.attribute(rows, panes, now)
 	seen := make(map[key]bool, len(procs))
@@ -247,6 +254,11 @@ func (t *Tracker) attribute(rows []Raw, panes map[string]int, now int64) []Proc 
 			known[r.PID] = owner{agent, ViaEnv}
 		} else if a := t.sticky[k]; a != "" {
 			known[r.PID] = owner{a, ViaTree}
+		} else if t.SimulatorOf != nil && !t.simAsked[k] && simulator(r.Cmd) {
+			t.simAsked[k] = true
+			if a := t.SimulatorOf(r.Start); a != "" {
+				known[r.PID] = owner{a, ViaTree}
+			}
 		}
 	}
 	var resolve func(pid int, depth int) owner
@@ -304,6 +316,11 @@ func (t *Tracker) attribute(rows []Raw, panes map[string]int, now int64) []Proc 
 	for k := range t.sticky {
 		if !live[k] {
 			delete(t.sticky, k)
+		}
+	}
+	for k := range t.simAsked {
+		if !live[k] {
+			delete(t.simAsked, k)
 		}
 	}
 	return out
@@ -485,4 +502,11 @@ func (t *Tracker) View() (View, bool) {
 		return a.Agent < b.Agent
 	})
 	return v, true
+}
+
+// simulator is whether a command is the root of a booted simulator (its launchd_sim) or the Simulator app: what is under the first is
+// its descendant.
+func simulator(cmd string) bool {
+	prog, _, _ := strings.Cut(cmd, " ")
+	return path.Base(prog) == "launchd_sim" || strings.Contains(prog, "/Simulator.app/")
 }

@@ -64,6 +64,7 @@ var layer = map[string]int{
 	"data/stream":             3,
 	"data/team":               3,
 	"data/team/teamtest":      3,
+	"scheduler/agentload":     3,
 	"taskboard/attachments":   3,
 	"scheduler/cronspec":      3,
 	"scheduler/dangling":      3,

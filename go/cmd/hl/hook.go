@@ -70,6 +70,7 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 	tool, _ := raw["tool_name"].(string)
 	input := raw["tool_input"]
 	if event == "PermissionRequest" {
+		session.ForgetBashStart(c.Home, agent, raw)
 		record(c, agent, event, raw)
 		fmt.Println(askPermission(c, tool, input))
 		return 0, true
@@ -85,6 +86,9 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 			env.ClearWait(agent)
 		case string:
 			env.ClearWaitFor(agent, name, input)
+		}
+		if shape, ran := session.HeavyCall(c.Home, agent, raw, time.Now()); shape != "" {
+			raw[hooks.Heavy] = map[string]any{"shape": shape, "seconds": int64(ran.Round(time.Second) / time.Second)}
 		}
 		record(c, agent, event, raw)
 		if event == "PostToolUse" {
@@ -105,6 +109,7 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		why = subagentStart(c, agent, raw)
 	}
 	if why == "" {
+		session.NoteBashStart(c.Home, agent, raw, time.Now())
 		fmt.Println("{}")
 		return 0, true
 	}
