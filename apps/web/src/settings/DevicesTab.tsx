@@ -18,7 +18,6 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
-  Confirm,
   KIND_ICON,
   KIND_WORD,
   MODE_WORD,
@@ -45,8 +44,8 @@ import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
-import { openModal } from '#src/ui/modal.tsx';
-import { Switch } from '#src/usage/UsageViews.tsx';
+import { confirm } from '#src/ui/modal.tsx';
+import { Segmented } from '#src/ui/Segmented.tsx';
 
 const BUILD_MODES = ['auto', 'manual'] as const;
 
@@ -58,16 +57,12 @@ function setAll(rows: DeviceRow[], mode: Mode, q: Devices) {
     for (const r of rows) await q.setMode(r, mode);
   };
   if (mode !== 'off') return void go().catch(refused);
-  void openModal<void>((close) => (
-    <Confirm
-      title={rows.length === 1 ? `Turn ${rows[0]!.name} off?` : `Turn ${rows.length} devices off?`}
-      text={OFF_TEXT}
-      act="Turn off"
-      busyWord="Turning off…"
-      go={go}
-      close={() => close()}
-    />
-  ));
+  void confirm({
+    title: rows.length === 1 ? `Turn ${rows[0]!.name} off?` : `Turn ${rows.length} devices off?`,
+    message: OFF_TEXT,
+    confirmText: 'Turn off',
+    run: go,
+  });
 }
 
 /** What the row says under its name: its kind, its agents, its memory cap, and what it lacks for an agent, or that it is on another build. */
@@ -229,7 +224,7 @@ function AllDevices({ q }: { q: Devices }) {
         />
       </Setting>
       <Setting title="Take the master's build" icon={<RefreshCw size={14} />} note="A lent Mac on another build restarts on the master's.">
-        <Switch
+        <Segmented
           label="Take the master's build"
           value={q.buildAuto ? 'auto' : 'manual'}
           options={BUILD_MODES}

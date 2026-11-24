@@ -4,7 +4,8 @@ import { useNameOf } from '@handline/app-data';
 import { Bot, Coffee, Cpu, Gauge, HardDrive, MemoryStick, TriangleAlert, Zap } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { bytesText, loadFull, LOW_DISK_BYTES, memoryLow } from '@handline/app-core';
-import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
+import { Block, Setting } from '#src/settings/Meter.tsx';
+import { Bar, toneOf } from '#src/ui/Meter.tsx';
 import { SharedRuns } from '#src/settings/SharedRuns.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useService } from '#src/settings/data/service.ts';
@@ -12,7 +13,7 @@ import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
 import { UpdatesBlock } from '#src/settings/UpdatesBlock.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
-import { Switch } from '#src/usage/UsageViews.tsx';
+import { Segmented } from '#src/ui/Segmented.tsx';
 
 const AWAKE = ['off', 'on', 'working'] as const;
 const AWAKE_WORD = { off: 'Off', on: 'On', working: 'While agents work' } as const;
@@ -193,7 +194,7 @@ export function MachineSections() {
       <Block title="Power" icon={<Zap size={16} />}>
         <Setting title="Keep awake" icon={<Coffee size={14} />} note="Stops the Mac sleeping on its own. Closing the lid still sleeps it.">
           <div className={m.pending === 'awake' ? 'opacity-50' : ''}>
-            <Switch
+            <Segmented
               label="Keep awake"
               value={m.awake}
               options={AWAKE}

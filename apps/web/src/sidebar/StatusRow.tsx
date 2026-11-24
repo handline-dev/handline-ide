@@ -1,7 +1,7 @@
 // The app's bottom bar: the status dot and this device (ClusterButton), the week's Usage %, keep-awake, Run · Pause · Off, the bell.
 import { ArchiveX, Check, Coffee, Pause, Unplug } from 'lucide-react';
-import { Confirm, MODE_WORD, OFF_TEXT, StateWord, refused } from '#src/settings/DeviceControls.tsx';
-import { openModal } from '#src/ui/modal.tsx';
+import { MODE_WORD, OFF_TEXT, StateWord, refused } from '#src/settings/DeviceControls.tsx';
+import { confirm } from '#src/ui/modal.tsx';
 import { BellButton } from '#src/requests/BellButton.tsx';
 import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
@@ -142,16 +142,7 @@ function ModeButton({ busy, bar }: { busy: boolean; bar: RefObject<HTMLDivElemen
     if (!row || m === row.mode) return;
     if (m !== 'off') return void q.setMode(m).catch(refused);
     setOpen(false);
-    void openModal<void>((close) => (
-      <Confirm
-        title={`Turn ${row.name} off?`}
-        text={OFF_TEXT}
-        act="Turn off"
-        busyWord="Turning off…"
-        go={() => q.setMode('off')}
-        close={() => close()}
-      />
-    ));
+    void confirm({ title: `Turn ${row.name} off?`, message: OFF_TEXT, confirmText: 'Turn off', run: () => q.setMode('off') });
   };
   return (
     <Popover

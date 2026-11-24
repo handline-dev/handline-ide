@@ -1,7 +1,8 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 import { baseName } from '#src/format/path.ts';
 // The steps' bodies. Each has one button that does the step; what is true on the machine already shows as done.
 import { Hooks, useRepos, why } from '@handline/app-data';
-import { Bell, Check, Folder, FolderGit2, LoaderCircle } from 'lucide-react';
+import { Bell, Check, Folder, FolderGit2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { InstallButton, Installing, useInstall, useMissing } from '#src/install/install.tsx';
 import { shell } from '#src/shell.ts';
@@ -99,7 +100,7 @@ export function AiStep() {
       : 'Log in to the AI tool your agents run on.';
   return (
     <StepView title="Your AI coding tools" line={line} primary={primary}>
-      {ai.loading && <LoaderCircle size={16} className="animate-spin text-muted" />}
+      {ai.loading && <Spinner size={16} className="text-muted" />}
       {ai.rows.map((r) => (
         <Line
           key={r.vendor}
@@ -235,7 +236,7 @@ export function ProjectStep() {
         onClick: () => (setPicked(sel), nav.next()),
       }}
     >
-      {recent.isPending && <LoaderCircle size={16} className="animate-spin text-muted" />}
+      {recent.isPending && <Spinner size={16} className="text-muted" />}
       {folders.length > 0 && (
         <div role="radiogroup" className="flex flex-col divide-y divide-border rounded-md border border-border">
           {folders.map((f) => {

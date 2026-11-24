@@ -1,3 +1,4 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 import {
   chatView,
   foldBash,
@@ -22,7 +23,6 @@ import { noteText, restartingLine, VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
-import { LoaderCircle } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
@@ -382,7 +382,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             {chat.hasOlder && <div ref={top} aria-hidden className="h-px" />}
             {chat.loadingOlder && (
               <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted">
-                <LoaderCircle size={14} strokeWidth={3} className="animate-spin" />
+                <Spinner />
                 Loading earlier messages
               </div>
             )}

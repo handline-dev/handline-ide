@@ -8,7 +8,7 @@ import { Pin } from 'lucide-react';
 import { ago } from '#src/format/time.ts';
 import { Setting } from '#src/settings/Meter.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
-import { Switch } from '#src/usage/UsageViews.tsx';
+import { Segmented } from '#src/ui/Segmented.tsx';
 
 type Desk = Methods['desks.list']['result']['desks'][number];
 const MODES = ['auto', 'manual'] as const;
@@ -66,7 +66,7 @@ export function ProjectWorktrees({ repo }: { repo: Repo }) {
           }
         >
           <div className={`flex items-center gap-2 ${keep.isPending ? 'opacity-50' : ''}`}>
-            <Switch
+            <Segmented
               label="Folders kept"
               value={kept.mode}
               options={MODES}

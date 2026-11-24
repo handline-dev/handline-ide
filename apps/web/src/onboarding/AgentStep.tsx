@@ -1,6 +1,7 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 // The last step: what the first agent does, which AI tool it runs on, and starting it.
 import { Hooks, useCreateProgress, useRepos, useWrite, why } from '@handline/app-data';
-import { LoaderCircle, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { usePicked } from '#src/onboarding/data/picked.ts';
 import { closeOnboarding, useAiTools } from '#src/onboarding/data/progress.ts';
@@ -111,7 +112,7 @@ function Starting({ operation, task, onFailed }: { operation: string; task: stri
   }, [failed, onFailed]);
   return (
     <p className="flex items-center gap-2 text-xs text-muted">
-      <LoaderCircle size={12} className="animate-spin" />
+      <Spinner size={12} />
       Starting the agent…
       {!!p.ask.error && <span className="text-danger">The first task was not sent: {why(p.ask.error)}</span>}
     </p>

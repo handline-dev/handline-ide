@@ -1,3 +1,4 @@
+import { UnreadDot } from '#src/ui/Dot.tsx';
 import { useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { isUnseen, pickGroup, proposalTitle, requestRow, turnRow, type Picked } from '@handline/app-core';
@@ -192,7 +193,7 @@ function Line({
               className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
             >
               {icon}
-              {mark && <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />}
+              {mark && <UnreadDot className="absolute -top-0.5 -right-0.5" />}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex min-w-0 items-baseline gap-2">

@@ -1,7 +1,8 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 // Settings > Accounts, at the top: Claude Code and Codex, each logged in, found on this Mac, or not yet; a found login is used as it is (Codex)
 // or logged in once in the browser (Claude), and a missing login starts one.
 import { why } from '@handline/app-data';
-import { Check, LoaderCircle, Search } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useAiTools } from '#src/onboarding/data/progress.ts';
 import type { AiRow } from '#src/onboarding/data/steps.ts';
@@ -59,7 +60,7 @@ export function AiToolsCard() {
               Ready
             </span>
           )}
-          {r.state === 'logging_in' && <LoaderCircle size={14} className="animate-spin text-muted" />}
+          {r.state === 'logging_in' && <Spinner className="text-muted" />}
           {(r.state === 'found' || r.state === 'none') && (
             <Button disabled={ai.busy || !r.installed} onClick={() => act(r)}>
               {r.state === 'found' && r.adoptable ? 'Use' : 'Log in'}

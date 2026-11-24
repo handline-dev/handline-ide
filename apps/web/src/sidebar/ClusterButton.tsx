@@ -2,12 +2,11 @@
 import { Laptop, MoreHorizontal, Network, TriangleAlert } from 'lucide-react';
 import { useState, type ReactNode, type RefObject } from 'react';
 import { InCluster, useClusterName, useJoined, useOnline, type Joined } from '#src/connection/clusters.tsx';
-import { Confirm } from '#src/settings/DeviceControls.tsx';
 import { MASTER } from '#src/settings/data/devices.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { shell } from '#src/shell.ts';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { openModal, prompt } from '#src/ui/modal.tsx';
+import { confirm, prompt } from '#src/ui/modal.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
@@ -114,20 +113,16 @@ function JoinedRow({ cluster }: { cluster: Joined }) {
 }
 
 const leave = (id: string, name: string) =>
-  openModal<void>((close) => (
-    <Confirm
-      title={`Leave ${name}?`}
-      text={`This Mac stops showing ${name}'s work and running its agents.`}
-      act="Leave"
-      busyWord="Leaving…"
-      danger
-      go={async () => {
-        const r = await shell()?.leaveCluster?.(id);
-        if (r && !r.ok) throw new Error(r.message);
-      }}
-      close={() => close()}
-    />
-  ));
+  confirm({
+    title: `Leave ${name}?`,
+    message: `This Mac stops showing ${name}'s work and running its agents.`,
+    confirmText: 'Leave',
+    danger: true,
+    run: async () => {
+      const r = await shell()?.leaveCluster?.(id);
+      if (r && !r.ok) throw new Error(r.message);
+    },
+  });
 
 /** The link from that cluster's Settings › Devices › Connect a device; a refusal says why. */
 export async function joinCluster() {

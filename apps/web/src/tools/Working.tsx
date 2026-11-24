@@ -1,5 +1,6 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 // A command the app runs for the person, shown as one line that says it is going; its terminal opens below only when asked.
-import { ChevronDown, ChevronRight, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { PaneTab } from '#src/tools/TerminalTab.tsx';
 
@@ -9,11 +10,7 @@ export function Working({ label, terminal, failed }: { label: string; terminal: 
   return (
     <div className="flex w-full flex-col gap-2">
       <div role="status" className="flex items-center gap-2 text-xs text-muted">
-        {failed ? (
-          <TriangleAlert size={14} className="shrink-0 text-warning" />
-        ) : (
-          <LoaderCircle size={14} className="shrink-0 animate-spin" />
-        )}
+        {failed ? <TriangleAlert size={14} className="shrink-0 text-warning" /> : <Spinner className="shrink-0" />}
         <span>{label}</span>
         <button
           type="button"

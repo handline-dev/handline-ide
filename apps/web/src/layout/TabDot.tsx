@@ -1,3 +1,4 @@
+import { UnreadDot } from '#src/ui/Dot.tsx';
 import { tabHasDot, tabTarget, type TabTarget } from '@handline/app-core';
 import { useAgents, useTask, useUnread } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
@@ -10,7 +11,7 @@ export function TabDot({ target }: { target: NonNullable<TabTarget> }) {
   const me = useMe();
   const agentUnread = target.on === 'agent' ? agents?.find((a) => a.key === target.name)?.founder_unread : undefined;
   if (!tabHasDot(target, { me, agentUnread, task, inboxUnread })) return null;
-  return <span role="img" aria-label="Unread" className="size-1.5 shrink-0 rounded-full bg-accent" />;
+  return <UnreadDot />;
 }
 
 /** A background tab's dot (the tab on screen is read as it shows). */

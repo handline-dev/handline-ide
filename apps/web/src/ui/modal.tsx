@@ -251,7 +251,11 @@ function Confirm({
         </>
       }
     >
-      {!!call.error && <p className="text-sm text-danger">{why(call.error)}</p>}
+      {!!call.error && (
+        <p className="text-sm text-danger" role="alert">
+          {why(call.error)}
+        </p>
+      )}
     </ModalFrame>
   );
 }

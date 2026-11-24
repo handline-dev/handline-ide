@@ -1,3 +1,4 @@
+import { UnreadDot } from '#src/ui/Dot.tsx';
 import { isUnseen, turnKey } from '@handline/app-core';
 import { Bell } from 'lucide-react';
 import { useState, type RefObject } from 'react';
@@ -45,9 +46,7 @@ function BellOf({ bar, all }: { bar: RefObject<HTMLElement | null>; all: Of<Retu
         <button type="button" className="relative flex items-center gap-1" aria-label={`Requests, ${count} waiting on you`}>
           <Bell size={14} className={count ? 'text-fg' : ''} />
           {count > 0 && <span className="text-fg tabular-nums">{count}</span>}
-          {(r.unseen > 0 || r.notes.length > 0 || updateReady(update)) && (
-            <span aria-label="new" className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-accent" />
-          )}
+          {(r.unseen > 0 || r.notes.length > 0 || updateReady(update)) && <UnreadDot label="new" className="absolute -top-0.5 -right-1" />}
         </button>
       }
     >

@@ -1,4 +1,5 @@
 import type { Account } from '@handline/client';
+import { Segmented } from '#src/ui/Segmented.tsx';
 import { AccountFacts } from '#src/usage/AccountFacts.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts, useWrite } from '@handline/app-data';
@@ -20,7 +21,6 @@ import {
   ByModel,
   COST_RANGES,
   CostPerDay,
-  Switch,
   VIEWS,
   VIEW_ICON,
   VIEW_WORD,
@@ -56,11 +56,11 @@ export function Usage() {
           {/* Under the graph, one view at a time. */}
           {/* The views' bar stays at the top while their list scrolls; the view's own range sits at its right. */}
           <div className="@container sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-bg px-4 py-2">
-            <Switch label="View" value={view} options={VIEWS} word={(v) => VIEW_WORD[v]} icon={(v) => VIEW_ICON[v]} onChange={setView} />
+            <Segmented label="View" value={view} options={VIEWS} word={(v) => VIEW_WORD[v]} icon={(v) => VIEW_ICON[v]} onChange={setView} />
             {(view === 'agents' || view === 'models') && (
-              <Switch label="Window" value={win} options={WINDOWS} word={(w) => w} onChange={setWin} />
+              <Segmented label="Window" value={win} options={WINDOWS} word={(w) => w} onChange={setWin} />
             )}
-            {view === 'cost' && <Switch label="Range" value={range} options={COST_RANGES} word={(r) => r} onChange={setRange} />}
+            {view === 'cost' && <Segmented label="Range" value={range} options={COST_RANGES} word={(r) => r} onChange={setRange} />}
           </div>
           {view === 'agents' && <ByAgent win={win} />}
           {view === 'models' && <ByModel win={win} />}

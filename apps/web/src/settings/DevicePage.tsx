@@ -2,10 +2,11 @@ import { pct } from '#src/format/count.ts';
 // One device's page: its state and Run · Pause · Off, then This Mac's sections for the master, or a lent machine's agents, load and cap.
 import { useNameOf } from '@handline/app-data';
 import { bytesText } from '@handline/app-core';
-import { BatteryMedium, Bot, ChevronLeft, Cpu, Ellipsis, Gauge, MemoryStick, Plug, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, BatteryMedium, Bot, Cpu, Ellipsis, Gauge, MemoryStick, Plug, TriangleAlert } from 'lucide-react';
 import { MachineSections } from '#src/settings/MachineSections.tsx';
 import { KIND_ICON, KIND_WORD, ModeControl, StateWord, confirmRevoke, refused } from '#src/settings/DeviceControls.tsx';
-import { Bar, Block, Setting, toneOf } from '#src/settings/Meter.tsx';
+import { Block, Setting } from '#src/settings/Meter.tsx';
+import { Bar, toneOf } from '#src/ui/Meter.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { canUpdate, type DeviceRow, type useDevices } from '#src/settings/data/devices.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -103,10 +104,10 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
     <ScrollFade keep={`settings-device-${row.id}`} className="min-h-0 flex-1">
       <Page>
         <div className="flex flex-col gap-4 pb-8 pt-3">
-          <button type="button" onClick={back} className="flex w-fit items-center gap-1 text-sm text-muted hover:text-fg">
-            <ChevronLeft size={14} />
+          <Button variant="ghost" className="w-fit" onClick={back}>
+            <ArrowLeft size={14} />
             Devices
-          </button>
+          </Button>
           <div className="flex items-center gap-3">
             <Icon size={20} className="shrink-0 text-muted" />
             <h1 className="min-w-0 truncate text-xl font-semibold text-fg">{row.name}</h1>

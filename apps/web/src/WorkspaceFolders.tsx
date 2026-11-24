@@ -69,6 +69,18 @@ export function AddFolder({ wsKey, onAdded }: { wsKey: string; onAdded?: (path: 
   );
 }
 
+/** A folder's row start: a git or plain-folder mark, its name, and Default on the default one. */
+export function FolderName({ folder: d }: { folder: { name: string; git: boolean; default: boolean } }) {
+  const Mark = d.git ? GitBranch : Folder;
+  return (
+    <>
+      <Mark size={14} className="shrink-0 text-muted" aria-label={d.git ? 'git' : 'folder'} />
+      <span className="min-w-0 truncate">{d.name}</span>
+      {d.default && <span className="shrink-0 rounded bg-hover px-1.5 text-xs text-muted">Default</span>}
+    </>
+  );
+}
+
 export function Folders({ wsKey }: { wsKey: string }) {
   // Read live, so an added or removed folder shows at once.
   const ws = Hooks.useWorkspacesList().data?.workspaces.find((w) => w.key === wsKey);
@@ -83,13 +95,10 @@ export function Folders({ wsKey }: { wsKey: string }) {
     <div className="flex flex-col gap-3 pb-4 text-sm">
       <div className="flex flex-col overflow-hidden rounded-md border border-border">
         {ws.folders.map((d) => {
-          const Mark = d.git ? GitBranch : Folder;
           const here = workingIn(d.path, d.default);
           return (
             <div key={d.path} title={d.path} className="group flex h-9 items-center gap-2 border-b border-border px-3">
-              <Mark size={14} className="shrink-0 text-muted" aria-label={d.git ? 'git' : 'folder'} />
-              <span className="min-w-0 truncate">{d.name}</span>
-              {d.default && <span className="shrink-0 rounded bg-hover px-1.5 text-xs text-muted">Default</span>}
+              <FolderName folder={d} />
               <span className="min-w-0 flex-1 truncate text-right text-xs text-muted">{here.map((a) => nameOf(a.key)).join(', ')}</span>
               <button
                 type="button"

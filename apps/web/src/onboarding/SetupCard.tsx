@@ -1,3 +1,4 @@
+import { Bar } from '#src/ui/Meter.tsx';
 // Under the sidebar's agents while setup is closed and not finished: how far it got, Continue (opens it where it stopped), and X to hide it.
 import { ArrowRight, Settings2, X } from 'lucide-react';
 import { openOnboarding, useOnboarding, useOnboardingOpen } from '#src/onboarding/data/progress.ts';
@@ -18,9 +19,7 @@ export function SetupCard() {
         </IconButton>
       </div>
       <div className="flex items-center gap-2">
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
-          <div className="h-full rounded-full bg-accent" style={{ width: `${(ob.doneCount / ob.total) * 100}%` }} />
-        </div>
+        <Bar pct={(ob.doneCount / ob.total) * 100} />
         <span className="text-xs text-muted tabular-nums">
           {ob.doneCount} of {ob.total}
         </span>

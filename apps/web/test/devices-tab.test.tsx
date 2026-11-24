@@ -53,7 +53,7 @@ vi.mock('#src/settings/data/devices.ts', async (orig) => ({
   useSetAside: () => aside.now,
 }));
 const aside = vi.hoisted(() => ({ now: null as { name: string; since: string; master: string; key: string } | null }));
-vi.mock('@handline/app-data', () => ({ useNameOf: () => (k: string) => k }));
+vi.mock('@handline/app-data', async (real) => ({ ...(await real<object>()), useNameOf: () => (k: string) => k }));
 vi.mock('#src/settings/PairSheet.tsx', () => ({ openPairSheet: vi.fn() }));
 vi.mock('#src/settings/MachineSections.tsx', () => ({ MachineSections: () => <p>this mac</p> }));
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
@@ -152,7 +152,8 @@ describe('Devices', () => {
     await act(async () => button('Revoke all 1').click());
     await flush();
     await act(async () => button('Revoke').click());
-    expect(button('Revoking…').disabled).toBe(true);
+    expect(button('Revoke').disabled).toBe(true);
+    expect(button('Revoke').getAttribute('aria-busy')).toBe('true');
     await act(async () => answer());
     await flush();
     expect(document.querySelector('[role="dialog"]')).toBeNull();

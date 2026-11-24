@@ -2,6 +2,7 @@ import { windowRead } from '@handline/app-core';
 import type { Window } from '@handline/client';
 import { Clock } from 'lucide-react';
 import { useNow } from '#src/format/time.ts';
+import { toneFill, toneOf } from '#src/ui/Meter.tsx';
 
 /** How long until `iso`, short: 45m, 3h 10m, 2d 4h. */
 export function until(iso: string | null, now = Date.now()): string | null {
@@ -12,9 +13,6 @@ export function until(iso: string | null, now = Date.now()): string | null {
   if (h < 24) return `${h}h ${m % 60}m`;
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
-
-/** Past this much of a window used, it reads as a warning. */
-export const HIGH = 80;
 
 export const FIVE_HOURS = 5 * 3600_000;
 export const WEEK = 7 * 86400_000;
@@ -38,7 +36,8 @@ export function UsageBar({
   const read = windowRead(w, age, clock);
   // No window open since the last one ended: nothing used yet, a known 0%.
   const pct = read.kind === 'pct' ? read.pct : read.kind === 'not-open' ? 0 : null;
-  const high = pct != null && pct >= HIGH;
+  const tone = toneOf(pct ?? 0);
+  const high = pct != null && tone !== 'ok';
   const resets = until(w?.resets_at ?? null, clock);
   const left = w?.resets_at ? Date.parse(w.resets_at) - clock : null;
   // Not current: the number is old or its window already ended. Said only on hover; the clock icon and a faded bar show it.
@@ -65,7 +64,7 @@ export function UsageBar({
       </div>
       <div className={`relative h-1.5 rounded-full bg-border ${stale ? 'bar-stale' : ''}`}>
         <div
-          className={`h-full rounded-full ${high ? 'bg-warning' : 'bg-accent'} ${stale ? 'opacity-40' : ''}`}
+          className={`h-full rounded-full ${toneFill(tone)} ${stale ? 'opacity-40' : ''}`}
           style={{ width: `${Math.min(100, pct ?? 0)}%` }}
         />
         {now != null && (

@@ -1,7 +1,8 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 import { moveSteps, roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
 import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data';
 import type { TranscriptItem } from '@handline/client';
-import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, TriangleAlert } from 'lucide-react';
 import { clock, useNow } from '#src/format/time.ts';
 import { motion } from 'framer-motion';
 import { useRef, useState } from 'react';
@@ -41,7 +42,7 @@ export function MoveSteps({ agent }: { agent: string }) {
             {st.state === 'done' ? (
               <Check size={12} className="text-success" aria-label="done" />
             ) : st.state === 'now' ? (
-              <LoaderCircle size={12} className="animate-spin" aria-label="now" />
+              <Spinner size={12} label="now" />
             ) : (
               <Circle size={12} aria-label="next" />
             )}

@@ -1,3 +1,5 @@
+import { Spinner } from '#src/ui/Loading.tsx';
+import { Segmented } from '#src/ui/Segmented.tsx';
 // Settings > Accounts: one card per account, its row Usage's, opened in place; several stay open and which is kept.
 import { AiToolsCard } from '#src/settings/AiToolsCard.tsx';
 import { AccountFacts } from '#src/usage/AccountFacts.tsx';
@@ -6,7 +8,7 @@ import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
 import { useAccounts, useAccountUsage, useSettings, useWrite, why } from '@handline/app-data';
-import { ChevronRight, LoaderCircle, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
@@ -66,24 +68,19 @@ function AutoManual({
           </p>
         )}
       </div>
-      <div role="radiogroup" aria-label={name} className="flex shrink-0 rounded-md bg-hover/40 p-0.5 text-sm">
-        {(['auto', 'manual'] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            role="radio"
-            aria-checked={manual === (v === 'manual')}
-            disabled={!ready || save.isPending}
-            onClick={() => pick(v)}
-            className={`rounded px-3 py-1 ${manual === (v === 'manual') ? 'bg-bg font-medium text-fg shadow-sm' : 'text-muted hover:text-fg'}`}
-          >
-            {v === 'auto' ? 'Auto' : 'Manual'}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label={name}
+        value={manual ? 'manual' : 'auto'}
+        options={MODES}
+        word={(v) => (v === 'auto' ? 'Auto' : 'Manual')}
+        disabled={!ready || save.isPending}
+        onChange={pick}
+      />
     </section>
   );
 }
+
+const MODES = ['auto', 'manual'] as const;
 
 /** `focus`: an account whose card opens and scrolls into view. */
 export function AccountsTab({ focus }: { focus?: string }) {
@@ -281,7 +278,7 @@ export function Login({
   if (run)
     return (
       <p className="flex items-center gap-2 text-sm text-muted">
-        <LoaderCircle size={14} className="animate-spin" />
+        <Spinner />
         Logging in
         <Button variant="ghost" disabled={cancel.isPending} onClick={() => cancel.mutate({ login_id: id })}>
           Cancel

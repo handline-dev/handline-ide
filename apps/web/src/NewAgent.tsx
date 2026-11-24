@@ -1,40 +1,22 @@
 import { Hooks, useDirectory, useNewAgentForm, useOperation, why } from '@handline/app-data';
 import type { Workspace } from '@handline/client';
-import { Check, Eye, Folder, GitBranch } from 'lucide-react';
+import { Check, Eye } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { Refs } from '#src/ui/refs.tsx';
-import { AddFolder } from '#src/WorkspaceFolders.tsx';
+import { OperationProgress } from '#src/ui/OperationProgress.tsx';
+import { AddFolder, FolderName } from '#src/WorkspaceFolders.tsx';
 
-/** Watches the create the daemon started: its step while it runs, then done (closing with the new agent's key, once the list holds
- * the agent of that name in the workspace) or failed. */
+/** Watches the create the daemon started, closing with the new agent's key once the list holds the agent of that name in the workspace. */
 function Progress({ operation, name, workspace, close }: { operation: string; name: string; workspace: string; close: Close<string> }) {
   const op = useOperation(operation).data;
   // The daemon's result names the new agent; its name in the workspace before the list has it.
   const made = (op?.result as { agent?: string } | null)?.agent;
   const key = useDirectory().agents.find((a) => a.key === made || (!made && a.name === name && a.workspace === workspace))?.key;
-  if (op?.state === 'done' && key) {
-    queueMicrotask(() => close(key));
-    return null;
-  }
   return (
-    <div className="flex flex-col gap-2 pb-4">
-      {op?.state === 'failed' ? (
-        <p className="text-danger">{op.message ?? 'The create failed.'}</p>
-      ) : (
-        <p className="text-muted">
-          {op?.step ?? 'Starting…'}
-          {op?.steps_total ? ` (${op.steps_done}/${op.steps_total})` : ''}
-        </p>
-      )}
-      {op?.state === 'failed' && (
-        <div className="flex justify-end">
-          <Button onClick={() => close()}>Close</Button>
-        </div>
-      )}
-    </div>
+    <OperationProgress operation={operation} failed="The create failed." ready={!!key} onDone={() => close(key)} close={() => close()} />
   );
 }
 
@@ -47,7 +29,6 @@ function Folders({ wsKey, picked, pick }: { wsKey: string; picked: string; pick:
     <div role="radiogroup" aria-label="Folder" className="flex flex-col overflow-hidden rounded-md border border-border">
       {ws.folders.map((d) => {
         const on = picked ? picked === d.path : d.default;
-        const Mark = d.git ? GitBranch : Folder;
         return (
           <button
             key={d.path}
@@ -58,9 +39,7 @@ function Folders({ wsKey, picked, pick }: { wsKey: string; picked: string; pick:
             onClick={() => pick(d.default ? '' : d.path)}
             className={`flex h-9 items-center gap-2 border-t border-border px-3 text-left text-sm outline-none first:border-t-0 focus-visible:bg-hover ${on ? 'bg-selected' : 'hover:bg-hover'}`}
           >
-            <Mark size={14} className="shrink-0 text-muted" aria-label={d.git ? 'git' : 'folder'} />
-            <span className="min-w-0 truncate">{d.name}</span>
-            {d.default && <span className="shrink-0 rounded bg-hover px-1.5 text-xs text-muted">Default</span>}
+            <FolderName folder={d} />
             <span className="flex-1" />
             {/* Works in the checked one, reads the others. */}
             {on ? (

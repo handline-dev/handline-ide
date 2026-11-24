@@ -1,3 +1,4 @@
+import { LoaderCircle } from 'lucide-react';
 /** Placeholders while data loads, shaped like what comes, so a page does not read "empty" or jump when it arrives. */
 
 /** A list's rows: a title line and a shorter one under it, each row the height of a real one. */
@@ -22,5 +23,12 @@ export function LinesLoading({ lines = 6, label = 'Loading' }: { lines?: number;
         <span key={i} className="h-3 rounded-sm bg-border" style={{ width: `${[90, 75, 85, 40, 70, 60][i % 6]}%` }} />
       ))}
     </div>
+  );
+}
+
+/** A small turning circle beside or in place of what is on its way. */
+export function Spinner({ size = 14, className = '', label }: { size?: number; className?: string; label?: string }) {
+  return (
+    <LoaderCircle size={size} className={`animate-spin motion-reduce:animate-none ${className}`} aria-label={label} aria-hidden={!label} />
   );
 }

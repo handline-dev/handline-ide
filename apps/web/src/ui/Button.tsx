@@ -1,4 +1,4 @@
-import { LoaderCircle } from 'lucide-react';
+import { Spinner } from '#src/ui/Loading.tsx';
 import { useState, type ComponentProps } from 'react';
 
 const variants = {
@@ -33,7 +33,7 @@ export function Button({
         <>
           <span className="contents [&>*]:invisible [color:transparent]">{children}</span>
           <span aria-hidden className="absolute inset-0 grid place-items-center">
-            <LoaderCircle size={14} className="animate-spin" />
+            <Spinner />
           </span>
         </>
       ) : (

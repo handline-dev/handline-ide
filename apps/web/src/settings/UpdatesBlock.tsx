@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { shell } from '#src/shell.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { Switch } from '#src/usage/UsageViews.tsx';
+import { Segmented } from '#src/ui/Segmented.tsx';
 
 const WORD: Record<Channel, string> = { stable: 'Stable', nightly: 'Nightly', canary: 'Canary' };
 
@@ -45,7 +45,7 @@ export function UpdatesBlock() {
   return (
     <Block title="Updates" icon={<Download size={16} />}>
       <Setting title="Channel" note="Stable moves when it is promoted by hand, Nightly once a day, Canary every 30 minutes.">
-        <Switch label="Update channel" value={channel} options={UPDATE_CHANNELS} word={(c) => WORD[c]} onChange={pick} />
+        <Segmented label="Update channel" value={channel} options={UPDATE_CHANNELS} word={(c) => WORD[c]} onChange={pick} />
       </Setting>
       <Setting title={line(u)}>
         {(ready || failed) && (

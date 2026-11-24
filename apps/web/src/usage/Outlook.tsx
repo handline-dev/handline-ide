@@ -1,3 +1,4 @@
+import { Segmented } from '#src/ui/Segmented.tsx';
 // The head of Usage, as the legacy page had it: "Week 43% left" and the accounts' week left together, recorded to now and guessed after
 // it (dashed), each account's weekly reset under the axis, and the part lost at the last reset as a bar. Moving over the plot reads a point.
 // Every number is the daemon's (stats.outlook); the drawing is the legacy one in this app's tokens.
@@ -32,20 +33,7 @@ export function Outlook({ labels }: { labels: Labels }) {
     <section aria-label="Week left" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-3">
         <div className="min-w-0 flex-1">{o && <Readout o={o} labels={labels} />}</div>
-        <div role="radiogroup" aria-label="Range" className="flex gap-1 rounded-lg bg-surface p-1">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              role="radio"
-              aria-checked={r === range}
-              onClick={() => setRange(r)}
-              className="h-6 rounded-sm px-2 text-xs text-muted hover:text-fg aria-checked:bg-bg aria-checked:text-fg"
-            >
-              {r}
-            </button>
-          ))}
-        </div>
+        <Segmented label="Range" value={range} options={RANGES} word={(r) => r} onChange={setRange} />
       </div>
       {q.isError && <p className="text-sm text-danger">The outlook did not load.</p>}
       {!o && !q.isError && <div className="h-60 animate-pulse rounded-md bg-surface" />}

@@ -1,33 +1,14 @@
 import { baseName } from '#src/format/path.ts';
-import { useOperation, useWrite, why } from '@handline/app-data';
+import { useWrite, why } from '@handline/app-data';
 import { FolderOpen, GitBranch } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
+import { OperationProgress } from '#src/ui/OperationProgress.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { shell } from '#src/shell.ts';
 import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { NeedsGit } from '#src/install/install.tsx';
-
-/** The create the daemon started: its step while it runs, then closed once done, or its failure. */
-function Progress({ operation, close }: { operation: string; close: Close<string> }) {
-  const op = useOperation(operation).data;
-  const done = op?.state === 'done';
-  useEffect(() => {
-    if (done) close(operation);
-  }, [done, close, operation]);
-  if (done) return null;
-  return op?.state === 'failed' ? (
-    <div className="flex flex-col gap-2 pb-4">
-      <p className="text-danger">{op.message ?? 'The workspace was not made.'}</p>
-      <div className="flex justify-end">
-        <Button onClick={() => close()}>Close</Button>
-      </div>
-    </div>
-  ) : (
-    <p className="pb-4 text-muted">{op?.step ?? 'Starting…'}</p>
-  );
-}
 
 /** A folder's workspace name, from its last part, as onboarding names it. */
 export const nameOf = (folder: string) => workspaceNameOf(baseName(folder));
@@ -37,7 +18,10 @@ function Form({ close }: { close: Close<string> }) {
   const create = useWrite('workspace.create');
   const [folder, setFolder] = useState('');
   const [started, setStarted] = useState<string | null>(null);
-  if (started) return <Progress operation={started} close={close} />;
+  if (started)
+    return (
+      <OperationProgress operation={started} failed="The workspace was not made." onDone={() => close(started)} close={() => close()} />
+    );
   const ready = !!folder.trim();
   return (
     <form
@@ -69,7 +53,10 @@ function Form({ close }: { close: Close<string> }) {
 function Picked({ folder, close }: { folder: string; close: Close<string> }) {
   const create = useWrite('workspace.create');
   const [started, setStarted] = useState<string | null>(null);
-  if (started) return <Progress operation={started} close={close} />;
+  if (started)
+    return (
+      <OperationProgress operation={started} failed="The workspace was not made." onDone={() => close(started)} close={() => close()} />
+    );
   return (
     <div className="flex flex-col gap-3 pb-4">
       <p>

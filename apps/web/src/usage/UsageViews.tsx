@@ -1,3 +1,4 @@
+import { Bar } from '#src/ui/Meter.tsx';
 import { pct } from '#src/format/count.ts';
 // Under the Usage graph, one of four views at a time: the accounts, who used it (by agent), which models used it (each agent's use under
 // the model it runs on now), and the cost per day stacked by agent. The figures are the daemon's (stats.get, stats.outlook).
@@ -22,44 +23,6 @@ export const VIEW_ICON: Record<View, ReactNode> = {
   cost: <ChartColumn size={12} />,
 };
 export const VIEW_WORD: Record<View, string> = { accounts: 'Accounts', agents: 'Agents', models: 'Models', cost: 'Cost per day' };
-
-/** A small switch of choices, the one in force raised. */
-export function Switch<T extends string>({
-  value,
-  options,
-  word,
-  onChange,
-  label,
-  icon,
-}: {
-  value: T;
-  options: readonly T[];
-  word: (t: T) => string;
-  onChange: (t: T) => void;
-  label: string;
-  /** An icon before each choice's word. */
-  icon?: (t: T) => ReactNode;
-}) {
-  return (
-    <div role="radiogroup" aria-label={label} className="flex w-fit gap-0.5 rounded-lg bg-surface p-1">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          role="radio"
-          aria-checked={o === value}
-          onClick={() => onChange(o)}
-          title={icon ? word(o) : undefined}
-          className="flex h-6 items-center justify-center gap-1.5 rounded-sm px-2 text-xs text-muted hover:text-fg aria-checked:bg-bg aria-checked:text-fg"
-        >
-          {icon?.(o)}
-          {/* With an icon, a narrow bar (its parent an @container) shows the icon alone and the word on hover. */}
-          <span className={icon ? 'hidden @lg:inline' : undefined}>{word(o)}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export type Win = Stats['window'];
 export const WINDOWS: readonly Win[] = ['24h', '7d'];
@@ -102,9 +65,7 @@ function Ranked({
         <span className="truncate text-fg">{name}</span>
         {sub && <span className="truncate text-xs text-muted">{sub}</span>}
       </div>
-      <div className="h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-surface">
-        <div className={`h-full ${tone}`} style={{ width: `${Math.min(1, fill) * 100}%` }} />
-      </div>
+      <Bar pct={Math.min(1, fill) * 100} fill={tone} />
       <span className="w-36 shrink-0 text-right text-muted tabular-nums">{figures}</span>
     </div>
   );

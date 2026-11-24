@@ -1,12 +1,11 @@
 import { clockOrDay } from '#src/format/time.ts';
-// A device's Run · Pause · Off, its state as a shape and a word, and the confirm that waits for the daemon. Shared by the Devices list, a
+// A device's Run · Pause · Off, its state as a shape and a word. Shared by the Devices list, a
 // device's page and the status bar's pause popover.
 import { Circle, CircleDot, Globe, Laptop, Loader, Pause, Play, Server, Smartphone, TriangleAlert, type LucideIcon } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { ago } from '@handline/app-core';
 import { MODES, type DeviceRow, type Mode, type State } from '#src/settings/data/devices.ts';
-import { Button } from '#src/ui/Button.tsx';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { confirm } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
 export const KIND_WORD = {
@@ -81,16 +80,7 @@ export function ModeControl({ row, setMode, busy }: { row: DeviceRow; setMode: (
   const pick = (m: Mode) => {
     if (m === row.mode) return;
     if (m !== 'off') return void setMode(m).catch(refused);
-    void openModal<void>((close) => (
-      <Confirm
-        title={`Turn ${row.name} off?`}
-        text={OFF_TEXT}
-        act="Turn off"
-        busyWord="Turning off…"
-        go={() => setMode('off')}
-        close={() => close()}
-      />
-    ));
+    void confirm({ title: `Turn ${row.name} off?`, message: OFF_TEXT, confirmText: 'Turn off', run: () => setMode('off') });
   };
   return (
     <div
@@ -118,77 +108,19 @@ export function ModeControl({ row, setMode, busy }: { row: DeviceRow; setMode: (
   );
 }
 
-/** A confirm that waits for the daemon: it stays, dimmed, until the answer, and a refusal says why in it. */
-export function Confirm({
-  title,
-  text,
-  act,
-  busyWord,
-  danger,
-  go,
-  close,
-}: {
-  title: string;
-  text: string;
-  act: string;
-  busyWord: string;
-  danger?: boolean;
-  go: () => Promise<unknown>;
-  close: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [why, setWhy] = useState('');
-  return (
-    <ModalFrame
-      title={title}
-      size="sm"
-      onClose={busy ? undefined : close}
-      footer={
-        <>
-          <Button disabled={busy} onClick={close}>
-            Cancel
-          </Button>
-          <Button
-            variant={danger ? 'danger' : 'primary'}
-            disabled={busy}
-            onClick={() => {
-              setBusy(true);
-              setWhy('');
-              go().then(close, (e: unknown) => (setWhy(String(e)), setBusy(false)));
-            }}
-          >
-            {busy ? busyWord : act}
-          </Button>
-        </>
-      }
-    >
-      <p>{text}</p>
-      {why && (
-        <p className="pt-2 text-xs text-danger" role="alert">
-          {why}
-        </p>
-      )}
-    </ModalFrame>
-  );
-}
-
 const again = 'To use it again it has to be paired anew.';
 
 export function confirmRevoke(rows: DeviceRow[], revoke: (id: string) => Promise<unknown>) {
   const one = rows.length === 1 ? rows[0]! : null;
-  void openModal<void>((close) => (
-    <Confirm
-      title={one ? `Revoke ${one.name}?` : `Revoke ${rows.length} devices?`}
-      text={`${one?.here ? 'This is the device you are using: it loses its access at once.' : `${one ? one.name : `The ${rows.length} devices`} ${one ? 'loses its' : 'lose their'} access at once.`} ${again}`}
-      act="Revoke"
-      busyWord="Revoking…"
-      danger
-      go={async () => {
-        for (const r of rows) await revoke(r.id);
-      }}
-      close={() => close()}
-    />
-  ));
+  void confirm({
+    title: one ? `Revoke ${one.name}?` : `Revoke ${rows.length} devices?`,
+    message: `${one?.here ? 'This is the device you are using: it loses its access at once.' : `${one ? one.name : `The ${rows.length} devices`} ${one ? 'loses its' : 'lose their'} access at once.`} ${again}`,
+    confirmText: 'Revoke',
+    danger: true,
+    run: async () => {
+      for (const r of rows) await revoke(r.id);
+    },
+  });
 }
 
 /** The device an agent is on, or that it is offline there and since when. */

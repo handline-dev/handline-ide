@@ -1,13 +1,15 @@
+import { Spinner } from '#src/ui/Loading.tsx';
+import { toneOf } from '#src/ui/Meter.tsx';
 import { since } from '#src/format/time.ts';
 import { useAccounts, useServes, useWrite, why } from '@handline/app-data';
-import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, LoaderCircle, TriangleAlert, UserRound } from 'lucide-react';
+import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, TriangleAlert, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { CardAction, chip, MenuFact, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
 import { focusIn } from '#src/layout/focus.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { useAction } from '#src/ui/Button.tsx';
-import { FIVE_HOURS, HIGH, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
+import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 import { Refs } from '#src/ui/refs.tsx';
 
 /** The account the agent runs on: its name, with a mark when its 5-hour window runs high, the login is gone, or the daemon is
@@ -17,7 +19,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
   const accounts = useAccounts().data?.accounts ?? [];
   const mine = accounts.find((a) => a.name === account);
   const usage = useOpenable('usage', { focus: () => focusIn('usage', '', account) });
-  const high = (mine?.five_hour?.used_pct ?? 0) >= HIGH;
+  const high = toneOf(mine?.five_hour?.used_pct ?? 0) !== 'ok';
   const login = mine?.login_state === 'needs_login';
   const moving = fire === 'usage' || fire === 'usage_7d';
   const moves = (mine?.moves ?? [])
@@ -109,7 +111,7 @@ function MoveTo({ agent, account }: { agent: string; account: string }) {
               <span className={`col-start-1 row-start-1 ${moving.busy && to === a.name ? 'invisible' : ''}`}>
                 {a.five_hour ? `${100 - Math.round(a.five_hour.used_pct)}% left` : ''}
               </span>
-              {moving.busy && to === a.name && <LoaderCircle size={12} className="col-start-1 row-start-1 animate-spin justify-self-end" />}
+              {moving.busy && to === a.name && <Spinner size={12} className="col-start-1 row-start-1 justify-self-end" />}
             </span>
           </button>
         ))}
