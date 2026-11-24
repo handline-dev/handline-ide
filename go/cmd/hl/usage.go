@@ -17,6 +17,7 @@ var usages = map[string][2]string{
 	"use add":    {`hl use add <name> --cmd <command> [--cmd <command>]... [--at-once N] [--mac | --workspace <w>] --why "<why>" (a command: a program, a program and its first words, a script path, or @build-test, @simulator, @browser)`, `hl use add xcode --cmd xcodebuild --mac --why "one build at a time keeps the fans down"`},
 	"use remove": {`hl use remove <name> [--mac | --workspace <w>]`, `hl use remove xcode --mac`},
 	"use list":   {`hl use list`, `hl use list`},
+	"sim":        {`hl sim list   |   hl sim boot <device>   |   hl sim install <app>   |   hl sim launch <bundle id|package>   |   hl sim tree [--json]   |   hl sim tap (<x> <y> | --label L | --id I | --text T)   |   hl sim swipe (up|down|left|right | <x1> <y1> <x2> <y2>)   |   hl sim type "<text>"   |   hl sim button <name>   |   hl sim rotate <portrait|left|right|upsidedown>   |   hl sim screenshot <file.png>   |   hl sim shutdown   (a command after boot takes --device <name|id> when you hold more than one)`, `hl sim tap --label "General"`},
 	"version":    {`hl version`, `hl version`},
 	"handoff":    {`hl handoff slow [--since <span>] [--agent <name>]`, `hl handoff slow --since 7d`},
 	"chat":       {`hl chat search "<text>" [--with <name>] [--since <span>] [--limit N]`, `hl chat search "nav order" --with handline --since 2d`},

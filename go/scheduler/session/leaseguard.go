@@ -48,6 +48,9 @@ func preset(words []string) string {
 	case name == "playwright":
 		return playwright(rest)
 	case name == "hl":
+		if len(rest) >= 2 && rest[0] == "sim" && rest[1] == "boot" {
+			return "@simulator"
+		}
 		if len(rest) > 1 && rest[0] == "browser" && rest[1] != "close" {
 			return "@browser"
 		}

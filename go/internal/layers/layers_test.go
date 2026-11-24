@@ -39,6 +39,7 @@ var layer = map[string]int{
 	"layers":                 0,
 	"homefiles":              0,
 	"browser":                0,
+	"sim":                    0,
 	"outcome":                0,
 	"status":                 0,
 	"scheduler/staymove":     0,
