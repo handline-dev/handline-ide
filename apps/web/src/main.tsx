@@ -12,13 +12,13 @@ import { InstallPoll } from '#src/install/install.tsx';
 import { instant, spring } from '#src/motion.ts';
 import { Sidebar, SidebarControls, sidebarWidth } from '#src/Sidebar.tsx';
 import { ModalHost } from '#src/ui/modal.tsx';
+import { ZoneHighlight } from '#src/ui/dnd.tsx';
 import { OpenMenuHost } from '#src/layout/openable.tsx';
 import { ToastHost } from '#src/ui/toast.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
-import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
+import { useScreenLayout } from '#src/layout/screenLayout.ts';
 import { Workspace } from '#src/Workspace.tsx';
 import { openTown, TownMode } from '#src/town/mode.tsx';
-import { TabsTo } from '#src/sidebar/tabDrop.ts';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
@@ -33,7 +33,7 @@ function App() {
   const [open, setOpen] = useState(true);
   const [width, setWidth] = useState(sidebarWidth.initial);
   const [dragging, setDragging] = useState(false);
-  const { agent, page, space, layout, select, selectPage, dispatch, reopenClosed, moveTabs } = useAgentLayouts();
+  const { agent, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
   const root = useRef<HTMLDivElement>(null);
   // A joined cluster's agent opens in its own cluster.
   const here = splitSpace(agent ?? '');
@@ -73,16 +73,13 @@ function App() {
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
             <div className="app-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
-            <TabsTo.Provider value={(m, to) => moveTabs(m.space, m.pane, m.tabs ?? [m.tab], m.tab, to)}>
-              <Sidebar
-                width={width}
-                agent={agent}
-                page={page}
-                onSelectPage={goPage}
-                onSelectAgent={select}
-                onAgentSettings={(name) => openSettings({ section: 'agents', ...splitSpace(name) })}
-              />
-            </TabsTo.Provider>
+            <Sidebar
+              width={width}
+              onScreen={onScreen}
+              onSelectPage={goPage}
+              onSelectAgent={select}
+              onAgentSettings={(name) => openSettings({ section: 'agents', ...splitSpace(name) })}
+            />
           </motion.div>
           {open && (
             <Splitter
@@ -100,8 +97,8 @@ function App() {
               <Workspace
                 root={layout}
                 agent={agent === null ? null : here.agent}
-                space={space}
-                moveTabs={moveTabs}
+                focus={focus}
+                onFocus={setFocus}
                 dispatch={dispatch}
                 reopenClosed={reopenClosed}
                 lead={
@@ -158,6 +155,7 @@ createRoot(document.getElementById('root')!).render(
         <Onboarding />
       </Boundary>
       <OpenMenuHost />
+      <ZoneHighlight />
       <ModalHost />
       <ToastHost />
     </Connect>

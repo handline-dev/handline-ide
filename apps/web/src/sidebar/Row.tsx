@@ -1,13 +1,8 @@
-import { useContext, type DragEvent, type ReactNode } from 'react';
-import { mergeHandlers, useDropTarget } from '#src/ui/dropTarget.tsx';
-import { TabsTo } from '#src/sidebar/tabDrop.ts';
-import { isTabMove, readTabDrag } from '#src/ui/dnd.tsx';
-import { carriesFiles } from '#src/ui/fileDrop.tsx';
+import { type ReactNode } from 'react';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
 
-/** A sidebar row: click shows it in the workspace, drag drops it on a tab bar or a pane's edge. With `space`, a tab dragged out of a
- *  pane and dropped on the row moves to that workspace. */
+/** A sidebar row: click shows it in the focused tab, drag drops it on a tab bar or a pane's edge. */
 export function Row({
   opens,
   title,
@@ -17,7 +12,6 @@ export function Row({
   note,
   unread = 0,
   menu = true,
-  space,
   onShow,
 }: {
   opens: string;
@@ -32,33 +26,18 @@ export function Row({
   unread?: number;
   /** False when the row sits in a menu of its own (an agent's), which has the open items at its top. */
   menu?: boolean;
-  /** The workspace the row brings up, which takes tabs dropped on it. */
-  space?: string;
   onShow: () => void;
 }) {
-  const tabsTo = useContext(TabsTo);
-  const takes = (e: DragEvent) => !!space && !!tabsTo && isTabMove(e);
-  // Held there, dragged files or a tab open the row's workspace, to be dropped where in it they go.
-  const spring = useSpringOpen(onShow, (e) => carriesFiles(e) || takes(e));
-  const drop = useDropTarget({
-    accepts: takes,
-    dropEffect: 'move',
-    onDrop: (e) => {
-      const drag = readTabDrag(e);
-      if (drag && 'move' in drag) tabsTo!(drag.move, space!);
-    },
-  });
-  const { onDragEnter, onDragLeave, onDrop, ...look } = spring.props;
+  // Held there, dragged files show the row, to be dropped where they go.
+  const spring = useSpringOpen(onShow);
   return (
     <div
-      {...look}
+      {...spring.props}
       role="button"
       aria-current={selected || undefined}
       tabIndex={0}
       {...useOpenable(opens, { here: onShow, menu })}
-      data-over={drop.over || undefined}
-      {...mergeHandlers({ onDragEnter, onDragLeave, onDrop }, drop.handlers)}
-      className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[over]:bg-hover data-[over]:ring-2 data-[over]:ring-accent data-[spring]:bg-hover"
+      className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
         <span className="grid size-4 shrink-0 place-items-center text-muted">{icon}</span>

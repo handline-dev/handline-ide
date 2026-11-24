@@ -1,13 +1,15 @@
 /** Drag and drop into the workspace: one payload format, and the geometry of where a drop lands on a pane
  * or a tab bar. Anything that can become a tab is a source: a tab moving from its pane, or a thing to open
  * (an agent in the sidebar, say). */
-import type { DragEvent } from 'react';
+import { motion } from 'framer-motion';
+import { useEffect, useSyncExternalStore, type DragEvent } from 'react';
+import { spring } from '#src/motion.ts';
+import { listeners } from '#src/persist/store.ts';
 
 const MIME = 'application/x-handline-tab';
 /** Also set on a tab that moves, so a place that takes only those can tell during dragover. */
 const MOVE = 'application/x-handline-tab-move';
-/** `space`: the workspace the moving tab is in (an agent's key, or `page/<kind>`). */
-export type TabMove = { space: string; pane: string; tab: string; tabs?: string[] };
+export type TabMove = { pane: string; tab: string; tabs?: string[] };
 export type TabDrag = { move: TabMove } | { open: { opens: string; title: string } };
 
 export function startTabDrag(e: DragEvent, drag: TabDrag) {
@@ -49,24 +51,66 @@ export function slotAt(e: DragEvent, bar: HTMLElement): { index: number; x: numb
   return { index: tabs.length, x: (last ? last.right : from) - from + 2 };
 }
 
-const zoneArea: Record<Zone, string> = {
-  center: 'inset-0',
-  left: 'inset-y-0 left-0 w-1/2',
-  right: 'inset-y-0 right-0 w-1/2',
-  up: 'inset-x-0 top-0 h-1/2',
-  down: 'inset-x-0 bottom-0 h-1/2',
-};
-
-/** The highlight of where a dragged tab would land on a pane. */
-export function ZoneHighlight({ zone }: { zone: Zone }) {
-  return (
-    <div
-      className={`pointer-events-none absolute z-10 rounded-md border-2 border-accent bg-accent/10 transition-all duration-100 ${zoneArea[zone]}`}
-    />
-  );
+/** Where on screen a drop in `zone` of `pane` lands. */
+function zoneRect(pane: DOMRect, zone: Zone) {
+  const { left, top, width, height } = pane;
+  if (zone === 'left') return { left, top, width: width / 2, height };
+  if (zone === 'right') return { left: left + width / 2, top, width: width / 2, height };
+  if (zone === 'up') return { left, top, width, height: height / 2 };
+  if (zone === 'down') return { left, top: top + height / 2, width, height: height / 2 };
+  return { left, top, width, height };
 }
 
-/** The insert line in a tab bar, `x` px from its left. */
-export function InsertLine({ x }: { x: number }) {
-  return <div style={{ left: x }} className="pointer-events-none absolute inset-y-2 z-10 w-0.5 rounded-full bg-accent" />;
+type Box = { left: number; top: number; width: number; height: number };
+/** One highlight for the whole screen, so it glides from zone to zone and pane to pane instead of jumping. */
+let dropBox = { box: { left: 0, top: 0, width: 0, height: 0 }, on: false, glide: false };
+const dropMoved = listeners();
+/** Shows where a dragged tab would land on `pane` (its body element). Leaving a place keeps the highlight where it is: crossing the
+ *  gap between two panes or bars it waits there and glides on; it goes when the drag leaves the drop area or ends (ZoneHighlight). */
+export function showZone(pane: HTMLElement, zone: Zone) {
+  place(zoneRect(pane.getBoundingClientRect(), zone));
+}
+/** Shows the insert line `x` px from the left of tab bar `bar`: the same highlight, narrowed to a line. */
+export function showSlot(bar: HTMLElement, x: number) {
+  const r = bar.getBoundingClientRect();
+  place({ left: r.left + x - 1, top: r.top + 8, width: 3, height: r.height - 16 });
+}
+function place(box: Box) {
+  // Shown again, it appears where it is; only a move while shown glides.
+  dropBox = { box, on: true, glide: dropBox.on };
+  dropMoved.emit();
+}
+function hide() {
+  if (!dropBox.on) return;
+  dropBox = { ...dropBox, on: false };
+  dropMoved.emit();
+}
+/** Marks the element that holds every drop place (the workspace): over anything else, the highlight goes. */
+export const DROP_AREA = 'data-drop-area';
+
+/** The highlight of where a dragged tab would land; mounted once by the app. */
+export function ZoneHighlight() {
+  const { box, on, glide } = useSyncExternalStore(dropMoved.subscribe, () => dropBox);
+  useEffect(() => {
+    const over = (e: globalThis.DragEvent) => {
+      if (!(e.target instanceof Element && e.target.closest(`[${DROP_AREA}]`))) hide();
+    };
+    addEventListener('dragover', over);
+    addEventListener('dragend', hide);
+    addEventListener('drop', hide);
+    return () => {
+      removeEventListener('dragover', over);
+      removeEventListener('dragend', hide);
+      removeEventListener('drop', hide);
+    };
+  }, []);
+  return (
+    <motion.div
+      aria-hidden
+      initial={false}
+      animate={{ ...box, opacity: on ? 1 : 0 }}
+      transition={{ ...(glide ? spring : { duration: 0 }), opacity: { duration: 0.1 } }}
+      className="pointer-events-none fixed z-40 rounded-md border-2 border-accent bg-accent/10"
+    />
+  );
 }

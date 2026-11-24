@@ -3,7 +3,8 @@
 /* The only colors the app has. `--color-*: initial` drops Tailwind's palette, so `bg-neutral-50`,
    `text-red-500` and the like generate nothing; a color is one of the roles below.
    Values live in :root / .dark, so a theme switch is one class on <html>. */
-@theme {
+/* `inline`: a utility reads the role's variable where it is drawn, so a subtree that redefines the roles (.dark, .unfocused) recolours. */
+@theme inline {
   --color-*: initial;
   --color-transparent: transparent;
   --color-current: currentColor;
@@ -30,7 +31,9 @@
   --color-series-4: var(--series-4);
   --color-series-5: var(--series-5);
   --color-series-6: var(--series-6);
+}
 
+@theme {
   /* Type, radius: only these steps exist. Spacing keeps Tailwind's 4px scale. */
   --text-*: initial;
   --text-xs: 0.6875rem;
@@ -100,6 +103,28 @@
   --series-5: oklch(0.72 0.12 125);
   --series-6: oklch(0.7 0.11 40);
   --shadow: oklch(0 0 0 / 0.5);
+}
+
+/* What is not in focus (a pane other than the focused one, the whole window when another app has it): its own quieter roles,
+   not a veil over the usual ones. */
+.unfocused {
+  --bg: oklch(0.985 0 0);
+  --surface: oklch(0.96 0 0);
+  --border: oklch(0.9 0 0);
+  --fg: oklch(0.45 0 0);
+  --muted: oklch(0.62 0 0);
+  --selected: oklch(0.93 0.015 260);
+  --accent: oklch(0.6 0.08 260);
+}
+.dark .unfocused,
+.dark.unfocused {
+  --bg: oklch(0.16 0 0);
+  --surface: oklch(0.185 0 0);
+  --border: oklch(0.25 0 0);
+  --fg: oklch(0.68 0 0);
+  --muted: oklch(0.52 0 0);
+  --selected: oklch(0.25 0.03 260);
+  --accent: oklch(0.55 0.08 260);
 }
 
 /* Native controls (check boxes, selects) follow the theme the app draws, not the system's: a light app on a dark Mac drew its

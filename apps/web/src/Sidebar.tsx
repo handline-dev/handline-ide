@@ -11,14 +11,13 @@ import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
-import { Across, InCluster, spaceOf, splitSpace, useCluster, useJoined, type Joined } from '#src/connection/clusters.tsx';
+import { Across, InCluster, spaceOf, splitSpace, useJoined, type Joined } from '#src/connection/clusters.tsx';
 import { ClusterWord } from '#src/connection/ClusterWord.tsx';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { useRequests } from '#src/requests/data.ts';
-import { pageSpace } from '#src/layout/agentLayouts.ts';
 import { Row } from '#src/sidebar/Row.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -63,7 +62,8 @@ function AgentRowCard({ agent, jobs, children }: { agent: string; jobs: Job[]; c
 }
 
 type Pick = {
-  agent: string | null;
+  /** The agents on screen (every pane's shown tab), each marked as picked. */
+  shown: string[];
   onSelect: (name: string) => void;
   onSettings: (name: string) => void;
 };
@@ -76,7 +76,6 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
   const now = useNow();
   // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
   const nameOf = useNameOf(here);
-  const cluster = useCluster();
   const names = agents.map((a) => a.key);
   const group = names.join('|');
   const [line, setLine] = useState<{ at: string; after: boolean } | null>(null);
@@ -119,10 +118,9 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
           <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
             <Row
               opens={opens}
-              space={spaceOf(cluster, agent.key)}
               menu={false}
               title={nameOf(agent.key)}
-              selected={pick.agent === agent.key}
+              selected={pick.shown.includes(agent.key)}
               onShow={() => pick.onSelect(agent.key)}
               icon={<ActivityIcon act={activityOf(agent)} />}
               // Its queued tasks, and when it last worked: now while running, else since it stopped (state_since).
@@ -220,14 +218,9 @@ export function Section({
 }
 
 /** The agents in sections: Pinned (when any are), then a flat list per workspace. */
-function Agents({ pick, page, onNew, joined }: { pick: Pick; page: string | null; onNew: (ws: Workspace) => void; joined?: Joined }) {
+function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) => void; joined?: Joined }) {
   const list = useAgents();
   const { nav, change, togglePin, toggleFold } = useNav();
-  const first = list.data?.agents[0]?.key;
-  // Nothing picked yet, neither agent nor page (a first visit): the first agent's workspace, this Mac's.
-  useEffect(() => {
-    if (!joined && !pick.agent && !page && first) pick.onSelect(first);
-  }, [joined, pick, page, first]);
   // Another cluster's workspaces carry its name, and no Pinned of their own.
   const word = joined && <ClusterWord cluster={joined} />;
   // A section's new order goes first in nav.order; the rest of the order stays as it was.
@@ -289,16 +282,15 @@ function Agents({ pick, page, onNew, joined }: { pick: Pick; page: string | null
 }
 
 /** A joined cluster's agents, in its own cluster, dimmed while it does not answer; picking one opens it there. */
-function JoinedAgents({ joined, pick, page }: { joined: Joined; pick: Pick; page: string | null }) {
-  const here = splitSpace(pick.agent ?? '');
+function JoinedAgents({ joined, pick }: { joined: Joined; pick: Pick }) {
   const inIt: Pick = {
-    agent: here.cluster === joined.id ? here.agent : null,
+    shown: pick.shown.map(splitSpace).flatMap((h) => (h.cluster === joined.id ? [h.agent] : [])),
     onSelect: (name) => pick.onSelect(spaceOf(joined.id, name)),
     onSettings: (name) => pick.onSettings(spaceOf(joined.id, name)),
   };
   return (
     <InCluster id={joined.id} dim>
-      <Agents joined={joined} page={page} pick={inIt} onNew={(ws) => void newAgent(ws).then((name) => name && inIt.onSelect(name))} />
+      <Agents joined={joined} pick={inIt} onNew={(ws) => void newAgent(ws).then((name) => name && inIt.onSelect(name))} />
     </InCluster>
   );
 }
@@ -318,15 +310,14 @@ function Waiting() {
  * workspace; dragging one opens its chat as a tab in the current one. Width is set by the splitter (see App). */
 export function Sidebar({
   width,
-  agent,
-  page,
+  onScreen,
   onSelectPage,
   onSelectAgent,
   onAgentSettings,
 }: {
   width: number;
-  agent: string | null;
-  page: string | null;
+  /** What the panes show (agents' keys, pages' kinds): each is marked as picked. */
+  onScreen: string[];
   onSelectPage: (kind: string, title: string) => void;
   onSelectAgent: (name: string) => void;
   onAgentSettings: (name: string) => void;
@@ -343,10 +334,9 @@ export function Sidebar({
           <Row
             key={p.kind}
             opens={p.kind}
-            space={pageSpace(p.kind)}
             title={p.label}
             icon={p.icon}
-            selected={page === p.kind}
+            selected={onScreen.includes(p.kind)}
             onShow={() => onSelectPage(p.kind, p.label)}
             trail={p.kind === 'requests' ? <Waiting /> : undefined}
           />
@@ -354,12 +344,11 @@ export function Sidebar({
       </nav>
       <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
         <Agents
-          page={page}
-          pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings }}
+          pick={{ shown: onScreen, onSelect: onSelectAgent, onSettings: onAgentSettings }}
           onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
         />
         {joined.map((j) => (
-          <JoinedAgents key={j.id} joined={j} page={page} pick={{ agent, onSelect: onSelectAgent, onSettings: onAgentSettings }} />
+          <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent, onSettings: onAgentSettings }} />
         ))}
         <div className="-mx-2 mt-1 border-t border-border">
           <button

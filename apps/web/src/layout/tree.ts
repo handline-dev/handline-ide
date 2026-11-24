@@ -27,6 +27,8 @@ export type Action =
   /** Brings up the tab that opens this, wherever it is; else opens it in the first pane. */
   | { type: 'show'; opens: string; title: string }
   | { type: 'choose'; pane: string; tab: string; opens: string; title: string }
+  /** The pane's shown tab goes to `opens` instead, as a browser tab follows a link: a new tab in its place (its kept state stays behind). */
+  | { type: 'navigate'; pane: string; opens: string; title: string }
   | { type: 'closeTab'; pane: string; tab: string }
   | { type: 'split'; pane: string; edge: Edge | 'four' }
   | { type: 'closePane'; pane: string }
@@ -38,11 +40,10 @@ export type Action =
 export const newId = uuid;
 
 export const pane = (tabs: Tab[], active = tabs[0].id): Pane => ({ kind: 'pane', id: newId(), tabs, active });
-export const hasFixed = (p: Pane) => p.tabs.some((t) => t.closable === false);
 export const emptyTab = (): Tab => ({ id: newId(), title: 'Empty' });
 export const emptyPane = () => pane([emptyTab()]);
-/** A workspace's first pane: its fixed tab (Chat for an agent, the page itself for a page), which cannot close. */
-export const initial = (opens = 'chat', title = 'Chat'): Node => pane([{ id: newId(), title, opens, closable: false }]);
+/** A layout's first pane: on `opens` when given, else an Empty tab. */
+export const initial = (opens?: string, title = ''): Node => (opens ? pane([{ id: newId(), title, opens }]) : emptyPane());
 
 const split = (axis: 'x' | 'y', a: Node, b: Node): Split => ({ kind: 'split', id: newId(), axis, ratio: 0.5, a, b });
 export const clampRatio = (r: number) => Math.min(0.85, Math.max(0.15, r));
@@ -149,6 +150,11 @@ function change(root: Node, action: Action): Node {
         ...p,
         tabs: p.tabs.map((t) => (t.id === action.tab ? { ...t, opens: action.opens, title: action.title } : t)),
       }));
+    case 'navigate':
+      return onPane(root, action.pane, (p) => {
+        const tab = { id: newId(), title: action.title, opens: action.opens };
+        return { ...p, tabs: p.tabs.map((t) => (t.id === p.active ? tab : t)), active: tab.id };
+      });
     case 'closeTab': {
       const p = findPane(root, action.pane);
       const t = p?.tabs.find((x) => x.id === action.tab);
@@ -163,9 +169,7 @@ function change(root: Node, action: Action): Node {
     case 'split':
       return onPane(root, action.pane, (p) => attach(p, action.edge, emptyPane()));
     case 'closePane': {
-      // The pane holding the fixed tab stays, as the fixed tab does.
-      const p = findPane(root, action.pane);
-      return root.kind === 'pane' || !p || hasFixed(p) ? root : onPane(root, action.pane, () => null);
+      return root.kind === 'pane' ? root : onPane(root, action.pane, () => null);
     }
     case 'resize':
       return edit(root, action.split, (n) => (n.kind === 'split' ? { ...n, ratio: clampRatio(action.ratio) } : n)) ?? root;
@@ -176,7 +180,7 @@ function change(root: Node, action: Action): Node {
 
 function move(root: Node, from: string, ids: string[], shown: string, to: Target): Node {
   const src = findPane(root, from);
-  const group = src?.tabs.filter((t) => ids.includes(t.id)) ?? []; // a pinned tab moves too; it only never closes
+  const group = src?.tabs.filter((t) => ids.includes(t.id)) ?? [];
   if (!src || !group.length || !findPane(root, to.pane)) return root;
   const active = group.some((t) => t.id === shown) ? shown : group[group.length - 1].id;
   const moving = new Set(group.map((t) => t.id));
@@ -195,38 +199,6 @@ function move(root: Node, from: string, ids: string[], shown: string, to: Target
   // Into the target first (its id survives), then out of the source, which may then disappear.
   const placed = onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane(group, active)) : insert(p, group, to.index, active)));
   return group.reduce<Node>((n, t) => onPane(n, from, (p) => withoutTab(p, t.id)), placed);
-}
-
-/** Takes tabs out of pane `from` to move them to another workspace: pinned tabs and Empty ones stay. The last pane keeps a tab bar,
- *  as a close leaves it. */
-export function takeTabs(root: Node, from: string, ids: string[]): { root: Node; tabs: Tab[] } {
-  const src = findPane(root, from);
-  const tabs = src?.tabs.filter((t) => ids.includes(t.id) && t.closable !== false && t.opens) ?? [];
-  if (!src || !tabs.length) return { root, tabs: [] };
-  const after = tabs.reduce<Node>((n, t) => {
-    const p = findPane(n, from);
-    if (p && p.tabs.length === 1 && n.kind === 'pane') {
-      const e = emptyTab();
-      return { ...p, tabs: [e], active: e.id };
-    }
-    return onPane(n, from, (x) => withoutTab(x, t.id));
-  }, root);
-  return { root: remember(root, after), tabs };
-}
-
-/** Puts tabs taken from another workspace at `to` (the end of the first pane when omitted), `shown` up front. A thing already open
- *  here is not opened twice: its tab comes up instead. */
-export function putTabs(root: Node, tabs: Tab[], shown: string, to: Target = { pane: panes(root)[0].id }): Node {
-  const fresh = tabs.filter((t) => !isOpen(root, t.opens!));
-  const there = tabs.find((t) => t.id === shown) ?? tabs[tabs.length - 1];
-  if (!fresh.length) return there ? reduce(root, { type: 'show', opens: there.opens!, title: there.title }) : root;
-  if (!findPane(root, to.pane)) to = { pane: panes(root)[0].id };
-  const active = fresh.some((t) => t.id === shown) ? shown : fresh[fresh.length - 1].id;
-  const { edge, index } = to;
-  return remember(
-    root,
-    onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane(fresh, active)) : insert(p, fresh, index, active))),
-  );
 }
 
 /** How many closes Cmd+Shift+T can bring back, per workspace. */
@@ -254,4 +226,12 @@ export function reopen(root: Node, c: Closed, fallback: string): Node {
     const to = there ? { pane: c.pane, index } : { pane: findPane(n, fallback) ? fallback : panes(n)[0].id };
     return reduce(n, { type: 'open', opens, title: tab.title, to });
   }, root);
+}
+
+/** `root` without the tabs `ids`: a pane left with none goes, and the screen keeps at least an Empty tab. */
+export function dropTabs(root: Node, ids: ReadonlySet<string>): Node {
+  return panes(root).reduce<Node>(
+    (n, p) => p.tabs.filter((t) => ids.has(t.id)).reduce<Node>((m, t) => onPane(m, p.id, (x) => withoutTab(x, t.id)), n),
+    root,
+  );
 }

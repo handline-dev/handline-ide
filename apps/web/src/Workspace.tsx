@@ -19,28 +19,18 @@ import { PageTab } from '#src/layout/pageTab.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
-import { agentKind, canonical, choices, iconOf, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
+import { agentKind, choices, iconOf, pages, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
-import {
-  hasFixed,
-  isOpen,
-  panes,
-  whereTo,
-  type Action,
-  type Edge,
-  type Node,
-  type Pane,
-  type Split,
-  type Target,
-} from '#src/layout/tree.ts';
+import { isOpen, panes, whereTo, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { InsertLine, isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, ZoneHighlight, type Zone } from '#src/ui/dnd.tsx';
+import { isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, showZone, showSlot, DROP_AREA } from '#src/ui/dnd.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { dotOf } from '#src/layout/TabDot.tsx';
+import { agentOf } from '#src/layout/screenLayout.ts';
 import { TabBar } from '#src/ui/Tabs.tsx';
 
 export type Dispatch = (a: Action) => void;
@@ -48,60 +38,47 @@ export type Dispatch = (a: Action) => void;
 /** Names as the agent's workspace reads them: its own agents by name alone (T9201). */
 const useNamesHere = (agent: string | null) => useNameOf(useAgents().data?.agents.find((a) => a.key === agent)?.workspace);
 
-type Context = { root: Node; agent: string | null; dispatch: Dispatch; nameOf: (key: string) => string };
-
-/** Moves tabs of a pane in workspace `from` to workspace `to`, at `at` (useAgentLayouts().moveTabs). */
-export type MoveTabs = (from: string, pane: string, tabs: string[], shown: string, to: string, at?: Target) => void;
-/** The workspace on screen and how a tab from another one moves in: a tab dragged to a sidebar row, held there, opens that
- *  workspace and lands where it is dropped. */
-const Space = createContext<{ space: string; moveTabs: MoveTabs }>({ space: '', moveTabs: () => {} });
+type Context = { root: Node; agent: string | null; dispatch: Dispatch; nameOf: (key: string) => string; focus: (pane: string) => void };
 
 /** Applies a drop of any tab source (a tab moving, or a thing to open) at `to`. Something already open
  * here is not opened twice: its tab comes up, and a toast says why. */
-function dropTo(
-  e: DragEvent,
-  to: Target,
-  { root, agent, dispatch, nameOf }: Context,
-  { space, moveTabs }: { space: string; moveTabs: MoveTabs },
-) {
+function dropTo(e: DragEvent, to: Target, { root, dispatch, nameOf }: Context) {
   const drag = readTabDrag(e);
   if (!drag) return;
   e.preventDefault();
-  if ('move' in drag && drag.move.space !== space) {
-    const m = drag.move;
-    return moveTabs(m.space, m.pane, m.tabs ?? [m.tab], m.tab, space, to);
-  }
   if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, tabs: drag.move.tabs, to });
-  const opens = canonical(drag.open.opens, agent);
+  const opens = drag.open.opens;
   // A tab already open, pinned or not, moves to where it was dropped.
   for (const p of panes(root)) {
     const tab = p.tabs.find((t) => t.opens === opens);
     if (tab) return dispatch({ type: 'move', from: p.id, tab: tab.id, to });
   }
   if (isOpen(root, opens)) {
-    toast(opens === 'chat' ? "This is this agent's own chat, already open here." : `${labelOf(opens, nameOf)} is already open here.`, {
-      tone: 'warning',
-    });
+    toast(`${labelOf(opens, nameOf)} is already open here.`, { tone: 'warning' });
     return dispatch({ type: 'show', opens, title: labelOf(opens, nameOf) });
   }
   dispatch({ type: 'open', opens, title: labelOf(opens, nameOf), to });
 }
 
 /** Opens `opens` from pane `from`, where `how` asks (whereTo). Something already open is brought up where it is, not opened twice. */
-function openFrom({ root, agent, dispatch, nameOf }: Context, from: string, kind: string, how: How = 'here') {
-  const opens = canonical(kind, agent);
+function openFrom({ root, dispatch, nameOf, focus }: Context, from: string, opens: string, how: How = 'here') {
   const title = labelOf(opens, nameOf);
-  if (isOpen(root, opens)) return dispatch({ type: 'show', opens, title });
+  // Open already (and asked for here): its pane takes the focus. Beside or below always opens a new pane there.
+  const at = how === 'here' ? panes(root).find((p) => p.tabs.some((t) => t.opens === opens)) : undefined;
+  if (at) {
+    dispatch({ type: 'show', opens, title });
+    return focus(at.id);
+  }
   dispatch({ type: 'open', opens, title, to: whereTo(root, from, how) });
 }
 
-/** An Empty tab's body: pick what it shows, from the same list as the tab bar's +. */
+/** An Empty tab's body: pick what it shows, the pages first, then the tab bar's + list. */
 function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
   return (
     <div className="m-auto flex flex-col items-center gap-3">
       <p className="text-sm text-muted">Open in this tab</p>
       <div className="flex w-60 flex-col gap-2">
-        {choices.map((k) => (
+        {[...pages, ...choices.filter((c) => c.kind !== 'tasks')].map((k) => (
           <Button key={k.kind} variant="soft" size="lg" className="justify-start" onClick={() => onPick(k.kind)}>
             {k.icon}
             {k.label}
@@ -152,9 +129,6 @@ function SplitButton({ onSplit, onClose }: { onSplit: (edge: Edge | 'four') => v
   );
 }
 
-/** The pane the person last clicked or focused in: Cmd+W closes its tab. */
-let lastPane: string | null = null;
-
 /** Cmd+W on a Mac, Ctrl+W elsewhere; in a terminal there Ctrl+W deletes a word, so it is Ctrl+Shift+W. */
 function isCloseChord(e: KeyboardEvent): boolean {
   if (e.key.toLowerCase() !== 'w' || e.altKey) return false;
@@ -172,28 +146,29 @@ function PaneView({
   pane,
   agent,
   dispatch,
-  canClose,
+  focused,
+  onFocus,
   lead,
 }: {
   root: Node;
   pane: Pane;
+  /** The agent the focused tab shows: the one a new tab's agent kind is for when this pane's own tab names none. */
   agent: string | null;
   dispatch: Dispatch;
-  canClose: boolean;
+  /** Whether this pane is the focused one; the others draw in the unfocused colours when there are several. */
+  focused: boolean;
+  onFocus: (pane: string) => void;
   lead?: ReactNode;
 }) {
-  const nameOf = useNamesHere(agent);
-  const here = useContext(Space);
   const bar = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
-  const [line, setLine] = useState<number | null>(null);
-  const [zone, setZone] = useState<Zone | null>(null);
   const { tab: current, cluster: there } = tabIn(pane.tabs.find((t) => t.id === pane.active));
-  // A tab of another agent's own (its terminal, its changes) names that agent; any other draws with this workspace's.
+  // An agent's tab (its chat, terminal, changes) names it; another tab draws with the agent of the focused one.
   const own = ownedBy(current?.opens ?? '');
   const shown = own?.kind ?? current?.opens;
-  const who = own?.agent ?? agent;
-  const closeShells = useCloseShells(agent);
+  const who = agentOf(current?.opens) ?? agent;
+  const nameOf = useNamesHere(who);
+  const closeShells = useCloseShells(who);
   const close = (ids: string[]) => {
     closeShells(pane.tabs.filter((t) => ids.includes(t.id)));
     ids.forEach((tab) => dispatch({ type: 'closeTab', pane: pane.id, tab }));
@@ -201,8 +176,8 @@ function PaneView({
   const openShell = useWrite('shell.open');
   /** Places what was picked, for `of` (a page's workspace asks which agent); a new Terminal first opens its shell, so the tab is made
    * with its handle. */
-  const pick = (kind: string, place: (opens: string) => void, of = agent) => {
-    const named = (k: string) => (of && of !== agent ? withAgent(k, of) : k);
+  const pick = (kind: string, place: (opens: string) => void, of = who) => {
+    const named = (k: string) => (of && agentKind(k) ? withAgent(k, of) : k);
     if (kind !== 'newshell') return place(named(kind));
     if (of)
       openShell
@@ -210,34 +185,41 @@ function PaneView({
         .then((r) => place(named(shellOf(r.terminal))))
         .catch((e: Error) => toast(`The terminal did not open: ${e.message}`, { tone: 'warning' }));
   };
-  // In a page's workspace an agent's kind asks which agent.
+  // With no agent on screen an agent's kind asks which agent.
   const agents = useAgents().data?.agents;
   const agentChoices = agents?.map((a) => ({ key: a.key, label: nameOf(a.key) }));
   // A tab, or a thing to open, dropped among the tabs or on the pane (its middle, or an edge to split there).
   const onBar = useDropTarget({
     accepts: isTabDrag,
-    onOver: (e) => bar.current && setLine(slotAt(e, bar.current).x),
-    onLeave: () => setLine(null),
+    onOver: (e) => {
+      if (!bar.current) return;
+      onFocus(pane.id);
+      showSlot(bar.current, slotAt(e, bar.current).x);
+    },
     onDrop: (e) =>
-      bar.current && dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent, dispatch, nameOf }, here),
+      bar.current &&
+      dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent: who, dispatch, nameOf, focus: onFocus }),
   });
   const onBody = useDropTarget({
     accepts: isTabDrag,
-    onOver: (e) => body.current && setZone(zoneAt(e, body.current)),
-    onLeave: () => setZone(null),
+    onOver: (e) => {
+      if (!body.current) return;
+      onFocus(pane.id); // the pane a tab is carried over is the one in focus
+      showZone(body.current, zoneAt(e, body.current));
+    },
     onDrop: (e) => {
       if (!body.current) return;
       const z = zoneAt(e, body.current);
-      dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent, dispatch, nameOf }, here);
+      dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent: who, dispatch, nameOf, focus: onFocus });
     },
   });
 
   return (
     <section
       data-pane={pane.id}
-      onPointerDownCapture={() => (lastPane = pane.id)}
-      onFocusCapture={() => (lastPane = pane.id)}
-      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      onPointerDownCapture={() => onFocus(pane.id)}
+      onFocusCapture={() => onFocus(pane.id)}
+      className={`flex min-h-0 min-w-0 flex-1 flex-col bg-bg text-fg ${focused || root.kind === 'pane' ? '' : 'unfocused'}`}
     >
       <div className="app-drag flex items-center border-b border-border bg-surface pr-2">
         {lead}
@@ -247,7 +229,9 @@ function PaneView({
               ...t,
               title: t.opens ? labelOf(t.opens, nameOf) : t.title,
               icon: iconOf(t.opens),
-              dot: t.id === pane.active ? null : dotOf(t.opens, agent),
+              dot: t.id === pane.active ? null : dotOf(t.opens, who),
+              // The screen's last Empty tab is what closing leaves: it has no close to offer.
+              closable: !(root.kind === 'pane' && pane.tabs.length === 1 && !t.opens),
             }))}
             active={pane.active}
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
@@ -255,40 +239,39 @@ function PaneView({
             onCloseTabs={close}
             newTabKinds={choices
               .filter((c) => BUILT.has(c.kind))
-              .flatMap((c) => (agent || !agentKind(c.kind) ? [c] : agentChoices ? [{ ...c, agents: agentChoices }] : []))}
-            onAdd={(kind, how, of) => pick(kind, (opens) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how), of ?? agent)}
-            onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { space: here.space, pane: pane.id, tab, tabs } })}
-          />
-          {line !== null && <InsertLine x={line} />}
-        </div>
-        {/* A page (Usage, Tasks) on its own has nothing to open beside it; an agent's workspace splits. */}
-        {agent && (
-          <SplitButton
-            onSplit={(edge) => dispatch({ type: 'split', pane: pane.id, edge })}
-            onClose={
-              canClose
-                ? () => {
-                    closeShells(pane.tabs);
-                    dispatch({ type: 'closePane', pane: pane.id });
-                  }
-                : undefined
+              .flatMap((c) => (who || !agentKind(c.kind) ? [c] : agentChoices ? [{ ...c, agents: agentChoices }] : []))}
+            onAdd={(kind, how, of) =>
+              pick(kind, (opens) => openFrom({ root, agent: who, dispatch, nameOf, focus: onFocus }, pane.id, opens, how), of ?? who)
             }
+            onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { pane: pane.id, tab, tabs } })}
           />
-        )}
+        </div>
+        <SplitButton
+          onSplit={(edge) => dispatch({ type: 'split', pane: pane.id, edge })}
+          onClose={
+            root.kind === 'split'
+              ? () => {
+                  closeShells(pane.tabs);
+                  dispatch({ type: 'closePane', pane: pane.id });
+                }
+              : undefined
+          }
+        />
       </div>
       <div ref={body} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
           <TabScope id={current?.id ?? null} cluster={there}>
-            <PaneOpen.Provider value={(opens, how) => openFrom({ root, agent, dispatch, nameOf }, pane.id, opens, how)}>
-              {current?.opens === 'chat' && agent && <Chat key={agent} agent={agent} />}
+            <PaneOpen.Provider
+              value={(opens, how) => openFrom({ root, agent: who, dispatch, nameOf, focus: onFocus }, pane.id, opens, how)}
+            >
               {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
               {shown === 'diff' && who && <Changes key={who} agent={who} />}
               {shown === 'shell' && who && <TerminalTab key={who} agent={who} />}
               {shellHandle(shown ?? '') && who && <ShellTab key={current!.id} agent={who} handle={shellHandle(shown!)!} />}
               {shown === 'markdown' && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} />}
-              {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={agent} />}
+              {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={who} />}
               {current?.opens?.startsWith('web:') && (
-                <WebTab key={current.id} tab={current.id} agent={agent} start={current.opens.slice(4)} />
+                <WebTab key={current.id} tab={current.id} agent={who} start={current.opens.slice(4)} />
               )}
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('plan:') && <PlanTab key={current.opens} id={Number(current.opens.slice(5))} />}
@@ -299,7 +282,7 @@ function PaneView({
               {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
               <PageTab opens={current?.opens} />
               {opened(current?.opens ?? '', 'ws') && <WorkspacePage key={current!.opens} ws={opened(current!.opens!, 'ws')!} />}
-              {current?.opens === 'tasks' && <TasksTab agent={agent ?? null} />}
+              {current?.opens === 'tasks' && <TasksTab agent={who ?? null} />}
             </PaneOpen.Provider>
           </TabScope>
         </Boundary>
@@ -310,7 +293,6 @@ function PaneView({
             }
           />
         )}
-        {zone && <ZoneHighlight zone={zone} />}
       </div>
     </section>
   );
@@ -345,17 +327,18 @@ function SplitView({ node, dispatch, children }: { node: Split; dispatch: Dispat
 export function Workspace({
   root,
   agent,
-  space,
-  moveTabs,
+  focus,
+  onFocus,
   dispatch,
   reopenClosed,
   lead,
 }: {
   root: Node;
+  /** The agent the focused tab shows, or null. */
   agent: string | null;
-  /** This workspace's key: the agent's, or `page/<kind>`. */
-  space: string;
-  moveTabs: MoveTabs;
+  /** The focused pane: Cmd+W closes its tab, the sidebar opens into it. */
+  focus: string;
+  onFocus: (pane: string) => void;
   dispatch: Dispatch;
   /** Opens the last closed tab again; a tab whose pane is gone goes to this pane. */
   reopenClosed: (pane: string) => void;
@@ -370,7 +353,8 @@ export function Workspace({
         pane={node}
         agent={agent}
         dispatch={dispatch}
-        canClose={root.kind === 'split' && !hasFixed(node)}
+        focused={node.id === focus}
+        onFocus={onFocus}
         lead={topLeft ? lead : undefined}
       />
     ) : (
@@ -382,14 +366,14 @@ export function Workspace({
   // Cmd+W (Ctrl+W elsewhere) closes the tab on screen in the pane last used, Cmd+Shift+T opens the last closed again; the desktop
   // shell's menu items send the same keys. The tab keys move through its tabs (layout/tabKeys).
   useTabKeys(
-    () => panes(root).find((x) => x.id === lastPane) ?? panes(root)[0],
+    () => panes(root).find((x) => x.id === focus) ?? panes(root)[0],
     (pane, tab) => dispatch({ type: 'select', pane, tab }),
   );
   useEffect(() => {
     const close = (e: KeyboardEvent) => {
       if (!isCloseChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return; // nothing closes behind a modal
       const all = panes(root);
-      const p = all.find((x) => x.id === lastPane) ?? all[0];
+      const p = all.find((x) => x.id === focus) ?? all[0];
       e.preventDefault();
       closeShells(p.tabs.filter((t) => t.id === p.active));
       dispatch({ type: 'closeTab', pane: p.id, tab: p.active });
@@ -397,7 +381,7 @@ export function Workspace({
     const reopen = (e: KeyboardEvent) => {
       if (!isReopenChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
       e.preventDefault();
-      reopenClosed(lastPane ?? panes(root)[0].id);
+      reopenClosed(focus);
     };
     addEventListener('keydown', reopen);
     addEventListener('keydown', close);
@@ -405,7 +389,7 @@ export function Workspace({
       removeEventListener('keydown', close);
       removeEventListener('keydown', reopen);
     };
-  }, [root, dispatch, closeShells, reopenClosed]);
+  }, [root, focus, dispatch, closeShells, reopenClosed]);
   // A drag region takes no drop: while a tab is dragged it steps aside, so a drop on the tab bar's free space still lands.
   useEffect(() => {
     const on = () => (document.body.dataset.dragging = '');
@@ -419,24 +403,24 @@ export function Workspace({
       removeEventListener('drop', off, true);
     };
   }, []);
-  // Opened from outside a pane (the sidebar): from the first pane.
-  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf }, panes(root)[0].id, opens, how)));
+  // Opened from outside a pane (the sidebar): from the focused pane.
+  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf, focus: onFocus }, focus, opens, how)));
   return (
-    <Space.Provider value={{ space, moveTabs }}>
-      <div className="flex min-h-0 min-w-0 flex-1">{render(root, true)}</div>
-    </Space.Provider>
+    <div {...{ [DROP_AREA]: '' }} className="flex min-h-0 min-w-0 flex-1">
+      {render(root, true)}
+    </div>
   );
 }
 
-/** Closes the shells of tabs being closed (a pinned tab never closes). */
+/** Closes the shells of tabs being closed. */
 function useCloseShells(agent: string | null) {
   const { mutate } = useWrite('shell.close', agent ?? undefined);
   return useCallback(
-    (tabs: { opens?: string; closable?: boolean }[]) => {
+    (tabs: { opens?: string }[]) => {
       for (const t of tabs) {
         // Another agent's shell (`shell:<handle>|<agent>`) closes by its own handle.
         const opens = t.opens ?? '';
-        const h = t.closable !== false && shellHandle(ownedBy(opens)?.kind ?? opens);
+        const h = shellHandle(ownedBy(opens)?.kind ?? opens);
         if (h) mutate({ terminal: h });
       }
     },

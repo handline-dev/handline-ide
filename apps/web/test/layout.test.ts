@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  closedBy,
-  findPane,
-  initial,
-  panes,
-  putTabs,
-  reduce,
-  reopen,
-  takeTabs,
-  type Action,
-  type Node,
-  type Pane,
-} from '#src/layout/tree.ts';
+import { closedBy, findPane, initial, panes, reduce, reopen, type Action, type Node, type Pane } from '#src/layout/tree.ts';
 
+/** A layout on a Chat tab, as a sidebar pick leaves it. */
+const initialChat = () => initial('chat', 'Chat');
 const run = (root: Node, ...actions: Action[]) => actions.reduce(reduce, root);
 const only = (root: Node) => root as Pane;
 const titles = (p: Pane | undefined) => p?.tabs.map((t) => t.title);
@@ -24,14 +14,22 @@ const open = (pane: string, title: string, index?: number): Action => ({
 });
 
 describe('layout tree', () => {
-  it('starts on one pane with a pinned Chat', () => {
-    const root = only(initial());
-    expect(titles(root)).toEqual(['Chat']);
-    expect(reduce(root, { type: 'closeTab', pane: root.id, tab: root.tabs[0].id })).toBe(root);
+  it('starts on an Empty tab; every tab closes, the last one leaving an Empty tab', () => {
+    expect(titles(only(initial()))).toEqual(['Empty']);
+    const root = only(initialChat());
+    expect(titles(only(reduce(root, { type: 'closeTab', pane: root.id, tab: root.tabs[0].id })))).toEqual(['Empty']);
+  });
+
+  it('navigates the shown tab in place, as a browser tab follows a link', () => {
+    const p = only(initialChat());
+    const root = only(run(p, open(p.id, 'Tasks'), { type: 'navigate', pane: p.id, opens: 'chat:a5', title: 'Chat' }));
+    expect(root.tabs.map((t) => t.opens)).toEqual(['chat', 'chat:a5']);
+    expect(root.active).toBe(root.tabs[1].id);
+    expect(root.tabs[1].id).not.toBe(only(run(p, open(p.id, 'Tasks'))).tabs[1].id);
   });
 
   it('splits a pane with an Empty one, which + or a drop replaces', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
     const [, right] = panes(root);
     expect(titles(right)).toEqual(['Empty']);
@@ -40,7 +38,7 @@ describe('layout tree', () => {
   });
 
   it('closing the last tab of a split-off pane closes the pane', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, { type: 'split', pane: p.id, edge: 'down' });
     const right = panes(root)[1];
     root = run(root, { type: 'closeTab', pane: right.id, tab: right.tabs[0].id });
@@ -48,7 +46,7 @@ describe('layout tree', () => {
   });
 
   it('a tab moved out gives its pane back to the tab shown before it, not its neighbour', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     const chat = p.tabs[0].id;
     let root = run(p, open(p.id, 'Task1'), { type: 'select', pane: p.id, tab: chat }, open(p.id, 'Task2'));
     const task2 = only(root).tabs[2].id;
@@ -60,7 +58,7 @@ describe('layout tree', () => {
   });
 
   it('opens at an index, and reorders within a bar', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, open(p.id, 'A'), open(p.id, 'B'), open(p.id, 'C', 1));
     expect(titles(only(root))).toEqual(['Chat', 'C', 'A', 'B']);
     const b = only(root).tabs[3];
@@ -69,7 +67,7 @@ describe('layout tree', () => {
   });
 
   it('merges a tab into another pane, closing the emptied source', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
     const right = panes(root)[1];
     root = run(root, open(right.id, 'Tasks'));
@@ -81,7 +79,7 @@ describe('layout tree', () => {
   });
 
   it('drops a tab at an edge: a new pane on that side', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, open(p.id, 'Tasks'));
     const tasks = only(root).tabs[1];
     root = run(root, { type: 'move', from: p.id, tab: tasks.id, to: { pane: p.id, edge: 'left' } });
@@ -90,7 +88,7 @@ describe('layout tree', () => {
   });
 
   it('moves several tabs together, in their bar order, showing the one named', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, open(p.id, 'A'), open(p.id, 'B'), open(p.id, 'C'), open(p.id, 'D'));
     const [, a, , c, d] = only(root).tabs;
     root = run(root, { type: 'move', from: p.id, tab: a.id, tabs: [d.id, a.id], to: { pane: p.id, index: 1 } });
@@ -109,7 +107,7 @@ describe('layout tree', () => {
   });
 
   it('moves a group into a bar with an Empty tab in one piece', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, open(p.id, 'A'), open(p.id, 'B'), { type: 'split', pane: p.id, edge: 'right' });
     const right = panes(root)[1];
     root = run(root, open(right.id, 'C'));
@@ -121,8 +119,8 @@ describe('layout tree', () => {
     expect(findPane(root, low.id)!.active).toBe(b.id);
   });
 
-  it('will not split a pane off itself with its only tab; a pinned tab moves like any other', () => {
-    const p = only(initial());
+  it('will not split a pane off itself with its only tab', () => {
+    const p = only(initialChat());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
     const right = panes(root)[1];
     root = run(root, open(right.id, 'Tasks'));
@@ -131,18 +129,17 @@ describe('layout tree', () => {
     expect(run(root, { type: 'move', from: right.id, tab: tasks.id, to: { pane: right.id, edge: 'down' } })).toBe(before);
     const moved = run(root, { type: 'move', from: p.id, tab: p.tabs[0].id, to: { pane: right.id } });
     expect(panes(moved).map(titles)).toEqual([['Tasks', 'Chat']]);
-    expect(findPane(moved, right.id)!.tabs[1].closable).toBe(false);
   });
 
   it('opens a dragged-in thing (a sidebar agent) at an edge', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     const root = run(p, { type: 'open', opens: 'agent', title: 'handline', to: { pane: p.id, edge: 'down' } });
     expect(root.kind === 'split' && root.axis).toBe('y');
     expect(panes(root).map(titles)).toEqual([['Chat'], ['handline']]);
   });
 
   it('clamps a resize', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
     root = run(root, { type: 'resize', split: root.id, ratio: 0.99 });
     expect(root.kind === 'split' && root.ratio).toBe(0.85);
@@ -167,7 +164,7 @@ describe('agent list', () => {
 
 describe('show', () => {
   it('selects an open tab of that kind anywhere, else opens it in the first pane', () => {
-    const p = only(initial());
+    const p = only(initialChat());
     let root = run(p, { type: 'split', pane: p.id, edge: 'right' });
     const right = panes(root)[1];
     root = run(root, open(right.id, 'Tasks'), { type: 'select', pane: right.id, tab: right.tabs[0].id });
@@ -253,17 +250,18 @@ describe('pins', () => {
   });
 });
 
-describe('fixed tab', () => {
-  it('keeps the pane that holds it open', () => {
-    const start = only(initial());
+describe('close pane', () => {
+  it('closes any pane of a split, never the last one', () => {
+    const start = only(initialChat());
     const split = reduce(start, { type: 'split', pane: start.id, edge: 'right' });
-    expect(reduce(split, { type: 'closePane', pane: start.id })).toBe(split);
+    expect(panes(reduce(split, { type: 'closePane', pane: start.id })).length).toBe(1);
+    expect(reduce(start, { type: 'closePane', pane: start.id })).toBe(start);
   });
 });
 
 describe('reopen closed', () => {
   const opened = () => {
-    let r = initial();
+    let r = initialChat();
     const p = panes(r)[0].id;
     r = reduce(r, { type: 'open', opens: 'task:1', title: 'T1', to: { pane: p } });
     r = reduce(r, { type: 'open', opens: 'task:2', title: 'T2', to: { pane: p } });
@@ -279,12 +277,9 @@ describe('reopen closed', () => {
     expect(opens(reopen(reduce(r, close), c, p.id))).toEqual([['chat', 'task:1', 'task:2']]);
   });
 
-  it('a fixed tab, a terminal or a refused close is not kept', () => {
+  it('a terminal or a refused close is not kept', () => {
     let r = opened();
     const p = panes(r)[0];
-    expect(
-      closedBy(r, reduce(r, { type: 'closeTab', pane: p.id, tab: p.tabs[0].id }), { type: 'closeTab', pane: p.id, tab: p.tabs[0].id }),
-    ).toBeNull();
     r = reduce(r, { type: 'open', opens: 'shell:abc', title: 'Terminal', to: { pane: p.id } });
     expect(
       closedBy(r, reduce(r, { type: 'closeTab', pane: p.id, tab: panes(r)[0].tabs[3].id }), {
@@ -297,7 +292,7 @@ describe('reopen closed', () => {
   });
 
   it('a closed pane brings all its tabs back into the fallback pane; one already open is only shown', () => {
-    let r = initial();
+    let r = initialChat();
     const first = panes(r)[0].id;
     r = reduce(r, { type: 'open', opens: 'task:1', title: 'T1', to: { pane: first, edge: 'right' } });
     const side = panes(r)[1];
@@ -310,42 +305,38 @@ describe('reopen closed', () => {
     const back = reopen(after, c, first);
     expect(opens(back)).toEqual([['chat', 'task:2', 'task:1']]);
   });
-
-  it('moves a tab to another workspace: out of its pane, pinned tabs staying, into the other one, not twice', () => {
-    const a = only(initial());
-    const from = run(a, open(a.id, 'Tasks'), open(a.id, 'Diff'));
-    const tasks = only(from).tabs[1];
-    const pinned = only(from).tabs[0];
-    const taken = takeTabs(from, a.id, [tasks.id, pinned.id]);
-    expect(taken.tabs.map((t) => t.title)).toEqual(['Tasks']);
-    expect(titles(only(taken.root))).toEqual(['Chat', 'Diff']);
-
-    const b = only(initial());
-    const to = only(putTabs(b, taken.tabs, tasks.id));
-    expect(titles(to)).toEqual(['Chat', 'Tasks']);
-    expect(to.active).toBe(tasks.id);
-    // Already open there: its own tab comes up, no second one.
-    const again = only(putTabs(to, [{ ...tasks, id: 'other' }], 'other'));
-    expect(titles(again)).toEqual(['Chat', 'Tasks']);
-  });
-
-  it('a lone moved tab leaves an Empty tab in the last pane', () => {
-    const solo: Pane = { kind: 'pane', id: 'p', tabs: [{ id: 't', title: 'Tasks', opens: 'tasks' }], active: 't' };
-    expect(titles(only(takeTabs(solo, 'p', ['t']).root))).toEqual(['Empty']);
-  });
 });
 
-describe("an agent's own tab outside its workspace", () => {
-  it('carries the agent when it leaves, and drops it back home', async () => {
-    const { carry, canonical, ownedBy, labelOf } = await import('#src/layout/kinds.tsx');
+describe("an agent's own tab", () => {
+  it('carries the agent', async () => {
+    const { carry, ownedBy, labelOf } = await import('#src/layout/kinds.tsx');
     expect(carry('shell', 'a5')).toBe('shell|a5');
     expect(carry('tasks', 'a5')).toBe('tasks');
     expect(ownedBy('shell:t3|a5')).toEqual({ kind: 'shell:t3', agent: 'a5' });
     expect(ownedBy('web:https://x@y.z')).toBeNull();
     expect(ownedBy('file:node_modules/@types/x.md')).toBeNull();
     expect(carry('file:node_modules/@types/x.md', 'a5')).toBe('file:node_modules/@types/x.md|a5');
-    expect(canonical('shell|a5', 'a5')).toBe('shell');
-    expect(canonical('shell|a5', null)).toBe('shell|a5');
     expect(labelOf('shell|a5', () => 'town')).toBe('Agent terminal · town');
   });
+});
+
+describe('the agent a tab shows', () => {
+  it('reads it from a chat or an agent kind, with its cluster', async () => {
+    const { agentOf } = await import('#src/layout/screenLayout.ts');
+    expect(agentOf('chat:a5')).toBe('a5');
+    expect(agentOf('shell|a5')).toBe('a5');
+    expect(agentOf('@c1/chat:a5')).toBe('@c1/a5');
+    expect(agentOf('tasks')).toBeNull();
+    expect(agentOf(undefined)).toBeNull();
+  });
+});
+
+it('dropTabs leaves out closed tabs, so Back does not bring them back; a pane left empty goes', async () => {
+  const { dropTabs, pane, panes } = await import('#src/layout/tree.ts');
+  const a = { id: 'a', title: 'A', opens: 'chat:x' };
+  const b = { id: 'b', title: 'B', opens: 'shell:1|x' };
+  const c = { id: 'c', title: 'C', opens: 'tasks' };
+  const root = { kind: 'split' as const, id: 's', axis: 'x' as const, ratio: 0.5, a: pane([a, b]), b: pane([c]) };
+  const after = dropTabs(root, new Set(['b', 'c']));
+  expect(panes(after).flatMap((p) => p.tabs.map((t) => t.id))).toEqual(['a']);
 });

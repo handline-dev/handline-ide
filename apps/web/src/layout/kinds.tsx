@@ -42,17 +42,11 @@ const kinds: Record<string, { label: string; icon: ReactNode }> = {
   help: tab('Help', CircleHelp),
 };
 
-/** Another agent's chat, dragged in from the sidebar, opens `chat:<name>`. */
+/** An agent's chat: `chat:<name>`. */
 export const chatOf = (name: string) => `chat:${name}`;
-/** In an agent's own workspace its chat is the pinned Chat tab, so `chat:<itself>` means `chat`. */
-export const canonical = (opens: string, agent: string | null) => {
-  if (agent && opens === chatOf(agent)) return 'chat';
-  const own = ownedBy(opens);
-  return agent && own?.agent === agent ? own.kind : opens;
-};
 
-/** Kinds that show one agent's thing (its terminal, a shell of its, its changes, its files). Outside that agent's workspace they carry
- * the agent: `<kind>|<agent>`, as a chat carries it in `chat:<agent>`. */
+/** Kinds that show one agent's thing (its terminal, a shell of its, its changes, its files). Their tabs carry the agent:
+ * `<kind>|<agent>`, as a chat carries it in `chat:<agent>`. */
 export const agentKind = (kind: string) => ['shell', 'newshell', 'diff', 'markdown'].includes(kind) || /^(shell|file):/.test(kind);
 export const withAgent = (kind: string, agent: string) => `${kind}|${agent}`;
 export const ownedBy = (opens: string) => {
@@ -61,7 +55,7 @@ export const ownedBy = (opens: string) => {
   const agent = opens.slice(i + 1);
   return i > 0 && /^[\w.-]+$/.test(agent) && agentKind(opens.slice(0, i)) ? { kind: opens.slice(0, i), agent } : null;
 };
-/** A tab leaving `from`'s workspace keeps naming its agent. */
+/** `opens` naming agent `from` when it is one of an agent's kinds that does not yet. */
 export const carry = (opens: string, from: string | null) => (from && agentKind(opens) && !ownedBy(opens) ? withAgent(opens, from) : opens);
 const chatName = (kind: string) => (kind.startsWith('chat:') ? kind.slice(5) : null);
 
