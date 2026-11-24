@@ -3,6 +3,7 @@ package tick
 import (
 	"cmp"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -41,6 +42,8 @@ type Tick struct {
 	Memory    Memory // nil: no cap on the agents' memory
 	// OffMachine is the machine agent's session runs on when its person set it to Off, "" otherwise (or nil: every agent runs here).
 	OffMachine func(agent string) string
+	// View stores an agent's view at once, after SuperviseNow; nil leaves it to the next agent-view pass.
+	View func(agent string)
 
 	said, saidClose map[string]string
 	memOver         bool // this tick's reading of the agents' memory is over the cap and not yet acted on
@@ -562,6 +565,23 @@ func (t *Tick) Sweep() {
 	t.init()
 	var actions []string
 	t.Reconcile.Sweep(t.Q, &actions)
+}
+
+// SuperviseNow is the turns of those of the agents the tick supervises, between ticks, on the last tick's readings.
+func (t *Tick) SuperviseNow(agents []string) {
+	now := t.Now()
+	var actions []string
+	for _, agent := range t.Host.Agents() {
+		if !slices.Contains(agents, agent) {
+			continue
+		}
+		if err := guard(func() { t.Supervise(agent, now, &actions) }); err != nil {
+			t.Reconcile.StallAgent(t.Q, agent, &actions, err, "error")
+		}
+		if t.View != nil {
+			t.View(agent)
+		}
+	}
 }
 
 // guarded runs one of the tick's passes: its failure is logged under its name and is not the tick's failure.

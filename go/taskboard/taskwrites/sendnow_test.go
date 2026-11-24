@@ -36,7 +36,8 @@ func TestSendNowLetsOneTaskThePauseHoldsGoFirst(t *testing.T) {
 	}
 	s := rpc.NewServer(auth{""}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 	s.DB = db
-	Register(s, home, &fakeTeller{}, nil)
+	tell := &fakeTeller{}
+	Register(s, home, tell, nil)
 	n := 0
 	send := func(task int) map[string]any {
 		n++
@@ -77,6 +78,9 @@ func TestSendNowLetsOneTaskThePauseHoldsGoFirst(t *testing.T) {
 	db.QueryRow(keyed(db, "SELECT queue_order FROM requests WHERE id = 20")).Scan(&o20)
 	if passed != 1 || sendNow != 1 || o20 >= o10 {
 		t.Fatalf("passed %d, send_now %d, order %v before %v", passed, sendNow, o20, o10)
+	}
+	if !slices.Equal(tell.passed, []string{"w"}) { // only the send that let a task go: its agent takes it now
+		t.Fatalf("PassedPause: %v", tell.passed)
 	}
 	if held, _ := hdb.PauseHeldTasks(db, "w", time.Now()); !slices.Equal(held, []int64{1}) {
 		t.Fatalf("still held: %v", held)

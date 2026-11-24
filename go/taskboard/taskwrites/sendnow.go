@@ -12,13 +12,25 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// sendNow is task.send_now: while new work is paused, one task the pause holds (db.PauseHeldTasks) goes to its agent as one the founder
-// sent. Its delivery passes the pause (db.PausePassed), goes to the front of the queue and is told at the next tick; the rest stay held.
-func sendNow(c *rpc.Conn, p map[string]any) (any, error) {
-	tid, err := taskID(p)
-	if err != nil {
-		return nil, err
+// sendNowMethod is task.send_now: while new work is paused, one task the pause holds (db.PauseHeldTasks) goes to its agent as one the
+// founder sent. Its delivery passes the pause (db.PausePassed) and goes to the front of the queue, and the agent takes it now (tell's
+// PassedPause); the rest stay held.
+func sendNowMethod(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
+	return func(c *rpc.Conn, p map[string]any) (any, error) {
+		tid, err := taskID(p)
+		if err != nil {
+			return nil, err
+		}
+		var owner string
+		res, err := sendNow(c, tid, &owner)
+		if err == nil && owner != "" && tell != nil {
+			tell.PassedPause(owner)
+		}
+		return res, err
 	}
+}
+
+func sendNow(c *rpc.Conn, tid int64, owner *string) (map[string]any, error) {
 	return c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		t, err := db.GetTask(tx, tid)
 		if err != nil {
@@ -57,6 +69,7 @@ func sendNow(c *rpc.Conn, p map[string]any) (any, error) {
 		if err := addEvent(tx, t.Owner, db.PausePassed, kv{"request_id", r.ID}, kv{"task_id", tid}); err != nil {
 			return nil, err
 		}
+		*owner = t.Owner
 		return accepted(fmt.Sprintf("T%d goes to %s now; the pause holds the rest", tid, addr.Ref(t.Owner)), nil), nil
 	})
 }

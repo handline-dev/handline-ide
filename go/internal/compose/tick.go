@@ -149,6 +149,7 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 	if cfg.AgentsMemory != nil {
 		t.Memory = &tickMemory{m: lc.Manager, home: home, read: cfg.AgentsMemory}
 	}
+	t.View = view.RefreshOne
 	t.Passes = append(p.passes(cfg, t), agentViewPass(view))
 	if tc.Terminals {
 		strays := &dangling.Sweep{Q: q, Home: home, Ports: danglingPorts{p: p}, Log: cfg.Log}
@@ -158,7 +159,7 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 	dev.Exe, _ = os.Executable()
 	dev.Baseline()
 	fds := &housekeeping.FDs{Log: logLine}
-	loop := &tick.Loop{Tick: t, Log: logLine, Stop: tc.Stop, Why: tc.Why, Dev: dev, Wake: wake, Housekeeping: []tick.NamedSweep{
+	loop := &tick.Loop{Tick: t, Log: logLine, Stop: tc.Stop, Why: tc.Why, Dev: dev, Wake: wake, Act: p.acts, Housekeeping: []tick.NamedSweep{
 		{Name: "fd check", Run: func(db.Q, int64) error { fds.Check(); return nil }},
 		{Name: "log rotation", Run: func(db.Q, int64) error { return housekeeping.RotateLogs(home) }},
 		{Name: "attachment sweep", Run: func(q db.Q, _ int64) error { return attachments.New(home).Sweep(q) }},

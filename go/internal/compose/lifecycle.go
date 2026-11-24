@@ -204,6 +204,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	}
 	lc.Env.LoadHeld = forWork
 	lc.Env.Paused = gate.Paused
+	lc.Env.ActNow = p.ActNow
 	desks := &worktreepool.Pool{DB: q, Setup: spawns.Prepare, Now: cfg.Now,
 		Running: func(repo, desk string) bool { return worktreelock.Held(repo, desk, worktreelock.Running) != "" },
 		Base: func(repo, branch string) (string, string, error) {

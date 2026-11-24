@@ -10,9 +10,10 @@ import (
 	"github.com/handline/handline/go/scheduler/pause"
 )
 
-// Register adds daemon.pause and daemon.resume. changed runs after each one that changed the pause: the daemon tells the status topic.
+// Register adds daemon.pause and daemon.resume. changed runs after each one that changed the pause, lifted when it ended it: the daemon
+// tells the status topic, and has the work a lifted pause held go on at once.
 // now is the clock; nil is time.Now.
-func Register(s *rpc.Server, now func() time.Time, changed func()) {
+func Register(s *rpc.Server, now func() time.Time, changed func(lifted bool)) {
 	if now == nil {
 		now = time.Now
 	}
@@ -40,7 +41,7 @@ func Register(s *rpc.Server, now func() time.Time, changed func()) {
 			return map[string]any{"accepted": true, "said": said}, nil
 		})
 		if err == nil && changed != nil {
-			changed()
+			changed(false)
 		}
 		return res, err
 	}})
@@ -60,7 +61,7 @@ func Register(s *rpc.Server, now func() time.Time, changed func()) {
 			return map[string]any{"accepted": true, "said": "New work goes on."}, nil
 		})
 		if err == nil && was && changed != nil {
-			changed()
+			changed(true)
 		}
 		return res, err
 	}})
