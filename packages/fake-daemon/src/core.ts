@@ -159,7 +159,15 @@ export function coreCall(
             : kept
               ? [own.id, `${HEAVY}; no lent device can take it, so it stays here`]
               : [own.id, ''];
-        return { agent: key, device, why, heavy_s: placed || kept ? 3 * 3600 : 0, memory_peak: 2 ** 30, ...(pin ? { pin } : {}) };
+        return {
+          agent: key,
+          device,
+          why,
+          heavy: !!(placed || kept),
+          heavy_s: placed || kept ? 3 * 3600 : 0,
+          memory_peak: 2 ** 30,
+          ...(pin ? { pin } : {}),
+        };
       });
       return {
         master: { id: own.id, number: 1 },

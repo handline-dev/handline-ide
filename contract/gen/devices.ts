@@ -179,6 +179,8 @@ export interface DevicesMethods {
         device: string;
         /** Why it is placed so, in words a person reads ("heavy: check.sh 18 h this week", "heavy: ...; Studio needs pencil, so it stays here", "pinned to Studio"); "" for a light agent on the master's machine. */
         why: string;
+        /** Heavy by its last 7 days (over 2 h of heavy commands or a 6 GB peak): placed on the lent device with the most room. */
+        heavy: boolean;
         /** Seconds its heavy commands ran in its last 7 days. */
         heavy_s: number;
         /** The most bytes its processes held in one minute in its last 7 days. */

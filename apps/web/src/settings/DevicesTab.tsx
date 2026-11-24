@@ -341,7 +341,7 @@ export function DevicesTab({ open: start }: { open?: string }) {
           {showOld && list(old)}
         </div>
       )}
-      <AgentPlacement />
+      <AgentPlacement rows={q.rows} />
       <AllDevices q={q} />
     </SettingsPage>
   );

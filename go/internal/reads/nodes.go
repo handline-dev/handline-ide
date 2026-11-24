@@ -94,7 +94,7 @@ func (e *Env) nodeStatus(_ *rpc.Conn, _ map[string]any) (any, error) {
 		for _, a := range e.listAgents() {
 			pl, err := e.NodePlacement(a)
 			if err != nil { // one agent's row says it, and the others still show
-				pl = map[string]any{"agent": a, "device": self, "why": "where it starts could not be read: " + err.Error(), "heavy_s": 0, "memory_peak": 0}
+				pl = map[string]any{"agent": a, "device": self, "why": "where it starts could not be read: " + err.Error(), "heavy": false, "heavy_s": 0, "memory_peak": 0}
 			}
 			agents = append(agents, pl)
 		}
