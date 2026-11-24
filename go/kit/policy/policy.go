@@ -18,6 +18,8 @@ const (
 	ReadSayShown = 7 * 24 * time.Hour
 	// HookKeep is how long a recorded hook event is kept.
 	HookKeep = 24 * time.Hour
+	// HeavyKeep is how long a heavy command run is kept: the week an agent's load is read over.
+	HeavyKeep = 7 * 24 * time.Hour
 	// CreateOperationKeep is how long a finished agent.create operation is kept.
 	CreateOperationKeep = 7 * 24 * time.Hour
 	// UploadOpen is how long an upload may stay open before it is dropped.

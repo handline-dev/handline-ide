@@ -73,23 +73,32 @@ func FooterCount(text string) int {
 }
 
 func ended(output string) bool {
+	_, ok := endedAt(output)
+	return ok
+}
+
+// endedAt is when a background job's output was last written, epoch seconds, once it ends with the exit line; ok false before.
+func endedAt(output string) (int64, bool) {
 	if output == "" {
-		return false
+		return 0, false
 	}
 	f, err := os.Open(output)
 	if err != nil {
-		return false
+		return 0, false
 	}
 	defer f.Close()
-	end, err := f.Seek(0, io.SeekEnd)
+	info, err := f.Stat()
 	if err != nil {
-		return false
+		return 0, false
 	}
-	if _, err := f.Seek(max(0, end-200), io.SeekStart); err != nil {
-		return false
+	if _, err := f.Seek(max(0, info.Size()-200), io.SeekStart); err != nil {
+		return 0, false
 	}
 	b, err := io.ReadAll(f)
-	return err == nil && strings.Contains(strings.ToValidUTF8(string(b), "\ufffd"), exitMark)
+	if err != nil || !strings.Contains(strings.ToValidUTF8(string(b), "\ufffd"), exitMark) {
+		return 0, false
+	}
+	return info.ModTime().Unix(), true
 }
 
 // BgJob is a recorded background command.

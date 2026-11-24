@@ -10,7 +10,7 @@ func TestThePolicyValuesArePinned(t *testing.T) {
 	const day = 24 * time.Hour
 	for name, c := range map[string][2]time.Duration{
 		"StreamKeep": {StreamKeep, 7 * day}, "ReplyKeep": {ReplyKeep, day}, "GateDeadline": {GateDeadline, day},
-		"ProposalSettledShown": {ProposalSettledShown, 7 * day}, "ReadSayShown": {ReadSayShown, 7 * day}, "HookKeep": {HookKeep, day},
+		"ProposalSettledShown": {ProposalSettledShown, 7 * day}, "ReadSayShown": {ReadSayShown, 7 * day}, "HookKeep": {HookKeep, day}, "HeavyKeep": {HeavyKeep, 7 * day},
 		"CreateOperationKeep": {CreateOperationKeep, 7 * day}, "UploadOpen": {UploadOpen, time.Hour},
 		"ImageUnsent": {ImageUnsent, day}, "ImageKept": {ImageKept, 30 * day},
 	} {

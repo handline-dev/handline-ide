@@ -406,3 +406,27 @@ func TestAToolCallIsHeardWithoutAnEvent(t *testing.T) {
 		t.Fatalf("%d events from tool calls", n)
 	}
 }
+
+func TestAHeavyBashCallIsKeptByItsShapeAndAWeekOldOneGoes(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	post := func(rid string, heavy map[string]any, at int64) {
+		t.Helper()
+		raw := map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "tools/check.sh"}}
+		if heavy != nil {
+			raw[Heavy] = heavy
+		}
+		if err := Apply(h.DB, h.Home, "w", "PostToolUse", raw, rid, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	post("old", map[string]any{"shape": "check.sh", "seconds": json.Number("600")}, now-8*24*3600)
+	post("light", nil, now-20)
+	post("heavy", map[string]any{"shape": "check.sh", "seconds": json.Number("1200")}, now-10)
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM heavy_runs WHERE agent = 'w' AND shape = 'check.sh' AND seconds = 1200 AND ended = ?", now-10); n != 1 {
+		t.Errorf("%d heavy runs kept", n)
+	}
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM heavy_runs"); n != 1 {
+		t.Errorf("%d rows: the week-old one stayed or the light one was kept", n)
+	}
+}
