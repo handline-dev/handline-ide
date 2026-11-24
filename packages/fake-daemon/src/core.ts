@@ -133,18 +133,37 @@ export function coreCall(
         battery: null,
         version: MASTER_VERSION,
       };
+      const nodes: Record<string, unknown>[] = [mine, ...d.admin.lentNodes(at)];
+      const nameOf = (id: string) => String(nodes.find((n) => n.id === id)?.name ?? id);
+      const lackOn = (node: Record<string, unknown>, key: string) =>
+        ((node.lacks ?? []) as { agent: string; why: string }[]).find((l) => l.agent === key)?.why;
+      const HEAVY = 'heavy: checks 3 h this week';
       const manual = d.admin.settings().values.agent_placement === 'manual';
+      // As the daemon places them: a pin on manual when its device can take the agent; a heavy agent on the lent machine it was seeded
+      // on; one a lent machine lacks something for (the seed's "needs pencil", taken as heavy) here, saying why.
       const agents = [...d.sessions.values()].map((s) => {
-        const { key, name } = view(s, d.tasks);
+        const { key } = view(s, d.tasks);
         const pin = s.settings.device ?? '';
         const placed = d.admin.placed.get(key);
-        const device = manual && pin ? pin : (placed ?? own.id);
-        const why = manual && pin ? `pinned to ${pin}` : placed ? 'heavy: check.sh 3 h this week' : '';
-        return { agent: name, device, why, heavy_s: placed ? 3 * 3600 : 0, memory_peak: 2 ** 30, ...(pin ? { pin } : {}) };
+        const kept = nodes.find((n) => !n.self && lackOn(n, key)?.startsWith('needs'));
+        const pinned = manual && pin ? nodes.find((n) => n.id === pin) : undefined;
+        const pinLack = pinned && lackOn(pinned, key);
+        const [device, why] = pinned
+          ? pinned.self
+            ? [own.id, '']
+            : pinLack
+              ? [own.id, `pinned to ${nameOf(pin)}, which cannot take it now (${pinLack}), so it starts here`]
+              : [pin, `pinned to ${nameOf(pin)}`]
+          : placed
+            ? [placed, HEAVY]
+            : kept
+              ? [own.id, `${HEAVY}; ${String(kept.name)} ${lackOn(kept, key)}, so it stays here`]
+              : [own.id, ''];
+        return { agent: key, device, why, heavy_s: placed || kept ? 3 * 3600 : 0, memory_peak: 2 ** 30, ...(pin ? { pin } : {}) };
       });
       return {
         master: { id: own.id, number: 1 },
-        nodes: [mine, ...d.admin.lentNodes(at)],
+        nodes,
         cluster: d.admin.cluster(at),
         placement: { mode: manual ? 'manual' : 'auto', agents },
       };

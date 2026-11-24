@@ -943,7 +943,7 @@
           "properties": {
            "agent": {
             "type": "string",
-            "description": "The agent's name."
+            "description": "The agent's key, as agent.set takes it."
            },
            "device": {
             "type": "string",

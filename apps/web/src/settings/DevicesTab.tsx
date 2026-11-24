@@ -1,6 +1,6 @@
 import { count } from '#src/format/count.ts';
-// Settings > Devices: every device in one flat list, the master first; a row opens its page. At the foot, the battery switch, Auto or
-// Manual for a lent Mac taking the master's build, and the reclaim time.
+// Settings > Devices: every device in one flat list, the master first; a row opens its page. Under it, where agents run; at the foot, the
+// battery switch, Auto or Manual for a lent Mac taking the master's build, and the reclaim time.
 import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
 import {
@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { AgentPlacement } from '#src/settings/AgentPlacement.tsx';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
   KIND_ICON,
@@ -340,6 +341,7 @@ export function DevicesTab({ open: start }: { open?: string }) {
           {showOld && list(old)}
         </div>
       )}
+      <AgentPlacement />
       <AllDevices q={q} />
     </SettingsPage>
   );
