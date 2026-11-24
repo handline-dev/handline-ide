@@ -13,6 +13,7 @@ export function Floater({ title, sub, children }: { title: string; sub?: string;
   const most = () => Math.max(LEAST, window.innerWidth - 160);
   return (
     <aside
+      data-no-walk
       style={{ width }}
       className="absolute top-3 right-3 bottom-3 z-10 flex flex-col overflow-hidden rounded-lg border border-border bg-bg text-sm shadow-xl"
     >

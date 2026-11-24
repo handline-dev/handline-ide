@@ -32,8 +32,8 @@ export type Box = { x: number; y: number; w: number; h: number };
 export type Spot = Box & { person: Person; at: [number, number] };
 /** A person's name, centred on x with its top at y. */
 export type Name = { person: Person; x: number; y: number };
-/** A person drawn: its cell of the sheet (`col`, `row`) in `box`, and the room's nearer pixels to lay over it, as an image in `front`. */
-/** `z`: how far into the room it stands, so the founder walks in front of or behind it. */
+/** A person drawn: its cell of the sheet (`col`, `row`) in `box`, the room's nearer pixels to lay over it as an image in `front`, and how
+ *  far into the room it is (`z`), so the founder walks in front of or behind it. */
 export type Figure = { person: Person; col: number; row: number; box: Box; z: number; front?: { url: string } & Box };
 /** `mine`: the founder's desk, with where its name goes. */
 export type Cast = {
@@ -74,8 +74,8 @@ function boxOf(pic: Picture, frame: Frame, tag: string): Box | null {
   return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
 }
 
-/** The room's pixels inside `box` that `covers` picks, as a small image; none when nothing is picked. */
-export function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean): Figure['front'] {
+/** The room's pixels inside `box` that `covers` picks, with where they start; none when nothing is picked. */
+export function frontPixels(pic: Picture, box: Box, covers: (i: number) => boolean): { img: ImageData; x: number; y: number } | undefined {
   const [x0, y0] = [Math.max(0, Math.floor(box.x)), Math.max(0, Math.floor(box.y))];
   const [x1, y1] = [Math.min(pic.w, Math.ceil(box.x + box.w)), Math.min(pic.h, Math.ceil(box.y + box.h))];
   if (x1 <= x0 || y1 <= y0) return undefined;
@@ -89,11 +89,17 @@ export function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean):
       any = true;
     }
   }
-  if (!any) return undefined;
+  return any ? { img, x: x0, y: y0 } : undefined;
+}
+
+/** The same pixels as a small image, for a person who sits still. */
+function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean): Figure['front'] {
+  const px = frontPixels(pic, box, covers);
+  if (!px) return undefined;
   const canvas = document.createElement('canvas');
-  [canvas.width, canvas.height] = [img.width, img.height];
-  canvas.getContext('2d')?.putImageData(img, 0, 0);
-  return { url: canvas.toDataURL(), x: x0, y: y0, w: img.width, h: img.height };
+  [canvas.width, canvas.height] = [px.img.width, px.img.height];
+  canvas.getContext('2d')?.putImageData(px.img, 0, 0);
+  return { url: canvas.toDataURL(), x: px.x, y: px.y, w: px.img.width, h: px.img.height };
 }
 
 /** Where every placed person is drawn, back to front, and where each is for clicks and names; door shadows go into the picture. */

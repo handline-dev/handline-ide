@@ -10,8 +10,8 @@ export type Thing = { model: string; x: number; z: number; y?: number; rot?: num
 export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'glass' | 'frame' | 'sill' | 'door' | 'baseboard' | 'paper';
 /** A plain box: its two corners and what it is; boxes of one `part` are one object, outlined only around the whole. */
 export type Block = { from: [number, number, number]; to: [number, number, number]; kind: Kind; part?: string; tag?: string };
-/** Where a person is: on a desk chair (its tag), on a sofa, or standing; (x, z) on the floor. */
-/** `door`: standing, as one starting does inside the door (and the HQ's people do). */
+/** Where a person is: on a desk chair (its tag), on a sofa, or standing (`door`, as one starting does inside the door, and the HQ's
+ *  people do); (x, z) on the floor. */
 export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
 /** `entry`: where the founder comes in, inside the door. */
 export type Room = {

@@ -91,22 +91,19 @@ export function TownTab() {
   const H = city.h * T;
   // The founder starts in the city at the HQ's door, and comes back out of a house at its own.
   const [left, setLeft] = useState<string>(HQ);
-  // Laid out again only when the buildings move, not on each render.
-  const plan = `${city.w}x${city.h} ${city.lots.map((l) => `${l.key}:${l.x}:${l.y}:${l.w}:${l.h}`).join(' ')}`;
   const walk = useMemo(
     () =>
       cityWalk(
         city,
         city.lots.find((l) => l.key === left),
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `plan` is all of the city the walk depends on
-    [plan, left],
+    [city, left],
   );
   const enter = (key: string) => {
     setLeft(key);
     setPicked(key);
   };
-  const { me, go } = useWalker(house ? null : walk, 'city', (at, [, dy]) => {
+  const founder = useWalker(house ? null : walk, 'city', (at, [, dy]) => {
     const lot = dy < 0 ? lotAbove(city, at) : undefined;
     if (lot) enter(lot.key);
   });
@@ -115,6 +112,7 @@ export function TownTab() {
     <div className="relative flex min-h-0 min-w-0 flex-1 bg-bg">
       {house ? (
         <Inside
+          key={house.key}
           house={house}
           onBack={() => {
             setPicked(null);
@@ -143,7 +141,7 @@ export function TownTab() {
                     const m = e.currentTarget.ownerSVGElement?.getScreenCTM()?.inverse();
                     if (!m) return;
                     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
-                    go([p.x / T, p.y / T]);
+                    founder.go([p.x / T, p.y / T]);
                   }}
                 />
               )}
@@ -160,11 +158,11 @@ export function TownTab() {
                     waiting={h ? h.people.filter((p) => p.activity === 'you').length : 0}
                     more={h ? Math.max(0, h.people.length - seatsOf(lot.w)) : 0}
                     picked={picked === lot.key}
-                    onPick={() => go(doorOf(lot), () => enter(lot.key))}
+                    onPick={() => founder.go(doorOf(lot), () => enter(lot.key))}
                   />
                 );
               })}
-              {me && <CityFounder me={me} tile={T} tall={CITY_TALL} stride={walk.stride} />}
+              <CityFounder founder={founder} tile={T} tall={CITY_TALL} stride={walk.stride} />
             </svg>
           </div>
           <Legend windows={art?.windows} />

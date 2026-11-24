@@ -59,6 +59,57 @@ function clear(f: Floor, a: Spot, b: Spot): boolean {
   return true;
 }
 
+const STEPS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+] as const;
+
+/** A binary min-heap of cells by their guessed cost. */
+function heap() {
+  const ids: number[] = [];
+  const keys: number[] = [];
+  const swap = (a: number, b: number) => {
+    [ids[a], ids[b]] = [ids[b], ids[a]];
+    [keys[a], keys[b]] = [keys[b], keys[a]];
+  };
+  return {
+    size: () => ids.length,
+    push: (id: number, key: number) => {
+      ids.push(id);
+      keys.push(key);
+      for (let i = ids.length - 1; i > 0;) {
+        const up = (i - 1) >> 1;
+        if (keys[up] <= keys[i]) break;
+        swap(i, up);
+        i = up;
+      }
+    },
+    pop: (): number => {
+      const top = ids[0];
+      const last = ids.length - 1;
+      swap(0, last);
+      ids.pop();
+      keys.pop();
+      for (let i = 0; ;) {
+        const [l, r] = [2 * i + 1, 2 * i + 2];
+        let m = i;
+        if (l < ids.length && keys[l] < keys[m]) m = l;
+        if (r < ids.length && keys[r] < keys[m]) m = r;
+        if (m === i) break;
+        swap(i, m);
+        i = m;
+      }
+      return top;
+    },
+  };
+}
+
 /** The turns of the shortest walk from `from` to `to` (A* over the cells, then cut to the corners it cannot see past); null when none. */
 export function pathTo(f: Floor, from: Spot, to: Spot): Spot[] | null {
   const goal = nearestFree(f, to);
@@ -68,36 +119,29 @@ export function pathTo(f: Floor, from: Spot, to: Spot): Spot[] | null {
   const n = f.cols * f.rows;
   const cost = new Float32Array(n).fill(Infinity);
   const prev = new Int32Array(n).fill(-1);
-  const open: number[] = [sr * f.cols + sc];
-  cost[open[0]] = 0;
-  const guess = (i: number) => cost[i] + Math.hypot((i % f.cols) - gc, Math.floor(i / f.cols) - gr);
+  const done = new Uint8Array(n);
   const target = gr * f.cols + gc;
-  while (open.length) {
-    let k = 0;
-    for (let j = 1; j < open.length; j++) if (guess(open[j]) < guess(open[k])) k = j;
-    const i = open.splice(k, 1)[0];
+  const guess = (i: number) => cost[i] + Math.hypot((i % f.cols) - gc, Math.floor(i / f.cols) - gr);
+  const open = heap();
+  cost[sr * f.cols + sc] = 0;
+  open.push(sr * f.cols + sc, guess(sr * f.cols + sc));
+  while (open.size()) {
+    const i = open.pop();
+    if (done[i]) continue; // a cell is pushed again when a cheaper way to it turns up; the older entry is stale
+    done[i] = 1;
     if (i === target) break;
     const [c, r] = [i % f.cols, Math.floor(i / f.cols)];
-    for (const [dc, dr] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-      [1, 1],
-      [1, -1],
-      [-1, 1],
-      [-1, -1],
-    ]) {
+    for (const [dc, dr] of STEPS) {
       const [c2, r2] = [c + dc, r + dr];
       if (c2 < 0 || r2 < 0 || c2 >= f.cols || r2 >= f.rows) continue;
       const j = r2 * f.cols + c2;
       // A diagonal step needs both cells beside it free, so it never cuts a corner.
-      if (!f.free[j] || (dc && dr && (!f.free[r * f.cols + c2] || !f.free[r2 * f.cols + c]))) continue;
+      if (done[j] || !f.free[j] || (dc && dr && (!f.free[r * f.cols + c2] || !f.free[r2 * f.cols + c]))) continue;
       const g = cost[i] + (dc && dr ? Math.SQRT2 : 1);
       if (g >= cost[j]) continue;
       cost[j] = g;
       prev[j] = i;
-      if (!open.includes(j)) open.push(j);
+      open.push(j, guess(j));
     }
   }
   if (cost[target] === Infinity) return null;

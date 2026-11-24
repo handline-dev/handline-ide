@@ -14,7 +14,7 @@ import { viewOf } from '#src/town/view.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
-import { FounderDrawing, useWalker, type Ground } from '#src/town/founder.tsx';
+import { FounderDrawing, useFounder, useWalker, type Ground } from '#src/town/founder.tsx';
 import { floorOf, type Spot as FloorSpot } from '#src/town/walk.ts';
 import { Vector3 } from 'three';
 import type { Frame } from '#src/town/scene3d.ts';
@@ -30,18 +30,21 @@ type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground };
 /** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
 const sigOf = (house: House, cols: number) =>
   [house.key, cols, house.decisions.length, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}:${p.queue}`)].join(' ');
-/** The last drawing of each house, so the office is there at once when its tab comes back. */
+/** The last drawings, by house, so an office is there at once when it comes back; the oldest goes past MOST. */
 const drawings = new Map<string, { sig: string; drawn: Drawn }>();
+const MOST = 4;
 
-/** The room drawn with its people, as an image URL and where each person and desk is; redrawn only when what it shows changes. */
-/** `cols` is null until the pane has a size. */
+/** The room drawn with its people, as an image URL and where each person and desk is; laid out and drawn again only when what it shows
+ *  changes, not on each poll. `cols` is null until the pane has a size. */
 function useDrawn(house: House, cols: number | null): Drawn | null {
   const sig = cols === null ? null : sigOf(house, cols);
+  const lay = () => ({ sig, house: house.key, room: cols === null ? null : roomOf(house, cols) });
+  const [laid, setLaid] = useState(lay);
+  if (laid.sig !== sig) setLaid(lay());
   const [drawn, setDrawn] = useState<Drawn | null>(() => drawings.get(house.key)?.drawn ?? null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- the room is laid out again only when what it shows changes, not on each poll
-  const room = useMemo(() => (cols === null ? null : roomOf(house, cols)), [sig]);
   useEffect(() => {
-    if (!room || drawings.get(house.key)?.sig === sig) return; // the kept drawing is already shown
+    const { room, sig: at, house: key } = laid;
+    if (!room || at === null || drawings.get(key)?.sig === at) return; // the kept drawing is already shown
     let live = true;
     renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
     void drawRoom(renderer, room).then((frame) => {
@@ -52,33 +55,27 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
       const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground: groundOf(pic, frame, room) };
-      drawings.set(house.key, { sig: sig ?? '', drawn: next });
+      drawings.delete(key);
+      drawings.set(key, { sig: at, drawn: next });
+      for (const old of drawings.keys()) if (drawings.size > MOST) drawings.delete(old);
       setDrawn(next);
     });
     return () => {
       live = false;
     };
-  }, [room]); // eslint-disable-line react-hooks/exhaustive-deps -- room changes exactly when sig does
+  }, [laid]);
   return drawn;
 }
 
 /** What the founder walks on: the room's footprints as a grid, and the camera's sums both ways. */
 function groundOf(pic: Picture, frame: Frame, room: Room): Ground {
-  const toCamera = frame.camera.matrixWorldInverse;
+  const camera = frame.camera;
+  const toCamera = camera.matrixWorldInverse;
+  // On the floor the picture is the camera's own projection, so a pixel's ray meets the floor where that pixel shows it.
   const toFloor = (px: number, py: number): FloorSpot => {
-    // Newton's method on the floor's projection, from the room's middle: it is smooth, so a few steps land within a millimetre.
-    let [x, z] = [room.w / 2, room.d / 2];
-    for (let k = 0; k < 8; k++) {
-      const [ax, ay] = frame.toPixel(x, 0, z);
-      const [bx, by] = frame.toPixel(x + 0.01, 0, z);
-      const [cx, cy] = frame.toPixel(x, 0, z + 0.01);
-      const [j11, j21, j12, j22] = [(bx - ax) / 0.01, (by - ay) / 0.01, (cx - ax) / 0.01, (cy - ay) / 0.01];
-      const det = j11 * j22 - j12 * j21;
-      const [ex, ey] = [px - ax, py - ay];
-      x += (j22 * ex - j12 * ey) / det;
-      z += (-j21 * ex + j11 * ey) / det;
-    }
-    return [x, z];
+    const p = new Vector3((px / frame.w) * 2 - 1, 1 - (py / frame.h) * 2, 0.5).unproject(camera).sub(camera.position);
+    const t = -camera.position.y / p.y;
+    return [camera.position.x + t * p.x, camera.position.z + t * p.z];
   };
   return {
     pic,
@@ -136,17 +133,22 @@ export function Inside({
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
   // Walking up into the door goes back out to the city.
-  const { me, go } = useWalker(drawn?.ground ?? null, house.key, ([x, z], [, dz]) => {
+  const founder = useWalker(drawn?.ground ?? null, house.key, ([x, z], [, dz]) => {
     const entry = drawn?.ground.entry;
     if (entry && dz < 0 && Math.abs(x - entry[0]) < 0.35 && z < entry[1]) onBack();
   });
-  const near = me && drawn ? nearOf(drawn.cast, me.at) : null;
+  const cast = drawn?.cast;
+  const near = useFounder(founder, (me) => (me && cast ? nearOf(cast, me.at) : null));
+  // The people are in depth order: those up to `behind` stand behind the founder.
+  const behind = useFounder(founder, (me) => (me && cast ? cast.figures.filter((f) => f.z <= me.at[1]).length : 0));
   const nearPerson = near && near !== 'mine' ? (house.people.find((p) => p.key === near) ?? null) : null;
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onBack();
+    // Escape the chat took (to stop a turn, close a list) stays the chat's.
+    const onKey = (e: KeyboardEvent) =>
+      e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof Element && e.target.closest('[data-no-walk]')) && onBack();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onBack]);
@@ -163,7 +165,7 @@ export function Inside({
       stroke="transparent"
       strokeWidth={1 / scale}
       className="cursor-pointer hover:stroke-accent"
-      onClick={() => go(s.at)}
+      onClick={() => founder.go(s.at)}
     >
       <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
     </rect>
@@ -207,23 +209,19 @@ export function Inside({
                 style={PIXEL}
                 onClick={(e) => {
                   const r = e.currentTarget.getBoundingClientRect();
-                  go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
+                  founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
                 }}
               />
-              {drawn.cast.figures
-                .filter((f) => !me || f.z <= me.at[1])
-                .map((f) => (
-                  <Drawing key={f.person.key} figure={f} />
-                ))}
+              {drawn.cast.figures.slice(0, behind).map((f) => (
+                <Drawing key={f.person.key} figure={f} />
+              ))}
               {drawn.cast.names.map((n) => (
                 <Label key={n.person.key} x={n.x} y={n.y} font={font} scale={scale} text={n.person.name} />
               ))}
-              {me && <FounderDrawing me={me} ground={drawn.ground} />}
-              {drawn.cast.figures
-                .filter((f) => me && f.z > me.at[1])
-                .map((f) => (
-                  <Drawing key={f.person.key} figure={f} />
-                ))}
+              <FounderDrawing founder={founder} ground={drawn.ground} />
+              {drawn.cast.figures.slice(behind).map((f) => (
+                <Drawing key={f.person.key} figure={f} />
+              ))}
               {drawn.cast.bubbles.map((b) => (
                 <image
                   key={`${b.x},${b.y}`}
@@ -249,7 +247,7 @@ export function Inside({
                     stroke="transparent"
                     strokeWidth={1 / scale}
                     className="cursor-pointer hover:stroke-accent"
-                    onClick={() => drawn.cast.mine && go(drawn.cast.mine.at)}
+                    onClick={() => drawn.cast.mine && founder.go(drawn.cast.mine.at)}
                   >
                     <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
                   </rect>
