@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { WebGLRenderer } from 'three';
 import { WORDS } from '#src/town/panel.tsx';
 import type { House, Person } from '#src/town/model.ts';
-import { castInto, OFFICE_SHEET, type Cast, type Spot } from '#src/town/people.ts';
+import { BUBBLE, castOf, PEOPLE_SHEET, SHEET, type Cast, type Figure, type Spot } from '#src/town/people.ts';
 import { roomOf } from '#src/town/room.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
@@ -15,37 +15,19 @@ const PIXEL = { imageRendering: 'pixelated' } as const;
 
 let renderer: WebGLRenderer | null = null;
 
-/** The people sheet's pixels, once loaded. */
-function useSheet(): ImageData | null {
-  const [sheet, setSheet] = useState<ImageData | null>(null);
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      [c.width, c.height] = [img.width, img.height];
-      const ctx = c.getContext('2d');
-      ctx?.drawImage(img, 0, 0);
-      if (ctx) setSheet(ctx.getImageData(0, 0, img.width, img.height));
-    };
-    img.src = OFFICE_SHEET;
-  }, []);
-  return sheet;
-}
-
 type Drawn = { url: string; w: number; h: number; cast: Cast };
 
 /** The room drawn with its people, as an image URL and where each person and desk is; redrawn when the house changes. */
-function useDrawn(house: House, sheet: ImageData | null): Drawn | null {
+function useDrawn(house: House): Drawn | null {
   const room = useMemo(() => roomOf(house), [house]);
   const [drawn, setDrawn] = useState<Drawn | null>(null);
   useEffect(() => {
-    if (!sheet) return;
     let live = true;
     renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
     void drawRoom(renderer, room).then((frame) => {
       if (!live) return;
       const pic = shade(frame);
-      const cast = castInto(pic, frame, room, sheet);
+      const cast = castOf(pic, frame, room);
       const canvas = document.createElement('canvas');
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
@@ -54,7 +36,7 @@ function useDrawn(house: House, sheet: ImageData | null): Drawn | null {
     return () => {
       live = false;
     };
-  }, [room, sheet]);
+  }, [room]);
   return drawn;
 }
 
@@ -85,7 +67,7 @@ export function Inside({
   onTalk: (p: Person) => void;
   onMail: () => void;
 }) {
-  const drawn = useDrawn(house, useSheet());
+  const drawn = useDrawn(house);
   const [pane, [pw, ph]] = useSize();
   const scale = drawn ? Math.max(1, Math.floor(Math.min(pw / drawn.w, ph / drawn.h))) : 1;
   const font = 11 / scale; // names stay 11px on screen whatever the scale
@@ -146,6 +128,21 @@ export function Inside({
             aria-label={`${house.name}'s office`}
           >
             <image href={drawn.url} width={drawn.w} height={drawn.h} style={PIXEL} />
+            {drawn.cast.figures.map((f) => (
+              <Drawing key={f.person.key} figure={f} />
+            ))}
+            {drawn.cast.bubbles.map((b) => (
+              <image
+                key={`${b.x},${b.y}`}
+                href={BUBBLE}
+                x={b.x}
+                y={b.y}
+                width={b.w}
+                height={b.h}
+                style={PIXEL}
+                className="pointer-events-none"
+              />
+            ))}
             {drawn.cast.names.map((n) => (
               <text
                 key={n.person.key}
@@ -169,5 +166,18 @@ export function Inside({
         )}
       </div>
     </div>
+  );
+}
+
+/** A person at the screen's own resolution (smoothly scaled, never snapped to the room's pixels), then the room's nearer pixels over it. */
+function Drawing({ figure: { box, col, row, front } }: { figure: Figure }) {
+  const [cw, ch] = SHEET.cell;
+  return (
+    <g className="pointer-events-none">
+      <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * cw} ${row * ch} ${cw} ${ch}`}>
+        <image href={PEOPLE_SHEET} width={SHEET.size[0]} height={SHEET.size[1]} />
+      </svg>
+      {front && <image href={front.url} x={front.x} y={front.y} width={front.w} height={front.h} style={PIXEL} />}
+    </g>
   );
 }

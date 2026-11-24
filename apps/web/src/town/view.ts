@@ -8,7 +8,7 @@ const PITCH = (57 * Math.PI) / 180;
 const LIFT = 1.5;
 const DISTANCE = 24; // metres from the room's middle: far enough that the perspective stays gentle
 /** How tall a standing person is in pixels, so the drawn people (about this tall in the sheet) need no resizing. */
-const PERSON_PX = 39;
+export const PERSON_PX = 39;
 const PERSON_M = 0.86;
 const MARGIN = 3;
 
