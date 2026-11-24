@@ -173,7 +173,7 @@ export interface DevicesMethods {
       mode: "auto" | "manual";
       /** One row per agent of this home. */
       agents: {
-        /** The agent's name. */
+        /** The agent's key, as agent.set takes it. */
         agent: string;
         /** The node id its next session starts on: the master's own while it stays. */
         device: string;

@@ -26,7 +26,9 @@ test("device.update has a Mac on another build take the master's: its lack goes,
   client.onEvent((e) => seen.push(e));
   await client.subscribe(['nodes']);
   const laptop = async () => {
-    const r = (await client.call('node.status', {})) as { nodes: { device?: string | null; version?: string; lacks?: { why: string }[] }[] };
+    const r = (await client.call('node.status', {})) as {
+      nodes: { device?: string | null; version?: string; lacks?: { why: string }[] }[];
+    };
     return r.nodes.find((n) => n.device === 'd-laptop')!;
   };
   assert.match((await laptop()).lacks![0]!.why, /starting again on the master's build/);
@@ -37,5 +39,35 @@ test("device.update has a Mac on another build take the master's: its lack goes,
   assert.deepEqual((await laptop()).lacks, []);
   await assert.rejects(client.call('device.update', { device: 'd-laptop', request_id: 'du-3' }), (e: RpcError) => e.data?.gate === 'build');
   await assert.rejects(client.call('device.update', { device: 'd-mini', request_id: 'du-4' }), (e: RpcError) => e.data?.gate === 'build');
+  client.close();
+});
+
+test('placement: a heavy agent a lent Mac lacks something for stays here with why; a pin is read on manual and kept on auto', async () => {
+  const { daemon, client } = setup();
+  applySeeds(daemon, 'devices');
+  await client.start();
+  type Row = { agent: string; device: string; why: string; pin?: string };
+  const row = async (agent: string) => {
+    const r = ((await client.call('node.status', {})) as { placement: { agents: Row[] } }).placement.agents.find((a) => a.agent === agent);
+    assert.ok(r, `${agent} has a row`);
+    return r;
+  };
+  const [here, studio, server] = ['m-fake', 'n-d-studio', 'n-d-build'];
+  assert.equal((await row('handline.term-build')).device, studio);
+  const auditor = await row('handline.auditor');
+  assert.equal(auditor.device, here);
+  assert.match(auditor.why, /Studio needs pencil, so it stays here/);
+  await client.call('agent.set', { agent: 'handline.term-build', values: { device: server }, request_id: 'pl-1' });
+  await client.call('agent.set', { agent: 'handline.auditor', values: { device: studio }, request_id: 'pl-2' });
+  assert.equal((await row('handline.term-build')).device, studio);
+  await client.call('settings.set', { changes: { agent_placement: 'manual' }, request_id: 'pl-3' });
+  const term = await row('handline.term-build');
+  assert.equal(term.device, server);
+  assert.equal(term.why, 'pinned to build-server');
+  const pinned = await row('handline.auditor');
+  assert.equal(pinned.device, here);
+  assert.match(pinned.why, /pinned to Studio, which cannot take it now \(needs pencil\), so it starts here/);
+  await client.call('settings.set', { changes: { agent_placement: 'auto' }, request_id: 'pl-4' });
+  assert.equal((await row('handline.term-build')).pin, server);
   client.close();
 });
