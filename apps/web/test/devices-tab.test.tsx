@@ -56,6 +56,7 @@ const aside = vi.hoisted(() => ({ now: null as { name: string; since: string; ma
 vi.mock('@handline/app-data', async (real) => ({ ...(await real<object>()), useNameOf: () => (k: string) => k }));
 vi.mock('#src/settings/PairSheet.tsx', () => ({ openPairSheet: vi.fn() }));
 vi.mock('#src/settings/MachineSections.tsx', () => ({ MachineSections: () => <p>this mac</p> }));
+vi.mock('#src/settings/AgentPlacement.tsx', () => ({ AgentPlacement: () => null }));
 import { DevicesTab } from '#src/settings/DevicesTab.tsx';
 
 let root: Root;
