@@ -1,6 +1,7 @@
 // A web tab's page lives here, in one layer over the app, not in the tab: a tab moved to another pane or workspace leaves and comes
 // back as a new element, and a page in it would load again. The tab draws a slot; its page follows the slot's box each frame and
 // waits hidden while no slot shows it. It goes when no layout has its tab any more (sweepTabState).
+import { listeners } from '#src/persist/store.ts';
 import { useEffect, useSyncExternalStore } from 'react';
 import { shell } from '#src/shell.ts';
 
@@ -15,12 +16,11 @@ const pages = new Map<string, Page>();
 const slots = new Map<string, HTMLElement[]>();
 const els = new Map<string, HTMLElement>();
 let list: Page[] = [];
-const listeners = new Set<() => void>();
+const { emit, subscribe } = listeners();
 const changed = () => {
   list = [...pages.values()];
-  for (const l of listeners) l();
+  emit();
 };
-const subscribe = (l: () => void) => (listeners.add(l), () => void listeners.delete(l));
 const snapshot = () => list;
 
 /** Drops the pages of tabs not among `tabs`. */

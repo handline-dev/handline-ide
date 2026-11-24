@@ -1,10 +1,11 @@
 // A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with Run in a tab of its own (PlanTab).
+import { useSize } from '#src/ui/useSize.ts';
 import { taskGraph, type GraphNode } from '@handline/app-core';
 import { Hooks, useNameOf, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useTabState } from '#src/persist/tabState.ts';
 import { planOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
@@ -338,14 +339,7 @@ function curve(nodes: GraphNode[], edges: { from: number; to: number }[], from: 
 /** The graph shrinks to fit its pane, never grows past its own size. */
 function useFit() {
   const ref = useRef<HTMLDivElement>(null);
-  const [room, setRoom] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const o = new ResizeObserver(() => setRoom({ w: el.clientWidth - 48, h: el.clientHeight - 48 }));
-    o.observe(el);
-    return () => o.disconnect();
-  }, []);
+  const room = useSize(ref, (el) => ({ w: el.clientWidth - 48, h: el.clientHeight - 48 }), { w: 0, h: 0 });
   const fit = (w: number, h: number) => (room.w > 0 && w > 0 ? Math.min(1, room.w / w, room.h / h) : 1);
   return [ref, fit] as const;
 }

@@ -1,4 +1,5 @@
 import { Dialog } from '@base-ui/react/dialog';
+import { listeners } from '#src/persist/store.ts';
 import { ArrowLeft, X } from 'lucide-react';
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
@@ -54,17 +55,13 @@ export const scopeModals = (w: typeof wrap) => void (wrap = w);
 
 let entries: Entry[] = [];
 let nextId = 0;
-const listeners = new Set<() => void>();
+const { emit, subscribe, count } = listeners();
 const set = (next: Entry[]) => {
   entries = next;
-  listeners.forEach((l) => l());
+  emit();
 };
 // Ids whose canClose is being asked: a second close meanwhile is ignored, so the guard shows once.
 const guarding = new Set<number>();
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
-};
 
 async function close(id: number, value: unknown, force = false) {
   const e = entries.find((x) => x.id === id);
@@ -86,7 +83,7 @@ async function close(id: number, value: unknown, force = false) {
 /** Opens `render(close)` as a modal; resolves with the value passed to close, or undefined when dismissed. */
 export function openModal<R>(render: (close: Close<R>) => ReactNode, options: ModalOptions = {}): Promise<R | undefined> {
   const id = ++nextId;
-  if (listeners.size === 0) console.error('openModal: no <ModalHost /> is mounted, so this modal never shows.');
+  if (count() === 0) console.error('openModal: no <ModalHost /> is mounted, so this modal never shows.');
   return new Promise((resolve) => {
     const node = render((value) => void close(id, value));
     const { signal } = options;

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { listeners } from '#src/persist/store.ts';
 import { CircleAlert, Info, X } from 'lucide-react';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { spring } from '#src/motion.ts';
@@ -12,14 +13,10 @@ type Entry = { id: number; message: ReactNode; tone: Tone };
 
 let entries: Entry[] = [];
 let nextId = 0;
-const listeners = new Set<() => void>();
+const { emit, subscribe } = listeners();
 const set = (next: Entry[]) => {
   entries = next;
-  listeners.forEach((l) => l());
-};
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => listeners.delete(l);
+  emit();
 };
 const dismiss = (id: number) => set(entries.filter((e) => e.id !== id));
 

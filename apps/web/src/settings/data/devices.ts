@@ -1,11 +1,12 @@
 // Settings > Devices: one list of every device, the master's own Mac first. A Mac's or a server's row joins its paired device (devices.list)
 // with its node (node.status: Run or Pause, online, what it lacks; no node is Off) and the agents that stay on it (agents.list node).
 // The master's own Mac has no paired device: its Pause is the daemon's pause, and it is never Off.
+import { read, write } from '#src/persist/kv.ts';
+import { createStore } from '#src/persist/store.ts';
 import type { Device, Node } from '@handline/client';
 import { Hooks, useAgents } from '@handline/app-data';
 import { useHello, useThisDevice } from '@handline/app-react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
-import { useSyncExternalStore } from 'react';
 
 export const STALE_DAYS = 30;
 export const isStale = (d: Pick<Device, 'last_seen' | 'connected'>, now = Date.now()): boolean =>
@@ -220,26 +221,15 @@ export function useSetAside(): { name: string; since: string; master: string; ke
 
 // The set-aside board is told once: the status row shows it until Settings > Devices has shown its note.
 const SEEN = 'set-aside-seen';
-const seenListeners = new Set<() => void>();
-const readSeen = (): string => {
-  try {
-    return localStorage.getItem(SEEN) ?? '';
-  } catch {
-    return '';
-  }
-};
+const seen = createStore(read(SEEN, ''));
 export function markSetAsideSeen(key: string): void {
-  if (readSeen() === key) return;
-  try {
-    localStorage.setItem(SEEN, key);
-  } catch {
-    /* blocked: the status row keeps saying it this run */
-  }
-  for (const f of seenListeners) f();
+  if (seen.get() === key) return;
+  write(SEEN, key);
+  seen.set(key);
 }
 /** The set-aside board, while the person has not seen its note. */
 export function useSetAsideUnseen() {
   const a = useSetAside();
-  const seen = useSyncExternalStore((f) => (seenListeners.add(f), () => void seenListeners.delete(f)), readSeen);
-  return a && a.key !== seen ? a : null;
+  const was = seen.use();
+  return a && a.key !== was ? a : null;
 }

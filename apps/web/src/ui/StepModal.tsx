@@ -1,5 +1,6 @@
+import { useSize } from '#src/ui/useSize.ts';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { ModalFrame } from '#src/ui/modal.tsx';
 
@@ -31,19 +32,13 @@ export function StepModal({
 }) {
   const still = useReducedMotion();
   const [page, setPage] = useState<HTMLDivElement | null>(null);
-  const [height, setHeight] = useState<number | 'auto'>('auto');
+  const height = useSize<HTMLDivElement, number | 'auto'>(page, (el) => el.offsetHeight, 'auto');
   const [seen, setSeen] = useState(step);
   const [dir, setDir] = useState(1);
   if (step !== seen) {
     setSeen(step);
     setDir(step > seen ? 1 : -1);
   }
-  useEffect(() => {
-    if (!page) return;
-    const ro = new ResizeObserver(() => setHeight(page.offsetHeight));
-    ro.observe(page);
-    return () => ro.disconnect();
-  }, [page]);
   const { back, next } = steps[step];
   const x = still ? 0 : 32;
   const duration = still ? 0 : 0.15;

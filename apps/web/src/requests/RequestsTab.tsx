@@ -1,3 +1,4 @@
+import { useSize } from '#src/ui/useSize.ts';
 import { Ago } from '#src/ui/Ago.tsx';
 // Requests: what waits on the founder (their turn, notes, rows put off) and what they decided, newest first. Their requests in progress and
 // finished are in Tasks (My requests). The bell's popover previews the turn and the finished.
@@ -138,15 +139,8 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
   const box = useRef<HTMLDivElement>(null);
   // The list's width beside the task, dragged on the handle between them; kept with the tab.
   const [listWidth, setListWidth] = useTabState('list-width', 416);
-  const [boxWidth, setBoxWidth] = useState(Infinity);
+  const boxWidth = useSize(box, (el) => el.clientWidth, Infinity);
   const split = boxWidth >= 48 * parseFloat(getComputedStyle(document.documentElement).fontSize);
-  useEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setBoxWidth(el.clientWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
   const pick = usePick();
   const mine = (xs: At[]) => xs.filter((x) => !x.cluster).map((x) => turnRow(x.p));
   const rows = { turn: mine(r.turn), notes: mine(r.notes), later: mine(r.later.map((l) => l.x)) };

@@ -1,3 +1,4 @@
+import { useEscape } from '#src/ui/useEscape.ts';
 import { howOf, inPane, type How } from '#src/layout/openTab.tsx';
 import { Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -121,12 +122,7 @@ export function TabBar({
   }
   const shown = new Set(pick.picked.length > 1 ? pick.picked.filter((id) => ids.includes(id)) : []);
   // Escape lets go of the pick.
-  useEffect(() => {
-    if (!shown.size) return;
-    const off = (e: KeyboardEvent) => e.key === 'Escape' && !e.defaultPrevented && setPick(noPick);
-    window.addEventListener('keydown', off);
-    return () => window.removeEventListener('keydown', off);
-  }, [shown.size]);
+  useEscape(shown.size > 0, () => setPick(noPick));
   const click = (id: string, e: React.MouseEvent) => {
     const next = clickPick(pick, ids, active, id, { add: e.metaKey || e.ctrlKey, range: e.shiftKey });
     setPick(next);

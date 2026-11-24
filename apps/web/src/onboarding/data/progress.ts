@@ -3,6 +3,7 @@
 import { useAccounts, useAgents, useFoundLogins, useRepos, useStatus, useWrite } from '@handline/app-data';
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { read, write } from '#src/persist/kv.ts';
+import { listeners } from '#src/persist/store.ts';
 import { aiRows, resumeAt, STEPS, stepsDone } from '#src/onboarding/data/steps.ts';
 
 type Kept = { opened: boolean; step: number; notifySkipped: boolean; cardHidden: boolean };
@@ -15,16 +16,12 @@ const permission = (): NotificationPermission | 'unsupported' =>
 let kept: Kept = { ...FRESH, ...read<Partial<Kept>>(KEY, {}) };
 let open = false;
 let notify = permission();
-const listeners = new Set<() => void>();
-const emit = () => {
-  for (const l of listeners) l();
-};
+const { emit, subscribe } = listeners();
 const keep = (patch: Partial<Kept>) => {
   kept = { ...kept, ...patch };
   write(KEY, kept);
   emit();
 };
-const subscribe = (l: () => void) => (listeners.add(l), () => listeners.delete(l));
 
 // The permission can change outside the page (the system settings); where the browser reports it, every screen follows.
 void navigator.permissions

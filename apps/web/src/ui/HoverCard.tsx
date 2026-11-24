@@ -1,3 +1,4 @@
+import { useEscape } from '#src/ui/useEscape.ts';
 import { PreviewCard as P } from '@base-ui/react/preview-card';
 import { cloneElement, useEffect, useId, useRef, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
 import { floatingSurface } from '#src/ui/Popover.tsx';
@@ -32,16 +33,14 @@ export function HoverCard({
       const at = e.target as Element;
       if (!popup.current?.contains(at) && !at.closest(`[data-pin="${id}"]`)) setPinned(false);
     };
-    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setPinned(false);
     // After the click that pinned it, so that click is not taken as outside.
     const t = setTimeout(() => document.addEventListener('pointerdown', outside));
-    document.addEventListener('keydown', escape);
     return () => {
       clearTimeout(t);
       document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
     };
   }, [pinned, id]);
+  useEscape(pinned, () => setPinned(false));
   const shown = pin
     ? cloneElement(trigger, {
         'data-pin': id,

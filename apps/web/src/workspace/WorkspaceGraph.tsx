@@ -1,8 +1,9 @@
+import { useSize } from '#src/ui/useSize.ts';
 import { UnreadDot } from '#src/ui/Dot.tsx';
 // Who waits on whom in a workspace: an arrow is a wait (a turn on you, or a task blocked by another's), a dot an unread message to you.
 import type { AgentView as Agent, Task } from '@handline/client';
 import { Hand, Loader, TriangleAlert } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { activityOf, holdLine } from '#src/layout/agentList.ts';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -117,14 +118,7 @@ function Box({ n }: { n: Node }) {
 
 export function WorkspaceGraph({ agents, open, asking }: { agents: readonly Agent[]; open: readonly Task[]; asking: ReadonlySet<string> }) {
   const box = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const width = useSize(box, (el) => el.clientWidth, 0);
   const { onYou, edges } = waitsOf(agents, open, asking);
   const nodes = width ? layout(agents, onYou, edges, width) : [];
   const at = new Map(nodes.map((n) => [n.key, n]));
