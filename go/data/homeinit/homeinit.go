@@ -1,4 +1,4 @@
-// Package homeinit sets a Handline home up: its folders, the shared settings and event hooks, the sandbox and permission entries an agent
+// Package homeinit sets a Handline home up: its folders, the shared settings and event hooks, Handline's own skills, the sandbox and permission entries an agent
 // needs, and the home kept in git.
 package homeinit
 
@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/data/agenthost"
@@ -22,6 +23,11 @@ func Setup(home, hlExe string, say func(format string, args ...any)) error {
 	hooks := claudecode.Hooks{Host: agenthost.Host(home)}
 	if err := hooks.EnsureShared(); err != nil {
 		return err
+	}
+	if changed, err := InstallSkills(hooks.SkillsDir()); err != nil {
+		return err
+	} else if len(changed) > 0 {
+		say("Handline skills installed: %s", strings.Join(changed, ", "))
 	}
 	if ignore := filepath.Join(home, ".gitignore"); !exists(ignore) {
 		_ = os.WriteFile(ignore, []byte("accounts/\ndb.sqlite\nlocks/\nlogs/\n*.tmp\n"), 0o644)
