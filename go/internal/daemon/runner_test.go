@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -200,9 +201,9 @@ func TestALaunchForAnAgentOnARunnerOpensItsTerminalThere(t *testing.T) {
 }
 
 // An agent launched on a runner by hl launch there starts with the master's files at the same paths under the runner's home: its
-// memory, the shared skills, the MCP servers and the attachment its launch names; the paths it is given are the runner's. What it
-// writes to its memory and its handoff note comes back to the master, and a skill changed on the master reaches the runner with no
-// relaunch.
+// memory, the shared skills, the MCP servers it has the programs of and the attachment its launch names; the paths it is given are the
+// runner's. What it writes to its memory and its handoff note comes back to the master, and a skill changed on the master reaches the
+// runner with no relaunch.
 func TestAnAgentOnARunnerHasTheMastersFilesAndItsOwnComeBack(t *testing.T) {
 	master, node, rhome, hl := masterAndRunner(t)
 	mhome := master.cfg.Home
@@ -217,7 +218,15 @@ func TestAnAgentOnARunnerHasTheMastersFilesAndItsOwnComeBack(t *testing.T) {
 	attached := filepath.Join(mhome, "attachments", "pic.txt")
 	write(filepath.Join(agentDir, "memory", "MEMORY.md"), "remember-42")
 	write(skill, "skill-v1")
-	write(paths.MCPConfig(mhome), `{"mcpServers":{}}`)
+	write(paths.MCPConfig(mhome), `{"mcpServers":{"gone":{"command":"zz-not-on-this-runner"},"web":{"url":"https://x.example/mcp"}}}`)
+	for end := time.Now().Add(20 * time.Second); ; time.Sleep(100 * time.Millisecond) { // its next heartbeat answers the new check
+		if b, _, _ := master.nodes.Heard(node); slices.Contains(b.Has.Asked, "zz-not-on-this-runner") {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatal("the runner was never asked about the MCP server's program")
+		}
+	}
 	write(attached, "attached-7")
 	var asked map[string]any
 	master.nodes.Launch = func(n, agent string, params map[string]any) (*nodes.Launched, error) {
@@ -256,6 +265,9 @@ func TestAnAgentOnARunnerHasTheMastersFilesAndItsOwnComeBack(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(filepath.Join(rdir, "memory", "MEMORY.md")); string(b) != "remember-42" {
 		t.Fatalf("the runner's copy of bob's memory: %q", b)
+	}
+	if b, _ := os.ReadFile(paths.MCPConfig(rhome)); string(b) != `{"mcpServers":{"web":{"url":"https://x.example/mcp"}}}` {
+		t.Fatalf("the runner's MCP config: %s", b)
 	}
 	if b, _ := os.ReadFile(filepath.Join(rdir, "memory", "new.md")); strings.TrimSpace(string(b)) != "up-9" {
 		t.Fatalf("the session did not write its memory on the runner: %q", b)

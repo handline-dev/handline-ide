@@ -5,11 +5,9 @@ package placement
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -442,7 +440,7 @@ func (p *Placer) needOf(key string) (need, error) {
 		if err := errors.Join(rs.Err(), rs.Close()); err != nil {
 			return need{}, err
 		}
-		for name, prog := range servers(string(b)) {
+		for name, prog := range team.MCPPrograms(string(b)) {
 			if used[toolName(name)] {
 				n.programs = append(n.programs, prog)
 			}
@@ -474,30 +472,10 @@ func toolName(server string) string {
 	}, server)
 }
 
-// servers is the program each server of a {"mcpServers": {...}} config runs, by the server's name, by its file name: a server reached at
-// a URL runs none.
-func servers(config string) map[string]string {
-	var cfg struct {
-		Servers map[string]struct {
-			Command string `json:"command"`
-		} `json:"mcpServers"`
-	}
-	out := map[string]string{}
-	if json.Unmarshal([]byte(config), &cfg) != nil {
-		return out
-	}
-	for name, s := range cfg.Servers {
-		if s.Command != "" {
-			out[name] = filepath.Base(s.Command)
-		}
-	}
-	return out
-}
-
 // Programs is the programs a {"mcpServers": {...}} config runs, by their file name.
 func Programs(config string) []string {
 	var out []string
-	for _, prog := range servers(config) {
+	for _, prog := range team.MCPPrograms(config) {
 		out = append(out, prog)
 	}
 	return uniq(out)

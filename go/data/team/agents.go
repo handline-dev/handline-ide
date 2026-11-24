@@ -4,6 +4,7 @@ package team
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -120,6 +121,26 @@ func MCPConfigText(text string) (string, error) {
 		return "", errors.New(`not a {"mcpServers": {...}} object`)
 	}
 	return encodeCompact(o), nil
+}
+
+// MCPPrograms is the program each server of a {"mcpServers": {...}} config runs, by the server's name, by its file name: a server reached
+// at a URL runs none, and a config that is not one runs none.
+func MCPPrograms(config string) map[string]string {
+	var cfg struct {
+		Servers map[string]struct {
+			Command string `json:"command"`
+		} `json:"mcpServers"`
+	}
+	out := map[string]string{}
+	if json.Unmarshal([]byte(config), &cfg) != nil {
+		return out
+	}
+	for name, s := range cfg.Servers {
+		if s.Command != "" {
+			out[name] = filepath.Base(s.Command)
+		}
+	}
+	return out
 }
 
 // MCPConfigArgs is this agent's own MCP servers as --mcp-config <json>. They come from its row, which the founder sets, not from a
