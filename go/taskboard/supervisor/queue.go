@@ -7,7 +7,9 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
+	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // A queued task nobody has been sent is delivered as soon as its owner is free (daemon/taskqueue.py).
@@ -39,6 +41,7 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 	sort.Strings(owners)
 	for _, agent := range owners {
 		if must(db.CurrentTaskStillAsking(q, agent)) {
+			e.hireTemps(q, agent, now)
 			if must(e.AdvanceToDormantBlocker(q, agent)) {
 				e.Push(q, agent, 0)
 				e.log("  %s: its current task waits on a task of its own behind it - delivered that one first", agent)
@@ -95,5 +98,44 @@ func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 		check(db.SetCursor(q, key, told))
 		e.typeSay(q, agent, fmt.Sprintf("T%d (%s) is %s. Do it, hand it on (`hl task handoff T%d <agent> \"<note>\"`), mark what blocks it (`hl task edit T%d --blocked-by T<n>`), "+
 			"or put the founder on it if only they can decide (`hl task comment T%d add \"<the decision, and what you recommend>\" --turn human`).", cur.ID, textsafe.Oneline(cur.Title), why, cur.ID, cur.ID, cur.ID), "overdue task, idle holder")
+	}
+}
+
+// HireRetryS is how long after a hire that did not happen the next is tried for the same agent.
+const HireRetryS = 60
+
+// hireTemps gives the first task waiting for agent while it is mid-turn on another to a temp of it (Ports.Temps), so neither waits for
+// the other and agent's turn is told nothing; the next waits until that temp's session is up, so each hire meets the limits on its own.
+// A task agent queued for itself, was already sent, or has a turn on it stays agent's.
+func (e *Env) hireTemps(q db.Q, agent string, now int64) {
+	if e.Temps == nil {
+		return
+	}
+	if row := stateOf(q, agent); row == nil || row.State != states.Running {
+		return
+	}
+	key := "temps:hire:" + agent
+	if now-must(db.Cursor(q, key)) < HireRetryS || e.Temps.Waiting(agent) {
+		return
+	}
+	cur, _ := ok2(db.CurrentTask(q, agent))
+	for _, w := range must(db.WaitingTasks(q, agent)) {
+		t := w.Task
+		if t.ID == cur || t.Owner != agent || t.QueuedBy.String == agent || t.SentAt.Valid {
+			continue
+		}
+		temp := e.Temps.Hire(agent)
+		if temp == "" {
+			check(db.SetCursor(q, key, now))
+			return
+		}
+		note := fmt.Sprintf("You are a temp of %s, hired for this while it is busy: you have its role, lessons and memory, not its conversation. You leave once the task is over.", addr.Ref(agent))
+		if err := taskwrites.HandOffAsDaemon(e.DB, e.Home, e, t.ID, temp, note); err != nil {
+			e.log("  %s: T%d was not handed to its temp %s: %v", agent, t.ID, temp, err)
+			check(db.SetCursor(q, key, now)) // the temp holds nothing, so it leaves
+			return
+		}
+		e.log("  %s: mid-turn, so T%d went to its temp %s", agent, t.ID, temp)
+		return
 	}
 }

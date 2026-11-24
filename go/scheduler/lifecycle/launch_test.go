@@ -116,6 +116,7 @@ func (u fakeUsage) PickAccount(c []string, _ string) string {
 	}
 	return u.pick
 }
+func (u fakeUsage) PickBeside(c []string, a string) string      { return u.PickAccount(c, a) }
 func (u fakeUsage) PickReasons([]string, string) []usage.Reason { return u.reasons }
 func (fakeUsage) NotFor(string, string) bool                    { return false }
 
