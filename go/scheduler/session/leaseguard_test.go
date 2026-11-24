@@ -15,6 +15,8 @@ func TestPreset(t *testing.T) {
 		{"$ANDROID_HOME/emulator/emulator @Pixel_8", ""},
 		{"timeout 600 emulator @Pixel_8", "@simulator"},
 		{"cd web && npx playwright test", "@browser"},
+		{"hl browser open http://localhost:5173/", "@browser"},
+		{"hl browser close", ""},
 		{"pnpm exec playwright test --project chromium", "@browser"},
 		{"pnpm --filter web exec playwright test", "@browser"},
 		{"'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --headless=new --screenshot x.png", "@browser"},

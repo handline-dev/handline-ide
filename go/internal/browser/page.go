@@ -1,0 +1,301 @@
+package browser
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Page is the agent's page in its browser, for one command.
+type Page struct{ c *conn }
+
+// Page connects to the browser's page.
+func (b *Browser) Page() (*Page, error) {
+	c, err := b.dialPage()
+	if err != nil {
+		return nil, err
+	}
+	return &Page{c: c}, nil
+}
+
+func (p *Page) Close() { p.c.close() }
+
+// loadWithin is how long open waits for the page to load.
+const loadWithin = 30 * time.Second
+
+// Open goes to url and waits for it to load; it says the page's title and address.
+func (p *Page) Open(url string) (string, error) {
+	for _, m := range []string{"Page.enable", "Inspector.enable"} {
+		if _, err := p.c.call(m, nil); err != nil {
+			return "", err
+		}
+	}
+	if _, err := p.c.call("Page.setLifecycleEventsEnabled", map[string]any{"enabled": true}); err != nil {
+		return "", err
+	}
+	raw, err := p.c.call("Page.navigate", map[string]any{"url": url})
+	if err != nil {
+		return "", err
+	}
+	var nav struct {
+		LoaderID  string `json:"loaderId"`
+		ErrorText string `json:"errorText"`
+	}
+	_ = json.Unmarshal(raw, &nav)
+	if nav.ErrorText != "" {
+		return "", fmt.Errorf("%s: %s", url, nav.ErrorText)
+	}
+	if nav.LoaderID != "" { // a new document; a move within the page (#part) loads nothing
+		if err := p.c.waitLoad(nav.LoaderID, loadWithin); err != nil {
+			return "", fmt.Errorf("%s did not load within %s: %w", url, loadWithin, err)
+		}
+	}
+	var where struct{ Title, URL string }
+	if err := p.eval(`({Title: document.title, URL: location.href})`, &where); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(where.Title + "  " + where.URL), nil
+}
+
+// Text is the page's visible text.
+func (p *Page) Text() (string, error) {
+	var s string
+	err := p.eval(`document.body ? document.body.innerText : ""`, &s)
+	return s, err
+}
+
+// Eval runs script in the page, awaiting a promise, and says its value as JSON (a string as it is).
+func (p *Page) Eval(script string) (string, error) {
+	var v any
+	if err := p.eval(script, &v); err != nil {
+		return "", err
+	}
+	if s, ok := v.(string); ok {
+		return s, nil
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	return string(b), err
+}
+
+func (p *Page) eval(script string, into any) error {
+	raw, err := p.c.call("Runtime.evaluate", map[string]any{"expression": script, "returnByValue": true, "awaitPromise": true,
+		"userGesture": true})
+	if err != nil {
+		return err
+	}
+	var r struct {
+		Result struct {
+			Value json.RawMessage `json:"value"`
+		} `json:"result"`
+		Exception *struct {
+			Text      string `json:"text"`
+			Exception struct {
+				Description string `json:"description"`
+			} `json:"exception"`
+		} `json:"exceptionDetails"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return err
+	}
+	if r.Exception != nil {
+		if d := r.Exception.Exception.Description; d != "" {
+			return errors.New(d)
+		}
+		return errors.New(r.Exception.Text)
+	}
+	if len(r.Result.Value) == 0 {
+		return nil // undefined
+	}
+	return json.Unmarshal(r.Result.Value, into)
+}
+
+// ref is a node of the tree Tree prints, e<its backend node id>.
+var ref = regexp.MustCompile(`^e(\d+)$`)
+
+// object is the remote object of target: a ref from Tree, or a CSS selector. "" when nothing matches.
+func (p *Page) object(target string) (string, error) {
+	if m := ref.FindStringSubmatch(target); m != nil {
+		id, _ := strconv.Atoi(m[1])
+		raw, err := p.c.call("DOM.resolveNode", map[string]any{"backendNodeId": id})
+		if err != nil {
+			return "", fmt.Errorf("%s is not on the page any more; read the tree again (%v)", target, err)
+		}
+		var r struct {
+			Object struct {
+				ID string `json:"objectId"`
+			} `json:"object"`
+		}
+		_ = json.Unmarshal(raw, &r)
+		return r.Object.ID, nil
+	}
+	sel, _ := json.Marshal(target)
+	raw, err := p.c.call("Runtime.evaluate", map[string]any{"expression": "document.querySelector(" + string(sel) + ")"})
+	if err != nil {
+		return "", err
+	}
+	var r struct {
+		Result struct {
+			ID      string `json:"objectId"`
+			Subtype string `json:"subtype"`
+		} `json:"result"`
+		Exception *struct{} `json:"exceptionDetails"`
+	}
+	_ = json.Unmarshal(raw, &r)
+	if r.Exception != nil {
+		return "", fmt.Errorf("%q is not a CSS selector nor a ref (e12)", target)
+	}
+	return r.Result.ID, nil // a null result has none
+}
+
+// centre scrolls target into view and says the middle of its box.
+func (p *Page) centre(target string) (x, y float64, err error) {
+	id, err := p.object(target)
+	if err != nil {
+		return 0, 0, err
+	}
+	if id == "" {
+		return 0, 0, fmt.Errorf("nothing on the page matches %s", target)
+	}
+	raw, err := p.c.call("Runtime.callFunctionOn", map[string]any{"objectId": id, "returnByValue": true, "functionDeclaration": `function() {
+		const el = this.nodeType === 1 ? this : this.parentElement;
+		el.scrollIntoView({block: "center", inline: "center"});
+		const r = el.getBoundingClientRect();
+		return [r.x + r.width / 2, r.y + r.height / 2, r.width, r.height];
+	}`})
+	if err != nil {
+		return 0, 0, err
+	}
+	var r struct {
+		Result struct {
+			Value []float64 `json:"value"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Result.Value) != 4 {
+		return 0, 0, fmt.Errorf("%s has no box", target)
+	}
+	v := r.Result.Value
+	if v[2] == 0 && v[3] == 0 {
+		return 0, 0, fmt.Errorf("%s is not shown", target)
+	}
+	return v[0], v[1], nil
+}
+
+// Click clicks the middle of target.
+func (p *Page) Click(target string) error {
+	x, y, err := p.centre(target)
+	if err != nil {
+		return err
+	}
+	for _, kind := range []string{"mouseMoved", "mousePressed", "mouseReleased"} {
+		ev := map[string]any{"type": kind, "x": x, "y": y}
+		if kind != "mouseMoved" {
+			ev["button"], ev["clickCount"] = "left", 1
+		}
+		if _, err := p.c.call("Input.dispatchMouseEvent", ev); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Type clicks target and types text into it, then presses Enter when enter.
+func (p *Page) Type(target, text string, enter bool) error {
+	if err := p.Click(target); err != nil {
+		return err
+	}
+	if _, err := p.c.call("Input.insertText", map[string]any{"text": text}); err != nil {
+		return err
+	}
+	if !enter {
+		return nil
+	}
+	key := map[string]any{"key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13}
+	down := map[string]any{"type": "keyDown", "text": "\r"}
+	for k, v := range key {
+		down[k] = v
+	}
+	if _, err := p.c.call("Input.dispatchKeyEvent", down); err != nil {
+		return err
+	}
+	up := map[string]any{"type": "keyUp"}
+	for k, v := range key {
+		up[k] = v
+	}
+	_, err := p.c.call("Input.dispatchKeyEvent", up)
+	return err
+}
+
+// Wait waits until target is on the page, or, when text is set, until the page's text holds it: the page watches its own changes.
+func (p *Page) Wait(target, text string, within time.Duration) error {
+	what, test := target, ""
+	switch {
+	case text != "":
+		q, _ := json.Marshal(text)
+		what, test = strconv.Quote(text), `(document.body ? document.body.innerText : "").includes(`+string(q)+`)`
+	case ref.MatchString(target): // a ref is a node already read; it is there or gone
+		id, err := p.object(target)
+		if err != nil || id == "" {
+			return fmt.Errorf("%s is not on the page any more; read the tree again", target)
+		}
+		return nil
+	default:
+		q, _ := json.Marshal(target)
+		test = `!!document.querySelector(` + string(q) + `)`
+	}
+	script := fmt.Sprintf(`new Promise(done => {
+		const ok = () => %s;
+		if (ok()) return done(true);
+		const o = new MutationObserver(() => { if (ok()) { o.disconnect(); done(true); } });
+		o.observe(document, {subtree: true, childList: true, characterData: true, attributes: true});
+		setTimeout(() => { o.disconnect(); done(ok()); }, %d);
+	})`, test, within.Milliseconds())
+	p.c.within = within + callWithin
+	var found bool
+	if err := p.eval(script, &found); err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("%s did not appear within %s", what, within)
+	}
+	return nil
+}
+
+// Shot saves a PNG of the page to file: what the window shows, or the whole page when full.
+func (p *Page) Shot(file string, full bool) error {
+	params := map[string]any{"format": "png"}
+	if full {
+		raw, err := p.c.call("Page.getLayoutMetrics", nil)
+		if err != nil {
+			return err
+		}
+		var m struct {
+			Size struct{ Width, Height float64 } `json:"cssContentSize"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+		params["captureBeyondViewport"] = true
+		params["clip"] = map[string]any{"x": 0, "y": 0, "width": m.Size.Width, "height": m.Size.Height, "scale": 1}
+	}
+	raw, err := p.c.call("Page.captureScreenshot", params)
+	if err != nil {
+		return err
+	}
+	var r struct {
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return err
+	}
+	png, err := base64.StdEncoding.DecodeString(r.Data)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(file, png, 0o644)
+}

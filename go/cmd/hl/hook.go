@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/internal/browser"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/kit/pyjson"
@@ -295,6 +296,10 @@ func capture(c *hlclient.Client, agent, event string, raw map[string]any) {
 	if !captured[event] {
 		fmt.Println("{}")
 		return
+	}
+	// The agent's browser closes at its session's end, and one a dead session left at the next start.
+	if source, _ := raw["source"].(string); event == "SessionEnd" || (event == "SessionStart" && source == "startup") {
+		browser.Close(browserDir(c.Home, agent))
 	}
 	// Before the record: the agent's view the daemon writes for this event reads the snapshot.
 	if collected[event] {

@@ -16,4 +16,5 @@ description: The hl commands an agent runs in Handline: chat, tasks, progress, p
 - `hl propose run "<command>" --why "<why>"` for a command you cannot run yourself; other `hl propose` forms change agents, teams, rules, settings and schedules.
 - `hl lesson add "<text>" --task T<n>` records a correction.
 - `hl use <run|port> -- <command>` takes a shared resource (a port, the simulator, a browser) for one command.
+- `hl browser ...` drives your own browser (the handline-browser skill).
 - `hl load`, `hl desk list`, `hl version`.

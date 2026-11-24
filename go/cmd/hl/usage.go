@@ -2,15 +2,17 @@ package main
 
 // usages is each verb's form and one example, printed when its arguments are refused: "<verb> <sub>" first, then "<verb>".
 var usages = map[string][2]string{
-	"say":        {`hl say <target> "<text>" [--parent <msg>] [--file PATH] [--attach FILE] (chat, queued until the target takes it; on a task, write a comment)`, `hl say builder "the build machine is free again"`},
-	"read":       {`hl read <msg> [--wait] [--timeout <span>]`, `hl read msg_1a2b3c4`},
-	"inbox":      {`hl inbox [--all] [--wait] [--timeout <span>]`, `hl inbox --all`},
-	"withdraw":   {`hl withdraw <msg> [--reason "<why>"]`, `hl withdraw msg_1a2b3c4 --reason "sent to the wrong agent"`},
-	"progress":   {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
-	"load":       {`hl load [--agent <name>]`, `hl load`},
-	"desk":       {`hl desk list [<repo>]   |   hl desk pin <desk> <agent|founder>   |   hl desk unpin <desk>`, `hl desk pin desk-3 founder`},
-	"lesson":     {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
-	"team":       {`hl team [--agent <name>]`, `hl team`},
+	"say":      {`hl say <target> "<text>" [--parent <msg>] [--file PATH] [--attach FILE] (chat, queued until the target takes it; on a task, write a comment)`, `hl say builder "the build machine is free again"`},
+	"read":     {`hl read <msg> [--wait] [--timeout <span>]`, `hl read msg_1a2b3c4`},
+	"inbox":    {`hl inbox [--all] [--wait] [--timeout <span>]`, `hl inbox --all`},
+	"withdraw": {`hl withdraw <msg> [--reason "<why>"]`, `hl withdraw msg_1a2b3c4 --reason "sent to the wrong agent"`},
+	"progress": {`hl progress [--done N --of M] "<done: ... left: ...>"`, `hl progress --done 3 --of 5 "wiring the gate"`},
+	"load":     {`hl load [--agent <name>]`, `hl load`},
+	"desk":     {`hl desk list [<repo>]   |   hl desk pin <desk> <agent|founder>   |   hl desk unpin <desk>`, `hl desk pin desk-3 founder`},
+	"lesson":   {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
+	"team":     {`hl team [--agent <name>]`, `hl team`},
+	"browser": {`hl browser open <url> [--show]   |   read [--tree]   |   click <ref|selector>   |   type <ref|selector> "<text>" [--enter]   |   wait (<ref|selector> | --text "<text>") [--timeout <span>]   |   eval "<script>"   |   shot <file.png> [--full]   |   close`,
+		`hl browser click e12`},
 	"use":        {`hl use <run|port>... -- <command...>   |   hl use <run|port> --hold   |   hl use --release [<run|port>]   |   hl use --extend [<run|port>]   |   hl use add|remove|list`, `hl use xcode port -- npm run e2e`},
 	"use add":    {`hl use add <name> --cmd <command> [--cmd <command>]... [--at-once N] [--mac | --workspace <w>] --why "<why>" (a command: a program, a program and its first words, a script path, or @build-test, @simulator, @browser)`, `hl use add xcode --cmd xcodebuild --mac --why "one build at a time keeps the fans down"`},
 	"use remove": {`hl use remove <name> [--mac | --workspace <w>]`, `hl use remove xcode --mac`},

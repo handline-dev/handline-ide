@@ -33,6 +33,7 @@ var commands = map[string]command{
 	"task":      task,
 	"team":      teamCmd,
 	"use":       useCmd,
+	"browser":   browserCmd,
 	"version":   versionCmd,
 	"withdraw":  withdraw,
 	"workspace": workspaceCmd,

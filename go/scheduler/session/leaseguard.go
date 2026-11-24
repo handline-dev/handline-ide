@@ -47,6 +47,10 @@ func preset(words []string) string {
 		}
 	case name == "playwright":
 		return playwright(rest)
+	case name == "hl":
+		if len(rest) > 1 && rest[0] == "browser" && rest[1] != "close" {
+			return "@browser"
+		}
 	case runners[name]:
 		if i := firstArg(name, rest); i >= 0 && path.Base(rest[i]) == "playwright" {
 			return playwright(rest[i+1:])
