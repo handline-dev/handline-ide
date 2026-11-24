@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Hooks, useAgents } from '@handline/app-data';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 import { useRequests } from '#src/requests/data.ts';
 import { townOf, type House } from '#src/town/model.ts';
 import { Decisions, Panel } from '#src/town/panel.tsx';
@@ -63,8 +64,8 @@ export function TownTab() {
   const picture = usePicture(art, city);
   // eslint-disable-next-line no-restricted-syntax -- the clicks land on shapes over a drawn picture (a person, a desk, a paper), not on elements that can take useOpenable's props
   const open = useOpenTab();
-  const [picked, setPicked] = useState<string | null>(null);
-  const [mail, setMail] = useState(false);
+  const [picked, setPicked] = useTabState<string | null>('house', null);
+  const [mail, setMail] = useTabState('mail', false);
   const status = (h: House) => (h.working ? `${h.working} of ${h.people.length} at work` : 'Lights off');
   const houseOf = (key: string) => town.houses.find((h) => h.key === key);
   const house = picked && picked !== HQ ? houseOf(picked) : undefined;

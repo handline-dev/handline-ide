@@ -1,12 +1,13 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
-// scene3d.ts and shade.ts draw it, people.ts seats the people), at the largest whole-pixel scale that fits the pane. A click on a person
-// or a desk opens that agent's chat.
+// scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
+// A click on a person or a desk opens that agent's chat.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WebGLRenderer } from 'three';
 import { WORDS } from '#src/town/panel.tsx';
 import type { House, Person } from '#src/town/model.ts';
 import { BUBBLE, castOf, PEOPLE_SHEET, SHEET, type Cast, type Figure, type Spot } from '#src/town/people.ts';
-import { roomOf } from '#src/town/room.ts';
+import { COLS, roomOf } from '#src/town/room.ts';
+import { viewOf } from '#src/town/view.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
@@ -17,11 +18,20 @@ let renderer: WebGLRenderer | null = null;
 
 type Drawn = { url: string; w: number; h: number; cast: Cast };
 
-/** The room drawn with its people, as an image URL and where each person and desk is; redrawn when the house changes. */
-function useDrawn(house: House): Drawn | null {
-  const room = useMemo(() => roomOf(house), [house]);
-  const [drawn, setDrawn] = useState<Drawn | null>(null);
+/** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
+const sigOf = (house: House, cols: number) => [house.key, cols, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}`)].join(' ');
+/** The last drawing of each house, so the office is there at once when its tab comes back. */
+const drawings = new Map<string, { sig: string; drawn: Drawn }>();
+
+/** The room drawn with its people, as an image URL and where each person and desk is; redrawn only when what it shows changes. */
+/** `cols` is null until the pane has a size. */
+function useDrawn(house: House, cols: number | null): Drawn | null {
+  const sig = cols === null ? null : sigOf(house, cols);
+  const [drawn, setDrawn] = useState<Drawn | null>(() => drawings.get(house.key)?.drawn ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the room is laid out again only when what it shows changes, not on each poll
+  const room = useMemo(() => (cols === null ? null : roomOf(house, cols)), [sig]);
   useEffect(() => {
+    if (!room || drawings.get(house.key)?.sig === sig) return; // the kept drawing is already shown
     let live = true;
     renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
     void drawRoom(renderer, room).then((frame) => {
@@ -31,13 +41,26 @@ function useDrawn(house: House): Drawn | null {
       const canvas = document.createElement('canvas');
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-      setDrawn({ url: canvas.toDataURL(), w: pic.w, h: pic.h, cast });
+      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast };
+      drawings.set(house.key, { sig: sig ?? '', drawn: next });
+      setDrawn(next);
     });
     return () => {
       live = false;
     };
-  }, [room]);
+  }, [room]); // eslint-disable-line react-hooks/exhaustive-deps -- room changes exactly when sig does
   return drawn;
+}
+
+/** The bench width whose room fills a pane of (w, h) the most. */
+function colsFor(house: House, w: number, h: number): number {
+  let best = { cols: COLS[0], fit: 0 };
+  for (let cols = COLS[0]; cols <= COLS[1]; cols++) {
+    const v = viewOf(roomOf(house, cols));
+    const fit = Math.min(w / v.w, h / v.h);
+    if (fit > best.fit * 1.02) best = { cols, fit };
+  }
+  return best.cols;
 }
 
 /** The pane's size, kept as it resizes. */
@@ -67,9 +90,10 @@ export function Inside({
   onTalk: (p: Person) => void;
   onMail: () => void;
 }) {
-  const drawn = useDrawn(house);
   const [pane, [pw, ph]] = useSize();
-  const scale = drawn ? Math.max(1, Math.floor(Math.min(pw / drawn.w, ph / drawn.h))) : 1;
+  const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
+  const drawn = useDrawn(house, cols);
+  const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
@@ -93,7 +117,7 @@ export function Inside({
       className="cursor-pointer hover:stroke-accent"
       onClick={() => onTalk(s.person)}
     >
-      <title>{tipOf(s.person)}</title>
+      <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
     </rect>
   );
 
@@ -117,53 +141,55 @@ export function Inside({
           {decisions > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-medium text-accent-fg">{decisions}</span>}
         </button>
       </div>
-      <div ref={pane} className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4">
-        {drawn && pw > 0 && (
-          <svg
-            width={drawn.w * scale}
-            height={drawn.h * scale}
-            viewBox={`0 0 ${drawn.w} ${drawn.h}`}
-            className="shrink-0"
-            role="img"
-            aria-label={`${house.name}'s office`}
-          >
-            <image href={drawn.url} width={drawn.w} height={drawn.h} style={PIXEL} />
-            {drawn.cast.figures.map((f) => (
-              <Drawing key={f.person.key} figure={f} />
-            ))}
-            {drawn.cast.bubbles.map((b) => (
-              <image
-                key={`${b.x},${b.y}`}
-                href={BUBBLE}
-                x={b.x}
-                y={b.y}
-                width={b.w}
-                height={b.h}
-                style={PIXEL}
-                className="pointer-events-none"
-              />
-            ))}
-            {drawn.cast.names.map((n) => (
-              <text
-                key={n.person.key}
-                x={n.x}
-                y={n.y + font}
-                textAnchor="middle"
-                fontSize={font}
-                fontWeight={600}
-                fill={NAME_INK}
-                stroke={NAME_HALO}
-                strokeWidth={2.5 / scale}
-                paintOrder="stroke"
-                className="pointer-events-none"
-              >
-                {n.person.name}
-              </text>
-            ))}
-            {drawn.cast.desks.map((d) => hit(d, `desk-${d.person.key}`))}
-            {drawn.cast.spots.map((s) => hit(s, `at-${s.person.key}`))}
-          </svg>
-        )}
+      <div className="flex min-h-0 flex-1 p-4">
+        <div ref={pane} className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
+          {drawn && pw > 0 && (
+            <svg
+              width={drawn.w * scale}
+              height={drawn.h * scale}
+              viewBox={`0 0 ${drawn.w} ${drawn.h}`}
+              className="shrink-0"
+              role="img"
+              aria-label={`${house.name}'s office`}
+            >
+              <image href={drawn.url} width={drawn.w} height={drawn.h} style={PIXEL} />
+              {drawn.cast.figures.map((f) => (
+                <Drawing key={f.person.key} figure={f} />
+              ))}
+              {drawn.cast.bubbles.map((b) => (
+                <image
+                  key={`${b.x},${b.y}`}
+                  href={BUBBLE}
+                  x={b.x}
+                  y={b.y}
+                  width={b.w}
+                  height={b.h}
+                  style={PIXEL}
+                  className="pointer-events-none"
+                />
+              ))}
+              {drawn.cast.names.map((n) => (
+                <text
+                  key={n.person.key}
+                  x={n.x}
+                  y={n.y + font}
+                  textAnchor="middle"
+                  fontSize={font}
+                  fontWeight={600}
+                  fill={NAME_INK}
+                  stroke={NAME_HALO}
+                  strokeWidth={2.5 / scale}
+                  paintOrder="stroke"
+                  className="pointer-events-none"
+                >
+                  {n.person.name}
+                </text>
+              ))}
+              {drawn.cast.desks.map((d) => hit(d, `desk-${d.person.key}`))}
+              {drawn.cast.spots.map((s) => hit(s, `at-${s.person.key}`))}
+            </svg>
+          )}
+        </div>
       </div>
     </div>
   );

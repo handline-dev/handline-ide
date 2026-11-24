@@ -26,10 +26,13 @@ const SOFA_ROW = 1.6;
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
 
-/** The room for a house: benches in as many columns as keep the desks about square, the lounge as deep as its sitters need. */
-export function roomOf(house: House): Room {
+/** How many desks a bench may have: COLS[0] to COLS[1]. */
+export const COLS = [2, 6] as const;
+
+/** The room for a house: benches of `cols` desks (by default as many as keep the desks about square), the lounge as deep as its sitters
+ *  need. */
+export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.ceil(Math.sqrt(house.people.length))))): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
-  const cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(people.length))));
   const rows = Math.max(1, Math.ceil(people.length / cols));
   const idle = people.filter((p) => p.activity === 'resting');
   const sofaRows = Math.max(1, Math.ceil(idle.length / 4));
