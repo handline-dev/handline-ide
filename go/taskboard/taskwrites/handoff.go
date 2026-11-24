@@ -239,6 +239,9 @@ func handOff(tx *sql.Tx, tell Teller, tid int64, by, to, note string, agents []s
 	if t == nil {
 		return Handover{}, nil, refusal(fmt.Sprintf("no task T%d", tid))
 	}
+	if to, err = paths.Reaches(tx, to); err != nil { // a task handed to an idle seat goes to the agent it is of
+		return Handover{}, nil, err
+	}
 	if why := handoffRefusal(t, to, agents); why != "" {
 		return Handover{}, nil, refusal(why)
 	}

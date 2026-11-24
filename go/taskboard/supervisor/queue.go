@@ -9,7 +9,6 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
-	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // A queued task nobody has been sent is delivered as soon as its owner is free (daemon/taskqueue.py).
@@ -104,8 +103,8 @@ func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 // HireRetryS is how long after a hire that did not happen the next is tried for the same agent.
 const HireRetryS = 60
 
-// hireTemps gives the first task waiting for agent while it is mid-turn on another to a temp of it (Ports.Temps), so neither waits for
-// the other and agent's turn is told nothing; the next waits until that temp's session is up, so each hire meets the limits on its own.
+// hireTemps gives the first task waiting for agent while it is mid-turn on another to a seat of it (Ports.Temps), so neither waits for
+// the other and agent's turn is told nothing; the next waits until that seat's session is up, so each hire meets the limits on its own.
 // A task agent queued for itself, was already sent, or has a turn on it stays agent's.
 func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 	if e.Temps == nil {
@@ -124,18 +123,13 @@ func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 		if t.ID == cur || t.Owner != agent || t.QueuedBy.String == agent || t.SentAt.Valid {
 			continue
 		}
-		temp := e.Temps.Hire(agent)
+		note := fmt.Sprintf("You are a temp of %s, given this while it is busy: you have its role, lessons and memory, not its conversation. You go idle once the task is over.", addr.Ref(agent))
+		temp := e.Temps.Hire(agent, t.ID, note)
 		if temp == "" {
 			check(db.SetCursor(q, key, now))
 			return
 		}
-		note := fmt.Sprintf("You are a temp of %s, hired for this while it is busy: you have its role, lessons and memory, not its conversation. You leave once the task is over.", addr.Ref(agent))
-		if err := taskwrites.HandOffAsDaemon(e.DB, e.Home, e, t.ID, temp, note); err != nil {
-			e.log("  %s: T%d was not handed to its temp %s: %v", agent, t.ID, temp, err)
-			check(db.SetCursor(q, key, now)) // the temp holds nothing, so it leaves
-			return
-		}
-		e.log("  %s: mid-turn, so T%d went to its temp %s", agent, t.ID, temp)
+		e.log("  %s: mid-turn, so T%d went to its seat %s", agent, t.ID, temp)
 		return
 	}
 }

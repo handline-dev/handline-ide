@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -483,6 +484,7 @@ func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
 	if actor.IsPerson(owner) {
 		return 0
 	}
+	owner = must(paths.Reaches(q, owner))
 	rid := e.queueSay(q, owner, body)
 	e.Push(q, owner, rid)
 	return rid
@@ -616,6 +618,7 @@ func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string 
 	skip := map[string]bool{"": true, by: true, actor.OwnerKey: true}
 	var out []string
 	for _, a := range named {
+		a = must(paths.Reaches(e.DB, a)) // an idle seat's word goes to the agent it is of
 		if !skip[a] {
 			skip[a] = true
 			out = append(out, a)

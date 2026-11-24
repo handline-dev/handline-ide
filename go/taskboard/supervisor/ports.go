@@ -96,11 +96,12 @@ type Stuck interface {
 	DeliveryBlock(q db.Q, agent string) (why string, clears bool)
 }
 
-// Temps is go/internal/temps: a temp of a busy agent, for a task that came to it mid-turn.
+// Temps is go/internal/temps: a seat of a busy agent, for a task that came to it mid-turn.
 type Temps interface {
-	// Hire adds a temp of agent and is its key; "" when none is hired, and the task waits for agent as it always did.
-	Hire(agent string) string
-	// Waiting is whether a temp of agent has work and no session yet.
+	// Hire hands task tid to a seat of agent with note and is the seat's key; "" when none took it, and the task waits for agent as it
+	// always did.
+	Hire(agent string, tid int64, note string) string
+	// Waiting is whether a seat of agent is at work with no session yet.
 	Waiting(agent string) bool
 }
 

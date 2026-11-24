@@ -6,6 +6,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/internal/cmdruns"
+	"github.com/handline/handline/go/internal/temps"
 	"github.com/handline/handline/go/internal/transcript"
 )
 
@@ -49,7 +50,7 @@ func (e *Env) TaskEventItem(id int64) (item map[string]any, agent string, ok boo
 	if item, agent, ok := commentCardOf(ev); ok {
 		return item, agent, true, nil
 	}
-	if item, ok := accountItemOf(ev); ok {
+	if item, ok := ownItemOf(ev); ok {
 		return item, ev.str("agent"), true, nil
 	}
 	item, tid, shown := taskItemOf(ev)
@@ -101,9 +102,9 @@ func (e *Env) SessionItem(id int64) (item map[string]any, agent string, ok bool,
 // WorkingOf is a stored agent view (the agent_view row's JSON) as the spec's Working.
 func WorkingOf(view string) map[string]any { return workingFrom(decodeObject(view)) }
 
-// ChatTaskKinds are the kinds of event the chat shows: the task events, a batch discard's, a task_comment item's and an account move's, sorted.
+// ChatTaskKinds are the kinds of event the chat shows: the task events, a batch discard's, a task_comment item's and ownKinds, sorted.
 func ChatTaskKinds() []string {
-	kinds := append(append(taskCardKinds(), commentCardKinds...), accountKinds...)
+	kinds := append(append(taskCardKinds(), commentCardKinds...), ownKinds...)
 	sort.Strings(kinds)
 	return kinds
 }
@@ -118,12 +119,13 @@ func taskCardKinds() []string {
 	return kinds
 }
 
-// accountKinds are the events of an account move the agent's own chat shows: one landed, and a person's that could not run.
-var accountKinds = []string{"moved_account", db.MoveFailedKind}
+// ownKinds are the events the agent's own chat shows of itself: an account move that landed, a person's that could not run, and a seat of
+// it hired for a task (concurrent work started) or let go once it is over (ended).
+var ownKinds = []string{"moved_account", db.MoveFailedKind, temps.HiredEvent, temps.LeftEvent}
 
-// accountItemOf is an account move's event as a transcript item: account_moved (cause manual for a person's move, policy for the
-// daemon's; an event written before moves kept a reason reads one from its trigger) or move_failed; false for any other event.
-func accountItemOf(ev row) (map[string]any, bool) {
+// ownItemOf is an ownKinds event as a transcript item: account_moved (cause manual for a person's move, policy for the daemon's; an
+// event written before moves kept a reason reads one from its trigger), move_failed, or concurrent_work; false for any other event.
+func ownItemOf(ev row) (map[string]any, bool) {
 	p := decodeObject(ev.str("payload"))
 	id, at := itemID(ev.i("ts"), itemTask, ev.i("id")), ts(ev["ts"])
 	switch ev.str("kind") {
@@ -142,6 +144,12 @@ func accountItemOf(ev row) (map[string]any, bool) {
 	case db.MoveFailedKind:
 		return map[string]any{"id": id, "at": at, "kind": "move_failed",
 			"move_failed": map[string]any{"to": text(p["to"]), "reason": text(p["reason"])}}, true
+	case temps.HiredEvent, temps.LeftEvent:
+		work := map[string]any{"task_id": num(p["task_id"]), "seat": text(p["seat"]), "phase": "started"}
+		if ev.str("kind") == temps.LeftEvent {
+			work["phase"], work["ended"] = "ended", text(p["ended"])
+		}
+		return map[string]any{"id": id, "at": at, "kind": "concurrent_work", "concurrent_work": work}, true
 	}
 	return nil, false
 }

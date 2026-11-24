@@ -1,6 +1,9 @@
 package team
 
 import (
+	"cmp"
+	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -8,23 +11,18 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/paths"
 )
 
-// Temps (go/internal/temps): the rows of a temp, hired for a task that came to a busy agent.
+// Temps (go/internal/temps): the rows of a temp, a seat of an agent that takes a task that came to it while busy. A seat stays once its task
+// is over, idle (agents.hired_for unset), for the agent's next hire.
 
 // notCopied are the agents columns a temp does not take from the agent it is hired from: its own identity, and the agent's schedules,
 // which would run twice.
-var notCopied = []string{"id", "name", "created_at", "hired_from", "schedules"}
+var notCopied = []string{"id", "name", "created_at", "hired_from", "hired_for", "schedules"}
 
-// HireRow adds a temp of agent origin (its key; a temp's own origin when origin is a temp) and is the temp's key. The temp takes every
-// setting of origin's row; its number is the lowest no agent or temp of the workspace has had.
-func HireRow(q db.Q, origin string, now int64) (string, error) {
-	if from, err := paths.HiredFrom(q, origin); err != nil {
-		return "", err
-	} else if from != "" {
-		origin = from
-	}
+// NewSeat adds a seat of agent origin (its key), idle, and is its key. It takes every setting of origin's row; its number is the lowest
+// no agent of the workspace is called by.
+func NewSeat(q db.Q, origin string, now int64) (string, error) {
 	_, id, ok := actor.Parse(origin)
 	if !ok {
 		return "", fmt.Errorf("%s is not an agent's key", origin)
@@ -53,10 +51,9 @@ func HireRow(q db.Q, origin string, now int64) (string, error) {
 	return actor.Key(actor.Agent, made), err
 }
 
-// nextTempNumber is the lowest number from 2 that no agent or left temp of workspace ws is called name-<n> by, so a name a temp had
-// is never another's: what is still addressed to it goes to the agent it was hired from.
+// nextTempNumber is the lowest number from 2 that no agent of workspace ws is called name-<n> by.
 func nextTempNumber(q db.Q, ws int64, name string) (int, error) {
-	rows, err := q.Query("SELECT name FROM agents WHERE workspace = ?1 UNION SELECT name FROM temps_left WHERE workspace = ?1", ws)
+	rows, err := q.Query("SELECT name FROM agents WHERE workspace = ?", ws)
 	if err != nil {
 		return 0, err
 	}
@@ -119,32 +116,35 @@ func Temps(q db.Q) (map[string]string, error) {
 	return out, rows.Err()
 }
 
-// LeftRows is temp's rows as it leaves, before its agents row goes: what names it (a task's owner, opener, reporter or turn, a request
-// queued to it or one it asked) names the agent it was hired from instead, and temps_left keeps its name for words that still address
-// it. The agent it was hired from is the answer.
-func LeftRows(q db.Q, temp string, now int64) (string, error) {
-	from, err := paths.HiredFrom(q, temp)
-	if err != nil || from == "" {
-		return "", err
+// SetHiredFor marks seat, idle, at work on task tid, or idle with tid 0; an error when seat is no seat or, for a tid, not idle.
+func SetHiredFor(q db.Q, seat string, tid int64) error {
+	_, id, _ := actor.Parse(seat)
+	query, args := "UPDATE agents SET hired_for = NULL WHERE id = ? AND hired_from IS NOT NULL", []any{id}
+	if tid != 0 {
+		query, args = "UPDATE agents SET hired_for = ? WHERE id = ? AND hired_from IS NOT NULL AND hired_for IS NULL", []any{tid, id}
 	}
-	_, id, _ := actor.Parse(temp)
-	if _, err := q.Exec(`INSERT OR REPLACE INTO temps_left(agent, workspace, name, hired_from, left_at)
-		SELECT ?, workspace, name, hired_from, ? FROM agents WHERE id = ?`, temp, now, id); err != nil {
-		return "", err
+	res, err := q.Exec(query, args...)
+	if err != nil {
+		return err
 	}
-	if _, err := q.Exec("UPDATE requests SET target = ? WHERE target = ? AND state = 'queued'", from, temp); err != nil {
-		return "", err
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		return cmp.Or(err, fmt.Errorf("%s is no idle seat", seat))
 	}
-	for _, at := range []string{"tasks.owner", "tasks.opened_by", "tasks.reporter", "tasks.queued_by", "task_turns.agent", "requests.requester"} {
-		table, col, _ := strings.Cut(at, ".")
-		if _, err := q.Exec("UPDATE "+table+" SET "+col+" = ? WHERE "+col+" = ?", from, temp); err != nil {
-			return "", err
-		}
-	}
-	return from, nil
+	return nil
 }
 
-// Holds is whether temp still has work: an open task it acts on or owns (one with the founder's or a checker's turn on top is still its),
+// HiredFor is the task seat is at work on, 0 while it is idle.
+func HiredFor(q db.Q, seat string) (int64, error) {
+	_, id, _ := actor.Parse(seat)
+	var tid sql.NullInt64
+	err := q.QueryRow("SELECT hired_for FROM agents WHERE id = ?", id).Scan(&tid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return tid.Int64, err
+}
+
+// Holds is whether seat temp still has work: an open task it acts on or owns (one with the founder's or a checker's turn on top is still its),
 // or a request queued to it.
 func Holds(q db.Q, temp string) (bool, error) {
 	var n int
@@ -158,15 +158,20 @@ func Holds(q db.Q, temp string) (bool, error) {
 	return len(queued) > 0, err
 }
 
-// TempsOf is the keys of the temps hired from agent.
+// TempsOf is the keys of the seats of agent, lowest number first (seats are numbered as they are made).
 func TempsOf(q db.Q, agent string) ([]string, error) {
-	all, err := Temps(q)
-	var out []string
-	for t, from := range all {
-		if from == agent {
-			out = append(out, t)
-		}
+	rows, err := q.Query("SELECT id FROM agents WHERE hired_from = ? ORDER BY id", agent)
+	if err != nil {
+		return nil, err
 	}
-	slices.Sort(out)
-	return out, err
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, actor.Key(actor.Agent, id))
+	}
+	return out, rows.Err()
 }

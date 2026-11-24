@@ -549,6 +549,9 @@ func TestATypedPromptAfterADraftInTheBoxIsDelivered(t *testing.T) {
 	if line := `{"type":"user","origin":{"kind":"human"},"message":{"role":"user","content":"sushi"}}`; ShowsTyped(line, "hi") {
 		t.Fatal("a whole transcript's earlier prompt that ends with the words is not them")
 	}
+	if line := `{"type":"user","origin":{"kind":"human"},"message":{"role":"user","content":"Your temps are on T7.\n\nhi"}}`; !ShowsTyped(line, "hi") {
+		t.Fatal("a prompt whose last lines are the words, under the daemon's line, is them")
+	}
 }
 
 func TestAPromptThatCouldNotBeTypedIsNotDelivered(t *testing.T) {

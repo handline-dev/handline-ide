@@ -348,7 +348,8 @@
        "bash",
        "task_comment",
        "account_moved",
-       "move_failed"
+       "move_failed",
+       "concurrent_work"
       ]
      },
      "text": {
@@ -687,6 +688,40 @@
       "required": [
        "to",
        "reason"
+      ]
+     },
+     "concurrent_work": {
+      "type": "object",
+      "description": "Kind concurrent_work: a line in an agent's own chat where work beside its own started (a task that came to it mid-turn went to a seat of it) or ended. The task's title and commits are the task's, read as for the other task lines; chat.transcript with agent = seat and task = task_id reads that work's conversation.",
+      "properties": {
+       "task_id": {
+        "type": "integer"
+       },
+       "seat": {
+        "type": "string",
+        "description": "The key of the seat that does the work (a<n>): agents.list names it with hired_from, the agent this chat is of."
+       },
+       "phase": {
+        "type": "string",
+        "enum": [
+         "started",
+         "ended"
+        ]
+       },
+       "ended": {
+        "type": "string",
+        "enum": [
+         "done",
+         "handed_off",
+         "discarded"
+        ],
+        "description": "Phase ended only: how the task ended for the seat: done, handed on (to another, or back to the agent), or discarded."
+       }
+      },
+      "required": [
+       "task_id",
+       "seat",
+       "phase"
       ]
      }
     },
@@ -1244,6 +1279,15 @@
      "schema": {
       "type": "integer"
      }
+    },
+    {
+     "name": "task",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "description": "With agent a seat (agents.list hired_from): only that seat's items from its latest hire for this task to its end, during the work and after it. A seat never hired for it is not_found (what: task)."
     }
    ],
    "result": {
@@ -1294,7 +1338,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Oldest first, in pages: `before` reads the page just older than an item id, `since` reads the items from the second that id is in. Items are the agent's replies, its tool calls, the prompts it opened and the events of the tasks it acts on (the agent the top turn is on, else the owner). A tool item's id is the second of the call and its `output` is what the store held when the page was read: a result that lands in a later second than its call is not sent again by `since`, so a client that needs it reads the page again (without `since`). A page carries at most 2 MiB of tool output between its items; the newest items keep their output and an older one is cut to fit, with `dropped_lines` counting what was left out. Session items (kind session) are part of the list: each carries session.cause and session.handoff, and sorts among the others by its second."
+   "description": "Oldest first, in pages: `before` reads the page just older than an item id, `since` reads the items from the second that id is in. Items are the agent's replies, its tool calls, the prompts it opened and the events of the tasks it acts on (the agent the top turn is on, else the owner). A tool item's id is the second of the call and its `output` is what the store held when the page was read: a result that lands in a later second than its call is not sent again by `since`, so a client that needs it reads the page again (without `since`). A page carries at most 2 MiB of tool output between its items; the newest items keep their output and an older one is cut to fit, with `dropped_lines` counting what was left out. Session items (kind session) are part of the list: each carries session.cause and session.handoff, and sorts among the others by its second. With `task` and a seat as agent, the pages are bounded by the seat's hire for that task: a task's concurrent work, read the same during it and after it ends."
   },
   {
    "name": "chat.locate",
