@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -350,6 +351,12 @@ func (r *Registry) launch(c *rpc.Conn, p map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	mcp, _ := homefiles.Rel(r.Home, paths.MCPConfig(r.Home))
+	for i := range files {
+		if files[i].Path == mcp {
+			files[i].Data = r.serversThere(node, files[i].Data)
+		}
+	}
 	got, err := r.Launch(node, agent, params)
 	if err != nil {
 		return nil, err
@@ -393,4 +400,34 @@ func (r *Registry) agentFiles(c *rpc.Conn, p map[string]any) (any, error) {
 		return nil, rpc.Refused(err.Error(), "path", "")
 	}
 	return map[string]any{"accepted": true}, nil
+}
+
+// serversThere is the shared MCP config as node's sessions get it: without each server whose program node said it lacks, which would
+// only fail to start there. A program node was not yet asked about keeps its server.
+func (r *Registry) serversThere(node string, config []byte) []byte {
+	b, _, _ := r.Heard(node)
+	var cfg map[string]json.RawMessage
+	var servers map[string]json.RawMessage
+	if json.Unmarshal(config, &cfg) != nil || json.Unmarshal(cfg["mcpServers"], &servers) != nil {
+		return config
+	}
+	dropped := false
+	for name, prog := range team.MCPPrograms(string(config)) {
+		if slices.Contains(b.Has.Asked, prog) && !slices.Contains(b.Has.Programs, prog) {
+			delete(servers, name)
+			dropped = true
+		}
+	}
+	if !dropped {
+		return config
+	}
+	var err error
+	if cfg["mcpServers"], err = json.Marshal(servers); err != nil {
+		return config
+	}
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		return config
+	}
+	return out
 }
