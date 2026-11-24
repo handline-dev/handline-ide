@@ -4,6 +4,8 @@ import { type Event, type RpcError } from '@handline/client';
 import { applySeeds } from '#src/seeds.ts';
 import { setup, until } from '#src/helpers.ts';
 
+const AUD = 'handline.auditor';
+
 test('a devices event reaches a client that follows devices with other topics, after logged events moved its cursor', async () => {
   const { client } = setup();
   await client.start();
@@ -37,5 +39,19 @@ test("device.update has a Mac on another build take the master's: its lack goes,
   assert.deepEqual((await laptop()).lacks, []);
   await assert.rejects(client.call('device.update', { device: 'd-laptop', request_id: 'du-3' }), (e: RpcError) => e.data?.gate === 'build');
   await assert.rejects(client.call('device.update', { device: 'd-mini', request_id: 'du-4' }), (e: RpcError) => e.data?.gate === 'build');
+  client.close();
+});
+
+test('the placement setting and an agent.set send nodes.changed, as node.status shows both', async () => {
+  const { client } = setup();
+  await client.start();
+  const seen: Event[] = [];
+  client.onEvent((e) => seen.push(e));
+  await client.subscribe(['nodes']);
+  const changes = () => seen.filter((e) => e.type === 'nodes.changed').length;
+  await client.call('settings.set', { changes: { agent_placement: 'manual' }, request_id: 'np-1' });
+  await until(() => changes() === 1, 'nodes.changed after the setting');
+  await client.call('agent.set', { agent: AUD, values: { device: '' }, request_id: 'np-2' });
+  await until(() => changes() === 2, 'nodes.changed after agent.set');
   client.close();
 });

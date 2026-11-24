@@ -36,24 +36,24 @@ func TestARenameIsAgentChangedAndAWriteToPeopleOrWorkspacesIsTheirChanged(t *tes
 	scan()
 	got := all()
 	var v map[string]any
-	if len(got) != 1 || got[0].Type != "agent.changed" || json.Unmarshal(got[0].Data, &v) != nil ||
+	if len(got) != 2 || got[0].Type != "agent.changed" || got[1].Type != "nodes.changed" || json.Unmarshal(got[0].Data, &v) != nil || // nodes: its placement
 		v["key"] != "a7" || v["name"] != "painter" || v["workspace"] != "w5" || v["owner"] != "p1" {
 		t.Fatalf("a rename: %+v %v", got, v)
 	}
 	exec(t, d, "UPDATE workspaces SET name = 'store' WHERE id = 5")
 	exec(t, d, "INSERT INTO people(display_name, role, created_at) VALUES('Ron', 'owner', 0)")
 	scan()
-	got = all()[1:]
+	got = all()[2:]
 	if len(got) != 2 || got[0].Type != "people.changed" || got[1].Type != "workspaces.changed" || string(got[0].Data) != "{}" {
 		t.Fatalf("%+v", got)
 	}
 	exec(t, d, "INSERT INTO nodes(id, person, name, joined_at) VALUES('n1', 1, 'mac', 0)")
 	scan()
-	if got = all()[3:]; len(got) != 1 || got[0].Type != "nodes.changed" {
+	if got = all()[4:]; len(got) != 1 || got[0].Type != "nodes.changed" {
 		t.Fatalf("a node row: %+v", got)
 	}
 	scan()
-	if got = all()[4:]; len(got) != 0 {
+	if got = all()[5:]; len(got) != 0 {
 		t.Fatalf("no write said something: %+v", got)
 	}
 }

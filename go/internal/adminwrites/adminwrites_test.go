@@ -361,3 +361,21 @@ func TestTheDefaultModelAndEffortPerVendor(t *testing.T) {
 		t.Fatal("a default for new agents has no per-agent value")
 	}
 }
+
+// Writing a setting node.status shows (placement, node_build_auto, cluster_name) tells the nodes topic; another setting does not.
+func TestThePlacementSettingTellsTheNodesTopic(t *testing.T) {
+	r := newRig(t)
+	told := 0
+	r.e.NodesChanged = func() { told++ }
+	r.result(r.one("settings.set", `{"changes":{"bg_notice_s":120},"request_id":"p1"}`))
+	if told != 0 {
+		t.Fatal("another setting told the nodes topic")
+	}
+	r.result(r.one("settings.set", `{"changes":{"agent_placement":"manual"},"request_id":"p2"}`))
+	r.result(r.one("settings.set", `{"changes":{"agent_placement":null},"request_id":"p3"}`))
+	r.result(r.one("settings.set", `{"changes":{"node_build_auto":false},"request_id":"p4"}`))
+	r.result(r.one("settings.set", `{"changes":{"cluster_name":"home"},"request_id":"p5"}`))
+	if told != 4 {
+		t.Fatalf("the nodes topic was told %d times, want 4", told)
+	}
+}

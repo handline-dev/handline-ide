@@ -286,8 +286,8 @@ export class FakeDaemon {
     const owned = moduleCall(this, c, method, p, ok);
     if (owned) return owned.value;
     const handler = HANDLERS[method];
-    if (handler)
-      return handler({
+    if (handler) {
+      const value = handler({
         c,
         p,
         actor,
@@ -297,6 +297,9 @@ export class FakeDaemon {
         byTerminal: (id) => byTerminal(new Map([...this.sessions, ...this.script.shells]), id),
         iso: () => this.iso(),
       });
+      if (method === 'agent.set') this.emit('nodes', 'nodes.changed'); // its device places it
+      return value;
+    }
     return coreCall(this, c, method, p, ok, agent);
   }
 

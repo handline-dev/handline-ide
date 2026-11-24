@@ -24,6 +24,8 @@ type Env struct {
 	Run func(argv []string, env map[string]string) int
 	// Changed tells the accounts topic that an account was added; nil tells no one.
 	Changed func(account string)
+	// NodesChanged tells the nodes topic that a setting node.status shows was written (placement, node_build_auto, cluster_name); nil tells no one.
+	NodesChanged func()
 	// LabelKey is the meta name of the status label of the worktree at path, and whether an agent works there (reads.Env.LabelKey).
 	LabelKey func(path string) (key string, ok bool, err error)
 	// Network is the network listener network_addresses moves; nil takes any hosts and moves nothing.
