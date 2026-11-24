@@ -25,6 +25,10 @@ func preset(words []string) string {
 		if len(rest) >= 2 && rest[0] == "simctl" && rest[1] == "boot" {
 			return "@simulator"
 		}
+	case name == "hl":
+		if len(rest) >= 2 && rest[0] == "sim" && rest[1] == "boot" {
+			return "@simulator"
+		}
 	case name == "open":
 		for i, r := range rest {
 			if r == "-a" && i+1 < len(rest) && strings.HasPrefix(path.Base(strings.TrimSuffix(rest[i+1], "/")), "Simulator") {

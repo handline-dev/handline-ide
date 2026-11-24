@@ -8,6 +8,8 @@ import (
 func TestPreset(t *testing.T) {
 	for _, c := range []struct{ cmd, want string }{
 		{"xcrun simctl boot 'iPhone 16'", "@simulator"},
+		{"hl sim boot taro-14", "@simulator"},
+		{"hl sim tap --label General", ""},
 		{"open -a Simulator", "@simulator"},
 		{"open -a /Applications/Xcode.app/Contents/Developer/Applications/Simulator.app", "@simulator"},
 		{"xcodebuild test -scheme App -destination 'platform=iOS Simulator,name=iPhone 16'", "@simulator"},

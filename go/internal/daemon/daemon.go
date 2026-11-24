@@ -42,6 +42,7 @@ import (
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/internal/sessionrpc"
+	"github.com/handline/handline/go/internal/sim"
 	"github.com/handline/handline/go/internal/termchan"
 	"github.com/handline/handline/go/internal/transcript"
 	"github.com/handline/handline/go/internal/watcher"
@@ -368,6 +369,7 @@ func Start(cfg Config) (*Daemon, error) {
 		// A hold lasts the turn; a session's end also ends the commands' leases its hl use processes did not give back.
 		if kind == "SessionEnd" {
 			d.leases.ReleaseAgent(agent, "", false, "the session ended")
+			go (&sim.Env{Home: cfg.Home}).Reap(agent) // the simulators and emulators it booted
 		} else {
 			d.leases.ReleaseAgent(agent, "", true, "the turn ended")
 		}

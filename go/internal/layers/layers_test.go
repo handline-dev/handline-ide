@@ -38,6 +38,7 @@ var layer = map[string]int{
 	"fixtureplay":            0,
 	"layers":                 0,
 	"homefiles":              0,
+	"sim":                    0,
 	"outcome":                0,
 	"status":                 0,
 	"scheduler/staymove":     0,
