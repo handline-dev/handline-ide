@@ -3,7 +3,7 @@
 // city fills the pane. The founder's glass HQ holds every decision. A click on a building goes inside its office (Inside.tsx).
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Hooks, useAgents } from '@handline/app-data';
-import { chatOf, taskOf } from '#src/layout/kinds.tsx';
+import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 import { useRequests } from '#src/requests/data.ts';
@@ -82,7 +82,7 @@ export function TownTab() {
             setPicked(null);
             setMail(false);
           }}
-          onTalk={(p) => open(chatOf(p.key), 'side')}
+          onOpen={(d) => open(d.task ? taskOf(d.task) : 'requests', 'side')}
           onMail={() => setMail((m) => !m)}
         />
       ) : (

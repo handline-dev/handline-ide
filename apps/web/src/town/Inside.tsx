@@ -1,11 +1,13 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
 // scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
-// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and opens that
-// agent's chat, one on the founder's own desk opens the decisions.
+// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it. Standing beside an
+// agent floats its chat over the room (floater.tsx), beside the founder's own desk its decisions; walking away puts it away.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WebGLRenderer } from 'three';
-import { WORDS } from '#src/town/panel.tsx';
-import type { House, Person } from '#src/town/model.ts';
+import { Decisions, WORDS } from '#src/town/panel.tsx';
+import type { Decision, House, Person } from '#src/town/model.ts';
+import { Chat } from '#src/chat/Chat.tsx';
+import { Floater } from '#src/town/floater.tsx';
 import { BUBBLE, castOf, PEOPLE_SHEET, SHEET, type Cast, type Figure, type Spot } from '#src/town/people.ts';
 import { COLS, roomOf } from '#src/town/room.ts';
 import { viewOf } from '#src/town/view.ts';
@@ -119,12 +121,12 @@ const tipOf = (p: Person) => `${p.name} · ${p.doing ?? WORDS[p.activity]}`;
 export function Inside({
   house,
   onBack,
-  onTalk,
+  onOpen,
   onMail,
 }: {
   house: House;
   onBack: () => void;
-  onTalk: (p: Person) => void;
+  onOpen: (d: Decision) => void;
   onMail: () => void;
 }) {
   const [pane, [pw, ph]] = useSize();
@@ -132,6 +134,8 @@ export function Inside({
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
   const { me, go } = useWalker(drawn?.ground ?? null, house.key);
+  const near = me && drawn ? nearOf(drawn.cast, me.at) : null;
+  const nearPerson = near && near !== 'mine' ? (house.people.find((p) => p.key === near) ?? null) : null;
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
@@ -153,7 +157,7 @@ export function Inside({
       stroke="transparent"
       strokeWidth={1 / scale}
       className="cursor-pointer hover:stroke-accent"
-      onClick={() => go(s.at, () => onTalk(s.person))}
+      onClick={() => go(s.at)}
     >
       <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
     </rect>
@@ -239,7 +243,7 @@ export function Inside({
                     stroke="transparent"
                     strokeWidth={1 / scale}
                     className="cursor-pointer hover:stroke-accent"
-                    onClick={() => drawn.cast.mine && go(drawn.cast.mine.at, onMail)}
+                    onClick={() => drawn.cast.mine && go(drawn.cast.mine.at)}
                   >
                     <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
                   </rect>
@@ -251,8 +255,38 @@ export function Inside({
           )}
         </div>
       </div>
+      {nearPerson && (
+        <Floater key={nearPerson.key} title={nearPerson.name} sub={nearPerson.doing ?? WORDS[nearPerson.activity]}>
+          <Chat agent={nearPerson.key} />
+        </Floater>
+      )}
+      {near === 'mine' && (
+        <Floater title="Your desk" sub={`${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <Decisions papers={house.decisions} onOpen={onOpen} />
+          </div>
+        </Floater>
+      )}
     </div>
   );
+}
+
+/** How close the founder stands to an agent or its desk, in metres, for its chat to float. */
+const NEAR = 0.75;
+
+/** Whose the founder stands beside: an agent's key, 'mine' for the founder's own desk, or null; the nearest within NEAR. */
+function nearOf(cast: Cast, [x, z]: FloorSpot): string | 'mine' | null {
+  const all: [string, [number, number]][] = [
+    ...cast.spots.map((s): [string, [number, number]] => [s.person.key, s.at]),
+    ...cast.desks.map((s): [string, [number, number]] => [s.person.key, s.at]),
+    ...(cast.mine ? [['mine', cast.mine.at] as [string, [number, number]]] : []),
+  ];
+  let best: [string | null, number] = [null, NEAR];
+  for (const [key, at] of all) {
+    const d = Math.hypot(at[0] - x, at[1] - z);
+    if (d < best[1]) best = [key, d];
+  }
+  return best[0];
 }
 
 /** A name under a person or desk: `font` and the halo keep their screen size whatever the scale. */
