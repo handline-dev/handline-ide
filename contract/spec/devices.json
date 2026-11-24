@@ -244,7 +244,7 @@
         "why"
        ]
       },
-      "description": "Each agent that cannot start there now and why (\"needs pencil\", \"full: 2 of 2 sessions\", \"it is set to pause\"); a runner's row only."
+      "description": "Each agent that cannot start there now and why (\"codex not installed\", \"full: 2 of 2 sessions\", \"it is set to pause\"); a runner's row only."
      },
      "device": {
       "oneOf": [
@@ -951,7 +951,7 @@
            },
            "why": {
             "type": "string",
-            "description": "Why it is placed so, in words a person reads (\"heavy: check.sh 18 h this week\", \"heavy: ...; Studio needs pencil, so it stays here\", \"pinned to Studio\"); \"\" for a light agent on the master's machine."
+            "description": "Why it is placed so, in words a person reads (\"heavy: check.sh 18 h this week\", \"heavy: ...; Studio: codex not installed, so it stays here\", \"pinned to Studio\"); \"\" for a light agent on the master's machine."
            },
            "heavy_s": {
             "type": "integer",

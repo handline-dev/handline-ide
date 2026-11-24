@@ -97,19 +97,26 @@ func TestAHeavyAgentStaysOnItsRunnerWhileItHasRoom(t *testing.T) {
 	}
 }
 
-// An agent whose MCP server runs a program a runner lacks never lands there, and the reason reads as what it needs.
-func TestAnAgentNeverLandsWhereItsProgramIsMissing(t *testing.T) {
+// An agent's tools are its own: an MCP server of its own or of the shared config whose program a runner lacks keeps it from no runner,
+// and runners are not asked about it.
+func TestAnAgentsMCPServersDoNotPlaceIt(t *testing.T) {
 	p, hear := two(t)
 	heavy(t, p, "a1", "check.sh", 3)
 	p.DB.Exec(`UPDATE agents SET mcp_config = '{"mcpServers": {"pencil": {"command": "/opt/bin/pencil", "args": ["mcp"]}}}' WHERE id = 1`)
-	hear("r1", 4*gb, 0, "pencil")
-	if why := p.Lacks("bob", "r2"); why != "needs pencil" {
+	if err := os.MkdirAll(filepath.Dir(paths.MCPConfig(p.Home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.MCPConfig(p.Home), []byte(`{"mcpServers": {"figma": {"command": "/opt/bin/figma"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hear("r1", 4*gb, 0, "pencil", "figma")
+	if why := p.Lacks("bob", "r2"); why != "" {
 		t.Fatalf("r2 without pencil: %q", why)
 	}
-	if got := start(p, "bob"); got != "r1" {
-		t.Fatalf("it went to %q, not r1, the one with pencil", got)
+	if got := start(p, "bob"); got != "r2" {
+		t.Fatalf("it went to %q, not r2, the one with the most room", got)
 	}
-	if got := p.Check(); strings.Join(got, ",") != "pencil" {
+	if got := p.Check(); len(got) != 0 {
 		t.Fatalf("runners are asked about %v", got)
 	}
 }
@@ -179,8 +186,8 @@ func TestARunnersOwnMemoryCapIsWhereItIsFull(t *testing.T) {
 	}
 }
 
-// On Auto a heavy agent goes to the runner with room and a light one stays on the master's machine; a heavy one whose runners all lack a
-// program it needs stays too, and says why.
+// On Auto a heavy agent goes to the runner with room and a light one stays on the master's machine; a heavy one whose runners all lack
+// its CLI stays too, and says why.
 func TestAHeavyAgentGoesToARunnerWithRoomWhileALightOneStays(t *testing.T) {
 	p, _ := two(t)
 	p.DB.Exec("INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(2, 1, 'ann', 'p1', 1)")
@@ -196,11 +203,11 @@ func TestAHeavyAgentGoesToARunnerWithRoomWhileALightOneStays(t *testing.T) {
 	if err != nil || st.Device != "r2" || st.Why != "heavy: check.sh 3 h this week" || st.HeavyS != 3*3600 {
 		t.Fatalf("bob's placement: %+v %v", st, err)
 	}
-	p.DB.Exec(`UPDATE agents SET mcp_config = '{"mcpServers": {"pencil": {"command": "/opt/bin/pencil"}}}' WHERE id = 1`)
+	p.DB.Exec("UPDATE agents SET vendor = 'codex' WHERE id = 1")
 	if got := start(p, "bob"); got != "" {
-		t.Fatalf("a heavy agent that needs pencil went to %q, which lacks it", got)
+		t.Fatalf("a heavy codex agent went to %q, which has no codex", got)
 	}
-	if st, _ := p.Status("bob"); st.Device != "m0" || st.Why != "heavy: check.sh 3 h this week; leaves two: needs pencil; one needs pencil, so it stays here" {
+	if st, _ := p.Status("bob"); st.Device != "m0" || st.Why != "heavy: check.sh 3 h this week; leaves two: codex not installed; one: codex not installed, so it stays here" {
 		t.Fatalf("why it stays: %+v", st)
 	}
 }
@@ -243,28 +250,5 @@ func TestAPinnedAgentOnManualStartsOnItsDevice(t *testing.T) {
 	}
 	if st, _ := p.Status("bob"); st.Pin != "r1" {
 		t.Fatalf("Auto dropped the pin: %+v", st)
-	}
-}
-
-// A server of the shared MCP config counts only for an agent that called its tools in its last 7 days.
-func TestASharedServerCountsOnlyForAnAgentThatCalledIt(t *testing.T) {
-	p, _ := two(t)
-	heavy(t, p, "a1", "check.sh", 3)
-	if err := os.MkdirAll(filepath.Dir(paths.MCPConfig(p.Home)), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(paths.MCPConfig(p.Home), []byte(`{"mcpServers": {"pencil": {"command": "/opt/bin/pencil"}}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if got := p.Next("bob"); got != "r2" {
-		t.Fatalf("an agent that never called pencil went to %q", got)
-	}
-	p.DB.Exec("INSERT INTO mcp_used(agent, server, at) VALUES('a1', 'pencil', ?)", p.now()-8*24*3600)
-	if got := p.Next("bob"); got != "r2" {
-		t.Fatalf("a call 8 days ago kept it off r2: %q", got)
-	}
-	p.DB.Exec("UPDATE mcp_used SET at = ?", p.now()-24*3600)
-	if got := p.Next("bob"); got != "" {
-		t.Fatalf("an agent that called pencil yesterday went to %q, which lacks it", got)
 	}
 }

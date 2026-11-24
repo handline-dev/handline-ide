@@ -59,7 +59,7 @@ export type Node = {
     /** Git's word on a failed clone or fetch. */
     error?: string;
   }[];
-  /** Each agent that cannot start there now and why ("needs pencil", "full: 2 of 2 sessions", "it is set to pause"); a runner's row only. */
+  /** Each agent that cannot start there now and why ("codex not installed", "full: 2 of 2 sessions", "it is set to pause"); a runner's row only. */
   lacks?: {
     agent: string;
     why: string;
@@ -177,7 +177,7 @@ export interface DevicesMethods {
         agent: string;
         /** The node id its next session starts on: the master's own while it stays. */
         device: string;
-        /** Why it is placed so, in words a person reads ("heavy: check.sh 18 h this week", "heavy: ...; Studio needs pencil, so it stays here", "pinned to Studio"); "" for a light agent on the master's machine. */
+        /** Why it is placed so, in words a person reads ("heavy: check.sh 18 h this week", "heavy: ...; Studio: codex not installed, so it stays here", "pinned to Studio"); "" for a light agent on the master's machine. */
         why: string;
         /** Seconds its heavy commands ran in its last 7 days. */
         heavy_s: number;
