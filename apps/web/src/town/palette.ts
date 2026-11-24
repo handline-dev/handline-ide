@@ -16,15 +16,16 @@ export const KIND_COLOUR: Record<Kind, RGB> = {
   slab: [120, 84, 62],
   wall: [236, 218, 196],
   side: [220, 198, 174],
-  cap: [96, 70, 58],
   glass: [172, 214, 240],
   frame: [74, 80, 98],
   sill: [220, 196, 170],
   door: [176, 116, 70],
   baseboard: [200, 160, 120],
 };
+/** The cut along a wall's top: the top face of the walls takes it, so no thin box sits on the wall to show a sliver of its side. */
+export const WALL_TOP: RGB = [96, 70, 58];
 /** Surfaces drawn at their own colour whatever the sun does: walls and what is set in them. */
-export const LIT_KINDS: Kind[] = ['wall', 'side', 'cap', 'glass', 'frame', 'door'];
+export const LIT_KINDS: Kind[] = ['wall', 'side', 'glass', 'frame', 'door'];
 
 const PARTS: Record<string, Record<string, RGB>> = {
   desk: { wood: [236, 236, 232], metal: [196, 200, 208] },

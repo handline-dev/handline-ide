@@ -7,7 +7,7 @@ import type { House, Person } from '#src/town/model.ts';
 
 /** A model from public/town/models at (x, z), turned `rot` radians about its origin; `tag` names it for the pixels that show it. */
 export type Thing = { model: string; x: number; z: number; y?: number; rot?: number; scale?: number; tag?: string; lit?: boolean };
-export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'cap' | 'glass' | 'frame' | 'sill' | 'door' | 'baseboard';
+export type Kind = 'floor' | 'slab' | 'wall' | 'side' | 'glass' | 'frame' | 'sill' | 'door' | 'baseboard';
 /** A plain box: its two corners and what it is; boxes of one `part` are one object, outlined only around the whole. */
 export type Block = { from: [number, number, number]; to: [number, number, number]; kind: Kind; part?: string };
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing; (x, z) on the floor. */
@@ -88,7 +88,7 @@ export function roomOf(house: House): Room {
   return { w, d, wallH: WALL_H, people, things, blocks: shell(w, d, door), places };
 }
 
-/** The box itself: floor on a slab, three walls with a dark cut along their tops, a long window, a baseboard and the door. */
+/** The box itself: floor on a slab, three walls (palette.ts darkens their tops), a long window, a baseboard and the door. */
 function shell(w: number, d: number, door: number): Block[] {
   const [t, h] = [WALL_T, WALL_H];
   const b: Block[] = [
@@ -97,9 +97,6 @@ function shell(w: number, d: number, door: number): Block[] {
     { from: [-t, 0, -t], to: [w + t, h, 0], kind: 'wall', part: 'back' },
     { from: [-t, 0, 0], to: [0, h, d], kind: 'side', part: 'left' },
     { from: [w, 0, 0], to: [w + t, h, d], kind: 'side', part: 'right' },
-    { from: [-t, h, -t], to: [w + t, h + 0.04, 0], kind: 'cap', part: 'back' },
-    { from: [-t, h, 0], to: [0, h + 0.04, d], kind: 'cap', part: 'left' },
-    { from: [w, h, 0], to: [w + t, h + 0.04, d], kind: 'cap', part: 'right' },
     { from: [0, 0, 0], to: [w, 0.06, 0.09], kind: 'baseboard' },
     { from: [door, 0, -0.02], to: [door + 0.7, 1.05, 0.015], kind: 'door' },
     { from: [door + 0.07, 0.62, -0.02], to: [door + 0.63, 0.98, 0.025], kind: 'glass' },

@@ -5,7 +5,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Kind, Room } from '#src/town/room.ts';
 import { PROJECT_GLSL, viewOf, type View } from '#src/town/view.ts';
-import { colourOf, KIND_COLOUR, LIT_KINDS } from '#src/town/palette.ts';
+import { colourOf, KIND_COLOUR, LIT_KINDS, WALL_TOP } from '#src/town/palette.ts';
+
+type RGB = [number, number, number];
 
 const MODELS = `${import.meta.env.BASE_URL}town/models/`;
 const SUN = new THREE.Vector3(0.45, -1, -0.3).normalize(); // from the windows, back and upper left
@@ -52,14 +54,17 @@ const VERTEX = /* glsl */ `
     vDepth = -tTrue.z;
   }`;
 
-/** Flat colour, or floor boards, the window's view or a screen's lines (uPattern 1, 2, 3); alpha marks a surface lit from within. */
+/** Flat colour (uTop on a face turned up, where set), or floor boards, the window's view or a screen's lines (uPattern 1, 2, 3); alpha
+ *  marks a surface lit from within. */
 const BASE_FRAGMENT = /* glsl */ `
   uniform vec3 uColour;
+  uniform vec3 uTop;
   uniform float uGlow;
   uniform int uPattern;
   varying vec3 vWorld;
+  varying vec3 vNormal;
   void main() {
-    vec3 c = uColour;
+    vec3 c = uTop.r >= 0.0 && vNormal.y > 0.5 ? uTop : uColour;
     vec3 w = vWorld;
     if (uPattern == 1) {
       float pz = w.z / 0.16;
@@ -107,7 +112,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     shader.uniforms.uLift = uLift;
     shader.vertexShader = `uniform float uLift;\n${shader.vertexShader.replace('#include <project_vertex>', PROJECT_GLSL)}`;
   };
-  const add = (mesh: THREE.Mesh, id: number, colour: [number, number, number], glow: boolean, pattern = 0) => {
+  const add = (mesh: THREE.Mesh, id: number, colour: RGB, glow: boolean, pattern = 0, top: RGB = [-255, 0, 0]) => {
     const shader = { vertexShader: VERTEX, side: THREE.DoubleSide };
     const base = new THREE.ShaderMaterial({
       ...shader,
@@ -115,6 +120,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
       uniforms: {
         uLift,
         uColour: { value: new THREE.Vector3(...colour.map((v) => v / 255)) },
+        uTop: { value: new THREE.Vector3(...top.map((v) => v / 255)) },
         uGlow: { value: glow ? 1 : 0 },
         uPattern: { value: pattern },
       },
@@ -136,7 +142,8 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     const mesh = new THREE.Mesh(box);
     mesh.position.set(...(b.from.map((v, i) => v + size[i] / 2) as [number, number, number]));
     const pattern = b.kind === 'floor' ? 1 : b.kind === 'glass' ? 2 : 0;
-    add(mesh, id, KIND_COLOUR[b.kind], LIT_KINDS.includes(b.kind), pattern);
+    const wall = b.kind === 'wall' || b.kind === 'side';
+    add(mesh, id, KIND_COLOUR[b.kind], LIT_KINDS.includes(b.kind), pattern, wall ? WALL_TOP : undefined);
   }
   const loaded = await Promise.all(room.things.map((t) => model(t.model)));
   room.things.forEach((t, i) => {
