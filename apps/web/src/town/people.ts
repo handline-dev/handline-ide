@@ -147,7 +147,7 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
   /** Behind a desk's chair, where the founder stands to talk. */
   const behind = (tag: string): [number, number] => {
     const t = room.things.find((d) => d.model === 'desk' && d.tag === tag);
-    return t ? [t.x + 0.37, t.z + 0.85] : room.entry;
+    return t ? [t.x + 0.37, t.z + 1.0] : room.entry;
   };
   for (const person of room.people) {
     const desk = boxOf(pic, frame, `desk:${person.key}`);

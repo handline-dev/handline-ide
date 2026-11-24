@@ -183,7 +183,7 @@ export function Inside({
           {decisions > 0 && <span className="rounded-full bg-danger px-1.5 text-xs font-medium text-accent-fg">{decisions}</span>}
         </button>
       </div>
-      <div className="flex min-h-0 flex-1 p-4">
+      <div className="relative flex min-h-0 flex-1 p-4">
         <div ref={pane} className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
           {drawn && pw > 0 && (
             <svg
@@ -209,6 +209,9 @@ export function Inside({
                 .map((f) => (
                   <Drawing key={f.person.key} figure={f} />
                 ))}
+              {drawn.cast.names.map((n) => (
+                <Label key={n.person.key} x={n.x} y={n.y} font={font} scale={scale} text={n.person.name} />
+              ))}
               {me && <FounderDrawing me={me} ground={drawn.ground} />}
               {drawn.cast.figures
                 .filter((f) => me && f.z > me.at[1])
@@ -226,9 +229,6 @@ export function Inside({
                   style={PIXEL}
                   className="pointer-events-none"
                 />
-              ))}
-              {drawn.cast.names.map((n) => (
-                <Label key={n.person.key} x={n.x} y={n.y} font={font} scale={scale} text={n.person.name} />
               ))}
               {drawn.cast.mine && (
                 <>
@@ -254,19 +254,19 @@ export function Inside({
             </svg>
           )}
         </div>
+        {nearPerson && (
+          <Floater key={nearPerson.key} title={nearPerson.name} sub={nearPerson.doing ?? WORDS[nearPerson.activity]}>
+            <Chat agent={nearPerson.key} />
+          </Floater>
+        )}
+        {near === 'mine' && (
+          <Floater title="Your desk" sub={`${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <Decisions papers={house.decisions} onOpen={onOpen} />
+            </div>
+          </Floater>
+        )}
       </div>
-      {nearPerson && (
-        <Floater key={nearPerson.key} title={nearPerson.name} sub={nearPerson.doing ?? WORDS[nearPerson.activity]}>
-          <Chat agent={nearPerson.key} />
-        </Floater>
-      )}
-      {near === 'mine' && (
-        <Floater title="Your desk" sub={`${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <Decisions papers={house.decisions} onOpen={onOpen} />
-          </div>
-        </Floater>
-      )}
     </div>
   );
 }

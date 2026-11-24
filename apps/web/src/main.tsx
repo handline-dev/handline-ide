@@ -17,6 +17,7 @@ import { ToastHost } from '#src/ui/toast.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { useAgentLayouts } from '#src/layout/agentLayouts.ts';
 import { Workspace } from '#src/Workspace.tsx';
+import { openTown, TownMode } from '#src/town/mode.tsx';
 import { TabsTo } from '#src/sidebar/tabDrop.ts';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Onboarding } from '#src/onboarding/Onboarding.tsx';
@@ -43,8 +44,9 @@ function App() {
   useEffect(() => {
     if (gone) selectPage('requests', 'Requests');
   }, [gone, selectPage]);
-  // Settings covers the app instead of taking a tab.
-  const goPage = (kind: string, title: string) => (kind === 'preferences' ? openSettings() : selectPage(kind, title));
+  // Settings and Town cover the app instead of taking a tab.
+  const goPage = (kind: string, title: string) =>
+    kind === 'preferences' ? openSettings() : kind === 'town' ? openTown() : selectPage(kind, title);
   setPageGo(goPage);
   setAgentGo(select);
   const toggle = () => setOpen((o) => !o);
@@ -125,6 +127,7 @@ function App() {
         <StatusRow />
       </div>
       <Settings />
+      <TownMode />
       {/* Fixed top-left; right of the Mac window buttons in the shell (shellInsets.ts). Last in the page: the shell
           takes the last region drawn where drag strips and this overlap. */}
       <div className="app-no-drag fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>

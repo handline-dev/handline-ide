@@ -1,5 +1,5 @@
-// A window floating over the town, at its right edge: the chat of the agent the founder stands beside, or the decisions on the founder's
-// own desk. It is a fixed width until its left edge is dragged, and the width it is given is kept for the next one.
+// A window floating over the town's picture at its right edge, under the bar above it: the chat of the agent the founder stands beside,
+// or the decisions on the founder's own desk. It is a fixed width until its left edge is dragged, and the width given is kept for the next.
 import { useRef, useState, type ReactNode } from 'react';
 import { TabId } from '#src/persist/tabState.ts';
 
