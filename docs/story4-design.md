@@ -1,9 +1,10 @@
 # Story 4 design: one master, lent machines, several people
 
-Design only; nothing is built. Decisions lists the founder's answers (11-17, 11-18, 11-21); Build slices orders
-the build. The earlier designs (a leader and replicas of the board on every machine, 10-16 and 11-17 morning) are
+Slices 1 to 27 are built. Decisions lists the founder's answers (11-17 to 11-24); Build slices orders the build.
+The earlier designs (a leader and replicas of the board on every machine, 10-16 and 11-17 morning) are
 replaced: the founder's direction is one master that keeps the board, machines people lend to it, and
-people who only connect.
+people who only connect. Since 11-24 (section 7) agents stay on the master's machine and their heavy jobs go to
+the lent machines; moving an agent is left for when the master's machine is full, and for experts.
 
 **Names used throughout:** the **master** is the one daemon that keeps the board and decides. A **runner** is
 a machine lent to the master: it runs the agents the master sends it and keeps nothing of the board. The
@@ -87,13 +88,14 @@ the popover of the pause control at the bottom right.
 
 ## 2. Agents and sessions
 
-An agent is a name, a role, a memory, a handoff and its place in the team: all on the master. It **stays on
-one device while that device has room**, so its worktree, transcript and build caches stay warm. The master
-picks a device for it, the one with the most room among those that hold the project and have everything the
-agent needs (its MCP programs, folders, a simulator for app work), only when the agent has none, or when a
-session starts and the agent's device is full, on Pause or Off, offline past the reclaim time, or lacks what
-the agent needs. The agent then stays on the new device. Load spreads at starts, never in the middle of a turn.
-A Devices row says what a device lacks for an agent ("ui not here: needs Pencil").
+An agent is a name, a role, a memory, a handoff and its place in the team: all on the master. Its device is
+**the master's machine** (11-24), where its logins, MCP programs and skills already are; its heavy jobs go to
+the lent machines instead (section 7). The master picks another device for it, the one with the most room
+among those that hold the project and have everything the agent needs (its MCP programs, folders, a simulator
+for app work), only when a session starts and the master's machine is full, and it comes back at a later
+session's start once there is room. Load spreads at starts, never in the middle of a turn. On Manual an expert
+pins an agent to a device instead. A Devices row says what a device lacks for an agent ("ui not here: needs
+Pencil").
 
 - **Worktree:** the runner keeps one worktree per agent per project, made from the remote and named as today.
   A session placed on another runner starts from the branch's last pushed commit there.
@@ -186,6 +188,41 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
 5. People: invite, list, role, remove; each person's Requests.
 6. Each runner's copy and how far behind it is, in `node.status`; `node.promote`, also when the master is
    gone; the master number on every reply, so an app notices a new master; a board set aside.
+7. The jobs running on each device (agent, command, since) in `node.status`; the Auto/Manual setting, and on
+   Manual each device's heavy jobs on or off and each agent's pinned device.
+
+## 7. Heavy jobs on lent devices (11-24)
+
+Agents stay on the master's machine; their heavy commands run on whichever machine has the most room, this one
+included. Why (T9440): over 7 days the full check was 64% of this team's heavy command time, and one full check
+uses about as much memory (4 GB) as all 13 agents (4.5 GB). An agent moved without its checks frees about
+350 MB, and needs its logins, MCP programs, skills and version on the other machine; a heavy command needs only
+the code and the build tools. The founder (T9440 8642): nobody should have to think about it; Handline picks,
+and an expert can set it by hand.
+
+- **Heavy:** the presets Handline knows (`@build-test`, `@simulator`), and any command the daemon has seen run
+  over 60 s on this cluster, by its program and first words (`tools/check.sh`, `go test`): found from the
+  `PreToolUse` and `PostToolUse` hooks, not set. Tests, checks and simulator runs go; a build whose output the
+  agent uses next (`go build -o`) stays here.
+- **Sent:** the Bash hook rewrites the command to `hl job -- <command>` (Claude Code's `updatedInput`); an agent
+  CLI whose hook cannot rewrite gets the refusal naming `hl job`, as shared runs do. The agent reads the
+  command's output as if it ran here, after one line naming the device.
+- **Where:** placement's room (the most free memory under the device's memory cap) over the master's machine
+  and the devices on Run that hold the project; the master's machine when it has the most. A device where a
+  job's program was missing ("command not found") is not given that program again until its next version.
+- **The code:** the runner keeps one job worktree per agent per project, so its caches stay warm. Before a
+  job the master sends what that worktree lacks: the commits past the last one it has (a git bundle), then the
+  agent's uncommitted changes and its untracked files that git does not ignore. The job gets the command's own
+  variable assignments and none of the agent's environment.
+- **Back:** stdout and stderr stream back over the node link as they come, and the exit code is the command's.
+- **Never waits:** no device with more room, a sync or link that fails, or a device gone mid-job: the command
+  runs here, and its first line says why.
+- **Simulators:** a simulator command (`xcrun simctl boot`, `open -a Simulator`) takes a simulator on the device
+  picked then and holds it, as `hl use --hold` does: the agent's next simulator, `xcodebuild test` and
+  screenshot commands go to that device until it releases it or its session ends. The files they write in the
+  worktree (screenshots, test results) come back when each ends.
+- **Auto and Manual:** one setting in Settings > Devices, Auto by default. Auto is all of the above. Manual,
+  for experts, turns heavy jobs off per device and pins an agent to a device (section 2).
 
 ## Decisions
 
@@ -197,9 +234,9 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
    commit; a returning runner's leftover work goes to a rescue branch.
 3. **Accounts:** a runner uses the Claude accounts logged in on it; the master's are not copied.
 4. **Project:** each runner clones the project from its remote.
-5. **An agent stays on one device while it has room (11-21):** its memory and handoff are on the master; it
-   moves, at a session's start, when its device is full, on Pause or Off, offline past the reclaim time or
-   lacks what it needs.
+5. **An agent stays on the master's machine (11-24; 11-21 kept it on any one device while it had room):** it
+   moves to a lent device at a session's start only when the master's machine is full, and comes back once
+   there is room; on Manual an expert pins it.
 6. **People:** an owner and members; a member may lend a machine; connecting without lending is joining on Off
    (11-22; the app's connect mode is gone).
 7. **Board:** SQLite on the master; the owner's runners hold a copy, through Litestream, only to restore from.
@@ -221,6 +258,11 @@ People and roles exist today (`people`, `devices`; the RPC roles `owner` and `me
 11. **Several clusters in one list (11-22):** a Mac's app shows its own work and every cluster it joined in one
     list, each cluster named (a random name, changed in Settings); a joined cluster's menu has only Leave, and lending
     is that cluster's Settings > Devices Run · Pause · Off.
+12. **Heavy jobs leave, agents stay (11-24, T9440):** tests, checks and simulators run on the machine with the
+    most room, the full check first; a job never waits on a device and runs here when none can take it.
+    Simulators go to the device with the most free memory, so a big Mac takes them without being set.
+13. **Auto, and Manual for experts (11-24, T9440 8642):** one setting, Auto by default; Handline may later
+    pick the whole arrangement itself, moving agents too.
 
 ## Build slices
 
@@ -257,6 +299,14 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 26 | Update a device's app from Devices: an engine's heartbeat says its Mac app's version and the newer one its update channel has ready (app.json, which the shell writes); the master's row says Update ready with its Update (device.update); the heartbeat's answer then has the app install it (app_update, kept in app-update.json for the shell), at once for Update, on Auto (node_build_auto, the owner's Mac) once no window is open there; the engine and its sessions go on through the restart | app | 4 | 24 |
 | 27 | Make this Mac the master in the Mac app: `node.promote` on the engine of that cluster, which listens on a port kept for it and serves the network_addresses chosen in this Mac's own home; made the master, the cluster stays listed at its door on this Mac and cannot be left; the app's own daemon is never a runner, so the own-runner path goes | app | 2 | 24 |
 
-About 181 hours: phase 1 (slices 1 to 14, 17 to 20, 22 to 24, 26 and 27) about 163, phase 2 about 18. Not in this list:
-taking over by itself, a majority vote among three or more machines, lending only at night, resting while the
-person uses the machine, bringing a set-aside board's tasks over, the phone.
+| 28 | `hl job -- <command>`: the command runs on a runner the master picks, in that runner's job worktree for the agent and project, brought to the agent's commits, uncommitted changes and untracked files; output streamed back, the command's exit code; here instead when no device has more room or the sync, the link or the device fails, the first line saying where and why; tested with a master and a runner on one Mac | daemon, hl | 12 | |
+| 29 | Heavy commands found: each Bash command's wall time from the hooks, kept by program and first words; the presets and any seen over 60 s are heavy | daemon | 4 | |
+| 30 | Heavy jobs sent by themselves: the Bash hook rewrites a heavy test or check command to `hl job` (`updatedInput`), the refusal naming `hl job` for a CLI that cannot rewrite; placement's room picks the machine; a missing program not sent there again until the device's next version; the last 7 days' heavy commands replayed over this Mac and one device first, to show what leaves this Mac | daemon | 8 | 28, 29 |
+| 31 | Simulators on a device: a simulator command holds a simulator on the device picked then; the agent's next simulator, `xcodebuild test` and screenshot commands go there until released or the session ends; the files they write in the worktree come back | daemon | 8 | 30 |
+| 32 | Agents stay home: placement keeps every agent on the master's machine, moves one only when it is full at a session's start and brings it back once there is room; Auto/Manual, and on Manual a device's heavy jobs off and an agent pinned to a device | daemon | 4 | |
+| 33 | Devices shows each device's running jobs (agent, command, since) and Auto/Manual with Manual's choices: designed, then built | app | 6 | 30, 32 |
+
+About 223 hours: phase 1 (slices 1 to 14, 17 to 20, 22 to 24, 26 and 27) about 163, phase 2 about 18, heavy jobs
+(28 to 33) about 42. Not in this list: taking over by itself, a majority vote among three or more machines,
+lending only at night, resting while the person uses the machine, bringing a set-aside board's tasks over, the
+phone, builds whose output comes back, Handline picking the whole arrangement itself.

@@ -168,6 +168,33 @@ Taken into Story 4 (the founder's OK, T3890 8140; `docs/story4-design.md`):
 Left: placing each run on any machine (it suits throw-away workers, not agents with warm caches),
 copying logins or MCP programs to a machine, and a master run as a cloud service.
 
+## 7. Moving agents or moving heavy jobs (11-24)
+
+Asked by the founder (T9440): maybe only heavy work should leave this Mac, and agent work stay on one machine.
+Tools read again on 2026-11-24 from their own docs and code; not named here.
+
+| Kind | What leaves the machine | What the other machine needs | When it cannot |
+|---|---|---|---|
+| Editor agents with remote hosts or self-hosted workers; agent team platforms with a daemon per machine | The whole agent session | The agent CLI, its logins, MCP servers, skills and the repo | The run waits or fails; a person moves it |
+| A remote build tool for coding agents, driven by a `PreToolUse` hook | Build and test commands only; the agent stays | The build tools and a synced copy of the workspace | Runs locally (fail-open) |
+| A remote build service for agents | Builds and tests, with the agent's uncommitted diff on top of a commit | Warm snapshots of the repo and its caches | Runs locally |
+| A monorepo build tool's distributed runs | Tasks of one run, spread over machines by CPU and memory | The repo at the commit and the tools | Runs on fewer machines |
+
+Reading across:
+
+- Tools that move heavy jobs say why the same way: many agents at once saturate one machine's CPU and memory,
+  and it is the builds and tests that do it, not the agents.
+- A heavy job needs the code and the build tools; an agent needs those plus its logins, MCP servers, skills and
+  version. Each of these is one more thing that can be missing (T3890: four were on 11-21, the version again on
+  11-22).
+- Every heavy-job tool falls back to running locally; none waits on a remote machine.
+- Measured here (7 days of this team's transcripts, T9440): the full check is 64% of heavy command time; one full
+  check uses about 4 GB, all 13 agents together about 4.5 GB, one agent about 350 MB
+  (`docs/story2-load-research.md`). Simulators were not measured here; forum reports put one at several GB.
+
+Taken into Story 4 (`docs/story4-design.md` section 7): agents stay on the master's machine, heavy jobs go to
+the machine with the most room, and a job runs here when no machine can take it.
+
 ## Sources
 
 `gh api repos/<r>` for every repository in the table (licence and description), and
