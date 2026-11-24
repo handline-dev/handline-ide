@@ -88,7 +88,6 @@ type Has struct {
 	CLIs       []string `json:"clis"`       // the agent CLIs on its PATH
 	MCP        []string `json:"mcp"`        // the MCP servers its accounts set up whose program is there
 	Programs   []string `json:"programs"`   // of the programs the master asked about (its answer's check), those on its PATH
-	Asked      []string `json:"asked"`      // the programs the master asked about: one asked and not in Programs is not here
 	Xcode      bool     `json:"xcode"`      // Xcode is installed
 	Simulators []string `json:"simulators"` // the iOS simulators it has
 }

@@ -107,7 +107,7 @@ func (r *Runner) Beat() map[string]any {
 	}
 	check := r.check
 	r.mu.Unlock()
-	b.Has.Programs, b.Has.Asked = []string{}, append([]string{}, check...)
+	b.Has.Programs = []string{}
 	for _, prog := range check {
 		if _, err := exec.LookPath(prog); err == nil {
 			b.Has.Programs = append(b.Has.Programs, prog)

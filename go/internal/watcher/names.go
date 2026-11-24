@@ -19,7 +19,7 @@ type Names struct {
 func People() *Names     { return &Names{Topic: "people", tables: []string{"people"}} }
 func Workspaces() *Names { return &Names{Topic: "workspaces", tables: []string{"workspaces"}} }
 
-// Nodes is node.status's topic: its devices, and agents' placement (pin, MCP servers).
+// Nodes is node.status's topic: its devices, and agents' placement (pin, vendor).
 func Nodes() *Names { return &Names{Topic: "nodes", tables: []string{"nodes", "agents"}} }
 
 func (n *Names) Name() string     { return n.Topic }

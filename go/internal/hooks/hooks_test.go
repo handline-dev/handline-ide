@@ -3,7 +3,6 @@ package hooks
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -429,25 +428,5 @@ func TestAHeavyBashCallIsKeptByItsShapeAndAWeekOldOneGoes(t *testing.T) {
 	}
 	if n := count(t, h.DB, "SELECT COUNT(*) FROM heavy_runs"); n != 1 {
 		t.Errorf("%d rows: the week-old one stayed or the light one was kept", n)
-	}
-}
-
-// A PostToolUse of an MCP tool keeps when the agent last called that server; any other tool keeps nothing.
-func TestAnMCPCallKeepsWhenItsServerWasLastCalled(t *testing.T) {
-	h := testRecorder(t)
-	now := time.Now().Unix()
-	for i, c := range []struct {
-		tool string
-		at   int64
-	}{{"mcp__pencil__batch_design", now - 100}, {"mcp__pencil__get_style", now - 10}, {"mcp__pencil__x", now - 50}, {"Read", now}, {"mcp__bad", now}} {
-		if err := Apply(h.DB, h.Home, "w", "PostToolUse", map[string]any{"tool_name": c.tool}, fmt.Sprintf("m%d", i), c.at); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if n := count(t, h.DB, "SELECT COUNT(*) FROM mcp_used WHERE agent = 'w' AND server = 'pencil' AND at = ?", now-10); n != 1 {
-		t.Errorf("pencil's last call: %d", n)
-	}
-	if n := count(t, h.DB, "SELECT COUNT(*) FROM mcp_used"); n != 1 {
-		t.Errorf("%d rows: a tool not of an MCP server was kept", n)
 	}
 }

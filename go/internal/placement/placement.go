@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -80,9 +79,8 @@ type picking struct {
 // need is what an agent's session needs of a machine, and what placement goes by.
 type need struct {
 	workspace string
-	cli       string   // its vendor's CLI
-	programs  []string // the programs of its own MCP servers, and of the shared ones it called in its last 7 days
-	pin       string   // the device it is pinned to (agents.device), "" for none
+	cli       string // its vendor's CLI
+	pin       string // the device it is pinned to (agents.device), "" for none
 	heavy     bool
 	load      agentload.Load
 }
@@ -252,7 +250,7 @@ func (p *Placer) best(n need, l Limits, lent bool) (best, kept string) {
 		}
 		if lacks := p.lacks(d, n, l); lacks != "" {
 			if takes := d != p.Reg.Self && p.Reg.Takes(d) == ""; d != p.Reg.Self && (kept == "" || takes && !keptTakes) {
-				kept, keptTakes = p.name(d)+" "+lacks, takes
+				kept, keptTakes = p.name(d)+": "+lacks, takes
 			}
 			continue
 		}
@@ -299,7 +297,7 @@ func usedPrograms(l agentload.Load) []string {
 	return uniq(out)
 }
 
-// Lacks is why agent's session cannot start on node now, "" when it can ("needs pencil"): what node.status shows for each agent.
+// Lacks is why agent's session cannot start on node now, "" when it can ("codex not installed"): what node.status shows for each agent.
 func (p *Placer) Lacks(agent, node string) string {
 	key, err := paths.AgentKeyIn(p.DB, agent)
 	if err != nil || key == "" {
@@ -325,12 +323,7 @@ func (p *Placer) lacks(node string, n need, l Limits) string {
 		}
 		b, _, _ := p.Reg.Heard(node)
 		if !contains(b.Has.CLIs, n.cli) {
-			return "needs " + n.cli
-		}
-		for _, prog := range n.programs {
-			if !contains(b.Has.Programs, prog) {
-				return "needs " + prog
-			}
+			return n.cli + " not installed"
 		}
 	}
 	if node != p.Reg.Self {
@@ -407,48 +400,23 @@ func (p *Placer) name(node string) string {
 	return name
 }
 
-// needOf is what the agent keyed key needs: its workspace, its vendor's CLI, the programs of its own MCP servers and of the shared ones
-// it called in its last 7 days (one it did not call is left out where it is missing), its pin and its load.
+// needOf is what the agent keyed key needs: its workspace, its vendor's CLI, its pin and its load.
 func (p *Placer) needOf(key string) (need, error) {
 	_, id, ok := actor.Parse(key)
 	if !ok {
 		return need{}, fmt.Errorf("%s is not an agent's key", key)
 	}
 	var ws int64
-	var vendor, mcp, pin sql.NullString
-	if err := p.DB.QueryRow("SELECT workspace, vendor, mcp_config, device FROM agents WHERE id = ?", id).Scan(&ws, &vendor, &mcp, &pin); err != nil {
+	var vendor, pin sql.NullString
+	if err := p.DB.QueryRow("SELECT workspace, vendor, device FROM agents WHERE id = ?", id).Scan(&ws, &vendor, &pin); err != nil {
 		return need{}, err
 	}
 	n := need{workspace: actor.Key(actor.Workspace, ws), cli: team.DefaultVendor, pin: pin.String}
 	if vendor.String != "" {
 		n.cli = vendor.String
 	}
-	n.programs = Programs(mcp.String)
-	now := p.now()
-	if b, err := os.ReadFile(paths.MCPConfig(p.Home)); err == nil {
-		used := map[string]bool{}
-		rs, err := p.DB.Query("SELECT server FROM mcp_used WHERE agent = ? AND at >= ?", key, now-int64(agentload.Window/time.Second))
-		if err != nil {
-			return need{}, err
-		}
-		for rs.Next() {
-			var s string
-			if rs.Scan(&s) == nil {
-				used[s] = true
-			}
-		}
-		if err := errors.Join(rs.Err(), rs.Close()); err != nil {
-			return need{}, err
-		}
-		for name, prog := range team.MCPPrograms(string(b)) {
-			if used[toolName(name)] {
-				n.programs = append(n.programs, prog)
-			}
-		}
-	}
-	n.programs = uniq(n.programs)
 	var err error
-	if n.load, err = agentload.Of(p.DB, key, now); err != nil {
+	if n.load, err = agentload.Of(p.DB, key, p.now()); err != nil {
 		return need{}, err
 	}
 	n.heavy = Heavy(n.load)
@@ -462,45 +430,9 @@ func (p *Placer) now() int64 {
 	return time.Now().Unix()
 }
 
-// toolName is a server's name as its tools carry it (mcp__<name>__<tool>): what is not a letter, a digit, _ or - is _.
-func toolName(server string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '_' || r == '-' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' {
-			return r
-		}
-		return '_'
-	}, server)
-}
-
-// Programs is the programs a {"mcpServers": {...}} config runs, by their file name.
-func Programs(config string) []string {
-	var out []string
-	for _, prog := range team.MCPPrograms(config) {
-		out = append(out, prog)
-	}
-	return uniq(out)
-}
-
-// Check is every program an agent's MCP servers run, and every one its heavy commands ran: what a runner is asked to say it has
-// (nodes.Registry.Check).
+// Check is every program an agent's heavy commands ran: what a runner is asked to say it has (nodes.Registry.Check).
 func (p *Placer) Check() []string {
 	var out []string
-	rs, err := p.DB.Query("SELECT mcp_config FROM agents WHERE mcp_config IS NOT NULL")
-	if err == nil {
-		for rs.Next() {
-			var c string
-			if rs.Scan(&c) == nil {
-				out = append(out, Programs(c)...)
-			}
-		}
-		err = errors.Join(rs.Err(), rs.Close())
-	}
-	if err != nil {
-		p.log("placement: the agents' MCP servers could not be read: %v", err)
-	}
-	if b, err := os.ReadFile(paths.MCPConfig(p.Home)); err == nil {
-		out = append(out, Programs(string(b))...)
-	}
 	loads, err := agentload.All(p.DB, p.now())
 	if err != nil {
 		p.log("placement: the agents' loads could not be read: %v", err)
