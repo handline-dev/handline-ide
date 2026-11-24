@@ -1,8 +1,6 @@
 package team
 
 import (
-	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -91,43 +89,23 @@ func TestMCPConfigTextIsOneLineOfASCIIJSONInOrder(t *testing.T) {
 	}
 }
 
-func TestBrowserConfigRoundTripsLikeThePython(t *testing.T) {
-	home := "/h"
-	cfg := Config{"mcp_config": `{"mcpServers":{"keep":{"command":"k"},"browser":{"command":"sh","args":["-c","x --profile-dir-name \"P9\" --allowed-origins \"https://a.com;https://b.org:8080\""]}}}`}
-	if BrowserMode(cfg) != "playwright" || !reflect.DeepEqual(BrowserOrigins(cfg), []string{"https://a.com", "https://b.org:8080"}) {
-		t.Fatalf("%s %v", BrowserMode(cfg), BrowserOrigins(cfg))
+func TestBrowserConfig(t *testing.T) {
+	cfg := Config{"mcp_config": `{"mcpServers":{"keep":{"command":"k"},"browser":{"command":"sh","args":["-c","x"]}}}`}
+	if BrowserMode(cfg) != "custom" {
+		t.Fatal(BrowserMode(cfg))
 	}
-	got, err := BrowserMCPConfig(home, cfg, "playwright", []string{"https://x.io"})
-	want := fmt.Sprintf(`{"mcpServers":{"keep":{"command":"k"},"browser":{"command":"sh","args":["-c","PLAYWRIGHT_MCP_EXTENSION_TOKEN=$(cat %s/browser/token) exec %s/browser/node_modules/.bin/playwright-mcp --extension --profile-dir-name \"P9\" --allowed-origins \"https://x.io\""]}}}`, home, home)
-	if err != nil || got != want {
-		t.Fatalf("%q %v", got, err)
-	}
-	if off, _ := BrowserMCPConfig(home, cfg, "off", nil); off != `{"mcpServers":{"keep":{"command":"k"}}}` {
-		t.Fatalf("%q", off)
-	}
-	if none, _ := BrowserMCPConfig(home, Config{}, "off", nil); none != "" {
-		t.Fatalf("%q", none)
-	}
-	if _, err := BrowserMCPConfig(home, cfg, "custom", nil); err == nil {
-		t.Fatal("a custom browser is not set here")
-	}
-	if BrowserMode(Config{"chrome": true}) != "chrome" || BrowserMode(Config{}) != "off" ||
-		BrowserMode(Config{"mcp_config": `{"mcpServers":{"browser":{"args":["run"]}}}`}) != "custom" {
-		t.Fatal("browser modes")
-	}
-}
-
-func TestParseOrigins(t *testing.T) {
-	got, err := ParseOrigins("https://a.com, https://b.com/ ; https://a.com")
-	if err != nil || !reflect.DeepEqual(got, []string{"https://a.com", "https://b.com"}) {
-		t.Fatalf("%v %v", got, err)
-	}
-	for _, bad := range []string{"ftp://a.com", "a.com", "https://a.com/path", "https://a.com;rm -rf"} {
-		if _, err := ParseOrigins(bad); err == nil {
-			t.Errorf("%q was taken", bad)
+	for _, mode := range []string{"off", "chrome"} {
+		if got, _ := BrowserMCPConfig(cfg, mode); got != `{"mcpServers":{"keep":{"command":"k"}}}` {
+			t.Fatalf("%s: %q", mode, got)
 		}
 	}
-	if _, err := CheckOrigin("https://A.com", []string{"https://a.com"}); err == nil {
-		t.Fatal("a duplicate was taken")
+	if none, _ := BrowserMCPConfig(Config{}, "off"); none != "" {
+		t.Fatalf("%q", none)
+	}
+	if _, err := BrowserMCPConfig(cfg, "custom"); err == nil {
+		t.Fatal("a custom browser is not set here")
+	}
+	if BrowserMode(Config{"chrome": true}) != "chrome" || BrowserMode(Config{}) != "off" {
+		t.Fatal("browser modes")
 	}
 }
