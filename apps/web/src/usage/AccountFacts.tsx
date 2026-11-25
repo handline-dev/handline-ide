@@ -2,6 +2,10 @@ import { useAgents, useNameOf } from '@handline/app-data';
 import { activityOf } from '#src/layout/agentList.ts';
 import type { Account } from '@handline/client';
 import type { ReactNode } from 'react';
+import { Pencil } from 'lucide-react';
+import { chatOf } from '#src/layout/kinds.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 
@@ -17,19 +21,34 @@ export function AccountFacts({
   plan,
   bars = true,
   note,
+  onRename,
 }: {
   account: Account;
   plan?: string | null;
   bars?: boolean;
   note?: ReactNode;
+  /** A pencil right after the name, shown on hover in a slot kept for it. */
+  onRename?: () => void;
 }) {
   const out = a.login_state === 'needs_login';
   const ends = endsOn(a);
   return (
-    <div className={`flex min-w-0 flex-1 flex-col gap-3 @md:flex-row @md:items-center @md:gap-6 ${a.paused ? 'opacity-60' : ''}`}>
+    <div
+      className={`group/account flex min-w-0 flex-1 flex-col gap-3 @md:flex-row @md:items-center @md:gap-6 ${a.paused ? 'opacity-60' : ''}`}
+    >
       <div className="flex min-w-0 flex-col @md:w-48 @md:shrink-0">
         <span className="flex items-center gap-1.5 text-sm font-medium text-fg">
           <span className="truncate">{a.label}</span>
+          {onRename && (
+            <IconButton
+              label={`Rename ${a.label}`}
+              size="sm"
+              className="opacity-0 group-hover/account:opacity-100 focus-visible:opacity-100"
+              onClick={(e) => (e.stopPropagation(), onRename())}
+            >
+              <Pencil size={12} />
+            </IconButton>
+          )}
           {plan && <span className="shrink-0 rounded border border-border px-1 text-xs font-normal text-muted capitalize">{plan}</span>}
           {out && <span className="shrink-0 rounded-full bg-warning/15 px-2 text-xs font-normal text-warning">Logged out</span>}
           {a.paused && <span className="shrink-0 rounded-full bg-fg px-2 text-xs font-normal text-bg">Paused</span>}
@@ -82,11 +101,11 @@ function AgentsBar({ account: a }: { account: Account }) {
         {a.agents.length > 0 && <span className="text-fg tabular-nums">{a.paused ? 'moves next turn' : `${busy} working`}</span>}
       </div>
       {a.agents.length ? (
-        <div className="flex">
+        // On hover, every agent on it by name, each opening its chat.
+        <div className="group/agents relative flex">
           {shown.map((k) => (
             <span
               key={k}
-              title={`${nameOf(k)}${working(k) ? ' · working' : ''}`}
               className={`-mr-1 grid size-6 place-items-center rounded-full border-2 border-bg text-xs font-medium uppercase ${
                 working(k) ? 'bg-accent text-accent-fg' : 'bg-hover text-muted'
               }`}
@@ -95,17 +114,32 @@ function AgentsBar({ account: a }: { account: Account }) {
             </span>
           ))}
           {more > 0 && (
-            <span
-              title={ordered.slice(shown.length).map(nameOf).join(', ')}
-              className="grid h-6 place-items-center rounded-full border-2 border-bg bg-hover px-1.5 text-xs text-muted tabular-nums"
-            >
+            <span className="grid h-6 place-items-center rounded-full border-2 border-bg bg-hover px-1.5 text-xs text-muted tabular-nums">
               +{more}
             </span>
           )}
+          <ul className="absolute top-full right-0 z-30 hidden max-h-64 min-w-44 flex-col overflow-y-auto rounded-md border border-border bg-bg py-1 group-hover/agents:flex">
+            {ordered.map((k) => (
+              <AgentLink key={k} agent={k} working={working(k)} />
+            ))}
+          </ul>
         </div>
       ) : (
         <span className="text-xs text-muted">{a.paused ? 'paused' : 'No agents'}</span>
       )}
     </div>
+  );
+}
+
+/** One agent in an account's list: its name and whether it works now; a click opens its chat the app's way. */
+function AgentLink({ agent, working }: { agent: string; working: boolean }) {
+  const open = useOpenable(chatOf(agent));
+  return (
+    <li>
+      <button type="button" {...open} className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs text-fg hover:bg-hover">
+        <span className="min-w-0 flex-1 truncate">{useNameOf()(agent)}</span>
+        {working && <span className="text-muted">working</span>}
+      </button>
+    </li>
   );
 }

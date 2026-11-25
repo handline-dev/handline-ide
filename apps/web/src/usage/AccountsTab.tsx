@@ -8,7 +8,7 @@ import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
 import { useAccounts, useAccountUsage, useSettings, useWrite, why } from '@handline/app-data';
-import { ChevronRight, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Pause, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
@@ -179,16 +179,22 @@ function Card({
   return (
     <section data-account={a.name} className="border-b border-border">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pr-4 hover:bg-hover/30">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label={`${open ? 'Close' : 'Open'} ${a.label}`}
+        {/* A click anywhere on the row opens it; the chevron is its button, so the pencil and the agents inside stay buttons of their own. */}
+        <div
           onClick={toggle}
-          className={`flex min-w-0 items-center gap-3 p-4 text-left ${out ? 'pr-1' : '@container flex-1'}`}
+          className={`flex min-w-0 cursor-default items-center gap-3 p-4 text-left ${out ? 'pr-1' : '@container flex-1'}`}
         >
-          <ChevronRight size={16} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
-          <AccountFacts account={a} plan={plan} bars={!out} />
-        </button>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-label={`${open ? 'Close' : 'Open'} ${a.label}`}
+            onClick={(e) => (e.stopPropagation(), toggle())}
+            className="shrink-0 text-muted"
+          >
+            <ChevronRight size={16} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
+          </button>
+          <AccountFacts account={a} plan={plan} bars={!out} onRename={() => void renameAccount(a)} />
+        </div>
         {out && <Login account={a} autoStart={autoLogin} onStarted={onStarted} />}
       </div>
       {open && (
@@ -206,21 +212,17 @@ export function AccountActions({ account: a, out }: { account: Account; out: boo
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-3">
-        {/* Rename first, under the name it changes; the changes that stop or remove the account together at the right. */}
-        <Button variant="ghost" onClick={() => void renameAccount(a)}>
-          <Pencil size={13} />
-          Rename
-        </Button>
-        {out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}
-        <span className="flex-1" />
+        {/* The same buttons side by side; Remove alone at the right. Rename is the pencil by the name. */}
+        {!out && <Login account={a} bare />}
         <Button
           disabled={save.isPending}
-          title={a.paused ? 'Let new agents start here again' : 'Start no new agents here'}
+          title={a.paused ? 'New agents may start here again' : 'Agents already here keep working; new ones go to other accounts'}
           onClick={() => save.mutate({ account: a.name, paused: !a.paused })}
         >
           {a.paused ? <Play size={13} /> : <Pause size={13} />}
-          {a.paused ? 'Resume' : 'Pause'}
+          {a.paused ? 'Resume new agents' : 'Stop new agents'}
         </Button>
+        <span className="flex-1" />
         <Button variant="ghost" className="text-danger" onClick={() => void removeAccount(a)}>
           <Trash2 size={13} />
           Remove
@@ -241,12 +243,13 @@ export function Login({
   account: a,
   autoStart,
   onStarted,
-  emailBefore,
+  bare,
 }: {
   account: Account;
   autoStart?: boolean;
   onStarted?: () => void;
-  emailBefore?: boolean;
+  /** Only the button (an opened row, where the email is already on its first line). */
+  bare?: boolean;
 }) {
   const login = useWrite('account.login', a.name);
   const cancel = useWrite('account.login_cancel', a.name);
@@ -281,23 +284,10 @@ export function Login({
     );
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      {emailBefore && <AccountEmail account={a} before={a.login_state === 'ok' ? 'Logged in as' : ''} className="text-sm text-fg" />}
-      {a.login_state === 'ok' ? (
-        // A login that works needs no button's weight: logging in again is a link beside it.
-        <button
-          type="button"
-          disabled={login.isPending}
-          onClick={() => login.mutate({ account: a.name })}
-          className="text-sm text-accent hover:underline disabled:opacity-50"
-        >
-          {login.isPending ? 'Starting…' : 'Log in again'}
-        </button>
-      ) : (
-        <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name })}>
-          {login.isPending ? 'Starting…' : 'Log in'}
-        </Button>
-      )}
-      {!emailBefore && <AccountEmail account={a} before="as" />}
+      <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name })}>
+        {login.isPending ? 'Starting…' : a.login_state === 'ok' ? 'Log in again' : 'Log in'}
+      </Button>
+      {!bare && <AccountEmail account={a} before="as" />}
       {a.login?.state === 'failed' && (
         <span className="text-danger">
           Login failed: <Refs text={a.login.reason} />
