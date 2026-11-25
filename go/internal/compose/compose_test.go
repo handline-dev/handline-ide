@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/kit/testkill"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -282,7 +283,7 @@ func TestAStartStallIsToldToTheOpenerOfItsWork(t *testing.T) {
 	var to, body string
 	var n int
 	p.db.QueryRow("SELECT COUNT(*), MAX(target), MAX(body) FROM requests").Scan(&n, &to, &body)
-	if n != 1 || to != alice || !strings.Contains(body, bob+" is STALLED") || !strings.Contains(body, "no git checkout") {
+	if n != 1 || to != alice || !strings.Contains(body, addr.Ref(bob)+" is STALLED") || !strings.Contains(body, "no git checkout") {
 		t.Fatalf("alice opened bob's work, so alice is told: %d %s %q", n, to, body)
 	}
 }
@@ -298,7 +299,7 @@ func TestARosterRepoThatIsNoCheckoutIsToldOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	told := func() (n int) {
-		p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = '" + alice + "' AND body LIKE '" + bob + "''s repo % is not a git checkout%'").Scan(&n)
+		p.db.QueryRow("SELECT COUNT(*) FROM requests WHERE target = '" + alice + "' AND body LIKE '" + addr.Ref(bob) + " cannot be started: its repo % is not a git checkout%'").Scan(&n)
 		return n
 	}
 	check := func() { CheckRepos(p.db, home, env, func(string, ...any) {}) }
@@ -325,6 +326,59 @@ func TestARosterRepoThatIsNoCheckoutIsToldOnce(t *testing.T) {
 	check()
 	if _, ok, err := dbpkg.Meta(p.db, dbpkg.FounderNoticePrefix+bob+":bad_repo"); err != nil || !ok || told() != 2 {
 		t.Fatalf("the founder is told, not alice: warning %v %v, alice told %d", ok, err, told())
+	}
+}
+
+// Agents whose one repo is gone are one notice to the one who hears it, each agent by reference and the repo under ~, not one per agent.
+func TestAgentsSharingABrokenRepoAreOneNotice(t *testing.T) {
+	p, home := rig(t)
+	userHome := t.TempDir()
+	t.Setenv("HOME", userHome)
+	gone := filepath.Join(userHome, "workspaces", "gone-app")
+	keys := []string{}
+	for _, name := range []string{"ann", "ben", "cal", "dee"} {
+		teamtest.Set(t, home, name, "vendor", "claude", "repo", gone)
+		keys = append(keys, teamtest.Key(t, home, name))
+	}
+	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
+	t.Cleanup(env.Wait)
+	CheckRepos(p.db, home, env, func(string, ...any) {})
+	all, err := dbpkg.FounderNotices(p.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 { // the four, and bob, whose repo is a folder that is no checkout
+		t.Fatalf("%d notices, want one for the four agents and one for bob: %v", len(all), all)
+	}
+	n := all[dbpkg.FounderNoticePrefix+keys[0]+":bad_repo"]
+	want := addr.Ref(keys[0]) + ", " + addr.Ref(keys[1]) + ", " + addr.Ref(keys[2]) + " and 1 more cannot be started: their repo " +
+		"~/workspaces/gone-app is not a folder. Give them the absolute path of a git checkout (their workspace folder)."
+	if n.Text != want {
+		t.Fatalf("text\n%q\nwant\n%q", n.Text, want)
+	}
+	// the first one mended, the founder is told of the three still broken, under the next
+	teamtest.Set(t, home, "ann", "repo", t.TempDir())
+	os.Mkdir(filepath.Join(team.NewRoster(home).RepoOf(keys[0]), ".git"), 0o755)
+	CheckRepos(p.db, home, env, func(string, ...any) {})
+	if err := dbpkg.ClearOverFounderNotices(p.db); err != nil {
+		t.Fatal(err)
+	}
+	if all, err = dbpkg.FounderNotices(p.db); err != nil {
+		t.Fatal(err)
+	}
+	n = all[dbpkg.FounderNoticePrefix+keys[1]+":bad_repo"]
+	want = addr.Ref(keys[1]) + ", " + addr.Ref(keys[2]) + " and " + addr.Ref(keys[3]) + " cannot be started: their repo " +
+		"~/workspaces/gone-app is not a folder. Give them the absolute path of a git checkout (their workspace folder)."
+	if len(all) != 2 || n.Text != want {
+		t.Fatalf("after a mend: %d notices, text\n%q\nwant\n%q", len(all), n.Text, want)
+	}
+	// a second pass with nothing changed tells nothing again
+	if err := dbpkg.ClearMeta(p.db, dbpkg.FounderNoticePrefix+keys[1]+":bad_repo"); err != nil {
+		t.Fatal(err)
+	}
+	CheckRepos(p.db, home, env, func(string, ...any) {})
+	if _, ok, _ := dbpkg.Meta(p.db, dbpkg.FounderNoticePrefix+keys[1]+":bad_repo"); ok {
+		t.Fatal("told again with nothing changed")
 	}
 }
 
