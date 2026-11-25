@@ -19,6 +19,7 @@ import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
+import { FoldMarks, UnreadButton, UnreadList } from '#src/sidebar/Unread.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { useScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -38,6 +39,7 @@ export function SidebarControls({ onToggle }: { onToggle: () => void }) {
       <IconButton label="Forward" onClick={() => history.forward()}>
         <ChevronRight size={16} />
       </IconButton>
+      <UnreadButton />
     </div>
   );
 }
@@ -165,8 +167,11 @@ export function Section({
   onFold,
   opens,
   word,
+  marks,
   children,
 }: {
+  /** Drawn at the header's right while folded: what waits inside. */
+  marks?: ReactNode;
   title: string;
   /** Whose it is, after the title: another cluster's name. */
   word?: ReactNode;
@@ -209,6 +214,7 @@ export function Section({
           {opens ? <TitleLink opens={opens} title={title} /> : title}
         </h2>
         {word}
+        {folded && marks}
         <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">{action}</span>
       </div>
       {!folded && children}
@@ -249,6 +255,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
           onAgentDrop={togglePin}
           word={word}
           folded={!!workspace && nav.folded.includes(workspace.key)}
+          marks={<FoldMarks agents={agents} />}
           onFold={workspace ? () => toggleFold(workspace.key) : undefined}
           opens={workspace ? workspaceOf(workspace.key) : undefined}
           action={
@@ -319,6 +326,7 @@ export function Sidebar({
   onSelectAgent: (name: string) => void;
 }) {
   const joined = useJoined();
+  const unreadOnly = useNav().nav.unread_only;
   // Only the agents scroll; the pages above and the buttons below stay put.
   const scroller = useRef<HTMLDivElement>(null);
   useKeptScroll(scroller, 'sidebar');
@@ -339,13 +347,19 @@ export function Sidebar({
         ))}
       </nav>
       <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
-        <Agents
-          pick={{ shown: onScreen, onSelect: onSelectAgent }}
-          onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
-        />
-        {joined.map((j) => (
-          <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent }} />
-        ))}
+        {unreadOnly ? (
+          <UnreadList shown={onScreen} onSelect={onSelectAgent} />
+        ) : (
+          <>
+            <Agents
+              pick={{ shown: onScreen, onSelect: onSelectAgent }}
+              onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
+            />
+            {joined.map((j) => (
+              <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent }} />
+            ))}
+          </>
+        )}
         <div className="-mx-2 mt-1 border-t border-border">
           <button
             type="button"

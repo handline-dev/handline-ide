@@ -22,6 +22,7 @@ export * from '#src/my-turn.ts';
 export * from '#src/later.ts';
 export * from '#src/tab-dot.ts';
 export * from '#src/requests-pick.ts';
+export * from '#src/unread.ts';
 export * from '#src/request-open.ts';
 export * from '#src/pick-range.ts';
 export * from '#src/annotation.ts';
