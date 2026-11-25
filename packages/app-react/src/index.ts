@@ -19,16 +19,11 @@ const StoreContext = createContext<Store | null>(null);
  * Gives the tree one store, and starts it. The caller builds the store (and its client), so each app picks its own transport.
  * `connect` false leaves it unstarted (the app has already said why). A daemon that cannot be reached is said so in `error` and tried again; one that refuses this client (protocol) is not.
  */
-/** A daemon just started or restarted takes a while to answer, so the first tries say so; later ones name the address and why the last try failed. */
-export function unreachableText(tries: number, where: string | undefined, e: unknown): string {
-  if (tries <= STARTING_TRIES) return 'Starting the daemon…';
-  const reason = e instanceof Error ? e.message : '';
-  // The transport's own reason often names the address already: say it once.
-  const at = where && !reason.includes(where) ? ` at ${where}` : '';
-  const why = reason ? ` (${reason})` : '';
-  return `The daemon${at} does not answer${why}. Start Handline's daemon, or open the Handline app; trying again.`;
+/** A daemon just started answers within a few seconds, so nothing is said before QUIET_MS; after that one plain line, with no address or reason. */
+export function unreachableText(waitedMs: number): string | null {
+  return waitedMs < QUIET_MS ? null : 'Connecting to Handline…';
 }
-const STARTING_TRIES = 10;
+const QUIET_MS = 4000;
 
 export function DaemonProvider(props: {
   store: Store;
@@ -44,16 +39,16 @@ export function DaemonProvider(props: {
     if (!connect) return;
     let done = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let tries = 0;
+    const since = Date.now();
     const boot = () =>
       store.start().then(
         () => (store.setUnreachable(false), store.dismissError()),
         (e) => {
           if (done) return;
           const fatal = e instanceof RpcError && e.code === 'protocol';
-          tries += 1;
           store.setUnreachable(!fatal); // before the words, so a screen reading both never takes a retry for a refusal
-          if (fatal || notify) store.fail(fatal ? (e.reason ?? e.message) : unreachableText(tries, where, e));
+          const text = fatal ? (e.reason ?? e.message) : unreachableText(Date.now() - since);
+          if (text && (fatal || notify)) store.fail(text);
           if (!fatal) timer = setTimeout(boot, retryMs);
         },
       );
