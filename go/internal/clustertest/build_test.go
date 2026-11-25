@@ -18,6 +18,27 @@ func logSays(n *cluster.Node, s string) bool {
 	return strings.Contains(string(b), s)
 }
 
+// logSize is how long n's log is now.
+func logSize(n *cluster.Node) int64 {
+	fi, _ := os.Stat(n.Log())
+	if fi == nil {
+		return 0
+	}
+	return fi.Size()
+}
+
+// linkedAgain is whether n's log, past from, shows its daemon starting again and then linking. Taking a build starts again by exec,
+// which keeps the pid, so the executable changes before the new build writes the hooks.
+func linkedAgain(n *cluster.Node, from int64) bool {
+	b, _ := os.ReadFile(n.Log())
+	if int64(len(b)) < from {
+		return false
+	}
+	s := string(b[from:])
+	i := strings.LastIndex(s, "handlined: starting again as what this machine is now")
+	return i >= 0 && strings.Contains(s[i:], "runner: linked to the master at")
+}
+
 // runsOn is whether n's daemon runs the executable at path.
 func runsOn(n *cluster.Node, path string) bool {
 	a, errA := os.Stat(n.Exe())
@@ -51,10 +72,11 @@ func TestALentMacRunsTheMastersBuild(t *testing.T) {
 		t.Fatal("Manual fetched the master's build")
 	}
 	m, _ := r.Joined()
+	from := logSize(r)
 	if _, err := c.Master.Call("device.update", map[string]any{"device": m.Device, "request_id": "update"}); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "the runner on the master's build", func() bool { return runsOn(r, kept) && logSays(r, "linked to the master at") })
+	waitFor(t, "the runner on the master's build", func() bool { return runsOn(r, kept) && linkedAgain(r, from) })
 	if b, _ := os.ReadFile(filepath.Join(runner.HooksDir(r.Home), "pre-push")); !strings.Contains(string(b), filepath.Join(runner.BuildDir(r.Home), "hl")) {
 		t.Fatalf("its hooks call another hl: %s", b)
 	}
