@@ -51,7 +51,7 @@ export const NOT_QUERIES = [
   // Read by useLessons and useAgentReview.
   'lessons.list',
   'agent.review',
-  // An agent's role, standing context and memory notes: read by the agent settings screen once it shows them.
+  // An agent's role, standing context and memory notes: read by useAgentContext and useAgentMemory.
   'agent.context',
   'agent.memory',
   // The worktree pool's desks, read by useDesks.
@@ -121,6 +121,12 @@ export const qk = {
   /** Every agent's review level and record, and one agent's. */
   allReviews: (d: string) => ['d', d, 'agent.review'] as const,
   review: (d: string, agent: string) => [...qk.allReviews(d), agent] as const,
+  /** Every agent's role and standing context, and one agent's. */
+  allContexts: (d: string) => ['d', d, 'agent.context'] as const,
+  context: (d: string, agent: string) => [...qk.allContexts(d), agent] as const,
+  /** Every agent's memory notes, and one agent's. */
+  allMemory: (d: string) => ['d', d, 'agent.memory'] as const,
+  memory: (d: string, agent: string) => [...qk.allMemory(d), agent] as const,
   /** Every project's desks list. */
   allDesks: (d: string) => ['d', d, 'desks.list'] as const,
   desks: (d: string, repo: string) => [...qk.allDesks(d), repo] as const,
