@@ -76,9 +76,44 @@ func TestShellOpenStartsAShellInTheWorktreeAndEachCallAnother(t *testing.T) {
 	}
 }
 
+// With no agent the shell opens in the home folder, stamped as no agent's: shell.close closes it, the same most applies, and a command
+// is refused, since a run is told to an agent.
+func TestShellOpenWithNoAgentOpensAHomeShell(t *testing.T) {
+	r, h, _ := shellRig(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	got, err := r.e.shellOpen(person("casey"), map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := got.(map[string]any)
+	sh, _ := m["terminal"].(string)
+	if m["agent"] != nil || m["cwd"] != home || len(h.cwds) != 1 || h.cwds[0] != home || h.panes[sh] != homeShell {
+		t.Fatalf("a home shell: %v %v %v", m, h.cwds, h.panes)
+	}
+	var re *rpc.Error
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"command": "ls", "block": "1:0"}); !errors.As(err, &re) || re.Data["gate"] != "state" {
+		t.Fatalf("a command with no agent: %v", err)
+	}
+	if _, err := r.e.shellClose(person("casey"), map[string]any{"terminal": sh}); err != nil || len(h.closed) != 1 {
+		t.Fatalf("closed: %v %v", err, h.closed)
+	}
+	for i := 0; i < MaxShells; i++ {
+		if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": nil}); err != nil {
+			t.Fatal(i, err)
+		}
+	}
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{}); err == nil || !strings.Contains(err.Error(), "the home folder has 8 shells open") {
+		t.Fatalf("one over the most: %v", err)
+	}
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": r.ann}); err != nil {
+		t.Fatalf("home shells do not count against an agent's: %v", err)
+	}
+}
+
 func TestShellOpenRefusals(t *testing.T) {
 	r, h, _ := shellRig(t)
-	for _, p := range []map[string]any{{}, {"agent": 3}} {
+	for _, p := range []map[string]any{{"agent": 3}, {"agent": ""}} {
 		var re *rpc.Error
 		if _, err := r.e.shellOpen(person("casey"), p); !errors.As(err, &re) || re.Data["field"] != "agent" {
 			t.Fatalf("%v: %v", p, err)

@@ -74,7 +74,8 @@ export type TerminalOpening = {
 };
 
 export type ShellOpening = {
-  agent: Who;
+  /** The agent the shell opened beside; null for a shell in the home folder. */
+  agent: Who | null;
   /** The shell's handle, as terminal.attach takes it. */
   terminal: string;
   /** The directory the shell started in. */
@@ -122,7 +123,7 @@ export interface TerminalMethods {
   agent: Who;
 }; result: TerminalOpening };
   "shell.open": { params: {
-  agent: Who;
+  agent?: Who;
   command?: string;
   block?: string;
   request_id: RequestId;

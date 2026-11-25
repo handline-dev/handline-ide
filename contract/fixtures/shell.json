@@ -1,9 +1,9 @@
 {
  "fixtures": [
   {
-   "name": "shell.open.agent_is_required",
+   "name": "shell.open.a_command_needs_an_agent",
    "spec": "shell.open",
-   "about": "No agent is bad_request naming it.",
+   "about": "A command with no agent is refused (gate state): its run is told to an agent. A plain shell needs none.",
    "as": "founder",
    "steps": [
     {
@@ -25,14 +25,16 @@
       "id": 2,
       "method": "shell.open",
       "params": {
-       "request_id": "s1"
+       "command": "true",
+       "block": "1:0",
+       "request_id": "s0"
       }
      },
      "error": {
-      "code": -32602,
+      "code": -32002,
       "data": {
-       "code": "bad_request",
-       "field": "agent"
+       "code": "refused",
+       "gate": "state"
       }
      }
     }

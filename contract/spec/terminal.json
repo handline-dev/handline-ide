@@ -258,7 +258,15 @@
     "type": "object",
     "properties": {
      "agent": {
-      "$ref": "#/components/schemas/Who"
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Who"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The agent the shell opened beside; null for a shell in the home folder."
      },
      "terminal": {
       "type": "string",
@@ -612,15 +620,16 @@
   },
   {
    "name": "shell.open",
-   "summary": "Open a new plain shell in an agent's worktree (the New tab menu's Terminal), or run a command there (a command card's Run).",
+   "summary": "Open a new plain shell in an agent's worktree, or with no agent in the home folder (the New tab menu's Terminal), or run a command in an agent's worktree (a command card's Run).",
    "paramStructure": "by-name",
    "params": [
     {
      "name": "agent",
-     "required": true,
+     "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who"
-     }
+     },
+     "description": "Whose worktree the shell opens in. Without it: a login shell in the home folder of the daemon's machine, beside no agent."
     },
     {
      "name": "command",
@@ -630,7 +639,7 @@
       "minLength": 1,
       "maxLength": 4000
      },
-     "description": "A command to run instead of a login shell: the window's own command (`$SHELL -lc`), in the agent's worktree, kept after it ends so its exit status can be read. Needs block."
+     "description": "A command to run instead of a login shell: the window's own command (`$SHELL -lc`), in the agent's worktree, kept after it ends so its exit status can be read. Needs block. Needs agent: refused without one (gate state)."
     },
     {
      "name": "block",
@@ -677,7 +686,7 @@
     "unsupported",
     "state"
    ],
-   "description": "Starts the user's login shell in a new window of the terminal host, in the agent's worktree, and answers its handle; attach it with terminal.attach (terminal), type at it with terminal.input and size it with terminal.resize. It is not the agent's terminal and touches nothing of the agent's: no input holder and no terminal lock stand between a person and it, terminal.resize has no 80 by 24 floor for it, and the daemon never reads its screen. Several may be open beside one agent, at most 8 (refused, gate `state`). It lives until shell.close, the shell exits, or the host's server ends; the daemon does not close it when the agent's session ends. Not_found names the agent, or the worktree when the agent has none on disk. Refused with gate `unsupported` on a host that cannot open one. With `command` (and `block`) the window runs that command instead of a shell and stays after it ends: its exit status and end time are the terminal host's own, read by the daemon and told in the `runs` of the message or reply item `block` names (ChatMessage.runs with a chat.message event, TranscriptItem.runs with a chat.transcript event, at start and at end). A reply item that is not one of this agent's replies is not_found, what item. `command` without `block` or `block` without `command` is bad_request naming the other. A command run counts toward the 8 shells; closing its window before it ends makes its run `stopped`. Runs are kept in the daemon's meta table; a run whose message or item is gone is not shown."
+   "description": "Starts the user's login shell in a new window of the terminal host, in the agent's worktree, and answers its handle; attach it with terminal.attach (terminal), type at it with terminal.input and size it with terminal.resize. It is not the agent's terminal and touches nothing of the agent's: no input holder and no terminal lock stand between a person and it, terminal.resize has no 80 by 24 floor for it, and the daemon never reads its screen. Several may be open beside one agent, at most 8 (refused, gate `state`). It lives until shell.close, the shell exits, or the host's server ends; the daemon does not close it when the agent's session ends. Not_found names the agent, or the worktree when the agent has none on disk. Refused with gate `unsupported` on a host that cannot open one. With `command` (and `block`) the window runs that command instead of a shell and stays after it ends: its exit status and end time are the terminal host's own, read by the daemon and told in the `runs` of the message or reply item `block` names (ChatMessage.runs with a chat.message event, TranscriptItem.runs with a chat.transcript event, at start and at end). A reply item that is not one of this agent's replies is not_found, what item. `command` without `block` or `block` without `command` is bad_request naming the other. A command run counts toward the 8 shells; closing its window before it ends makes its run `stopped`. Runs are kept in the daemon's meta table; a run whose message or item is gone is not shown. With no agent the shell opens in the home folder of the daemon's machine ($HOME), with agent null in the answer; it is a window of its own under the same rules (at most 8 such, shell.close closes it, nothing of any agent's is touched)."
   },
   {
    "name": "shell.close",

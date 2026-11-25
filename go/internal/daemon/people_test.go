@@ -62,7 +62,7 @@ func TestAnInvitedMemberWorksLendsAndIsRemoved(t *testing.T) {
 		t.Fatalf("set_role %v: Kim's connection stayed open on her old role", r)
 	}
 	kim = helloAs(t, d, kimDev["token"].(string))
-	if r := rpcAs(kim, "shell.open", `{"request_id":"sh2"}`); gate(r) == "role" {
+	if r := rpcAs(kim, "shell.open", `{"command":"true","block":"1:0","request_id":"sh2"}`); gate(r) != "state" {
 		t.Fatalf("Kim made owner is still refused by role: %v", r)
 	}
 	rpcAs(owner, "person.set_role", `{"person":"`+kimKey+`","role":"member","request_id":"demote-kim"}`)

@@ -11,6 +11,21 @@ import { replyOf, runParams, startRun, stopRun } from '#src/runs.ts';
 import { PROPOSAL_HANDLERS, teamOf } from '#src/proposals.ts';
 import { STRIP_HANDLERS } from '#src/strip.ts';
 import { DAEMON_HOLDER, newSession, row, scrolledOff, styledRow, tid, visible, type Attach, type Session } from '#src/session.ts';
+import type { AgentFixture } from '#src/fixtures.ts';
+
+/** The fixture a shell opened beside no agent stands on: it has no session, only its window. */
+const HOME_SHELL: AgentFixture = {
+  name: '~',
+  role: '',
+  model: '',
+  effort: '',
+  state: 'idle',
+  account: null,
+  task: null,
+  worktree: '/fake/home',
+  branch: '',
+  session: null,
+};
 
 export interface Who {
   caller: Caller;
@@ -254,7 +269,14 @@ const BASE: Record<string, (h: Call) => unknown> = {
     return { agent: s.fx.name, terminal: tid(s), host: 'fake', attach: { argv: ['fake-attach', tid(s)] }, focused: false, local: true };
   },
   'shell.open': ({ p, script, chat, agent, iso }) => {
-    if (typeof p.agent !== 'string') throw invalidParams('agent is required', 'agent');
+    if (p.agent === undefined || p.agent === null) {
+      if (runParams(p)) throw refused('state', 'a command runs beside an agent: name the agent');
+      const terminal = `%sh${++script.shellCount}`;
+      const fx = HOME_SHELL;
+      script.shells.set(terminal, { ...newSession(fx, iso()), handle: terminal, lines: ['$ '], hasTerminal: true, open: false });
+      return { agent: null, terminal, cwd: fx.worktree, host: 'fake' };
+    }
+    if (typeof p.agent !== 'string' || p.agent === '') throw invalidParams('agent is a name', 'agent');
     const run = runParams(p);
     const s = agent();
     if (run) replyOf(chat, s.fx.name, run); // an item that is not this agent's reply is not_found before a window opens

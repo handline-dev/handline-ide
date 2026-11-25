@@ -3,6 +3,7 @@ package termchan
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strconv"
 
 	"github.com/handline/handline/go/agentctl/term"
@@ -17,8 +18,11 @@ import (
 // watched, typed at and resized through the terminal methods like any pane, but it is the person's: it has no agent, so no input holder
 // and no terminal lock stand between them and it, and no size floor (the daemon never reads its screen).
 
-// MaxShells is the most shells open beside one agent.
+// MaxShells is the most shells open beside one agent, and the most home shells.
 const MaxShells = 8
+
+// homeShell stamps a shell opened beside no agent, in the home folder of the daemon's machine: no agent's name or key can be it.
+const homeShell = "~"
 
 func (e *Env) shells() (term.Shells, bool) {
 	b := e.Backend()
@@ -79,12 +83,18 @@ func runOf(params map[string]any) (command string, block cmdruns.Block, ok bool,
 
 func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 	name, _ := params["agent"].(string)
-	if name == "" {
+	if v, given := params["agent"]; given && v != nil && name == "" {
 		return nil, bad("agent is a name", "agent")
 	}
 	command, block, running, err := runOf(params)
 	if err != nil {
 		return nil, err
+	}
+	if name == "" {
+		if running {
+			return nil, rpc.Refused("a command runs beside an agent: name the agent", "state", "")
+		}
+		return e.openHomeShell()
 	}
 	if !has(paths.ListAgents(e.Home), name) {
 		return nil, notFound("no such agent: "+name, "agent", name)
@@ -115,6 +125,19 @@ func (e *Env) shellOpen(_ *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	return map[string]any{"agent": name, "terminal": handle, "cwd": cwd, "host": e.Backend().Name()}, nil
+}
+
+// openHomeShell is shell.open with no agent: a login shell in the home folder of the daemon's machine, stamped as nobody's agent's.
+func (e *Env) openHomeShell() (any, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, rpc.Refused("no home folder to open a shell in: "+err.Error(), "state", "")
+	}
+	handle, err := e.openShell(homeShell, home)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"agent": nil, "terminal": handle, "cwd": home, "host": e.Backend().Name()}, nil
 }
 
 // StartRun runs command for block in a window beside agent, in cwd, and records the run: shell.open's, and a run proposal's at the
@@ -179,7 +202,11 @@ func (e *Env) openShell(agent, cwd string) (string, error) {
 	if err := e.underShellLimit(host, agent, e.PaneRuns()); err != nil {
 		return "", err
 	}
-	handle, why := host.CreateShell(cwd, agent+"-sh", agent)
+	title := agent + "-sh"
+	if agent == homeShell {
+		title = "shell"
+	}
+	handle, why := host.CreateShell(cwd, title, agent)
 	if handle == "" {
 		return "", rpc.Refused("no shell was opened: "+why, "state", "")
 	}
@@ -204,7 +231,11 @@ func (e *Env) underShellLimit(host term.Shells, agent string, ended map[string]t
 		}
 	}
 	if open >= MaxShells {
-		return rpc.Refused(agent+" has "+strconv.Itoa(open)+" shells open; close one first", "state", "")
+		who := agent + " has"
+		if agent == homeShell {
+			who = "the home folder has"
+		}
+		return rpc.Refused(who+" "+strconv.Itoa(open)+" shells open; close one first", "state", "")
 	}
 	return nil
 }
@@ -224,6 +255,9 @@ func (e *Env) shellClose(_ *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if ok, why := h.CloseTerminal(handle, true); !ok {
 		return nil, rpc.Refused("shell "+handle+" was not closed: "+why, "state", "")
+	}
+	if agent == homeShell {
+		return map[string]any{"accepted": true, "said": "shell " + handle + " closed"}, nil
 	}
 	return map[string]any{"accepted": true, "said": agent + ": shell " + handle + " closed"}, nil
 }
