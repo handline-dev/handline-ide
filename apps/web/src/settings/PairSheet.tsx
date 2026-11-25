@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDevices } from '#src/settings/data/devices.ts';
 import { usePair, type Pairing } from '#src/settings/data/pair.ts';
 import { Button } from '#src/ui/Button.tsx';
+import { Segmented } from '#src/ui/Segmented.tsx';
+import { Hooks } from '@handline/app-data';
 import { useCopy } from '#src/ui/copy.ts';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -30,7 +32,34 @@ function Qr({ text }: { text: string }) {
   );
 }
 
-function Invite({ invite, left }: { invite: Pairing; left: number }) {
+const hostOf = (link: string) => {
+  try {
+    return new URL(link).hostname.replace(/^\[|\]$/g, ''); // an IPv6 host without its brackets, as the addresses list it
+  } catch {
+    return '';
+  }
+};
+
+/** The address the link names, as a small switch over the ones a door listens on: the one selected is Handline's pick until another is clicked, which makes
+ *  a new code for another. Nothing when there is only one. */
+function Hosts({ current, onHost, busy }: { current: string; onHost: (host: string) => void; busy: boolean }) {
+  const hosts = (Hooks.useConnectionAddresses().data?.addresses ?? []).filter((a) => a.listening).map((a) => a.host);
+  // In the daemon's order, so the choices never move when one is picked.
+  const options = hosts.includes(current) || !current ? hosts : [current, ...hosts];
+  if (options.length < 2) return null;
+  return (
+    <Segmented
+      label="Link address"
+      disabled={busy}
+      value={current}
+      options={options}
+      word={(h) => h}
+      onChange={(h) => h !== current && onHost(h)}
+    />
+  );
+}
+
+function Invite({ invite, left, onHost, busy }: { invite: Pairing; left: number; onHost: (host: string) => void; busy: boolean }) {
   const { copied, copy } = useCopy();
   // A self-made certificate's fingerprint marks a Wi-Fi link: a Mac app pins it, a browser could not tell it from a fake.
   const wifi = invite.fingerprint !== '';
@@ -41,6 +70,7 @@ function Invite({ invite, left }: { invite: Pairing; left: number }) {
         <span className="text-xs text-muted">Code</span>
         <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
         <span className="text-xs text-muted">Link</span>
+        <Hosts current={hostOf(invite.link)} onHost={onHost} busy={busy} />
         <code className="rounded-md bg-surface px-3 py-2 text-xs [overflow-wrap:anywhere]">{invite.link}</code>
         <Button className="w-fit" onClick={() => copy(invite.link, 'the link')}>
           {copied ? 'Copied' : 'Copy link'}
@@ -62,8 +92,8 @@ function Sheet({ close }: { close: () => void }) {
   const [left, setLeft] = useState(0);
 
   // The time left is set with the invite, so a new code never renders a frame as expired.
-  const make = () =>
-    void pair.start().then(
+  const make = (host?: string) =>
+    void pair.start(host).then(
       (p) => {
         setLeft(Math.max(0, p.expiresAt - Date.now()));
         setInvite(p);
@@ -102,7 +132,7 @@ function Sheet({ close }: { close: () => void }) {
           Done
         </Button>
       ) : (
-        <Button variant="primary" onClick={make} disabled={pair.pending || (!expired && !pair.error)}>
+        <Button variant="primary" onClick={() => make()} disabled={pair.pending || (!expired && !pair.error)}>
           New code
         </Button>
       )}
@@ -111,7 +141,7 @@ function Sheet({ close }: { close: () => void }) {
   return (
     <ModalFrame title="Connect a device" size="lg" onClose={close} footer={footer}>
       {live ? (
-        <Invite invite={invite} left={left} />
+        <Invite invite={invite} left={left} onHost={make} busy={pair.pending} />
       ) : (
         <div className="flex min-h-40 flex-col justify-center gap-2 text-sm">
           {pair.error ? (
