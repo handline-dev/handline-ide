@@ -127,6 +127,7 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
   const span = SPANS[range];
   const head = Math.min(span, 14 * DAY);
   const steps = 12;
+  const step = Math.max(15 * 60_000, (head * 2) / 96);
   const at = (t: number) => new Date(t).toISOString();
   const past = Array.from({ length: steps + 1 }, (_, i) => ({
     at: at(now - head + (head * i) / steps),
@@ -150,7 +151,16 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     ],
     cost_per_day,
     agent_use: AGENT_USE.map((u) => ({ ...u, fracs: { ...u.fracs } })),
-    by_account: byAccount(past, future, now, head),
+    // An account's history at the daemon's step (its OutlookPoints, 96 over twice the range, never under 15 minutes): 30 minutes for 24h.
+    by_account: byAccount(
+      Array.from({ length: Math.floor(head / step) + 1 }, (_, i) => {
+        const t = now - head + i * step;
+        return { at: at(t), left_pct: 90 - (40 * (t - (now - head))) / head };
+      }),
+      future,
+      now,
+      head,
+    ),
     ...(pick !== undefined && {
       overlay: (Object.hasOwn(OVERLAYS, pick) ? OVERLAYS[pick]! : []).map((v, i) => (i < past.length ? v : 0)).slice(0, past.length),
     }),

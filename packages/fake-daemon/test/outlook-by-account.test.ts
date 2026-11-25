@@ -13,7 +13,8 @@ test("stats.outlook's by_account gives each account's 5h and week history, and i
     ['alpha', 'beta'],
   );
   for (const a of accounts) {
-    assert.equal(a.past.length, out.past.length, `${a.account}: at the same points as past`);
+    // At the daemon's step: 96 points over twice the 3 days, one every 1.5 hours.
+    assert.equal(a.past.length, 3 * 16 + 1, `${a.account}: a point every 1.5 hours`);
     for (const p of a.past) {
       assert.ok(p.five_left !== null && p.five_left >= 0 && p.five_left <= 100, `${a.account}: a 5h reading at ${p.at}`);
       assert.ok(p.week_left !== null && p.week_left >= 0 && p.week_left <= 100, `${a.account}: a week reading at ${p.at}`);
