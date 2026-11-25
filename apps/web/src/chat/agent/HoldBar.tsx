@@ -91,7 +91,8 @@ export function HoldCard({ agent }: { agent: string }) {
   const unstall = useUnstall(agent);
   const terminal = useOpenable('shell');
   const wake = useAction();
-  const need = a?.needs_you?.source === 'daemon' ? a.needs_you : null;
+  // A switch offer is the switch card's (SwitchWait), drawn with its accounts; here it would show the same offer twice.
+  const need = a?.needs_you?.source === 'daemon' && a.needs_you.kind !== 'switch_offer' ? a.needs_you : null;
   const act = a ? activityOf(a) : null;
   const needsLogin = useNeedsLogin(a, act);
   if (!a || !act || (!need && !needsLogin)) return null;
