@@ -12,7 +12,7 @@ export function SettingsPage({
 }: {
   keep: string;
   title: string;
-  note: ReactNode;
+  note?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
 }) {
@@ -23,7 +23,7 @@ export function SettingsPage({
           <div className="flex items-end justify-between gap-4">
             <div>
               <h1 className="text-xl font-semibold text-fg">{title}</h1>
-              <p className="text-sm text-muted">{note}</p>
+              {note && <p className="text-sm text-muted">{note}</p>}
             </div>
             {action}
           </div>

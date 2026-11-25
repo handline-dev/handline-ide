@@ -42,7 +42,6 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
     <SettingsPage
       keep="settings-onboarding"
       title="Onboarding"
-      note="The quick setup that opened the first time. Each item has its own Settings page with every option: Open takes you there."
     >
       <Block title={o.allDone ? 'All set' : `${o.doneCount} of ${o.total} done`}>
         <div className="flex gap-1.5" aria-hidden>

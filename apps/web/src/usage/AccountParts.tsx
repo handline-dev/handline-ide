@@ -16,7 +16,7 @@ export function Row({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-/** Remove, in a modal: a dry run says what would happen and who sits on it; the name typed confirms. Its directory is moved aside, not deleted. */
+/** Remove, in a modal: a dry run says what would happen and who sits on it; the name typed confirms. */
 export function removeAccount(a: Account) {
   return openModal<boolean>((close) => <RemoveModal account={a} close={close} />);
 }
@@ -33,7 +33,7 @@ function RemoveModal({ account: a, close }: { account: Account; close: Close<boo
       title={`Remove ${a.label}?`}
       description={
         <>
-          Type <b className="text-fg">{a.name}</b> to confirm. Its directory is moved aside, not deleted.
+          Type <b className="text-fg">{a.name}</b> to confirm.
         </>
       }
       size="sm"
@@ -60,7 +60,6 @@ function RemoveModal({ account: a, close }: { account: Account; close: Close<boo
         />
         {plan.isPending && <p className="text-muted">Checking what removing it would do…</p>}
         {a.agents.length > 0 && <p className="text-warning">On it now: {a.agents.join(', ')}. Move them off first.</p>}
-        {!a.agents.length && !!plan.data?.plan?.length && <p className="text-xs text-muted">{plan.data.plan.join(' · ')}</p>}
         {!!(remove.error || (plan.error && !a.agents.length)) && (
           <p className="text-danger">
             <Refs text={why(remove.error ?? plan.error)} />

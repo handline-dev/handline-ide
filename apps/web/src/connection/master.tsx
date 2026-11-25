@@ -24,7 +24,7 @@ export function confirmPromote(id: string, masterGone: boolean) {
   void confirm({
     title: 'Make this Mac the master?',
     message: masterGone
-      ? 'This Mac takes over the board from its copy. What the master wrote in its last second or two may be lost.'
+      ? 'This Mac takes over the board from its copy.'
       : 'The master hands the board over. Writes pause for a moment.',
     confirmText: 'Make master',
     run: async () => {

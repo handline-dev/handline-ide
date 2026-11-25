@@ -41,7 +41,6 @@ export function ProjectsTab() {
     <SettingsPage
       keep="settings-projects"
       title="Projects"
-      note="What your agents work on. Each task gets its own worktree, so your checkout stays as you left it."
     >
       <Block title="Your projects" note={open.length ? undefined : 'None yet.'}>
         {open.map((r) => (
@@ -177,7 +176,6 @@ function FolderForm({ init }: { init?: boolean }) {
       <div className="flex items-end gap-2">
         <Field
           label={init ? 'Folder to start from' : 'Folder'}
-          hint={init ? 'An empty or existing folder that is not a git repository yet.' : undefined}
         >
           <Input value={path} placeholder="/path/to/project" onChange={(e) => setPath(e.target.value)} />
         </Field>
@@ -210,10 +208,10 @@ function CloneForm() {
     );
   return (
     <Form onSubmit={submit} busy={clone.isPending || here.pending || !url.trim()} word="Clone and add" error={clone.error ?? here.error}>
-      <Field label="Repository address" hint="https, ssh or git. A repository that asks for a password here is refused.">
+      <Field label="Repository address">
         <Input value={url} placeholder="https://github.com/you/project.git" onChange={(e) => setUrl(e.target.value)} />
       </Field>
-      <Field label="Into folder (optional)" hint="Left empty, it goes under your Handline folder.">
+      <Field label="Into folder (optional)">
         <Input value={path} placeholder="/path/to/new/folder" onChange={(e) => setPath(e.target.value)} />
       </Field>
     </Form>

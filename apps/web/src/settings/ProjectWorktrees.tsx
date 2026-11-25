@@ -52,9 +52,6 @@ export function ProjectWorktrees({ repo }: { repo: Repo }) {
     <section className="flex flex-col gap-3 border-t border-border pt-3 pb-1 pl-6" aria-label={`Worktrees of ${repo.name}`}>
       <div>
         <h3 className="text-sm font-medium text-fg">Worktrees</h3>
-        <p className="text-xs text-muted">
-          Agents take a free folder when they start work and give it back when their session closes. Their branches stay.
-        </p>
       </div>
       {kept && (
         <Setting

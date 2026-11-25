@@ -143,7 +143,7 @@ function Sheet({ close }: { close: () => void }) {
   return (
     <StepModal
       title="Connect a device"
-      description="Anyone with the code for 5 minutes gets full control of this computer's agents. It works once."
+      description="Works once, for 5 minutes."
       onClose={close}
       step={live ? 1 : 0}
       steps={[

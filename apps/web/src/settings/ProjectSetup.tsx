@@ -50,7 +50,7 @@ export function ProjectSetup({ repo, close }: { repo: Repo; close: () => void })
       </Field>
       <Field
         label="Setup script"
-        info="Runs in each new worktree before the agent starts, for at most 5 minutes. If it fails, the agent still starts."
+        info="Runs in each new worktree."
         error={field === 'script' && fail ? sentence(fail) : undefined}
       >
         <textarea

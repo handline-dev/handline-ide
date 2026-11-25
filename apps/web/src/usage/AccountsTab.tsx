@@ -29,11 +29,6 @@ function SplitSetting() {
     <AutoManual
       name="Split work"
       manual={manual}
-      about={
-        manual
-          ? 'Agents stay on the account they started on. At the limit, they wait for the reset and pick up the same conversation.'
-          : 'New agents start on the account with the most room; near the limit, an agent moves after its turn ends.'
-      }
       ready={settings.isSuccess}
       save={save}
       pick={(v) => save.mutate({ changes: { account_split: v } })}
@@ -41,18 +36,16 @@ function SplitSetting() {
   );
 }
 
-/** A setting of two choices, Auto and Manual: its name, what the choice made does, and the two. */
+/** A setting of two choices, Auto and Manual: its name and the two. */
 function AutoManual({
   name,
   manual,
-  about,
   ready,
   save,
   pick,
 }: {
   name: string;
   manual: boolean;
-  about: string;
   ready: boolean;
   save: { isPending: boolean; error: unknown };
   pick: (v: 'auto' | 'manual') => void;
@@ -61,7 +54,6 @@ function AutoManual({
     <section className="flex items-center justify-between gap-6 rounded-lg border border-border px-4 py-3">
       <div className="min-w-0">
         <h3 className="text-sm text-fg">{name}</h3>
-        <p className="text-xs text-muted">{about}</p>
         {!!save.error && (
           <p className="text-xs text-danger" role="alert">
             {why(save.error)}
