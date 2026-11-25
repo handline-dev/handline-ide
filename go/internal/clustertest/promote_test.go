@@ -283,3 +283,26 @@ func TestASecondMasterRestartedDuringTheHandoverBecomesARunner(t *testing.T) {
 	waitFor(t, "runner2 as master number 3", func() bool { return isMaster(r2, node2, 3) })
 	joinedAsRunner(t, r2, r1, 2)
 }
+
+// Make master pressed on the master (device.make_master): the runner answers that it takes over, the master hands over to it and
+// joins it as a runner. Pressed on the runner it is node.promote, as in the tests above.
+func TestMakeMasterOnTheMasterMovesItToThatDevice(t *testing.T) {
+	c := Start(t, Opts{Runners: 2})
+	r1, r2 := c.Runners[0], c.Runners[1]
+	ready(t, c, r1, r2)
+	node1 := joined.NodeIDOf(r1.Home)
+	device, _ := row(c.Master, node1)["device"].(string)
+	if device == "" {
+		t.Fatalf("no device on %s's row: %v", r1.Name, row(c.Master, node1))
+	}
+	if _, err := c.Master.Call("device.make_master", map[string]any{"device": device, "request_id": "make-master"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "runner1 as master number 2", func() bool { return isMaster(r1, node1, 2) })
+	b, _ := os.ReadFile(r1.Log())
+	if !strings.Contains(string(b), "runner: asking the master to hand over") {
+		t.Fatalf("%s took over without asking the master", r1.Name)
+	}
+	joinedAsRunner(t, r1, c.Master, 1)
+	waitFor(t, "runner2 linked to runner1", func() bool { rw := row(r1, joined.NodeIDOf(r2.Home)); return rw != nil && rw["online"] == true })
+}

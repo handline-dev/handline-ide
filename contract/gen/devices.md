@@ -11,6 +11,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `device.revoke` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
 | `device.set` | member | yes | `device`, `lending?`, `memory_max_gb?`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
 | `device.update` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind, build | decided: update |
+| `device.make_master` | owner | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` | network, person, kind, node, copy, device, door, state, board | decided: make master |
 | `device.push_token` | member | yes | `platform`, `token`, `sandbox?`, `request_id` | `Accepted` | `refused`, `not_found` | device | not from the app |
 | `node.status` | agent |  | none | `{master, nodes, cluster, placement}` |  |  | `nodes`, fed by nodes |
 | `node.forward` | member |  | `agent`, `method`, `params?`, `client?`, `cwd?` | `object` | `refused` | node, not_on_node, method | not cached |
@@ -49,6 +50,10 @@ Set a lent machine's Run · Pause · Off and its own memory cap. Only the device
 ### `device.update`
 
 Have a lent machine take the master's own build, and its Mac app install the version it has ready. The row's Update, for another person's machine or with node_build_auto off: the machine's next heartbeat answer names the master's build (node.heartbeat's build), which it takes and starts again on, as node_build_auto on does by itself. A Mac app with a newer version ready (node.status app.ready) installs it too (node.heartbeat's app_update). Only the device's own person updates it, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; gate `build` when it is offline, already runs the master's build with no app version ready, is another OS or architecture than the master (install Handline there), or the master serves no build of its own (also when this daemon hands none).
+
+### `device.make_master`
+
+Have one of the owner's Macs or servers take the master's place: "Make master" on its page. A device's page's Make master, on the master. Only the owner, for a machine of theirs that joined, gate `person`; a device that is no Mac or server that joined is refused, gate `kind`; one not linked to this master now, gate `node`. This master checks it can hand over to it as node.handover does (gates `copy`, `device`, `door`), and that machine checks it can take over as node.promote does (gates `state`, `board`, `door`, `copy`) and answers; then it does what node.promote does there: this master hands over (node.handover) and joins it as a runner. The answer comes before the move, which the page sees as the master going and the new one answering.
 
 ### `device.push_token`
 

@@ -486,6 +486,8 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 		return map[string]any{"state": "cloned"}, nil
 	case "runner.worktree.make":
 		return r.makeWorktree(str("remote"), str("path"), str("branch"), str("base"))
+	case "runner.promote":
+		return r.promoteAsked()
 	case "runner.push":
 		if err := plain(str("path"), str("branch")); err != nil {
 			return nil, err

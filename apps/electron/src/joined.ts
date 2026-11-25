@@ -79,3 +79,27 @@ export const masterTransport = (j: Joined) => async (): Promise<Transport> => {
   if (!m) throw new Error('no master answers');
   return open(listenerUrl(m.host, m.fingerprint !== null), m.fingerprint ?? '');
 };
+
+/** The shell's connection for this Mac's own home: its daemon on `local` as the founder (its key), or, once that daemon is a runner (its
+ * cluster's master moved to another Mac), the master it obeys with this Mac's device token there. Each connect looks again, and its
+ * hello says what that connect chose. */
+export function ownConnection(o: {
+  userHome: string;
+  home: string;
+  local: () => Promise<Transport>;
+  key: () => string | null;
+  founder: boolean;
+  remote?: typeof masterTransport;
+}) {
+  const remote = o.remote ?? masterTransport;
+  let chosen: Joined | null = null;
+  return {
+    connect: (): Promise<Transport> => {
+      chosen = joinedOf(o.userHome, o.home);
+      return chosen ? remote(chosen)() : o.local();
+    },
+    key: () => (chosen ? null : o.key()),
+    token: () => chosen?.master.token,
+    founder: () => !chosen && o.founder,
+  };
+}

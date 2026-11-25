@@ -274,7 +274,9 @@ built, and an agent that drives a simulator over many commands keeps it beside i
     link never names a host the apps refuse (the bare Tailscale IP is named by its MagicDNS name), and `hl device
     join` trusts a link as the app does. Another Mac's app has a visible Join a Mac that takes the link or the
     code and asks once: Control from this Mac, or Let the cluster run agents on this Mac (Run at once). A device's
-    page has Make master, pressed on the master or on that device. The device list drops the state word the Run ·
+    page has Make master, pressed on the master or on that device. The app's own daemon becomes a runner only when its
+    cluster's master moves to another Mac; the app then reaches that master with this Mac's device token, as it reaches a
+    joined cluster, and Make master on this Mac brings it back. The device list drops the state word the Run ·
     Pause · Off buttons already say, puts a reason that does not fit behind a warning mark with the whole reason on
     hover, draws Mac or server as an icon, and says Controls only for a browser.
 

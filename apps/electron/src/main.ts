@@ -8,6 +8,7 @@ import { unixSocketTransport } from '@handline/client-node';
 import { drawsTray, inBackground } from '#src/background.ts';
 import { setMenu } from '#src/menu.ts';
 import { Desk } from '#src/desk.ts';
+import { ownConnection } from '#src/joined.ts';
 import { Composer, LOGIN_PROBE, loginAnswer, sweepTemp, type EditorEnv } from '#src/editor.ts';
 import { serveCapture } from '#src/capture.ts';
 import { chooseFolder, serveFolderPick } from '#src/folder-pick.ts';
@@ -191,9 +192,12 @@ function handleDevices(origin: string): void {
   ipcMain.handle(CHANNELS.deviceText, (e, arg) => devices.text(e, arg));
 }
 
-/** The shell's own connection to this Mac's daemon, with the founder's key. */
+/** The shell's own connection: this Mac's daemon, or the master it obeys once it is a runner. */
 const shellClient = (): DaemonClient =>
-  new DaemonClient({ client: 'electron', connect: () => unixSocketTransport(socket), key: founderKey, founder: !outsideHome() });
+  new DaemonClient({
+    client: 'electron',
+    ...ownConnection({ userHome: os.homedir(), home, local: () => unixSocketTransport(socket), key: founderKey, founder: !outsideHome() }),
+  });
 
 /** The login shell's PATH, asked at each daemon start, so a restart picks up a tool installed since (its installer changes it). */
 const loginPath = async () => {

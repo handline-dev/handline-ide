@@ -53,7 +53,11 @@ vi.mock('#src/settings/data/devices.ts', async (orig) => ({
   useSetAside: () => aside.now,
 }));
 const aside = vi.hoisted(() => ({ now: null as { name: string; since: string; master: string; key: string } | null }));
-vi.mock('@handline/app-data', async (real) => ({ ...(await real<object>()), useNameOf: () => (k: string) => k }));
+vi.mock('@handline/app-data', async (real) => ({
+  ...(await real<object>()),
+  useNameOf: () => (k: string) => k,
+  useServes: () => ({ served: true }),
+}));
 vi.mock('#src/settings/PairSheet.tsx', () => ({ openPairSheet: vi.fn() }));
 vi.mock('#src/settings/MachineSections.tsx', () => ({ MachineSections: () => <p>this mac</p> }));
 vi.mock('#src/settings/AgentPlacement.tsx', () => ({ AgentPlacement: () => null }));

@@ -115,7 +115,7 @@ export class DaemonClient {
     const hello = await this.callNow('hello', {
       client: this.opts.client,
       protocol: PROTOCOL,
-      token: this.opts.token,
+      token: typeof this.opts.token === 'function' ? this.opts.token() : this.opts.token,
       key: this.opts.key?.() ?? undefined,
     });
     if (hello.min_client > PROTOCOL || hello.protocol < PROTOCOL) {
@@ -129,7 +129,8 @@ export class DaemonClient {
         { reason: 'Open the Handline app.' },
       );
     }
-    if (this.opts.founder && hello.role !== 'owner')
+    const founder = typeof this.opts.founder === 'function' ? this.opts.founder() : this.opts.founder;
+    if (founder && hello.role !== 'owner')
       throw new RpcError('transport', `the daemon took this app as ${hello.role}: no founder key accepted`);
     belowFloor(this.opts.master, hello);
     this.hello = hello;

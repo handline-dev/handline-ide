@@ -188,6 +188,22 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		}
 		return map[string]any{"accepted": true}, nil
 	}})
+	s.Register("device.make_master", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		id, ok := p["device"].(string)
+		if !ok {
+			return nil, rpc.BadRequestError("device is a string", "device", rpc.InvalidParams)
+		}
+		if m == nil || m.MakeMaster == nil {
+			return nil, off()
+		}
+		if !m.Owns(id, personOf(c)) {
+			return nil, rpc.Refused("only the person whose device it is makes it the master", "person", "")
+		}
+		if err := m.MakeMaster(id); err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true}, nil
+	}})
 	s.Register("device.push_token", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		id, _ := c.Caller.Info["device"].(string)
 		if id == "" {

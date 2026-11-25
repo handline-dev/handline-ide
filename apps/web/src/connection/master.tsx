@@ -1,5 +1,5 @@
 // The master as the page knows it: the machines kept from node.status, the master's name for "Can't reach the master", and
-// "Make this Mac the master" of a joined cluster (the desktop shell's promoteCluster).
+// making this Mac the master of a joined cluster (the desktop shell's promoteCluster).
 import { Hooks } from '@handline/app-data';
 import type { Node } from '@handline/client';
 import { createContext, useContext, useEffect } from 'react';
@@ -18,19 +18,22 @@ export function KeepMachines({ seen }: { seen: (s: { master: { id: string; numbe
   return null;
 }
 
-/** Asks first, then makes this Mac the master of joined cluster `id` (its engine takes the board over); the page follows by itself once
+/** Makes this Mac the master of joined cluster `id`: its engine takes the board over (node.promote); the page follows by itself once
  * the new master answers. */
-export function confirmPromote(id: string, masterGone: boolean) {
+export async function promoteHere(id: string) {
+  const promote = shell()?.promoteCluster;
+  if (!promote) throw new Error('Only the desktop app can make this Mac the master.');
+  const r = await promote(id);
+  if (!r.ok) throw new Error(r.message);
+}
+
+/** A device's Make master, asked once. */
+export function confirmMakeMaster(name: string, run: () => Promise<unknown>) {
   void confirm({
-    title: 'Make this Mac the master?',
-    message: masterGone ? 'This Mac takes over the board from its copy.' : 'The master hands the board over. Writes pause for a moment.',
+    title: `Make ${name} the master?`,
+    message: `The board moves to ${name}, and the master's agents follow as they next start. Work pauses for a moment.`,
     confirmText: 'Make master',
-    run: async () => {
-      const promote = shell()?.promoteCluster;
-      if (!promote) throw new Error('Only the desktop app can make this Mac the master.');
-      const r = await promote(id);
-      if (!r.ok) throw new Error(r.message);
-    },
+    run,
   });
 }
 

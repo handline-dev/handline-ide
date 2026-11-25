@@ -18,8 +18,9 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// The master moved by hand (docs/story4-design.md section 4, slice 18): node.promote makes this runner the master, and a runner whose
-// master is gone looks for the one that is master now among the owner's machines its heartbeats were told of.
+// The master moved by hand (docs/story4-design.md section 4, slices 18 and 37): node.promote, or runner.promote from the master, makes
+// this runner the master, and a runner whose master is gone looks for the one that is master now among the owner's machines its
+// heartbeats were told of.
 
 // HandoverWait is how long a master handing over waits for this machine to hold its last change; node.promote waits twice that for
 // its answer, then takes over without it.
@@ -108,33 +109,82 @@ func (r *Runner) lookForMaster() {
 // self is this machine's node id.
 func (r *Runner) self() string { return joined.NodeIDOf(r.cfg.Home) }
 
-// Promoted is closed once node.promote made this machine the master: main stops the runner and starts it again, as master.
+// Promoted is closed once node.promote or runner.promote made this machine the master: main stops the runner and starts it again, as master.
 func (r *Runner) Promoted() <-chan struct{} { return r.promoted }
 
 // promote is node.promote: the master hands over (node.handover), or, when it does not answer, this machine takes over from its copy;
 // the copy becomes this home's board and, once the answer is sent, the daemon starts again as master.
 func (r *Runner) promote(c *rpc.Conn, _ map[string]any) (any, error) {
-	if !r.promoting.CompareAndSwap(false, true) {
-		return nil, rpc.Refused("this machine is already being made the master", "state", "")
+	if err := r.claim(); err != nil {
+		return nil, err
 	}
+	got, err := r.takeOver()
+	if err != nil {
+		return nil, err
+	}
+	c.AfterReply(r.becameMaster)
+	return got, nil
+}
+
+// promoteAsked is runner.promote, the master's device.make_master: it answers once this machine can take over, then takes over as
+// node.promote does, the master handing over on this same link.
+func (r *Runner) promoteAsked() (any, error) {
+	if err := r.claim(); err != nil {
+		return nil, err
+	}
+	r.wg.Add(1) // under the link's call, so Close has not stopped waiting yet
+	go func() {
+		defer r.wg.Done()
+		if _, err := r.takeOver(); err != nil {
+			r.cfg.Log("runner: the master asked this machine to take over, and it did not: %v", err)
+			return
+		}
+		r.becameMaster()
+	}()
+	return map[string]any{"accepted": true}, nil
+}
+
+// stopping is whether Close has run.
+func (r *Runner) stopping() bool {
+	select {
+	case <-r.stop:
+		return true
+	default:
+		return false
+	}
+}
+
+// becameMaster has main start the daemon again, as master.
+func (r *Runner) becameMaster() { r.promoteOnce.Do(func() { close(r.promoted) }) }
+
+// claim marks this machine as being made the master, refused when it already is or cannot be: no board file, no door or no copy.
+func (r *Runner) claim() error {
+	if r.cfg.DBFile == "" {
+		return rpc.Refused("this runner has no board file to take over to", "board", "")
+	}
+	if r.door() == nil {
+		return rpc.Refused("this machine has no network door to serve as master (handlined -listen)", "door", "")
+	}
+	if files, err := boardcopy.List(boardcopy.Dir(r.cfg.Home)); err != nil {
+		return err
+	} else if len(files) == 0 {
+		return rpc.Refused("this machine keeps no copy of the board: only the owner's machines do, once they have pulled one", "copy", "")
+	}
+	if !r.promoting.CompareAndSwap(false, true) {
+		return rpc.Refused("this machine is already being made the master", "state", "")
+	}
+	return nil
+}
+
+// takeOver makes this claimed machine the master: handed over by the master on the link, or from its copy when the master does not
+// answer. Failed, the claim is let go; made the master, it stays so until the start again.
+func (r *Runner) takeOver() (map[string]any, error) {
 	done := false
 	defer func() {
-		if !done { // made the master, it stays so until the start again
+		if !done {
 			r.promoting.Store(false)
 		}
 	}()
-	if r.cfg.DBFile == "" {
-		return nil, rpc.Refused("this runner has no board file to take over to", "board", "")
-	}
-	if r.door() == nil {
-		return nil, rpc.Refused("this machine has no network door to serve as master (handlined -listen)", "door", "")
-	}
-	dir := boardcopy.Dir(r.cfg.Home)
-	if files, err := boardcopy.List(dir); err != nil {
-		return nil, err
-	} else if len(files) == 0 {
-		return nil, rpc.Refused("this machine keeps no copy of the board: only the owner's machines do, once they have pulled one", "copy", "")
-	}
 	m := r.master()
 	p := joined.Promotion{Number: max(m.Number, 1) + 1, From: m.Node, Tell: true}
 	if l := r.linked(); l != nil {
@@ -144,6 +194,8 @@ func (r *Runner) promote(c *rpc.Conn, _ map[string]any) (any, error) {
 		switch {
 		case errors.As(err, &refused): // it answered no: nothing moves
 			return nil, fmt.Errorf("the master did not hand over: %w", err)
+		case r.stopping(): // the link ended because this runner stops: that is no word from the master
+			return nil, fmt.Errorf("this runner stopped while the master handed over: %w", err)
 		case err != nil: // no answer: it may have stepped down meanwhile, or never will; told every 15 s (node.outranked)
 			r.cfg.Log("runner: the master did not answer the handover (%v), so this machine takes over from its copy", err)
 		default:
@@ -156,14 +208,13 @@ func (r *Runner) promote(c *rpc.Conn, _ map[string]any) (any, error) {
 	r.pulling.Lock()
 	defer r.pulling.Unlock()
 	r.leading = true // no pull writes into the copy from here
-	if err := r.lead(dir, m, p); err != nil {
+	if err := r.lead(boardcopy.Dir(r.cfg.Home), m, p); err != nil {
 		r.leading = false
 		joined.DropPromotion(r.cfg.Home)
 		return nil, err
 	}
 	done = true
 	r.cfg.Log("runner: made the master, number %d", p.Number)
-	c.AfterReply(func() { r.promoteOnce.Do(func() { close(r.promoted) }) })
 	return map[string]any{"number": p.Number, "handed_over": !p.Tell}, nil
 }
 
