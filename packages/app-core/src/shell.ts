@@ -181,12 +181,14 @@ export interface ShellApi {
   clusters?(): Promise<{ ok: true; clusters: ShellCluster[] } | Fail<'bad_request'>>;
   onClusters?(cb: (clusters: ShellCluster[]) => void): () => void;
   /** Joins the cluster whose Settings › Devices › Connect a device gave the link (or its address and the code), as `hl device join`
-   * joins a machine: this person's Mac, on Off. `cannot_join` says why not. */
+   * joins a machine: this person's Mac, on Off, or set to Run at once with `lending: 'run'`. `cannot_join` says why not; `cannot_run`
+   * that it joined, on Off, and why Run was refused. */
   joinCluster?(a: {
     link?: string;
     address?: string;
     code?: string;
-  }): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join'>>;
+    lending?: 'run';
+  }): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join' | 'cannot_run'>>;
   /** Leaves a joined cluster: Off there first (its agents here hand over), this Mac's device revoked, its engine stopped and removed.
    * Refused while this Mac is that cluster's master. */
   leaveCluster?(id: string): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_leave'>>;

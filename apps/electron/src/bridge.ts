@@ -144,6 +144,8 @@ export interface ClusterDeps {
   list(): ShellCluster[];
   /** Joins the cluster the link names; rejects with a sentence when it cannot. */
   join(i: OfferInput): Promise<ShellCluster>;
+  /** Sets this Mac to Run in that cluster; rejects with the master's reason. */
+  lend(id: string): Promise<void>;
   /** Leaves that cluster; rejects with a sentence when it cannot. */
   leave(id: string): Promise<void>;
   /** Makes this Mac that cluster's master (node.promote on its engine); rejects with the engine's reason when it cannot. */
@@ -154,6 +156,7 @@ type Promoted = { number: number; handed_over: boolean };
 const isId = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}$/.test(v);
 
 const OFFER_KEYS = ['link', 'address', 'code'];
+class RunRefused extends Error {}
 const MAX_OFFER = 2048;
 
 /** The clusters this Mac joined (clusters.ts): the list with each one's master and device token, join and leave, from the window only. */
@@ -167,18 +170,28 @@ export class ClusterCalls {
   list(e: Sender): { ok: true; clusters: ShellCluster[] } | Fail<'bad_request'> {
     return fromWindow(e, this.origin) ? { ok: true, clusters: this.d.list() } : (bad('not from the app window') as Fail<'bad_request'>);
   }
-  async join(e: Sender, arg: unknown): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join'>> {
+  async join(e: Sender, arg: unknown): Promise<({ ok: true } & ShellCluster) | Fail<'bad_request' | 'cannot_join' | 'cannot_run'>> {
     if (!fromWindow(e, this.origin)) return bad('not from the app window') as Fail<'bad_request'>;
     const o = arg as Record<string, unknown> | null;
     const okShape =
       typeof o === 'object' &&
       o !== null &&
       !Array.isArray(o) &&
-      Object.entries(o).every(([k, v]) => OFFER_KEYS.includes(k) && typeof v === 'string' && v.length <= MAX_OFFER);
-    if (!okShape) return bad('joinCluster takes { link } or { address, code }') as Fail<'bad_request'>;
+      Object.entries(o).every(([k, v]) =>
+        k === 'lending' ? v === 'run' : OFFER_KEYS.includes(k) && typeof v === 'string' && v.length <= MAX_OFFER,
+      );
+    if (!okShape) return bad("joinCluster takes { link } or { address, code }, and lending: 'run'") as Fail<'bad_request'>;
+    const { lending, ...offer } = o as OfferInput & { lending?: 'run' };
     try {
-      return { ok: true, ...(await this.d.join(o as OfferInput)) };
+      const cluster = await this.d.join(offer);
+      // Joined, on Off: a Run refused leaves it so, and says why.
+      if (lending === 'run')
+        await this.d.lend(cluster.id).catch((err: unknown) => {
+          throw new RunRefused(`Joined ${cluster.name} on Off; Run was refused: ${err instanceof Error ? err.message : String(err)}`);
+        });
+      return { ok: true, ...cluster };
     } catch (err) {
+      if (err instanceof RunRefused) return { ok: false, code: 'cannot_run', message: err.message };
       return { ok: false, code: 'cannot_join', message: err instanceof Error ? err.message : String(err) };
     }
   }

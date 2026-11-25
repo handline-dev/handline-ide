@@ -1,6 +1,7 @@
 // The joined clusters in Electron terms (clusters.ts holds the logic a test drives): each engine kept as owner.ts keeps a daemon,
 // `hl device join` run on its home, the shell's connection to each master, and the page's calls.
 import { execFile } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { app, ipcMain } from 'electron';
@@ -87,7 +88,7 @@ export function serveClusters(o: {
     promote: promoteEngine,
     changed: () => o.send(clusters.list()),
   });
-  // tools/app.mjs --fake: the clusters its second fake daemon stands for, listed as joined; Leave drops one, a join is refused.
+  // tools/app.mjs --fake: the clusters its second fake daemon stands for, listed as joined; Leave drops one, a join adds one.
   const fake = o.env('FAKE_CLUSTERS');
   let fakes: ShellCluster[] = fake ? (JSON.parse(fake) as ShellCluster[]) : [];
   const calls = new ClusterCalls(
@@ -95,7 +96,15 @@ export function serveClusters(o: {
     fake
       ? {
           list: () => fakes,
-          join: () => Promise.reject(new Error('the test app joins no cluster')),
+          // A join lists one more cluster on the same fake master, so the join's last step shows as it does after a real one.
+          join: async () => {
+            if (!fakes[0]) throw new Error('the test app joins only beside a fake cluster');
+            const c = { ...fakes[0], id: randomBytes(4).toString('hex'), name: 'Studio', master: false };
+            fakes = [...fakes, c];
+            o.send(fakes);
+            return c;
+          },
+          lend: async () => undefined,
           leave: async (id) => {
             fakes = fakes.filter((c) => c.id !== id);
             o.send(fakes);
@@ -105,6 +114,7 @@ export function serveClusters(o: {
       : {
           list: () => clusters.list(),
           join: (i) => clusters.join(i),
+          lend: (id) => clusters.lend(id),
           leave: (id) => clusters.leave(id),
           promote: (id) => clusters.promote(id),
         },

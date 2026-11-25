@@ -100,7 +100,8 @@ export class SettingsFile {
   }
 }
 
-/** What the person gave for the master: the `handline://pair` link its Connect a device shows, or its address and the code. */
+/** What the person gave for the master: the link its Connect a device shows, the `handline://pair` link the link page opens the app with,
+ * or its address and the code. */
 export interface OfferInput {
   link?: string;
   address?: string;

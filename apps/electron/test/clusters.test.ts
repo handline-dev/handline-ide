@@ -24,6 +24,7 @@ function world() {
   let ports = 50100;
   let handover: Promise<void> = Promise.resolve();
   let slow = false;
+  let down = false;
   const links: (MasterLink & { calls: unknown[]; set: (s: ConnectionState) => void; current: () => Joined })[] = [];
   let refuse = '';
   const d: ClusterDeps = {
@@ -77,7 +78,11 @@ function world() {
         state: 'connecting' as ConnectionState,
         hello: null as MasterLink['hello'],
         calls: [] as unknown[],
-        start: async () => (l.set('open'), l.hello!),
+        start: async () => {
+          if (down) throw new Error('connect ECONNREFUSED');
+          l.set('open');
+          return l.hello!;
+        },
         close: () => void (l.state = 'closed'),
         call: (async (method: string, params: unknown) => void l.calls.push([method, params])) as MasterLink['call'],
         onState: (f: (s: ConnectionState) => void) => (fns.push(f), () => undefined),
@@ -99,6 +104,7 @@ function world() {
     links,
     refuse: (why: string) => (refuse = why),
     slowStart: () => (slow = true),
+    goDown: () => (down = true),
     slowHandover: () => {
       let done: () => void = () => undefined;
       handover = new Promise<void>((ok) => (done = ok));
@@ -131,6 +137,30 @@ test('a join keeps the cluster, starts its engine on a home of its own and names
   ]);
   w.links[0]!.set('reconnecting');
   assert.equal(c.list()[0]!.reachable, false);
+});
+
+test("Let it run agents on this Mac sets this Mac to Run there, through the shell's link to the master", async () => {
+  const w = world();
+  const c = new Clusters(w.d);
+  const got = await c.join({ link: LINK });
+  await c.lend(got.id);
+  assert.deepEqual(w.links[0]!.calls, [['device.set', { device: 'dev1', lending: 'run', request_id: `join-run-${got.id}` }]]);
+  await assert.rejects(c.lend('ffff0000'), /not joined/);
+});
+
+test('a Run asked before the link to the master opens waits for it, and is refused when it does not connect', async () => {
+  const w = world();
+  w.goDown();
+  const c = new Clusters(w.d);
+  const got = await c.join({ link: LINK });
+  await assert.rejects(c.lend(got.id), /the master did not answer: connect ECONNREFUSED/);
+  assert.deepEqual(w.links[0]!.calls, []);
+  w.links[0]!.set('reconnecting');
+  const asked = c.lend(got.id);
+  w.links[0]!.set('open');
+  await asked;
+  assert.equal(w.links[0]!.calls.length, 1);
+  await c.leave(got.id); // its retries end once it is gone
 });
 
 test('a refused join leaves nothing behind; a bad link is refused before anything is made', async () => {

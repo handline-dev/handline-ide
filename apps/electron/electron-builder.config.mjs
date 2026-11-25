@@ -24,6 +24,8 @@ export default {
     { from: `${bin}/tmux`, to: 'bin/tmux' },
     { from: `${bin}/licenses`, to: 'licenses' },
   ],
+  // The link page's Open in the Handline app opens handline://pair links in this app (main.ts open-url).
+  protocols: [{ name: 'Handline pairing link', schemes: ['handline'] }],
   npmRebuild: false,
   afterSign: 'ad-hoc-sign.mjs',
   mac: {

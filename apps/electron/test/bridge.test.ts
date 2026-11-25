@@ -184,6 +184,7 @@ test('follow and the update check only from the window', async () => {
 
 test('the page lists, joins, leaves and takes over clusters only from the window and with the right arguments', async () => {
   const seen: unknown[] = [];
+  let refuseRun = false;
   const blue = { id: 'abcd0123', name: 'Blue Harbor', daemon: 'wss://m.local:7443/rpc', token: 't', reachable: true, master: false };
   const c = new ClusterCalls(ORIGIN, {
     list: () => [blue],
@@ -191,6 +192,10 @@ test('the page lists, joins, leaves and takes over clusters only from the window
       if (i.code === 'bad') throw new Error('cannot reach the master at x');
       seen.push(i);
       return blue;
+    },
+    lend: async (id) => {
+      seen.push(`run ${id}`);
+      if (refuseRun) throw new Error('this device is revoked');
     },
     leave: async (id) => void seen.push(id),
     promote: async (id) => {
@@ -214,6 +219,17 @@ test('the page lists, joins, leaves and takes over clusters only from the window
   assert.equal((await c.leave(top, '../x')).ok, false);
   assert.equal((await c.leave(evil, 'abcd0123')).ok, false);
   assert.deepEqual(seen, [{ address: 'a.ts.net', code: 'c' }, 'abcd0123']);
+  // Let it run agents on this Mac: joined, then Run; a refused Run leaves it joined and says so.
+  seen.length = 0;
+  assert.deepEqual(await c.join(top, { link: 'l', lending: 'run' }), { ok: true, ...blue });
+  assert.equal((await c.join(top, { link: 'l', lending: 'pause' })).ok, false);
+  refuseRun = true;
+  assert.deepEqual(await c.join(top, { link: 'l', lending: 'run' }), {
+    ok: false,
+    code: 'cannot_run',
+    message: 'Joined Blue Harbor on Off; Run was refused: this device is revoked',
+  });
+  assert.deepEqual(seen, [{ link: 'l' }, 'run abcd0123', { link: 'l' }, 'run abcd0123']);
   assert.deepEqual(await c.promote(top, 'abcd0123'), { ok: true, number: 2, handed_over: true });
   assert.deepEqual(await c.promote(top, '0000ffff'), {
     ok: false,

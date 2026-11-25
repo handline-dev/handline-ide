@@ -8,12 +8,12 @@ export interface Ipc {
 }
 
 export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
-  // A click before the page registered is kept and delivered to the first listener.
-  let waiting: NavigateTo | null = null;
+  // What comes before the page registered (a click, a link the app was opened with) is kept and delivered to the first listener.
+  const waiting: NavigateTo[] = [];
   let listener: ((to: NavigateTo) => void) | null = null;
   ipc.on(CHANNELS.navigate, (_e, to) => {
     if (listener) listener(to as NavigateTo);
-    else waiting = to as NavigateTo;
+    else waiting.push(to as NavigateTo);
   });
   // The shell sends the state on every load and change; the last one is kept for the first listener.
   let full = false;
@@ -102,11 +102,7 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     settingsSet: (a) => call(CHANNELS.settingsSet, a),
     onNavigate(cb) {
       listener = cb;
-      if (waiting) {
-        const to = waiting;
-        waiting = null;
-        cb(to);
-      }
+      for (const to of waiting.splice(0)) cb(to);
       return () => {
         if (listener === cb) listener = null;
       };

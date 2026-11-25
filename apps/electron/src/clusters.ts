@@ -62,6 +62,8 @@ interface Live {
   link: MasterLink;
   /** A promote not answered yet: Leave and a second promote wait for its answer. */
   promoting: boolean;
+  /** Told each time a connect to the master fails, so a Run asked before the link opened is not left waiting. */
+  failed: Set<(e: unknown) => void>;
 }
 
 /** The app around the engines, as each engine's heartbeat tells its master (app.json in its home): this app's version, and the newer
@@ -142,6 +144,14 @@ export class Clusters {
     return this.run(id, home, port, j);
   }
 
+  /** Sets this Mac to Run in that cluster, through the shell's connection to its master (a join's Let it run agents on this Mac). */
+  async lend(id: string): Promise<void> {
+    const l = this.live.get(id);
+    if (!l) throw new Error('this Mac has not joined that cluster');
+    if (l.link.state !== 'open') await opened(l);
+    await l.link.call('device.set', { device: l.joined.master.device, lending: 'run', request_id: `join-run-${id}` });
+  }
+
   /** Leaves a cluster: Off there, so its agents here hand over, then this Mac's device revoked, the engine stopped and its home
    * removed. A master that does not answer, or refuses, is no reason to stay: the device stays listed there until its owner revokes it. */
   async leave(id: string): Promise<void> {
@@ -193,14 +203,27 @@ export class Clusters {
     const engine = this.d.engine(home, port);
     const now = { joined }; // the link reads it at each connect, so it exists before the link
     const link = this.d.link(() => now.joined);
-    const l: Live = Object.assign(now, { id, home, port, engine, starting: engine.start(), link, promoting: false });
+    const l: Live = Object.assign(now, {
+      id,
+      home,
+      port,
+      engine,
+      starting: engine.start(),
+      link,
+      promoting: false,
+      failed: new Set<(e: unknown) => void>(),
+    });
     this.live.set(id, l);
     link.onState((s) => {
       l.joined = this.d.joined(home, port) ?? l.joined;
       if (s === 'open') this.learnName(id, link);
       this.d.changed();
     });
-    void untilUp(() => (this.live.get(id) === l ? link.start() : Promise.resolve()));
+    const tell = (e: unknown) => {
+      l.failed.forEach((f) => f(e));
+      throw e;
+    };
+    void untilUp(() => (this.live.get(id) === l ? link.start().catch(tell) : Promise.resolve()));
     this.d.changed();
     return this.list().find((c) => c.id === id)!;
   }
@@ -246,6 +269,16 @@ export class Clusters {
     fs.rmSync(this.d.store(home), { recursive: true, force: true });
     fs.rmSync(home, { recursive: true, force: true });
   }
+}
+
+/** The link to the master opens, or its next connect fails. */
+function opened(l: Live): Promise<void> {
+  return new Promise((ok, fail) => {
+    const done = () => (off(), l.failed.delete(no));
+    const off = l.link.onState((s) => void (s === 'open' && (done(), ok())));
+    const no = (e: unknown) => (done(), fail(new Error(`the master did not answer: ${e instanceof Error ? e.message : String(e)}`)));
+    l.failed.add(no);
+  });
 }
 
 /** app.json in an engine's home, replaced whole so its heartbeat never reads half of it. A write that fails leaves the master with what

@@ -12,6 +12,7 @@ import { InstallPoll } from '#src/install/install.tsx';
 import { instant, spring } from '#src/motion.ts';
 import { Sidebar, SidebarControls, sidebarWidth } from '#src/Sidebar.tsx';
 import { ModalHost } from '#src/ui/modal.tsx';
+import { JoinLinks } from '#src/connection/join.tsx';
 import { ZoneHighlight } from '#src/ui/dnd.tsx';
 import { OpenMenuHost } from '#src/layout/openable.tsx';
 import { ToastHost } from '#src/ui/toast.tsx';
@@ -156,6 +157,7 @@ createRoot(document.getElementById('root')!).render(
       </Boundary>
       <OpenMenuHost />
       <ZoneHighlight />
+      <JoinLinks />
       <ModalHost />
       <ToastHost />
     </Connect>

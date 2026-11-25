@@ -1,12 +1,15 @@
 import { useSize } from '#src/ui/useSize.ts';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { useState, type ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { ModalFrame } from '#src/ui/modal.tsx';
 
-export type StepAction = { label: string; onClick: () => void; disabled?: boolean };
+export type StepAction = { label: string; onClick: () => void; disabled?: boolean; busy?: boolean };
 export type Step = {
   body: ReactNode;
+  /** The last page: a large icon over what came of it, no buttons, and the modal closes by itself a moment later. */
+  finish?: { icon: LucideIcon; tone?: 'success' | 'warning' };
   /** Bottom left. */
   back?: StepAction;
   /** Bottom right: the primary button (Next, Done). */
@@ -39,7 +42,15 @@ export function StepModal({
     setSeen(step);
     setDir(step > seen ? 1 : -1);
   }
-  const { back, next } = steps[step];
+  const { back, next, finish } = steps[step];
+  const closing = useRef(onClose);
+  useEffect(() => void (closing.current = onClose));
+  const finished = !!finish;
+  useEffect(() => {
+    if (!finished) return;
+    const t = setTimeout(() => closing.current(), FINISH_MS);
+    return () => clearTimeout(t);
+  }, [finished]);
   const x = still ? 0 : 32;
   const duration = still ? 0 : 0.15;
   return (
@@ -49,20 +60,22 @@ export function StepModal({
       size={size}
       onClose={onClose}
       footer={
-        <div className="flex w-full justify-between gap-2">
-          {back ? (
-            <Button onClick={back.onClick} disabled={back.disabled}>
-              {back.label}
-            </Button>
-          ) : (
-            <span />
-          )}
-          {next && (
-            <Button variant="primary" onClick={next.onClick} disabled={next.disabled}>
-              {next.label}
-            </Button>
-          )}
-        </div>
+        finish ? undefined : (
+          <div className="flex w-full justify-between gap-2">
+            {back ? (
+              <Button onClick={back.onClick} disabled={back.disabled}>
+                {back.label}
+              </Button>
+            ) : (
+              <span />
+            )}
+            {next && (
+              <Button variant="primary" onClick={next.onClick} disabled={next.disabled} busy={next.busy}>
+                {next.label}
+              </Button>
+            )}
+          </div>
+        )
       }
     >
       <motion.div animate={{ height }} transition={{ duration: still ? 0 : 0.2 }} className="overflow-hidden">
@@ -82,10 +95,22 @@ export function StepModal({
             exit="out"
             transition={{ duration }}
           >
-            {steps[step].body}
+            {finish ? <Finished {...finish}>{steps[step].body}</Finished> : steps[step].body}
           </motion.div>
         </AnimatePresence>
       </motion.div>
     </ModalFrame>
+  );
+}
+
+/** How long the last page stays before the modal closes by itself. */
+const FINISH_MS = 2500;
+
+function Finished({ icon: Icon, tone = 'success', children }: { icon: LucideIcon; tone?: 'success' | 'warning'; children: ReactNode }) {
+  return (
+    <div role="status" className="flex flex-col items-center gap-3 py-6 text-center text-sm text-fg">
+      <Icon size={48} strokeWidth={1.5} className={tone === 'success' ? 'text-success' : 'text-warning'} />
+      {children}
+    </div>
   );
 }

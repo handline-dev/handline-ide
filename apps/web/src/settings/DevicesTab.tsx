@@ -9,6 +9,7 @@ import {
   ArrowUpCircle,
   BatteryCharging,
   ChevronRight,
+  Link2,
   Loader,
   Plus,
   RefreshCw,
@@ -32,6 +33,8 @@ import {
 } from '#src/settings/DeviceControls.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { openPairSheet } from '#src/settings/PairSheet.tsx';
+import { joinWithLink } from '#src/connection/join.tsx';
+import { shell } from '#src/shell.ts';
 import {
   MASTER,
   MODES,
@@ -323,15 +326,23 @@ export function DevicesTab({ open: start }: { open?: string }) {
     <SettingsPage
       keep="settings-devices"
       title="Devices"
-      note="The Macs and servers that run agents, and the phones and browsers that connect."
+      note="The computers that run agents, and the phones and browsers that connect."
       action={
         chosen.length > 0 ? (
           bulk
         ) : (
-          <Button variant="primary" onClick={() => void openPairSheet()}>
-            <Plus size={14} />
-            Connect a device
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {shell()?.joinCluster && (
+              <Button onClick={() => void joinWithLink()}>
+                <Link2 size={14} />
+                Join with a link
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => void openPairSheet()}>
+              <Plus size={14} />
+              Connect a device
+            </Button>
+          </div>
         )
       }
     >

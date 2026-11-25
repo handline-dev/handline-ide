@@ -1,4 +1,4 @@
-// The status bar's bottom-left: this device and how many clusters it joined; its popover lists the clusters, to leave or join one.
+// The status bar's bottom-left: this device and how many clusters it joined; its popover lists the clusters, to leave one.
 import { Laptop, MoreHorizontal, Network, TriangleAlert } from 'lucide-react';
 import { useState, type ReactNode, type RefObject } from 'react';
 import { InCluster, useClusterName, useJoined, useOnline, type Joined } from '#src/connection/clusters.tsx';
@@ -6,9 +6,8 @@ import { MASTER } from '#src/settings/data/devices.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { shell } from '#src/shell.ts';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { confirm, prompt } from '#src/ui/modal.tsx';
+import { confirm } from '#src/ui/modal.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
-import { toast } from '#src/ui/toast.tsx';
 
 /** `host` is this device's name; `lead` what goes before it (the status dot). */
 export function ClusterButton({
@@ -58,17 +57,6 @@ export function ClusterButton({
             <JoinedRow cluster={j} />
           </InCluster>
         ))}
-        {shell()?.joinCluster && (
-          <div className="mt-0.5 border-t border-border pt-0.5">
-            <button
-              type="button"
-              onClick={() => (setOpen(false), void joinCluster())}
-              className="flex h-8 w-full items-center rounded-md px-2 text-left text-sm hover:bg-hover/30"
-            >
-              Join a cluster…
-            </button>
-          </div>
-        )}
       </div>
     </Popover>
   );
@@ -123,11 +111,3 @@ const leave = (id: string, name: string) =>
       if (r && !r.ok) throw new Error(r.message);
     },
   });
-
-/** The link from that cluster's Settings › Devices › Connect a device; a refusal says why. */
-export async function joinCluster() {
-  const link = await prompt({ title: 'Join a cluster', placeholder: 'handline://…', submitText: 'Join' });
-  if (!link?.trim()) return;
-  const r = await shell()?.joinCluster?.({ link: link.trim() });
-  if (r && !r.ok) toast(`It did not join: ${r.message}`, { tone: 'warning' });
-}

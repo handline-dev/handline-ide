@@ -20,9 +20,11 @@ export function loadToken(store: KV | null, url: string): string | null {
   }
 }
 
-/** The code out of what the person pasted: `hl device pair` prints the code and a handline:// uri that holds it. */
+/** The code out of what the person pasted: the code `hl device pair` prints, or the link that holds it. */
 export function codeFrom(text: string): string {
   const t = text.trim();
+  const linked = invite(t.replace(/^[^#]*/, ''));
+  if (linked) return linked.code;
   try {
     const c = new URL(t).searchParams.get('code');
     if (c) return c;
@@ -32,15 +34,26 @@ export function codeFrom(text: string): string {
   return t;
 }
 
-/** The code an invite link carries: the page opened as `/#pair=<code>`. Null for any other hash. */
-export function inviteCode(hash: string): string | null {
-  const c = /^#pair=([^&]+)/.exec(hash)?.[1];
+export interface Invite {
+  code: string;
+  /** The listener's certificate fingerprint, for a door on a certificate of its own: the Mac app pins it. */
+  fp: string | null;
+}
+
+/** What an invite link carries: the page opened as `/#pair=<code>`, `&fp=<fingerprint>` after it for a self-made certificate. Null for
+ * any other hash. */
+export function invite(hash: string): Invite | null {
+  const m = /^#pair=([^&]+)(?:&fp=([0-9a-fA-F]{64}))?/.exec(hash);
   try {
-    return c ? decodeURIComponent(c) : null;
+    return m ? { code: decodeURIComponent(m[1]!), fp: m[2]?.toLowerCase() ?? null } : null;
   } catch {
     return null;
   }
 }
+
+/** The link Open in the Handline app opens: the same listener (`host` is host:port) and code, for the Mac app. */
+export const appLink = (host: string, i: Invite): string =>
+  `handline://pair?host=${encodeURIComponent(host)}&code=${encodeURIComponent(i.code)}${i.fp ? `&fp=${i.fp}` : ''}`;
 
 /** What the device list calls this browser: the browser on the system, so the person can tell which one to revoke. */
 export function deviceName(agent: string = navigator.userAgent): string {

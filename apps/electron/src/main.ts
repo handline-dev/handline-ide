@@ -30,6 +30,7 @@ import { quitQuietly } from '#src/ask.ts';
 import { askBeforeQuit, countWorking, loginLaunch, saveOpenAtLogin, saveUpdateChannel, trayFollow, trayUpdate } from '#src/app-life.ts';
 import { addressesChosen, listenAddress, magicDnsName, onTailnet, TAILSCALE_CLIS, windowDaemon } from '#src/tailnet.ts';
 import { Cli, Connection, Page, Settings, Update, CHANNELS } from '#src/bridge.ts';
+import { OpenLinks } from '#src/open-link.ts';
 import { serveDir } from '#src/serve.ts';
 import { buildId, UNSENT_PROBE, Updater } from '#src/update.ts';
 import { UpdateFlow } from '#src/update-flow.ts';
@@ -294,6 +295,10 @@ if (!app.requestSingleInstanceLock({ background })) {
   app.quit();
 } else {
   app.on('second-instance', (_e, _argv, _cwd, data) => (data as { background?: boolean } | undefined)?.background || show());
+  // A pairing link the app is opened with (the link page's Open in the Handline app); only the built app claims handline://.
+  const links = new OpenLinks();
+  app.on('open-url', (e, url) => (e.preventDefault(), links.add(url)));
+  if (app.isPackaged) app.setAsDefaultProtocolClient('handline');
   if (background) app.setActivationPolicy('accessory'); // no dock icon, and the app never becomes the active one
   void app.whenReady().then(async () => {
     // An unpackaged app shows Electron's icon in the dock until it is told otherwise.
@@ -366,6 +371,9 @@ if (!app.requestSingleInstanceLock({ background })) {
       if (!background) keepPlace(win);
       await win.loadURL(`${web.url}?daemon=${encodeURIComponent(ws)}${background ? '' : savedRoute()}`);
     };
+    links.serve(
+      (url) => void openWindow().then(() => win?.webContents.send(CHANNELS.navigate, { screen: 'join', id: url, event: 'open-url' })),
+    );
     setMenu(openWindow, () => win?.webContents);
     // The app lives in the tray: closing the last window leaves it running.
     app.on('activate', () => void openWindow());
