@@ -48,11 +48,7 @@ export function ProjectSetup({ repo, close }: { repo: Repo; close: () => void })
       >
         <textarea rows={3} value={copy} placeholder=".env" onChange={(e) => (setCopy(e.target.value), save.reset())} className={area} />
       </Field>
-      <Field
-        label="Setup script"
-        info="Runs in each new worktree."
-        error={field === 'script' && fail ? sentence(fail) : undefined}
-      >
+      <Field label="Setup script" info="Runs in each new worktree." error={field === 'script' && fail ? sentence(fail) : undefined}>
         <textarea
           rows={3}
           value={script}

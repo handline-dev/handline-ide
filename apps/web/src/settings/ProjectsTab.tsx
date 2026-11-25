@@ -38,10 +38,7 @@ export function ProjectsTab() {
   const [mode, setMode] = useState<'folder' | 'clone' | 'new' | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   return (
-    <SettingsPage
-      keep="settings-projects"
-      title="Projects"
-    >
+    <SettingsPage keep="settings-projects" title="Projects">
       <Block title="Your projects" note={open.length ? undefined : 'None yet.'}>
         {open.map((r) => (
           <div key={r.path} data-repo={r.path} className="flex flex-col gap-2">
@@ -174,9 +171,7 @@ function FolderForm({ init }: { init?: boolean }) {
       error={make.error ?? here.error}
     >
       <div className="flex items-end gap-2">
-        <Field
-          label={init ? 'Folder to start from' : 'Folder'}
-        >
+        <Field label={init ? 'Folder to start from' : 'Folder'}>
           <Input value={path} placeholder="/path/to/project" onChange={(e) => setPath(e.target.value)} />
         </Field>
         {pick && (

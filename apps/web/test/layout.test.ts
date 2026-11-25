@@ -238,7 +238,7 @@ describe('holdLine', () => {
     expect(holdLine(starting)).toBe('Starting a new session to restart: model changed');
     expect(holdLine({ ...starting, handoff: { ...starting.handoff, cause: 'context_full' } })).toBeNull();
   });
-  it('a starting agent shows the daemon\'s own words with the waking mark', async () => {
+  it("a starting agent shows the daemon's own words with the waking mark", async () => {
     const { activityOf, holdLine } = await import('#src/layout/agentList.ts');
     const a = { state: 'idle', has_dialog: false, status: status('preparing', 'work', 'Starting in a moment') };
     expect(activityOf(a)).toBe('waking');

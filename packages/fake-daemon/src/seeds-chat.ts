@@ -49,7 +49,10 @@ export const CHAT_SEEDS: Record<string, Seed> = {
    * each start and end in its chat; a7's record of T9460 reads as chat.transcript with agent a7. */
   alongside: (d) => {
     const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
-    for (const [seat, id, title] of [['a7', 9460, 'Tab bar dimming'], ['a8', 9458, 'Spinner sizes']] as const) {
+    for (const [seat, id, title] of [
+      ['a7', 9460, 'Tab bar dimming'],
+      ['a8', 9458, 'Spinner sizes'],
+    ] as const) {
       task(d, id, { id, from: ME, to: ARCH, title, state: id === 9458 ? 'done' : 'doing' });
       d.sessions.set(seat, newSession({ ...d.sessions.get(ARCH)!.fx, name: seat, view: { hired_from: ARCH } }, ago(10)));
     }

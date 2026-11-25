@@ -39,10 +39,7 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
     agent: agents ? `${count(agents, 'agent')}` : 'Not started',
   };
   return (
-    <SettingsPage
-      keep="settings-onboarding"
-      title="Onboarding"
-    >
+    <SettingsPage keep="settings-onboarding" title="Onboarding">
       <Block title={o.allDone ? 'All set' : `${o.doneCount} of ${o.total} done`}>
         <div className="flex gap-1.5" aria-hidden>
           {STEPS.map((id) => (
