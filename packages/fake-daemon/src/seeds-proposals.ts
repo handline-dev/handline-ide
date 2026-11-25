@@ -40,8 +40,14 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
       id: 904,
       kind: 'run',
       agent: 'handline.tools',
-      title: 'run git push origin HEAD:main',
-      diff: 'run: git push origin HEAD:main\ncwd: /Users/me/handline',
+      title: 'run a setup command',
+      diff: 'run: brew install mas && mas install 497799835 && sudo xcodebuild -license accept && sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer && git push origin HEAD:main\ncwd: /Users/me/handline',
+      run: {
+        command:
+          'brew install mas && mas install 497799835 && sudo xcodebuild -license accept && sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer && git push origin HEAD:main',
+        cwd: '/Users/me/handline',
+        risks: ['privilege', 'network'],
+      },
       reason: 'The push needs the keychain, which only you can unlock.',
     });
   },
