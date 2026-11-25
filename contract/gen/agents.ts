@@ -397,6 +397,11 @@ export interface AgentsMethods {
   worktree?: "keep" | "save" | "force";
   request_id: RequestId;
 }; result: Accepted };
+  "agent.rename": { params: {
+  agent: Who;
+  to: string;
+  request_id: RequestId;
+}; result: Accepted };
   "agent.create": { params: {
   /** Its plain name in the workspace; a dot is bad_request, field name. */
   name: string;
@@ -700,6 +705,7 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.unstall": { role: "owner", callers: null, write: true, since: 1 },
   "agent.force_start": { role: "owner", callers: null, write: true, since: 1 },
   "agent.retire": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.rename": { role: "owner", callers: null, write: true, since: 1 },
   "agent.create": { role: "owner", callers: null, write: true, since: 1 },
   "session.start": { role: "agent", callers: null, write: true, since: 1 },
   "session.wake": { role: "agent", callers: null, write: true, since: 1 },
@@ -752,7 +758,7 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
@@ -761,6 +767,7 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move
   "agent.unstall": {"kind": "decided", "label": "clear stall"},
   "agent.force_start": {"kind": "decided", "label": "force start"},
   "agent.retire": {"kind": "decided", "label": "retire"},
+  "agent.rename": {"kind": "decided", "label": "rename an agent"},
   "agent.create": {"kind": "decided", "label": "create"},
   "session.start": {"kind": "decided", "label": "start"},
   "session.wake": false,

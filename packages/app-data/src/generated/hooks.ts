@@ -79,6 +79,7 @@ export const useAgentSwitchNow = (target?: string) => useWrite("agent.switch_now
 export const useAgentUnstall = (target?: string) => useWrite("agent.unstall", target);
 export const useAgentForceStart = (target?: string) => useWrite("agent.force_start", target);
 export const useAgentRetire = (target?: string) => useWrite("agent.retire", target);
+export const useAgentRename = (target?: string) => useWrite("agent.rename", target);
 export const useAgentCreate = (target?: string) => useWrite("agent.create", target);
 export const useSessionStart = (target?: string) => useWrite("session.start", target);
 export const useSessionStop = (target?: string) => useWrite("session.stop", target);

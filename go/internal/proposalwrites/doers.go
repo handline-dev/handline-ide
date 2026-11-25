@@ -280,7 +280,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 		}
 	}
 	if now != "" && (was == "" || was == now) {
-		return true, fmt.Sprintf("%s was renamed to %s already", old, new), nil // approved again after it took effect: settled, not a failure
+		return true, fmt.Sprintf("%s was renamed to %s already", label, new), nil // approved again after it took effect: settled, not a failure
 	}
 	if e.Live == nil {
 		return false, fmt.Sprintf("could not confirm whether %s has a session running just now - try again in a moment.", label), nil

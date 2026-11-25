@@ -1978,6 +1978,62 @@
    "description": "Its turns on open tasks come off: the top one is sent back to the agent below it with the note `retired` (not counted as bounced), and one lower down just goes."
   },
   {
+   "name": "agent.rename",
+   "summary": "Rename an agent, as an approved rename does: its key, folder, rows and history stay; only the name it goes by changes. Founder only. The call answers only once the rename has run, with `said`, or the refusal. For an agent with a session running it is applied now, as proposal.apply_now does: the turn running now is interrupted, the session closes, the rename runs and the agent starts under its new name at the next tick; the call waits for that up to 10 minutes, and is refused (gate state) if it has not happened by then, and nothing is renamed. `to` is one word, the name within its workspace; a workspace's lead goes by its workspace's name, so renaming a lead alone in its workspace renames the workspace. Its own name answers at once and touches no session. Refused (gate state), before any session is touched, for a word that is not a free name (the same rules as a new agent's), a lead whose workspace has other agents, or a seat lent from another agent (a temp: renaming it would rename nothing of its own). An agent the daemon does not have is not_found.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "to",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The new name: one word, lowercase letters, digits and -."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "rename an agent"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ]
+  },
+  {
    "name": "agent.create",
    "summary": "Register a new agent in a workspace, give it a worktree on a branch of one of its folders (or the plain folder itself), and start it there, as hl spawn does. The call answers only once the operation ended: done, with the operation id and the start's words in said, or refused (gate state) with the reason, the operation id and whether the agent was registered. The operations topic sends operation.progress along the way, and other calls on the connection are answered meanwhile. A create still running after 10 minutes cannot be undone half way: the call is refused naming the step it reached and the operation id, and the operation goes on to done or failed. Founder only. Parameters are checked before anything is looked up, in this order: request_id, name, role, effort, account, workspace; then the workspace is looked up, the folder, and whether the name is used.",
    "description": "The operation has kind agent.create and its agent is the new name from the first event. steps_total may be null while it is unknown; a client shows step as the daemon sent it and invents none. When it is done, result is {agent, registered: true}. When it failed, result is {agent, registered}: registered says whether the agent was added to the team before the failure, so a failed operation can leave a registered agent that is not started; nothing is cleaned up. A name already used by an agent is refused (gate state) and no operation starts. base omitted means the daemon's default branch name, which is main today; a client that knows the repo's default_branch sends it.",
