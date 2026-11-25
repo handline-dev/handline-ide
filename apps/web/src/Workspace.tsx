@@ -4,7 +4,7 @@ import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
-import { TabScope, tabIn } from '#src/connection/clusters.tsx';
+import { SpaceCluster, TabScope, spaceOf, tabIn } from '#src/connection/clusters.tsx';
 import { PlanTab } from '#src/tools/Story.tsx';
 import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { useTabKeys } from '#src/layout/tabKeys.ts';
@@ -20,7 +20,7 @@ import { PageTab } from '#src/layout/pageTab.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
-import { useCallback, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { agentKind, choices, iconOf, pages, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -31,7 +31,7 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { dotOf } from '#src/layout/TabDot.tsx';
-import { agentOf } from '#src/layout/screenLayout.ts';
+import { agentOf, carryIn } from '#src/layout/screenLayout.ts';
 import { TabBar } from '#src/ui/Tabs.tsx';
 
 export type Dispatch = (a: Action) => void;
@@ -39,16 +39,17 @@ export type Dispatch = (a: Action) => void;
 /** Names as the agent's workspace reads them: its own agents by name alone (T9201). */
 const useNamesHere = (agent: string | null) => useNameOf(useAgents().data?.agents.find((a) => a.key === agent)?.workspace);
 
+/** `agent`: the agent's key with its cluster (`@c/bob`), the one an agent's kind asked for bare is opened naming. */
 type Context = { root: Node; agent: string | null; dispatch: Dispatch; nameOf: (key: string) => string; focus: (pane: string) => void };
 
 /** Applies a drop of any tab source (a tab moving, or a thing to open) at `to`. Something already open
  * here is not opened twice: its tab comes up, and a toast says why. */
-function dropTo(e: DragEvent, to: Target, { root, dispatch, nameOf }: Context) {
+function dropTo(e: DragEvent, to: Target, { root, agent, dispatch, nameOf }: Context) {
   const drag = readTabDrag(e);
   if (!drag) return;
   e.preventDefault();
   if ('move' in drag) return dispatch({ type: 'move', from: drag.move.pane, tab: drag.move.tab, tabs: drag.move.tabs, to });
-  const opens = drag.open.opens;
+  const opens = carryIn(drag.open.opens, agent);
   // A tab already open, pinned or not, moves to where it was dropped.
   for (const p of panes(root)) {
     const tab = p.tabs.find((t) => t.opens === opens);
@@ -61,8 +62,11 @@ function dropTo(e: DragEvent, to: Target, { root, dispatch, nameOf }: Context) {
   dispatch({ type: 'open', opens, title: labelOf(opens, nameOf), to });
 }
 
-/** Opens `opens` from pane `from`, where `how` asks (whereTo). Something already open is brought up where it is, not opened twice. */
-function openFrom({ root, dispatch, nameOf, focus }: Context, from: string, opens: string, how: How = 'here') {
+/** Opens `opens` from pane `from`, where `how` asks (whereTo). Something already open is brought up where it is, not opened twice.
+ * An agent's kind asked for bare (the chat's Agent terminal button) is opened naming the agent it was asked from: a tab that named
+ * none would draw with whichever agent the focused tab shows, and once it is the focused tab itself, with none, and go blank. */
+export function openFrom({ root, agent, dispatch, nameOf, focus }: Context, from: string, bare: string, how: How = 'here') {
+  const opens = carryIn(bare, agent);
   const title = labelOf(opens, nameOf);
   // Open already (and asked for here): its pane takes the focus. Beside or below always opens a new pane there.
   const at = how === 'here' ? panes(root).find((p) => p.tabs.some((t) => t.opens === opens)) : undefined;
@@ -168,6 +172,9 @@ function PaneView({
   const own = ownedBy(current?.opens ?? '');
   const shown = own?.kind ?? current?.opens;
   const who = agentOf(current?.opens) ?? agent;
+  // `who` with its cluster: this tab's own when it names the agent, else the workspace's (the focused tab's).
+  const workspaceCluster = useContext(SpaceCluster);
+  const whoKey = who && spaceOf(agentOf(current?.opens) ? there : workspaceCluster, who);
   const nameOf = useNamesHere(who);
   const closeShells = useCloseShells(who);
   const close = (ids: string[]) => {
@@ -199,7 +206,7 @@ function PaneView({
     },
     onDrop: (e) =>
       bar.current &&
-      dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent: who, dispatch, nameOf, focus: onFocus }),
+      dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent: whoKey, dispatch, nameOf, focus: onFocus }),
   });
   const onBody = useDropTarget({
     accepts: isTabDrag,
@@ -211,7 +218,7 @@ function PaneView({
     onDrop: (e) => {
       if (!body.current) return;
       const z = zoneAt(e, body.current);
-      dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent: who, dispatch, nameOf, focus: onFocus });
+      dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent: whoKey, dispatch, nameOf, focus: onFocus });
     },
   });
 
@@ -242,7 +249,7 @@ function PaneView({
               .filter((c) => BUILT.has(c.kind))
               .flatMap((c) => (who || !agentKind(c.kind) ? [c] : agentChoices ? [{ ...c, agents: agentChoices }] : []))}
             onAdd={(kind, how, of) =>
-              pick(kind, (opens) => openFrom({ root, agent: who, dispatch, nameOf, focus: onFocus }, pane.id, opens, how), of ?? who)
+              pick(kind, (opens) => openFrom({ root, agent: whoKey, dispatch, nameOf, focus: onFocus }, pane.id, opens, how), of ?? who)
             }
             onTabDragStart={(tab, tabs, e) => startTabDrag(e, { move: { pane: pane.id, tab, tabs } })}
           />
@@ -263,7 +270,7 @@ function PaneView({
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
           <TabScope id={current?.id ?? null} cluster={there}>
             <PaneOpen.Provider
-              value={(opens, how) => openFrom({ root, agent: who, dispatch, nameOf, focus: onFocus }, pane.id, opens, how)}
+              value={(opens, how) => openFrom({ root, agent: whoKey, dispatch, nameOf, focus: onFocus }, pane.id, opens, how)}
             >
               {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
               {shown === 'diff' && who && <Changes key={who} agent={who} />}
@@ -406,7 +413,11 @@ export function Workspace({
     };
   }, []);
   // Opened from outside a pane (the sidebar): from the focused pane.
-  useEffect(() => setShownWorkspace((opens, how) => openFrom({ root, agent, dispatch, nameOf, focus: onFocus }, focus, opens, how)));
+  const workspaceCluster = useContext(SpaceCluster);
+  const agentKey = agent && spaceOf(workspaceCluster, agent);
+  useEffect(() =>
+    setShownWorkspace((opens, how) => openFrom({ root, agent: agentKey, dispatch, nameOf, focus: onFocus }, focus, opens, how)),
+  );
   return (
     <div {...{ [DROP_AREA]: '' }} className="flex min-h-0 min-w-0 flex-1">
       {render(root, true)}

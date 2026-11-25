@@ -324,6 +324,34 @@ describe("an agent's own tab", () => {
     expect(carry('file:node_modules/@types/x.md', 'a5')).toBe('file:node_modules/@types/x.md|a5');
     expect(labelOf('shell|a5', () => 'town')).toBe('Agent terminal · town');
   });
+
+  it('is opened naming the agent it was asked from, so focusing it never leaves it with no agent to draw', async () => {
+    const { openFrom } = await import('#src/Workspace.tsx');
+    const root = initialChat();
+    const pane = only(root).id;
+    const sent: Action[] = [];
+    const ctx = { root, agent: 'a5', dispatch: (a: Action) => void sent.push(a), nameOf: (k: string) => k, focus: () => {} };
+    openFrom(ctx, pane, 'shell', 'side');
+    openFrom(ctx, pane, 'tasks', 'side');
+    openFrom({ ...ctx, agent: null }, pane, 'shell', 'side');
+    // A joined cluster's agent keeps its cluster, so a focus there never turns the tab to this Mac's agent of that name.
+    openFrom({ ...ctx, agent: '@c1/bob' }, pane, 'shell', 'side');
+    openFrom({ ...ctx, agent: '@c1/bob' }, pane, '@c1/diff', 'side');
+    openFrom({ ...ctx, agent: '@c1/bob' }, pane, '@c2/shell', 'side');
+    expect(sent.map((a) => (a.type === 'open' ? a.opens : a.type))).toEqual([
+      'shell|a5',
+      'tasks',
+      'shell',
+      '@c1/shell|bob',
+      '@c1/diff|bob',
+      '@c2/shell',
+    ]);
+    // Asked again from the same agent, the tab already open comes up instead of a second one.
+    const opened = run(root, sent[0]);
+    sent.length = 0;
+    openFrom({ ...ctx, root: opened }, pane, 'shell');
+    expect(sent.map((a) => a.type)).toEqual(['show']);
+  });
 });
 
 describe('the agent a tab shows', () => {

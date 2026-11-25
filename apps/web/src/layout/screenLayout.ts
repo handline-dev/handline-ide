@@ -60,6 +60,16 @@ export function agentOf(opens: string | undefined): string | null {
   const name = inner.startsWith('chat:') ? inner.slice(5) : (ownedBy(inner)?.agent ?? null);
   return name ? spaceOf(cluster, name) : null;
 }
+/** `opens` naming agent `space` (its key with its cluster) when it is one of an agent's kinds that names none yet, so the tab keeps
+ *  drawing that agent of that cluster whichever tab has the focus. An `opens` of another cluster than the agent's is left as it is. */
+export function carryIn(opens: string, space: string | null): string {
+  if (!space) return opens;
+  const { cluster, agent } = splitSpace(space);
+  const asked = splitSpace(opens);
+  if (asked.cluster && asked.cluster !== cluster) return opens;
+  const named = carry(asked.agent, agent);
+  return named === asked.agent ? opens : spaceOf(cluster, named);
+}
 const PAGES = new Set(pages.map((p) => p.kind));
 
 /** Layout changes that move the person somewhere: each is a step that Back and Forward walk. Closing, splitting, moving and resizing are not. */
