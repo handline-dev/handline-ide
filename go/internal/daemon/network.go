@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -23,9 +25,10 @@ import (
 // networkListener is one network door: the same JSON-RPC over a WebSocket on one IP, TLS or plain (a Tailscale address), closed to
 // every caller a device token has not opened (see rpc.NetGate).
 type networkListener struct {
-	ln  net.Listener
-	srv *http.Server
-	src *certSource // nil on a plain door
+	ln   net.Listener
+	srv  *http.Server
+	src  *certSource // the daemon's own certificate; nil on a plain door
+	spec doorSpec
 
 	mu    sync.Mutex
 	conns map[net.Conn]struct{} // the WebSockets open through this door, which closing it ends
@@ -107,6 +110,13 @@ func (s *certSource) get() (*tls.Certificate, error) {
 	return s.cert, nil
 }
 
+// doorSpec is how the door on one IP is served.
+type doorSpec struct {
+	tls bool        // with the daemon's own certificate (-cert, or the one made for the LAN), its fingerprint pinned by a pairing
+	ts  *certSource // Tailscale's own certificate for the MagicDNS name, answered beside plain HTTP (its first arrival reopens the door); nil for none
+	web bool        // the web page is served: on loopback and Tailscale, never on Wi-Fi, where a browser could not tell a fake server
+}
+
 // netDoors is the network listener: a door on each IP the chosen hosts are served on, all serving one server. Unset, network_addresses
 // leaves the one -listen door; set, the doors are made again when the setting or this machine's interfaces change, without a restart.
 type netDoors struct {
@@ -116,6 +126,7 @@ type netDoors struct {
 	port string
 	ui   http.Handler // the web page every door serves; nil serves none
 	src  *certSource  // the certificate a TLS door presents
+	ts   *tsCert
 	stop chan struct{}
 
 	relistening sync.Mutex // one relisten at a time, so an older want is never applied over a newer one
@@ -124,6 +135,7 @@ type netDoors struct {
 	served      []netAddress                // the hosts a door is open for, in the setting's order
 	magicDNS    map[string]string           // a Tailscale IP's MagicDNS name, by the IP
 	chosen      bool                        // network_addresses was set at the last relisten
+	picked      string                      // the host a pairing names when it names none; "" for the default door
 	closed      bool
 }
 
@@ -139,6 +151,7 @@ func listenNetwork(cfg Config, d *Daemon) (*netDoors, error) {
 	}
 	_, port, _ := net.SplitHostPort(cfg.Listen)
 	n := &netDoors{d: d, cfg: cfg, port: port, rs: d.newServer("network"), open: map[string]*networkListener{}, stop: make(chan struct{})}
+	n.ts = &tsCert{dir: filepath.Join(cfg.Home, "network"), ready: func() { n.relisten() }}
 	if cfg.WebDir != "" {
 		var err error
 		if n.ui, err = webUI(cfg.WebDir); err != nil {
@@ -176,22 +189,22 @@ func (n *netDoors) watch() {
 	}
 }
 
-// want is the hosts to serve and, by IP, whether that door is TLS. Unset network_addresses is the -listen door. Set, it is a door for each
-// chosen host this machine has an address for now, and names is this machine's MagicDNS name by its Tailscale IP. Either way there is a
-// plain loopback door for the desktop app on this machine.
-func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, names map[string]string, chosen bool) {
-	tls = map[string]bool{loopback: false} // the desktop app's door
-	list := chosenHosts(n.cfg.addressesHome())
-	if list == nil {
-		host, _, _ := net.SplitHostPort(n.cfg.Listen)
-		ip := net.ParseIP(host) // checkBind made it an IP literal
-		a := netAddress{Host: ip.String(), IPs: []net.IP{ip}}
-		tls[a.Host] = !n.cfg.plain()
-		return []netAddress{a}, tls, nil, false
-	}
+// want is the hosts to serve and how the door on each IP is served: the -listen door while network_addresses is unset, else each chosen
+// host this machine has an address for now; and Handline's pick for a pairing (pickHost) when no door is named for it, unless -advertise
+// names the address. names is this machine's MagicDNS name by its Tailscale IP. There is always a plain loopback door for the desktop app.
+func (n *netDoors) want() (hosts []netAddress, specs map[string]doorSpec, names map[string]string, picked string, chosen bool) {
+	hosts, specs, names, picked, _, chosen = n.wantAll()
+	return hosts, specs, names, picked, chosen
+}
+
+// wantAll is want, saying also whether the last of hosts is there only as the pick (OwnDoor leaves it out: runners reach a host chosen).
+func (n *netDoors) wantAll() (hosts []netAddress, specs map[string]doorSpec, names map[string]string, picked string, onlyPicked, chosen bool) {
+	specs = map[string]doorSpec{loopback: {web: true}}      // the desktop app's door
+	https := n.ts != nil && n.cfg.plain() && tailnetHTTPS() // the master's door for runners (master.go) is the plain one
+	all := addressesNow()
 	have := map[string]netAddress{}
 	names = map[string]string{}
-	for _, a := range addressesNow() {
+	for _, a := range all {
 		have[a.Host] = a
 		if a.Kind == kindTailscaleName {
 			for _, ip := range a.IPs {
@@ -199,48 +212,84 @@ func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, names map[st
 			}
 		}
 	}
-	for _, h := range list {
-		a, ok := have[h]
-		if !ok {
-			continue
+	list := chosenHosts(n.cfg.addressesHome())
+	chosen = list != nil
+	if !chosen {
+		host, _, _ := net.SplitHostPort(n.cfg.Listen)
+		ip := net.ParseIP(host) // checkBind made it an IP literal
+		a := have[ip.String()]
+		a.Host, a.IPs = ip.String(), []net.IP{ip}
+		if a.Kind == "" && tailscaleV4.Contains(ip) {
+			a.Kind = kindTailscale
 		}
 		hosts = append(hosts, a)
-		for _, ip := range a.IPs {
-			tls[ip.String()] = tls[ip.String()] || !a.plain(n.cfg)
+		specs[a.Host] = doorSpec{tls: !n.cfg.plain(), web: ip.IsLoopback() || a.Kind == kindTailscale || !n.cfg.plain()}
+		if n.cfg.Advertise == "" {
+			picked = pickHost(all)
+		}
+	} else if len(list) > 0 { // an empty choice serves nothing, not even a pick
+		picked = pickHost(all)
+	}
+	for _, h := range list {
+		if a, ok := have[h]; ok {
+			hosts = append(hosts, a)
 		}
 	}
-	return hosts, tls, names, true
+	if a, ok := have[picked]; ok && !slices.ContainsFunc(hosts, func(h netAddress) bool { return h.Host == picked }) {
+		hosts, onlyPicked = append(hosts, a), true
+	}
+	wifi := map[string]bool{}
+	for i, a := range hosts {
+		for _, ip := range a.IPs {
+			k := ip.String()
+			spec := specs[k]
+			if chosen || i > 0 {
+				spec.tls = spec.tls || !a.plain(n.cfg)
+				// A self-made certificate on Wi-Fi serves no page: a browser's warning for it cannot tell a fake server from this Mac.
+				wifi[k] = wifi[k] || n.cfg.plain() && (a.Kind == kindLAN || a.Kind == kindMDNS)
+				spec.web = !wifi[k]
+			}
+			if name := names[k]; https && !spec.tls && name != "" && (a.Kind == kindTailscale || a.Kind == kindTailscaleName) {
+				spec.ts = n.ts.source(name, n.cfg.Log)
+			}
+			specs[k] = spec
+		}
+	}
+	return hosts, specs, names, picked, onlyPicked, chosen
 }
 
 // relisten opens the doors wanted and closes the rest. The loopback door, and with network_addresses unset the -listen door, that cannot
-// be bound is the error: without it the desktop app loads forever. A chosen host that cannot be bound is logged and tried again on the next round.
+// be bound is the error: without it the desktop app loads forever. Any other that cannot be bound is logged and tried again on the next round.
 func (n *netDoors) relisten() error {
 	n.relistening.Lock()
 	defer n.relistening.Unlock()
-	hosts, want, names, chosen := n.want()
+	hosts, want, names, picked, chosen := n.want()
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
 		return nil
 	}
 	for ip, l := range n.open {
-		if isTLS, ok := want[ip]; !ok || isTLS != (l.src != nil) {
+		if spec, ok := want[ip]; !ok || spec != l.spec {
 			l.close()
 			delete(n.open, ip)
 			n.cfg.Log("network listener on %s closed", l.ln.Addr())
 		}
 	}
-	var failed, loopFailed error
-	for ip, isTLS := range want {
+	must := map[string]bool{loopback: true} // the desktop app's door, and while network_addresses is unset the -listen one
+	if !chosen {
+		must[hosts[0].Host] = true
+	}
+	var failed error
+	for ip, spec := range want {
 		if n.open[ip] != nil {
 			continue
 		}
-		l, err := n.listen(ip, isTLS)
+		l, err := n.listen(ip, spec)
 		if err != nil {
 			n.cfg.Log("network listener on %s: %v", ip, err)
-			failed = err
-			if ip == loopback {
-				loopFailed = err
+			if must[ip] {
+				failed = err
 			}
 			continue
 		}
@@ -252,11 +301,8 @@ func (n *netDoors) relisten() error {
 			n.served = append(n.served, a)
 		}
 	}
-	n.chosen, n.magicDNS = chosen, names
-	if !chosen {
-		return failed
-	}
-	return loopFailed
+	n.chosen, n.magicDNS, n.picked = chosen, names, picked
+	return failed
 }
 
 // servesLocked says whether every IP of a has an open door. Called with n.mu held.
@@ -269,14 +315,14 @@ func (n *netDoors) servesLocked(a netAddress) bool {
 	return len(a.IPs) > 0
 }
 
-func (n *netDoors) listen(ip string, isTLS bool) (*networkListener, error) {
+func (n *netDoors) listen(ip string, spec doorSpec) (*networkListener, error) {
 	addr := net.JoinHostPort(ip, n.port)
 	if err := checkBind(addr); err != nil {
 		return nil, err
 	}
-	l := &networkListener{conns: map[net.Conn]struct{}{}}
+	l := &networkListener{conns: map[net.Conn]struct{}{}, spec: spec}
 	var err error
-	if isTLS {
+	if spec.tls {
 		if l.src, err = n.tlsSource(); err != nil {
 			return nil, err
 		}
@@ -289,6 +335,11 @@ func (n *netDoors) listen(ip string, isTLS bool) (*networkListener, error) {
 			return nil, err
 		}
 		l.ln, err = net.Listen("tcp", addr)
+		if err == nil && spec.ts != nil {
+			src := spec.ts
+			l.ln = plainOrTLS(l.ln, &tls.Config{GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return src.get() },
+				MinVersion: tls.VersionTLS12})
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -313,14 +364,17 @@ func (n *netDoors) listen(ip string, isTLS bool) (*networkListener, error) {
 		defer l.drop(c)
 		n.rs.ServeNet(rpc.NewWSTransport(ws), remoteHost(r.RemoteAddr), func() { ws.Close() })
 	})
-	if n.ui != nil {
+	if n.ui != nil && spec.web {
 		mux.Handle("/", n.ui)
 	}
 	l.srv = &http.Server{Handler: mux, ReadHeaderTimeout: rpc.RecvTimeout}
 	go l.srv.Serve(l.ln)
-	if isTLS {
+	switch {
+	case spec.tls:
 		n.cfg.Log("network listener on %s, certificate %s", l.ln.Addr(), l.Fingerprint())
-	} else {
+	case spec.ts != nil:
+		n.cfg.Log("network listener on %s, plain HTTP and Tailscale's certificate", l.ln.Addr())
+	default:
 		n.cfg.Log("network listener on %s, plain HTTP (no certificate)", l.ln.Addr())
 	}
 	return l, nil
@@ -370,14 +424,14 @@ func (n *netDoors) door(host string) (devices.Door, bool) {
 			}
 		}
 		if host == "" || host == a.Host || host == name {
-			return devices.Door{Addr: addr, Fingerprint: l.Fingerprint(), TLS: l.src != nil, Web: n.ui != nil}, true
+			return devices.Door{Addr: addr, Fingerprint: l.Fingerprint(), TLS: l.src != nil || l.spec.ts != nil, Web: n.ui != nil && l.spec.web}, true
 		}
 	}
 	return devices.Door{}, false
 }
 
-// nameLocked is the host a pairing for a names: its MagicDNS name when a is a Tailscale IP served plain (an app trusts a link with no
-// fingerprint only for *.ts.net), else a.Host. The caller holds n.mu.
+// nameLocked is the host a pairing for a names: its MagicDNS name when a is a Tailscale IP served plain or on Tailscale's certificate (an
+// app trusts a link with no fingerprint only for *.ts.net, and the certificate is the name's), else a.Host. The caller holds n.mu.
 func (n *netDoors) nameLocked(a netAddress, l *networkListener) string {
 	if name := n.magicDNS[a.Host]; name != "" && a.Kind == kindTailscale && l.src == nil {
 		return name
@@ -433,13 +487,36 @@ func (n *netDoors) pairedBefore() string {
 	return host
 }
 
-// pairDoor is devices.Manager.Doors.
+// pairDoor is devices.Manager.Doors. "" is Handline's pick, and the default door when there is none or its door is not open.
 func (n *netDoors) pairDoor(host string) (devices.Door, []string, bool) {
+	if host == "" {
+		n.mu.Lock()
+		host = n.picked
+		n.mu.Unlock()
+		if _, ok := n.door(host); !ok {
+			host = ""
+		}
+	}
 	d, ok := n.door(host)
 	if !ok {
 		return d, n.hosts(), false
 	}
 	return d, nil, true
+}
+
+// pickHost is the host a pairing names: this machine's Tailscale name while Tailscale is up, else its first Wi-Fi (LAN) address; "" with
+// neither.
+func pickHost(all []netAddress) string {
+	lan := ""
+	for _, a := range all {
+		if a.Kind == kindTailscaleName {
+			return a.Host
+		}
+		if a.Kind == kindLAN && lan == "" {
+			lan = a.Host
+		}
+	}
+	return lan
 }
 
 func (n *netDoors) close() {

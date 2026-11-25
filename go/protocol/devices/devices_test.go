@@ -22,9 +22,9 @@ func gateOf(t *testing.T, err error) string {
 func TestACodeRedeemsOnceAndTheStoreHoldsOnlyAHash(t *testing.T) {
 	s := NewMemStore()
 	m := New(s)
-	code, _, _, uri := m.Pair(time.Minute)
-	if !strings.Contains(uri, "code="+code) {
-		t.Fatal(uri)
+	code, _, link := m.Pair(time.Minute)
+	if !strings.Contains(link, "#pair="+code) {
+		t.Fatal(link)
 	}
 	token, d, err := m.Redeem(code, "phone", "", "", "1.2.3.4")
 	if err != nil || token == "" || d.Name != "phone" {
@@ -50,7 +50,7 @@ func TestACodeExpiresAndRefusesAsAWrongOneDoes(t *testing.T) {
 	m := New(NewMemStore())
 	now := time.Now()
 	m.now = func() time.Time { return now }
-	code, _, _, _ := m.Pair(5 * time.Second)
+	code, _, _ := m.Pair(5 * time.Second)
 	now = now.Add(6 * time.Second)
 	_, _, expired := m.Redeem(code, "p", "", "", "h")
 	_, _, wrong := m.Redeem("WRONG-WRONG-WRONG", "p", "", "", "h")
@@ -63,7 +63,7 @@ func TestFiveWrongTriesKillACodeAndFiveWrongCodesLockAHostOut(t *testing.T) {
 	m := New(NewMemStore())
 	now := time.Now()
 	m.now = func() time.Time { return now }
-	code, _, _, _ := m.Pair(time.Minute)
+	code, _, _ := m.Pair(time.Minute)
 	for i := 0; i < 5; i++ {
 		m.Redeem("WRONG", "p", "", "", "10.0.0.1")
 	}
@@ -71,12 +71,12 @@ func TestFiveWrongTriesKillACodeAndFiveWrongCodesLockAHostOut(t *testing.T) {
 	if _, _, err := m.Redeem(code, "p", "", "", "10.0.0.2"); gateOf(t, err) != "pairing_code" {
 		t.Fatal(err)
 	}
-	code, _, _, _ = m.Pair(time.Minute)
+	code, _, _ = m.Pair(time.Minute)
 	if _, _, err := m.Redeem(code, "p", "", "", "10.0.0.1"); gateOf(t, err) != "attempt_limit" {
 		t.Fatal(err)
 	}
 	now = now.Add(hostLock + time.Second)
-	code, _, _, _ = m.Pair(time.Hour)
+	code, _, _ = m.Pair(time.Hour)
 	if _, _, err := m.Redeem(code, "p", "", "", "10.0.0.1"); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestWrongTriesSpreadOverTimeDoNotLockAHostOut(t *testing.T) {
 		now = now.Add(3 * time.Minute)
 		m.Redeem("WRONG", "p", "", "", "h")
 	}
-	code, _, _, _ := m.Pair(time.Minute)
+	code, _, _ := m.Pair(time.Minute)
 	if _, _, err := m.Redeem(code, "p", "", "", "h"); err != nil {
 		t.Fatal(err)
 	}
@@ -98,9 +98,9 @@ func TestWrongTriesSpreadOverTimeDoNotLockAHostOut(t *testing.T) {
 
 func TestRevokeClosesOnlyThatDevicesConnectionsAndTheTokenDies(t *testing.T) {
 	m := New(NewMemStore())
-	code, _, _, _ := m.Pair(time.Minute)
+	code, _, _ := m.Pair(time.Minute)
 	token, d, _ := m.Redeem(code, "a", "", "", "h")
-	code, _, _, _ = m.Pair(time.Minute)
+	code, _, _ = m.Pair(time.Minute)
 	otherToken, other, _ := m.Redeem(code, "b", "", "", "h")
 	var closed []string
 	id, _, _, release, ok := m.Login(token, "", func() { closed = append(closed, "a1") })
@@ -149,9 +149,9 @@ func TestADeviceAtItsCapLosesItsOldestConnectionsForTheNewOne(t *testing.T) {
 	m.maxConns = 3
 	var logged []string
 	m.Log = func(f string, a ...any) { logged = append(logged, fmt.Sprintf(f, a...)) }
-	code, _, _, _ := m.Pair(time.Minute)
+	code, _, _ := m.Pair(time.Minute)
 	token, d, _ := m.Redeem(code, "a", "", "", "h")
-	code, _, _, _ = m.Pair(time.Minute)
+	code, _, _ = m.Pair(time.Minute)
 	otherToken, other, _ := m.Redeem(code, "b", "", "", "h")
 	var closed []int
 	for i := 1; i <= 5; i++ {
@@ -178,7 +178,7 @@ func TestADeviceAtItsCapLosesItsOldestConnectionsForTheNewOne(t *testing.T) {
 func TestAClosedConnectionsReleaseDoesNotFreeAnotherOnesPlace(t *testing.T) {
 	m := New(NewMemStore())
 	m.maxConns = 2
-	code, _, _, _ := m.Pair(time.Minute)
+	code, _, _ := m.Pair(time.Minute)
 	token, d, _ := m.Redeem(code, "a", "", "", "h")
 	_, _, _, release1, _ := m.Login(token, "", nil)
 	m.Login(token, "", nil)

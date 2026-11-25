@@ -15,7 +15,6 @@ import (
 	"math/big"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -147,11 +146,9 @@ func TestThePairingCodeNamesTheAdvertisedAddressAndTheFingerprint(t *testing.T) 
 		t.Fatal(err)
 	}
 	defer d.Close()
-	code, _, fp, uri := d.dev.Pair(time.Minute)
-	u, _ := url.Parse(uri)
-	q := u.Query()
-	if q.Get("host") != "mac.tail1234.ts.net:7443" || q.Get("fp") != d.NetworkFingerprint() || fp != q.Get("fp") || q.Get("code") != code {
-		t.Fatal(uri)
+	code, _, link := d.dev.Pair(time.Minute)
+	if link != "https://mac.tail1234.ts.net:7443/#pair="+code+"&fp="+d.NetworkFingerprint() || d.NetworkFingerprint() == "" {
+		t.Fatal(link)
 	}
 }
 
@@ -301,9 +298,9 @@ func TestWithoutACertificateTheListenerServesPlainHTTPAndWebSocketWithNothingToP
 	if r := c.ask(`{"jsonrpc":"2.0","id":1,"method":"agents.list"}`); gate(r) != "unpaired" {
 		t.Fatalf("%v", r)
 	}
-	_, _, _, uri := d.dev.Pair(time.Minute)
-	if u, _ := url.Parse(uri); u.Query().Has("fp") || u.Query().Get("host") != d.NetworkAddr() {
-		t.Fatal(uri)
+	code, _, link := d.dev.Pair(time.Minute)
+	if link != "http://"+d.NetworkAddr()+"/#pair="+code {
+		t.Fatal(link)
 	}
 }
 

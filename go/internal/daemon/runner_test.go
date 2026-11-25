@@ -366,7 +366,7 @@ func TestNodeForwardIsOnlyARunnersLinksForItsOwnAgents(t *testing.T) {
 	if r := phone.ask(forward); gate(r) != "node" {
 		t.Fatalf("a phone forwarded: %v", r)
 	}
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	box := joinAs(t, d, code, "box", "server", "n-box")["result"].(map[string]any)
 	if r := helloAs(t, d, box["token"].(string)).ask(forward); gate(r) != "node" {
 		t.Fatalf("the runner's token on a connection that is not its link forwarded: %v", r)
@@ -404,7 +404,7 @@ func joinRunner(t *testing.T, master *Daemon) (home, node string, m joined.Maste
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, _, uri := master.dev.Pair(time.Minute)
+	_, _, uri := master.dev.Pair(time.Minute)
 	m, err = hlclient.Join(home, uri, "box", "server", node)
 	if err != nil {
 		t.Fatal(err)
@@ -429,6 +429,9 @@ func linkedRunner(t *testing.T, master *Daemon, node string) *nodes.Runner {
 }
 
 func TestMain(m *testing.M) {
+	// No test reads this machine's own interfaces or Tailscale: a test that wants addresses serves its own (serveHosts).
+	addressesNow = func() []netAddress { return nil }
+	tailnetHTTPS = func() bool { return false }
 	code := m.Run()
 	clustertest.Remove() // the handlined and hl the runner test built
 	os.Exit(code)

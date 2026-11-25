@@ -111,7 +111,7 @@ export interface DevicesMethods {
   name?: string;
   /** Seconds the code lives; default 300. */
   ttl_s?: number;
-  /** A host a door serves; absent is the default door: -advertise (or the listener) while network_addresses is unset, else the first LAN host served, else the first host served. Any other is refused, gate address, with data.addresses the hosts served, the default first. */
+  /** A host a door serves, while Connect a device still offers a choice; absent is Handline's pick: the Tailscale name while Tailscale is up, else the first LAN (Wi-Fi) address, served though network_addresses does not list it (not when the list is empty, and not while -advertise names the address); with neither, -advertise or the listener. Any other is refused, gate address, with data.addresses the hosts served. */
   address?: string;
   /** The person whose device it pairs (p<n>): the owner names one they invited (person.invite); a member only themself. The caller's own when left out. */
   person?: string;
@@ -119,12 +119,10 @@ export interface DevicesMethods {
 }; result: Accepted & {
     code: string;
     expires_at: Timestamp;
-    /** Certificate fingerprint of the door; empty on a plain door. */
+    /** The fingerprint of the door's self-made certificate, which a client pins; empty on a plain door and on Tailscale's own certificate, which is verified the normal way. */
     fingerprint: string;
-    /** What the QR carries: handline://pair with the host:port and, on a TLS door, the fingerprint. */
-    uri: string;
-    /** The browser's invite on the same door: http(s)://host:port/#pair=code. null when the web page is not served there. */
-    web_link: string | null;
+    /** The pairing link, what the QR carries: http(s)://host:port/#pair=code, with &fp= the fingerprint on a self-made certificate. https on the Tailscale name when the tailnet has HTTPS (no fingerprint), http on it otherwise; a Wi-Fi door's link is for a Mac's app, which pins the fingerprint, as a Wi-Fi door serves no web page. */
+    web_link: string;
   } };
   "device.redeem": { params: {
   code: string;

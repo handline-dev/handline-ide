@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -82,41 +83,56 @@ var localName = func() string {
 	return strings.SplitN(h, ".", 2)[0] + ".local"
 }
 
-// tailscaleName is this machine's MagicDNS name out of `tailscale status --json`, or "". It is kept a minute: the address list is read
-// every few seconds.
-var tailscaleName = func() string {
-	tsName.mu.Lock()
-	defer tsName.mu.Unlock()
-	if time.Since(tsName.at) < time.Minute {
-		return tsName.name
-	}
-	tsName.name, tsName.at = readTailscaleName(), time.Now()
-	return tsName.name
+// tailscaleName is this machine's MagicDNS name out of `tailscale status --json`, or "". tailnetHTTPS says whether the tailnet gives
+// that name a certificate (HTTPS on: the name is in CertDomains). Both are kept a minute: the address list is read every few seconds.
+var (
+	tailscaleName = func() string { return tailscaleNow().name }
+	tailnetHTTPS  = func() bool { return tailscaleNow().https }
+)
+
+type tailscaleSelf struct {
+	name  string
+	https bool
 }
 
-var tsName struct {
+var tsSelf struct {
 	mu   sync.Mutex
-	name string
+	self tailscaleSelf
 	at   time.Time
 }
 
-func readTailscaleName() string {
-	for _, cli := range []string{"tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"} {
+func tailscaleNow() tailscaleSelf {
+	tsSelf.mu.Lock()
+	defer tsSelf.mu.Unlock()
+	if time.Since(tsSelf.at) >= time.Minute {
+		tsSelf.self, tsSelf.at = readTailscale(), time.Now()
+	}
+	return tsSelf.self
+}
+
+// tailscaleCLIs are where the Tailscale command line is: on the PATH, or inside the Mac app.
+var tailscaleCLIs = []string{"tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"}
+
+func readTailscale() tailscaleSelf {
+	for _, cli := range tailscaleCLIs {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		out, err := exec.CommandContext(ctx, cli, "status", "--json").Output()
 		cancel()
 		if err != nil {
 			continue
 		}
-		var st struct{ Self struct{ DNSName string } }
+		var st struct {
+			Self        struct{ DNSName string }
+			CertDomains []string
+		}
 		if json.Unmarshal(out, &st) != nil {
 			continue
 		}
 		if n := strings.TrimSuffix(st.Self.DNSName, "."); strings.HasSuffix(n, ".ts.net") {
-			return n
+			return tailscaleSelf{name: n, https: slices.Contains(st.CertDomains, n)}
 		}
 	}
-	return ""
+	return tailscaleSelf{}
 }
 
 // chosenHosts is the network_addresses setting: nil when unset, the hosts in their order otherwise (an empty list serves none).

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -197,12 +196,12 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	}
 	ls := listeners(d)
 	addr := boundAddr(t, d, "127.0.0.1")
-	if len(ls) != 1 || !ls[0].TLS || !ls[0].Web || ls[0].Addr != addr {
-		t.Fatalf("a LAN host is not served over TLS: %v", ls)
+	if len(ls) != 1 || !ls[0].TLS || ls[0].Web || ls[0].Addr != addr {
+		t.Fatalf("a LAN host is not served over TLS, without the web page: %v", ls)
 	}
 	body, fp, err := fetch(addr, true)
-	if err != nil || !strings.Contains(body, "<html>handline</html>") || fp != ls[0].Fingerprint {
-		t.Fatalf("web page over TLS: %v %q fp %s", err, body, fp)
+	if err != nil || strings.Contains(body, "<html>handline</html>") || fp != ls[0].Fingerprint {
+		t.Fatalf("a Wi-Fi door serves the web page: %v %q fp %s", err, body, fp)
 	}
 	crt, _ := os.ReadFile(filepath.Join(d.cfg.Home, "network", "lan.crt"))
 	if b, _ := pem.Decode(crt); b == nil || hex.EncodeToString(sha256Of(b.Bytes)) != fp {
@@ -268,30 +267,25 @@ func TestASettingNamingAHostThisMachineDoesNotHaveIsRefused(t *testing.T) {
 	}
 }
 
-func TestDevicePairNamesTheChosenHostWithAnAppURIAndAWebLinkAndRefusesAnyOther(t *testing.T) {
+func TestDevicePairNamesTheChosenHostInItsLinkAndRefusesAnyOther(t *testing.T) {
 	d, c := startDoors(t, true)
 	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindLAN, IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
 	setAddresses(t, c, `["mac.local"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
 	res := call(t, c, "device.pair", `{"address":"mac.local"}`)["result"].(map[string]any)
-	u, _ := url.Parse(res["uri"].(string))
-	q := u.Query()
-	if q.Get("host") != "mac.local:"+port || q.Get("fp") == "" || q.Get("fp") != res["fingerprint"] {
+	if res["fingerprint"] == "" || res["web_link"] != "https://mac.local:"+port+"/#pair="+res["code"].(string)+"&fp="+res["fingerprint"].(string) {
 		t.Fatalf("%v", res)
 	}
-	if res["web_link"] != "https://mac.local:"+port+"/#pair="+res["code"].(string)+"&fp="+q.Get("fp") {
-		t.Fatalf("web link %v", res["web_link"])
+	if _, has := res["uri"]; has {
+		t.Fatalf("the reply still has a handline:// uri: %v", res)
 	}
 	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "10.0.0.9"); err != nil || dev.Address != "mac.local" {
 		t.Fatalf("%v %v", dev, err)
 	}
-	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "mac.local") {
-		t.Fatalf("with no address the pairing names the first chosen host: %v", res)
-	}
-	r := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)
+	r := call(t, c, "device.pair", `{"address":"10.0.0.7"}`)
 	data, _ := r["error"].(map[string]any)["data"].(map[string]any)
-	if gate(r) != "address" || !reflect.DeepEqual(data["addresses"], []any{"mac.local"}) {
-		t.Fatalf("a host not chosen was paired: %v", r)
+	if gate(r) != "address" || !reflect.DeepEqual(data["addresses"], []any{"127.0.0.1", "mac.local"}) {
+		t.Fatalf("a host not served was paired: %v", r)
 	}
 
 	// Choosing another host answers with the device that was paired on the one dropped.
@@ -300,42 +294,71 @@ func TestDevicePairNamesTheChosenHostWithAnAppURIAndAWebLinkAndRefusesAnyOther(t
 	}
 }
 
-func TestAPairingNamesALANHostByDefaultEvenWhenTheSettingListsTailscaleFirst(t *testing.T) {
+// With no address Handline picks one: the Tailscale name while Tailscale is up, else the first Wi-Fi address, whatever the setting lists
+// first, and serves it when the setting does not list it.
+func TestAPairingPicksTheTailscaleNameElseTheFirstWiFiAddressAndServesIt(t *testing.T) {
 	d, c := startDoors(t, false)
-	serveHosts(t, netAddress{Host: "mac.ts.net", Kind: kindTailscaleName, IPs: loop}, netAddress{Host: "127.0.0.1", Kind: kindLAN, IPs: loop})
-	setAddresses(t, c, `["mac.ts.net","127.0.0.1"]`)
-	if h := d.net.hosts(); !reflect.DeepEqual(h, []string{"127.0.0.1", "mac.ts.net"}) {
-		t.Fatalf("the default host is not first: %v", h)
+	ts := []netAddress{{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop}, {Host: "mac.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop}}
+	away := netAddress{Host: "10.9.9.9", Kind: kindLAN, Iface: "en0", IPs: []net.IP{net.ParseIP("10.9.9.9")}} // listed, never bound
+	pair := func() map[string]any { return call(t, c, "device.pair", `{}`)["result"].(map[string]any) }
+
+	// Unset: the name is picked and served beside the -listen door, and the setting stays unset.
+	serveHosts(t, ts...)
+	d.net.relisten()
+	if l, _ := pair()["web_link"].(string); !strings.HasPrefix(l, "http://mac.ts.net:") {
+		t.Fatalf("with Tailscale up the pairing does not name its name: %v", l)
 	}
-	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=127.0.0.1") {
-		t.Fatalf("with no address the pairing names the LAN host: %v", res)
+	if h := chosenHosts(d.cfg.Home); h != nil {
+		t.Fatalf("a pairing wrote the setting: %v", h)
 	}
-	setAddresses(t, c, `["mac.ts.net"]`)
-	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=mac.ts.net") {
-		t.Fatalf("with no LAN host the pairing names the first one served: %v", res)
+
+	// The setting lists only a Wi-Fi address: the name is still picked, and served.
+	serveHosts(t, away, ts[0], ts[1])
+	setAddresses(t, c, `["10.9.9.9"]`)
+	if l, _ := pair()["web_link"].(string); !strings.HasPrefix(l, "http://mac.ts.net:") {
+		t.Fatalf("%v", l)
+	}
+	if !reflect.DeepEqual(d.net.hosts(), []string{"mac.ts.net"}) {
+		t.Fatalf("the name picked is not served: %v", d.net.hosts())
+	}
+
+	// Tailscale down: the first Wi-Fi address, over TLS with its fingerprint.
+	serveHosts(t, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop}, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop}, away)
+	d.net.relisten()
+	res := pair()
+	if l, _ := res["web_link"].(string); !strings.HasPrefix(l, "https://127.0.0.1:") || res["fingerprint"] == "" || !strings.HasSuffix(l, "&fp="+res["fingerprint"].(string)) {
+		t.Fatalf("without Tailscale the pairing does not name the first Wi-Fi address: %v", res)
 	}
 }
 
-func TestWithoutTheWebPageThePairingHasNoWebLink(t *testing.T) {
-	_, c := startDoors(t, false)
-	res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)
-	if res["web_link"] != nil || !strings.HasPrefix(res["uri"].(string), "handline://pair?") {
+// -advertise names the address with the setting unset: a pairing names it, not a pick.
+func TestAnAdvertisedAddressIsNamedInsteadOfAPick(t *testing.T) {
+	d, c := startDoors(t, false, func(c *Config) { c.Advertise = "pub.example:443" })
+	serveHosts(t, netAddress{Host: "mac.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
+	d.net.relisten()
+	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); res["web_link"] != "http://pub.example:443/#pair="+res["code"].(string) {
 		t.Fatalf("%v", res)
 	}
-	_, c = startDoors(t, true)
-	res = call(t, c, "device.pair", `{}`)["result"].(map[string]any)
-	if l, _ := res["web_link"].(string); !strings.HasPrefix(l, "http://127.0.0.1:") {
-		t.Fatalf("%v", res)
+}
+
+// A machine with neither Tailscale nor Wi-Fi pairs on its -listen door, and the link is given with or without the web page.
+func TestWithNothingToPickThePairingNamesTheListenDoor(t *testing.T) {
+	for _, web := range []bool{false, true} {
+		d, c := startDoors(t, web)
+		res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)
+		if res["web_link"] != "http://"+boundAddr(t, d, loopback)+"/#pair="+res["code"].(string) {
+			t.Fatalf("web %v: %v", web, res)
+		}
 	}
 }
 
 func TestUnsetAddressesKeepADoorForTheDesktopAppThatIsListedNowhere(t *testing.T) {
 	n := &netDoors{cfg: Config{Home: t.TempDir(), Listen: "100.64.0.1:7443"}}
-	hosts, doors, _, chosen := n.want()
+	hosts, doors, _, _, chosen := n.want()
 	if chosen || len(hosts) != 1 || hosts[0].Host != "100.64.0.1" {
 		t.Fatalf("only the -listen host is listed: %v %v", hosts, chosen)
 	}
-	if isTLS, ok := doors[loopback]; !ok || isTLS {
+	if spec, ok := doors[loopback]; !ok || spec.tls || spec.ts != nil {
 		t.Fatalf("no plain loopback door: %v", doors)
 	}
 }
@@ -393,11 +416,7 @@ func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsCh
 	setAddresses(t, c, `["127.0.0.1"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
 	res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any)
-	u, _ := url.Parse(res["uri"].(string))
-	if q := u.Query(); q.Get("host") != "mac.tail1.ts.net:"+port || q.Get("fp") != "" {
-		t.Fatalf("the plain Tailscale IP is not named by its MagicDNS name: %v", res)
-	}
-	if res["web_link"] != "http://mac.tail1.ts.net:"+port+"/#pair="+res["code"].(string) {
+	if res["fingerprint"] != "" || res["web_link"] != "http://mac.tail1.ts.net:"+port+"/#pair="+res["code"].(string) {
 		t.Fatalf("web link %v", res["web_link"])
 	}
 	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "100.64.0.9"); err != nil || dev.Address != "mac.tail1.ts.net" {
@@ -418,14 +437,14 @@ func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsCh
 	if h := d.net.hosts(); !reflect.DeepEqual(h, []string{"127.0.0.1", "mac.tail1.ts.net"}) {
 		t.Fatalf("hosts %v", h)
 	}
-	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=mac.tail1.ts.net") {
+	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["web_link"].(string), "//mac.tail1.ts.net:") {
 		t.Fatalf("%v", res)
 	}
 
 	// Without a MagicDNS name the IP is named as before.
 	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
 	d.net.relisten()
-	if res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=127.0.0.1") {
+	if res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any); !strings.Contains(res["web_link"].(string), "//127.0.0.1:") {
 		t.Fatalf("%v", res)
 	}
 }

@@ -151,31 +151,29 @@ func newCode() string {
 	return sb.String()
 }
 
-// Pair makes a one-time code that lives ttl, for the default door (none before Doors is set).
-func (m *Manager) Pair(ttl time.Duration) (c string, expires time.Time, fingerprint, uri string) {
+// Pair makes a one-time code that lives ttl, on the door device.pair picks (none before Doors is set), and its link.
+func (m *Manager) Pair(ttl time.Duration) (c string, expires time.Time, link string) {
 	var door Door
 	if m.Doors != nil {
 		door, _, _ = m.Doors("")
 	}
-	return m.PairAt(ttl, door, "")
+	c, expires = m.PairAt(ttl, door, "")
+	return c, expires, WebLink(door, c)
 }
 
-// PairAt makes a one-time code that lives ttl and a handline://pair uri naming door; the device it pairs is person's ("" the owner's).
-func (m *Manager) PairAt(ttl time.Duration, door Door, person string) (c string, expires time.Time, fingerprint, uri string) {
+// PairAt makes a one-time code for a device of person, paired on door.
+func (m *Manager) PairAt(ttl time.Duration, door Door, person string) (c string, expires time.Time) {
 	c = newCode()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	expires = m.now().Add(ttl)
 	m.codes[hashOf(c)] = &code{expires: expires, host: hostOf(door.Addr), person: person}
-	q := url.Values{"host": {door.Addr}, "code": {c}}
-	if door.TLS {
-		q.Set("fp", door.Fingerprint) // a plain door has no certificate to pin
-	}
-	return c, expires, door.Fingerprint, "handline://pair?" + q.Encode()
+	return c, expires
 }
 
-// WebLink is the browser's invite to door: the page opened with the code, which it trades for a device token. The certificate's
-// fingerprint rides after it, so a Mac given the link joins with the certificate pinned (the page reads only the code).
+// WebLink is the pairing link: the browser page at door opened with the code, which it trades for a device token. A self-made
+// certificate's fingerprint rides after it, so a Mac given the link joins with the certificate pinned (the page reads only the code); a
+// door on Tailscale's own certificate needs none. A Wi-Fi door serves no page: its link is for a Mac's app.
 func WebLink(door Door, code string) string {
 	scheme, fp := "http", ""
 	if door.TLS {

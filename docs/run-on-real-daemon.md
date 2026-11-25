@@ -37,7 +37,7 @@ You should see `network listener on <ip>:7443, plain HTTP (Tailscale)`, in the d
 
 Step 1 opened it. It pairs itself, so you should see the agent list at once. `hl device list` shows this computer and `hl device revoke <id>` cancels it.
 
-**Common failure:** the window shows "Pair this computer": the app could not pair itself. Run `hl device pair` and paste the `code:` value, or the whole `handline://` line, into the window.
+**Common failure:** the window shows "Pair this computer": the app could not pair itself. Run `hl device pair` and paste the `code:` value, or the `link:` line, into the window.
 The app stops a daemon already running on the home and starts its own, which exits with the app; agents keep running in tmux. If the window fails to connect, the reason is in `daemon.log` in the app's data folder.
 If `hl device pair` says `the network listener is off`, the daemon runs without `-listen`: step 1.
 

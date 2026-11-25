@@ -382,7 +382,7 @@ func (c *Cluster) join(r *Node) error {
 	if err != nil {
 		return fmt.Errorf("device.pair: %w", err)
 	}
-	link, _ := got["uri"].(string)
+	link, _ := got["web_link"].(string)
 	if out, err := r.Hl("device", "join", link); err != nil {
 		return fmt.Errorf("hl device join: %v: %s", err, out)
 	}

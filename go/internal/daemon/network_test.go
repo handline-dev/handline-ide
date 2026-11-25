@@ -88,7 +88,7 @@ var unpaired = map[string]any{"code": float64(-32002), "message": "refused",
 // pair makes a code as the founder would and trades it for a token on a connection of its own.
 func pair(t *testing.T, d *Daemon, name string) (token, id string) {
 	t.Helper()
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	r := dialNet(t, d).ask(`{"jsonrpc":"2.0","id":1,"method":"device.redeem","params":{"code":"` + code + `","name":"` + name + `","request_id":"r-` + name + `"}}`)
 	res, ok := r["result"].(map[string]any)
 	if !ok {
@@ -203,7 +203,7 @@ func TestWrongCodesFromOneHostLockItOutWhateverPortItComesFrom(t *testing.T) {
 			t.Fatalf("%v", e)
 		}
 	}
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	e := dialNet(t, d).ask(`{"jsonrpc":"2.0","id":1,"method":"device.redeem","params":{"code":"` + code + `","name":"p","request_id":"late"}}`)["error"].(map[string]any)
 	if e["data"].(map[string]any)["gate"] != "attempt_limit" {
 		t.Fatalf("%v", e)

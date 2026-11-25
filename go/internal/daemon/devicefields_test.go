@@ -8,7 +8,7 @@ import (
 // redeemAs pairs a device that says it is kind (none when ""), and answers its token and id.
 func redeemAs(t *testing.T, d *Daemon, name, kind string) (token, id string) {
 	t.Helper()
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	k := ""
 	if kind != "" {
 		k = `,"kind":"` + kind + `"`

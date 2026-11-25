@@ -23,8 +23,7 @@ export function useOpenAddress() {
 export interface Pairing {
   code: string;
   expiresAt: number;
-  uri: string;
-  link: string | null;
+  link: string;
 }
 
 export function usePair() {
@@ -38,7 +37,7 @@ export function usePair() {
       setError(null);
       try {
         const r = await run('pair', () => pair.mutateAsync(address ? { address } : {}));
-        return { code: r.code, expiresAt: Date.parse(r.expires_at), uri: r.uri, link: r.web_link };
+        return { code: r.code, expiresAt: Date.parse(r.expires_at), link: r.web_link };
       } catch (e) {
         setError(String(e));
         throw e;

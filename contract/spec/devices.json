@@ -492,7 +492,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "A host a door serves; absent is the default door: -advertise (or the listener) while network_addresses is unset, else the first LAN host served, else the first host served. Any other is refused, gate address, with data.addresses the hosts served, the default first."
+      "description": "A host a door serves, while Connect a device still offers a choice; absent is Handline's pick: the Tailscale name while Tailscale is up, else the first LAN (Wi-Fi) address, served though network_addresses does not list it (not when the list is empty, and not while -advertise names the address); with neither, -advertise or the listener. Any other is refused, gate address, with data.addresses the hosts served."
      }
     },
     {
@@ -529,29 +529,17 @@
         },
         "fingerprint": {
          "type": "string",
-         "description": "Certificate fingerprint of the door; empty on a plain door."
-        },
-        "uri": {
-         "type": "string",
-         "description": "What the QR carries: handline://pair with the host:port and, on a TLS door, the fingerprint."
+         "description": "The fingerprint of the door's self-made certificate, which a client pins; empty on a plain door and on Tailscale's own certificate, which is verified the normal way."
         },
         "web_link": {
-         "oneOf": [
-          {
-           "type": "string"
-          },
-          {
-           "type": "null"
-          }
-         ],
-         "description": "The browser's invite on the same door: http(s)://host:port/#pair=code. null when the web page is not served there."
+         "type": "string",
+         "description": "The pairing link, what the QR carries: http(s)://host:port/#pair=code, with &fp= the fingerprint on a self-made certificate. https on the Tailscale name when the tailnet has HTTPS (no fingerprint), http on it otherwise; a Wi-Fi door's link is for a Mac's app, which pins the fingerprint, as a Wi-Fi door serves no web page."
         }
        },
        "required": [
         "code",
         "expires_at",
         "fingerprint",
-        "uri",
         "web_link"
        ]
       }
@@ -570,7 +558,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply carries the listener certificate fingerprint and the address in `uri`, which is what the QR holds; a client pins that fingerprint and refuses any other certificate. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.",
+   "description": "Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply's `web_link` is the one link a device is given; on a self-made certificate it carries the fingerprint, which a client pins, refusing any other certificate. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.",
    "x-note": "The code is shown once and kept only as a hash; a second call makes a new code and leaves the first valid until it expires or is used."
   },
   {
