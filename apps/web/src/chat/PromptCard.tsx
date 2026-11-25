@@ -1,3 +1,4 @@
+import { CommandText } from '#src/ui/CommandText.tsx';
 import { checkedKeys } from '@handline/app-core';
 import { useAgentDetail, usePromptAnswer } from '@handline/app-data';
 import type { Prompt } from '@handline/client';
@@ -47,7 +48,9 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
       </div>
       {a.opts.length === 0 ? (
         // A prompt read from the screen before its choices are parsed: its panel, to answer in the terminal.
-        <pre className="ml-6 overflow-x-auto text-xs whitespace-pre text-muted">{p.lines.join('\n')}</pre>
+        <div className="ml-6">
+          <CommandText text={p.lines.join('\n')} />
+        </div>
       ) : a.multi ? (
         <div className="flex flex-col gap-1.5 pl-6">
           {a.opts.map((o) => (
