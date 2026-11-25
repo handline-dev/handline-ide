@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -116,10 +117,15 @@ func TestASessionsEndShutsDownWhatItBootedAndLeavesWhatItFound(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	t.Setenv("ANDROID_HOME", t.TempDir())
-	if err := os.MkdirAll(e.Home+"/fake", 0o755); err != nil {
+	// The SDK's adb must be found, or the shutdown fails and the device stays: a machine with no Android SDK would fail this test otherwise.
+	sdk := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sdk, "platform-tools"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(sdk, "platform-tools", "adb"), nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANDROID_HOME", sdk)
 	e.Reap("a")
 	if left := e.All(); len(left) != 1 || left[0].Agent != "b" {
 		t.Errorf("left after a's session = %v", left)
