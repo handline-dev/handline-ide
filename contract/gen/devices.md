@@ -7,7 +7,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 |---|---|---|---|---|---|---|---|
 | `devices.list` | member |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
 | `device.pair` | member | yes | `name?`, `ttl_s?`, `person?`, `request_id` | `Accepted & {code, expires_at, fingerprint, web_link}` | `refused` | network | decided: pair |
-| `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `node?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit, already_joined | not from the app |
+| `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `node?`, `replaces?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit, already_joined | not from the app |
 | `device.revoke` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
 | `device.set` | member | yes | `device`, `lending?`, `memory_max_gb?`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
 | `device.update` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind, build | decided: update |

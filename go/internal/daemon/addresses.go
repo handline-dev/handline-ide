@@ -84,7 +84,9 @@ var localName = func() string {
 }
 
 // tailscaleName is this machine's MagicDNS name out of `tailscale status --json`, or "". tailnetHTTPS says whether the tailnet gives
-// that name a certificate (HTTPS on: the name is in CertDomains). Both are kept a minute: the address list is read every few seconds.
+// that name a certificate (HTTPS on: the name is in CertDomains). A read that found the name is kept a minute, as the address list is read
+// every few seconds; one that found none is not kept, so a read missed at start (Tailscale not ready yet) is made again at the next look.
+// Both are asked only while this machine has a Tailscale address, so a machine without one runs no Tailscale command.
 var (
 	tailscaleName = func() string { return tailscaleNow().name }
 	tailnetHTTPS  = func() bool { return tailscaleNow().https }
@@ -104,11 +106,14 @@ var tsSelf struct {
 func tailscaleNow() tailscaleSelf {
 	tsSelf.mu.Lock()
 	defer tsSelf.mu.Unlock()
-	if time.Since(tsSelf.at) >= time.Minute {
-		tsSelf.self, tsSelf.at = readTailscale(), time.Now()
+	if tsSelf.self.name == "" || time.Since(tsSelf.at) >= time.Minute {
+		tsSelf.self, tsSelf.at = tailscaleRead(), time.Now()
 	}
 	return tsSelf.self
 }
+
+// tailscaleRead is readTailscale; tests stand in for the command.
+var tailscaleRead = readTailscale
 
 // tailscaleCLIs are where the Tailscale command line is: on the PATH, or inside the Mac app.
 var tailscaleCLIs = []string{"tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"}

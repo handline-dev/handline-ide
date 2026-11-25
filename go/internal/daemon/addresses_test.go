@@ -270,10 +270,10 @@ func TestASettingNamingAHostThisMachineDoesNotHaveIsRefused(t *testing.T) {
 	}
 }
 
-// With neither a Tailscale name nor a Wi-Fi address to pick, a pairing names the host the setting chose.
+// With no Tailscale or Wi-Fi address to pick, a pairing names the host the setting chose.
 func TestDevicePairNamesTheChosenHostInItsLink(t *testing.T) {
 	d, c := startDoors(t, true)
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
+	serveHosts(t, netAddress{Host: "127.0.0.1", IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
 	setAddresses(t, c, `["mac.local"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
 	res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)
@@ -442,5 +442,58 @@ func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsCh
 	d.net.relisten()
 	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["web_link"].(string), "//127.0.0.1:") {
 		t.Fatalf("%v", res)
+	}
+}
+
+// A pairing names the Tailscale name, else the Tailscale IP when the name was not read, else the first Wi-Fi address.
+func TestAPairingNamesTailscaleBeforeWiFi(t *testing.T) {
+	lan := netAddress{Host: "192.168.0.40", Kind: kindLAN}
+	ip := netAddress{Host: "100.64.233.87", Kind: kindTailscale}
+	name := netAddress{Host: "mac.tail1.ts.net", Kind: kindTailscaleName}
+	for _, c := range []struct {
+		all  []netAddress
+		want string
+	}{
+		{[]netAddress{lan, ip, name}, "mac.tail1.ts.net"},
+		{[]netAddress{lan, ip}, "100.64.233.87"},
+		{[]netAddress{lan}, "192.168.0.40"},
+		{nil, ""},
+	} {
+		if got := pickHost(c.all); got != c.want {
+			t.Errorf("%v: %q, want %q", c.all, got, c.want)
+		}
+	}
+}
+
+// A Tailscale read that found no name (Tailscale not ready at start) is made again at the next look; one that found it is kept.
+func TestAFailedTailscaleReadIsNotKept(t *testing.T) {
+	was := tailscaleRead
+	t.Cleanup(func() {
+		tailscaleRead = was
+		tsSelf.mu.Lock()
+		tsSelf.self, tsSelf.at = tailscaleSelf{}, time.Time{}
+		tsSelf.mu.Unlock()
+	})
+	tsSelf.mu.Lock()
+	tsSelf.self, tsSelf.at = tailscaleSelf{}, time.Time{}
+	tsSelf.mu.Unlock()
+	reads, up := 0, false
+	tailscaleRead = func() tailscaleSelf {
+		reads++
+		if !up {
+			return tailscaleSelf{}
+		}
+		return tailscaleSelf{name: "mac.tail1.ts.net"}
+	}
+	if got := tailscaleNow().name; got != "" {
+		t.Fatal(got)
+	}
+	up = true
+	if got := tailscaleNow().name; got != "mac.tail1.ts.net" {
+		t.Fatalf("a failed read was kept: %q", got)
+	}
+	tailscaleNow()
+	if reads != 2 {
+		t.Fatalf("a read that found the name was made again: %d reads", reads)
 	}
 }

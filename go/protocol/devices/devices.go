@@ -63,6 +63,7 @@ type Push struct {
 // Store keeps the paired devices; a token is only ever given to it as a hash.
 type Store interface {
 	Add(d Device, tokenHash string) error
+	AddReplacing(d Device, tokenHash, replaces string) (replaced bool, err error)
 	ByTokenHash(hash string) (Device, bool, error)
 	Delete(id string) (bool, error)
 	List() ([]Device, error)
@@ -202,12 +203,34 @@ func pairingRefused() *rpc.Error {
 // Redeem trades a code for a device token, once. kind is what the client says it is, "" for nothing; node is a mac's or a server's node
 // id, whose node row the device makes on Off. remote is the caller's host: wrong tries are counted per host.
 func (m *Manager) Redeem(c, name, kind, node, remote string) (token string, d Device, err error) {
+	token, d, _, err = m.RedeemReplacing(c, name, kind, node, remote, "")
+	return token, d, err
+}
+
+// RedeemReplacing is Redeem for a client that held replaces for this daemon: when that is its person's device (no machine's), it is
+// revoked in the same write that adds the new one, and its connections close; replaced says whether it went.
+func (m *Manager) RedeemReplacing(c, name, kind, node, remote, replaces string) (token string, d Device, replaced bool, err error) {
+	token, d, replaced, err = m.redeem(c, name, kind, node, remote, replaces)
+	if err != nil || !replaced {
+		return token, d, replaced, err
+	}
+	m.mu.Lock()
+	closers := m.conns[replaces]
+	delete(m.conns, replaces)
+	m.mu.Unlock()
+	for _, f := range closers {
+		f()
+	}
+	return token, d, true, nil
+}
+
+func (m *Manager) redeem(c, name, kind, node, remote, replaces string) (token string, d Device, replaced bool, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := m.now()
 	if until, locked := m.lockedTill[remote]; locked {
 		if now.Before(until) {
-			return "", Device{}, rpc.Refused("too many wrong pairing codes from this address", "attempt_limit", "")
+			return "", Device{}, false, rpc.Refused("too many wrong pairing codes from this address", "attempt_limit", "")
 		}
 		delete(m.lockedTill, remote)
 	}
@@ -219,23 +242,23 @@ func (m *Manager) Redeem(c, name, kind, node, remote string) (token string, d De
 	}
 	if !ok {
 		m.wrongTry(remote, now)
-		return "", Device{}, pairingRefused()
+		return "", Device{}, false, pairingRefused()
 	}
 	token = "hld_" + random(32)
 	d = Device{ID: "dev_" + random(6), Name: name, Created: now.Unix(), Address: live.host, Kind: kind, Person: live.person, Node: node}
 	if node != "" {
 		d.Lending = "off"
 	}
-	if err := m.store.Add(d, hashOf(token)); errors.Is(err, ErrAlreadyJoined) {
-		return "", Device{}, rpc.Refused(err.Error(), "already_joined", "")
+	if replaced, err = m.store.AddReplacing(d, hashOf(token), replaces); errors.Is(err, ErrAlreadyJoined) {
+		return "", Device{}, false, rpc.Refused(err.Error(), "already_joined", "")
 	} else if errors.Is(err, ErrNoPerson) {
 		delete(m.codes, h)
-		return "", Device{}, pairingRefused()
+		return "", Device{}, false, pairingRefused()
 	} else if err != nil {
-		return "", Device{}, err
+		return "", Device{}, false, err
 	}
 	delete(m.codes, h)
-	return token, d, nil
+	return token, d, replaced, nil
 }
 
 // wrongTry counts a wrong code against every live code and the host. Called with m.mu held.

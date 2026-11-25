@@ -96,9 +96,13 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		if lends[kind] != (node != "") || !nodeID.MatchString(node) && node != "" {
 			return nil, rpc.BadRequestError("node is the machine's node id, given by a mac or a server and by nothing else", "node", rpc.InvalidParams)
 		}
-		token, d, err := m.Redeem(code, name, kind, node, c.Remote)
+		replaces, _ := p["replaces"].(string)
+		token, d, replaced, err := m.RedeemReplacing(code, name, kind, node, c.Remote, replaces)
 		if err != nil {
 			return nil, err
+		}
+		if replaced {
+			emit("device.revoked", map[string]any{"device": replaces}, nil, "device "+replaces+" replaced by "+d.ID)
 		}
 		emit("device.paired", m.Row(d), nil, d.Name+" paired")
 		return map[string]any{"accepted": true, "token": token, "device": d.ID}, nil

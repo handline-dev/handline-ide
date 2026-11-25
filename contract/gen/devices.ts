@@ -129,6 +129,7 @@ export interface DevicesMethods {
   kind?: string;
   /** The machine's node id: required with kind mac or server, refused with any other. The device comes with that machine's node row, on off. */
   node?: string;
+  replaces?: string;
   request_id: RequestId;
 }; result: Accepted & {
     token: string;

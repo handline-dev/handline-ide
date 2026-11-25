@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/hex"
@@ -199,9 +200,10 @@ func (n *netDoors) want() (hosts []netAddress, specs map[string]doorSpec, names 
 
 // wantAll is want, saying also whether the last of hosts is there only as the pick (OwnDoor leaves it out: runners reach a host chosen).
 func (n *netDoors) wantAll() (hosts []netAddress, specs map[string]doorSpec, names map[string]string, picked string, onlyPicked, chosen bool) {
-	specs = map[string]doorSpec{loopback: {web: true}}      // the desktop app's door
-	https := n.ts != nil && n.cfg.plain() && tailnetHTTPS() // the master's door for runners (master.go) is the plain one
+	specs = map[string]doorSpec{loopback: {web: true}} // the desktop app's door
 	all := addressesNow()
+	// the master's door for runners (master.go) is the plain one; Tailscale is asked only while its address is up
+	https := n.ts != nil && n.cfg.plain() && slices.ContainsFunc(all, func(a netAddress) bool { return a.Kind == kindTailscale }) && tailnetHTTPS()
 	have := map[string]netAddress{}
 	names = map[string]string{}
 	for _, a := range all {
@@ -498,19 +500,21 @@ func (n *netDoors) pairDoor() (devices.Door, bool) {
 	return n.door("")
 }
 
-// pickHost is the host a pairing names: this machine's Tailscale name while Tailscale is up, else its first Wi-Fi (LAN) address; "" with
-// neither.
+// pickHost is the host a pairing names: this machine's Tailscale name while Tailscale is up, its Tailscale IP when the name was not read,
+// else its first Wi-Fi (LAN) address; "" with none.
 func pickHost(all []netAddress) string {
-	lan := ""
+	ip, lan := "", ""
 	for _, a := range all {
-		if a.Kind == kindTailscaleName {
+		switch {
+		case a.Kind == kindTailscaleName:
 			return a.Host
-		}
-		if a.Kind == kindLAN && lan == "" {
+		case a.Kind == kindTailscale && ip == "":
+			ip = a.Host
+		case a.Kind == kindLAN && lan == "":
 			lan = a.Host
 		}
 	}
-	return lan
+	return cmp.Or(ip, lan)
 }
 
 func (n *netDoors) close() {

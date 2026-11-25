@@ -199,3 +199,49 @@ func TestALoginNamesTheDevicesPerson(t *testing.T) {
 		t.Fatalf("person %q, owner %q: %v", person, owner, err)
 	}
 }
+
+// A client that pairs again names the device it held: when that is its own person's and no machine's, it goes in the same write, its
+// token dies and its connections close. An id of another person's device, a machine's or one never paired is ignored.
+func TestARedeemReplacesOnlyItsOwnPersonsEarlierDevice(t *testing.T) {
+	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec("INSERT INTO people(display_name, role, created_at) VALUES('Mia', 'member', 0)"); err != nil {
+		t.Fatal(err)
+	}
+	var mia int64
+	db.QueryRow("SELECT id FROM people WHERE display_name = 'Mia'").Scan(&mia)
+	m := New(SQLStore{DB: db})
+	redeem := func(person, kind, node, replaces string) (string, Device, bool) {
+		t.Helper()
+		code, _ := m.PairAt(DefaultTTL, Door{}, person)
+		token, d, replaced, err := m.RedeemReplacing(code, "chrome", kind, node, "", replaces)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return token, d, replaced
+	}
+	oldToken, old, _ := redeem("", "web", "", "")
+	closed := false
+	m.mu.Lock()
+	m.conns[old.ID] = map[int]func(){1: func() { closed = true }}
+	m.mu.Unlock()
+	_, theirs, _ := redeem(actor.Key(actor.Person, mia), "web", "", "")
+	_, machine, _ := redeem("", "mac", "n0123456789abcdef", "")
+	newToken, _, replaced := redeem("", "web", "", old.ID)
+	if !replaced || m.Know(oldToken) || !m.Know(newToken) || !closed {
+		t.Fatalf("the old device stays: replaced %v, old token known %v, closed %v", replaced, m.Know(oldToken), closed)
+	}
+	for _, other := range []string{theirs.ID, machine.ID, "dev_never"} {
+		if _, _, replaced := redeem("", "web", "", other); replaced {
+			t.Fatalf("%s was replaced", other)
+		}
+	}
+	var left int
+	db.QueryRow("SELECT COUNT(*) FROM devices WHERE id IN (?, ?)", theirs.ID, machine.ID).Scan(&left)
+	if left != 2 {
+		t.Fatalf("another person's device or a machine went: %d left", left)
+	}
+}

@@ -23,6 +23,25 @@ func (s *MemStore) Add(d Device, tokenHash string) error {
 	return nil
 }
 
+// AddReplacing is SQLStore.AddReplacing in memory, in one hold of the lock: replaces goes when it is the same person's device and no
+// machine's.
+func (s *MemStore) AddReplacing(d Device, tokenHash, replaces string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, had := s.byID[replaces]
+	s.byID[d.ID], s.byHash[tokenHash] = d, d.ID
+	if !had || replaces == d.ID || old.Person != d.Person || old.Node != "" {
+		return false, nil
+	}
+	delete(s.byID, replaces)
+	for h, i := range s.byHash {
+		if i == replaces {
+			delete(s.byHash, h)
+		}
+	}
+	return true, nil
+}
+
 func (s *MemStore) ByTokenHash(hash string) (Device, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

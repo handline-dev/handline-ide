@@ -13,47 +13,65 @@ type SQLStore struct{ DB *sql.DB }
 // Add stores a paired device as d.Person's, the owner's when it names none. A device with a node makes that machine's node row, on Off,
 // in the same write; a node id the master already has is ErrAlreadyJoined.
 func (s SQLStore) Add(d Device, tokenHash string) error {
+	_, err := s.AddReplacing(d, tokenHash, "")
+	return err
+}
+
+// AddReplacing is Add that also deletes replaces, in the same write, when it is a device of the new one's person that is no machine's:
+// the client paired again, so its old token dies as the new one is made. Any other id is left as it is; replaced says whether it went.
+func (s SQLStore) AddReplacing(d Device, tokenHash, replaces string) (replaced bool, err error) {
 	tx, err := s.DB.Begin()
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
 	person := d.Person
 	if person == "" {
 		if person, err = actor.Owner(tx); err != nil {
-			return err
+			return false, err
 		}
 	} else if k, pid, _ := actor.Parse(person); k == actor.Person {
 		var here int
 		if err := tx.QueryRow("SELECT COUNT(*) FROM people WHERE id = ? AND removed_at IS NULL", pid).Scan(&here); err != nil {
-			return err
+			return false, err
 		}
 		if here == 0 { // removed since the code was made
-			return ErrNoPerson
+			return false, ErrNoPerson
 		}
 	}
 	if _, err = tx.Exec("INSERT INTO devices(id, person, name, token_hash, created, last_seen, address, kind) VALUES(?,?,?,?,?,NULL,NULLIF(?,''),NULLIF(?,''))",
 		d.ID, person, d.Name, tokenHash, d.Created, d.Address, d.Kind); err != nil {
-		return err
+		return false, err
 	}
 	if d.Node != "" {
 		var has int
 		if err := tx.QueryRow("SELECT COUNT(*) FROM nodes WHERE id = ?", d.Node).Scan(&has); err != nil {
-			return err
+			return false, err
 		}
 		if has > 0 {
-			return ErrAlreadyJoined
+			return false, ErrAlreadyJoined
 		}
 		k, pid, _ := actor.Parse(person)
 		if k != actor.Person {
-			return fmt.Errorf("the device's person %q is no person's key", person)
+			return false, fmt.Errorf("the device's person %q is no person's key", person)
 		}
 		if _, err := tx.Exec("INSERT INTO nodes(id, person, name, joined_at, device, lending) VALUES(?, ?, ?, ?, ?, 'off')",
 			d.Node, pid, d.Name, d.Created, d.ID); err != nil {
-			return err
+			return false, err
 		}
 	}
-	return tx.Commit()
+	// Only another plain device of the same person goes: a machine's (a nodes row, the master's own among them) never does, so this needs
+	// neither Manager.Revoke's own-machine guard nor its BeforeRevoke, which are about machines.
+	if replaces != "" && replaces != d.ID {
+		r, err := tx.Exec("DELETE FROM devices WHERE id = ? AND person = ? AND NOT EXISTS (SELECT 1 FROM nodes WHERE nodes.device = devices.id)",
+			replaces, person)
+		if err != nil {
+			return false, err
+		}
+		n, _ := r.RowsAffected()
+		replaced = n > 0
+	}
+	return replaced, tx.Commit()
 }
 
 // columns is a device with its node's id and lending, from devices LEFT JOIN nodes.

@@ -188,3 +188,22 @@ func TestAClosedConnectionsReleaseDoesNotFreeAnotherOnesPlace(t *testing.T) {
 		t.Fatalf("%d open after a late release of an evicted one, want 2", n)
 	}
 }
+
+// The memory store replaces as the database does: its person's earlier device goes, another person's or a machine's stays.
+func TestTheMemStoreReplacesOnlyItsPersonsDevice(t *testing.T) {
+	s := NewMemStore()
+	s.Add(Device{ID: "dev_old", Person: "p1"}, "h-old")
+	s.Add(Device{ID: "dev_theirs", Person: "p2"}, "h-theirs")
+	s.Add(Device{ID: "dev_mac", Person: "p1", Node: "n1"}, "h-mac")
+	if ok, _ := s.AddReplacing(Device{ID: "dev_new", Person: "p1"}, "h-new", "dev_old"); !ok {
+		t.Fatal("its own earlier device stayed")
+	}
+	if _, known, _ := s.ByTokenHash("h-old"); known {
+		t.Fatal("the old token still works")
+	}
+	for _, other := range []string{"dev_theirs", "dev_mac", "dev_never"} {
+		if ok, _ := s.AddReplacing(Device{ID: "dev_" + other, Person: "p1"}, "h-"+other, other); ok {
+			t.Fatalf("%s was replaced", other)
+		}
+	}
+}

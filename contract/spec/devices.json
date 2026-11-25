@@ -97,7 +97,7 @@
         "type": "null"
        }
       ],
-      "description": "A mac's or a server's Run · Pause · Off (device.set): run starts new work on that machine, pause starts nothing new and lets what runs there finish, off is not lent. null for a phone or a browser. Absent on a daemon that does not serve it."
+      "description": "A mac's or a server's Run \u00b7 Pause \u00b7 Off (device.set): run starts new work on that machine, pause starts nothing new and lets what runs there finish, off is not lent. null for a phone or a browser. Absent on a daemon that does not serve it."
      },
      "copy": {
       "oneOf": [
@@ -592,6 +592,14 @@
      }
     },
     {
+     "name": "replaces",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The device id this client held for this daemon before it paired again. When it is a device of the same person and no machine's, it is revoked in the same write that adds the new one: its token stops working at once, its connections close and device.revoked is sent. Any other id (unknown, another person's, a machine's) is ignored."
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {
@@ -685,7 +693,7 @@
   },
   {
    "name": "device.set",
-   "summary": "Set a lent machine's Run · Pause · Off and its own memory cap.",
+   "summary": "Set a lent machine's Run \u00b7 Pause \u00b7 Off and its own memory cap.",
    "paramStructure": "by-name",
    "params": [
     {
