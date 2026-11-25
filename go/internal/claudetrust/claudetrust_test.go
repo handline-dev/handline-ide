@@ -2,9 +2,11 @@ package claudetrust
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -253,5 +255,65 @@ func TestTheLegacyConfigWins(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, ".config.json"), []byte(`{}`), 0o600)
 	if got := ConfigFile(dir); got != filepath.Join(dir, ".config.json") {
 		t.Fatal(got)
+	}
+}
+
+func TestTheResumeQuestionIsDismissedOnceAndNoOtherByteMoves(t *testing.T) {
+	f := write(t, claudeShaped)
+	if out, err := DismissResume(f); err != nil || out != Granted {
+		t.Fatalf("%s %v", out, err)
+	}
+	want := strings.Replace(claudeShaped, "12345678901234567890\n}", "12345678901234567890,\n  \"resumeReturnDismissed\": true\n}", 1)
+	if got := readText(t, f); got != want {
+		t.Fatalf("got %s", got)
+	}
+	if out, _ := DismissResume(f); out != Unchanged {
+		t.Fatalf("a second dismissal wrote: %s", out)
+	}
+	f = write(t, `{"resumeReturnDismissed": false}`)
+	if DismissResume(f); readText(t, f) != `{"resumeReturnDismissed": true}` {
+		t.Fatal(readText(t, f))
+	}
+}
+
+// A worktree's trust is kept under its repository's main checkout, where claude looks it up.
+func TestAWorktreeIsTrustedUnderItsMainCheckout(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	main, wt := filepath.Join(root, "repo"), filepath.Join(root, "repo.worktrees", "desk-2")
+	gitdir := filepath.Join(main, ".git", "worktrees", "desk-2")
+	mustWrite := func(f, text string) {
+		t.Helper()
+		if err := errors.Join(os.MkdirAll(filepath.Dir(f), 0o755), os.WriteFile(f, []byte(text), 0o644)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite(filepath.Join(wt, ".git"), "gitdir: "+gitdir+"\n")
+	mustWrite(filepath.Join(wt, "sub", "x"), "")
+	mustWrite(filepath.Join(gitdir, "commondir"), "../..\n")
+	mustWrite(filepath.Join(gitdir, "gitdir"), filepath.Join(wt, ".git")+"\n")
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(filepath.Join(wt, "sub"), link); err != nil {
+		t.Fatal(err)
+	}
+	for _, folder := range []string{wt, filepath.Join(wt, "sub"), main, filepath.Join(main, ".git", "..")} {
+		if k := Keys(folder); len(k) != 1 || k[0] != main {
+			t.Fatalf("%s: %v", folder, k)
+		}
+	}
+	if k := Keys(link); !slices.Contains(k, main) {
+		t.Fatalf("a link is followed before the repository is looked for: %v", k)
+	}
+	plain := filepath.Join(root, "plain")
+	mustWrite(filepath.Join(plain, "x"), "")
+	if k := Keys(plain); len(k) != 1 || k[0] != plain {
+		t.Fatalf("a folder outside git is its own: %v", k)
+	}
+	// A .git file that the gitdir does not name back is no worktree: the folder is its own.
+	mustWrite(filepath.Join(gitdir, "gitdir"), "/elsewhere/.git\n")
+	if k := Keys(wt); len(k) != 1 || k[0] != wt {
+		t.Fatalf("a stray .git file moved trust: %v", k)
 	}
 }

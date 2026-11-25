@@ -1,8 +1,9 @@
 // Package claudetrust marks a folder trusted in a claude account's global config, so a session started there opens without the
-// folder-trust dialog. The way it writes is IDE A's (github.com/link-removed, src/main/claude/claude-folder-trust-file.ts at
-// dff65d55a, MIT License, Copyright (c) 2026 Lovecast Inc.): never create the file, never break claude's own lock, never rewrite a
-// file that does not parse, and replace it by a rename from beside it. Unlike IDE A it edits the text in place, so every byte outside
-// the one entry it sets is the file's own.
+// folder-trust dialog, and turns off claude's question whether to resume a long-idle conversation, which Handline decides itself.
+// The way it writes is IDE A's (github.com/link-removed, src/main/claude/claude-folder-trust-file.ts at dff65d55a, MIT License,
+// Copyright (c) 2026 Lovecast Inc.): never create the file, never break claude's own lock, never rewrite a file that does not parse,
+// and replace it by a rename from beside it. Unlike IDE A it edits the text in place, so every byte outside the one entry it sets is
+// the file's own.
 package claudetrust
 
 import (
@@ -12,6 +13,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,6 +31,9 @@ const (
 )
 
 const trustKey = "hasTrustDialogAccepted"
+
+// resumeKey, set at the top of the config, keeps claude from asking whether to resume a long-idle conversation (Claude Code 2.1.322).
+const resumeKey = "resumeReturnDismissed"
 
 // lockWaits are the pauses between tries at claude's lock (IDE A's: 4 retries, factor 2, 50 to 250 ms).
 var lockWaits = []time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 250 * time.Millisecond}
@@ -50,21 +56,101 @@ func ConfigFile(configDir string) string {
 	return filepath.Join(configDir, ".claude.json")
 }
 
-// Keys are the spellings claude may look folder up by: the absolute path and, when it differs, the one with links resolved.
+// Keys are the spellings claude looks folder's trust up by: its repository's main checkout (a worktree's trust kept under its own
+// path counts only as inherited), else the folder; each absolute and link-resolved.
 func Keys(folder string) []string {
 	abs, err := filepath.Abs(folder)
 	if err != nil {
 		return nil
 	}
-	keys := []string{abs}
+	spellings := []string{abs}
 	if real, err := filepath.EvalSymlinks(abs); err == nil && real != abs {
-		keys = append(keys, real)
+		spellings = append(spellings, real)
+	}
+	var keys []string
+	for _, f := range spellings {
+		root := repoRoot(f)
+		keys = appendNew(keys, root)
+		if real, err := filepath.EvalSymlinks(root); err == nil {
+			keys = appendNew(keys, real)
+		}
 	}
 	return keys
 }
 
+func appendNew(l []string, s string) []string {
+	if slices.Contains(l, s) {
+		return l
+	}
+	return append(l, s)
+}
+
+// repoRoot is the main checkout of the git repository holding folder, as claude finds it: the nearest folder with a .git, or the
+// main checkout of a worktree's .git file. folder itself outside git, or when the repository is the home folder's (claude never
+// records the home folder's trust).
+func repoRoot(folder string) string {
+	home, _ := os.UserHomeDir()
+	for dir := folder; ; {
+		dotgit := filepath.Join(dir, ".git")
+		if st, err := os.Stat(dotgit); err == nil {
+			root := dir
+			if !st.IsDir() {
+				root = worktreeMain(dir, dotgit)
+			}
+			if root == home {
+				return folder
+			}
+			return root
+		}
+		up := filepath.Dir(dir)
+		if up == dir {
+			return folder
+		}
+		dir = up
+	}
+}
+
+// worktreeMain is the main checkout a worktree's .git file leads to, checked as claude checks it (the gitdir lies in the common
+// <git>/worktrees and names this .git back), or dir. A bare repository's worktree is kept under the bare repository, as claude does.
+func worktreeMain(dir, dotgit string) string {
+	b, err := os.ReadFile(dotgit)
+	gitdir, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
+	if err != nil || !ok {
+		return dir
+	}
+	gitdir = abs(dir, strings.TrimSpace(gitdir))
+	c, err1 := os.ReadFile(filepath.Join(gitdir, "commondir"))
+	back, err2 := os.ReadFile(filepath.Join(gitdir, "gitdir"))
+	if err1 != nil || err2 != nil {
+		return dir
+	}
+	common := abs(gitdir, strings.TrimSpace(string(c)))
+	if filepath.Dir(gitdir) != filepath.Join(common, "worktrees") || abs(gitdir, strings.TrimSpace(string(back))) != dotgit {
+		return dir
+	}
+	if filepath.Base(common) != ".git" {
+		return common
+	}
+	return filepath.Dir(common)
+}
+
+func abs(base, p string) string {
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	return filepath.Join(base, p)
+}
+
 // Grant sets projects[key].hasTrustDialogAccepted = true for every key in configFile, unless one of them is trusted already.
 func Grant(configFile string, keys []string) (Outcome, error) {
+	return edit(configFile, func(text []byte) ([]byte, bool, error) { return apply(text, keys) })
+}
+
+// DismissResume sets resumeReturnDismissed = true in configFile; Unchanged when it is already.
+func DismissResume(configFile string) (Outcome, error) { return edit(configFile, dismissResume) }
+
+// edit writes change's text over configFile when it changes anything, under claude's lock and by a rename.
+func edit(configFile string, change func([]byte) ([]byte, bool, error)) (Outcome, error) {
 	m := fileMutex(configFile)
 	m.Lock()
 	defer m.Unlock()
@@ -72,8 +158,8 @@ func Grant(configFile string, keys []string) (Outcome, error) {
 	if out != "" {
 		return out, nil
 	}
-	// Most launches find the folder trusted: claude's lock is taken only when there is something to write.
-	if _, changed, err := apply(text, keys); err != nil {
+	// Most launches find nothing to change: claude's lock is taken only when there is something to write.
+	if _, changed, err := change(text); err != nil {
 		return Unreadable, nil
 	} else if !changed {
 		return Unchanged, nil
@@ -91,7 +177,7 @@ func Grant(configFile string, keys []string) (Outcome, error) {
 		if now != target {
 			return Unreadable, nil // the link was pointed elsewhere since: claude asks
 		}
-		next, changed, err := apply(cur, keys)
+		next, changed, err := change(cur)
 		if err != nil {
 			return Unreadable, nil
 		}
@@ -197,6 +283,24 @@ func apply(text []byte, keys []string) ([]byte, bool, error) {
 		}
 	}
 	return text, true, nil
+}
+
+// dismissResume is text with resumeReturnDismissed true at the top, changed false when it was.
+func dismissResume(text []byte) ([]byte, bool, error) {
+	if !json.Valid(text) {
+		return nil, false, errors.New("not JSON")
+	}
+	top, err := parseObject(text, skipWS(text, 0))
+	if err != nil {
+		return nil, false, err
+	}
+	switch m := top.get(resumeKey); {
+	case m == nil:
+		return top.insert(text, resumeKey, "true"), true, nil
+	case string(text[m.valStart:m.valEnd]) != "true":
+		return splice(text, m.valStart, m.valEnd, "true"), true, nil
+	}
+	return nil, false, nil
 }
 
 func projects(text []byte) (top object, p *member, err error) {

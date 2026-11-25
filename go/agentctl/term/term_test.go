@@ -263,6 +263,12 @@ func TestTheFolderTrustScreenNamesItsFolderAndIsNotAPrompt(t *testing.T) {
 	if folder, shown := (claudecode.Screen{}).TrustScreen(scr); !shown || folder != "/Users/me/project" {
 		t.Fatalf("%q %v", folder, shown)
 	}
+	titled := []string{"────", " Accessing workspace:", "", " /Users/me/workspaces/handline.worktrees.noindex/desk-2", "",
+		" Quick safety check: Is this a project you created or one you trust?", "", " ⚠ This folder pre-approves 42 tool permissions in .claude/settings.local.json:",
+		"", " ❯ No, continue without these permissions", "   Yes, I trust this folder"}
+	if folder, shown := (claudecode.Screen{}).TrustScreen(titled); !shown || folder != "/Users/me/workspaces/handline.worktrees.noindex/desk-2" {
+		t.Fatalf("the folder under the box's title: %q %v", folder, shown)
+	}
 	if _, shown := (claudecode.Screen{}).TrustScreen(singleDefault); shown {
 		t.Fatal("not the trust screen")
 	}

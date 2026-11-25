@@ -64,7 +64,8 @@ func (Screen) IdleWithBackground(tail []string) bool {
 // a folder whose settings pre-approve tools (Claude Code 2.1.291): the same workspace line and options under a different question.
 var trustMarkers = []string{"Is this a project you created or one you trust", "This folder pre-approves"}
 
-// The line the prompt names its folder under. Wrapped at terminal width with no separator, so its continuation lines are joined bare.
+// The line the prompt names its folder under, at once or after a blank line (Claude Code 2.1.322 draws it as the box's title). Wrapped
+// at terminal width with no separator, so its continuation lines are joined bare.
 const workspaceMarker = "Accessing workspace:"
 
 func (Screen) TrustScreen(tail []string) (string, bool) {
@@ -91,8 +92,11 @@ func (Screen) TrustScreen(tail []string) (string, bool) {
 loop:
 	for _, ln := range lines[start:] {
 		s := strings.TrimSpace(ln)
-		if s == "" {
-			break
+		if s == "" && len(parts) == 0 {
+			continue
+		}
+		if s == "" || len(parts) == 0 && !strings.HasPrefix(s, "/") && !strings.HasPrefix(s, "~") {
+			break // the end of the path, or no path drawn
 		}
 		for _, m := range trustMarkers {
 			if strings.Contains(s, m) {
