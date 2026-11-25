@@ -46,7 +46,7 @@ export type Cast = {
 };
 
 /** What lies flat on the floor, under a standing person's feet. */
-export const FLAT = new Set(['floor', 'baseboard', 'rugRectangle', 'road', 'walk', 'grass', 'lane']);
+export const FLAT = new Set(['floor', 'baseboard', 'rug', 'road', 'walk', 'grass', 'lane']);
 
 const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
@@ -174,8 +174,8 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
   }
   /** Behind a desk's chair, where the founder stands to talk. */
   const behind = (tag: string): [number, number] => {
-    const t = room.things.find((d) => d.model === 'desk' && d.tag === tag);
-    return t ? [t.x + 0.37, t.z + 1.0] : room.entry;
+    const top = room.blocks.find((b) => b.tag === tag && b.part?.startsWith('desk:'));
+    return top ? [top.from[0] + 0.38, top.to[2] + 1.0] : room.entry;
   };
   for (const person of room.people) {
     const desk = boxOf(pic, frame, `desk:${person.key}`);

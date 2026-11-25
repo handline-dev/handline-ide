@@ -2,49 +2,19 @@
 // sunlight reaches it (with shadows), and per pixel which object it shows, how far away and which way it faces. Floor boards, the view out
 // of the window and the lines on a lit screen are drawn from world positions, so they line up whatever the room's size.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { Kind, Room } from '#src/town/room.ts';
 import { PROJECT_GLSL, viewOf, type View } from '#src/town/view.ts';
 import type { Rect } from '#src/town/walk.ts';
-import { colourOf, KIND_COLOUR, LIT_KINDS, WALL_TOP } from '#src/town/palette.ts';
+import { KIND_COLOUR, LIT_KINDS, WALL_TOP } from '#src/town/palette.ts';
 
 type RGB = [number, number, number];
 
-const MODELS = `${import.meta.env.BASE_URL}town/models/`;
 const SUN = new THREE.Vector3(0.45, -1, -0.3).normalize(); // from the windows, back and upper left
 
-/** What a pixel's object is: a block's kind or a model's name, and the tag the room gave it. */
-export type Meta = { kind: Kind | string; tag?: string };
+/** What a pixel's object is: its block's kind, and the tag the room gave it. */
+export type Meta = { kind: Kind | 'none'; tag?: string };
 /** `solid`: what stands on the floor, as footprints (the founder walks around them). */
 export type Frame = View & { base: Uint8Array; light: Uint8Array; info: Float32Array; meta: Meta[]; solid: Rect[] };
-
-/** Floor things the founder walks over. */
-const WALK_OVER = new Set(['rugRectangle']);
-
-const loader = new GLTFLoader();
-const models = new Map<string, Promise<THREE.Mesh[]>>();
-
-/** A model's meshes with one normal per face (flat facets, as pixel art wants them), loaded once. */
-function model(name: string): Promise<THREE.Mesh[]> {
-  let m = models.get(name);
-  if (!m) {
-    m = loader.loadAsync(`${MODELS}${name}.glb`).then((gltf) => {
-      gltf.scene.updateMatrixWorld(true);
-      const out: THREE.Mesh[] = [];
-      gltf.scene.traverse((o) => {
-        if (!(o instanceof THREE.Mesh)) return;
-        const g = (o.geometry as THREE.BufferGeometry).toNonIndexed();
-        g.applyMatrix4(o.matrixWorld);
-        g.computeVertexNormals();
-        const mesh = new THREE.Mesh(g, o.material);
-        out.push(mesh);
-      });
-      return out;
-    });
-    models.set(name, m);
-  }
-  return m;
-}
 
 const VERTEX = /* glsl */ `
   uniform float uLift;
@@ -137,7 +107,7 @@ function roundOf([w, h, d]: [number, number, number], axis: 'x' | 'y' | 'z'): TH
 }
 
 /** Draws the room once into the three buffers. */
-export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promise<Frame> {
+export function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Frame {
   const view = viewOf(room);
   const uLift = { value: view.lift };
   const scene = new THREE.Scene();
@@ -190,24 +160,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
       b.top ?? (wall && !b.colour ? WALL_TOP : undefined),
     );
   }
-  const loaded = await Promise.all(room.things.map((t) => model(t.model)));
   const solid: Rect[] = room.blocks.filter((b) => b.solid).map((b) => ({ x0: b.from[0], z0: b.from[2], x1: b.to[0], z1: b.to[2] }));
-  room.things.forEach((t, i) => {
-    const id = meta.push({ kind: t.model, tag: t.tag }) - 1;
-    const foot = new THREE.Box3();
-    for (const part of loaded[i]) {
-      const mesh = new THREE.Mesh(part.geometry);
-      mesh.position.set(t.x, t.y ?? 0, t.z);
-      mesh.rotation.y = t.rot ?? 0;
-      mesh.scale.setScalar(t.scale ?? 1);
-      const name = (part.material as THREE.MeshStandardMaterial).name;
-      const { colour, glow } = colourOf(t, name, (part.material as THREE.MeshStandardMaterial).color);
-      add(mesh, id, colour, glow, glow && t.model === 'computerScreen' ? 3 : 0);
-      mesh.updateMatrixWorld();
-      foot.expandByObject(mesh);
-    }
-    if (!t.y && !WALK_OVER.has(t.model)) solid.push({ x0: foot.min.x, z0: foot.min.z, x1: foot.max.x, z1: foot.max.z });
-  });
 
   const sun = new THREE.DirectionalLight(0xffffff, Math.PI); // Lambert divides by pi: the light buffer holds N·L
   const middle = new THREE.Vector3(room.w / 2, 0, room.d / 2);
@@ -257,7 +210,7 @@ export async function drawRoom(renderer: THREE.WebGLRenderer, room: Room): Promi
     m.base.dispose();
     m.info.dispose();
   }
-  for (const g of boxes) g.dispose(); // the models' geometry stays cached for the next room
+  for (const g of boxes) g.dispose();
   light.dispose();
   return frame;
 }

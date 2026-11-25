@@ -10,7 +10,7 @@ import type { Decision, House, Person } from '#src/town/model.ts';
 import { Chat } from '#src/chat/Chat.tsx';
 import { Floater } from '#src/town/floater.tsx';
 import { boxOf, BUBBLE, castOf, PEOPLE_SHEET, SHEET, type Box, type Cast, type Figure, type Spot } from '#src/town/people.ts';
-import { COLS, DOOR, roomOf } from '#src/town/room.ts';
+import { COLS, DOOR, roomOf, type Room } from '#src/town/room.ts';
 import { viewOf } from '#src/town/view.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
@@ -40,30 +40,25 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
   const lay = () => ({ sig, house: house.key, room: cols === null ? null : roomOf(house, cols) });
   const [laid, setLaid] = useState(lay);
   if (laid.sig !== sig) setLaid(lay());
-  const [drawn, setDrawn] = useState<Drawn | null>(() => drawings.get(house.key)?.drawn ?? null);
-  useEffect(() => {
-    const { room, sig: at, house: key } = laid;
-    if (!room || at === null || drawings.get(key)?.sig === at) return; // the kept drawing is already shown
-    let live = true;
-    renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
-    void drawRoom(renderer, room).then((frame) => {
-      if (!live) return;
-      const pic = shade(frame);
-      const cast = castOf(pic, frame, room);
-      const canvas = document.createElement('canvas');
-      [canvas.width, canvas.height] = [pic.w, pic.h];
-      canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-      const ground = groundOf(pic, frame, room, { speed: 1.4, stride: 0.16 });
-      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground, door: boxOf(pic, frame, DOOR) };
-      drawings.delete(key);
-      drawings.set(key, { sig: at, drawn: next });
-      for (const old of drawings.keys()) if (drawings.size > MOST) drawings.delete(old);
-      setDrawn(next);
-    });
-    return () => {
-      live = false;
-    };
-  }, [laid]);
+  return useMemo(() => drawOffice(laid), [laid]);
+}
+
+/** The office for a layout: the kept drawing when it shows the same, else drawn now and kept. */
+function drawOffice({ room, sig, house: key }: { room: Room | null; sig: string | null; house: string }): Drawn | null {
+  const kept = drawings.get(key);
+  if (!room || sig === null || kept?.sig === sig) return kept?.drawn ?? null;
+  renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
+  const frame = drawRoom(renderer, room);
+  const pic = shade(frame);
+  const cast = castOf(pic, frame, room);
+  const canvas = document.createElement('canvas');
+  [canvas.width, canvas.height] = [pic.w, pic.h];
+  canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
+  const ground = groundOf(pic, frame, room, { speed: 1.4, stride: 0.16 });
+  const drawn = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground, door: boxOf(pic, frame, DOOR) };
+  drawings.delete(key);
+  drawings.set(key, { sig, drawn });
+  for (const old of drawings.keys()) if (drawings.size > MOST) drawings.delete(old);
   return drawn;
 }
 

@@ -7,7 +7,7 @@ export type Picture = { w: number; h: number; rgba: Uint8ClampedArray<ArrayBuffe
 
 const SHADE_TINT = [0.93, 0.95, 1.05];
 const INK = [0.04, 0.03, 0.06];
-const FLAT = new Set(['floor', 'baseboard', 'road', 'walk', 'grass', 'lane']);
+const FLAT = new Set(['floor', 'baseboard', 'rug', 'road', 'walk', 'grass', 'lane']);
 
 export function shade(f: Frame): Picture {
   const { w, h } = f;

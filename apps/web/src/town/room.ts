@@ -1,12 +1,11 @@
 // A workspace's office as a 3D room, in metres (scene3d.ts draws it, people.ts puts the people in): a cut-open box with the back wall at
 // z = 0, a desk per agent in rows of benches (the lead first), and a lounge of sofas right of them. An agent at work sits at its desk,
 // its screen lit while it works or waits for the founder; an idle one sits in the lounge; one starting stands at the door; an asleep
-// one's desk is empty. Furniture is Kenney's Furniture Kit (CC0), placed by the corner each model is built from.
+// one's desk is empty. The furniture is built in code (furniture.ts).
 import type { Activity } from '#src/layout/agentList.ts';
+import * as F from '#src/town/furniture.ts';
 import type { House, Person } from '#src/town/model.ts';
 
-/** A model from public/town/models at (x, z), turned `rot` radians about its origin; `tag` names it for the pixels that show it. */
-export type Thing = { model: string; x: number; z: number; y?: number; rot?: number; scale?: number; tag?: string; lit?: boolean };
 export type Kind =
   | 'floor'
   | 'slab'
@@ -25,7 +24,9 @@ export type Kind =
   | 'lit'
   | 'win'
   | 'trunk'
-  | 'leaf';
+  | 'leaf'
+  | 'thing'
+  | 'rug';
 /** A plain box: its two corners and what it is; boxes of one `part` are one object, outlined only around the whole. */
 /** `colour` and `top` (its upward faces) set a block's colours over its kind's, `pattern` its surface (scene3d.ts); `round` makes it a
  *  cylinder filling the box along that axis. */
@@ -56,11 +57,19 @@ export type Room = {
   d: number;
   wallH: number;
   people: Person[];
-  things: Thing[];
   blocks: Block[];
   places: Place[];
   entry: [number, number];
 };
+
+/** Blocks gathered by `put`, in metres. */
+export function pen() {
+  const blocks: Block[] = [];
+  const put = (from: [number, number, number], to: [number, number, number], kind: Kind, more: Partial<Block> = {}) =>
+    blocks.push({ from, to, kind, ...more });
+  return { blocks, put };
+}
+export type Put = ReturnType<typeof pen>['put'];
 
 export const WALL_H = 1.29;
 export const WALL_T = 0.12;
@@ -71,7 +80,6 @@ const FIRST = 1.45; // the first bench's front edge
 const SOFA = 0.98;
 const SOFA_ROW = 1.6;
 const STAND_ROW = 0.9; // from one row of standing people to the next
-const DESK_TOP = 0.384;
 const SHEET_T = 0.022; // one paper of a stack
 const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
 /** The founder's desk's tag; it holds the founder's decisions. */
@@ -99,17 +107,15 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
   // The founder's desk is a row of its own in front of the benches, or of those standing in the HQ.
   const front = hq ? FIRST + rows * STAND_ROW + 0.4 : FIRST + rows * ROW;
   const d = Math.max(front + 0.95, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55);
-  const things: Thing[] = [];
   const places: Place[] = [];
-  const papers: Block[] = [];
-  const put = (model: string, x: number, z: number, more: Partial<Thing> = {}) => things.push({ model, x, z, ...more });
+  const { blocks, put } = pen();
   /** A desk at (x, z) with a stack of `n` papers on its back right corner, each a little askew. */
   const desk = (x: number, z: number, tag: string, n: number) => {
-    put('desk', x, z, { tag });
+    F.desk(put, x, z, tag);
     for (let k = 0; k < Math.min(n, MOST_SHEETS); k++) {
       const [dx, dz] = [((k * 37) % 5) * 0.006, ((k * 23) % 3) * 0.006];
-      const y = DESK_TOP + k * SHEET_T;
-      papers.push({ from: [x + 0.47 + dx, y, z - 0.37 + dz], to: [x + 0.66 + dx, y + SHEET_T, z - 0.2 + dz], kind: 'paper', tag });
+      const y = F.DESK_TOP + k * SHEET_T;
+      put([x + 0.57 + dx, y, z - 0.37 + dz], [x + 0.7 + dx, y + SHEET_T, z - 0.2 + dz], 'paper', { tag });
     }
   };
 
@@ -124,52 +130,47 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
       const z = FIRST + Math.floor(i / cols) * ROW;
       const chair = `chair:${p.key}`;
       desk(x, z, `desk:${p.key}`, p.queue);
-      put('computerScreen', x + 0.17, z - 0.2, { y: 0.384, lit: LIT.includes(p.activity) });
-      put('computerKeyboard', x + 0.22, z - 0.08, { y: 0.384 });
-      put('computerMouse', x + 0.56, z - 0.06, { y: 0.384 });
-      if (i % 2 === 0) put('plantSmall2', x + 0.07, z - 0.3, { y: 0.384, scale: 1.7 });
-      put('chairDesk', x + 0.225, z + 0.3, { scale: 0.85, tag: chair });
+      F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, LIT.includes(p.activity));
+      F.keyboard(put, x + 0.22, z - 0.08, F.DESK_TOP, 0.34);
+      if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
+      F.chair(put, x + 0.225, z + 0.3, chair);
       if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
     });
 
   // The founder's desk, with a paper for every decision waiting on the founder and an empty chair.
   const mine = { x: x0 + ((cols - 1) * PITCH) / 2, z: front };
   desk(mine.x, mine.z, MY_DESK, house.decisions.length);
-  put('computerScreen', mine.x + 0.17, mine.z - 0.2, { y: DESK_TOP });
-  put('computerKeyboard', mine.x + 0.22, mine.z - 0.08, { y: DESK_TOP });
-  put('chairDesk', mine.x + 0.225, mine.z + 0.3, { scale: 0.85, tag: MY_DESK });
+  F.screen(put, mine.x + 0.17, mine.z - 0.2, F.DESK_TOP, false);
+  F.keyboard(put, mine.x + 0.22, mine.z - 0.08, F.DESK_TOP);
+  F.chair(put, mine.x + 0.225, mine.z + 0.3, MY_DESK);
 
   // The lounge: rows of two sofas, a rug and a coffee table in front of each; four sit on a row.
   for (let r = 0; r < sofaRows; r++) {
     const z = 1.75 + r * SOFA_ROW;
-    put('rugRectangle', lounge - 0.2, z + 1.0);
-    put('loungeSofa', lounge, z);
-    put('loungeSofa', lounge + SOFA, z);
-    put('tableCoffee', lounge + 0.71, z + 0.64);
+    F.rug(put, lounge - 0.2, z + 1.0);
+    F.sofa(put, lounge, z);
+    F.sofa(put, lounge + SOFA, z);
+    F.coffeeTable(put, lounge + 0.25, z + 0.74);
   }
   idle.forEach((p, i) => {
     const r = Math.floor(i / 4);
     places.push({ person: p, x: lounge + 0.27 + (i % 4) * 0.48, z: 1.75 + r * SOFA_ROW - 0.13, how: 'sofa' });
   });
-  put('pottedPlant', lounge - 0.25, 1.5, { scale: 1.1 });
-  put('pottedPlant', lounge + 2 * SOFA + 0.2, 1.5, { scale: 1.2 });
+  F.plant(put, lounge - 0.25, 1.5, 0, 0.72);
+  F.plant(put, lounge + 2 * SOFA + 0.2, 1.5, 0, 0.78);
 
   // Along the back wall: a bookcase, plants, a coffee corner, and the door at the right where whoever is starting walks in.
-  put('bookcaseOpen', 0.05, 0.32);
-  for (const y of [0.2, 0.42, 0.64]) {
-    put('books', 0.1, 0.27, { y });
-    put('books', 0.25, 0.27, { y, rot: 0.2 });
-  }
-  put('pottedPlant', 0.75, 0.25, { scale: 1.3 });
+  F.bookcase(put, 0.05, 0.32);
+  F.plant(put, 0.75, 0.25, 0, 0.85);
   const door = w - 1.15;
-  put('kitchenCabinet', door - 0.95, 0.47);
-  put('kitchenCoffeeMachine', door - 0.85, 0.32, { y: 0.45 });
-  put('pottedPlant', door - 0.25, 0.25, { scale: 1.1 });
+  F.cabinet(put, door - 0.95, 0.47);
+  F.coffeeMachine(put, door - 0.85, 0.32, 0.45);
+  F.plant(put, door - 0.25, 0.25, 0, 0.72);
   (hq ? [] : people)
     .filter((p) => p.activity === 'waking')
     .forEach((p, i) => places.push({ person: p, x: door + 0.35 - i * 0.4, z: 0.55, how: 'door' }));
 
-  return { w, d, wallH: WALL_H, people, things, blocks: [...shell(w, d, door), ...papers], places, entry: [door + 0.35, 0.45] };
+  return { w, d, wallH: WALL_H, people, blocks: [...shell(w, d, door), ...blocks], places, entry: [door + 0.35, 0.45] };
 }
 
 /** The box itself: floor on a slab, three walls (palette.ts darkens their tops), a long window, a baseboard and the door. */

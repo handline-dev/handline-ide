@@ -26,34 +26,29 @@ let renderer: WebGLRenderer | null = null;
 let kept: { sig: string; drawn: Drawn } | null = null;
 
 /** The city drawn, again only when its layout, its lit windows or its cars change. */
-function useDrawn(city: City, cars: number): Drawn | null {
+function useDrawn(city: City, cars: number): Drawn {
   const sig = `${city.w}x${city.h} ${cars} ${city.lots.map((l) => `${l.key}:${l.x}:${l.y}:${l.w}:${l.h}:${l.empty}:${l.seats.join(',')}`).join(' ')}`;
   const lay = () => ({ sig, city, cars });
   const [laid, setLaid] = useState(lay);
   if (laid.sig !== sig) setLaid(lay());
-  const [drawn, setDrawn] = useState<Drawn | null>(() => kept?.drawn ?? null);
-  useEffect(() => {
-    if (kept?.sig === laid.sig) return; // the kept drawing is already shown
-    let live = true;
-    const room = cityRoom(laid.city, laid.cars);
-    renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
-    void drawRoom(renderer, room).then((frame) => {
-      if (!live) return;
-      const pic = shade(frame);
-      const canvas = document.createElement('canvas');
-      [canvas.width, canvas.height] = [pic.w, pic.h];
-      canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-      const ground = groundOf(pic, frame, room, { speed: 2.4, stride: 0.2, grid: { cell: 0.1, body: 0.15, top: 0 } });
-      // A doorway's spot is in the building's front, so the founder walks to the nearest it can stand on.
-      const doors = room.doors.map((d) => ({ ...d, in: nearestFree(ground.floor, d.in) ?? d.at }));
-      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, ground, doors, boxes: boxesOf(pic, frame) };
-      kept = { sig: laid.sig, drawn: next };
-      setDrawn(next);
-    });
-    return () => {
-      live = false;
-    };
-  }, [laid]);
+  return useMemo(() => drawCity(laid), [laid]);
+}
+
+/** The city for a layout: the kept drawing when it shows the same, else drawn now and kept. */
+function drawCity({ sig, city, cars }: { sig: string; city: City; cars: number }): Drawn {
+  if (kept?.sig === sig) return kept.drawn;
+  const room = cityRoom(city, cars);
+  renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
+  const frame = drawRoom(renderer, room);
+  const pic = shade(frame);
+  const canvas = document.createElement('canvas');
+  [canvas.width, canvas.height] = [pic.w, pic.h];
+  canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
+  const ground = groundOf(pic, frame, room, { speed: 2.4, stride: 0.2, grid: { cell: 0.1, body: 0.15, top: 0 } });
+  // A doorway's spot is in the building's front, so the founder walks to the nearest it can stand on.
+  const doors = room.doors.map((d) => ({ ...d, in: nearestFree(ground.floor, d.in) ?? d.at }));
+  const drawn = { url: canvas.toDataURL(), w: pic.w, h: pic.h, ground, doors, boxes: boxesOf(pic, frame) };
+  kept = { sig, drawn };
   return drawn;
 }
 
@@ -84,7 +79,6 @@ export function CityView({
   const [pane, setPane] = useState<HTMLDivElement | null>(null);
   const [pw, ph] = useSize(pane, (el) => [el.clientWidth, el.clientHeight] as const, [0, 0] as const);
   const walk = useMemo(() => {
-    if (!drawn) return null;
     const door = drawn.doors.find((d) => d.key === left);
     return door ? { ...drawn.ground, entry: door.in } : drawn.ground;
   }, [drawn, left]);
@@ -111,21 +105,21 @@ export function CityView({
     else if (s?.key !== d.key || s.way === 'shut') swingTo({ key: d.key, way: 'open', from: f.get()?.at });
   };
   const founder = useWalker(walk, 'city', (at, [, dz], f) => {
-    const door = dz < 0 && drawn?.doors.find((d) => atDoor(d, at));
+    const door = dz < 0 && drawn.doors.find((d) => atDoor(d, at));
     if (door) enter(f, door);
   });
-  const swung = drawn?.doors.find((d) => d.key === swing?.key);
+  const swung = drawn.doors.find((d) => d.key === swing?.key);
   const near = useFounder(founder, (me) => !me || !swung || atDoor(swung, me.at));
   // Out of the door the founder came out of; it shuts once the founder is past the doorstep.
   const out = useRef(left);
   useEffect(() => {
-    const d = walk && drawn?.doors.find((d) => d.key === out.current);
+    const d = drawn.doors.find((d) => d.key === out.current);
     if (!d) return;
     out.current = null;
     founder.go(d.out);
   }, [walk, drawn, founder]);
   const way = swing && (swing.way === 'held' && !near ? 'shut' : swing.way);
-  if (!drawn || !walk || pw === 0) return <div ref={setPane} className="min-h-0 flex-1" />;
+  if (pw === 0) return <div ref={setPane} className="min-h-0 flex-1" />;
   // The offices' size, larger when the whole city fits the pane larger.
   const scale = Math.max(1, Math.min(pw / drawn.w, ph / drawn.h));
   const box = (tag: string) => drawn.boxes.get(tag);
