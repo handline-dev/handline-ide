@@ -102,8 +102,9 @@ export function TabBar({
   onClose: (id: string) => void;
   /** Right-click on a tab: Close others, Close tabs to the right, Close all (pinned tabs stay). */
   onCloseTabs?: (ids: string[]) => void;
-  /** What + can open: a menu of these; picking one calls onAdd with its kind. A kind with `agents` asks which first, in a submenu. */
-  newTabKinds?: { kind: string; label: string; icon?: ReactNode; agents?: { key: string; label: string }[] }[];
+  /** What + can open: a menu of these; picking one calls onAdd with its kind. A kind with `agents` asks which first, in a submenu;
+   * `hint` is said muted at its right (whose worktree a Terminal opens in). */
+  newTabKinds?: { kind: string; label: string; icon?: ReactNode; agents?: { key: string; label: string }[]; hint?: string }[];
   onAdd?: (kind: string, how: How, agent?: string) => void;
   /** A drag from tab `id`; `ids` is what it carries: the picked tabs when `id` is one of them, else `id` alone. */
   onTabDragStart?: (id: string, ids: string[], e: React.DragEvent) => void;
@@ -230,7 +231,10 @@ export function TabBar({
               </SubMenu>
             ) : (
               <MenuItem key={k.kind} icon={k.icon} onClick={(e) => onAdd(k.kind, inPane(howOf(e)))}>
-                {k.label}
+                <span className="flex items-center justify-between gap-4">
+                  {k.label}
+                  {k.hint && <span className="text-muted">{k.hint}</span>}
+                </span>
               </MenuItem>
             ),
           )}
