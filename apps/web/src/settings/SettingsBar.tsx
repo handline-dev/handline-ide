@@ -4,9 +4,22 @@ import type { ReactNode } from 'react';
 
 /** A settings detail page's bar, as a phone's navigation bar: "‹ Devices" at the left goes back to the list, the page's icon and
  *  name in the middle. */
-export function SettingsBar({ title, icon, back, backTo }: { title: ReactNode; icon?: ReactNode; back: () => void; backTo: string }) {
+export function SettingsBar({
+  title,
+  icon,
+  back,
+  backTo,
+  end,
+}: {
+  title: ReactNode;
+  icon?: ReactNode;
+  back: () => void;
+  backTo: string;
+  /** The page's own menu, at the right of the bar. */
+  end?: ReactNode;
+}) {
   return (
-    <div className="flex w-full items-center gap-2 border-b border-border pb-2">
+    <div className="flex w-full items-center gap-2">
       <span className="flex min-w-0 flex-1 basis-0">
         <button
           type="button"
@@ -21,7 +34,7 @@ export function SettingsBar({ title, icon, back, backTo }: { title: ReactNode; i
         {icon}
         <span className="truncate">{title}</span>
       </span>
-      <span className="flex-1 basis-0" />
+      <span className="flex min-w-0 flex-1 basis-0 justify-end">{end}</span>
     </div>
   );
 }

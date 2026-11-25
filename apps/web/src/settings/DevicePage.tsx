@@ -109,13 +109,48 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
     <ScrollFade keep={`settings-device-${row.id}`} className="min-h-0 flex-1">
       <Page>
         <div className="flex flex-col gap-4 pb-8 pt-3">
-          <SettingsBar title={row.name} icon={<Icon size={16} className="shrink-0 text-muted" />} back={back} backTo="Devices" />
+          <SettingsBar
+            title={row.name}
+            icon={<Icon size={16} className="shrink-0 text-muted" />}
+            back={back}
+            backTo="Devices"
+            end={
+              !row.master && (
+                <Menu
+                  side="bottom"
+                  align="end"
+                  trigger={
+                    <IconButton label={`More for ${row.name}`} className="size-7 rounded-md">
+                      <Ellipsis size={16} />
+                    </IconButton>
+                  }
+                >
+                  {(owner || (row.here && cluster)) && row.runner && row.mine && (
+                    <MenuItem
+                      disabled={q.pending !== null || row.state === 'offline' || row.mode === 'off'}
+                      onClick={() => confirmMakeMaster(row.name, () => q.makeMaster(row))}
+                    >
+                      Make master…
+                    </MenuItem>
+                  )}
+                  <MenuItem danger onClick={() => confirmRevoke([row], (id) => q.revoke(id).then(back))}>
+                    Revoke…
+                  </MenuItem>
+                </Menu>
+              )
+            }
+          />
           <div className="flex items-center gap-3">
             <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
               {row.kind && KIND_WORD[row.kind]}
               {row.master && ' · Master'}
-              <span>·</span>
-              <StateWord row={row} />
+              {/* Run, Pause and Off already say the state; only one they cannot show is written. */}
+              {(row.state === 'offline' || row.state === 'starting') && (
+                <>
+                  <span>·</span>
+                  <StateWord row={row} />
+                </>
+              )}
             </span>
             <span className="flex-1" />
             {canUpdate(row) && (
@@ -128,29 +163,6 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
               </Button>
             )}
             {row.runner && row.mode && <ModeControl row={row} busy={q.pending !== null} setMode={(m) => q.setMode(row, m)} />}
-            {(owner || (row.here && cluster)) && row.runner && row.mine && !row.master && (
-              <Button
-                disabled={q.pending !== null || row.state === 'offline' || row.mode === 'off'}
-                onClick={() => confirmMakeMaster(row.name, () => q.makeMaster(row))}
-              >
-                Make master
-              </Button>
-            )}
-            {!row.master && (
-              <Menu
-                side="bottom"
-                align="end"
-                trigger={
-                  <IconButton label={`More for ${row.name}`} className="size-7 rounded-md border border-border">
-                    <Ellipsis size={14} />
-                  </IconButton>
-                }
-              >
-                <MenuItem danger onClick={() => confirmRevoke([row], (id) => q.revoke(id).then(back))}>
-                  Revoke…
-                </MenuItem>
-              </Menu>
-            )}
           </div>
           {row.master && <MachineSections />}
           {!row.master && row.runner && (
