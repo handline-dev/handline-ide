@@ -1,10 +1,10 @@
 // At the end of a chat whose agent asked the founder for something (a proposal: run a command, change a file or a setting): what it
 // asks, why, exactly what changes (the command, each change's lines, a file's text before and after), and Deny or Run here, the same
 // answers its Requests row gives.
-import { proposalTitle } from '@handline/app-core';
+import { changeRows, proposalTitle } from '@handline/app-core';
 import { Hooks, useNameOf, useProposals } from '@handline/app-data';
 import type { Proposal } from '@handline/client';
-import { Lightbulb } from 'lucide-react';
+import { ArrowRight, Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { TextDiff } from '#src/requests/ProposalView.tsx';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
@@ -47,12 +47,14 @@ function Changes({ p }: { p: Proposal }) {
         c.after != null ? (
           <div key={i} className="flex flex-col gap-1">
             <p className="text-xs text-muted">
-              {c.file} · {nameOf(c.agent)}
+              {nameOf(c.agent)}'s {c.file}: removed lines in red, added in green
             </p>
             <TextDiff before={c.before ?? ''} after={c.after} />
           </div>
-        ) : (
+        ) : c.kind === 'run' ? (
           <Lines key={i} lines={c.diff.split('\n').filter((l) => l.trim())} />
+        ) : (
+          <Rows key={i} diff={c.diff} />
         ),
       )}
     </div>
@@ -76,6 +78,29 @@ function Lines({ lines }: { lines: string[] }) {
         >
           Show {hidden} more {hidden === 1 ? 'line' : 'lines'}
         </button>
+      )}
+    </div>
+  );
+}
+
+/** A setting change as a person reads it: what changes, the old value struck through when the change names it, an arrow, the new. */
+function Rows({ diff }: { diff: string }) {
+  return (
+    <div className="flex flex-col divide-y divide-border rounded-md border border-border">
+      {changeRows(diff).map((r, k) =>
+        'text' in r ? (
+          <p key={k} className="px-3 py-2 text-fg">
+            {r.text}
+          </p>
+        ) : (
+          <p key={k} className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <span className="w-24 shrink-0 text-muted">{r.what}</span>
+            {r.from && <span className="text-muted line-through">{r.from}</span>}
+            {r.from && <ArrowRight size={14} className="text-muted" />}
+            {!r.from && <span className="text-muted">set to</span>}
+            <span className="font-medium text-fg">{r.to}</span>
+          </p>
+        ),
       )}
     </div>
   );
