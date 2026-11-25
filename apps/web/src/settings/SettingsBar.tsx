@@ -1,5 +1,5 @@
 // The Settings top bar: empty on a section's own page; a detail page (one device, one agent) puts its back arrow and title there.
-import { ArrowLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -11,29 +11,35 @@ export function SettingsBarFrame({ children }: { children: ReactNode }) {
   return (
     <>
       <div className="app-drag layer-drag flex h-10 shrink-0 items-center border-b border-border bg-surface px-3">
-        <div ref={setNode} className="flex min-w-0 items-center" />
+        <div ref={setNode} className="flex min-w-0 flex-1 items-center" />
       </div>
       <Slot.Provider value={node}>{children}</Slot.Provider>
     </>
   );
 }
 
-/** Back arrow and title in the top bar, for a settings detail page. */
-export function SettingsBar({ title, back, backTo }: { title: ReactNode; back: () => void; backTo: string }) {
+/** A settings detail page's bar, as a phone's navigation bar: "‹ Devices" at the left goes back to the list, the page's icon and
+ *  name in the middle. */
+export function SettingsBar({ title, icon, back, backTo }: { title: ReactNode; icon?: ReactNode; back: () => void; backTo: string }) {
   const node = useContext(Slot);
   if (!node) return null;
   return createPortal(
-    <div className="flex min-w-0 items-center gap-1.5">
-      <button
-        type="button"
-        aria-label={`Back to ${backTo}`}
-        title={`Back to ${backTo}`}
-        onClick={back}
-        className="app-no-drag flex size-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-hover/30 hover:text-fg"
-      >
-        <ArrowLeft size={16} />
-      </button>
-      <span className="min-w-0 truncate text-sm font-medium text-fg">{title}</span>
+    <div className="flex w-full items-center gap-2">
+      <span className="flex min-w-0 flex-1 basis-0">
+        <button
+          type="button"
+          onClick={back}
+          className="app-no-drag flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 text-sm text-accent hover:text-fg"
+        >
+          <ChevronLeft size={18} className="shrink-0" />
+          <span className="truncate">{backTo}</span>
+        </button>
+      </span>
+      <span className="flex min-w-0 shrink items-center gap-2 text-sm font-semibold text-fg">
+        {icon}
+        <span className="truncate">{title}</span>
+      </span>
+      <span className="flex-1 basis-0" />
     </div>,
     node,
   );

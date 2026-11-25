@@ -4,7 +4,7 @@ import { count } from '#src/format/count.ts';
 // reviewed, per kind of work.
 import { useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
-import { AppWindow, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
+import { AppWindow, Bot, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
@@ -48,7 +48,6 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
   return (
     <SettingsPage
       keep={`settings-agent-${agent}`}
-      title={name}
       note={
         <>
           What it learned, and what it may do.
@@ -56,7 +55,7 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
         </>
       }
     >
-      <SettingsBar title={name} back={back} backTo="Agents" />
+      <SettingsBar title={name} icon={<Bot size={16} className="shrink-0 text-muted" />} back={back} backTo="Agents" />
       <Lessons agent={agent} />
       <Sandbox agent={agent} />
       <Review agent={agent} />

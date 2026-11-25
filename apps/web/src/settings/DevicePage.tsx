@@ -109,10 +109,8 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
     <ScrollFade keep={`settings-device-${row.id}`} className="min-h-0 flex-1">
       <Page>
         <div className="flex flex-col gap-4 pb-8 pt-3">
-          <SettingsBar title={row.name} back={back} backTo="Devices" />
+          <SettingsBar title={row.name} icon={<Icon size={16} className="shrink-0 text-muted" />} back={back} backTo="Devices" />
           <div className="flex items-center gap-3">
-            <Icon size={20} className="shrink-0 text-muted" />
-            <h1 className="min-w-0 truncate text-xl font-semibold text-fg">{row.name}</h1>
             <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
               {row.kind && KIND_WORD[row.kind]}
               {row.master && ' · Master'}

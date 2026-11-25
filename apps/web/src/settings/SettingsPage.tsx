@@ -11,7 +11,8 @@ export function SettingsPage({
   children,
 }: {
   keep: string;
-  title: string;
+  /** None on a detail page, whose name the bar carries. */
+  title?: string;
   note?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
@@ -22,7 +23,7 @@ export function SettingsPage({
         <div className="flex flex-col gap-4 pb-8 pt-3">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-xl font-semibold text-fg">{title}</h1>
+              {title && <h1 className="text-xl font-semibold text-fg">{title}</h1>}
               {note && <p className="text-sm text-muted">{note}</p>}
             </div>
             {action}
