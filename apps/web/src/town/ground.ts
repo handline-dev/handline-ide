@@ -1,11 +1,11 @@
 // What the founder walks on in a drawn room, an office or the city: the room's footprints as a walk grid, and the camera's sums both ways.
 import { Vector3 } from 'three';
 import type { Ground } from '#src/town/founder.tsx';
-import type { Room } from '#src/town/room.ts';
+import { DOOR, type Room } from '#src/town/room.ts';
 import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { floorOf, type Grid, type Spot } from '#src/town/walk.ts';
-import { SCALE } from '#src/town/people.ts';
+import { FLAT, SCALE } from '#src/town/people.ts';
 import { PERSON_PX } from '#src/town/view.ts';
 
 /** `speed` in metres a second and `stride` between the two feet frames; `grid` the walk grid's step and margins (an office's when left out). */
@@ -20,7 +20,8 @@ export function groundOf(pic: Picture, frame: Frame, room: Room, walk: { speed: 
   };
   return {
     pic,
-    kinds: frame.meta.map((m) => m.kind),
+    // A door swings away from the picture's pixels of it (door.tsx), so those never cover the founder walking through it.
+    under: frame.meta.map((m) => FLAT.has(m.kind) || m.tag?.split(':')[0] === DOOR),
     floor: floorOf(room.w, room.d, frame.solid, walk.grid),
     entry: room.entry,
     speed: walk.speed,

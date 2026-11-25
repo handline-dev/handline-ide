@@ -14,6 +14,8 @@ export const NAME_HALO = css([255, 250, 240]);
 export const SWATCH = { lit: css([255, 214, 112]), dark: css([76, 88, 106]), empty: css([168, 168, 168]) };
 /** A building's name on its dark sign. */
 export const SIGN_INK = css([244, 239, 226]);
+/** What shows through an open door: a building's dim hall from the street, the daylit street from an office. */
+export const THROUGH = { indoors: css([58, 50, 46]), outdoors: css([214, 218, 214]) };
 
 export const KIND_COLOUR: Record<Kind, RGB> = {
   floor: [226, 176, 124],

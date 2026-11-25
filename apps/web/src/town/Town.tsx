@@ -58,8 +58,8 @@ export function TownTab() {
   }, [town, pins]);
   const house = picked === HQ ? hq : picked ? houseOf(picked) : undefined;
   const working = town.houses.reduce((n, h) => n + h.working, 0);
-  // The founder comes back out of a house at its own door.
-  const [left, setLeft] = useState<string>(HQ);
+  // The founder comes back out of a house at its own door; the city first shown starts at the HQ.
+  const [left, setLeft] = useState<string | null>(null);
   const enter = (key: string) => {
     setLeft(key);
     setPicked(key);
@@ -87,6 +87,7 @@ export function TownTab() {
         <Inside
           key={house.key}
           house={house}
+          cameIn={left === house.key}
           onBack={() => {
             setPicked(null);
             setMail(false);

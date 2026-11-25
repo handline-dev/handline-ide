@@ -1,7 +1,7 @@
 // The city in metres, built from boxes and cylinders as the office is (scene3d.ts draws it): city.ts's layout, a tile to U metres, with
 // each workspace a building as wide as its team, a window per seat lit while that agent works, and the street things between them.
 import { HQ, ROAD, type City, type Lot } from '#src/town/city.ts';
-import type { Block, Kind, Room } from '#src/town/room.ts';
+import { DOOR, type Block, type Kind, type Room } from '#src/town/room.ts';
 
 type RGB = [number, number, number];
 type V3 = [number, number, number];
@@ -68,9 +68,10 @@ function building(put: Put, lot: Lot, front: number) {
   const mid = (x0 + x1) / 2;
   if (hq) {
     // Glass doors, and the name over them.
+    const tag = `${DOOR}:${lot.key}`;
     put([mid - 0.6, 0, front], [mid + 0.6, 0.95, front + 0.04], 'frame', { colour: METAL });
-    put([mid - 0.55, 0, front + 0.01], [mid - 0.02, 0.9, front + 0.05], 'glass', { colour: [150, 190, 220], pattern: 0 });
-    put([mid + 0.02, 0, front + 0.01], [mid + 0.55, 0.9, front + 0.05], 'glass', { colour: [150, 190, 220], pattern: 0 });
+    put([mid - 0.55, 0, front + 0.01], [mid - 0.02, 0.9, front + 0.05], 'glass', { colour: [150, 190, 220], pattern: 0, tag });
+    put([mid + 0.02, 0, front + 0.01], [mid + 0.55, 0.9, front + 0.05], 'glass', { colour: [150, 190, 220], pattern: 0, tag });
     put([mid - 0.7, 1.12, front], [mid + 0.7, 1.36, front + 0.06], 'side', { colour: DARK, tag: `sign:${lot.key}` });
     return;
   }
@@ -99,8 +100,9 @@ function building(put: Put, lot: Lot, front: number) {
   put([x0 + 0.15, 0.08, front], [x1 - 0.15, 0.76, front + 0.03], 'frame', { colour: DARK });
   put([x0 + 0.2, 0.13, front + 0.01], [mid - 0.3, 0.71, front + 0.035], 'win', { colour: [120, 150, 176] });
   put([mid + 0.3, 0.13, front + 0.01], [x1 - 0.2, 0.71, front + 0.035], 'win', { colour: [120, 150, 176] });
-  put([mid - 0.25, 0, front + 0.01], [mid + 0.25, 0.76, front + 0.04], 'door', { colour: [150, 100, 64] });
-  put([mid - 0.18, 0.36, front + 0.04], [mid + 0.18, 0.68, front + 0.05], 'win', { colour: [120, 150, 176] });
+  const door = `${DOOR}:${lot.key}`;
+  put([mid - 0.25, 0, front + 0.01], [mid + 0.25, 0.76, front + 0.04], 'door', { colour: [150, 100, 64], tag: door });
+  put([mid - 0.18, 0.36, front + 0.04], [mid + 0.18, 0.68, front + 0.05], 'win', { colour: [120, 150, 176], tag: door });
   put([mid - 0.7, 0.8, front], [mid + 0.7, 1.02, front + 0.06], 'side', { colour: DARK, tag: `sign:${lot.key}` });
 }
 
@@ -195,8 +197,17 @@ function zebra(put: Put, x0: number, x1: number, z: number, long: number) {
   for (let x = x0; x + 0.25 <= x1; x += 0.45) put([x, 0, z], [x + 0.25, 0.004, z + long], 'lane');
 }
 
-/** Where a building is entered: the spot on the pavement before its door, and its front's span. */
-export type Door = { key: string; at: [number, number]; x0: number; x1: number; front: number };
+/** Where a building is entered: the spot on the pavement at its door, the one in its doorway, the one past the doorstep that one coming
+ *  out walks to, and its front's span. */
+export type Door = {
+  key: string;
+  at: [number, number];
+  in: [number, number];
+  out: [number, number];
+  x0: number;
+  x1: number;
+  front: number;
+};
 export type CityRoom = Room & { doors: Door[] };
 
 const CAR_COLOURS: RGB[] = [
@@ -238,7 +249,15 @@ export function cityRoom(city: City, cars: number): CityRoom {
     for (const l of lots) {
       building(put, l, front);
       const mid = (l.x + l.w / 2) * U;
-      doors.push({ key: l.key, at: [mid, front + 0.9], x0: mid - 0.4, x1: mid + 0.4, front });
+      doors.push({
+        key: l.key,
+        at: [mid, front + 0.5],
+        in: [mid, front + 0.05],
+        out: [mid, front + 1],
+        x0: mid - 0.4,
+        x1: mid + 0.4,
+        front,
+      });
     }
     // A park where the buildings leave room: grass, rows of trees, a bench facing the street.
     for (const p of city.parks.filter((p) => inside(p.x, p.y))) {

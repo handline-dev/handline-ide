@@ -1,19 +1,21 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
 // scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
 // The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it. Standing beside an
-// agent floats its chat over the room (floater.tsx), beside the founder's own desk its decisions; walking away puts it away.
+// agent floats its chat over the room (floater.tsx), beside the founder's own desk its decisions; walking away puts it away. The door
+// the founder came in by shuts behind it, and opens when it walks up into it to go back out.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WebGLRenderer } from 'three';
 import { Decisions, WORDS } from '#src/town/panel.tsx';
 import type { Decision, House, Person } from '#src/town/model.ts';
 import { Chat } from '#src/chat/Chat.tsx';
 import { Floater } from '#src/town/floater.tsx';
-import { BUBBLE, castOf, PEOPLE_SHEET, SHEET, type Cast, type Figure, type Spot } from '#src/town/people.ts';
-import { COLS, roomOf } from '#src/town/room.ts';
+import { boxOf, BUBBLE, castOf, PEOPLE_SHEET, SHEET, type Box, type Cast, type Figure, type Spot } from '#src/town/people.ts';
+import { COLS, DOOR, roomOf } from '#src/town/room.ts';
 import { viewOf } from '#src/town/view.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
-import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
+import { NAME_HALO, NAME_INK, THROUGH } from '#src/town/palette.ts';
+import { DoorSwing, type Way } from '#src/town/door.tsx';
 import { FounderDrawing, useFounder, useWalker, type Ground } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { groundOf } from '#src/town/ground.ts';
@@ -22,7 +24,7 @@ const PIXEL = { imageRendering: 'pixelated' } as const;
 
 let renderer: WebGLRenderer | null = null;
 
-type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground };
+type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground; door: Box | null };
 
 /** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
 const sigOf = (house: House, cols: number) =>
@@ -51,7 +53,8 @@ function useDrawn(house: House, cols: number | null): Drawn | null {
       const canvas = document.createElement('canvas');
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground: groundOf(pic, frame, room, { speed: 1.4, stride: 0.16 }) };
+      const ground = groundOf(pic, frame, room, { speed: 1.4, stride: 0.16 });
+      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground, door: boxOf(pic, frame, DOOR) };
       drawings.delete(key);
       drawings.set(key, { sig: at, drawn: next });
       for (const old of drawings.keys()) if (drawings.size > MOST) drawings.delete(old);
@@ -93,11 +96,14 @@ const tipOf = (p: Person) => `${p.name} · ${p.doing ?? WORDS[p.activity]}`;
 
 export function Inside({
   house,
+  cameIn,
   onBack,
   onOpen,
   onMail,
 }: {
   house: House;
+  /** The founder walked in by the door, which then shuts behind it. */
+  cameIn: boolean;
   onBack: () => void;
   onOpen: (d: Decision) => void;
   onMail: () => void;
@@ -106,10 +112,11 @@ export function Inside({
   const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
-  // Walking up into the door goes back out to the city.
+  // The door, open as the founder comes in, shuts behind it; walking up into it opens it, and then goes back out to the city.
+  const [swing, setSwing] = useState<{ way: Way; from?: FloorSpot } | null>(cameIn ? { way: 'shut' } : null);
   const founder = useWalker(drawn?.ground ?? null, house.key, ([x, z], [, dz]) => {
     const entry = drawn?.ground.entry;
-    if (entry && dz < 0 && Math.abs(x - entry[0]) < 0.35 && z < entry[1]) onBack();
+    if (!swing && entry && dz < 0 && Math.abs(x - entry[0]) < 0.35 && z < entry[1]) setSwing({ way: 'open', from: [x, z] });
   });
   const cast = drawn?.cast;
   const near = useFounder(founder, (me) => (me && cast ? nearOf(cast, me.at) : null));
@@ -186,6 +193,21 @@ export function Inside({
                   founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
                 }}
               />
+              {drawn.door && swing && (
+                <DoorSwing
+                  url={drawn.url}
+                  size={[drawn.w, drawn.h]}
+                  door={{ box: drawn.door, through: THROUGH.outdoors }}
+                  way={swing.way}
+                  onDone={() => {
+                    if (swing.way !== 'open') return setSwing(null);
+                    // Sent somewhere else while it opened: it shuts again.
+                    const [me, from] = [founder.get()?.at, swing.from];
+                    if (me && from && Math.hypot(me[0] - from[0], me[1] - from[1]) < 0.05) onBack();
+                    else setSwing({ way: 'shut' });
+                  }}
+                />
+              )}
               {drawn.cast.figures.slice(0, behind).map((f) => (
                 <Drawing key={f.person.key} figure={f} />
               ))}
