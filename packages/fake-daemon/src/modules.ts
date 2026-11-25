@@ -2,6 +2,7 @@
 // area, in the list here; daemon.ts is not touched.
 import type { Actor, Role, Topic } from '@handline/contract';
 import type { FakeAccounts } from '#src/accounts.ts';
+import type { FakeAgentContext } from '#src/agentcontext.ts';
 import type { FakeAdmin } from '#src/admin.ts';
 import type { FakeAttachments } from '#src/attachments.ts';
 import type { FakeChat } from '#src/chat.ts';
@@ -27,6 +28,7 @@ export interface ModuleHost {
   readonly work: FakeWork;
   readonly spaces: FakeWorkspaces;
   readonly rules: FakeRules;
+  readonly context: FakeAgentContext;
   readonly requests: FakeRequests;
   readonly uploads: FakeAttachments;
   readonly inbox: FakeInbox;
@@ -75,6 +77,7 @@ const AREAS: Area[] = [
   (d, _c, method, p, ok) => (d.work.owns(method) ? { value: d.work.call(method, p, ok) } : null),
   (d, c, method, p, ok) => (d.spaces.owns(method) ? { value: d.spaces.call(method, p, ok, d.actor(c)) } : null),
   (d, c, method, p, ok) => (d.rules.owns(method) ? { value: d.rules.call(method, p, ok, d.actor(c)) } : null),
+  (d, c, method, p, ok) => (d.context.owns(method) ? { value: d.context.call(method, p, ok, d.actor(c)) } : null),
   (d, _c, method, p, ok) => (d.requests.owns(method) ? { value: d.requests.call(method, p, ok) } : null),
   (d, _c, method, p, ok) => (method === 'attachment.remove' ? { value: removeAttachment(d, p, ok) } : null),
   (d, _c, method, p, ok) => (method.startsWith('attachment.') ? { value: d.uploads.call(method, p, ok) } : null),

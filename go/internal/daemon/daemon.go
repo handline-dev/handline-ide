@@ -770,6 +770,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 			taskwrites.Register(s, d.cfg.Home, d.teller(), chatwrites.DecideCard(d.env(), d.teller()))
 			taskwrites.RegisterLessons(s)
 			taskwrites.RegisterReviewLevels(s, d.cfg.Home)
+			taskwrites.RegisterAgentContext(s, d.cfg.Home)
 			deskrpc.Register(s, d.cfg.Home)
 		},
 		func(s *rpc.Server) { termchan.Register(s, d.tchan) },

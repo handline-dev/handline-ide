@@ -637,6 +637,55 @@ export interface AgentsMethods {
     /** Its live lessons (lessons.list). */
     lessons: number;
   } };
+  "agent.context": { params: {
+  agent: Who;
+}; result: {
+    /** The agent's key. */
+    agent: string;
+    /** The version in force, null when it has none. */
+    role: {
+      text: string;
+      /** Who wrote this version: a person's or agent's key, or import for text read from the old files. */
+      by: string;
+      at: Timestamp;
+    } | null;
+    /** The version in force, null when it has none. */
+    base: {
+      text: string;
+      /** Who wrote this version: a person's or agent's key, or import for text read from the old files. */
+      by: string;
+      at: Timestamp;
+    } | null;
+  } };
+  "agent.context.set": { params: {
+  agent: Who;
+  role?: string;
+  base?: string;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.memory": { params: {
+  agent: Who;
+}; result: {
+    /** The agent's key. */
+    agent: string;
+    notes: {
+      /** The frontmatter's name, else the file name without .md; agent.memory.remove takes it. */
+      name: string;
+      /** The file's name in the memory folder. */
+      file: string;
+      /** The frontmatter's description, empty when it has none. */
+      description: string;
+      /** The frontmatter's type (user, feedback, project, reference), empty when it has none. */
+      type: string;
+      /** The text after the frontmatter. */
+      body: string;
+    }[];
+  } };
+  "agent.memory.remove": { params: {
+  agent: Who;
+  name: string;
+  request_id: RequestId;
+}; result: Accepted };
 }
 
 export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -679,10 +728,14 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "access.list": { role: "owner", callers: null, write: false, since: 1 },
   "agent.review_set": { role: "owner", callers: null, write: true, since: 1 },
   "agent.review": { role: "member", callers: null, write: false, since: 1 },
+  "agent.context": { role: "member", callers: null, write: false, since: 1 },
+  "agent.context.set": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.memory": { role: "owner", callers: null, write: false, since: 1 },
+  "agent.memory.remove": { role: "owner", callers: null, write: true, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "agent.jobs" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "agent.jobs" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review" | "agent.context" | "agent.memory"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "agents.list": {"resource": "agents", "feed": "agents"},
   "agent.get": {"resource": "agent", "id": "agent", "feed": "agents"},
   "agent.timeline": {"resource": "timeline", "feed": "agents"},
@@ -695,10 +748,12 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
   "progress.get": false,
   "access.list": {"resource": "access", "id": "agent", "feed": "agents"},
   "agent.review": false,
+  "agent.context": false,
+  "agent.memory": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
@@ -726,4 +781,6 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move
   "access.grant": {"kind": "decided", "label": "allow access"},
   "access.revoke": {"kind": "decided", "label": "remove access"},
   "agent.review_set": {"kind": "decided", "label": "set a review level"},
+  "agent.context.set": {"kind": "decided", "label": "change an agent's role or standing context"},
+  "agent.memory.remove": {"kind": "decided", "label": "remove a memory note"},
 };

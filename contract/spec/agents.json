@@ -3921,6 +3921,288 @@
    "x-write": false,
    "x-app-cache": false,
    "x-since": 1
+  },
+  {
+   "name": "agent.context",
+   "summary": "An agent's role and standing context as its launch carries them: the version of each in force, with who wrote it and when. A temp's are the agent's it was hired from.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "agent": {
+       "type": "string",
+       "description": "The agent's key."
+      },
+      "role": {
+       "oneOf": [
+        {
+         "type": "object",
+         "properties": {
+          "text": {
+           "type": "string"
+          },
+          "by": {
+           "type": "string",
+           "description": "Who wrote this version: a person's or agent's key, or import for text read from the old files."
+          },
+          "at": {
+           "$ref": "#/components/schemas/Timestamp"
+          }
+         },
+         "required": [
+          "text",
+          "by",
+          "at"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The version in force, null when it has none."
+      },
+      "base": {
+       "oneOf": [
+        {
+         "type": "object",
+         "properties": {
+          "text": {
+           "type": "string"
+          },
+          "by": {
+           "type": "string",
+           "description": "Who wrote this version: a person's or agent's key, or import for text read from the old files."
+          },
+          "at": {
+           "$ref": "#/components/schemas/Timestamp"
+          }
+         },
+         "required": [
+          "text",
+          "by",
+          "at"
+         ]
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "The version in force, null when it has none."
+      }
+     },
+     "required": [
+      "agent",
+      "role",
+      "base"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "Not found (`not_found`, data.what `agent`): no such agent."
+  },
+  {
+   "name": "agent.context.set",
+   "summary": "The founder replaces an agent's role, standing context or both, as a new version written by them. It applies when the agent next starts fresh: a running session is never restarted for it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "role",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The whole new role text."
+    },
+    {
+     "name": "base",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The whole new standing context."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "change an agent's role or standing context"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Bad request (`bad_request`): neither role nor base, an empty text, or a control character other than tab and newline. A text the same as the version in force writes nothing and says so. A temp has no texts of its own: this replaces those of the agent it was hired from, and said names that agent. No such agent is not_found, data.what `agent`."
+  },
+  {
+   "name": "agent.memory",
+   "summary": "An agent's memory notes: one per Markdown file in its memory folder, in the order its MEMORY.md index lists them, then the rest by file name. A temp's are the agent's it was hired from.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "agent": {
+       "type": "string",
+       "description": "The agent's key."
+      },
+      "notes": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "name": {
+          "type": "string",
+          "description": "The frontmatter's name, else the file name without .md; agent.memory.remove takes it."
+         },
+         "file": {
+          "type": "string",
+          "description": "The file's name in the memory folder."
+         },
+         "description": {
+          "type": "string",
+          "description": "The frontmatter's description, empty when it has none."
+         },
+         "type": {
+          "type": "string",
+          "description": "The frontmatter's type (user, feedback, project, reference), empty when it has none."
+         },
+         "body": {
+          "type": "string",
+          "description": "The text after the frontmatter."
+         }
+        },
+        "required": [
+         "name",
+         "file",
+         "description",
+         "type",
+         "body"
+        ]
+       }
+      }
+     },
+     "required": [
+      "agent",
+      "notes"
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "description": "Not found (`not_found`, data.what `agent`): no such agent."
+  },
+  {
+   "name": "agent.memory.remove",
+   "summary": "The founder removes one of an agent's memory notes: its file, and its line in MEMORY.md; nothing else changes.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "name",
+     "required": true,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The note's name as agent.memory gives it, or its file. A name two notes share is refused: name one by its file."
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "remove a memory note"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Not found (`not_found`, data.what `memory`): no note of that name; data.what `agent`: no such agent. Bad request (`bad_request`, field name): a name two notes share. The file goes first, then its MEMORY.md line, which is rewritten whole and renamed into place; a line linking outside the folder is never taken."
   }
  ]
 }

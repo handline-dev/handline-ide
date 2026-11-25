@@ -12,6 +12,7 @@ import { FakeInbox } from '#src/inbox.ts';
 import { FakeWork } from '#src/workroom.ts';
 import { FakeWorkspaces } from '#src/workspaces.ts';
 import { FakeRules } from '#src/workspacerules.ts';
+import { FakeAgentContext } from '#src/agentcontext.ts';
 import { FakeRequests } from '#src/requests.ts';
 import { FakeTasks } from '#src/tasks.ts';
 import { FakeAttachments } from '#src/attachments.ts';
@@ -62,6 +63,8 @@ export class FakeDaemon {
   readonly spaces: FakeWorkspaces = new FakeWorkspaces(this);
   /** The kept rules: workspace.rules and the owner's workspace.rule.set. */
   readonly rules = new FakeRules(this);
+  /** An agent's role, standing context and memory notes: agent.context and agent.memory, and the owner's writes to them. */
+  readonly context = new FakeAgentContext(this);
   /** hello's capabilities.transcript: chat.send takes parent_item. */
   readonly replyItems: boolean;
   readonly serveChat: boolean;

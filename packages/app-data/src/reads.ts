@@ -51,6 +51,9 @@ export const NOT_QUERIES = [
   // Read by useLessons and useAgentReview.
   'lessons.list',
   'agent.review',
+  // An agent's role, standing context and memory notes: read by the agent settings screen once it shows them.
+  'agent.context',
+  'agent.memory',
   // The worktree pool's desks, read by useDesks.
   'desks.list',
   // The terminal's address (member); no screen reads it.

@@ -44,6 +44,10 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `access.list` | owner |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
 | `agent.review_set` | owner | yes | `agent`, `work`, `level`, `request_id` | `Accepted` | `refused`, `bad_request` |  | decided: set a review level |
 | `agent.review` | member |  | `agent` | `{agent, ladder, lessons}` |  |  | not cached |
+| `agent.context` | member |  | `agent` | `{agent, role, base}` | `not_found` |  | not cached |
+| `agent.context.set` | owner | yes | `agent`, `role?`, `base?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: change an agent's role or standing context |
+| `agent.memory` | owner |  | `agent` | `{agent, notes}` | `not_found` |  | not cached |
+| `agent.memory.remove` | owner | yes | `agent`, `name`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: remove a memory note |
 
 ### `agents.list`
 
@@ -200,4 +204,20 @@ The founder sets how many of an agent's finished tasks of one kind of work come 
 ### `agent.review`
 
 How the founder checks an agent's work, per kind of work it has done: each kind's level, its record at that level (the founder's first verdict on each task of that kind it finished, the last ten, newest last), the level the record offers, and its lesson count.
+
+### `agent.context`
+
+An agent's role and standing context as its launch carries them: the version of each in force, with who wrote it and when. A temp's are the agent's it was hired from. Not found (`not_found`, data.what `agent`): no such agent.
+
+### `agent.context.set`
+
+The founder replaces an agent's role, standing context or both, as a new version written by them. It applies when the agent next starts fresh: a running session is never restarted for it. Bad request (`bad_request`): neither role nor base, an empty text, or a control character other than tab and newline. A text the same as the version in force writes nothing and says so. A temp has no texts of its own: this replaces those of the agent it was hired from, and said names that agent. No such agent is not_found, data.what `agent`.
+
+### `agent.memory`
+
+An agent's memory notes: one per Markdown file in its memory folder, in the order its MEMORY.md index lists them, then the rest by file name. A temp's are the agent's it was hired from. Not found (`not_found`, data.what `agent`): no such agent.
+
+### `agent.memory.remove`
+
+The founder removes one of an agent's memory notes: its file, and its line in MEMORY.md; nothing else changes. Not found (`not_found`, data.what `memory`): no note of that name; data.what `agent`: no such agent. Bad request (`bad_request`, field name): a name two notes share. The file goes first, then its MEMORY.md line, which is rewritten whole and renamed into place; a line linking outside the folder is never taken.
 
