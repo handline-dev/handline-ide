@@ -2187,12 +2187,50 @@
      "created_by": {
       "type": "string",
       "description": "Who wrote it: the agent, or the agent that merged it."
+     },
+     "area": {
+      "type": "string",
+      "enum": [
+       "screen",
+       "work"
+      ],
+      "description": "A person's rule only: what kind of work it is about. text is then the rule alone, without its area or count."
+     },
+     "count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many times the person said it; 1 for an agent's own lesson and for a rule not counted."
+     },
+     "quote": {
+      "type": "object",
+      "description": "A person's rule only, when one was kept: the person's own words it came from, once, and where they were said: a comment on task, or a chat message.",
+      "properties": {
+       "text": {
+        "type": "string"
+       },
+       "task": {
+        "type": "integer",
+        "description": "The task the words were said on; absent for none."
+       },
+       "comment": {
+        "type": "integer",
+        "description": "The task comment the words are; absent for a chat message."
+       },
+       "message": {
+        "type": "string",
+        "description": "The chat message the words are, by its name (msg_<hash>); absent for a comment."
+       }
+      },
+      "required": [
+       "text"
+      ]
      }
     },
     "required": [
      "id",
      "agent",
      "text",
+     "count",
      "created_at",
      "created_by"
     ]

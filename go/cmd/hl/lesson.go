@@ -81,11 +81,7 @@ func lesson(c *hlclient.Client, args []string) (int, bool) {
 		}
 		for _, it := range items {
 			l, _ := it.(map[string]any)
-			line := fmt.Sprintf("%v  %s", l["id"], textsafe.Text(fmt.Sprint(l["text"])))
-			if t, ok := l["task"]; ok && t != nil {
-				line += fmt.Sprintf("  (T%v)", t)
-			}
-			fmt.Println(line)
+			fmt.Println(lessonLine(l))
 		}
 		fmt.Printf("%v of %v bytes\n", got["bytes"], got["cap"])
 		return 0, true
@@ -108,4 +104,24 @@ func about(p parsed) (map[string]any, bool) {
 		ref = n
 	}
 	return map[string]any{"about": who, "said": ref}, true
+}
+
+// lessonLine is one lesson as hl lesson list shows it. A person's rule leads with its area as it is written ("Screen: "), so a merge
+// that copies it keeps its area, and ends with how often it was said.
+func lessonLine(l map[string]any) string {
+	text := textsafe.Text(fmt.Sprint(l["text"]))
+	switch l["area"] {
+	case "screen":
+		text = "Screen: " + text
+	case "work":
+		text = "Work: " + text
+	}
+	line := fmt.Sprintf("%v  %s", l["id"], text)
+	if n := num(l, "count"); n > 1 {
+		line += fmt.Sprintf("  (said %d times)", n)
+	}
+	if t, ok := l["task"]; ok && t != nil {
+		line += fmt.Sprintf("  (T%v)", t)
+	}
+	return line
 }
