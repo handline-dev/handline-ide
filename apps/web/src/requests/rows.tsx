@@ -150,7 +150,7 @@ function Line({
     // The check box sits beside the row's button, not inside it: a box in a button is no box to the keyboard.
     <div
       data-pick-key={pick ? row.key : undefined}
-      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${picked || chosen ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : apart ? 'opacity-40' : ''}`}
+      className={`group/line relative flex ${lead !== undefined ? 'border-b border-border' : 'rounded-md'} ${chosen ? 'bg-selected' : 'hover:bg-hover/30'} ${hinted} ${busy ? 'pointer-events-none opacity-50' : apart ? 'opacity-40' : ''}`}
     >
       {pick && (
         <input

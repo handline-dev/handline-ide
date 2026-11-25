@@ -4,7 +4,7 @@ import { Ago } from '#src/ui/Ago.tsx';
 // finished are in Tasks (My requests). The bell's popover previews the turn and the finished.
 import { ListLoading } from '#src/ui/Loading.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Children, isValidElement, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { Children, isValidElement, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { spring } from '#src/motion.ts';
 import { Lightbulb, ListChecks } from 'lucide-react';
 import type { PendingRequest, Proposal, Task } from '@handline/client';
@@ -14,7 +14,18 @@ import { Button } from '#src/ui/Button.tsx';
 import { useNameOf, useProposals, useTasks } from '@handline/app-data';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { laterWords, pickAllState, pickGroup, turnKey, turnRow, type Picked } from '@handline/app-core';
+import {
+  isPainted,
+  laterWords,
+  pickAllState,
+  pickGroup,
+  requestClick,
+  turnKey,
+  turnRow,
+  type Picked,
+  type RowAim,
+} from '@handline/app-core';
+import { goToTurnOf, showMemo } from '#src/tools/TaskTurn.ts';
 import { useRequests } from '#src/requests/data.ts';
 import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
 import { HereWord } from '#src/connection/ClusterWord.tsx';
@@ -154,14 +165,23 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
   // The rows the split view shows (a task's, or a proposal), in list order: it steps through them.
   const showable = [...r.turn, ...r.notes, ...r.later.map((l) => l.x)].filter((x) => x.p.task !== null || isProposal(x.p));
   type Chosen = { key: string | null; at: number; task: number | null; proposal?: number; cluster: string };
-  const [{ key: chosenKey, at: lastAt, task: chosenTask, proposal: chosenProposal, cluster: chosenCluster }, setChosen] = useState<Chosen>({
-    key: null,
-    at: 0,
-    task: null,
-    cluster: '',
-  });
+  // Kept with the tab, so leaving Requests and coming back shows the same row.
+  const [{ key: chosenKey, at: lastAt, task: chosenTask, proposal: chosenProposal, cluster: chosenCluster }, setChosen] =
+    useTabState<Chosen>('chosen', {
+      key: null,
+      at: 0,
+      task: null,
+      cluster: '',
+    });
   const choose = (x: At, i: number) =>
     setChosen({ key: keyOf(x), at: i, task: x.p.task, proposal: isProposal(x.p) ? Number(x.p.id) : undefined, cluster: x.cluster });
+  // A click: a row of the task already beside the list brings its own content into view there, not the task again (requestClick).
+  const click = (aim: RowAim, pick: () => void) => {
+    const { scroll } = requestClick(shown, aim);
+    pick();
+    if (scroll === 'turn') goToTurnOf(aim.task!);
+    else if (scroll) showMemo(scroll.memo);
+  };
   const found = showable.findIndex((x) => keyOf(x) === chosenKey);
   // A shown row that left the list (answered, put off) stays shown; until one is chosen, the first.
   const left = found < 0 && (chosenTask !== null || chosenProposal !== undefined);
@@ -201,8 +221,15 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
           until={until}
           full
           word={several && <HereWord />}
-          chosen={!!chosen && keyOf(chosen) === keyOf(x)}
-          onPick={split && x.p.task !== null ? () => choose(x, showable.indexOf(x)) : undefined}
+          chosen={!!chosen && isPainted(keyOf(chosen), keyOf(x))}
+          onPick={
+            split && x.p.task !== null
+              ? () =>
+                  click({ key: keyOf(x), task: x.p.task, memo: x.p.source === 'comment' && x.p.id ? Number(x.p.id) : undefined }, () =>
+                    choose(x, showable.indexOf(x)),
+                  )
+              : undefined
+          }
         />
       </NoPick>
     </InCluster>
@@ -239,11 +266,14 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
                 {all.map((a) => (
                   <InCluster key={a.cluster} id={a.cluster}>
                     <Decided
-                      shown={shownIn === a.cluster ? shown : null}
+                      painted={(id) => isPainted(chosenKey, `${a.cluster}/decided:${id}`)}
                       word={several && <HereWord />}
                       onPick={
                         split
-                          ? (id) => setChosen({ key: `${a.cluster}/decided:${id}`, at: lastAt, task: id, cluster: a.cluster })
+                          ? (id) =>
+                              click({ key: `${a.cluster}/decided:${id}`, task: id }, () =>
+                                setChosen({ key: `${a.cluster}/decided:${id}`, at: lastAt, task: id, cluster: a.cluster }),
+                              )
                           : undefined
                       }
                     />
@@ -287,10 +317,10 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
 const PAGE = 10;
 const EVER = new Date(0).toISOString();
 
-function Decided({ shown, onPick, word }: { shown: number | null; onPick?: (task: number) => void; word?: ReactNode }) {
+function Decided({ painted, onPick, word }: { painted: (task: number) => boolean; onPick?: (task: number) => void; word?: ReactNode }) {
   // One read that grows (the daemon's newest decisions first, at most 200): it stays live as decisions come, and Show more asks for
   // ten more, which come below.
-  const [limit, setLimit] = useState(PAGE);
+  const [limit, setLimit] = useTabState('decided-limit', PAGE);
   const q = useTasks({ decided_since: EVER, order: 'decided', limit });
   // HR proposals the founder answered: each state read whole (proposal.list with a state has no 7-day bound).
   const approved = useProposals({ state: 'approved' }).data?.proposals ?? [];
@@ -322,7 +352,7 @@ function Decided({ shown, onPick, word }: { shown: number | null; onPick?: (task
               key={`task:${d.t.id}`}
               t={d.t}
               who={nameOf(d.t.to)}
-              chosen={shown === d.t.id}
+              chosen={painted(d.t.id)}
               onPick={onPick && (() => onPick(d.t.id))}
             />
           ) : (

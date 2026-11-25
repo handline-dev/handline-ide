@@ -1,7 +1,8 @@
 // A workspace at a glance: what needs you, five numbers, and who waits on whom; its folders and rules under Settings.
 import { Hooks, useAgents, useTasks, useWorkspaceRules, type RuleRow } from '@handline/app-data';
 import type { AgentView as Agent, PendingRequest, Stats, Task } from '@handline/client';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useTabState } from '#src/persist/tabState.ts';
 import { activityOf } from '#src/layout/agentList.ts';
 import { useNow } from '#src/format/time.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -164,7 +165,7 @@ function Settings({ ws }: { ws: string }) {
 export function WorkspacePage({ ws }: { ws: string }) {
   const list = Hooks.useWorkspacesList().data;
   const name = list?.workspaces.find((w) => w.key === ws)?.name;
-  const [tab, setTab] = useState<'overview' | 'settings'>('overview');
+  const [tab, setTab] = useTabState<'overview' | 'settings'>('view', 'overview');
   if (!list) return null;
   if (!name) return <p className="p-6 text-sm text-muted">This workspace is gone.</p>;
   return (
