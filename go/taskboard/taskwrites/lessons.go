@@ -5,15 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/requestref"
+	"github.com/handline/handline/go/taskboard/rulesfold"
 )
 
 // lessonMost is the most bytes one lesson takes, so no one lesson fills the cap.
@@ -217,14 +220,38 @@ func lessonsList(c *rpc.Conn, p map[string]any) (any, error) {
 	}
 	items := make([]any, 0, len(live))
 	for _, l := range live {
-		it := map[string]any{"id": l.ID, "agent": l.Agent, "text": l.Text, "created_by": l.CreatedBy,
+		it := map[string]any{"id": l.ID, "agent": l.Agent, "text": l.Text, "count": 1, "created_by": l.CreatedBy,
 			"created_at": time.Unix(l.CreatedAt, 0).UTC().Format(time.RFC3339)}
 		if l.Task != 0 {
 			it["task"] = l.Task
 		}
+		if actor.IsPerson(agent) {
+			ruleView(it, rulesfold.FromLesson(l))
+		}
 		items = append(items, it)
 	}
 	return map[string]any{"agent": agent, "items": items, "bytes": len(db.Section(agent, live)), "cap": db.LessonsCap}, nil
+}
+
+// ruleView puts a person's rule into its lesson's row: its area, the rule alone as text, how often it was said, and the one quote kept,
+// with the comment or chat message it was said in.
+func ruleView(it map[string]any, r rulesfold.Rule) {
+	it["area"], it["text"], it["count"] = r.Area, r.Text, r.Count
+	if r.QuoteRef == "" {
+		return
+	}
+	q := map[string]any{"text": r.Quote}
+	if r.Task != 0 {
+		q["task"] = r.Task
+	}
+	if n, ok := strings.CutPrefix(r.QuoteRef, "comment "); ok {
+		if id, err := strconv.ParseInt(n, 10, 64); err == nil {
+			q["comment"] = id
+		}
+	} else if strings.HasPrefix(r.QuoteRef, db.MsgPrefix) {
+		q["message"] = r.QuoteRef
+	}
+	it["quote"] = q
 }
 
 func lessonRemove(c *rpc.Conn, p map[string]any) (any, error) {
