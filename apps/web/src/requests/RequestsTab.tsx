@@ -11,14 +11,16 @@ import type { PendingRequest, Proposal, Task } from '@handline/client';
 import { ProposalView } from '#src/requests/ProposalView.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { Button } from '#src/ui/Button.tsx';
-import { useNameOf, useProposals, useTasks } from '@handline/app-data';
+import { useDirectory, useNameOf, useProposals, useTasks } from '@handline/app-data';
 import { chatOf, taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import {
+  decidedTitle,
   isPainted,
   laterWords,
   pickAllState,
   pickGroup,
+  plainRefs,
   requestClick,
   turnKey,
   turnRow,
@@ -378,6 +380,7 @@ const ANSWER: Record<string, string> = { approved: 'Allowed', rejected: 'Denied'
  *  chat, as its Your turn row did. */
 function DecidedProposal({ x }: { x: Proposal }) {
   const nameOf = useNameOf();
+  const dir = useDirectory();
   const asker = x.requested_by ?? x.agent;
   const open = useOpenable(chatOf(asker));
   return (
@@ -387,7 +390,7 @@ function DecidedProposal({ x }: { x: Proposal }) {
           <span className="grid h-lh w-4 shrink-0 self-start place-items-center text-muted">
             <Lightbulb size={16} />
           </span>
-          <span className="truncate font-medium text-fg">{x.title}</span>
+          <span className="truncate font-medium text-fg">{decidedTitle(x, nameOf, (t) => plainRefs(dir, t))}</span>
           <span className="shrink-0 text-muted">{nameOf(asker)}</span>
           <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">
             <Ago at={x.settled!} />
