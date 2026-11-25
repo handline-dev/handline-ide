@@ -515,23 +515,36 @@ func (b *Timebox) SweepForgottenResolveCapped(t *Tick, now int64) {
 	}
 }
 
-// heldAskPrefix + <task id> is the cursor holding the request of that task's held ask (SweepHeldTaskAfterClose).
+// heldAskPrefix + <task id> is the cursor holding the request of that task's held ask (SweepHeldTaskAfterClose) until the ask lands.
 const heldAskPrefix = "held_ask_rid:"
 
-// withdrawStaleHeldAsks takes back each held task's ask its agent has not been given yet once the task is no longer its doing task (done,
-// discarded, handed on or released), so an agent closed for days does not wake to asks about tasks long gone. The task then counts as
-// never asked, and notices folded into the ask stay queued without it.
-func (b *Timebox) withdrawStaleHeldAsks(t *Tick) {
+// settleHeldAsks follows each held ask until it leaves the queue; held_asked then moves to its landing, or to when it left unlanded
+// (withdrawn, closed). Queued and not yet typed, it waits while the task is the agent's doing task and is taken back once it is not, the
+// task then counting as never asked (notices folded into it stay queued).
+func (b *Timebox) settleHeldAsks(t *Tick) {
 	for name, rid := range must(db.CursorsWithPrefix(t.Q, heldAskPrefix)) {
 		tid, err := strconv.ParseInt(strings.TrimPrefix(name, heldAskPrefix), 10, 64)
-		if req := must(db.GetRequest(t.Q, rid)); err == nil && req != nil && req.State == "queued" && !req.DeliveredAt.Valid {
+		asked := fmt.Sprintf("held_asked:%d", tid)
+		req := must(db.GetRequest(t.Q, rid))
+		switch {
+		case err != nil: // not a task id: dropped
+		case req == nil:
+			check(db.ClearCursor(t.Q, asked))
+		case req.LandedAt.Valid:
+			check(db.SetCursor(t.Q, asked, max(must(db.Cursor(t.Q, asked)), req.LandedAt.Int64)))
+		case req.State != "queued":
+			check(db.SetCursor(t.Q, asked, max(must(db.Cursor(t.Q, asked)), req.StateAt.Int64)))
+		case req.DeliveredAt.Valid:
+			continue // being typed: it lands or is owed again
+		default:
 			if task := must(db.GetTask(t.Q, tid)); task != nil && task.Acting == req.Target && b.Ports.TaskDoing(t.Q, task) {
 				continue
 			}
-			if must(db.TakeBackSay(t.Q, rid)) {
-				check(db.ClearCursor(t.Q, fmt.Sprintf("held_asked:%d", tid)))
-				t.logf("  %s: T%d is no longer its doing task - its held ask %d taken back", req.Target, tid, rid)
+			if !must(db.TakeBackSay(t.Q, rid)) {
+				continue
 			}
+			check(db.ClearCursor(t.Q, asked))
+			t.logf("  %s: T%d is no longer its doing task - its held ask %d taken back", req.Target, tid, rid)
 		}
 		check(db.ClearCursor(t.Q, name))
 	}
@@ -539,11 +552,11 @@ func (b *Timebox) withdrawStaleHeldAsks(t *Tick) {
 
 // SweepHeldTaskAfterClose: an agent whose session closed while it held a doing task that waits on nothing has no new delivery to wake it, so
 // nothing would ever tell it to act. It is woken once per task with a say that asks it to do the task, hand it on, mark what blocks it or put
-// the founder on it, and carries the notices waiting for it. If the session the ask woke closes with nothing done on the task (no memo, no
-// turn or command of its own beyond the ask's), the task goes to whom it answers to, so the tasks queued behind it move. An agent that did
-// work is asked anew at a later close. An ask still queued when its task is no longer the agent's doing task is taken back.
+// the founder on it, and carries the notices waiting for it. If the session given the ask closes with nothing done on the task (no memo, no
+// turn or command of its own beyond the ask's), the task goes to whom it answers to, so the tasks queued behind it move; until the ask is
+// given (settleHeldAsks) the task stays. An agent that did work is asked anew at a later close.
 func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
-	b.withdrawStaleHeldAsks(t)
+	b.settleHeldAsks(t)
 	for _, agent := range t.Host.Agents() {
 		row := must(db.GetAgentState(t.Q, agent))
 		if row == nil || !row.ClosedAt.Valid || row.ClosedAt.Int64 == 0 {
@@ -556,6 +569,9 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 		}
 		key := fmt.Sprintf("held_asked:%d", tid)
 		asked := must(db.Cursor(t.Q, key))
+		if asked != 0 && must(db.Cursor(t.Q, heldAskPrefix+strconv.FormatInt(tid, 10))) != 0 {
+			continue // the ask is not given yet
+		}
 		// closed again since the ask: if the session the ask woke did something on the task, the ask is answered, and a later close asks anew
 		if asked != 0 && row.ClosedAt.Int64 > asked && b.workedSince(t, agent, tid, asked) {
 			check(db.ClearCursor(t.Q, key))
