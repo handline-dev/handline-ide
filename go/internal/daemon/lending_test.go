@@ -48,7 +48,7 @@ func TestAJoinedMachineIsItsPersonsDeviceOnOffAndOnlyTheyRunPauseOrTakeItBack(t 
 	if box == nil {
 		t.Fatalf("redeem: %v", r)
 	}
-	door, _, _ := d.dev.Doors("")
+	door, _ := d.dev.Doors()
 	miaCode, _ := d.dev.PairAt(time.Minute, door, "p2")
 	mia := joinAs(t, d, miaCode, "mia-mac", "mac", "n-mia")["result"].(map[string]any)
 

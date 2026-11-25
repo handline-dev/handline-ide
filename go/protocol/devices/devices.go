@@ -110,8 +110,8 @@ type Manager struct {
 	BeforeRevoke func(id string)
 	// PushPlatforms is the platforms the daemon has push credentials for; none is push off.
 	PushPlatforms []string
-	// Doors finds the door a device.pair address names ("" the default one), or answers the hosts that are served; the daemon sets it.
-	Doors func(host string) (d Door, served []string, ok bool)
+	// Doors is the door a pairing names, Handline's pick; ok is false while no door is open. The daemon sets it.
+	Doors func() (d Door, ok bool)
 	// Self is the master's own node id: its own device (EnsureOwn) is not listed, set or revoked, as no one paired it.
 	Self string
 }
@@ -158,7 +158,7 @@ func newCode() string {
 func (m *Manager) Pair(ttl time.Duration) (c string, expires time.Time, link string) {
 	var door Door
 	if m.Doors != nil {
-		door, _, _ = m.Doors("")
+		door, _ = m.Doors()
 	}
 	c, expires = m.PairAt(ttl, door, "")
 	return c, expires, WebLink(door, c)

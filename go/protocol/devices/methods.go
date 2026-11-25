@@ -57,15 +57,9 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 			ttl = time.Duration(n) * time.Second
 		}
 		// name is only a hint for the one who scans the code: the device is listed under the name it redeems with.
-		host, isText := p["address"].(string)
-		if p["address"] != nil && !isText {
-			return nil, rpc.BadRequestError("address is a host from connection.addresses", "address", rpc.InvalidParams)
-		}
-		door, served, ok := m.Doors(host) // "" is the default door
+		door, ok := m.Doors()
 		if !ok {
-			e := rpc.Refused("address is not a host the daemon listens on: one of "+strings.Join(served, ", "), "address", "")
-			e.Data["addresses"] = served
-			return nil, e
+			return nil, off()
 		}
 		person := personOf(c)
 		if v, has := p["person"]; has { // the owner makes the link of a person they invited

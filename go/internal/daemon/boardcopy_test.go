@@ -99,7 +99,7 @@ func TestTheOwnersRunnerKeepsACopyOfTheBoardAndAnotherPersonsNone(t *testing.T) 
 	}
 	t.Cleanup(func() { os.RemoveAll(kimHome) })
 	kimNode, _ := joined.NodeID(kimHome, nil)
-	door, _, _ := master.dev.Doors("")
+	door, _ := master.dev.Doors()
 	code, _ := master.dev.PairAt(time.Minute, door, "p2")
 	uri := devices.WebLink(door, code)
 	km, err := hlclient.Join(kimHome, uri, "kim-box", "server", kimNode)

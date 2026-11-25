@@ -73,5 +73,5 @@ Both files are given together or not at all.
 - **CA-trusted.** `tailscale cert HOST.TAILNET.ts.net` writes `HOST.TAILNET.ts.net.crt` and `.key`; give those to `-cert`/`-key` and
   `-advertise HOST.TAILNET.ts.net:PORT`. Browsers accept it without a warning.
 
-`device.pair` returns `{code, expires_at, fingerprint, uri}`; `uri` is `handline://pair?host=ADDRESS&fp=FINGERPRINT&code=CODE`, the address
-being `-advertise` or the listening address; `fp` is absent in plain mode.
+`device.pair` returns `{code, expires_at, fingerprint, web_link}`; `web_link` is `http(s)://HOST:PORT/#pair=CODE`, with `&fp=FINGERPRINT`
+on a self-made certificate, the host being Handline's pick (the Tailscale name, else the Wi-Fi address), `-advertise` or the listener.

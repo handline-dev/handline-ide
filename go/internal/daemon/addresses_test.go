@@ -243,6 +243,9 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	if len(listeners(d)) != 0 {
 		t.Fatalf("an empty choice still serves %v", listeners(d))
 	}
+	if r := call(t, c, "device.pair", `{}`); gate(r) != "network" {
+		t.Fatalf("a pairing with no door open: %v", r)
+	}
 	setAddresses(t, c, `null`)
 	if l := listeners(d); len(l) != 1 || l[0].Addr != boundAddr(t, d, loopback) {
 		t.Fatalf("clearing the choice does not bring back the -listen door: %v", l)
@@ -267,12 +270,13 @@ func TestASettingNamingAHostThisMachineDoesNotHaveIsRefused(t *testing.T) {
 	}
 }
 
-func TestDevicePairNamesTheChosenHostInItsLinkAndRefusesAnyOther(t *testing.T) {
+// With neither a Tailscale name nor a Wi-Fi address to pick, a pairing names the host the setting chose.
+func TestDevicePairNamesTheChosenHostInItsLink(t *testing.T) {
 	d, c := startDoors(t, true)
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindLAN, IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
+	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
 	setAddresses(t, c, `["mac.local"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
-	res := call(t, c, "device.pair", `{"address":"mac.local"}`)["result"].(map[string]any)
+	res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)
 	if res["fingerprint"] == "" || res["web_link"] != "https://mac.local:"+port+"/#pair="+res["code"].(string)+"&fp="+res["fingerprint"].(string) {
 		t.Fatalf("%v", res)
 	}
@@ -282,12 +286,6 @@ func TestDevicePairNamesTheChosenHostInItsLinkAndRefusesAnyOther(t *testing.T) {
 	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "10.0.0.9"); err != nil || dev.Address != "mac.local" {
 		t.Fatalf("%v %v", dev, err)
 	}
-	r := call(t, c, "device.pair", `{"address":"10.0.0.7"}`)
-	data, _ := r["error"].(map[string]any)["data"].(map[string]any)
-	if gate(r) != "address" || !reflect.DeepEqual(data["addresses"], []any{"127.0.0.1", "mac.local"}) {
-		t.Fatalf("a host not served was paired: %v", r)
-	}
-
 	// Choosing another host answers with the device that was paired on the one dropped.
 	if r := setAddresses(t, c, `["127.0.0.1"]`); !reflect.DeepEqual(r["unreachable_devices"], []any{"phone"}) {
 		t.Fatalf("%v", r)
@@ -409,21 +407,19 @@ func TestWithChosenAddressesALoopbackDoorThatCannotBeBoundFailsTheStartAndAnothe
 	}
 }
 
+// The pairing names the MagicDNS name, which Handline picks while Tailscale is up, though the setting lists only the plain IP.
 func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsChosen(t *testing.T) {
 	d, c := startDoors(t, true)
 	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
 		netAddress{Host: "mac.tail1.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
 	setAddresses(t, c, `["127.0.0.1"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
-	res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any)
+	res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)
 	if res["fingerprint"] != "" || res["web_link"] != "http://mac.tail1.ts.net:"+port+"/#pair="+res["code"].(string) {
 		t.Fatalf("web link %v", res["web_link"])
 	}
 	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "100.64.0.9"); err != nil || dev.Address != "mac.tail1.ts.net" {
 		t.Fatalf("%v %v", dev, err)
-	}
-	if res := call(t, c, "device.pair", `{"address":"mac.tail1.ts.net"}`)["result"]; res == nil {
-		t.Fatalf("the MagicDNS name of a chosen Tailscale IP is refused")
 	}
 	if h := d.net.hosts(); !reflect.DeepEqual(h, []string{"127.0.0.1", "mac.tail1.ts.net"}) {
 		t.Fatalf("hosts %v", h)
@@ -444,7 +440,7 @@ func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsCh
 	// Without a MagicDNS name the IP is named as before.
 	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
 	d.net.relisten()
-	if res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any); !strings.Contains(res["web_link"].(string), "//127.0.0.1:") {
+	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["web_link"].(string), "//127.0.0.1:") {
 		t.Fatalf("%v", res)
 	}
 }

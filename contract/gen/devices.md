@@ -6,7 +6,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
 | `devices.list` | member |  | none | `{devices, push_platforms}` |  |  | `devices`, fed by devices |
-| `device.pair` | member | yes | `name?`, `ttl_s?`, `address?`, `person?`, `request_id` | `Accepted & {code, expires_at, fingerprint, web_link}` | `refused` |  | decided: pair |
+| `device.pair` | member | yes | `name?`, `ttl_s?`, `person?`, `request_id` | `Accepted & {code, expires_at, fingerprint, web_link}` | `refused` | network | decided: pair |
 | `device.redeem` | anonymous | yes | `code`, `name`, `kind?`, `node?`, `request_id` | `Accepted & {token, device}` | `refused` | pairing_code, attempt_limit, already_joined | not from the app |
 | `device.revoke` | member | yes | `device`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: revoke |
 | `device.set` | member | yes | `device`, `lending?`, `memory_max_gb?`, `request_id` | `Accepted` | `refused`, `not_found` | person, kind | decided: set |
@@ -33,7 +33,7 @@ Paired devices with last seen and whether each is connected. The owner sees ever
 
 ### `device.pair`
 
-Make a one-time pairing code. Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply's `web_link` is the one link a device is given; on a self-made certificate it carries the fingerprint, which a client pins, refusing any other certificate. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.
+Make a one-time pairing code. Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply's `web_link` is the one link a device is given; on a self-made certificate it carries the fingerprint, which a client pins, refusing any other certificate. The link names Handline's pick: the Tailscale name while Tailscale is up, else the first LAN (Wi-Fi) address, served though network_addresses does not list it (not when the list is empty, and not while -advertise names the address); with neither, -advertise or the listener. With no door open it is refused, gate `network`. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.
 
 ### `device.redeem`
 

@@ -488,14 +488,6 @@
      }
     },
     {
-     "name": "address",
-     "required": false,
-     "schema": {
-      "type": "string",
-      "description": "A host a door serves, while Connect a device still offers a choice; absent is Handline's pick: the Tailscale name while Tailscale is up, else the first LAN (Wi-Fi) address, served though network_addresses does not list it (not when the list is empty, and not while -advertise names the address); with neither, -advertise or the listener. Any other is refused, gate address, with data.addresses the hosts served."
-     }
-    },
-    {
      "name": "person",
      "required": false,
      "schema": {
@@ -558,7 +550,10 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply's `web_link` is the one link a device is given; on a self-made certificate it carries the fingerprint, which a client pins, refusing any other certificate. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.",
+   "x-gates": [
+    "network"
+   ],
+   "description": "Founder only. The code is single use and expires: `ttl_s` seconds (default 300, at most 600). The reply's `web_link` is the one link a device is given; on a self-made certificate it carries the fingerprint, which a client pins, refusing any other certificate. The link names Handline's pick: the Tailscale name while Tailscale is up, else the first LAN (Wi-Fi) address, served though network_addresses does not list it (not when the list is empty, and not while -advertise names the address); with neither, -advertise or the listener. With no door open it is refused, gate `network`. It is not replayed by request_id: a retry with the same request_id runs again and makes another code.",
    "x-note": "The code is shown once and kept only as a hash; a second call makes a new code and leaves the first valid until it expires or is used."
   },
   {

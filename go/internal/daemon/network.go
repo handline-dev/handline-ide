@@ -487,21 +487,15 @@ func (n *netDoors) pairedBefore() string {
 	return host
 }
 
-// pairDoor is devices.Manager.Doors. "" is Handline's pick, and the default door when there is none or its door is not open.
-func (n *netDoors) pairDoor(host string) (devices.Door, []string, bool) {
-	if host == "" {
-		n.mu.Lock()
-		host = n.picked
-		n.mu.Unlock()
-		if _, ok := n.door(host); !ok {
-			host = ""
-		}
+// pairDoor is devices.Manager.Doors: the door of Handline's pick, and the default door when there is none or its door is not open.
+func (n *netDoors) pairDoor() (devices.Door, bool) {
+	n.mu.Lock()
+	host := n.picked
+	n.mu.Unlock()
+	if d, ok := n.door(host); ok {
+		return d, true
 	}
-	d, ok := n.door(host)
-	if !ok {
-		return d, n.hosts(), false
-	}
-	return d, nil, true
+	return n.door("")
 }
 
 // pickHost is the host a pairing names: this machine's Tailscale name while Tailscale is up, else its first Wi-Fi (LAN) address; "" with

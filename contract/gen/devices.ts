@@ -111,8 +111,6 @@ export interface DevicesMethods {
   name?: string;
   /** Seconds the code lives; default 300. */
   ttl_s?: number;
-  /** A host a door serves, while Connect a device still offers a choice; absent is Handline's pick: the Tailscale name while Tailscale is up, else the first LAN (Wi-Fi) address, served though network_addresses does not list it (not when the list is empty, and not while -advertise names the address); with neither, -advertise or the listener. Any other is refused, gate address, with data.addresses the hosts served. */
-  address?: string;
   /** The person whose device it pairs (p<n>): the owner names one they invited (person.invite); a member only themself. The caller's own when left out. */
   person?: string;
   request_id: RequestId;

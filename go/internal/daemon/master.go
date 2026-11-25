@@ -108,7 +108,7 @@ func (d *Daemon) ensureOwn() error {
 
 // keepOwnDoor writes the door a pairing names into the master's own node row: where the owner's runners find it after a move.
 func (d *Daemon) keepOwnDoor() error {
-	door, _, ok := d.net.pairDoor("")
+	door, ok := d.net.pairDoor()
 	if !ok {
 		return nil
 	}
