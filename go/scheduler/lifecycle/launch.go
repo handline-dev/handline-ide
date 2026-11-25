@@ -1128,7 +1128,8 @@ func (l *Launcher) teamFacts(agent string) (f teamFacts, ok bool) {
 }
 
 // teamMaterial is teamFacts as one string, "" with no team: what a launch's team section hashes, so a Handline update that only
-// rewords it is no change.
+// rewords it is no change. The peers are left out: an agent joining or leaving the team is no reason to restart every running member.
+// A launch still lists the peers as they are then, and `hl team` shows who is there now.
 func (l *Launcher) teamMaterial(agent string) string {
 	f, ok := l.teamFacts(agent)
 	if !ok {
@@ -1138,7 +1139,7 @@ func (l *Launcher) teamMaterial(agent string) string {
 	if f.contact != "" {
 		contact = f.label(f.contact)
 	}
-	return strings.Join([]string{f.ws, contact, strings.Join(f.peers, ","), strconv.FormatBool(f.founderTyped)}, "\x1f")
+	return strings.Join([]string{f.ws, contact, strconv.FormatBool(f.founderTyped)}, "\x1f")
 }
 
 // preambleMaterial is the static preamble's inputs a person or an agent changes (the agent's names, its team, ROLE.md and base.md),

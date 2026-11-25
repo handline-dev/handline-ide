@@ -1372,12 +1372,11 @@ func TestAStartNamesWhoChangedEachPart(t *testing.T) {
 }
 
 // Handline's own wording is no change to a running session: the fingerprint and the team part hash the team's facts, never the
-// sentences a build writes around them; a peer joining the team drifts the session and is named.
-func TestHandlinesWordingIsNoChangeButATeamChangeIs(t *testing.T) {
+// sentences a build writes around them.
+func TestHandlinesWordingIsNoChange(t *testing.T) {
 	r := newLaunchRig(t)
 	ann := teamtest.Key(t, r.l.Home, "ann")
-	members := []string{ann}
-	r.l.Ports.Routing = coreTeam(&members)
+	r.l.Ports.Routing = coreTeam(&[]string{ann})
 	static, err := r.l.staticPreamble(ann)
 	if err != nil || !strings.Contains(static, team.Protocol("ends")) {
 		t.Fatalf("the preamble lacks the team section: %v", err)
@@ -1402,9 +1401,48 @@ func TestHandlinesWordingIsNoChangeButATeamChangeIs(t *testing.T) {
 	if r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "" {
 		t.Fatalf("drifted from itself: %q", r.l.WhatChanged(ann))
 	}
-	members = append(members, teamtest.Key(t, r.l.Home, "bob"))
+}
+
+// A roster change restarts no running member: an agent joining the team leaves every member's parts as they were, while a launch after
+// it lists the new peer. A new contact still drifts the session, since it changes where the agent sends what it cannot decide.
+func TestAPeerJoiningRestartsNoMemberButANewContactDoes(t *testing.T) {
+	r := newLaunchRig(t)
+	ann := teamtest.Key(t, r.l.Home, "ann")
+	r.l.Ports.Routing = func() *team.Team {
+		tm, err := team.ReadTeam(r.l.Q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tm
+	}
+	fp, _ := r.l.Fingerprint(ann)
+	rec, err := r.l.LaunchRecord(ann)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetLaunchFingerprint(r.l.Q, ann, fp, rec); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := r.l.PartsSince(ann)
+	if static, _ := r.l.staticPreamble(ann); strings.Contains(static, "`bob`") {
+		t.Fatal("bob is listed before it joined")
+	}
+	teamtest.Set(t, r.l.Home, "ann.bob", "vendor", "claude")
+	row, _ := db.GetAgentState(r.l.Q, ann)
+	after, _ := r.l.PartsSince(ann)
+	if r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "" || after["team instructions"] != before["team instructions"] {
+		t.Fatalf("a new peer restarts the member: %q", r.l.WhatChanged(ann))
+	}
+	if static, _ := r.l.staticPreamble(ann); !strings.Contains(static, "`bob`") {
+		t.Fatalf("a launch after the peer joined does not list it:\n%s", static)
+	}
+	bob := teamtest.Key(t, r.l.Home, "ann.bob")
+	_, id, _ := actor.Parse(bob)
+	if _, err := r.l.Q.Exec("UPDATE workspaces SET lead = ? WHERE name = 'ann'", id); err != nil {
+		t.Fatal(err)
+	}
 	if !r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "team instructions changed (team.yaml or the agent list)" {
-		t.Fatalf("a new peer is no change: %q", r.l.WhatChanged(ann))
+		t.Fatalf("a new contact is no change: %q", r.l.WhatChanged(ann))
 	}
 }
 
@@ -1422,7 +1460,7 @@ func TestFingerprintIsPinned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fp != "74b151da8541c48b" {
+	if fp != "e6a4273399ecc62d" {
 		t.Fatalf("the fingerprint is %s: if its inputs changed on purpose, pin the new value; if only Handline's wording changed, it must not", fp)
 	}
 }
