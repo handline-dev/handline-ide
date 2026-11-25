@@ -2,7 +2,7 @@ import { day } from '#src/format/time.ts';
 import { count } from '#src/format/count.ts';
 // Settings › Agents › one agent: what it learned (its lessons, each removable), what its sandbox allows, and how its finished work is
 // reviewed, per kind of work.
-import { useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite, why } from '@handline/app-data';
+import { useAgentDetail, useAgentReview, useLessons, useWrite, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { AppWindow, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
@@ -14,6 +14,7 @@ import { InfoTip } from '#src/ui/InfoTip.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
+import { Memory, Role } from '#src/settings/AgentContext.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 
@@ -48,11 +49,13 @@ export function AgentPage({ agent }: { agent: string }) {
       keep={`settings-agent-${agent}`}
       note={
         <>
-          What it learned, and what it may do.
+          Who it is, what it remembers and learned, and what it may do.
           {device && <DeviceLine device={device} />}
         </>
       }
     >
+      <Role agent={agent} />
+      <Memory agent={agent} />
       <Lessons agent={agent} />
       <Sandbox agent={agent} />
       <Review agent={agent} />

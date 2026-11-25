@@ -24,6 +24,8 @@ const { calls, write, ok, ladder, settings } = vi.hoisted(() => {
 });
 vi.mock('#src/settings/data/devices.ts', () => ({ useAgentDevice: () => null }));
 vi.mock('@handline/app-data', () => ({
+  useAgentContext: () => ({ data: undefined }),
+  useAgentMemory: () => ({ data: undefined }),
   useAgentReview: () => ok({ agent: 'ui', ladder, lessons: 0 }),
   useAgentDetail: () => ok({ settings: { ...settings } }),
   useLessons: () => ok({ items: [] }),

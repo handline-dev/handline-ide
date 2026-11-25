@@ -285,13 +285,16 @@ function PromptBody({
   placeholder,
   submitText,
   close,
+  long,
 }: {
   initial: string;
   placeholder?: string;
   submitText: string;
   close: Close<string>;
+  long: boolean;
 }) {
   const [value, setValue] = useState(initial);
+  const box = 'rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none placeholder:text-muted focus:border-accent';
   return (
     <form
       className="flex flex-col gap-4"
@@ -300,13 +303,18 @@ function PromptBody({
         close(value);
       }}
     >
-      <input
-        autoFocus
-        value={value}
-        placeholder={placeholder}
-        onChange={(ev) => setValue(ev.target.value)}
-        className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none placeholder:text-muted focus:border-accent"
-      />
+      {long ? (
+        <textarea
+          autoFocus
+          value={value}
+          placeholder={placeholder}
+          onChange={(ev) => setValue(ev.target.value)}
+          onKeyDown={(ev) => ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey) && (ev.preventDefault(), close(value))}
+          className={`h-80 resize-none py-1.5 font-mono ${box}`}
+        />
+      ) : (
+        <input autoFocus value={value} placeholder={placeholder} onChange={(ev) => setValue(ev.target.value)} className={`h-8 ${box}`} />
+      )}
       <div className="flex justify-end gap-2 pb-4">
         <Button onClick={() => close()}>{modalText.cancel}</Button>
         <Button type="submit" variant="primary">
@@ -324,16 +332,19 @@ export function prompt({
   initial = '',
   placeholder,
   submitText = modalText.ok,
+  long = false,
 }: {
   title: ReactNode;
   message?: ReactNode;
   initial?: string;
   placeholder?: string;
   submitText?: string;
+  /** A text of many lines: a wide box where Enter is a new line and Cmd-Enter submits. */
+  long?: boolean;
 }): Promise<string | undefined> {
   return openModal<string>((close) => (
-    <ModalFrame title={title} description={message} size="sm">
-      <PromptBody initial={initial} placeholder={placeholder} submitText={submitText} close={close} />
+    <ModalFrame title={title} description={message} size={long ? 'xl' : 'sm'}>
+      <PromptBody initial={initial} placeholder={placeholder} submitText={submitText} close={close} long={long} />
     </ModalFrame>
   ));
 }

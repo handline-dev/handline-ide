@@ -158,6 +158,29 @@ export function useAgentReview(agent: string) {
     enabled: served && open,
   });
 }
+/** An agent's role and standing context, the versions in force. Read when its settings open and after an edit. */
+export function useAgentContext(agent: string) {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('agent.context');
+  return useQuery({
+    queryKey: qk.context(daemon, agent),
+    queryFn: () => store.client.call('agent.context', { agent }),
+    enabled: served && open,
+  });
+}
+
+/** An agent's memory notes, in its index's order. Read when its settings open and after a removal. */
+export function useAgentMemory(agent: string) {
+  const store = useStore();
+  const { daemon } = useData();
+  const { served, open } = useServes('agent.memory');
+  return useQuery({
+    queryKey: qk.memory(daemon, agent),
+    queryFn: () => store.client.call('agent.memory', { agent }),
+    enabled: served && open,
+  });
+}
 /** A project's desks; no feed, so read each minute while open and again after desk.pin or desks.keep. */
 export function useDesks(repo: string) {
   const store = useStore();
