@@ -92,7 +92,7 @@ export function Usage() {
 function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode }) {
   const cluster = useCluster();
   const accounts = useAccounts().data?.accounts ?? [];
-  // The plan (max, pro) comes only with the usage read.
+  // The plan (Ultra, Max, Pro) comes only with the usage read.
   const usage = useAccountUsage().data?.accounts ?? [];
   const plans = new Map(usage.map((u) => [u.name, u.plan]));
   // Why the daemon would not pick an account now (its week cap, an ended subscription); absent when it would.

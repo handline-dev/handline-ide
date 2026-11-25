@@ -226,7 +226,7 @@
         "type": "null"
        }
       ],
-      "description": "Only with accounts.list `usage: true`. The plan claude reports (`max`, `pro`), null when not recorded."
+      "description": "Only with accounts.list `usage: true`. The plan as Anthropic names it (`Ultra`, `Max`, `Pro`), from the subscription and rate-limit tier claude reports; null when not recorded."
      },
      "windows": {
       "type": "array",

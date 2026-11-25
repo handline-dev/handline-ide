@@ -324,7 +324,7 @@ func (v *accountView) addUsage(acct map[string]any, a string, ld *usage.Load) {
 		burn = ld.Burn
 	}
 	var plan any
-	if p, _ := (team.Accounts{Home: v.e.Home}).RecordedSubscriptionType(a); p != "" {
+	if p := usage.PlanName((team.Accounts{Home: v.e.Home}).RecordedPlan(a)); p != "" {
 		plan = p
 	}
 	var ctx, age any

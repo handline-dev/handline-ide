@@ -224,8 +224,10 @@ func (e *Env) ask(acct string) {
 func (e *Env) SweepPlans() error {
 	now := e.now().Unix()
 	accts := paths.ListAccounts(e.Home)
+	recorded := make(map[string]bool, len(accts))
 	for _, acct := range accts {
 		plan, _ := e.Plans.Recorded(acct)
+		recorded[acct] = plan != ""
 		seen, _, err := db.Meta(e.DB, "plan_seen:"+acct)
 		if err != nil {
 			return err
@@ -257,6 +259,12 @@ func (e *Env) SweepPlans() error {
 		at, err := db.Cursor(e.DB, "plan_checked:"+a)
 		if err != nil {
 			return err
+		}
+		// An account asked before its first login landed (asked as it was added, the login still in the browser) is asked again as
+		// soon as the login is written, not an hour later.
+		// Only claude reports a plan: another vendor's token refresh asks nothing new.
+		if at > 0 && !recorded[a] && team.AccountVendor(e.Home, a) == team.DefaultVendor && (team.Accounts{Home: e.Home}).LoggedInSince(a, at) {
+			at = 0
 		}
 		order = append(order, due{at, a})
 	}

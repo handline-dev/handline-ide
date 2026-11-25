@@ -55,7 +55,7 @@ export type Account = {
     /** Why the login ended failed, one plain line (e.g. logged in to an Anthropic account other than the one recorded for this account); absent unless it failed. */
     reason?: string;
   } | null;
-  /** Only with accounts.list `usage: true`. The plan claude reports (`max`, `pro`), null when not recorded. */
+  /** Only with accounts.list `usage: true`. The plan as Anthropic names it (`Ultra`, `Max`, `Pro`), from the subscription and rate-limit tier claude reports; null when not recorded. */
   plan?: string | null;
   /** Only with accounts.list `usage: true`. The shortest and, when the vendor has one, the longest window: the figure read, the one that may be acted on, and where it came from. */
   windows?: {

@@ -70,6 +70,13 @@ const rules: Record<string, Rule> = {
   'inbox.changed': inbox,
   'account.changed': ({ qc, d }, e) => {
     const a = data<Account>(e);
+    // The topic row never carries the email (it is the founder's alone), so an account that is new to a list or whose login moved is
+    // read again: the founder's read brings the email the login recorded.
+    const moved =
+      a.login_state !== undefined &&
+      qc
+        .getQueriesData<{ accounts: Account[] }>({ queryKey: qk.accounts(d) })
+        .some(([, l]) => l && l.accounts.find((x) => x.name === a.name)?.login_state !== a.login_state);
     // The topic row has no usage fields; the usage read's cache (also under this key) keeps the ones it has.
     edit<{ accounts: Account[] }>(
       qc,
@@ -80,6 +87,7 @@ const rules: Record<string, Rule> = {
       }),
       e.cursor,
     );
+    if (moved) void qc.invalidateQueries({ queryKey: qk.accounts(d) });
   },
   'status.changed': ({ qc, d }, e) => {
     put<DaemonStatus>(qc, qk.status(d), data<DaemonStatus>(e), e.cursor);

@@ -189,6 +189,13 @@ describe('accounts, status, operations, devices, prompts', () => {
     applyEvent(c, ev('account.changed', { name: 'x', label: 'new' }, { topic: 'accounts' }));
     expect(qc.getQueryData<{ accounts: object[] }>(qk.accounts(D))!.accounts).toMatchObject([{ name: 'x', label: 'new' }]);
   });
+  it('account.changed reads the accounts again when the login moved, so the email the login recorded shows', () => {
+    qc.setQueryData(qk.accounts(D), { accounts: [{ name: 'x', login_state: 'needs_login', email: null }] });
+    applyEvent(c, ev('account.changed', { name: 'x', login_state: 'needs_login', label: 'l' }, { topic: 'accounts' }));
+    expect(stale(qk.accounts(D))).toBe(false);
+    applyEvent(c, ev('account.changed', { name: 'x', login_state: 'ok' }, { topic: 'accounts' }));
+    expect(stale(qk.accounts(D))).toBe(true);
+  });
   it('status.changed sets the status', () => {
     applyEvent(c, ev('status.changed', { alive: true }, { topic: 'status' }));
     expect(qc.getQueryData(qk.status(D))).toMatchObject({ alive: true });

@@ -49,7 +49,7 @@ test('a move in an account usage is an account.changed with the usage fields and
   assert.equal(a.name, 'alpha');
   assert.equal((a.five_hour as { used_pct: number }).used_pct, 93);
   assert.equal(a.assignable, false);
-  assert.equal(a.plan, 'pro');
+  assert.equal(a.plan, 'Pro');
   assert.equal(typeof a.agents_running, 'number');
   assert.equal('email' in a, false);
   assert.equal(daemon.accounts.list().accounts.find((x) => x.name === 'alpha')?.assignable, false);
