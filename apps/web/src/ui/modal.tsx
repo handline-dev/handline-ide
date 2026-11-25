@@ -286,21 +286,32 @@ function PromptBody({
   submitText,
   close,
   long,
+  run,
+  icon,
 }: {
+  icon?: ReactNode;
   initial: string;
   placeholder?: string;
   submitText: string;
   close: Close<string>;
   long: boolean;
+  run?: (value: string) => Promise<unknown>;
 }) {
   const [value, setValue] = useState(initial);
+  const call = useAction();
+  // A second Enter while the call runs sends nothing more.
+  const submit = () => {
+    if (call.busy) return;
+    if (!run) return close(value);
+    void call.go(() => run(value)).then((ok) => ok && close(value));
+  };
   const box = 'rounded-md border border-border bg-bg px-2 text-sm text-fg outline-none placeholder:text-muted focus:border-accent';
   return (
     <form
       className="flex flex-col gap-4"
       onSubmit={(ev) => {
         ev.preventDefault();
-        close(value);
+        submit();
       }}
     >
       {long ? (
@@ -309,15 +320,21 @@ function PromptBody({
           value={value}
           placeholder={placeholder}
           onChange={(ev) => setValue(ev.target.value)}
-          onKeyDown={(ev) => ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey) && (ev.preventDefault(), close(value))}
+          onKeyDown={(ev) => ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey) && (ev.preventDefault(), submit())}
           className={`h-80 resize-none py-1.5 font-mono ${box}`}
         />
       ) : (
         <input autoFocus value={value} placeholder={placeholder} onChange={(ev) => setValue(ev.target.value)} className={`h-8 ${box}`} />
       )}
-      <div className="flex justify-end gap-2 pb-4">
+      {!!call.error && (
+        <p className="text-sm text-danger" role="alert">
+          {why(call.error)}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
         <Button onClick={() => close()}>{modalText.cancel}</Button>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" busy={call.busy}>
+          {icon}
           {submitText}
         </Button>
       </div>
@@ -333,7 +350,13 @@ export function prompt({
   placeholder,
   submitText = modalText.ok,
   long = false,
+  run,
+  icon,
 }: {
+  /** Drawn before the submit word, as confirm's. */
+  icon?: ReactNode;
+  /** The call the answer makes: the button is busy while it runs, as confirm's; a refusal stays in the modal in words. */
+  run?: (value: string) => Promise<unknown>;
   title: ReactNode;
   message?: ReactNode;
   initial?: string;
@@ -344,7 +367,7 @@ export function prompt({
 }): Promise<string | undefined> {
   return openModal<string>((close) => (
     <ModalFrame title={title} description={message} size={long ? 'xl' : 'sm'}>
-      <PromptBody initial={initial} placeholder={placeholder} submitText={submitText} close={close} long={long} />
+      <PromptBody initial={initial} placeholder={placeholder} submitText={submitText} close={close} long={long} run={run} icon={icon} />
     </ModalFrame>
   ));
 }

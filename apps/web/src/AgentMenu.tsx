@@ -1,14 +1,14 @@
 import { baseName } from '#src/format/path.ts';
 import { deleteSaid, heldWords, type HeldWorktree, type WorktreeAnswer } from '@handline/app-core';
-import { classify, sentence, useAgentDetail, useNameOf, useNav, useRetireAgent } from '@handline/app-data';
+import { classify, sentence, useAgentDetail, useNameOf, useNav, useRetireAgent, useWrite } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
-import { Copy, FolderOpen, Pin, PinOff, Settings, Trash2 } from 'lucide-react';
+import { Copy, FolderOpen, Pencil, Pin, PinOff, Settings, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { OpenItems, useOpenable } from '#src/layout/openable.tsx';
 import { agentSettingsOf } from '#src/layout/kinds.tsx';
 import { ContextMenu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
-import { confirm, ModalFrame, openModal } from '#src/ui/modal.tsx';
+import { confirm, ModalFrame, openModal, prompt } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { copy as copyTo } from '#src/ui/copy.ts';
 
@@ -56,6 +56,21 @@ export function AgentMenu({
   const pinned = nav.pins.includes(name);
   const detail = useAgentDetail(name).data;
   const retire = useRetireAgent(name);
+  const renameTo = useWrite('agent.rename', name);
+  // A seat is named as its agent: it has no name of its own to change.
+  const seat = !!agent.hired_from;
+  const rename = () =>
+    void prompt({
+      title: `Rename ${word}`,
+      initial: word,
+      submitText: 'Rename',
+      icon: <Pencil size={14} />,
+      // The modal stays, its button working, until the daemon answers; a refusal says why in it.
+      run: async (value) => {
+        const to = value.trim();
+        if (to && to !== word) await renameTo.mutateAsync({ agent: name, to });
+      },
+    });
   const settings = useOpenable(agentSettingsOf(name));
 
   const remove = async () => {
@@ -93,6 +108,11 @@ export function AgentMenu({
           <MenuItem icon={pinned ? <PinOff size={14} /> : <Pin size={14} />} onClick={() => togglePin(name)}>
             {pinned ? 'Unpin' : 'Pin to top'}
           </MenuItem>
+          {!seat && (
+            <MenuItem icon={<Pencil size={14} />} disabled={renameTo.isPending} onClick={rename}>
+              Rename…
+            </MenuItem>
+          )}
           <MenuItem icon={<Settings size={14} />} onClick={settings.onClick}>
             Settings…
           </MenuItem>
