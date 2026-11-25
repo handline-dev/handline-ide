@@ -156,8 +156,18 @@ func TestAPersonsEventReachesOnlyTheirConnections(t *testing.T) {
 	}
 }
 
-// next is the next message on c within wait; false when none came.
+// next is the next message on c within wait, a notice askFor held first; false when none came.
 func (c *wsClient) next(wait time.Duration) (map[string]any, bool) {
+	if len(c.held) > 0 {
+		m := c.held[0]
+		c.held = c.held[1:]
+		return m, true
+	}
+	return c.recv(wait)
+}
+
+// recv is the next message off the socket within wait; false when none came.
+func (c *wsClient) recv(wait time.Duration) (map[string]any, bool) {
 	c.ws.SetReadDeadline(time.Now().Add(wait))
 	_, b, err := c.ws.ReadMessage()
 	if err != nil {

@@ -34,6 +34,9 @@ func startNet(t *testing.T) *Daemon {
 type wsClient struct {
 	t  *testing.T
 	ws *websocket.Conn
+	// held are the notices askFor read past on its way to an answer, which next gives first: a notice the call itself caused (the
+	// output of typed keys) can come before the call's own answer.
+	held []map[string]any
 }
 
 func dialNet(t *testing.T, d *Daemon) *wsClient {
@@ -47,7 +50,7 @@ func dialNet(t *testing.T, d *Daemon) *wsClient {
 	if fp := sha256hex(ws.UnderlyingConn().(*tls.Conn).ConnectionState().PeerCertificates[0].Raw); fp != d.NetworkFingerprint() {
 		t.Fatalf("fingerprint %s != %s", fp, d.NetworkFingerprint())
 	}
-	return &wsClient{t, ws}
+	return &wsClient{t: t, ws: ws}
 }
 
 func (c *wsClient) ask(msg string) map[string]any {
@@ -63,13 +66,17 @@ func (c *wsClient) ask(msg string) map[string]any {
 	return m
 }
 
-// askFor sends msg and is the answer with id, past the notices that come before it.
+// askFor sends msg and is the answer with id; the notices that come before it are held for next.
 func (c *wsClient) askFor(msg string, id float64) map[string]any {
 	c.t.Helper()
 	c.ws.WriteMessage(websocket.TextMessage, []byte(msg))
 	for end := time.Now().Add(5 * time.Second); time.Now().Before(end); {
-		if m, ok := c.next(time.Until(end)); ok && m["id"] == id {
+		m, ok := c.recv(time.Until(end))
+		if ok && m["id"] == id {
 			return m
+		}
+		if ok && m["method"] != nil {
+			c.held = append(c.held, m)
 		}
 	}
 	c.t.Fatalf("no answer to %s", msg)

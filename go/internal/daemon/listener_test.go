@@ -294,7 +294,7 @@ func TestWithoutACertificateTheListenerServesPlainHTTPAndWebSocketWithNothingToP
 		t.Fatal(err)
 	}
 	defer ws.Close()
-	c := &wsClient{t, ws}
+	c := &wsClient{t: t, ws: ws}
 	if r := c.ask(`{"jsonrpc":"2.0","id":1,"method":"agents.list"}`); gate(r) != "unpaired" {
 		t.Fatalf("%v", r)
 	}
