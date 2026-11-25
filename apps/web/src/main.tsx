@@ -74,13 +74,7 @@ function App() {
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
             <div className="app-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
-            <Sidebar
-              width={width}
-              onScreen={onScreen}
-              onSelectPage={goPage}
-              onSelectAgent={select}
-              onAgentSettings={(name) => openSettings({ section: 'agents', ...splitSpace(name) })}
-            />
+            <Sidebar width={width} onScreen={onScreen} onSelectPage={goPage} onSelectAgent={select} />
           </motion.div>
           {open && (
             <Splitter

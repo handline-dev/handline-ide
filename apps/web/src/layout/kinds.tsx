@@ -111,7 +111,7 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   const file = opened(kind, 'file');
   if (file) return { label: baseName(file), icon: kinds.markdown.icon };
   const hr = opened(kind, 'proposal');
-  if (hr) return { label: `Request ${hr}`, icon: kinds.markdown.icon };
+  if (hr) return { label: `HR ${hr}`, icon: kinds.markdown.icon };
   const text = opened(kind, 'text') ?? opened(kind, 'doc');
   if (text) return { label: text.slice(text.indexOf('/') + 1), icon: kinds.markdown.icon };
   return null;

@@ -30,7 +30,8 @@ import type { TaskRequest } from '#src/requests/data.ts';
 import { chatOf, proposalOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import type { Gesture } from '#src/layout/openTab.tsx';
-import { openSettings, settingsFor } from '#src/settings/open.ts';
+import { openSettings } from '#src/settings/open.ts';
+import { agentSettingsOf } from '#src/layout/kinds.tsx';
 import { useCluster } from '#src/connection/clusters.tsx';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
 import { failedLine } from '#src/ui/taskLook.tsx';
@@ -237,13 +238,14 @@ function Line({
 }
 
 /** Where a row opens: its task; for a daemon warning, the account, the chat or the settings it is about; else the asking agent's
- * chat, or Requests. Null for the disk and review warnings, which open Settings. */
+ * chat, or Requests; a step-down offer, its agent's settings. Null for the disk warning, which opens Settings. */
 function turnOpens(p: PendingRequest, asker?: string | null): string | null {
   const w = p.warning;
   if (p.task !== null) return taskOf(p.task);
   // A proposal is answered in the chat of the agent that asked, where its card waits; one the daemon made opens on its own.
   if (p.source === 'proposal' && p.id) return asker ? chatOf(asker) : proposalOf(Number(p.id));
   if (w?.account && w.kind === 'login') return 'usage';
+  if (w?.kind === 'review' && w.agent) return agentSettingsOf(w.agent);
   if (w?.kind === 'disk' || w?.kind === 'review') return null;
   if (w?.agent) return chatOf(w.agent);
   // A permission or a question without a task is asked in the agent's chat.
@@ -314,7 +316,7 @@ export function TurnLine({
               .join(' · ')
       }
       opens={opens}
-      here={opens ? undefined : () => openSettings({ ...settingsFor(p.warning), cluster })}
+      here={opens ? undefined : () => openSettings({ cluster })}
       trailing={full && answersShown(p) ? undefined : <TurnQuick p={p} />}
       hint={
         p.task !== null && (p.kind === 'ask' || p.kind === 'decide')

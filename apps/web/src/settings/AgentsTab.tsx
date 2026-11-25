@@ -5,8 +5,12 @@ import type { SettingsChanges } from '@handline/client';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { useMe } from '@handline/app-react';
-import { AgentPage, LEVEL_WORD, Lessons, WORK_WORD } from '#src/settings/AgentPage.tsx';
+import { LEVEL_WORD, Lessons, WORK_WORD } from '#src/settings/AgentPage.tsx';
 import { Mark } from '#src/ui/Face.tsx';
+import { agentSettingsOf } from '#src/layout/kinds.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
+import { closeSettings } from '#src/settings/open.ts';
+import type { ReactNode } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
@@ -15,13 +19,7 @@ import { Toggle } from '#src/ui/Toggle.tsx';
 
 type Key = 'default_model_claude' | 'default_effort_claude' | 'default_model_codex' | 'default_effort_codex';
 
-/** The list, or one agent's page: `open` is the agent Settings was opened on (a step-down offer in Requests). */
-export function AgentsTab({ open }: { open?: string }) {
-  const [agent, setAgent] = useState(open);
-  return agent ? <AgentPage agent={agent} back={() => setAgent(undefined)} /> : <AgentsList pick={setAgent} />;
-}
-
-function AgentsList({ pick }: { pick: (agent: string) => void }) {
+export function AgentsTab() {
   const settings = useSettings();
   const options = Hooks.useAgentOptions();
   const save = useWrite('settings.set');
@@ -74,7 +72,7 @@ function AgentsList({ pick }: { pick: (agent: string) => void }) {
         </Block>
       )}
       {me && <Lessons agent={me} founder />}
-      <AgentRows pick={pick} />
+      <AgentRows />
       {!!save.error && (
         <p className="text-xs text-danger" role="alert">
           {why(save.error)}
@@ -109,8 +107,8 @@ function CodexModel({ value, disabled, save }: { value: string; disabled: boolea
   );
 }
 
-/** Every agent, with how much of its finished work comes to the founder; a row opens its page. */
-function AgentRows({ pick }: { pick: (agent: string) => void }) {
+/** Every agent, with how much of its finished work comes to the founder; a row opens its settings tab and leaves Settings. */
+function AgentRows() {
   const agents = useAgents().data?.agents ?? [];
   const nameOf = useNameOf();
   const rows = [...agents].sort((a, b) => nameOf(a.key).localeCompare(nameOf(b.key)));
@@ -120,21 +118,31 @@ function AgentRows({ pick }: { pick: (agent: string) => void }) {
       <ul className="-mx-2 flex flex-col">
         {rows.map((a) => (
           <li key={a.key}>
-            <button
-              type="button"
-              onClick={() => pick(a.key)}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-hover/30"
-            >
+            <AgentRow agent={a.key}>
               <Mark who={a.key} />
               <span className="min-w-0 flex-1 truncate">{nameOf(a.key)}</span>
               <span className="text-xs text-muted">
                 {a.review_work ? `${WORK_WORD[a.review_work]} ${LEVEL_WORD[a.review_level ?? 'every']}` : LEVEL_WORD.every}
               </span>
               <ChevronRight size={14} className="text-muted" />
-            </button>
+            </AgentRow>
           </li>
         ))}
       </ul>
     </Block>
+  );
+}
+
+/** One row: opens the agent's settings tab by the app's scheme, and Settings closes so the tab shows. */
+function AgentRow({ agent, children }: { agent: string; children: ReactNode }) {
+  const open = useOpenable(agentSettingsOf(agent), { onOpen: closeSettings });
+  return (
+    <button
+      type="button"
+      {...open}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-hover/30"
+    >
+      {children}
+    </button>
   );
 }

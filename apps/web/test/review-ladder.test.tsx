@@ -57,13 +57,13 @@ const rows = () => [...document.querySelectorAll('li')].map((li) => li.textConte
 
 describe('the review ladder', () => {
   it('lists one row per kind done, the run toward the next step, and contract locked at every', async () => {
-    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await mount(<AgentPage agent="ui" />);
     expect(rows()).toEqual(['Contract and dataEvery', 'Screen6 of 101 in 2', 'Daemon0 of 10Every']);
     expect(document.querySelector('[aria-label="Contract and data level"]')).toBeNull();
   });
 
   it('sets a level by hand for its kind, from its menu', async () => {
-    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await mount(<AgentPage agent="ui" />);
     await act(async () => (document.querySelector('[aria-label="Screen level"]') as HTMLButtonElement).click());
     await flush();
     await act(async () =>
@@ -76,7 +76,7 @@ describe('the review ladder', () => {
 describe('the sandbox block', () => {
   const sw = (label: string) => document.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!;
   it('keeps the allowances in place and greyed while the sandbox is off, and turns the sandbox on with agent.set', async () => {
-    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await mount(<AgentPage agent="ui" />);
     expect(sw('Allow Go module downloads').disabled).toBe(true);
     expect(sw('Allow Go module downloads').getAttribute('aria-checked')).toBe('true');
     await act(async () => sw('Run in a sandbox').click());
@@ -84,11 +84,11 @@ describe('the sandbox block', () => {
   });
   it('adds and removes an allowance word, keeping the others', async () => {
     settings.sandbox = 'on';
-    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await mount(<AgentPage agent="ui" />);
     await act(async () => sw('Allow pnpm install').click());
     await act(async () => root?.unmount()); // the mock has no cache to re-render from: mount again on what the write left
     document.body.innerHTML = '';
-    await mount(<AgentPage agent="ui" back={() => {}} />);
+    await mount(<AgentPage agent="ui" />);
     await act(async () => sw('Allow Go module downloads').click());
     expect(calls.map((c) => (c.params as { values: object }).values)).toEqual([
       { sandbox_allow: 'weaker-network pnpm-install' },
