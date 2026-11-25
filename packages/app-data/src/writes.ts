@@ -235,6 +235,8 @@ export const patches: Record<string, Patch> = {
   'agent.context.set': { touches: (d) => [qk.allContexts(d)] },
   'agent.memory.remove': { touches: (d) => [qk.allMemory(d)] },
   'lesson.remove': { touches: (d) => [qk.allLessons(d), qk.allReviews(d)] },
+  // The new name shows wherever names are read: the agents list, and each agent's own read.
+  'agent.rename': { touches: (d, p) => [qk.agents(d), qk.agent(d, as<{ agent: string }>(p).agent)] },
   'agent.review_set': { touches: (d) => [qk.allReviews(d), qk.agents(d)] },
   // A project's setup is in repos.list, which has no feed; a refusal naming a field is shown under that field.
   'repo.set': {

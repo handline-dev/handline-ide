@@ -60,6 +60,31 @@ describe('modal', () => {
     expect(await p).toBe(false);
   });
 
+  it('prompt with a call keeps its button busy until the call answers, and a refusal stays in it in words', async () => {
+    let fail!: (e: Error) => void;
+    const sent: string[] = [];
+    let p!: Promise<string | undefined>;
+    await act(
+      async () =>
+        void (p = m.prompt({
+          title: 'Rename',
+          initial: 'lead',
+          submitText: 'Rename',
+          run: (v) => (sent.push(v), new Promise((_, j) => (fail = j))),
+        })),
+    );
+    await flush();
+    await act(async () => button('Rename').click());
+    expect(sent).toEqual(['lead']);
+    expect(button('Rename').getAttribute('aria-busy')).toBe('true');
+    await act(async () => fail(new Error('taken')));
+    await flush();
+    expect(dialogs()).toHaveLength(1);
+    expect(document.querySelector('[role=alert]')).not.toBeNull();
+    await act(async () => button('Cancel').click());
+    expect(await p).toBeUndefined();
+  });
+
   it('Escape resolves undefined', async () => {
     let p!: Promise<string | undefined>;
     await act(async () => void (p = m.openModal<string>(() => <m.ModalFrame title="T" />)));
