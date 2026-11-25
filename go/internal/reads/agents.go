@@ -150,7 +150,7 @@ func (e *Env) listRow(roster *team.Roster, n string, stored map[string]json.RawM
 	if f := roster.RepoOf(n); f != "" {
 		v["folder"] = f
 	}
-	v["node"] = nil // the machine it stays on (package placement), nil before its first session
+	v["node"] = nil // the machine its last session opened on (package placement), nil before its first session
 	var node sql.NullString
 	if e.DB.QueryRow("SELECT node FROM agent_state WHERE agent = ?", n).Scan(&node) == nil && node.String != "" {
 		v["node"] = node.String

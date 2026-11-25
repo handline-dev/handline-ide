@@ -70,10 +70,9 @@ type Placer struct {
 	picked   map[string]picking // by agent, its pick until its terminal opens or fails
 }
 
-// picking is a pick waiting for its terminal: the machine, and whether it becomes the agent's (a fallback here does not).
+// picking is a pick waiting for its terminal: the machine it opens on, which becomes the agent's once it opens, a fallback here too.
 type picking struct {
 	node string
-	keep bool
 }
 
 // need is what an agent's session needs of a machine, and what placement goes by.
@@ -94,18 +93,18 @@ func (p *Placer) Where(agent string) string {
 		p.reserved, p.picked = map[string]int{}, map[string]picking{}
 	}
 	p.release(agent) // a pick before it whose terminal never said
-	node, keep, why := p.Reg.Self, false, ""
+	node, why := p.Reg.Self, ""
 	if err == nil {
-		node, keep, why, err = p.pick(key, n)
+		node, why, err = p.pick(key, n)
 	}
 	if err != nil {
 		p.log("placement: %s: %v - it starts here", agent, err)
-		node, keep = p.Reg.Self, false
+		node = p.Reg.Self
 	} else if why != "" {
 		p.log("placement: %s: %s (%s)", agent, why, p.name(node))
 	}
 	p.reserved[node]++
-	p.picked[agent] = picking{node, keep}
+	p.picked[agent] = picking{node}
 	if node == p.Reg.Self {
 		return ""
 	}
@@ -151,7 +150,7 @@ func (p *Placer) Status(agent string) (Placement, error) {
 		p.reserved[got.node]--
 		defer func() { p.reserved[got.node]++ }()
 	}
-	pl.Device, _, pl.Why, err = p.pick(key, n)
+	pl.Device, pl.Why, err = p.pick(key, n)
 	return pl, err
 }
 
@@ -166,13 +165,14 @@ func (p *Placer) agentNeed(agent string) (string, need, error) {
 }
 
 // Placed is told whether agent's terminal opened where Where picked (term.Machines.Placed): its slot is given back, and once it opened
-// that machine becomes the agent's.
+// that machine becomes the agent's, wherever it is: agent_state.node says where its session runs, so a heavy agent whose lent device
+// went away and which started here is on this machine, not shown on the one it left.
 func (p *Placer) Placed(agent string, ok bool) {
 	p.mu.Lock()
 	got, had := p.picked[agent]
 	p.release(agent)
 	p.mu.Unlock()
-	if !had || !ok || !got.keep {
+	if !had || !ok {
 		return
 	}
 	key, err := paths.AgentKeyIn(p.DB, agent)
@@ -192,30 +192,29 @@ func (p *Placer) release(agent string) {
 	}
 }
 
-// pick is the machine for agent's next session, whether it becomes the agent's, and why it is placed so ("" when it stays here as a
-// light agent does).
-func (p *Placer) pick(key string, n need) (node string, keep bool, why string, err error) {
+// pick is the machine for agent's next session and why it is placed so ("" when it stays here as a light agent does).
+func (p *Placer) pick(key string, n need) (node string, why string, err error) {
 	if key == "" {
-		return p.Reg.Self, false, "", nil // not on the roster: as before runners, here
+		return p.Reg.Self, "", nil // not on the roster: as before runners, here
 	}
 	var current sql.NullString
 	if err := p.DB.QueryRow("SELECT node FROM agent_state WHERE agent = ?", key).Scan(&current); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return "", false, "", err
+		return "", "", err
 	}
 	l := p.Limits()
 	if n.pin != "" && p.Manual != nil && p.Manual() {
 		if n.pin == p.Reg.Self {
-			return p.Reg.Self, true, "", nil
+			return p.Reg.Self, "", nil
 		}
 		lacks := p.lacks(n.pin, n, l)
 		if lacks == "" {
-			return n.pin, true, "pinned to " + p.name(n.pin), nil
+			return n.pin, "pinned to " + p.name(n.pin), nil
 		}
-		return p.Reg.Self, false, fmt.Sprintf("pinned to %s, which cannot take it now (%s), so it starts here", p.name(n.pin), lacks), nil
+		return p.Reg.Self, fmt.Sprintf("pinned to %s, which cannot take it now (%s), so it starts here", p.name(n.pin), lacks), nil
 	}
 	if !n.heavy {
 		if lacks := p.lacks(p.Reg.Self, n, l); lacks == "" {
-			return p.Reg.Self, true, "", nil
+			return p.Reg.Self, "", nil
 		} else {
 			why = "this machine is " + lacks
 		}
@@ -224,7 +223,7 @@ func (p *Placer) pick(key string, n need) (node string, keep bool, why string, e
 		if current.String != "" && current.String != p.Reg.Self {
 			lacks := p.lacks(current.String, n, l)
 			if lacks == "" {
-				return current.String, true, why, nil // a heavy agent stays on its lent device while it can
+				return current.String, why, nil // a heavy agent stays on its lent device while it can
 			}
 			why += "; leaves " + p.name(current.String) + ": " + lacks
 		}
@@ -234,9 +233,9 @@ func (p *Placer) pick(key string, n need) (node string, keep bool, why string, e
 		if kept == "" {
 			kept = "no device is lent"
 		}
-		return p.Reg.Self, false, why + "; " + kept + ", so it stays here", nil
+		return p.Reg.Self, why + "; " + kept + ", so it stays here", nil
 	}
-	return best, true, why, nil
+	return best, why, nil
 }
 
 // best is the device with the most room that can take a session needing n, a lent one only when lent; one that has the programs the

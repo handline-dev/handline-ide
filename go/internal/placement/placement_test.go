@@ -121,13 +121,21 @@ func TestAnAgentsMCPServersDoNotPlaceIt(t *testing.T) {
 	}
 }
 
-// With no runner able to take it, a heavy agent starts on this machine, as before runners; a light one stays here.
+// With no runner able to take it, a heavy agent starts on this machine, as before runners, and is this machine's from then: the runner
+// it left is not named as where it runs; a light one stays here.
 func TestWithNoRoomElsewhereItStaysHere(t *testing.T) {
 	p, _ := two(t)
 	heavy(t, p, "a1", "check.sh", 3)
+	if got := start(p, "bob"); got != "r2" {
+		t.Fatalf("with room it went to %q", got)
+	}
 	p.DB.Exec("UPDATE nodes SET lending = 'off' WHERE id != 'm0'")
 	if got := start(p, "bob"); got != "" {
 		t.Fatalf("it went to %q", got)
+	}
+	var node string
+	if p.DB.QueryRow("SELECT node FROM agent_state WHERE agent = 'a1'").Scan(&node); node != "m0" {
+		t.Fatalf("started here, its machine is %q", node)
 	}
 	p.DB.Exec("UPDATE nodes SET lending = 'run'")
 	p.DB.Exec("INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(2, 1, 'ann', 'p1', 1)")
@@ -207,7 +215,7 @@ func TestAHeavyAgentGoesToARunnerWithRoomWhileALightOneStays(t *testing.T) {
 	if got := start(p, "bob"); got != "" {
 		t.Fatalf("a heavy codex agent went to %q, which has no codex", got)
 	}
-	if st, _ := p.Status("bob"); st.Device != "m0" || st.Why != "heavy: check.sh 3 h this week; leaves two: codex not installed; one: codex not installed, so it stays here" {
+	if st, _ := p.Status("bob"); st.Device != "m0" || st.Why != "heavy: check.sh 3 h this week; one: codex not installed, so it stays here" { // it is here now, so it leaves nothing
 		t.Fatalf("why it stays: %+v", st)
 	}
 }

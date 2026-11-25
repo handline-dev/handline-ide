@@ -340,7 +340,7 @@ export interface AgentsMethods {
     agents: (AgentView & {
       /** The folder of its workspace it works in, a path workspaces.list gives in folders; null when its workspace has none. */
       folder: string | null;
-      /** The machine it stays on, a node id node.status lists; null before its first session. Its next session starts there while that machine has room, else on the one with the most room that has all it needs. */
+      /** The machine its last session opened on, a node id node.status lists, wherever placement put it (also this machine, when a heavy agent's lent device could not take it); null before its first session. Its next session starts there while that machine has room, else on the one with the most room that has all it needs. */
       node: string | null;
     })[];
   } & ReadCursor };
