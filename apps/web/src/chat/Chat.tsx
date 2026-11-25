@@ -22,6 +22,7 @@ import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { restarting } from '#src/layout/agentList.ts';
 import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
+import { AgentSettingsButton } from '#src/chat/agent/AgentSettingsButton.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { FootRow, HoldCard, useHoldLine } from '#src/chat/agent/HoldBar.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
@@ -128,7 +129,12 @@ export function Chat({ agent }: { agent: string }) {
           setDraft={setDraft}
           attach={attach}
           onMarked={addMarked}
-          leading={<ModelChip agent={agent} />}
+          leading={
+            <>
+              <ModelChip agent={agent} />
+              <AgentSettingsButton agent={agent} />
+            </>
+          }
           trailing={<ContextRing agent={agent} />}
           running={running}
           locked={!!compacting || !!switchLock}

@@ -77,12 +77,16 @@ export const textOf = (when: string, name: string) => `text:${when}/${name}`;
 export const docOf = (id: string, name: string) => `doc:${id}/${name}`;
 /** An HR proposal's detail (requests/ProposalView): `proposal:41`. */
 export const proposalOf = (id: number) => `proposal:${id}`;
+/** One agent's settings (its role, memory, what it learned, what it may do), a tab of their own. */
+export const agentSettingsOf = (agent: string) => `agent:${agent}`;
 /** What a seat of an agent did for a task beside the agent's own work (chat/agent/WorkTab), read only: `work:<seat>/<task>`. */
 export const workOf = (seat: string, task: number) => `work:${seat}/${task}`;
 /** A workspace's page. */
 export const workspaceOf = (key: string) => `ws:${key}`;
-export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws' | 'work') =>
-  kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
+export const opened = (
+  kind: string,
+  prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws' | 'work' | 'agent',
+) => (kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null);
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
   if (opened(kind, 'ws')) return kinds.workspace;
@@ -107,7 +111,7 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   const file = opened(kind, 'file');
   if (file) return { label: baseName(file), icon: kinds.markdown.icon };
   const hr = opened(kind, 'proposal');
-  if (hr) return { label: `HR ${hr}`, icon: kinds.markdown.icon };
+  if (hr) return { label: `Request ${hr}`, icon: kinds.markdown.icon };
   const text = opened(kind, 'text') ?? opened(kind, 'doc');
   if (text) return { label: text.slice(text.indexOf('/') + 1), icon: kinds.markdown.icon };
   return null;
@@ -126,6 +130,8 @@ export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k
   const key = chatName(kind);
   const ws = opened(kind, 'ws');
   if (ws) return nameOf(ws);
+  const settingsOf = opened(kind, 'agent');
+  if (settingsOf) return `${nameOf(settingsOf)} settings`;
   return kinds[kind]?.label ?? (key ? `${nameOf(key)} chat` : (onThing(kind)?.label ?? kind));
 };
 /** An Empty tab (no kind) shows +. */
@@ -133,6 +139,7 @@ export const iconOf = (kind?: string): ReactNode => {
   if (!kind) return <Plus size={14} />;
   const own = ownedBy(kind);
   if (own) return iconOf(own.kind);
+  if (opened(kind, 'agent')) return kinds.settings.icon;
   return kinds[kind]?.icon ?? (chatName(kind) ? kinds.chat.icon : (onThing(kind)?.icon ?? null));
 };
 
