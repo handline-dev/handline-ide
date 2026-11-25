@@ -152,5 +152,16 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
       settled: new Date().toISOString(),
       follow_up: { agent: AUD, state: 'failed', text: 'start failed: no free account' },
     });
+    // A command run the founder allowed: the daemon's title is the command, which names an agent by its id.
+    book.raise({
+      id: 908,
+      kind: 'run',
+      agent: AUD,
+      title: `run in /work, with its output told to <@${AUD}>`,
+      diff: 'run: git push origin HEAD:main\ncwd: /work',
+      reason: `The push needs the keychain, which only you can unlock; <@${AUD}> waits on it.`,
+      state: 'approved',
+      settled: new Date().toISOString(),
+    });
   },
 };
