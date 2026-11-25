@@ -10,6 +10,7 @@ import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { JumpDown } from '#src/ui/JumpDown.tsx';
 import { ago } from '#src/format/time.ts';
+import { TaskAlongside } from '#src/tools/TaskAlongside.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -152,6 +153,7 @@ export function TaskTab({ id }: { id: number }) {
                     </>
                   )}
                 </p>
+                <TaskAlongside task={t.id} holder={t.to ?? undefined} open={open} />
                 <Fields t={t} open={open} />
                 {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
                 {open && !mine && why && (
