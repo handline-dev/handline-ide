@@ -10,6 +10,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -346,6 +347,59 @@ func TestOneAccountIsAskedItsPlanAnHourAtATimeOldestFirst(t *testing.T) {
 	if got := w.logs[len(w.logs)-1]; got != "  zeta: plan question failed: boom" && got != "  acme: plan question failed: boom" {
 		t.Errorf("log %q", got)
 	}
+}
+
+// An account is asked its plan as it is added, while its login is still in the browser, and reads nothing; once the login writes its
+// credential the account is asked again at once, not an hour later. An account with a plan recorded waits its hour after a new login.
+func TestAnAccountAskedBeforeItsLoginIsAskedAgainOnceTheLoginLands(t *testing.T) {
+	w := newWorld(t)
+	w.account("fresh")
+	w.SweepPlans()
+	w.WaitForPlanAsk()
+	if strings.Join(w.plans.asked, ",") != "fresh" {
+		t.Fatalf("asked %q", w.plans.asked)
+	}
+	w.now = w.now.Add(30 * time.Second)
+	w.SweepPlans() // no login yet: nothing new to ask
+	w.WaitForPlanAsk()
+	if len(w.plans.asked) != 1 {
+		t.Fatalf("asked %q before the login", w.plans.asked)
+	}
+	w.loggedIn("fresh", w.now)
+	w.now = w.now.Add(5 * time.Second)
+	w.plans.refresh["fresh"] = "max"
+	w.SweepPlans()
+	w.WaitForPlanAsk()
+	if strings.Join(w.plans.asked, ",") != "fresh,fresh" {
+		t.Fatalf("asked %q after the login", w.plans.asked)
+	}
+	// Recorded now: a later login waits for the hour.
+	w.plans.recorded["fresh"] = "max"
+	w.now = w.now.Add(30 * time.Second)
+	w.loggedIn("fresh", w.now)
+	w.now = w.now.Add(5 * time.Second)
+	w.SweepPlans()
+	w.WaitForPlanAsk()
+	if len(w.plans.asked) != 2 {
+		t.Fatalf("asked %q with a plan recorded", w.plans.asked)
+	}
+}
+
+// loggedIn writes the account's credential file as a login does, modified at.
+func (w *world) loggedIn(acct string, at time.Time) {
+	w.t.Helper()
+	dir := filepath.Join(teamtest.AccountDir(w.t, w.Home, acct), ".claude")
+	f := filepath.Join(dir, ".credentials.json")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := os.WriteFile(f, []byte("{}"), 0o600); err != nil {
+		w.t.Fatal(err)
+	}
+	if err := os.Chtimes(f, at, at); err != nil {
+		w.t.Fatal(err)
+	}
+	team.Accounts{Home: w.Home}.CredentialChanged(acct)
 }
 
 func TestNoAccountsMeansNothingToAsk(t *testing.T) {

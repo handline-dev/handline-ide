@@ -98,6 +98,22 @@ func PlanScale(subscription, tier string) float64 {
 	return 1
 }
 
+// PlanName is the plan as Anthropic names it now, from what claude reports: the 20x Max plan was renamed Ultra and the 5x one is just
+// Max, while claude still says subscription "max" with tier "default_claude_max_20x" or "default_claude_max_5x". A Max with no tier is
+// taken as Max, as PlanScale takes it as 5x. Any other subscription ("pro", "team", "enterprise") is its own word capitalized; ""
+// when none is recorded.
+func PlanName(subscription, tier string) string {
+	switch {
+	case strings.Contains(tier, "max_20x"):
+		return "Ultra"
+	case strings.Contains(tier, "max_5x"), subscription == "max":
+		return "Max"
+	case subscription == "":
+		return ""
+	}
+	return strings.ToUpper(subscription[:1]) + subscription[1:]
+}
+
 // FactorsOf are every account's factors from its stretches' dollars-per-point values (newest last) and plan scales. An account with
 // FactorOwnAfter of its own takes their recent median; else the pooled median (every account's values in Pro units) times its scale.
 func FactorsOf(short, long map[string][]float64, scale map[string]float64) map[string]AccountFactors {

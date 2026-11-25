@@ -53,7 +53,7 @@ func TestAccountsListUsageIsOptInAndSaysWhyAnAccountCannotStart(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(dir, "subscription.json"), []byte(`{"subscriptionType":"max"}`), 0o644)
+	os.WriteFile(filepath.Join(dir, "subscription.json"), []byte(`{"subscriptionType":"max","rateLimitTier":"default_claude_max_20x"}`), 0o644)
 	plain, _ := e.accountsList(nil, nil)
 	if _, has := plain.(map[string]any)["accounts"].([]any)[0].(map[string]any)["assignable"]; has {
 		t.Fatal("the usage fields are only there when asked for")
@@ -63,7 +63,7 @@ func TestAccountsListUsageIsOptInAndSaysWhyAnAccountCannotStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := got.(map[string]any)["accounts"].([]any)[0].(map[string]any)
-	if a["plan"] != "max" || a["assignable"] != false || !strings.Contains(a["assign_reason"].(string), "no status.json") || a["runway"] != "" || a["ctx_pct"] != nil {
+	if a["plan"] != "Ultra" || a["assignable"] != false || !strings.Contains(a["assign_reason"].(string), "no status.json") || a["runway"] != "" || a["ctx_pct"] != nil {
 		t.Fatalf("%v", a)
 	}
 	if _, err := e.accountsList(nil, map[string]any{"usage": "yes"}); err == nil {

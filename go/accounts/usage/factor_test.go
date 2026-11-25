@@ -127,3 +127,22 @@ func TestRefreshFactorsPricesTheCallsOfEachStretch(t *testing.T) {
 		t.Fatalf("%+v, want %v pooled from 1", f, want)
 	}
 }
+
+// The plan is named as Anthropic names it now: the 20x Max plan is Ultra, the 5x one Max, whatever claude still calls them.
+func TestThePlanNameComesFromTheTier(t *testing.T) {
+	for _, c := range []struct{ sub, tier, want string }{
+		{"max", "default_claude_max_20x", "Ultra"},
+		{"max", "default_claude_max_5x", "Max"},
+		{"max", "", "Max"},
+		{"max", "default_claude_ai", "Max"},
+		{"pro", "default_claude_ai", "Pro"},
+		{"team", "", "Team"},
+		{"enterprise", "", "Enterprise"},
+		{"", "", ""},
+		{"", "default_claude_max_20x", "Ultra"},
+	} {
+		if got := PlanName(c.sub, c.tier); got != c.want {
+			t.Errorf("PlanName(%q, %q) = %q, want %q", c.sub, c.tier, got, c.want)
+		}
+	}
+}
