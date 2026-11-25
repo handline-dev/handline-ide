@@ -18,10 +18,10 @@ export function usePair() {
   return {
     pending: pending !== null,
     error,
-    start: async (): Promise<Pairing> => {
+    start: async (host?: string): Promise<Pairing> => {
       setError(null);
       try {
-        const r = await run('pair', () => pair.mutateAsync({}));
+        const r = await run('pair', () => pair.mutateAsync(host ? { host } : {}));
         return { code: r.code, expiresAt: Date.parse(r.expires_at), link: r.web_link, fingerprint: r.fingerprint };
       } catch (e) {
         setError(String(e));
