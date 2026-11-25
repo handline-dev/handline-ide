@@ -61,10 +61,11 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
    "Go with A. Reading is fine. Just do not expose a token or the like that you read."
    Read is allowed; exposing a token, key or other secret from it is not. No key,
    token, email or other value from either file reaches an agent's env, prompt,
-   terminal, log, db or any file Handline writes. The daemon writes three non-secret keys there, under
+   terminal, log, db or any file Handline writes. The daemon writes four non-secret keys there, under
    claude's own lock, every other byte left as it was: the worktree it launches an agent in is marked
-   trusted (`projects[<path>].hasTrustDialogAccepted`), and `resumeReturnDismissed` and
-   `hasCompletedOnboarding` are set true so a launch does not stop on a screen nobody answers. One more, temporary, by the founder's word: a claude
+   trusted (`projects[<path>].hasTrustDialogAccepted`), and `resumeReturnDismissed`,
+   `hasCompletedOnboarding` and `hasSeenAutoModeOutsideReadPrompt` are set true so a launch or a read outside
+   the working folders does not stop on a screen nobody answers. One more, temporary, by the founder's word: a claude
    account's coding-plan key goes into the env of the agent launched on it, nowhere else.
 2. Do not code on an assumption nobody verified. Probe it first.
 3. No logic in `SKILL.md`: it is a stub of at most 20 lines, and detail loads on

@@ -1,6 +1,5 @@
-// Package claudetrust marks a folder trusted in a claude account's global config, so a session started there opens without the
-// folder-trust dialog, and turns off two screens a launched session would stop on: claude's question whether to resume a long-idle
-// conversation, which Handline decides itself, and its first-run onboarding, which a freshly logged-in account shows once.
+// Package claudetrust marks a folder trusted in a claude account's global config, so a session opens there without the folder-trust
+// dialog, and turns off the questions a session would stop on with nobody to answer (dismissKeys).
 // The way it writes is IDE A's (github.com/link-removed, src/main/claude/claude-folder-trust-file.ts at dff65d55a, MIT License,
 // Copyright (c) 2026 Lovecast Inc.): never create the file, never break claude's own lock, never rewrite a file that does not parse,
 // and replace it by a rename from beside it. Unlike IDE A it edits the text in place, so every byte outside the one entry it sets is
@@ -33,10 +32,13 @@ const (
 
 const trustKey = "hasTrustDialogAccepted"
 
-// dismissKeys, each set true at the top of the config, keep claude from stopping a launch on a screen nobody answers:
+// dismissKeys, each set true at the top of the config, keep claude from stopping on a screen nobody answers:
 // resumeReturnDismissed the question whether to resume a long-idle conversation (Claude Code 2.1.322), hasCompletedOnboarding the
-// first-run theme and security screens that a config made by a login alone still shows (Claude Code 2.1.331).
-var dismissKeys = []string{"resumeReturnDismissed", "hasCompletedOnboarding"}
+// first-run theme and security screens that a config made by a login alone still shows (Claude Code 2.1.331),
+// hasSeenAutoModeOutsideReadPrompt the one-time question in auto mode before a read outside the working folders (Claude Code 2.1.331):
+// asked once per account, it stopped each agent on its first such read; those reads go to auto mode's own judgment again, and
+// Handline's read deny rules and ask rules stand.
+var dismissKeys = []string{"resumeReturnDismissed", "hasCompletedOnboarding", "hasSeenAutoModeOutsideReadPrompt"}
 
 // lockWaits are the pauses between tries at claude's lock (IDE A's: 4 retries, factor 2, 50 to 250 ms).
 var lockWaits = []time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 250 * time.Millisecond}

@@ -497,7 +497,8 @@ var _ lifecycle.VendorsPort = vendors{}
 
 // trustFolder marks folder trusted in every claude account's config, so the session opens without claude's folder-trust dialog on
 // whichever account it starts or later moves to, and turns off claude's question whether to resume a long-idle conversation, which
-// Handline decides itself, and the first-run onboarding a freshly logged-in account would stop the launch on. Only a write that happened or failed is logged; a launch never waits on it.
+// Handline decides itself, the first-run onboarding a freshly logged-in account would stop the launch on, and auto mode's one-time
+// question before a read outside the working folders. Only a write that happened or failed is logged; a launch never waits on it.
 func trustFolder(home string, v vendors, log func(string, ...any)) func(agent, folder string) {
 	if log == nil {
 		log = func(string, ...any) {}
@@ -525,9 +526,9 @@ func trustFolder(home string, v vendors, log func(string, ...any)) func(agent, f
 			}
 			switch out, err := claudetrust.Dismiss(claudetrust.ConfigFile(dir)); {
 			case err != nil:
-				log("  %s: could not turn off the resume and first-run screens for account %s: %v", agent, acct, err)
+				log("  %s: could not turn off the resume, first-run and outside-read questions for account %s: %v", agent, acct, err)
 			case out == claudetrust.Granted:
-				log("  %s: turned off the resume and first-run screens for account %s", agent, acct)
+				log("  %s: turned off the resume, first-run and outside-read questions for account %s", agent, acct)
 			}
 		}
 	}
