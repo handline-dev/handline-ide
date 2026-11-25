@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -282,7 +283,16 @@ func changeLines(it flat) []string {
 			return []string{"change the settings of " + agent}
 		}
 		out := make([]string, len(keys))
+		withWas := slices.ContainsFunc(it.keys, func(k string) bool { return strings.HasPrefix(k, "was.") })
 		for i, k := range keys {
+			if _, had := it.m["was."+k]; had { // the value it had when proposed
+				out[i] = fmt.Sprintf("%s: %s -> %s", k, orStr(it.text("was."+k), "(none)"), orStr(vals[k], "(none)"))
+				continue
+			}
+			if withWas { // its agent was read when proposed, and this one was already so
+				out[i] = fmt.Sprintf("%s: %s (already so)", k, orStr(vals[k], "(none)"))
+				continue
+			}
 			out[i] = fmt.Sprintf("set %s of %s to %s", k, addr.Ref(agent), orStr(vals[k], "(none)"))
 		}
 		return out
@@ -320,8 +330,14 @@ func changeLines(it flat) []string {
 // order they are applied.
 func (f flat) diff() string {
 	var lines []string
+	bundled := f.text("kind") == "bundle"
 	for _, it := range f.steps() {
-		lines = append(lines, changeLines(it)...)
+		for _, l := range changeLines(it) {
+			if bundled && it.text("kind") == "settings" && !strings.HasPrefix(l, "set ") && !strings.HasPrefix(l, "change ") {
+				l = addr.Ref(it.text("agent")) + " " + l // a bundle's steps may be several agents': each line says whose
+			}
+			lines = append(lines, l)
+		}
 	}
 	return strings.Join(lines, "\n")
 }

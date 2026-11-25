@@ -184,14 +184,19 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 			sets[k] = s
 		}
 	}
+	was := map[string]string{} // a setting's value when proposed, so the request reads old -> new
 	if kind == "settings" {
 		if len(sets) == 0 {
 			return nil, "name the settings to change, key to value"
 		}
 		r := e.roster()
 		if _, err := r.Read(name); err == nil { // an agent a bundle's earlier step makes is checked when it is applied
-			if changes, problem := r.ChangesFor(e.DB, name, sets, "", idleMinutes); len(changes) == 0 {
+			changes, problem := r.ChangesFor(e.DB, name, sets, "", idleMinutes)
+			if len(changes) == 0 {
 				return nil, problem
+			}
+			for _, c := range changes {
+				was[c.Field] = c.Old
 			}
 		}
 	}
@@ -278,6 +283,9 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 			v = pyjson.PyJSON(v, false, true)
 		}
 		prop.set("set."+fn, v)
+		if old, ok := was[fn]; ok {
+			prop.set("was."+fn, old)
+		}
 	}
 	if len(full) > 0 {
 		prop.set("members", strings.Join(full, ","))

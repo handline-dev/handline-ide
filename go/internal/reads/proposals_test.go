@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 func putProposal(t *testing.T, e *Env, id, body string) {
@@ -150,6 +151,13 @@ func TestProposalDiffIsOneChangePerLineInTheSpecsWords(t *testing.T) {
 		{"retire", "kind: retire\nagent: old\n", "retire old"},
 		{"add", "kind: add\nagent: new\nteam: eng\nmodel: opus\nvendor: codex\n", "register new, team eng, model opus, vendor codex"},
 		{"settings", "kind: settings\nagent: w\nset.model: opus\nset.effort: \"\"\n", "set model of w to opus\nset effort of w to (none)"},
+		{"settings with the value it had", "kind: settings\nagent: w\nset.effort: high\nwas.effort: medium\nset.model: opus\nwas.model: \"\"\n",
+			"effort: medium -> high\nmodel: (none) -> opus"},
+		{"settings, one already so", "kind: settings\nagent: w\nset.effort: high\nwas.effort: medium\nset.model: opus\n",
+			"effort: medium -> high\nmodel: opus (already so)"},
+		{"a bundle's settings say whose", "kind: bundle\nagent: x\ni1.kind: settings\ni1.agent: ann\ni1.set.effort: max\ni1.was.effort: low\n" +
+			"i2.kind: settings\ni2.agent: bob\ni2.set.effort: max\ni2.was.effort: high\n",
+			addr.Ref("ann") + " effort: low -> max\n" + addr.Ref("bob") + " effort: high -> max"},
 		{"settings with nothing set", "kind: settings\nagent: w\n", "change the settings of w"},
 		{"team", "kind: team\nagent: eng\nrepo: r\nmembers: \"a,b\"\n", "create team eng (working in r) with members a, b"},
 		{"context", "kind: context\nagent: w\nset.ROLE.md: \"\\\"x\\\"\"\n", "replace ROLE.md of w"},

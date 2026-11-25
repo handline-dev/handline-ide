@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/cmdruns"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -243,5 +244,20 @@ func TestAnAgentAsksForASandboxAllowanceAndTheFounderApprovesIt(t *testing.T) {
 	}
 	if d := r.decide(int64(n), "approve", fmt.Sprint(v["subject"]), "ps-d"); d["result"] == nil || !strings.Contains(r.settingsText("alice"), "sandbox_allow: pnpm-install") {
 		t.Fatalf("%v\n%s", d, r.settingsText("alice"))
+	}
+}
+
+// A settings proposal keeps the value each setting has when it is proposed, so the request reads old -> new.
+func TestASettingsProposalKeepsTheValueItHad(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	m := r.callAs("alice", "proposal.propose", `{"kind":"settings","args":{"name":"alice","sets":{"effort":"max"}},"why":"hard work","request_id":"pe-1"}`)
+	res, _ := m["result"].(map[string]any)
+	if res == nil {
+		t.Fatalf("not raised: %v", m)
+	}
+	n, _ := res["proposal"].(float64)
+	if v := r.e.ProposalView(fmt.Sprintf("%08x", int64(n))); v["diff"] != "effort: "+team.DefaultEffort+" -> max" {
+		t.Fatalf("the request reads %q", v["diff"])
 	}
 }
