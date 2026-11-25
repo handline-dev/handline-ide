@@ -1,29 +1,14 @@
-// The pair sheet: the addresses this machine can be reached on, and a one-time code for the one picked.
+// Connect a device: a one-time code and its one link. The daemon picks the address the link names.
 import { Hooks } from '@handline/app-data';
 import { useState } from 'react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
-
-export function usePairAddresses() {
-  const q = Hooks.useConnectionAddresses();
-  return { addresses: q.data?.addresses ?? [], loading: q.isPending, error: q.isError };
-}
-
-/** Makes sure an address is served: network_addresses becomes the hosts listening now plus this one. A no-op when it already listens. */
-export function useOpenAddress() {
-  const set = Hooks.useSettingsSet();
-  const q = Hooks.useConnectionAddresses();
-  return async (host: string) => {
-    const now = q.data?.addresses ?? [];
-    if (now.find((a) => a.host === host)?.listening) return;
-    const listening = now.filter((a) => a.listening).map((a) => a.host);
-    await set.mutateAsync({ changes: { network_addresses: [...listening, host] } });
-  };
-}
 
 export interface Pairing {
   code: string;
   expiresAt: number;
   link: string;
+  /** The self-made certificate's fingerprint on a Wi-Fi link; '' on a Tailscale link. */
+  fingerprint: string;
 }
 
 export function usePair() {
@@ -33,11 +18,11 @@ export function usePair() {
   return {
     pending: pending !== null,
     error,
-    start: async (address?: string): Promise<Pairing> => {
+    start: async (): Promise<Pairing> => {
       setError(null);
       try {
-        const r = await run('pair', () => pair.mutateAsync(address ? { address } : {}));
-        return { code: r.code, expiresAt: Date.parse(r.expires_at), link: r.web_link };
+        const r = await run('pair', () => pair.mutateAsync({}));
+        return { code: r.code, expiresAt: Date.parse(r.expires_at), link: r.web_link, fingerprint: r.fingerprint };
       } catch (e) {
         setError(String(e));
         throw e;

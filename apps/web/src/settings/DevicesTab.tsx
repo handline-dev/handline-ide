@@ -1,5 +1,6 @@
 import { count } from '#src/format/count.ts';
-// Settings > Devices: every device in one flat list, the master first; a row opens its page. Under it, where agents run; at the foot, the
+// Settings > Devices: every device in one flat list, the master first; a row opens its page. A row says only what its Run · Pause · Off
+// cannot. Under it, where agents run; at the foot, the
 // battery switch, Auto or Manual for a lent Mac taking the master's build, and the reclaim time.
 import { useNameOf } from '@handline/app-data';
 import { ListLoading } from '#src/ui/Loading.tsx';
@@ -8,6 +9,7 @@ import {
   ArrowUpCircle,
   BatteryCharging,
   ChevronRight,
+  Loader,
   Plus,
   RefreshCw,
   SlidersHorizontal,
@@ -42,6 +44,7 @@ import {
 } from '#src/settings/data/devices.ts';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
+import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
@@ -66,62 +69,76 @@ function setAll(rows: DeviceRow[], mode: Mode, q: Devices) {
   });
 }
 
-/** What the row says under its name: its kind, its agents, its memory cap, and what it lacks for an agent, or that it is on another build. */
+/** What the row says under its name: a Mac's or a server's agents, with a warning mark whose hover says the whole reason it cannot run one,
+ * or that it is on another build; a phone's or a browser's Controls only. Its kind is the row's icon. */
 function Detail({ r, q }: { r: DeviceRow; q: Devices }) {
-  const memoryMax = q.memoryMax;
   const nameOf = useNameOf();
-  const kind = r.kind ? KIND_WORD[r.kind] : null;
-  const cap = r.node?.memory_max_gb ?? memoryMax;
-  const parts = r.runner ? [kind, `${count(r.agents.length, 'agent')}`, cap ? `up to ${cap} GB` : null] : [kind, 'runs no agents'];
-  const lack = r.lacks[0];
-  const why = r.lacks.map((l) => `${nameOf(l.agent)}: ${l.why}`).join('\n');
+  if (!r.runner) return <div className="truncate text-xs text-muted">Controls only</div>;
+  const why = r.lacks.map((l) => `Cannot run ${nameOf(l.agent)}: ${l.why}.`);
   return (
-    <div className="truncate text-xs text-muted">
-      {parts.filter(Boolean).join(' · ')}
-      {r.behind ? (
-        <span title={why}>
+    <div className="flex items-center gap-1 truncate text-xs text-muted">
+      {count(r.agents.length, 'agent')}
+      {why.length > 0 && (
+        <HoverCard
+          trigger={
+            <span role="img" aria-label={why.join(' ')} data-lacks className="inline-flex text-warning">
+              <TriangleAlert size={12} />
+            </span>
+          }
+        >
+          <div className="flex max-w-80 flex-col gap-1 px-2 py-1.5 text-xs text-fg">
+            {why.map((w) => (
+              <span key={w}>{w}</span>
+            ))}
+          </div>
+        </HoverCard>
+      )}
+      {r.behind && !r.updating ? (
+        <span>
           {' · '}
-          {r.updating ? (
-            'updating…'
-          ) : (
+          <span className="text-warning">
+            <TriangleAlert size={12} className="mb-0.5 inline" /> other build
+          </span>
+          {canUpdate(r) && (
             <>
-              <span className="text-warning">
-                <TriangleAlert size={12} className="mb-0.5 inline" /> other build
-              </span>
-              {canUpdate(r) && (
-                <>
-                  {' · '}
-                  <UpdateLink r={r} q={q}>
-                    Update
-                  </UpdateLink>
-                </>
-              )}
+              {' · '}
+              <UpdateLink r={r} q={q}>
+                Update
+              </UpdateLink>
             </>
           )}
         </span>
-      ) : r.appReady ? (
-        <span>
-          {' · '}
-          {canUpdate(r) ? (
-            <UpdateLink r={r} q={q}>
-              <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update to {r.appReady}
-            </UpdateLink>
-          ) : (
-            <span className="text-fg">
-              <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update ready {r.appReady}
-            </span>
-          )}
-        </span>
       ) : (
-        lack && (
-          <span className="text-warning" title={why}>
-            {' · '}cannot run {nameOf(lack.agent)}: {lack.why}
-            {r.lacks.length > 1 && ` (+${r.lacks.length - 1})`}
+        !r.behind &&
+        r.appReady && (
+          <span>
+            {' · '}
+            {canUpdate(r) ? (
+              <UpdateLink r={r} q={q}>
+                <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update to {r.appReady}
+              </UpdateLink>
+            ) : (
+              <span className="text-fg">
+                <ArrowUpCircle size={12} className="mb-0.5 inline" /> Update ready {r.appReady}
+              </span>
+            )}
           </span>
         )
       )}
     </div>
   );
+}
+
+/** Beside the buttons only what they cannot say: offline since when, starting, updating, or a phone's last contact. */
+function RowState({ r }: { r: DeviceRow }) {
+  if (r.updating)
+    return (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-muted">
+        <Loader size={12} /> Updating…
+      </span>
+    );
+  if (r.state === 'running' || r.state === 'paused' || r.state === 'off') return null;
+  return <StateWord row={r} />;
 }
 
 /** The row's Update: the machine takes the master's build, and its Mac app installs the version it has ready. */
@@ -189,7 +206,7 @@ function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: b
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => pick(e.target.checked)}
         />
-        <Icon size={16} className="shrink-0 text-muted" />
+        <Icon size={16} role="img" aria-label={KIND_WORD[r.kind ?? 'desktop']} className="shrink-0 text-muted" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate">{r.name}</span>
@@ -199,7 +216,7 @@ function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: b
           <Detail r={r} q={q} />
         </div>
         <span className={`w-40 shrink-0 text-xs ${r.stale ? 'text-warning' : ''}`}>
-          <StateWord row={r} />
+          <RowState r={r} />
         </span>
         {/* Phones and browsers keep the control's room, so the states line up. */}
         <span className="flex w-52 shrink-0 justify-end">

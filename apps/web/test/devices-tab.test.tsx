@@ -101,7 +101,7 @@ describe('Devices', () => {
     aside.now = null;
   });
 
-  it('lists every device in one list, the master first, with its state and what a Mac lacks', () => {
+  it('lists every device in one list, the master first, with what its buttons cannot say and what a Mac lacks', () => {
     expect([...document.querySelectorAll('[data-device]')].map((r) => r.getAttribute('data-device'))).toEqual([
       'mbp',
       'studio',
@@ -113,8 +113,12 @@ describe('Devices', () => {
     expect(at('mbp').textContent).toContain('This device');
     expect(at('mbp').textContent).toContain('Master');
     expect(at('mbp').textContent).toContain('2 agents');
-    expect(at('studio').textContent).toContain('cannot run ui: its project is not there');
+    expect(at('mbp').textContent).not.toContain('Running');
+    expect(at('mbp').querySelector('[aria-label="Mac"]')).not.toBeNull();
+    expect(at('studio').querySelector('[data-lacks]')!.getAttribute('aria-label')).toBe('Cannot run ui: its project is not there.');
+    expect(at('studio').textContent).not.toContain('Cannot run');
     expect(at('phone').querySelector('[role="radiogroup"]')).toBeNull();
+    expect(at('phone').textContent).toContain('Controls only');
   });
 
   it('sets Run and Pause at once, asks before Off, and never lets the master go Off', async () => {

@@ -29,7 +29,8 @@ export class FakePairing {
     return accepted('Pairing code made.', {
       code,
       expires_at: new Date(now.getTime() + 300_000).toISOString(),
-      fingerprint: 'fa'.repeat(32),
+      // A Tailscale link on Tailscale's own certificate: no fingerprint to pin.
+      fingerprint: '',
       web_link: `https://mac.tail1.ts.net:7443/#pair=${code}`,
     });
   }
