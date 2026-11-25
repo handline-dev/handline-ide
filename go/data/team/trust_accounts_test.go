@@ -317,10 +317,6 @@ func TestUsersOfAndRemovePlan(t *testing.T) {
 	if _, ok, _ := ReadAccount(db, "nobody", nil); ok {
 		t.Fatal("nothing says")
 	}
-	dest, err := a.Retire("alpha", time.Date(2026, 10, 7, 1, 2, 3, 0, time.UTC))
-	if err != nil || filepath.Base(dest) != "alpha-20261007-010203" {
-		t.Fatalf("%s %v", dest, err)
-	}
 }
 
 func TestSettingsProblemAndChanges(t *testing.T) {

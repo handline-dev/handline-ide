@@ -139,7 +139,7 @@ func (e *Env) accountRemove(c *rpc.Conn, p map[string]any) (any, error) {
 	if run == nil {
 		run = logout
 	}
-	said, err := accts.Remove(e.DB, acct, time.Now(), run)
+	said, err := accts.Remove(e.DB, acct, run)
 	var no *team.RemoveRefused
 	if errors.As(err, &no) {
 		return nil, refused(no.Why, "state")

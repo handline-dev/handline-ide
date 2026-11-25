@@ -113,7 +113,7 @@ func TestAccountRemoveDryRunChangesAndRecordsNothing(t *testing.T) {
 	}
 }
 
-func TestAccountRemoveLogsOutMovesTheDirectoryAsideAndForgetsItOnTheAgents(t *testing.T) {
+func TestAccountRemoveLogsOutDeletesTheFolderAndForgetsItOnTheAgents(t *testing.T) {
 	r := newRig(t)
 	r.loggedIn("main")
 	for _, q := range []string{
@@ -135,16 +135,16 @@ func TestAccountRemoveLogsOutMovesTheDirectoryAsideAndForgetsItOnTheAgents(t *te
 	if m := r.one("account.remove", `{"account":"main","confirm":"other","request_id":"rm0"}`); r.code(m) != "bad_request" {
 		t.Fatalf("with another name: %v", m)
 	}
+	dir := teamtest.AccountDir(t, r.home, "main")
 	res := r.result(r.one("account.remove", `{"account":"main","confirm":"main","request_id":"rm1"}`))
-	if len(ran) != 1 || ran[0] != "claude auth logout" || res["accepted"] != true || !strings.HasPrefix(res["said"].(string), "removed account 'main' (logged out; directory kept at ") {
+	if len(ran) != 1 || ran[0] != "claude auth logout" || res["accepted"] != true || !strings.HasPrefix(res["said"].(string), "removed account 'main' (logged out, folder deleted)") {
 		t.Fatalf("%v %v", ran, res)
 	}
 	if paths.AccountKey(r.home, "main") != "" || slices.Contains(paths.ListAccounts(r.home), "main") {
 		t.Fatal("the account is still on the roster")
 	}
-	kept, _ := filepath.Glob(filepath.Join(r.home, "accounts", ".retired", "main-*", ".claude"))
-	if len(kept) == 0 {
-		t.Fatal("the directory was not kept")
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("the folder is still there: %v", err)
 	}
 	var account, resume any
 	r.e.DB.QueryRow("SELECT account, resume_session FROM agent_state WHERE agent = 'alice'").Scan(&account, &resume)

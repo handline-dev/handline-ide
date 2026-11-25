@@ -203,7 +203,7 @@ func (a Accounts) RemovePreview(q *sql.DB, acct string) (would bool, lines []str
 	} else {
 		lines = append(lines, "  log it out: not logged in, nothing to do")
 	}
-	lines = append(lines, fmt.Sprintf("  move %s to %s/%s-<time> (kept, not deleted)", paths.AccountDir(a.Home, acct), filepath.Join(paths.AccountsDir(a.Home), ".retired"), acct))
+	lines = append(lines, fmt.Sprintf("  delete %s", paths.AccountDir(a.Home, acct)))
 	rows, err := q.Query("SELECT agent FROM agent_state WHERE account = ?", acct)
 	if err != nil {
 		return false, nil, err
@@ -233,9 +233,9 @@ func (e *RemoveRefused) Error() string { return e.Why }
 
 // Remove logs the account out and takes it off the roster (accounts.remove_account), the confirmation having been asked already. run runs
 // the vendor's logout and answers its exit code (-1 when it could not run). Refused while an agent is on the account and when the logout
-// fails. The directory is moved aside, never deleted: the vendor removes its own credential, and moving the
-// directory of a logged-in account would orphan it. Answers the line to say.
-func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []string, env map[string]string) int) (string, error) {
+// fails. The vendor removes its own credential first; then the directory is deleted (the conversations stay in the database). Answers
+// the line to say.
+func (a Accounts) Remove(q *sql.DB, acct string, run func(argv []string, env map[string]string) int) (string, error) {
 	ok, why, err := a.RemovePlan(q, acct)
 	if err != nil {
 		return "", err
@@ -274,7 +274,7 @@ func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []
 				return err
 			}
 		}
-		// A closed agent's resume id lives under the directory moved aside: it starts fresh on whatever account has room.
+		// A closed agent's resume id lives under the directory deleted: it starts fresh on whatever account has room.
 		if _, err := tx.Exec("UPDATE agent_state SET account = NULL, account_source = NULL, resume_session = NULL WHERE account = ?", acct); err != nil {
 			return err
 		}
@@ -283,11 +283,10 @@ func (a Accounts) Remove(q *sql.DB, acct string, now time.Time, run func(argv []
 	}); err != nil {
 		return "", err
 	}
-	dest, err := a.retire(dir, acct, now)
-	if err != nil {
-		return "", fmt.Errorf("account '%s' is off the roster, but its folder %s was not moved aside: %w", acct, dir, err)
+	if err := os.RemoveAll(dir); err != nil {
+		return "", fmt.Errorf("account '%s' is off the roster, but its folder %s was not deleted: %w", acct, dir, err)
 	}
-	return fmt.Sprintf("removed account '%s' (logged out; directory kept at %s)", acct, dest), nil
+	return fmt.Sprintf("removed account '%s' (logged out, folder deleted)", acct), nil
 }
 
 func mustConfigDir(home, acct string) string {

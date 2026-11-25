@@ -413,21 +413,6 @@ func (a Accounts) LogoutArgv(acct string) ([]string, map[string]string) {
 	return facts(AccountVendor(a.Home, acct)).LogoutArgv(), a.EnvFor(acct, "")
 }
 
-// Retire takes the account off the roster by moving its directory aside, not deleting it: its transcripts are the only record
-// of what was spent on it. A dot directory is invisible to ListAccounts.
-func (a Accounts) Retire(acct string, now time.Time) (string, error) {
-	return a.retire(paths.AccountDir(a.Home, acct), acct, now)
-}
-
-func (a Accounts) retire(from, acct string, now time.Time) (string, error) {
-	dir := filepath.Join(paths.AccountsDir(a.Home), ".retired")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	dest := filepath.Join(dir, acct+"-"+now.Format("20060102-150405"))
-	return dest, os.Rename(from, dest)
-}
-
 // AccountNamedBy is the account a config-dir variable's value points into, or "" for a directory that is not one of ours.
 func (a Accounts) AccountNamedBy(value string) string {
 	root, ok := resolved(paths.AccountsDir(a.Home))
