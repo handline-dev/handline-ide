@@ -18,7 +18,7 @@ import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { Fields } from '#src/tools/TaskFields.tsx';
-import { GO_TURN, goToTurn, openTurnRow, takeTyping, toBottom, type OpenTurn } from '#src/tools/TaskTurn.ts';
+import { GO_TURN, goToTurn, openTurnRow, takeTyping, toBottom, type OpenTurn, useGoToMark } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { ChangeSize } from '#src/tools/TaskCode.tsx';
@@ -58,13 +58,7 @@ export function TaskTab({ id }: { id: number }) {
   const onTurn = !!q.data && !CLOSED.includes(q.data.state) && foundersTurn(q.data, me);
   // Bumped when Answer in task asks the comment box to take the keys: as the tab opens, or later through GO_TURN.
   const [typing, setTyping] = useState(() => (takeTyping(id) ? 1 : 0));
-  useEffect(() => {
-    if (!loaded) return;
-    const marked = keptScroll.take(`turn:${id}`);
-    if (!marked && !(onTurn && keptScroll.get(`task:${id}`) === undefined)) return;
-    const at = setTimeout(() => goToTurn(id), 100);
-    return () => clearTimeout(at);
-  }, [loaded, onTurn, id]);
+  useGoToMark(id, loaded, onTurn);
   useEffect(() => {
     const on = (e: Event) => {
       if ((e as CustomEvent<number>).detail !== id) return;

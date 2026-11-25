@@ -5,8 +5,9 @@ import type { SettingsChanges } from '@handline/client';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { useMe } from '@handline/app-react';
-import { LEVEL_WORD, Lessons, WORK_WORD } from '#src/settings/AgentPage.tsx';
+import { LEVEL_WORD, WORK_WORD } from '#src/settings/AgentPage.tsx';
 import { Mark } from '#src/ui/Face.tsx';
+import { Rules } from '#src/settings/Rules.tsx';
 import { agentSettingsOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { closeSettings } from '#src/settings/open.ts';
@@ -71,7 +72,7 @@ export function AgentsTab() {
           </Setting>
         </Block>
       )}
-      {me && <Lessons agent={me} founder />}
+      {me && <Rules person={me} />}
       <AgentRows />
       {!!save.error && (
         <p className="text-xs text-danger" role="alert">

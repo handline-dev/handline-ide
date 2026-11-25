@@ -1,6 +1,7 @@
 import { isPerson } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
 import type { Reply } from '#src/tools/TaskComment.tsx';
+import { useEffect } from 'react';
 import { keptScroll } from '#src/ui/keptScroll.ts';
 
 export const GO_TURN = 'handline:go-turn';
@@ -14,6 +15,14 @@ export function goToTurnOf(task: number, type = false) {
   keptScroll.set(`turn:${task}`, 'end');
   if (type) typing.add(task);
   setTimeout(() => window.dispatchEvent(new CustomEvent(GO_TURN, { detail: task })));
+}
+
+export const GO_MEMO = 'handline:go-memo';
+
+/** Asks the tab of `task` to bring comment `memo` into view: an open one at once, one that opens once it is drawn. */
+export function goToMemoOf(task: number, memo: number) {
+  keptScroll.set(`memo:${task}`, memo);
+  setTimeout(() => window.dispatchEvent(new CustomEvent(GO_MEMO, { detail: task })));
 }
 
 /** Whether the comment box of `task` was asked to take the keys; asked once. */
@@ -62,4 +71,31 @@ export function toBottom(id: number) {
     const el = document.querySelector(`[data-task-scroll="${id}"]`);
     el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, 50);
+}
+
+/** Once the task is drawn: a comment asked for (a rule's quote in Settings) comes into view; else the founder's turn, when asked or on a
+ *  first open while it is theirs. */
+export function useGoToMark(id: number, loaded: boolean, onTurn: boolean) {
+  useEffect(() => {
+    if (!loaded) return;
+    const memo = keptScroll.take(`memo:${id}`);
+    const marked = keptScroll.take(`turn:${id}`);
+    if (typeof memo === 'number') {
+      const at = setTimeout(() => showMemo(memo), 100);
+      return () => clearTimeout(at);
+    }
+    if (!marked && !(onTurn && keptScroll.get(`task:${id}`) === undefined)) return;
+    const at = setTimeout(() => goToTurn(id), 100);
+    return () => clearTimeout(at);
+  }, [loaded, onTurn, id]);
+  // Already drawn when asked: there at once.
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent<number>).detail !== id || !loaded) return;
+      const memo = keptScroll.take(`memo:${id}`);
+      if (typeof memo === 'number') showMemo(memo);
+    };
+    window.addEventListener(GO_MEMO, on);
+    return () => window.removeEventListener(GO_MEMO, on);
+  }, [id, loaded]);
 }
