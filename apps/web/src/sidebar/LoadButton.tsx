@@ -1,5 +1,5 @@
 // The status bar's load: an icon that opens what each agent uses now, CPU and memory, heaviest first, under this machine's totals.
-// A row opens the agent's chat by the app's one scheme. It reads load.get only while open.
+// CPU is a share of the whole machine, as its total is, not of one core. A row opens the agent's chat by the app's one scheme. It reads load.get only while open.
 import { byLoad, bytesText } from '@handline/app-core';
 import { Hooks, useNameOf } from '@handline/app-data';
 import { Activity } from 'lucide-react';
@@ -39,7 +39,7 @@ function LoadList() {
   const m = load.machine;
   const rows = byLoad(load.agents ?? []);
   return (
-    <div className="flex w-80 flex-col">
+    <div className="flex max-h-96 w-80 flex-col overflow-y-auto">
       <p className="flex justify-between px-2 pb-1.5 text-xs text-muted">
         <span>This Mac</span>
         <span className="tabular-nums">
@@ -48,7 +48,7 @@ function LoadList() {
       </p>
       {rows.length === 0 && <p className="px-2 py-1.5 text-sm text-muted">No agent is running.</p>}
       {rows.map((r) => (
-        <Row key={r.agent} agent={r.agent} cpu={r.cpu_pct} rss={r.rss_bytes} />
+        <Row key={r.agent} agent={r.agent} cpu={r.cpu_pct / Math.max(1, m.cores)} rss={r.rss_bytes} />
       ))}
     </div>
   );
