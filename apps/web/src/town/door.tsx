@@ -1,7 +1,7 @@
 // A door swinging, drawn over a room's picture (the city's or an office's) where the picture shows it shut: its own pixels turned about
 // its hinge in the room, through the room's camera, and laid back on the picture's own pixel grid, darker as it turns from the light. A
-// door opens away from the viewer, behind its frame: a building's into it, an office's out to the street. The picture itself is never
-// drawn again for it.
+// door opens away from the viewer, behind its frame: a building's into it, an office's out to the street; or, swung `out`, toward the
+// viewer, past the bottom of its frame. The picture itself is never drawn again for it.
 import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import type { Box } from '#src/town/people.ts';
 import type { Block } from '#src/town/room.ts';
@@ -55,24 +55,25 @@ function useOpen(way: Way, onDone: () => void): number {
  *  hinge and `b d` down. */
 type Turn = { x0: number; x1: number; hinge: number; a: number; b: number };
 
-/** The leaves turned, as pixels on the picture's grid inside the doorway: each pixel takes the shut leaf's pixel that lands on it. */
-function turned(pic: Picture, box: Box, turns: Turn[], light: number): string {
-  const out = new ImageData(box.w, box.h);
-  for (let y = 0; y < box.h; y++)
-    for (let x = 0; x < box.w; x++) {
-      const [cx, cy] = [box.x + x + 0.5, box.y + y + 0.5];
+/** The leaves turned, as pixels on the picture's grid inside `area` (the doorway, and below it what a leaf swung out reaches): each pixel
+ *  takes the shut leaf's pixel that lands on it. */
+function turned(pic: Picture, box: Box, area: Box, turns: Turn[], light: number): string {
+  const out = new ImageData(area.w, area.h);
+  for (let y = 0; y < area.h; y++)
+    for (let x = 0; x < area.w; x++) {
+      const [cx, cy] = [area.x + x + 0.5, area.y + y + 0.5];
       for (const t of turns) {
         const u = t.hinge + (cx - t.hinge) / t.a;
         const v = cy - t.b * (u - t.hinge);
         if (u < t.x0 || u >= t.x1 || v < box.y || v >= box.y + box.h) continue;
-        const [from, to] = [(Math.floor(v) * pic.w + Math.floor(u)) * 4, (y * box.w + x) * 4];
+        const [from, to] = [(Math.floor(v) * pic.w + Math.floor(u)) * 4, (y * area.w + x) * 4];
         for (let c = 0; c < 3; c++) out.data[to + c] = pic.rgba[from + c] * light;
         out.data[to + 3] = pic.rgba[from + 3];
         break;
       }
     }
   const canvas = document.createElement('canvas');
-  [canvas.width, canvas.height] = [box.w, box.h];
+  [canvas.width, canvas.height] = [area.w, area.h];
   canvas.getContext('2d')?.putImageData(out, 0, 0);
   return canvas.toDataURL();
 }
@@ -82,17 +83,20 @@ export function DoorSwing({
   door,
   toPixel,
   way,
+  out = false,
   onDone,
 }: {
   pic: Picture;
   door: Doorway;
   toPixel: (x: number, y: number, z: number) => [number, number];
   way: Way;
+  /** Swung toward the viewer, as a door is pushed open walking out of the picture. */
+  out?: boolean;
   onDone?: () => void;
 }) {
   const angle = useOpen(way, () => onDone?.()) * OPEN;
   const { box, leaves } = door;
-  const url = useMemo(() => {
+  const { url, area } = useMemo(() => {
     const double = leaves.spans.length > 1;
     const mid = Math.round(box.x + box.w / 2);
     const turns = leaves.spans.map(([x0, x1], i): Turn => {
@@ -101,17 +105,21 @@ export function DoorSwing({
       const [hx, fx] = right ? [x1, x0] : [x0, x1];
       const [px0, px1] = double ? (i === 0 ? [box.x, mid] : [mid, box.x + box.w]) : [box.x, box.x + box.w];
       const width = Math.abs(fx - hx);
-      const free = (a: number) => toPixel(hx + Math.sign(fx - hx) * Math.cos(a) * width, 0, leaves.z - Math.sin(a) * width);
+      const free = (a: number) =>
+        toPixel(hx + Math.sign(fx - hx) * Math.cos(a) * width, 0, leaves.z + (out ? 1 : -1) * Math.sin(a) * width);
       const [base, shut, open] = [toPixel(hx, 0, leaves.z), free(0), free(angle)];
       const span = shut[0] - base[0];
       return { x0: px0, x1: px1, hinge: right ? px1 : px0, a: (open[0] - base[0]) / span, b: (open[1] - shut[1]) / span };
     });
-    return turned(pic, box, turns, 1 - DIM * Math.sin(angle));
-  }, [pic, box, leaves, toPixel, angle]);
+    // A leaf swung out drops below the doorway by as much as its free end moves down.
+    const drop = out ? Math.max(0, ...turns.map((t) => Math.ceil(Math.abs(t.b) * (t.x1 - t.x0)))) : 0;
+    const area = { ...box, h: box.h + drop };
+    return { url: turned(pic, box, area, turns, 1 - DIM * Math.sin(angle)), area };
+  }, [pic, box, leaves, toPixel, angle, out]);
   return (
     <g className="pointer-events-none">
       <rect x={box.x} y={box.y} width={box.w} height={box.h} fill={door.through} />
-      <image href={url} x={box.x} y={box.y} width={box.w} height={box.h} style={{ imageRendering: 'pixelated' }} />
+      <image href={url} x={area.x} y={area.y} width={area.w} height={area.h} style={{ imageRendering: 'pixelated' }} />
     </g>
   );
 }

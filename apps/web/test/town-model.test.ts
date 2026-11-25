@@ -22,4 +22,20 @@ describe('townOf', () => {
     // The founder's own house holds every decision, the daemon's own (no agent) among them.
     expect(t.decisions.map((d) => d.task)).toEqual([1, 2, 3]);
   });
+
+  it('knows whose prompt cache still holds its conversation, at the time it is asked', () => {
+    const now = Date.parse('2026-01-01T12:00:00Z');
+    const until = (key: string, at: string | null) => ({ ...agent(key, key, 'w'), cache_until: at }) as unknown as AgentView;
+    const t = townOf(
+      [ws('w', 'core', null)],
+      [until('a', '2026-01-01T12:04:00Z'), until('b', '2026-01-01T11:59:00Z'), until('c', null)],
+      [],
+      now,
+    );
+    expect(t.houses[0].people.map((p) => [p.key, p.cached])).toEqual([
+      ['a', true],
+      ['b', false],
+      ['c', false],
+    ]);
+  });
 });

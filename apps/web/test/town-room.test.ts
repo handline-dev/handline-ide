@@ -4,7 +4,7 @@ import type { House, Person } from '#src/town/model.ts';
 import { figuresOf } from '#src/town/people.ts';
 import { inFront, roomOf, WALL_T, type Room } from '#src/town/room.ts';
 
-const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0 });
+const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0, cached: false });
 const house = (people: Person[]): House => ({ key: 'w', name: 'w', lead: people[0], people, working: 0, decisions: [] });
 /** A desk's top is the one block of a desk with a tag. */
 const desks = (r: Room) => r.blocks.filter((b) => b.tag && b.part?.startsWith('desk:')).map((b) => b.tag);
@@ -26,12 +26,21 @@ describe('roomOf', () => {
         person('d', 'resting'),
         person('e', 'waking'),
         person('f', 'held'),
+        { ...person('g', 'resting'), cached: true },
       ]),
     );
-    expect(desks(r)).toEqual([...['a', 'b', 'c', 'd', 'e', 'f'].map((k) => `desk:${k}`), 'desk:you']);
-    // At their desks: working, waiting for the founder and on hold; the idle one on a sofa, the starting one at the door, the asleep nowhere.
+    expect(desks(r)).toEqual([...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((k) => `desk:${k}`), 'desk:you']);
+    // At their desks: working, waiting for the founder and on hold; the idle one whose prompt cache lives at its desk turned to face the
+    // room, the one whose cache ran out on a sofa; the starting one at the door, the asleep nowhere.
     const where = Object.fromEntries(r.places.map((p) => [p.person.key, p.how]));
-    expect(where).toEqual({ a: 'desk', b: 'desk', f: 'desk', d: 'sofa', e: 'door' });
+    expect(where).toEqual({ a: 'desk', b: 'desk', f: 'desk', g: 'turned', d: 'sofa', e: 'door' });
+    // The turned one's chair has its back against the desk, the others' toward the camera.
+    const back = (k: string) => {
+      const parts = r.blocks.filter((b) => b.part === r.blocks.find((c) => c.tag === `chair:${k}`)?.part);
+      const seat = parts.find((b) => b.solid)!;
+      return parts.find((b) => b.to[1] === 0.6)!.from[2] < seat.from[2] + 0.05 ? 'desk' : 'camera';
+    };
+    expect([back('a'), back('g')]).toEqual(['camera', 'desk']);
     // Only the working and the waiting agents' screens are lit.
     expect(r.blocks.filter((b) => b.kind === 'lit')).toHaveLength(2);
   });

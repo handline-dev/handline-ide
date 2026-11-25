@@ -4,7 +4,7 @@ import { cityOf, HQ, ROAD } from '#src/town/city.ts';
 import type { House, Person } from '#src/town/model.ts';
 import { cityRoom, U } from '#src/town/street.ts';
 
-const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0 });
+const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0, cached: false });
 const house = (key: string, acts: Activity[]): House => {
   const people = acts.map((a, i) => person(`${key}${i}`, a));
   return { key, name: key, lead: people[0], people, working: acts.filter((a) => a === 'working').length, decisions: [] };

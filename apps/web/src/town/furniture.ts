@@ -39,10 +39,13 @@ export function desk(put: Put, x: number, z: number, tag: string) {
   put([x0 + 0.05, 0.12, z0 + 0.03], [x1 - 0.05, DESK_TOP - 0.03, z0 + 0.05], 'thing', { part, colour: STEEL });
 }
 
-/** A desk chair 0.3 m across, its back toward the camera: a cross of legs on castors under a post, a seat, a back and two arms. */
-export function chair(put: Put, x: number, z: number, tag: string) {
+/** A desk chair 0.3 m across: a cross of legs on castors under a post, a seat, a back and two arms. Its back is toward the camera, the
+ *  sitter facing the desk, or `turned` round against the desk, the sitter facing the camera. */
+export function chair(put: Put, x: number, z: number, tag: string, turned = false) {
   const part = `chair:${x},${z}`;
   const [cx, cz] = [x + 0.142, z - 0.13];
+  // Turned, what stands at a depth `a` before the seat's middle stands as far behind it.
+  const across = (a: number, b: number): [number, number] => (turned ? [2 * (z - 0.145) - b, 2 * (z - 0.145) - a] : [a, b]);
   put([cx - 0.13, 0.02, cz - 0.02], [cx + 0.13, 0.05, cz + 0.02], 'thing', { part, tag, colour: INK });
   put([cx - 0.02, 0.02, cz - 0.13], [cx + 0.02, 0.05, cz + 0.13], 'thing', { part, colour: INK });
   for (const [dx, dz] of [
@@ -54,10 +57,12 @@ export function chair(put: Put, x: number, z: number, tag: string) {
     put([cx + dx - 0.02, 0, cz + dz - 0.02], [cx + dx + 0.02, 0.03, cz + dz + 0.02], 'thing', { part, colour: INK, round: 'x' });
   put([cx - 0.022, 0.05, cz - 0.022], [cx + 0.022, 0.2, cz + 0.022], 'thing', { part, colour: STEEL, round: 'y' });
   put([x, 0.2, z - 0.27], [x + 0.285, 0.25, z - 0.02], 'thing', { part, colour: CUSHION, solid: true });
-  put([x + 0.02, 0.22, z - 0.06], [x + 0.265, 0.6, z], 'thing', { part, colour: CUSHION });
+  const back = across(z - 0.06, z);
+  put([x + 0.02, 0.22, back[0]], [x + 0.265, 0.6, back[1]], 'thing', { part, colour: CUSHION });
   for (const ax of [x - 0.01, x + 0.265]) {
-    put([ax, 0.25, z - 0.2], [ax + 0.03, 0.29, z - 0.06], 'thing', { part, colour: INK });
-    put([ax + 0.005, 0.2, z - 0.15], [ax + 0.025, 0.25, z - 0.12], 'thing', { part, colour: INK });
+    const [arm, post] = [across(z - 0.2, z - 0.06), across(z - 0.15, z - 0.12)];
+    put([ax, 0.25, arm[0]], [ax + 0.03, 0.29, arm[1]], 'thing', { part, colour: INK });
+    put([ax + 0.005, 0.2, post[0]], [ax + 0.025, 0.25, post[1]], 'thing', { part, colour: INK });
   }
 }
 

@@ -2,7 +2,7 @@
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
 // over it, as over the seated people. Its place lives outside React: only what draws it, or picks something by it, follows it.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { frontPixels, type Box } from '#src/town/people.ts';
+import { depthByRow, frontPixels, type Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
@@ -229,15 +229,15 @@ export function FounderDrawing({ founder, ground, label }: { founder: Founder; g
   const box = boxAt(fx, fy, ground.sprite);
   // The overlay is whole picture pixels around the figure.
   const [bx, by, bw, bh] = [Math.floor(box.x), Math.floor(box.y), Math.ceil(box.w) + 1, Math.ceil(box.h) + 1];
-  const depth = ground.depthOf(x, 0.45, z);
   useEffect(() => {
     const c = canvas.current;
     if (!c) return;
     const { pic, under } = ground;
     [c.width, c.height] = [bw, bh];
-    const front = frontPixels(pic, { x: bx, y: by, w: bw, h: bh }, (i) => !under[pic.id[i]] && pic.depth[i] < depth);
+    const depth = depthByRow(ground.toPixel, ground.depthOf, x, z);
+    const front = frontPixels(pic, { x: bx, y: by, w: bw, h: bh }, (i) => !under[pic.id[i]] && pic.depth[i] < depth(Math.floor(i / pic.w)));
     if (front) c.getContext('2d')?.putImageData(front.img, front.x - bx, front.y - by);
-  }, [ground, bx, by, bw, bh, depth]);
+  }, [ground, bx, by, bw, bh, x, z]);
   if (!me) return null;
   return (
     <g className="pointer-events-none">

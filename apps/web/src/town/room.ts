@@ -46,7 +46,7 @@ export type Block = {
 };
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing (`door`, as one starting does inside the door, and the HQ's
  *  people do); (x, z) on the floor. */
-export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
+export type Place = { person: Person; x: number; z: number; how: 'desk' | 'turned' | 'sofa' | 'door'; chair?: string };
 /** `entry`: where the founder comes in, inside the door. */
 /** `distance`, `pitch` and `personPx`: how far the camera stands, in metres, how steeply it looks down, in radians, and how many
  *  pixels tall a person is drawn (view.ts). */
@@ -109,7 +109,9 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
   const rows = Math.max(1, Math.ceil(people.length / cols));
   const hq = house.hq === true;
-  const idle = hq ? [] : people.filter((p) => p.activity === 'resting');
+  // Resting while its prompt cache lives, an agent stays at its desk, its chair turned round to face the room; after, it goes to a sofa.
+  const turned = (p: Person) => p.activity === 'resting' && p.cached;
+  const idle = hq ? [] : people.filter((p) => p.activity === 'resting' && !p.cached);
   const sofaRows = Math.max(1, Math.ceil(idle.length / 4));
   const x0 = 0.6;
   const benches = x0 + cols * PITCH;
@@ -146,8 +148,9 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
       F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, LIT.includes(p.activity));
       F.keyboard(put, x + 0.22, z - 0.08, F.DESK_TOP, 0.34);
       if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
-      F.chair(put, x + 0.225, z + 0.3, chair);
+      F.chair(put, x + 0.225, z + 0.3, chair, turned(p));
       if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
+      if (turned(p)) places.push({ person: p, x: x + 0.367, z: z + 0.28, how: 'turned', chair });
     });
 
   // The founder's desk, just inside the door at its left, with a paper for every decision waiting on the founder and an empty chair.

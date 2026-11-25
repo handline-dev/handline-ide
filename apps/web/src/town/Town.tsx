@@ -4,6 +4,7 @@
 // its office (Inside.tsx).
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Hooks, useAgents, useNav } from '@handline/app-data';
+import { useNow } from '#src/format/time.ts';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
@@ -34,7 +35,9 @@ export function TownTab() {
   const workspaces = Hooks.useWorkspacesList().data?.workspaces;
   const agents = useAgents().data?.agents;
   const { turn } = useRequests();
-  const town = useMemo(() => townOf(workspaces ?? [], agents ?? [], turn), [workspaces, agents, turn]);
+  // A prompt cache runs out with no event, so the town looks again each minute.
+  const now = useNow(60_000);
+  const town = useMemo(() => townOf(workspaces ?? [], agents ?? [], turn, now), [workspaces, agents, turn, now]);
   const [pane, aspect] = useAspect();
   const city = useMemo(() => cityOf(town.houses, aspect), [town.houses, aspect]);
   // eslint-disable-next-line no-restricted-syntax -- the clicks land on shapes over a drawn picture (a person, a desk, a paper), not on elements that can take useOpenable's props

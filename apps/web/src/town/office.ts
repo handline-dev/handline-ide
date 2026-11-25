@@ -20,7 +20,9 @@ export type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Gro
 
 /** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
 const sigOf = (house: House, cols: number) =>
-  [house.key, cols, house.decisions.length, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}:${p.queue}`)].join(' ');
+  [house.key, cols, house.decisions.length, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}:${p.queue}:${p.cached}`)].join(
+    ' ',
+  );
 /** The last drawings, by house, so an office is there at once when it comes back; the oldest goes past MOST. */
 const drawings = new Map<string, { sig: string; drawn: Drawn }>();
 const MOST = 4;

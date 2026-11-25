@@ -70,11 +70,12 @@ export function Inside({
   const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
-  // The door, open as the founder comes in, shuts behind it; walking down into it opens it, and then goes back out to the city.
-  const [swing, setSwing] = useState<{ way: Way; from?: FloorSpot } | null>(cameIn ? { way: 'shut' } : null);
+  // The door, pushed open into the room as the founder comes in, shuts behind it; walking down into it pushes it open out, toward the
+  // viewer, and then goes back out to the city.
+  const [swing, setSwing] = useState<{ way: Way; from?: FloorSpot; out?: boolean } | null>(cameIn ? { way: 'shut' } : null);
   const founder = useWalker(drawn?.ground ?? null, house.key, ([x, z], [, dz]) => {
     const entry = drawn?.ground.entry;
-    if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z] });
+    if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z], out: true });
   });
   const cast = drawn?.cast;
   // Whose window floats: an agent's key, 'mine' for the founder's desk, or none; set by a click, never by walking past.
@@ -182,12 +183,13 @@ export function Inside({
                     door={{ box: drawn.front.door, through: THROUGH, leaves: drawn.leaves }}
                     toPixel={drawn.ground.toPixel}
                     way={swing.way}
+                    out={swing.out}
                     onDone={() => {
                       if (swing.way !== 'open') return setSwing(null);
                       // Sent somewhere else while it opened: it shuts again.
                       const [me, from] = [founder.get()?.at, swing.from];
                       if (me && from && Math.hypot(me[0] - from[0], me[1] - from[1]) < 0.05) onBack();
-                      else setSwing({ way: 'shut' });
+                      else setSwing({ way: 'shut', out: true });
                     }}
                   />
                 )}
