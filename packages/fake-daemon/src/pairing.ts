@@ -2,6 +2,9 @@
 import crypto from 'node:crypto';
 import { badRequest, refused } from '#src/errors.ts';
 
+/** The fake's self-made certificate's fingerprint. */
+const FAKE_FP = 'f'.repeat(64);
+
 type Accepted = (said: string, extra: Record<string, unknown>) => unknown;
 
 export class FakePairing {
@@ -24,14 +27,22 @@ export class FakePairing {
     return typeof token === 'string' ? this.tokens.get(token) : undefined;
   }
 
-  pair(accepted: Accepted, now: Date): unknown {
+  /** host, one of connection.addresses, names that address's door in place of the pick (the Tailscale name); one not listening is refused. */
+  pair(accepted: Accepted, now: Date, host: unknown, addresses: { host: string; kind: string; listening: boolean }[]): unknown {
+    let door = { host: 'mac.tail1.ts.net', scheme: 'https', fp: '' }; // Tailscale's own certificate: no fingerprint to pin
+    if (host !== undefined && host !== null) {
+      if (typeof host !== 'string' || host === '') throw badRequest('host is one of connection.addresses', 'host');
+      const a = addresses.find((x) => x.host === host);
+      if (!a?.listening) throw refused('network', `no open door serves ${host}`);
+      // a self-made certificate on Wi-Fi rides with its fingerprint; the Tailscale IP is named by its MagicDNS name, as the daemon does
+      if (a.kind === 'lan' || a.kind === 'mdns') door = { host, scheme: 'https', fp: FAKE_FP };
+    }
     const code = this.issueCode();
     return accepted('Pairing code made.', {
       code,
       expires_at: new Date(now.getTime() + 300_000).toISOString(),
-      // A Tailscale link on Tailscale's own certificate: no fingerprint to pin.
-      fingerprint: '',
-      web_link: `https://mac.tail1.ts.net:7443/#pair=${code}`,
+      fingerprint: door.fp,
+      web_link: `${door.scheme}://${door.host}:7443/#pair=${code}${door.fp ? `&fp=${door.fp}` : ''}`,
     });
   }
 

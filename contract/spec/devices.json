@@ -496,6 +496,14 @@
      }
     },
     {
+     "name": "host",
+     "required": false,
+     "schema": {
+      "type": "string"
+     },
+     "description": "The address the link names, one of connection.addresses, in place of Handline's pick: the link, its scheme and its fingerprint are that address's door's. Left out, Handline's pick. One no open door serves is refused, gate `network`."
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {

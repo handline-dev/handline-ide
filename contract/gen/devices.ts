@@ -113,6 +113,7 @@ export interface DevicesMethods {
   ttl_s?: number;
   /** The person whose device it pairs (p<n>): the owner names one they invited (person.invite); a member only themself. The caller's own when left out. */
   person?: string;
+  host?: string;
   request_id: RequestId;
 }; result: Accepted & {
     code: string;

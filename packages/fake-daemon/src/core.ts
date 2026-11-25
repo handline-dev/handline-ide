@@ -159,7 +159,7 @@ export function coreCall(
     case 'tools.install':
       return installTool(d, p);
     case 'device.pair':
-      return d.pairing.pair(ok, d.now());
+      return d.pairing.pair(ok, d.now(), p.host, d.admin.addresses().addresses);
     case 'device.redeem':
       return d.pairing.redeem(ok, p);
     default:

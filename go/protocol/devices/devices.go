@@ -113,6 +113,8 @@ type Manager struct {
 	PushPlatforms []string
 	// Doors is the door a pairing names, Handline's pick; ok is false while no door is open. The daemon sets it.
 	Doors func() (d Door, ok bool)
+	// DoorFor is the door that serves host, one of connection.addresses; ok is false when no open door serves it. The daemon sets it.
+	DoorFor func(host string) (d Door, ok bool)
 	// Self is the master's own node id: its own device (EnsureOwn) is not listed, set or revoked, as no one paired it.
 	Self string
 }

@@ -497,3 +497,21 @@ func TestAFailedTailscaleReadIsNotKept(t *testing.T) {
 		t.Fatalf("a read that found the name was made again: %d reads", reads)
 	}
 }
+
+// device.pair names the address it is given in place of the pick, with that door's own link; an address no open door serves is refused
+// (gate network), and an empty one is bad_request.
+func TestDevicePairNamesTheHostItIsGiven(t *testing.T) {
+	_, c := startDoors(t, true)
+	serveHosts(t, netAddress{Host: "127.0.0.1", IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
+	setAddresses(t, c, `["127.0.0.1", "mac.local"]`)
+	res := call(t, c, "device.pair", `{"host":"mac.local"}`)["result"].(map[string]any)
+	if l, _ := res["web_link"].(string); !strings.HasPrefix(l, "https://mac.local:") || !strings.HasSuffix(l, "&fp="+res["fingerprint"].(string)) {
+		t.Fatalf("%v", res)
+	}
+	if r := call(t, c, "device.pair", `{"host":"10.9.9.9"}`); gate(r) != "network" {
+		t.Fatalf("a host no door serves: %v", r)
+	}
+	if r := call(t, c, "device.pair", `{"host":""}`); r["error"] == nil || gate(r) == "network" {
+		t.Fatalf("an empty host: %v", r)
+	}
+}

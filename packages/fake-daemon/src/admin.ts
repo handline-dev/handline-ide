@@ -318,7 +318,8 @@ export class FakeAdmin {
   /** A LAN address, Tailscale's and their names; the LAN one listens unless network_addresses chose others. */
   addresses(): ConnectionAddresses {
     const chosen = this.values.network_addresses ?? null;
-    const listening = (host: string) => (chosen ? chosen.includes(host) : host === '192.168.1.20');
+    // the pick (the Tailscale name) is served beside the setting's hosts, as the daemon serves its pick
+    const listening = (host: string) => host === 'mac.tail1.ts.net' || (chosen ? chosen.includes(host) : host === '192.168.1.20');
     const row = (host: string, kind: NetworkAddress['kind'], iface: string): NetworkAddress => ({
       host,
       kind,

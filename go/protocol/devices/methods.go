@@ -61,6 +61,18 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 		if !ok {
 			return nil, off()
 		}
+		if v, has := p["host"]; has && v != nil { // the founder's pick of address in place of Handline's
+			host, _ := v.(string)
+			if host == "" {
+				return nil, rpc.BadRequestError("host is one of connection.addresses", "host", rpc.InvalidParams)
+			}
+			if m.DoorFor == nil {
+				return nil, rpc.Refused("no open door serves "+host, "network", "")
+			}
+			if door, ok = m.DoorFor(host); !ok {
+				return nil, rpc.Refused("no open door serves "+host+": choose one of connection.addresses that is served", "network", "")
+			}
+		}
 		person := personOf(c)
 		if v, has := p["person"]; has { // the owner makes the link of a person they invited
 			k, _ := v.(string)

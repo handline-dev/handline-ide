@@ -166,6 +166,12 @@ func listenNetwork(cfg Config, d *Daemon) (*netDoors, error) {
 		}
 	}
 	d.dev.Doors = n.pairDoor
+	d.dev.DoorFor = func(host string) (devices.Door, bool) {
+		if host == "" {
+			return devices.Door{}, false
+		}
+		return n.door(host)
+	}
 	d.net = n
 	if err := n.relisten(); err != nil {
 		n.close()
