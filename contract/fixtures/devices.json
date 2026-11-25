@@ -99,7 +99,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -296,7 +296,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -376,7 +376,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -458,7 +458,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      }
@@ -544,7 +544,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -691,7 +691,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -903,7 +903,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -1149,7 +1149,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },
@@ -1287,7 +1287,7 @@
       "fingerprint": {
        "$type": "string"
       },
-      "uri": {
+      "web_link": {
        "$type": "string"
       }
      },

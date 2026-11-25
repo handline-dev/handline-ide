@@ -207,7 +207,7 @@ func TestUnsubscribingDevicesStopsItsEvents(t *testing.T) {
 	if r := fo.ask(`{"jsonrpc":"2.0","id":3,"method":"unsubscribe","params":{"topics":["devices"]}}`)["result"]; len(r.(map[string]any)) != 0 {
 		t.Fatalf("%v", r)
 	}
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	dialNet(t, d).ask(`{"jsonrpc":"2.0","id":1,"method":"device.redeem","params":{"code":"` + code + `","name":"p","request_id":"r"}}`)
 	if !fo.quiet() {
 		t.Fatal("an event came after unsubscribe")

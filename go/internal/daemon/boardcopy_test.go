@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/protocol/devices"
 )
 
 // The owner's runner mirrors the board's copy and restores it to a board a second or two behind, which node.status shows; another
@@ -99,7 +100,8 @@ func TestTheOwnersRunnerKeepsACopyOfTheBoardAndAnotherPersonsNone(t *testing.T) 
 	t.Cleanup(func() { os.RemoveAll(kimHome) })
 	kimNode, _ := joined.NodeID(kimHome, nil)
 	door, _, _ := master.dev.Doors("")
-	_, _, _, uri := master.dev.PairAt(time.Minute, door, "p2")
+	code, _ := master.dev.PairAt(time.Minute, door, "p2")
+	uri := devices.WebLink(door, code)
 	km, err := hlclient.Join(kimHome, uri, "kim-box", "server", kimNode)
 	if err != nil {
 		t.Fatal(err)

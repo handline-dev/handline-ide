@@ -65,7 +65,7 @@ var usages = map[string][2]string{
 	"propose withdraw": {`hl propose withdraw <proposal id>`, `hl propose withdraw 1a2b3c4d`},
 	"init":             {`hl init`, `hl init`},
 	"launch":           {launchUsage, `hl launch shop.sea`},
-	"device":           {`hl device pair [--name N] [--host ADDR] | hl device join <link>`, `hl device pair --name phone --host 192.168.0.5`},
+	"device":           {`hl device pair [--name N] | hl device join <link>`, `hl device pair --name phone`},
 	"node":             {`hl node promote (run on one of the owner's machines that joined: it becomes the master)`, `hl node promote`},
 	"workspace":        {`hl workspace <new|rename|delete> ... (the founder's; an agent proposes a team)`, `hl workspace new shop --folder ~/code/shop`},
 	"workspace new":    {`hl workspace new <name> [--folder PATH] (default: this folder's git checkout)`, `hl workspace new shop --folder ~/code/shop`},

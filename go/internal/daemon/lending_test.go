@@ -42,14 +42,14 @@ func TestAJoinedMachineIsItsPersonsDeviceOnOffAndOnlyTheyRunPauseOrTakeItBack(t 
 	if _, err := d.db.Exec("INSERT INTO people(display_name, role, created_at) VALUES('Mia', 'owner', 0)"); err != nil {
 		t.Fatal(err)
 	}
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	r := joinAs(t, d, code, "box", "server", "n-box")
 	box, _ := r["result"].(map[string]any)
 	if box == nil {
 		t.Fatalf("redeem: %v", r)
 	}
 	door, _, _ := d.dev.Doors("")
-	miaCode, _, _, _ := d.dev.PairAt(time.Minute, door, "p2")
+	miaCode, _ := d.dev.PairAt(time.Minute, door, "p2")
 	mia := joinAs(t, d, miaCode, "mia-mac", "mac", "n-mia")["result"].(map[string]any)
 
 	owner := helloAs(t, d, box["token"].(string))
@@ -84,7 +84,7 @@ func TestAJoinedMachineIsItsPersonsDeviceOnOffAndOnlyTheyRunPauseOrTakeItBack(t 
 		t.Fatalf("Off kept it listed: %v %v", r, lent(t, owner))
 	}
 
-	again, _, _, _ := d.dev.Pair(time.Minute)
+	again, _, _ := d.dev.Pair(time.Minute)
 	if r := joinAs(t, d, again, "box", "server", "n-box"); gate(r) != "already_joined" {
 		t.Fatalf("a machine joined twice: %v", r)
 	}
@@ -146,11 +146,12 @@ func TestJoinRedeemsTheLinkPinnedToItsFingerprintAndKeepsTheMaster(t *testing.T)
 	d := startNet(t)
 	home := t.TempDir()
 	t.Cleanup(func() { joined.Forget(home) })
-	_, _, fp, uri := d.dev.Pair(time.Minute)
+	_, _, uri := d.dev.Pair(time.Minute)
+	fp := d.NetworkFingerprint()
 	if _, err := hlclient.Join(home, strings.Replace(uri, fp, strings.Repeat("0", len(fp)), 1), "box", "server", "n-box"); err == nil {
 		t.Fatal("joined a master whose certificate is not the link's")
 	}
-	_, _, _, uri = d.dev.Pair(time.Minute)
+	_, _, uri = d.dev.Pair(time.Minute)
 	m, err := hlclient.Join(home, uri, "box", "server", "n-box")
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +170,7 @@ func TestJoinRedeemsTheLinkPinnedToItsFingerprintAndKeepsTheMaster(t *testing.T)
 // load and battery are null before a heartbeat. The battery switch and the reclaim time are settings.
 func TestNodeStatusNamesEachMachinesDeviceAndItsOwnMemoryCap(t *testing.T) {
 	d := startNet(t)
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	box := joinAs(t, d, code, "box", "server", "n-box")["result"].(map[string]any)
 	c := helloAs(t, d, box["token"].(string))
 	dev := box["device"].(string)
@@ -229,7 +230,7 @@ func TestDeviceSetMovesTheNodesFeedAndDevicesRidesWithTheOtherTopics(t *testing.
 		t.Fatal(err)
 	}
 	t.Cleanup(d.Close)
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	box := joinAs(t, d, code, "box", "server", "n-box")["result"].(map[string]any)
 	c := helloAs(t, d, box["token"].(string))
 	dev := box["device"].(string)

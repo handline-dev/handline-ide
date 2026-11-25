@@ -14,7 +14,7 @@ func rpcAs(c *wsClient, method, params string) map[string]any {
 // her connections, ends her token, her machine's lending and any code made for her, and keeps her in people.list as removed.
 func TestAnInvitedMemberWorksLendsAndIsRemoved(t *testing.T) {
 	d := startNet(t)
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	ownerDev := joinAs(t, d, code, "owner-phone", "ios", "")["result"].(map[string]any)
 	owner := helloAs(t, d, ownerDev["token"].(string))
 

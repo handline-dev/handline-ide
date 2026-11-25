@@ -134,7 +134,7 @@ func TestEachPersonSeesOnlyTheTurnsThatWaitOnThem(t *testing.T) {
 // A person's for_you event reaches that person's connection only: Kim gets hers, the founder's device does not.
 func TestAPersonsEventReachesOnlyTheirConnections(t *testing.T) {
 	d := startNet(t)
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	owner := helloAs(t, d, joinAs(t, d, code, "owner-phone", "ios", "")["result"].(map[string]any)["token"].(string))
 	kimKey := rpcAs(owner, "person.invite", `{"display_name":"Kim","request_id":"inv-kim"}`)["result"].(map[string]any)["person"].(string)
 	link := rpcAs(owner, "device.pair", `{"person":"`+kimKey+`","request_id":"kim-link"}`)["result"].(map[string]any)
@@ -282,7 +282,7 @@ func TestEachPersonSeesTheirOwnResults(t *testing.T) {
 // A tasks event reaches each person with their own unread count: Kim, who has read the task, gets 0 where the founder gets 1.
 func TestATasksEventCarriesEachPersonsOwnUnreadCount(t *testing.T) {
 	d := startNet(t)
-	code, _, _, _ := d.dev.Pair(time.Minute)
+	code, _, _ := d.dev.Pair(time.Minute)
 	owner := helloAs(t, d, joinAs(t, d, code, "owner-phone", "ios", "")["result"].(map[string]any)["token"].(string))
 	kimKey := rpcAs(owner, "person.invite", `{"display_name":"Kim","request_id":"inv-kim"}`)["result"].(map[string]any)["person"].(string)
 	link := rpcAs(owner, "device.pair", `{"person":"`+kimKey+`","request_id":"kim-link"}`)["result"].(map[string]any)

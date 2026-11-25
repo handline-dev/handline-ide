@@ -140,7 +140,10 @@ func OwnDoor(cfg Config) (*runner.Door, error) {
 	if !cfg.plain() {
 		n.src = &certSource{certFile: cfg.CertFile, keyFile: cfg.KeyFile}
 	}
-	hosts, tls, _, chosen := n.want()
+	hosts, specs, _, _, onlyPicked, chosen := n.wantAll()
+	if onlyPicked {
+		hosts = hosts[:len(hosts)-1]
+	}
 	if len(hosts) == 0 {
 		return nil, nil
 	}
@@ -158,7 +161,7 @@ func OwnDoor(cfg Config) (*runner.Door, error) {
 		addr = cfg.Advertise
 	}
 	door := &runner.Door{Addr: addr}
-	if tls[host.IPs[0].String()] {
+	if specs[host.IPs[0].String()].tls {
 		src, err := n.tlsSource()
 		if err != nil {
 			return nil, err

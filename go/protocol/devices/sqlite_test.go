@@ -19,7 +19,7 @@ func TestAPushTokenIsKeptOnTheRowAndGoesWithIt(t *testing.T) {
 	}
 	defer db.Close()
 	m := New(SQLStore{DB: db})
-	code, _, _, _ := m.Pair(DefaultTTL)
+	code, _, _ := m.Pair(DefaultTTL)
 	token, d, err := m.Redeem(code, "phone", "", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestAPushTokenIsKeptOnTheRowAndGoesWithIt(t *testing.T) {
 func TestTheMemStoreKeepsAPushTokenOnAPairedDeviceOnly(t *testing.T) {
 	s := NewMemStore()
 	m := New(s)
-	code, _, _, _ := m.Pair(DefaultTTL)
+	code, _, _ := m.Pair(DefaultTTL)
 	token, d, err := m.Redeem(code, "phone", "", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestDroppingAPushTokenSparesANewerOne(t *testing.T) {
 	for name, s := range map[string]Store{"sql": SQLStore{DB: db}, "mem": NewMemStore()} {
 		t.Run(name, func(t *testing.T) {
 			m := New(s)
-			code, _, _, _ := m.Pair(DefaultTTL)
+			code, _, _ := m.Pair(DefaultTTL)
 			token, d, err := m.Redeem(code, "phone", "", "", "")
 			if err != nil {
 				t.Fatal(err)
@@ -139,12 +139,12 @@ func TestADeviceKeepsItsKindClientAndNewName(t *testing.T) {
 	}
 	defer db.Close()
 	m := New(SQLStore{DB: db})
-	code, _, _, _ := m.Pair(DefaultTTL)
+	code, _, _ := m.Pair(DefaultTTL)
 	token, d, err := m.Redeem(code, "phone", "ios", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	code, _, _, _ = m.Pair(DefaultTTL)
+	code, _, _ = m.Pair(DefaultTTL)
 	_, other, _ := m.Redeem(code, "laptop", "", "", "")
 	row := func(id string) map[string]any {
 		t.Helper()
@@ -189,7 +189,7 @@ func TestALoginNamesTheDevicesPerson(t *testing.T) {
 	}
 	defer db.Close()
 	m := New(SQLStore{DB: db})
-	code, _, _, _ := m.Pair(DefaultTTL)
+	code, _, _ := m.Pair(DefaultTTL)
 	token, _, err := m.Redeem(code, "phone", "", "", "")
 	if err != nil {
 		t.Fatal(err)

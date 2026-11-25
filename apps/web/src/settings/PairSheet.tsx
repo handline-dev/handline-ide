@@ -47,7 +47,7 @@ function Sheet({ close }: { close: () => void }) {
   const devices = useDevices();
   const [known] = useState(() => new Set(devices.rows.filter((d) => !d.master).map((d) => d.id)));
   const [chosen, setChosen] = useState<string | null>(null);
-  const [invite, setInvite] = useState<{ code: string; until: number; uri: string; link: string | null } | null>(null);
+  const [invite, setInvite] = useState<{ code: string; until: number; link: string } | null>(null);
   const [left, setLeft] = useState(0);
   const { copied, copy } = useCopy();
   const list = [...addresses].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
@@ -74,7 +74,7 @@ function Sheet({ close }: { close: () => void }) {
     openAddress(pick)
       .then(() => pair.start(pick))
       .then(
-        (r) => setInvite({ code: r.code, until: r.expiresAt, uri: r.uri, link: r.link }),
+        (r) => setInvite({ code: r.code, until: r.expiresAt, link: r.link }),
         (e: unknown) => (pair.error ? undefined : setOpenError(String(e))),
       );
   };
@@ -120,19 +120,15 @@ function Sheet({ close }: { close: () => void }) {
   );
   const codePage = live && (
     <div className="flex flex-wrap items-start gap-5">
-      <Qr text={invite.link ?? invite.uri} />
+      <Qr text={invite.link} />
       <div className="flex min-w-56 flex-1 flex-col gap-2">
         <span className="text-xs text-muted">Code</span>
         <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
-        {invite.link && (
-          <>
-            <span className="text-xs text-muted">Or open this on the other device</span>
-            <code className="rounded-md bg-surface px-3 py-2 text-xs [overflow-wrap:anywhere]">{invite.link}</code>
-            <Button className="w-fit" onClick={() => copy(invite.link!, 'the link')}>
-              {copied ? 'Copied' : 'Copy link'}
-            </Button>
-          </>
-        )}
+        <span className="text-xs text-muted">Or open this on the other device</span>
+        <code className="rounded-md bg-surface px-3 py-2 text-xs [overflow-wrap:anywhere]">{invite.link}</code>
+        <Button className="w-fit" onClick={() => copy(invite.link, 'the link')}>
+          {copied ? 'Copied' : 'Copy link'}
+        </Button>
         <span className="text-xs text-muted">
           Valid for <b className="tabular-nums text-fg">{countdown(left)}</b>
         </span>

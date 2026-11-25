@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -16,23 +17,15 @@ import (
 	"github.com/handline/handline/go/kit/protected"
 )
 
-// Join redeems a handline://pair link's code at the master it names, as this machine: name, kind (mac or server) and node id. The
-// connection is pinned to the link's fingerprint. What it answers is kept in home's protected store.
+// Join redeems a pairing link's code at the master it names, as this machine: name, kind (mac or server) and node id. The connection
+// is pinned to the link's fingerprint. What it answers is kept in home's protected store.
 func Join(home, link, name, kind, node string) (joined.Master, error) {
 	if protected.InAgentSession() { // checked before the code is spent: its token could not be kept
 		return joined.Master{}, protected.ErrNotTheFounder
 	}
-	u, err := url.Parse(link)
-	if err != nil || u.Scheme != "handline" || u.Host != "pair" {
-		return joined.Master{}, errors.New("not a pairing link: it starts handline://pair?")
-	}
-	q := u.Query()
-	addr, code, fp := q.Get("host"), q.Get("code"), strings.ToLower(q.Get("fp"))
-	if addr == "" || code == "" {
-		return joined.Master{}, errors.New("the pairing link names no host or no code")
-	}
-	if b, err := hex.DecodeString(fp); err != nil || fp != "" && len(b) != sha256.Size {
-		return joined.Master{}, errors.New("the pairing link's fp is not a sha256 fingerprint")
+	addr, code, fp, err := ParseLink(link)
+	if err != nil {
+		return joined.Master{}, err
 	}
 	ws, err := DialMaster(addr, fp)
 	if err != nil {
@@ -78,6 +71,45 @@ func Join(home, link, name, kind, node string) (joined.Master, error) {
 		return lost(err)
 	}
 	return m, nil
+}
+
+// ParseLink reads a pairing link: the browser link device.pair gives (http(s)://host:port/#pair=code, with &fp= on a self-made
+// certificate) or a handline://pair?host=&code=&fp= one. It is trusted as the apps trust one: with a certificate fingerprint to pin, or
+// for a Tailscale name (*.ts.net), which resolves only on the tailnet, or for loopback.
+func ParseLink(link string) (addr, code, fp string, err error) {
+	u, err := url.Parse(strings.TrimSpace(link))
+	if err != nil {
+		return "", "", "", errors.New("not a pairing link")
+	}
+	switch {
+	case u.Scheme == "handline" && u.Host == "pair":
+		q := u.Query()
+		addr, code, fp = q.Get("host"), q.Get("code"), q.Get("fp")
+	case u.Scheme == "http" || u.Scheme == "https":
+		q, _ := url.ParseQuery(u.Fragment)
+		addr, code, fp = u.Host, q.Get("pair"), q.Get("fp")
+	default:
+		return "", "", "", errors.New("not a pairing link: it is the link Connect a device gives, https://… or http://…")
+	}
+	fp = strings.ToLower(fp)
+	if addr == "" || code == "" {
+		return "", "", "", errors.New("the pairing link names no host or no code")
+	}
+	if b, err := hex.DecodeString(fp); err != nil || fp != "" && len(b) != sha256.Size {
+		return "", "", "", errors.New("the pairing link's fp is not a sha256 fingerprint")
+	}
+	host := strings.ToLower(strings.TrimSuffix(hostOnly(addr), "."))
+	if ip := net.ParseIP(host); fp == "" && !strings.HasSuffix(host, ".ts.net") && (ip == nil || !ip.IsLoopback()) && host != "localhost" {
+		return "", "", "", fmt.Errorf("this pairing link has no certificate fingerprint, and %s is not a Tailscale name (*.ts.net), so it cannot be trusted", addr)
+	}
+	return addr, code, fp, nil
+}
+
+func hostOnly(addr string) string {
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		return h
+	}
+	return addr
 }
 
 // DialMaster opens the master's /rpc at addr over a websocket, pinned to the certificate fingerprint fp ("" for a plain door).

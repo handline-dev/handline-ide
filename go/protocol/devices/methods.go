@@ -57,9 +57,6 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 			ttl = time.Duration(n) * time.Second
 		}
 		// name is only a hint for the one who scans the code: the device is listed under the name it redeems with.
-		var code, print, uri string
-		var expires time.Time
-		var web any
 		host, isText := p["address"].(string)
 		if p["address"] != nil && !isText {
 			return nil, rpc.BadRequestError("address is a host from connection.addresses", "address", rpc.InvalidParams)
@@ -81,12 +78,9 @@ func Register(s *rpc.Server, m *Manager, emit Emit) {
 			}
 			person = k
 		}
-		code, expires, print, uri = m.PairAt(ttl, door, person)
-		if door.Web {
-			web = WebLink(door, code)
-		}
+		code, expires := m.PairAt(ttl, door, person)
 		return map[string]any{"accepted": true, "code": code, "expires_at": expires.UTC().Format("2006-01-02T15:04:05Z"),
-			"fingerprint": print, "uri": uri, "web_link": web}, nil
+			"fingerprint": door.Fingerprint, "web_link": WebLink(door, code)}, nil
 	}})
 	s.Register("device.redeem", rpc.Method{Unkept: true, Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
 		code, ok := p["code"].(string)
