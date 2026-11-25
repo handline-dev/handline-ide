@@ -14,10 +14,13 @@ func TestSetupIsIdempotent(t *testing.T) {
 	if err := Setup(home, "hl", say); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"agents", "accounts", ".gitignore"} {
+	for _, p := range []string{"agents", "accounts"} {
 		if _, err := os.Stat(filepath.Join(home, p)); err != nil {
 			t.Errorf("%s: %v", p, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".git")); err == nil {
+		t.Error("a fresh home was made a git repo")
 	}
 	if len(said) == 0 {
 		t.Fatal("a fresh home said nothing")

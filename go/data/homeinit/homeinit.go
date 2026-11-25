@@ -1,10 +1,9 @@
 // Package homeinit sets a Handline home up: its folders, the shared settings and event hooks, Handline's own skills, the sandbox and permission entries an agent
-// needs, and the home kept in git.
+// needs.
 package homeinit
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -28,9 +27,6 @@ func Setup(home, hlExe string, say func(format string, args ...any)) error {
 		return err
 	} else if len(changed) > 0 {
 		say("Handline skills installed: %s", strings.Join(changed, ", "))
-	}
-	if ignore := filepath.Join(home, ".gitignore"); !exists(ignore) {
-		_ = os.WriteFile(ignore, []byte("accounts/\ndb.sqlite\nlocks/\nlogs/\n*.tmp\n"), 0o644)
 	}
 	if cfg := paths.ConfigFile(home); !exists(cfg) {
 		_ = os.WriteFile(cfg, []byte("version: 1\n"), 0o644)
@@ -56,16 +52,6 @@ func Setup(home, hlExe string, say func(format string, args ...any)) error {
 	}
 	if added, err := hooks.AllowSafeCommands(); err == nil && added {
 		say("permissions: safe commands run without asking (%s)", hooks.Target())
-	}
-	// The whole home is kept in git, so digest generations, rollback and change history come for free; accounts/ stays ignored.
-	if git, err := exec.LookPath("git"); err == nil && !exists(filepath.Join(home, ".git")) {
-		env := append(os.Environ(), "GIT_AUTHOR_NAME=handline", "GIT_COMMITTER_NAME=handline", "GIT_AUTHOR_EMAIL=handline@localhost", "GIT_COMMITTER_EMAIL=handline@localhost")
-		for _, a := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "Handline init"}} {
-			cmd := exec.Command(git, a...)
-			cmd.Dir, cmd.Env = home, env
-			_ = cmd.Run()
-		}
-		say("initialized git repo in %s", home)
 	}
 	return nil
 }
