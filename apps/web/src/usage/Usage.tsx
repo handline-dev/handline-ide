@@ -14,6 +14,7 @@ import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import { AccountActions } from '#src/usage/AccountsTab.tsx';
+import { renameAccount } from '#src/usage/AccountParts.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { uuid } from '#src/ui/uuid.ts';
 import { Outlook } from '#src/usage/Outlook.tsx';
@@ -111,6 +112,7 @@ function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode
             <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
               <AccountFacts
                 account={a}
+                onRename={() => void renameAccount(a)}
                 plan={plans.get(a.name)}
                 note={<NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />}
               />
