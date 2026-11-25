@@ -12,9 +12,9 @@ export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'closed';
 export interface ClientOptions {
   connect: () => Promise<Transport>;
   client: string; // who is calling; the daemon names this actor on what it does
-  token?: string; // the device token from pairing; the network listener admits no one without it
+  token?: string | (() => string | undefined); // the device token from pairing, or read at each hello; the network listener admits no one without it
   key?: () => string | null; // the founder key, read at each hello: the person's own app proves itself on the Unix socket with it
-  founder?: boolean; // a hello not answered as the founder (no key yet) drops the connection to be retried, not kept at a lower role
+  founder?: boolean | (() => boolean); // read at each hello: a hello not answered as the founder (no key yet) drops the connection to be retried, not kept at a lower role
   reconnect?: { minMs: number; maxMs: number } | false;
   newRequestId?: () => string;
   /** Methods answered by something other than the daemon connection (the desktop shell, for calls this caller may not make itself); each throws what a failed call throws. */

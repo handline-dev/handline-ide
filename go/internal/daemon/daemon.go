@@ -437,6 +437,22 @@ func Start(cfg Config) (*Daemon, error) {
 			}
 			return d.nodes.AskUpdate(node)
 		}
+		d.dev.MakeMaster = func(device string) error {
+			var node string
+			if err := db.QueryRow("SELECT id FROM nodes WHERE device = ?", device).Scan(&node); errors.Is(err, sql.ErrNoRows) {
+				return rpc.Refused("only a Mac or a server that joined can be made the master", "kind", "")
+			} else if err != nil {
+				return fmt.Errorf("the node of device %s: %w", device, err)
+			}
+			if _, err := d.nodes.Runner(node); err != nil {
+				return rpc.Refused("it is not linked to this master now", "node", "")
+			}
+			if _, _, _, err := d.canHandOver(node); err != nil { // the runner would only find it out after answering
+				return err
+			}
+			_, err := d.nodes.Call(node, "runner.promote", nil)
+			return err
+		}
 		d.dev.PushPlatforms = d.push.Platforms()
 	}
 	d.hub = stream.NewHub()

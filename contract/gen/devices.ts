@@ -150,6 +150,10 @@ export interface DevicesMethods {
   device: string;
   request_id: RequestId;
 }; result: Accepted };
+  "device.make_master": { params: {
+  device: string;
+  request_id: RequestId;
+}; result: Accepted };
   "device.push_token": { params: {
   platform: "apns" | "fcm";
   token: string;
@@ -317,6 +321,7 @@ export const DEVICES_METHODS: { [K in keyof DevicesMethods]: { role: Role; calle
   "device.revoke": { role: "member", callers: null, write: true, since: 1 },
   "device.set": { role: "member", callers: null, write: true, since: 1 },
   "device.update": { role: "member", callers: null, write: true, since: 1 },
+  "device.make_master": { role: "owner", callers: null, write: true, since: 1 },
   "device.push_token": { role: "member", callers: null, write: true, since: 1 },
   "node.status": { role: "agent", callers: null, write: false, since: 1 },
   "node.forward": { role: "member", callers: null, write: false, since: 1 },
@@ -352,11 +357,12 @@ export const DEVICES_APP_CACHE: { [K in "devices.list" | "node.status" | "node.f
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.set" | "device.update" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
+export const DEVICES_APP_WRITES: { [K in "device.pair" | "device.redeem" | "device.revoke" | "device.set" | "device.update" | "device.make_master" | "device.push_token"]: { kind: WriteKind; label: string } | false } = {
   "device.pair": {"kind": "decided", "label": "pair"},
   "device.redeem": false,
   "device.revoke": {"kind": "decided", "label": "revoke"},
   "device.set": {"kind": "decided", "label": "set"},
   "device.update": {"kind": "decided", "label": "update"},
+  "device.make_master": {"kind": "decided", "label": "make master"},
   "device.push_token": false,
 };

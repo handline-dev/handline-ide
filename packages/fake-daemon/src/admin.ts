@@ -22,7 +22,7 @@ type Accepted = (said: string) => unknown;
 
 /** The methods this answers. */
 const ADMIN =
-  /^(stats\.|connection\.addresses|settings\.|lease\.get|run\.(list|set|remove)|answer\.add|devices?\.(list|revoke|set|update)|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
+  /^(stats\.|connection\.addresses|settings\.|lease\.get|run\.(list|set|remove)|answer\.add|devices?\.(list|revoke|set|update|make_master)|events\.feed|daemon\.(pause|resume)|task\.send_now)/;
 
 /** What a seeded lent machine's node row says beyond the defaults. */
 export type Lent = Partial<{
@@ -185,6 +185,7 @@ export class FakeAdmin {
   call(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
     if (this.worktrees.owns(method)) return this.worktrees.call(method, p);
     if (this.prefs.owns(method)) return this.prefs.call(method, p, accepted);
+    if (method.startsWith('device.')) return this.deviceCall(method, p, accepted);
     switch (method) {
       case 'stats.get':
         return statsOf(this.now(), p.window === '7d' ? '7d' : '24h');
@@ -254,6 +255,25 @@ export class FakeAdmin {
         };
       case 'devices.list':
         return { devices: this.devices.map((d) => ({ ...d })) };
+      case 'answer.add':
+        return (this.add(p), accepted('Added.'));
+      case 'daemon.pause':
+        this.paused = { since: this.now(), until: null, machine: { id: 'm-fake', name: 'mac' } };
+        return accepted('Paused.');
+      case 'daemon.resume':
+        this.paused = null;
+        return accepted('Resumed.');
+      case 'task.send_now':
+        if (!this.paused) throw new Failure('refused', 'nothing is paused', { reason: 'not_paused' });
+        return accepted(`T${String(p.task)} goes to its agent now.`);
+      default:
+        throw new Failure('refused', `the fake daemon does not serve ${method}`, { reason: 'unsupported', gate: 'unsupported' });
+    }
+  }
+
+  /** device.set, device.update, device.make_master and device.revoke. */
+  private deviceCall(method: string, p: Record<string, unknown>, accepted: Accepted): unknown {
+    switch (method) {
       case 'device.set': {
         const dev = this.devices.find((d) => d.id === p.device);
         if (!dev) throw badRequest('no such device', 'device');
@@ -278,20 +298,18 @@ export class FakeAdmin {
         n.row = { ...n.row, version: MASTER_VERSION };
         return accepted('Updating.');
       }
+      case 'device.make_master': {
+        const n = this.lent.get(String(p.device));
+        if (!n) throw refused('kind', 'only a Mac or a server that joined can be made the master');
+        const dev = this.devices.find((d) => d.id === p.device);
+        if (dev?.person !== OWNER) throw refused('person', 'only the person whose device it is makes it the master');
+        if (n.row.online === false) throw refused('node', 'it is not linked to this master now');
+        // The fake keeps its master: a move is the daemon's, tested in clustertest.
+        return accepted('Taking over.');
+      }
       case 'device.revoke':
         if (!this.devices.some((d) => d.id === p.device)) throw badRequest('no such device', 'device');
         return ((this.devices = this.devices.filter((d) => d.id !== p.device)), accepted('Revoked.'));
-      case 'answer.add':
-        return (this.add(p), accepted('Added.'));
-      case 'daemon.pause':
-        this.paused = { since: this.now(), until: null, machine: { id: 'm-fake', name: 'mac' } };
-        return accepted('Paused.');
-      case 'daemon.resume':
-        this.paused = null;
-        return accepted('Resumed.');
-      case 'task.send_now':
-        if (!this.paused) throw new Failure('refused', 'nothing is paused', { reason: 'not_paused' });
-        return accepted(`T${String(p.task)} goes to its agent now.`);
       default:
         throw new Failure('refused', `the fake daemon does not serve ${method}`, { reason: 'unsupported', gate: 'unsupported' });
     }

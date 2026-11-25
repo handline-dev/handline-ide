@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { findMaster, joinedOf } from '#src/joined.ts';
+import type { Transport } from '@handline/client';
+import { findMaster, joinedOf, ownConnection } from '#src/joined.ts';
 import { protectedDir } from '#src/pair.ts';
 
 const FP = 'ab'.repeat(32);
@@ -68,4 +69,32 @@ test('the master found is the highest that answers, asked with the device token 
   ]);
   assert.deepEqual(m, { host: '203.0.113.5:7443', fingerprint: FP, token: 'hld_x', device: 'dev_1' });
   assert.equal(await findMaster(j, async () => null), null);
+});
+
+test("the shell's own connection is this Mac's daemon with the founder's key, and the master it obeys once it is a runner", async () => {
+  const local = { kind: 'local' } as unknown as Transport;
+  const remote = { kind: 'remote' } as unknown as Transport;
+  const asked: unknown[] = [];
+  const own = (h: { user: string; home: string }) =>
+    ownConnection({
+      userHome: h.user,
+      home: h.home,
+      local: async () => local,
+      key: () => 'founder-key',
+      founder: true,
+      remote: (j) => async () => (asked.push(j.master.host), remote),
+    });
+  const master = runnerHome(null);
+  const c = own(master);
+  assert.equal(await c.connect(), local);
+  assert.equal(c.key(), 'founder-key');
+  assert.equal(c.token(), undefined);
+  assert.equal(c.founder(), true);
+  const runner = runnerHome({ master: 'studio.tail1.ts.net:7443', fp: '', token: 'hld_x', device: 'dev_1', node: 'm1', number: 2 });
+  const r = own(runner);
+  assert.equal(await r.connect(), remote);
+  assert.deepEqual(asked, ['studio.tail1.ts.net:7443']);
+  assert.equal(r.key(), null);
+  assert.equal(r.token(), 'hld_x');
+  assert.equal(r.founder(), false, 'a remote master takes this Mac as its device person, who may be no owner');
 });

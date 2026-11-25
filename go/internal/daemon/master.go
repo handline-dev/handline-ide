@@ -301,6 +301,28 @@ func (d *Daemon) stopWork() {
 	}
 }
 
+// canHandOver is why this master cannot hand over to node now, nil when it can; it answers its own device and node's door.
+func (d *Daemon) canHandOver(node string) (own joined.Own, addr, fp string, err error) {
+	if d.copier == nil || d.nodes.Copy == nil || !d.moves() {
+		return own, "", "", rpc.Refused("this master keeps no copy of its board now", "copy", "")
+	}
+	if d.nodes.CopyOf(node) == nil {
+		return own, "", "", rpc.Refused("that machine does not hold the board's copy yet", "copy", "")
+	}
+	own, ok := joined.OwnOf(d.cfg.Home)
+	if !ok {
+		return own, "", "", rpc.Refused("this master has no device of its own to join the next one with", "device", "")
+	}
+	var a, f sql.NullString
+	if err := d.db.QueryRow("SELECT door, door_fp FROM nodes WHERE id = ?", node).Scan(&a, &f); err != nil {
+		return own, "", "", fmt.Errorf("the door of node %s: %w", node, err)
+	}
+	if a.String == "" {
+		return own, "", "", rpc.Refused("that machine has no network door to serve as master", "door", "")
+	}
+	return own, a.String, f.String, nil
+}
+
 // handover is node.handover: this master holds its writes, stops its work, syncs its last change into the copy and waits until the
 // calling runner holds it; it answers the number the runner takes, and once the answer is sent joins it as a runner.
 func (d *Daemon) handover(c *rpc.Conn, _ map[string]any) (any, error) {
@@ -308,22 +330,9 @@ func (d *Daemon) handover(c *rpc.Conn, _ map[string]any) (any, error) {
 	if node == "" {
 		return nil, rpc.Refused("node.handover is a runner's own call, on its link", "node", "")
 	}
-	if d.copier == nil || d.nodes.Copy == nil || !d.moves() {
-		return nil, rpc.Refused("this master keeps no copy of its board now", "copy", "")
-	}
-	if d.nodes.CopyOf(node) == nil {
-		return nil, rpc.Refused("that machine does not hold the board's copy yet", "copy", "")
-	}
-	own, ok := joined.OwnOf(d.cfg.Home)
-	if !ok {
-		return nil, rpc.Refused("this master has no device of its own to join the next one with", "device", "")
-	}
-	var addr, fp sql.NullString
-	if err := d.db.QueryRow("SELECT door, door_fp FROM nodes WHERE id = ?", node).Scan(&addr, &fp); err != nil {
+	own, addr, fp, err := d.canHandOver(node)
+	if err != nil {
 		return nil, err
-	}
-	if addr.String == "" {
-		return nil, rpc.Refused("that machine has no network door to serve as master", "door", "")
 	}
 	if !d.master.moving.CompareAndSwap(false, true) {
 		return nil, rpc.Refused("the master is already moving to another machine", "master", "")
@@ -349,7 +358,7 @@ func (d *Daemon) handover(c *rpc.Conn, _ map[string]any) (any, error) {
 		d.master.startAgain() // the work stopped does not resume in place
 		return nil, rpc.Refused("the master did not hand over: "+err.Error(), "copy", "")
 	}
-	m := joined.Master{Addr: addr.String, Fingerprint: fp.String, Token: own.Token, Device: own.Device, At: time.Now().Unix(), Node: node,
+	m := joined.Master{Addr: addr, Fingerprint: fp, Token: own.Token, Device: own.Device, At: time.Now().Unix(), Node: node,
 		Number: number}
 	c.AfterReply(func() { d.becomeRunner(m) })
 	d.cfg.Log("master: handing over to %s as master number %d", node, number)

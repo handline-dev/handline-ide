@@ -103,6 +103,9 @@ type Manager struct {
 	Log func(format string, args ...any)
 	// Update, when set, has the machine that joined as device id take the master's build (device.update); it refuses when it cannot.
 	Update func(id string) error
+	// MakeMaster, when set, has the machine that joined as device id take the master's place (device.make_master); it refuses when it
+	// cannot.
+	MakeMaster func(id string) error
 	// BeforeRevoke, when set, is told of a device about to be revoked, while its machine's node row is still there.
 	BeforeRevoke func(id string)
 	// PushPlatforms is the platforms the daemon has push credentials for; none is push off.

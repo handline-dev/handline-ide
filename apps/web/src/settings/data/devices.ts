@@ -7,6 +7,8 @@ import type { Device, Node } from '@handline/client';
 import { Hooks, useAgents } from '@handline/app-data';
 import { useHello, useThisDevice } from '@handline/app-react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
+import { useCluster } from '#src/connection/clusters.tsx';
+import { promoteHere } from '#src/connection/master.tsx';
 
 export const STALE_DAYS = 30;
 export const isStale = (d: Pick<Device, 'last_seen' | 'connected'>, now = Date.now()): boolean =>
@@ -157,6 +159,8 @@ export function useDevices() {
   const revoke = Hooks.useDeviceRevoke();
   const set = Hooks.useDeviceSet();
   const update = Hooks.useDeviceUpdate();
+  const makeMaster = Hooks.useDeviceMakeMaster();
+  const cluster = useCluster();
   const pauseMaster = useMasterPause();
   const settings = Hooks.useSettingsGet();
   const setSettings = Hooks.useSettingsSet();
@@ -198,6 +202,12 @@ export function useDevices() {
     buildAuto: values?.node_build_auto ?? true,
     setBuildAuto: (on: boolean) => run('build', () => setSettings.mutateAsync({ changes: { node_build_auto: on } })).then(() => {}),
     update: (row: DeviceRow) => run(`update:${row.id}`, () => update.mutateAsync({ device: row.id })).then(() => {}),
+    /** On the device itself (a joined cluster's engine on this Mac) it is node.promote there; anywhere else the master asks it to take
+     * over (device.make_master). */
+    makeMaster: (row: DeviceRow) =>
+      run<unknown>(`master:${row.id}`, () =>
+        row.here && cluster ? promoteHere(cluster) : makeMaster.mutateAsync({ device: row.id }),
+      ).then(() => {}),
     setReclaimS: (s: number) => run('reclaim', () => setSettings.mutateAsync({ changes: { node_reclaim_s: s } })).then(() => {}),
     pending,
   };

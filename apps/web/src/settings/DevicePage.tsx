@@ -1,9 +1,11 @@
 import { pct } from '#src/format/count.ts';
 // One device's page: its state and Run · Pause · Off, then This Mac's sections for the master, or a lent machine's agents, load and cap.
-import { useNameOf } from '@handline/app-data';
+import { useNameOf, useServes } from '@handline/app-data';
 import { bytesText } from '@handline/app-core';
 import { ArrowLeft, BatteryMedium, Bot, Cpu, Ellipsis, Gauge, MemoryStick, Plug, TriangleAlert } from 'lucide-react';
 import { MachineSections } from '#src/settings/MachineSections.tsx';
+import { confirmMakeMaster } from '#src/connection/master.tsx';
+import { useCluster } from '#src/connection/clusters.tsx';
 import { KIND_ICON, KIND_WORD, ModeControl, StateWord, confirmRevoke, refused } from '#src/settings/DeviceControls.tsx';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Bar, toneOf } from '#src/ui/Meter.tsx';
@@ -100,6 +102,8 @@ function Resources({ row, q }: { row: DeviceRow; q: Devices }) {
 
 export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back: () => void }) {
   const Icon = KIND_ICON[row.kind ?? 'desktop'];
+  const owner = useServes('device.make_master').served;
+  const cluster = useCluster();
   return (
     <ScrollFade keep={`settings-device-${row.id}`} className="min-h-0 flex-1">
       <Page>
@@ -128,6 +132,14 @@ export function DevicePage({ row, q, back }: { row: DeviceRow; q: Devices; back:
               </Button>
             )}
             {row.runner && row.mode && <ModeControl row={row} busy={q.pending !== null} setMode={(m) => q.setMode(row, m)} />}
+            {(owner || (row.here && cluster)) && row.runner && row.mine && !row.master && (
+              <Button
+                disabled={q.pending !== null || row.state === 'offline' || row.mode === 'off'}
+                onClick={() => confirmMakeMaster(row.name, () => q.makeMaster(row))}
+              >
+                Make master
+              </Button>
+            )}
             {!row.master && (
               <Menu
                 side="bottom"
