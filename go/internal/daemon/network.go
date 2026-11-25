@@ -122,6 +122,7 @@ type netDoors struct {
 	mu          sync.Mutex
 	open        map[string]*networkListener // by the IP it binds
 	served      []netAddress                // the hosts a door is open for, in the setting's order
+	magicDNS    map[string]string           // a Tailscale IP's MagicDNS name, by the IP
 	chosen      bool                        // network_addresses was set at the last relisten
 	closed      bool
 }
@@ -176,8 +177,9 @@ func (n *netDoors) watch() {
 }
 
 // want is the hosts to serve and, by IP, whether that door is TLS. Unset network_addresses is the -listen door. Set, it is a door for each
-// chosen host this machine has an address for now. Either way there is a plain loopback door for the desktop app on this machine.
-func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool) {
+// chosen host this machine has an address for now, and names is this machine's MagicDNS name by its Tailscale IP. Either way there is a
+// plain loopback door for the desktop app on this machine.
+func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, names map[string]string, chosen bool) {
 	tls = map[string]bool{loopback: false} // the desktop app's door
 	list := chosenHosts(n.cfg.addressesHome())
 	if list == nil {
@@ -185,11 +187,17 @@ func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool)
 		ip := net.ParseIP(host) // checkBind made it an IP literal
 		a := netAddress{Host: ip.String(), IPs: []net.IP{ip}}
 		tls[a.Host] = !n.cfg.plain()
-		return []netAddress{a}, tls, false
+		return []netAddress{a}, tls, nil, false
 	}
 	have := map[string]netAddress{}
+	names = map[string]string{}
 	for _, a := range addressesNow() {
 		have[a.Host] = a
+		if a.Kind == kindTailscaleName {
+			for _, ip := range a.IPs {
+				names[ip.String()] = a.Host
+			}
+		}
 	}
 	for _, h := range list {
 		a, ok := have[h]
@@ -201,7 +209,7 @@ func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool)
 			tls[ip.String()] = tls[ip.String()] || !a.plain(n.cfg)
 		}
 	}
-	return hosts, tls, true
+	return hosts, tls, names, true
 }
 
 // relisten opens the doors wanted and closes the rest. The loopback door, and with network_addresses unset the -listen door, that cannot
@@ -209,7 +217,7 @@ func (n *netDoors) want() (hosts []netAddress, tls map[string]bool, chosen bool)
 func (n *netDoors) relisten() error {
 	n.relistening.Lock()
 	defer n.relistening.Unlock()
-	hosts, want, chosen := n.want()
+	hosts, want, names, chosen := n.want()
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.closed {
@@ -244,7 +252,7 @@ func (n *netDoors) relisten() error {
 			n.served = append(n.served, a)
 		}
 	}
-	n.chosen = chosen
+	n.chosen, n.magicDNS = chosen, names
 	if !chosen {
 		return failed
 	}
@@ -348,9 +356,10 @@ func (n *netDoors) door(host string) (devices.Door, bool) {
 		if l == nil {
 			continue
 		}
+		name := n.nameLocked(a, l)
 		bound := l.ln.Addr().String()
 		_, port, _ := net.SplitHostPort(bound)
-		addr := net.JoinHostPort(a.Host, port)
+		addr := net.JoinHostPort(name, port)
 		if !n.chosen && i == 0 && n.cfg.Advertise != "" {
 			advHost, _, _ := net.SplitHostPort(n.cfg.Advertise)
 			if host == "" || host == advHost {
@@ -360,11 +369,20 @@ func (n *netDoors) door(host string) (devices.Door, bool) {
 				host = ""
 			}
 		}
-		if host == "" || host == a.Host {
+		if host == "" || host == a.Host || host == name {
 			return devices.Door{Addr: addr, Fingerprint: l.Fingerprint(), TLS: l.src != nil, Web: n.ui != nil}, true
 		}
 	}
 	return devices.Door{}, false
+}
+
+// nameLocked is the host a pairing for a names: its MagicDNS name when a is a Tailscale IP served plain (an app trusts a link with no
+// fingerprint only for *.ts.net), else a.Host. The caller holds n.mu.
+func (n *netDoors) nameLocked(a netAddress, l *networkListener) string {
+	if name := n.magicDNS[a.Host]; name != "" && a.Kind == kindTailscale && l.src == nil {
+		return name
+	}
+	return a.Host
 }
 
 // firstLAN is the first served LAN host, "" when none is. The caller holds n.mu.
@@ -393,9 +411,13 @@ func (n *netDoors) hosts() []string {
 			out = append(out, lan)
 		}
 	}
+	seen := map[string]bool{lan: true}
 	for _, a := range n.served {
-		if a.Host != lan {
-			out = append(out, a.Host)
+		for _, h := range []string{a.Host, n.nameLocked(a, n.open[a.IPs[0].String()])} {
+			if !seen[h] {
+				seen[h] = true
+				out = append(out, h)
+			}
 		}
 	}
 	return out

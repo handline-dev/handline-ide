@@ -140,7 +140,7 @@ func OwnDoor(cfg Config) (*runner.Door, error) {
 	if !cfg.plain() {
 		n.src = &certSource{certFile: cfg.CertFile, keyFile: cfg.KeyFile}
 	}
-	hosts, tls, chosen := n.want()
+	hosts, tls, _, chosen := n.want()
 	if len(hosts) == 0 {
 		return nil, nil
 	}
