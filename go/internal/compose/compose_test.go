@@ -415,3 +415,43 @@ func TestTheTeamRulesCarryTheKeptRules(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// A warned repo whose folder comes back is found on the tick's pass, which clears its notice with no daemon restart; a pass with nothing
+// mended writes nothing.
+func TestAFixedRepoClearsItsNoticeOnTheTick(t *testing.T) {
+	p, home := rig(t)
+	gone := filepath.Join(t.TempDir(), "gone-app")
+	teamtest.Set(t, home, "ann", "vendor", "claude", "repo", gone)
+	ann := teamtest.Key(t, home, "ann")
+	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
+	t.Cleanup(env.Wait)
+	if _, err := dbpkg.AddEvent(p.db, ann, "bad_repo", dbpkg.KV{K: "repo", V: ""}); err != nil { // an older mend: the latest record counts
+		t.Fatal(err)
+	}
+	CheckRepos(p.db, home, env, func(string, ...any) {})
+	key := dbpkg.FounderNoticePrefix + ann + ":bad_repo"
+	if _, ok, _ := dbpkg.Meta(p.db, key); !ok {
+		t.Fatal("the broken repo was not told")
+	}
+	events := func() (n int) { p.db.QueryRow("SELECT COUNT(*) FROM events WHERE kind = 'bad_repo'").Scan(&n); return n }
+	before := events()
+	if err := RecheckRepos(p.db, home, env, func(string, ...any) {}); err != nil || events() != before {
+		t.Fatalf("a pass with nothing mended wrote %d records: %v", events()-before, err)
+	}
+	if err := os.MkdirAll(filepath.Join(gone, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecheckRepos(p.db, home, env, func(string, ...any) {}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dbpkg.ClearOverFounderNotices(p.db); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := dbpkg.Meta(p.db, key); ok {
+		t.Fatal("the notice of a fixed repo stays")
+	}
+	mended := events()
+	if err := RecheckRepos(p.db, home, env, func(string, ...any) {}); err != nil || events() != mended {
+		t.Fatalf("a pass after the mend wrote %d records: %v", events()-mended, err)
+	}
+}

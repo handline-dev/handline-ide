@@ -285,14 +285,20 @@ func (r *Roster) OtherFolders(name string) []string {
 
 // RepoOf is the folder of its workspace this agent works in; "" when it has none.
 func (r *Roster) RepoOf(name string) string {
+	repo, _ := r.ReadRepo(name)
+	return repo
+}
+
+// ReadRepo is RepoOf with the error of a roster that could not be read, so a caller can tell "no repo" from "not known".
+func (r *Roster) ReadRepo(name string) (string, error) {
 	if r.err != nil {
-		return ""
+		return "", r.err
 	}
 	at, err := find(r.DB, name)
 	if err != nil || at.id == 0 {
-		return ""
+		return "", err
 	}
-	return at.works()
+	return at.works(), nil
 }
 
 // RegisterOpts is what Register is asked to set; a nil field is left as it is.

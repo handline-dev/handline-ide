@@ -2,6 +2,7 @@ package compose
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -289,7 +290,10 @@ func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...an
 	var all []seen
 	mended := map[string]bool{} // repos an agent was told of and is off now
 	for _, agent := range paths.ListAgents(home) {
-		repo := roster.RepoOf(agent)
+		repo, err := roster.ReadRepo(agent)
+		if err != nil {
+			continue // not known is no mend: an unread roster must not end a warning
+		}
 		why := ""
 		if repo != "" {
 			why = team.CheckoutProblem(repo)
@@ -343,6 +347,50 @@ func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...an
 			log("  %s: bad_repo was not told to %s: %v", g.agents[0], g.to, err)
 		}
 	}
+}
+
+// RecheckRepos is CheckRepos again when an agent told of a broken repo has a repo that is no longer that broken one: its folder came back,
+// or the agent was given another. It looks only at the agents told, so a tick pays a few stats, and a fixed folder clears its notice
+// without a daemon restart.
+func RecheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...any)) error {
+	rows, err := q.Query("SELECT agent, payload, MAX(id) FROM events WHERE kind = 'bad_repo' GROUP BY agent")
+	if err != nil {
+		return err
+	}
+	told := map[string]string{}
+	for rows.Next() {
+		var agent string
+		var payload sql.NullString
+		var id int64
+		if err := rows.Scan(&agent, &payload, &id); err != nil {
+			rows.Close()
+			return err
+		}
+		var p struct{ Repo string }
+		if json.Unmarshal([]byte(payload.String), &p) == nil && p.Repo != "" {
+			told[agent] = p.Repo
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil || len(told) == 0 {
+		return err
+	}
+	roster := team.NewRoster(home)
+	for _, agent := range paths.ListAgents(home) { // CheckRepos looks only at these: one gone keeps its last record
+		repo, was := told[agent]
+		if !was {
+			continue
+		}
+		now, err := roster.ReadRepo(agent)
+		if err != nil {
+			return err
+		}
+		if now != repo || team.CheckoutProblem(now) == "" {
+			CheckRepos(q, home, env, log)
+			return nil
+		}
+	}
+	return nil
 }
 
 // addBadRepo puts agent in the group of b's repo and receiver, opening one when none is.

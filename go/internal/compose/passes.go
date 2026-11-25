@@ -79,6 +79,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		{Name: "schedules", Run: func(q db.Q, now int64) error { return sched.Sweep(now) }},
 		{Name: "apply-settings", Run: func(q db.Q, now int64) error { return apply.Sweep(tk, now) }},
 		{Name: "heal", Run: healer.Sweep},
+		{Name: "repos", Run: func(q db.Q, _ int64) error { return RecheckRepos(q, cfg.Home, lc.Env, cfg.Log) }},
 		{Name: "proposal-held", Run: func(q db.Q, now int64) error {
 			return held.SweepHeld(heldPorts(tk, q, healPorts{lc: lc, home: cfg.Home}))
 		}},
