@@ -1,3 +1,4 @@
+import { AccountHistory } from '#src/usage/AccountHistory.tsx';
 import { Spinner } from '#src/ui/Loading.tsx';
 import { Segmented } from '#src/ui/Segmented.tsx';
 // Settings > Accounts: one card per account, its row Usage's, opened in place; several stay open and which is kept.
@@ -211,6 +212,7 @@ export function AccountActions({ account: a, out }: { account: Account; out: boo
   const save = useWrite('account.set', a.name);
   return (
     <div className="flex flex-col gap-2">
+      {!out && <AccountHistory account={a.name} />}
       <div className="flex flex-wrap items-center gap-3">
         {/* The same buttons side by side; Remove alone at the right. Rename is the pencil by the name. */}
         {!out && <Login account={a} bare />}
