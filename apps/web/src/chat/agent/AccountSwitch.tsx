@@ -1,5 +1,5 @@
 import { Spinner } from '#src/ui/Loading.tsx';
-import { moveSteps, roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
+import { clockTime, moveSteps, roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
 import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data';
 import type { TranscriptItem } from '@handline/client';
 import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, TriangleAlert } from 'lucide-react';
@@ -64,6 +64,7 @@ export function SwitchWait({ agent }: { agent: string }) {
   const a = useSwitch(agent);
   const accounts = useAccounts().data?.accounts ?? [];
   const switchNow = useWrite('agent.switch_now', agent);
+  const now = useNow();
   const s = a?.account_switch;
   if (s?.phase !== 'waiting') return null;
   const offer = a?.needs_you?.kind === 'switch_offer' ? a.needs_you : null;
@@ -74,21 +75,23 @@ export function SwitchWait({ agent }: { agent: string }) {
       { onError: (e) => toast(`The switch did not start: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }) },
     );
   const best = rows.find((r) => !r.current);
+  const wait = waitLine(s.from, s.until, now);
+  const until = s.until ? `${s.from} resets at ${clockTime(s.until)}` : undefined;
   return (
     <div className="mb-2 flex min-w-0 flex-col gap-2 text-sm">
       {!best && (
-        <div role="status" className="flex items-center gap-1.5 text-xs text-muted">
+        <div role="status" className="flex items-center gap-1.5 text-xs text-muted" title={until}>
           <Clock size={14} className="shrink-0" />
-          {waitLine(s.from, s.until)}
+          {wait}
         </div>
       )}
       {/* The wait is not the end: whenever another account is there, the card offers it, with the wait as its line. */}
       {best && (
         <div role="status" className="flex flex-col gap-2 rounded-lg border border-border p-3">
           <div>
-            <div className="flex items-center gap-1.5 font-medium">
+            <div className="flex items-center gap-1.5 font-medium" title={offer?.title ? undefined : until}>
               <Clock size={14} className="shrink-0" />
-              {offer?.title ?? waitLine(s.from, s.until)}
+              {offer?.title ?? wait}
             </div>
             {offer?.text && <div className="text-muted">{offer.text}</div>}
           </div>

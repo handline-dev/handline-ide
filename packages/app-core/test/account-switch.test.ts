@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { moveSteps, roomRows, switchWords } from '#src/index.ts';
+import { moveSteps, roomRows, switchWords, waitLine } from '#src/index.ts';
 
 const w = (used_pct: number, resets_at: string | null = '2026-11-10T21:30:00Z') => ({ used_pct, resets_at, source: 'measured' });
 
@@ -76,4 +76,11 @@ test("a move's four steps: the phase's step is now, those before done, those aft
     'Finish turn after this turn',
   );
   assert.equal(moveSteps({ phase: 'waiting', from: 'alpha', to: null }), null);
+});
+
+test('the wait line counts down to the reset, a minute at least', () => {
+  const now = Date.parse('2026-11-25T13:54:00Z');
+  assert.equal(waitLine('alpha', '2026-11-25T13:59:00Z', now), 'Waiting for alpha to reset · 5m left');
+  assert.equal(waitLine('alpha', '2026-11-25T13:54:10Z', now), 'Waiting for alpha to reset · 1m left');
+  assert.equal(waitLine('alpha', null, now), 'Waiting for alpha to reset');
 });

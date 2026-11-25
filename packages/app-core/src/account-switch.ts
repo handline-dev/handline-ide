@@ -1,7 +1,7 @@
 // What the chat says while an agent changes accounts at its usage limit, and how the accounts it may go to are ranked: by the room
 // left in the tighter of their two windows. Pure: the page passes the accounts and the time.
 import type { Window } from '@handline/client';
-import { clockTime, dateTime } from '#src/time.ts';
+import { clockTime, dateTime, shortSpan } from '#src/time.ts';
 
 export type SwitchPhase = 'saving' | 'switching' | 'note' | 'starting' | 'waiting';
 
@@ -45,9 +45,11 @@ export function moveSteps(s: { phase: SwitchPhase; from: string; to: string | nu
 const waitsWords = (w: string): string =>
   w === 'the turn to end' ? 'after this turn' : w.startsWith('background: ') ? `after ${w.slice(12)} ends` : `after ${w}`;
 
-/** The wait's line: "Waiting until 21:30 (alpha resets)". */
-export const waitLine = (from: string, until: string | null): string =>
-  until ? `Waiting until ${clockTime(until)} (${from} resets)` : `Waiting for ${from} to reset`;
+/** The wait's line: "Waiting for alpha to reset · 5m left"; the clock time it resets at is the line's hover. */
+export const waitLine = (from: string, until: string | null, now = Date.now()): string =>
+  until && !Number.isNaN(Date.parse(until))
+    ? `Waiting for ${from} to reset · ${shortSpan(Math.max(60, (Date.parse(until) - now) / 1000))} left`
+    : `Waiting for ${from} to reset`;
 
 type Acct = { name: string; five_hour: Window | null; weekly: Window | null };
 
