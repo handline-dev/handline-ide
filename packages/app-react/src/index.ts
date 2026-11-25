@@ -21,7 +21,7 @@ const StoreContext = createContext<Store | null>(null);
  */
 /** A daemon just started answers within a few seconds, so nothing is said before QUIET_MS; after that one plain line, with no address or reason. */
 export function unreachableText(waitedMs: number): string | null {
-  return waitedMs < QUIET_MS ? null : 'Connecting to Handline…';
+  return waitedMs < QUIET_MS ? null : 'Starting Handline…';
 }
 const QUIET_MS = 4000;
 

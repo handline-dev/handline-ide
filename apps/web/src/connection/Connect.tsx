@@ -1,3 +1,4 @@
+import { Spinner } from '#src/ui/Loading.tsx';
 // Opens the daemon: a listener that wants a device token gets the pairing screen until this browser holds one.
 import { Store, type ShellDaemon } from '@handline/app-core';
 import { shell } from '#src/shell.ts';
@@ -159,7 +160,15 @@ function Stopped({ text, waiting = false }: { text: string; waiting?: boolean })
   return (
     <div role="alert" className="mx-auto flex max-w-sm flex-col gap-3 rounded-lg border border-border bg-bg px-4 py-3 text-sm shadow-sm">
       {failed && <h1 className="text-lg font-semibold text-fg">Handline could not start</h1>}
-      <p className={waiting && !failed ? 'text-muted' : 'text-danger'}>{failed && daemon.reason ? daemon.reason : text}</p>
+      {waiting && !failed ? (
+        // Still trying: what it does now, with the spinner every wait in the app turns.
+        <p className="flex items-center gap-2 text-muted">
+          <Spinner />
+          {text}
+        </p>
+      ) : (
+        <p className="text-danger">{failed && daemon.reason ? daemon.reason : text}</p>
+      )}
       {failed && daemon.canStart && (
         <Button
           variant="primary"

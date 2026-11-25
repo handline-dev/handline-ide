@@ -7,6 +7,6 @@ test('a normal start says nothing about the connection', () => {
 });
 
 test('a longer wait says one plain line, with no address', () => {
-  expect(unreachableText(4000)).toBe('Connecting to Handline…');
-  expect(unreachableText(600_000)).toBe('Connecting to Handline…');
+  expect(unreachableText(4000)).toBe('Starting Handline…');
+  expect(unreachableText(600_000)).toBe('Starting Handline…');
 });
