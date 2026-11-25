@@ -2,6 +2,7 @@ package prompts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -132,6 +133,9 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 			opened = now
 			break
 		}
+		if err := e.closeOrphans(agent, now); err != nil {
+			return d, false, err
+		}
 		select { // another prompt of this agent's is open: wait for it to go
 		case <-ctx.Done():
 			return d, false, nil
@@ -239,6 +243,36 @@ func (e *Env) permissionAsk(c *rpc.Conn, params map[string]any) (any, error) {
 }
 
 func jsonText(v any) string { return pyjson.PyJSON(v, true, true) }
+
+// closeOrphans closes agent's open hook questions no call of this daemon waits on: their call went with a daemon that stopped without
+// closing them. One not kept fresh for StaleS only, so a question between its row and its wait is left be.
+func (e *Env) closeOrphans(agent string, now int64) error {
+	rows, err := e.DB.Query("SELECT id FROM prompt_blocks WHERE agent = ? AND gone_at IS NULL AND last_seen < ? AND "+
+		"json_extract(detail, '$.source') = ?", agent, now-StaleS, HookSource)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		if !e.hooks.waiting(id) {
+			ids = append(ids, id)
+		}
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if err := e.closeRow(id, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (e *Env) closeRow(id, now int64) error {
 	_, err := e.DB.Exec("UPDATE prompt_blocks SET gone_at = ? WHERE id = ? AND gone_at IS NULL", now, id)

@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -275,17 +277,37 @@ const permissionWaitS = 3600 + 30
 
 // askPermission is the PermissionRequest hook's output: the founder's answer through permission.ask, or {} when there is none (the daemon
 // is down, the hour passed, or the input is not an object), and the agent's own dialog shows in its terminal. An AskUserQuestion is
-// never asked: an allow would carry no answers.
+// never asked: an allow would carry no answers. The question lives as long as the call: when the connection breaks before a reply (the
+// daemon restarted), the same question is asked again of the daemon that comes back, within the same hour, so its card returns.
 func askPermission(c *hlclient.Client, tool string, input any) string {
 	in, ok := input.(map[string]any)
 	if tool == "" || tool == "AskUserQuestion" || !ok {
 		return "{}"
 	}
-	waiting := *c
-	waiting.Deadline = permissionWaitS * time.Second
-	res, err := waiting.Call("permission.ask", map[string]any{"tool": tool, "input": in})
+	end := time.Now().Add(permissionWaitS * time.Second)
+	var res map[string]any
+	for broke := false; ; {
+		waiting := *c
+		if waiting.Deadline = time.Until(end); waiting.Deadline <= 0 {
+			return "{}"
+		}
+		var err error
+		res, err = waiting.Call("permission.ask", map[string]any{"tool": tool, "input": in})
+		if err == nil {
+			break
+		}
+		var down *hlclient.DaemonDown
+		// Down after a break is the daemon between its stop and its start; down from the first call is a daemon that is not there.
+		if !brokenOff(err) && !(broke && errors.As(err, &down)) {
+			return "{}"
+		}
+		broke = true
+		if !daemonBack(c, end) {
+			return "{}"
+		}
+	}
 	behavior, _ := res["behavior"].(string)
-	if err != nil || behavior == "" {
+	if behavior == "" {
 		return "{}"
 	}
 	decision := map[string]any{"behavior": behavior}
@@ -293,6 +315,28 @@ func askPermission(c *hlclient.Client, tool string, input any) string {
 		decision["message"] = msg
 	}
 	return pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PermissionRequest", "decision": decision}}, true, true)
+}
+
+// brokenOff is whether a call ended because the daemon dropped its connection with no reply: closed early, or reset. A refusal, a daemon
+// that is not there, the call's own deadline or a reply that cannot be read end the question instead.
+func brokenOff(err error) bool {
+	var netErr net.Error
+	return errors.Is(err, hlclient.ErrNoReply) || (errors.As(err, &netErr) && !netErr.Timeout())
+}
+
+// daemonBack waits for the daemon to take connections again, false when end comes first. It waits a second before each try, as a
+// question queued behind another waits in the daemon (prompts.AskPermission): a stopping daemon still accepts for a moment.
+func daemonBack(c *hlclient.Client, end time.Time) bool {
+	for {
+		time.Sleep(time.Second)
+		if !time.Now().Before(end) {
+			return false
+		}
+		if conn, err := c.Connect(); err == nil {
+			conn.Close()
+			return true
+		}
+	}
 }
 
 // capture is the rest of record_from_stdin: the record of an event that is kept and the status snapshot on a turn's edge. Anything else is

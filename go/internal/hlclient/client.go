@@ -40,6 +40,9 @@ func (e *DaemonDown) Error() string {
 	return fmt.Sprintf("the daemon is not running: %s (log: %s); nothing was done", e.Why, e.Log)
 }
 
+// ErrNoReply is a call whose connection the daemon closed before it replied: it stopped or restarted mid-call.
+var ErrNoReply = errors.New("the daemon closed the connection before it replied")
+
 // RPCError is the daemon's typed refusal.
 type RPCError struct {
 	Code    string
@@ -240,7 +243,7 @@ func (c *Client) Call(method string, params map[string]any) (map[string]any, err
 	if err := <-wrote; err != nil {
 		return nil, err
 	}
-	return nil, errors.New("the daemon closed the connection before it replied")
+	return nil, ErrNoReply
 }
 
 // Write is a write under a fresh request_id: (true, what it said) or (false, why it was refused or not made).

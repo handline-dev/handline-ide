@@ -2,6 +2,7 @@ package prompts
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"net"
 	"testing"
@@ -241,4 +242,65 @@ func TestALateReplayedEventFromBeforeTheQuestionLeavesItOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	reply(t, call)
+}
+
+// A hook question left open by a daemon that stopped without closing it (no call keeps it fresh) does not hold the next one: asked again
+// after a restart, the question takes its place at once. One still kept fresh is waited out as before.
+func TestAStaleHookQuestionFromAStoppedDaemonGivesWay(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	register(t, e)
+	old := e.now().Unix() - StaleS - 1
+	if _, err := e.DB.Exec("INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) "+
+		"VALUES(?, 'permission', 'left', 't', '[]', '{\"source\": \"hook\", \"command\": \"left\"}', 1, ?, ?)", backendKey(e), old, old); err != nil {
+		t.Fatal(err)
+	}
+	call, b := ask(t, e, "asked again")
+	var gone int64
+	if err := e.DB.QueryRow("SELECT COALESCE(gone_at, 0) FROM prompt_blocks WHERE fingerprint = 'left'").Scan(&gone); err != nil || gone == 0 {
+		t.Fatalf("the stale question is still open: %d %v", gone, err)
+	}
+	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
+		t.Fatal(err)
+	}
+	if r := reply(t, call); r["behavior"] != "allow" {
+		t.Fatalf("%v", r)
+	}
+}
+
+// Only a question no call of this daemon waits on is an orphan: one whose call is alive stays open though its refresh is late (the machine
+// slept), and so does a question the hook did not raise.
+func TestALiveQuestionIsNoOrphanThoughItsRefreshIsLate(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	register(t, e)
+	call, b := ask(t, e, "still waited on")
+	now := e.now().Unix()
+	if _, err := e.DB.Exec("UPDATE prompt_blocks SET last_seen = ? WHERE id = ?", now-StaleS-60, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.closeOrphans(backendKey(e), now); err != nil {
+		t.Fatal(err)
+	}
+	if open, _ := e.OpenOf(backendKey(e)); open == nil || open.ID != b.ID {
+		t.Fatal("a question its call still waits on was closed")
+	}
+	if _, err := e.DB.Exec("UPDATE prompt_blocks SET last_seen = ? WHERE id = ?", now, b.ID); err != nil { // its call refreshes it
+		t.Fatal(err)
+	}
+	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
+		t.Fatal(err)
+	}
+	reply(t, call)
+	if _, err := e.DB.Exec("INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) "+
+		"VALUES(?, 'permission', 'screen', 't', '[]', '{}', 1, ?, ?)", backendKey(e), now-StaleS-60, now-StaleS-60); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.closeOrphans(backendKey(e), now); err != nil {
+		t.Fatal(err)
+	}
+	var gone sql.NullInt64
+	if e.DB.QueryRow("SELECT gone_at FROM prompt_blocks WHERE fingerprint = 'screen'").Scan(&gone); gone.Valid {
+		t.Fatal("a question the hook did not raise was closed")
+	}
 }

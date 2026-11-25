@@ -2,12 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 
+	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/kit/pyjson"
@@ -237,15 +241,22 @@ func TestPostToolUseSpoolsWhenTheDaemonDoesNotAnswer(t *testing.T) {
 }
 
 // The PermissionRequest hook is recorded, then returns the founder's answer from permission.ask as the hook's decision; with no answer it
-// returns nothing, and the agent's own dialog shows.
+// returns nothing, and the agent's own dialog shows. A call whose connection breaks before a reply (a daemon restart) asks the same
+// question again, so its card comes back; an answer, the hour running out or a refusal asks nothing more.
 func TestThePermissionHookReturnsTheFoundersAnswer(t *testing.T) {
 	ask := `{"hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "Bash", "tool_input": {"command": "rm -rf node_modules"}}`
-	for _, c := range []struct{ result, want string }{
-		{`{"behavior": "allow"}`, `{"hookSpecificOutput": {"decision": {"behavior": "allow"}, "hookEventName": "PermissionRequest"}}`},
+	allow := `{"hookSpecificOutput": {"decision": {"behavior": "allow"}, "hookEventName": "PermissionRequest"}}`
+	for _, c := range []struct {
+		result, want string
+		asks         int
+	}{
+		{`{"behavior": "allow"}`, allow, 1},
 		{`{"behavior": "deny", "message": "The founder said no: use the script"}`,
-			`{"hookSpecificOutput": {"decision": {"behavior": "deny", "message": "The founder said no: use the script"}, "hookEventName": "PermissionRequest"}}`},
-		{`{"behavior": null}`, `{}`},
-		{`error:down`, `{}`},
+			`{"hookSpecificOutput": {"decision": {"behavior": "deny", "message": "The founder said no: use the script"}, "hookEventName": "PermissionRequest"}}`, 1},
+		{`{"behavior": null}`, `{}`, 1},
+		{`error:down`, `{}`, 1},
+		{`drop then {"behavior": "allow"}`, allow, 2},
+		{`drop then {"behavior": null}`, `{}`, 2},
 	} {
 		r := hookRig(t, false)
 		calls := r.daemon(map[string]string{"permission.ask": c.result})
@@ -254,17 +265,19 @@ func TestThePermissionHookReturnsTheFoundersAnswer(t *testing.T) {
 			t.Errorf("%s: exit %d\n got  %q\n want %q", c.result, code, out, c.want)
 		}
 		var methods []string
+		asks := 0
 		for _, m := range calls() {
 			methods = append(methods, m["method"].(string))
 			if m["method"] == "permission.ask" {
+				asks++
 				p := m["params"].(map[string]any)
 				if p["tool"] != "Bash" || p["input"].(map[string]any)["command"] != "rm -rf node_modules" {
 					t.Errorf("asked with %v", p)
 				}
 			}
 		}
-		if !strings.Contains(strings.Join(methods, " "), "hook.record") || !strings.Contains(strings.Join(methods, " "), "permission.ask") {
-			t.Errorf("calls %v", methods)
+		if !strings.Contains(strings.Join(methods, " "), "hook.record") || asks != c.asks {
+			t.Errorf("%s: asked %d times, want %d: calls %v", c.result, asks, c.asks, methods)
 		}
 	}
 }
@@ -319,5 +332,25 @@ func TestAnAgentCallsStartCarriesItsDescriptionTypeAndBackground(t *testing.T) {
 	}
 	if _, ok := params["prompt"]; ok {
 		t.Fatalf("the prompt went too: %v", params)
+	}
+}
+
+// Only a dropped connection asks again: a refusal, a daemon that is not there, the call's own deadline or an unreadable reply end the
+// question.
+func TestOnlyADroppedConnectionAsksAgain(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want bool
+	}{
+		{hlclient.ErrNoReply, true},
+		{&net.OpError{Op: "read", Err: syscall.ECONNRESET}, true},
+		{&net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}, false},
+		{&hlclient.RPCError{Code: "refused"}, false},
+		{&hlclient.DaemonDown{Why: "x"}, false},
+		{errors.New("the daemon sent what is not JSON"), false},
+	} {
+		if got := brokenOff(c.err); got != c.want {
+			t.Errorf("%v: %v, want %v", c.err, got, c.want)
+		}
 	}
 }

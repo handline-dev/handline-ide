@@ -168,6 +168,7 @@ func (r *rig) daemon(results map[string]string) (calls func() []map[string]any) 
 	r.ctl = ctl
 	var mu sync.Mutex
 	var got []map[string]any
+	dropped := map[string]bool{} // "drop then <result>": the first such call's connection closes with no reply, as a daemon restart does
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -191,7 +192,15 @@ func (r *rig) daemon(results map[string]string) (calls func() []map[string]any) 
 					}
 				}
 				answer := `"result":{}`
-				if res, ok := results[result]; ok && strings.HasPrefix(res, "error:") {
+				res, ok := results[result]
+				if then, drop := strings.CutPrefix(res, "drop then "); ok && drop {
+					if !dropped[result] {
+						dropped[result] = true
+						break
+					}
+					res = then
+				}
+				if ok && strings.HasPrefix(res, "error:") {
 					answer = `"error":{"code":-32000,"message":` + strconv.Quote(res[6:]) + `,"data":{"code":"refused"}}`
 				} else if rest, refused := strings.CutPrefix(res, "error["); ok && refused {
 					gate, msg, _ := strings.Cut(rest, "]:")
