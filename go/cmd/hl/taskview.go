@@ -522,7 +522,7 @@ func taskBoard(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Printf("could not read the board: %v\n", err)
 		return 1, true
 	}
-	rows := append(list(board, "mine"), list(board, "reports")...)
+	rows := list(board, "mine")
 	key := func(r obj) (int64, int64) { t, _ := r["task"].(obj); return num(t, "priority"), num(t, "id") }
 	sort.SliceStable(rows, func(i, j int) bool {
 		pi, ii := key(rows[i])

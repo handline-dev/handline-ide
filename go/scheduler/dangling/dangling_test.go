@@ -3,6 +3,7 @@ package dangling
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ type host struct {
 	asked   []int
 	closed  []string
 	killed  []int
-	told    []string
+	told    []string // the notices the sweep logged
 }
 
 func (h *host) Live() map[string]bool { return h.live }
@@ -60,7 +61,6 @@ func (h *host) Kill(pid int) error {
 	delete(h.running, pid)
 	return nil
 }
-func (h *host) Tell(to, text string) error { h.told = append(h.told, to+": "+text); return nil }
 
 type rig struct {
 	q    *sql.DB
@@ -89,7 +89,12 @@ func newRig(t *testing.T) *rig {
 	}
 	home := t.TempDir()
 	h := &host{live: map[string]bool{"%1": true, "%2": true}, started: map[string]int64{}, session: map[string]int{}, stamp: map[string]string{"%1": "a.b", "%2": "a.b"}, running: map[int]int64{}}
-	return &rig{q: q, h: h, home: home, s: &Sweep{Q: q, Home: home, Ports: h}}
+	logged := func(format string, a ...any) { // the notices: what tell logs, not the sweep's other lines
+		if format == "  %s: %s" {
+			h.told = append(h.told, strings.TrimSpace(fmt.Sprintf(format, a...)))
+		}
+	}
+	return &rig{q: q, h: h, home: home, s: &Sweep{Q: q, Home: home, Ports: h, Log: logged}}
 }
 
 func (r *rig) run(t *testing.T, now int64) {
@@ -108,15 +113,15 @@ func (r *rig) closedAt(t *testing.T, handle string) sql.NullInt64 {
 	return c
 }
 
-func TestADanglingPaneWithNoSessionIsClosedAtOnceAndTheManagerIsTold(t *testing.T) {
+func TestADanglingPaneWithNoSessionIsClosedAtOnceAndLogged(t *testing.T) {
 	r := newRig(t)
 	r.run(t, 3000)
 	r.run(t, 3005)
 	if strings.Join(r.h.closed, ",") != "%1" || !r.closedAt(t, "%1").Valid || r.closedAt(t, "%2").Valid {
 		t.Fatalf("only the old pane closes: %v", r.h.closed)
 	}
-	if len(r.h.told) != 1 || !strings.HasPrefix(r.h.told[0], "a: closed a.b's terminal %1: not its current terminal (%2); no session ran in it") {
-		t.Fatalf("the manager hears it: %v", r.h.told)
+	if len(r.h.told) != 1 || !strings.HasPrefix(r.h.told[0], "a.b: closed a.b's terminal %1: not its current terminal (%2); no session ran in it") {
+		t.Fatalf("the log says it: %v", r.h.told)
 	}
 }
 
@@ -140,7 +145,7 @@ func TestADanglingSessionIsAskedForItsHandoffAndClosedOnceItIsWritten(t *testing
 		t.Fatalf("closed once the note is in: %v", r.h.closed)
 	}
 	if len(r.h.told) != 1 || !strings.Contains(r.h.told[0], "pid 37735") || !strings.Contains(r.h.told[0], "written to "+note) {
-		t.Fatalf("the manager is pointed at the note: %v", r.h.told)
+		t.Fatalf("the log points at the note: %v", r.h.told)
 	}
 }
 
@@ -266,14 +271,5 @@ func TestTheNoticeSaysWhenTheSessionCouldNotBeAsked(t *testing.T) {
 	r.run(t, 3000+AskWaitS)
 	if len(r.h.told) != 1 || !strings.Contains(r.h.told[0], "could not be asked for a handoff") {
 		t.Fatalf("the notice does not claim an ask: %v", r.h.told)
-	}
-}
-
-// An agent at the top has no manager; the founder has nothing to do about a closed terminal, so no one is told.
-func TestAClosedTerminalOfATopAgentTellsNoOne(t *testing.T) {
-	r := newRig(t)
-	r.s.tell("top", "closed top's terminal")
-	if len(r.h.told) != 0 {
-		t.Fatalf("%v", r.h.told)
 	}
 }

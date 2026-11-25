@@ -103,23 +103,16 @@ func (e *Env) eventsFeed(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var reach map[string]bool
 	agent := c != nil && c.Caller.Role == "agent"
 	name := ""
 	if agent {
 		name = c.Caller.Key
 	}
-	if agent {
-		if reach, err = e.reach(name); err != nil {
-			return nil, err
-		}
-		reach[name] = true
-	}
 	events := make([]any, 0, len(rows))
 	for _, r := range rows {
 		if agent { // the cursor below is where the log was read to, not the last event this caller may see
 			who, _ := r.strOrNil("agent").(string)
-			if !stream.AgentMay(name, r.str("topic"), r.str("type"), who, reach) {
+			if !stream.AgentMay(name, r.str("topic"), r.str("type"), who) {
 				continue
 			}
 		}

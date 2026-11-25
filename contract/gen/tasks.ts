@@ -563,7 +563,7 @@ export interface TasksMethods {
   limit?: number;
   /** Done and discarded tasks too. */
   all?: boolean;
-  /** Every team's tasks, not only the caller's and its reports'. */
+  /** Every team's tasks, not only the caller's. */
   everyone?: boolean;
   /** Only the tasks the caller acts on (acting) that wait on it: queued or doing, never draft or ended; the founder's are the ones whose acting is their key. One row per task. It takes no acting. */
   my_turn?: boolean;
@@ -897,11 +897,10 @@ export interface TasksMethods {
   request_id: RequestId;
 }; result: Accepted };
   "task.board": { params: {
-  /** Every team's open tasks, not only the caller's and its reports'. */
+  /** Every team's open tasks, not only the caller's. */
   everyone?: boolean;
 }; result: {
     mine: TaskBoardRow[];
-    reports: TaskBoardRow[];
   } };
   "task.withdraw": { params: {
   task: number;

@@ -207,7 +207,11 @@ export class ScriptCore {
     const name = s.fx.name;
     if (s.open) throw refused('state', `${name} has a session running. Close it first: an agent is not retired under a running session.`);
     const under = [...this.sessions.keys()].filter((n) => n.startsWith(`${name}.`));
-    if (under.length) throw refused('state', `${name} has agents under it (${under.join(', ')}): retire or move them first.`);
+    if (under.length)
+      throw refused(
+        'state',
+        `${name} is its workspace's contact, and others are still in it (${under.join(', ')}): retire or move them first.`,
+      );
     const held = this.held.get(name);
     if (held && !worktree) throw refused('dirty', `${name} has work in its worktree.`, undefined, { worktrees: held });
     this.sessions.delete(name);

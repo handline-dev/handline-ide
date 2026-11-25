@@ -278,7 +278,7 @@ func within(path, dir string) bool {
 	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
-// Create makes workspace name on folder (as Folder keeps it) with its lead, who reports to the owner, and seeds its rules as
+// Create makes workspace name on folder (as Folder keeps it) with its lead, the workspace's contact, and seeds its rules as
 // a launch would. Returns the workspace's key. Should the folders fail after the rows are in, Register(name) makes them.
 func (r *Roster) Create(name, folder string) (string, error) {
 	if err := requireFounder(); err != nil {

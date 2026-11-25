@@ -243,7 +243,7 @@ func TestTaskShowListAndBoardRead(t *testing.T) {
 			"mismatch":"","hold_reason":"","requests":[{"id":11,"name":"msg_0000011","from":"a.one","to":"b.two","state":"queued","at":"2026-10-01T10:00:00Z"}]}],
 			"more":false,"reason_gaps":{"retirements_blank":1,"retirements":4,"closures_sha":2,"closures_request":0,"closures_reason":3}}`,
 		"task.board": `{"mine":[{"task":{"id":7,"title":"Fix it","to":"b.two","asker":"a.one","priority":2,"parent":3,"hold_reason":"","mismatch":""},
-			"now":{"kind":"held_as_sub_task","tasks":[8],"agents":["d"]}}],"reports":[]}`,
+			"now":{"kind":"held_as_sub_task","tasks":[8],"agents":["d"]}}]}`,
 	})
 	show := `T7  Fix it
 state done   assignee b.two   owner a.one   P1   parent T3   #be #fe   created 2026-10-01 10:00

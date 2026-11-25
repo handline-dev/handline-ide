@@ -824,7 +824,7 @@ func (l *Launcher) MemoryDir(agent string) (string, error) {
 	return filepath.Join(paths.AgentDir(l.Home, knows), "memory"), err
 }
 
-// HiddenMemories are the memory folders agent may not read: every other agent's, with no exception for its reports.
+// HiddenMemories are the memory folders agent may not read: every other agent's.
 func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
 	keys, err := paths.AgentKeys(l.Home)
 	if err != nil {

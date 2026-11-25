@@ -176,7 +176,7 @@ func (d *discarded) tell(tell Teller, by string) {
 }
 
 // discardOne throws a task away before it is done (actions.discard_task): refused while a child is open, while it waits on an open
-// blocker, or while a request is still out on it - unless the founder or a lead in its own team tree discards it, which withdraws the
+// blocker, or while a request is still out on it - unless the founder discards it, which withdraws the
 // open requests instead. What follows the commit - the says typed, the owner's next task
 // - is the Teller's (discarded.tell). own is a withdraw: only the asker may, since anyone else must say why. batch names the batch this
 // discard is one of, "" for none.
@@ -373,7 +373,7 @@ func taskList(ids []int64) string {
 	return strings.Join(parts, ", ")
 }
 
-// cancelRequest is the write of a cancel (team/ask.py cancel) by the founder or a lead for one queued request: by's own undelivered one is
+// cancelRequest is the write of a cancel by the founder for one queued request: by's own undelivered one is
 // withdrawn (plan.RID 0), any other closes as rejected under verdict. nil when it was closed while this ran. Neither settles the task: the
 // discard calling this ends it.
 func cancelRequest(tx *sql.Tx, r linked, by, verdict string) (*Retired, error) {

@@ -70,7 +70,7 @@ cost lever. See [Configuration](configuration.md) for the files an agent keeps.
 
 ## The team file
 
-The agents and who reports to whom are rows in `~/.handline/db.sqlite`, changed in the app (see
+The workspaces and their agents are rows in `~/.handline/db.sqlite`, changed in the app (see
 [Configuration](configuration.md#workspaces-and-agents)). `hl team` lists them.
 
 ## Run the daemon

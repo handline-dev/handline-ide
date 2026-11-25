@@ -64,7 +64,7 @@ finished, what was refused, and the decisions waiting for you.
 
 One thing to check before you leave: the app's menu-bar icon shows no warning.
 
-## A team with a manager
+## A team
 
 For a project with several parts, propose a whole team in one step:
 
@@ -73,13 +73,11 @@ hl propose team shop --member sea=/Users/you/code/sea --member shore \
   --why "storefront split into search and checkout"
 ```
 
-The manager is the member named like the team. You talk to the manager. It splits work among the
-members with tasks, and it comes to you only for decisions that are yours. Members may ask their
-manager and their siblings, and nobody else, so one agent cannot send work to another team
-without going through its manager.
+The lead is the team's contact: work from other teams comes to it, and it does its own work too.
+The members are peers: any of them gives another work as a task. Another team is reached through
+its lead.
 
-Start with one manager and two members. Add more only when the manager's inbox shows it is the
-bottleneck.
+Start with a lead and two members, and add more when the work calls for them.
 
 ## What these have in common
 

@@ -15,17 +15,6 @@
      "role": {
       "type": "string"
      },
-     "reports_to": {
-      "oneOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "description": "The key of the agent or person it reports to; null for none."
-     },
      "role_file": {
       "type": "object",
       "properties": {
@@ -75,7 +64,6 @@
      "key",
      "name",
      "role",
-     "reports_to",
      "role_file",
      "base_file"
     ]

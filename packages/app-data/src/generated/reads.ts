@@ -97,8 +97,7 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "account",
     "task",
     "cache_until",
-    "has_dialog",
-    "parent"
+    "has_dialog"
   ],
   "agent.removed": [
     "key"

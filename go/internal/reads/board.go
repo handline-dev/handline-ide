@@ -10,38 +10,22 @@ import (
 // asksSQL is db.Asks over a requests row r: work still being asked for.
 const asksSQL = "(r.state = 'queued' OR (r.state = 'landed' AND r.kind = 'task' AND r.queue_order IS NOT NULL))"
 
-// taskBoard is task.board: the open tasks the caller works, or owns while someone outside its reports works them (mine), and those
-// its reports work (reports), each with who holds it now. The founder's board is the tasks assigned to it, unless it asks for
-// everyone's.
+// taskBoard is task.board: the open tasks the caller works or answers for (mine), each with who holds it now. The founder's board is the
+// tasks assigned to it, unless it asks for everyone's.
 func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 	everyone, err := optBool(params, "everyone")
 	if err != nil {
 		return nil, err
 	}
 	me := c.Caller.Actor()
-	var owners map[string]bool
+	// In SQL, before any per-task read: a task the caller acts on, or, on an agent's board, one it answers to someone for.
+	q, args := "SELECT *, "+taskActing+" FROM tasks WHERE "+openTask, []any{}
 	switch {
 	case everyone:
 	case actor.IsPerson(me):
-		owners = map[string]bool{actor.OwnerKey: true}
+		q, args = q+" AND "+actingSQL+" = ?", []any{actor.OwnerKey}
 	default:
-		if owners, err = e.reach(me); err != nil {
-			return nil, err
-		}
-	}
-	// In SQL, before any per-task read: a task in reach by who acts on it, or, on an agent's board, one it answers to someone in reach for.
-	q, args := "SELECT *, "+taskActing+" FROM tasks WHERE "+openTask, []any{}
-	if owners != nil {
-		for n := range owners {
-			args = append(args, n)
-		}
-		in := "(" + placeholders(len(args)) + ")"
-		if actor.IsPerson(me) {
-			q += " AND " + actingSQL + " IN " + in
-		} else {
-			q += " AND (" + actingSQL + " IN " + in + " OR " + askerSQL + " IN " + in + ")"
-			args = append(args, args...)
-		}
+		q, args = q+" AND ("+actingSQL+" = ? OR "+askerSQL+" = ?)", []any{me, me}
 	}
 	open, err := query(e.DB, q+" ORDER BY priority, id", args...)
 	if err != nil {
@@ -51,9 +35,8 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	mine, reports := []any{}, []any{}
+	mine := []any{}
 	for _, t := range open {
-		reach := owners == nil || owners[actingOf(t)]
 		task, err := e.taskOf(t, b.state(t), b)
 		if err != nil {
 			return nil, err
@@ -66,14 +49,9 @@ func (e *Env) taskBoard(c *rpc.Conn, params map[string]any) (any, error) {
 		if agents := now["agents"].([]any); len(agents) > 0 {
 			holder = agents[0]
 		}
-		r := map[string]any{"task": task, "holder": holder, "now": now}
-		if actingOf(t) == me || !reach {
-			mine = append(mine, r)
-		} else {
-			reports = append(reports, r)
-		}
+		mine = append(mine, map[string]any{"task": task, "holder": holder, "now": now})
 	}
-	return map[string]any{"mine": mine, "reports": reports}, nil
+	return map[string]any{"mine": mine}, nil
 }
 
 // heldBy is TaskBoardRow.now for task tid, as caller me reads it; blocked is whether the board knows of an open blocker.

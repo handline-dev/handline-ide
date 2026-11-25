@@ -33,7 +33,7 @@ func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) 
 		t.Fatal(err)
 	}
 	bob, kid := r.who("bob"), r.who("bob.kid")
-	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, addr.Ref(bob)+" has agents under it ("+kid+")") {
+	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, addr.Ref(bob)+" is its workspace's contact, and others are still in it ("+kid+")") {
 		t.Fatal(msg)
 	}
 	if !slices.Contains(paths.ListAgents(r.home), bob) {

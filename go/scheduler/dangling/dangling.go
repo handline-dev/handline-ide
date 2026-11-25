@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 )
@@ -50,7 +49,6 @@ type Ports interface {
 	// PidStart is when the process of pid started, in unix seconds; 0 when it cannot be read.
 	PidStart(pid int) int64
 	Kill(pid int) error
-	Tell(to, text string) error
 }
 
 // Sweep is the tick's pass over the recorded terminals.
@@ -240,13 +238,6 @@ func (s *Sweep) notify(r db.OpenTerminal, current string, pid int, reached bool,
 
 func (s *Sweep) tell(agent, text string) {
 	s.log("  %s: %s", agent, strings.ReplaceAll(text, addr.Ref(agent), agent)) // the log keeps keys
-	to := team.ParentName(agent)
-	if to == "" {
-		return // no manager: the founder has nothing to do about a closed terminal
-	}
-	if err := s.Ports.Tell(to, text); err != nil {
-		s.log("  %s: telling %s: %v", agent, to, err)
-	}
 }
 
 // settle records the terminal closed and forgets what was kept of it.

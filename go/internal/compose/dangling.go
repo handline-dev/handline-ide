@@ -93,7 +93,3 @@ func (d danglingPorts) Close(handle string) (bool, string) { return d.p.LC.term.
 func (danglingPorts) PidGone(pid int) bool                 { return !lock.Alive(pid) }
 func (danglingPorts) PidStart(pid int) int64               { return termRun{}.PidStart(pid) }
 func (danglingPorts) Kill(pid int) error                   { return syscall.Kill(pid, syscall.SIGTERM) }
-
-func (d danglingPorts) Tell(to, text string) error {
-	return d.p.LC.Env.SystemSay(dangling.Requester, to, text)
-}

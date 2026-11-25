@@ -101,7 +101,7 @@ Three things are missing, each a small addition:
 
    `on` is one of `founder` (`waiting on you`, an open request to the founder on the task), `task` (`blocked by T<n>`, from `blocked_by` and open children), `cap` (`at its cap`), `wall` (the account's usage or plan limit), `host` (`host full: n of H`, Story 2; not sent until the host cap exists), `owner` (the owner is busy: mid-turn, a dialog, closed, another task ahead). `text` is the line every view shows the same way (the graph edge label, the time bar, the task page). Today's hold record keeps only free text, so the build slice stores the cause as one of these words next to it. `hold_reason` and `block_reason` stay until the apps read `waiting`.
 
-**Scope** is the caller's, as for every task read: an agent sees itself and its reports, a member and the founder everything (with `everyone`). A blocker outside the caller's scope still appears in `waits` and `waiting.tasks` by id, without its row.
+**Scope** is the caller's, as for every task read: an agent sees its own tasks, a member and the founder everything (with `everyone`). A blocker outside the caller's scope still appears in `waits` and `waiting.tasks` by id, without its row.
 
 **Fixtures** (`contract/fixtures/task_graph.json`). `tasks.list` with `under` on a three-level story (every level, a done child included, and a task outside the story left out); `waits` with one open and one done blocker; `waiting` for a task behind a blocker (`task`) and one waiting on a founder's answer (`founder`). `cap`, `wall` and `owner` come from the supervisor's sweep and are covered by Go tests.
 

@@ -115,9 +115,9 @@
    ]
   },
   {
-   "name": "agent.retire.an_agent_with_agents_under_it_is_refused",
+   "name": "agent.retire.a_workspace_contact_with_others_in_it_is_refused",
    "spec": "agent.retire",
-   "about": "An agent another agent hangs under, or reports to, is refused (gate state) and the reason says so and names them; nothing is retired.",
+   "about": "A workspace's contact while others are still in its workspace is refused (gate state) and the reason says so and names them; nothing is retired.",
    "as": "founder",
    "steps": [
     {
@@ -149,7 +149,7 @@
        "code": "refused",
        "gate": "state",
        "reason": {
-        "$regex": "has agents under it"
+        "$regex": "is its workspace's contact, and others are still in it"
        }
       }
      }

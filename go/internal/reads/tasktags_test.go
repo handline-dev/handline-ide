@@ -23,7 +23,6 @@ func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 		"(1, 'a', '"+bob+"', '"+amy+"', 1, NULL, NULL, NULL), (2, 'b', '"+bob+"', '"+amy+"', 1, '"+cy+"', NULL, NULL), (3, 'c', '"+cy+"', '"+amy+"', 1, NULL, NULL, 'abc'), "+
 		"(4, 'd', '"+bob+"', 'p1', 1, NULL, 1, NULL), (5, 'e', '"+cat+"', '"+cat+"', 1, NULL, NULL, NULL)")
 	run(t, e, "INSERT INTO task_tags(task_id, tag) VALUES(1, 'fe'), (1, 'be'), (2, 'fe'), (3, 'fe')")
-	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('`+bob+`', '{"parent": "`+amy+`"}', 1)`)
 	ids := func(c *rpc.Conn, params map[string]any) string {
 		t.Helper()
 		got, err := e.tasksList(c, params)
@@ -65,8 +64,8 @@ func TestTasksListFiltersOnTagsAndTheOtherFieldsTogether(t *testing.T) {
 			t.Errorf("%v: %s, want %s", c.params, got, c.want)
 		}
 	}
-	// an agent sees the tasks it or its reports work or answer for: amy has bob under it
-	if got := ids(asAgent(amy), map[string]any{"tags": tags("fe")}); got != "[2 1]" {
+	// an agent sees the tasks it works or answers for: T2 answers to cy, its reporter
+	if got := ids(asAgent(amy), map[string]any{"tags": tags("fe")}); got != "[1]" {
 		t.Errorf("amy's scope: %s", got)
 	}
 	if got := ids(asAgent(cat), map[string]any{}); got != "[5]" {

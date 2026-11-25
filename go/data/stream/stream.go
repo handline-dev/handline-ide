@@ -30,8 +30,6 @@ var topics = map[string]bool{"status": true, "accounts": true, "agents": true, "
 
 // Hub fans events out to the connections subscribed to them.
 type Hub struct {
-	// Reach is the agents an agent's own reach covers, for the tasks and notifications an agent session may be sent.
-	Reach func(agent string) (map[string]bool, error)
 	// Log is the stream_log; nil serves the devices topic alone.
 	Log *Log
 	// Render is an event as a person other than the owner reads it (their own unread count of a task), nil for the event as logged;
@@ -466,7 +464,7 @@ func Register(srv *rpc.Server, h *Hub) {
 		}
 		var visible func(*Event) bool
 		if c.Caller.Role == "agent" {
-			visible = newAgentView(c.Caller.Key, h.Reach).may
+			visible = agentView(c.Caller.Key)
 		}
 		mu.Lock()
 		defer mu.Unlock()
@@ -566,47 +564,15 @@ func sinceOf(p map[string]any) (*int64, error) {
 	return &n, nil
 }
 
-// agentView is which events one agent session may be sent: a topic delivers to a role only what that role's read would return.
-type agentView struct {
-	name  string
-	reach func(string) (map[string]bool, error)
-	set   map[string]bool
-	at    time.Time
-}
-
-const reachTTL = 10 * time.Second
-
-func newAgentView(name string, reach func(string) (map[string]bool, error)) *agentView {
-	return &agentView{name: name, reach: reach}
-}
-
-// reachSet is the agents this session reaches, itself included, read again after reachTTL. A read that fails is not kept: the session is
-// sent what it may certainly read, and the next event asks again.
-func (v *agentView) reachSet() map[string]bool {
-	if v.set != nil && time.Since(v.at) < reachTTL {
-		return v.set
-	}
-	set := map[string]bool{}
-	if v.reach != nil {
-		if got, err := v.reach(v.name); err == nil {
-			set = got
-			v.set, v.at = set, time.Now()
+// agentView is which events the agent session of name may be sent: a topic delivers to a role only what that role's read would return.
+func agentView(name string) func(*Event) bool {
+	return func(ev *Event) bool {
+		who := ""
+		if ev.Agent != nil {
+			who = *ev.Agent
 		}
+		return AgentMay(name, ev.Topic, ev.Type, who)
 	}
-	set[v.name] = true
-	return set
-}
-
-func (v *agentView) may(ev *Event) bool {
-	who := ""
-	if ev.Agent != nil {
-		who = *ev.Agent
-	}
-	var reach map[string]bool
-	if ev.Topic == "tasks" || ev.Topic == "notifications" {
-		reach = v.reachSet()
-	}
-	return AgentMay(v.name, ev.Topic, ev.Type, who, reach)
 }
 
 // topicNames is the topics param as a set; false when it is not a non-empty list of strings.
@@ -654,18 +620,18 @@ func Allowed(c *rpc.Conn, names ...string) error {
 }
 
 // AgentMay is whether an event may be sent to the agent `name`: a topic delivers to a role only what that role's read would return. An agent's
-// inbox.list is its own, its tasks are its own and its reports' (reach), and prompt.list is a member's. Whatever no rule names is not sent.
+// inbox.list and tasks are its own, and prompt.list is a member's. Whatever no rule names is not sent.
 // topic, typ and who (the event's agent, "" for none) are the event's.
-func AgentMay(name, topic, typ, who string, reach map[string]bool) bool {
+func AgentMay(name, topic, typ, who string) bool {
 	switch topic {
 	case "accounts", "agents", "proposals", "status":
 		return true
 	case "inbox":
 		return who == name
 	case "tasks":
-		return reach[who]
+		return who == name
 	case "notifications":
-		return (typ == "account_out" || typ == "stall" || typ == "task_done") && reach[who]
+		return (typ == "account_out" || typ == "stall" || typ == "task_done") && who == name
 	}
 	return false
 }

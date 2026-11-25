@@ -115,7 +115,7 @@ func undeliverable(tx *sql.Tx, t *task, to, home string) (string, error) {
 }
 
 // waitIsOwnBookkeeping: a wait on a task held inside the waiting task's own team is the team's own bookkeeping and tells no one; a blocker the
-// founder, another team or nobody holds is news to the lead.
+// founder, another team or nobody holds is news, told as the edit's other changes are.
 func waitIsOwnBookkeeping(tx *sql.Tx, home string, tid, other int64) (bool, error) {
 	t, err := getTask(tx, tid)
 	if err != nil || t == nil {
@@ -133,7 +133,7 @@ func waitIsOwnBookkeeping(tx *sql.Tx, home string, tid, other int64) (bool, erro
 	}
 	tm, err := team.LoadTeam(home)
 	if err != nil {
-		return false, nil // no team file: nothing says it is internal, so the lead is told
+		return false, nil // no team file: nothing says it is internal, so it is told
 	}
 	group := tm.TeamOf(t.Owner)
 	return group != "" && tm.TeamOf(b.Owner) == group, nil

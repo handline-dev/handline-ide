@@ -132,7 +132,6 @@ export function view(s: Session, tasks: TaskCounter): AgentView {
           source: 'hook',
         }
       : null,
-    parent: null,
     background: [],
     ...(s.structured && { structured: true }),
     task_count: tasks.taskCount(s.fx.name, s.fx.task?.id ?? null),

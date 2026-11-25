@@ -14,8 +14,8 @@ import (
 
 // A task waiting for its owner always says why (daemon/taskholds.py). Each tick this reads the facts the delivery paths already weigh as one level
 // and keeps a line per waiting task in meta, for readers in other processes. A reason is a cause (behind another task, blocked, mid-turn, closed,
-// usage limit, dialog, no terminal) or "the owner can take it". Past AbleWarnS in that second state the cause is unnamed: the owner's lead is
-// told once.
+// usage limit, dialog, no terminal) or "the owner can take it". Past AbleWarnS in that second state the cause is unnamed: the task's notice
+// target (db.NoticeTo) is told once.
 
 const (
 	// HoldPrefix names the meta rows.
@@ -200,8 +200,8 @@ func pyStr(v any) string {
 	return fmt.Sprint(v)
 }
 
-// SweepHolds records why each waiting task waits, drops what no longer waits, and tells the owner's lead once of a task whose owner could take it
-// and does not.
+// SweepHolds records why each waiting task waits, drops what no longer waits, and tells the task's notice target once of a task whose owner
+// could take it and does not.
 func (e *Env) SweepHolds(now int64) (err error) {
 	defer Catch(&err)
 	q := db.Q(e.DB)

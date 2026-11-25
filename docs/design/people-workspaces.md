@@ -14,7 +14,7 @@ Decided by the founder on 2026-11-11. This doc is the spec for phase 1, the new 
 |---|---|---|---|
 | person | `p<n>` | display name, handle (empty in personal mode), role `owner` or `member` | handle, across the cluster |
 | workspace | `w<n>` | name, project folder, added folders, lead agent | name, across the cluster |
-| agent | `a<n>` | workspace, name, owner (a person), reports to (an agent or a person), model, effort, weight, enabled, schedules, context size | name, within its workspace |
+| agent | `a<n>` | workspace, name, owner (a person), model, effort, weight, enabled, schedules, context size | name, within its workspace |
 | account | `c<n>` | label shown, owner (a person), plan, ends at, agents at once, paused | label, per owner |
 | device | `d<n>` | person, name, paired at | - |
 
@@ -103,7 +103,7 @@ The founder: no migration code in the product. A temporary importer is enough, s
 
 - The new base starts from one schema file, version 1. The 51 files in `go/kit/store/migrations` are deleted. The daemon never reads the old layout.
 - `go/cmd/hl-import-v1` is a separate binary that is run by hand once. It is not linked into `handlined` or `hl`. It reads the old home (moved aside to `~/.handline-v1`) and writes the new one.
-  - The first segment of a dotted name is the workspace (`shop.ui-review` is in `shop`), and the rest is the agent name (`ui-review`). The agent named just the segment becomes the lead, `lead`. The project folder is the lead's `repo`. Reports to comes from today's parent name. `human` becomes `p1`.
+  - The first segment of a dotted name is the workspace (`shop.ui-review` is in `shop`), and the rest is the agent name (`ui-review`). The agent named just the segment becomes the lead, `lead`. The project folder is the lead's `repo`. `human` becomes `p1`.
   - It brings agent config, agent folders, account folders (label = old name), tasks with their ids, comments, turns, links, tags, blockers, chat requests and prefs. Names in who columns become keys, and `@name` in bodies becomes `<@key>`.
   - It leaves behind events (468k rows), usage samples, token calls, transcripts, delivery state, operations and sessions. These start empty.
 - The importer is deleted one week after the cutover (done 11-23).

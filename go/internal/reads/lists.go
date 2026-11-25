@@ -46,8 +46,7 @@ func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	agents := []any{}
 	for _, k := range keys {
-		// reports_to stays null until clients stop reading it: agents are peers
-		agents = append(agents, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "role": e.roleLine(k), "reports_to": nil,
+		agents = append(agents, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "role": e.roleLine(k),
 			"role_file": e.instructionInfo(k, db.PartRole), "base_file": e.instructionInfo(k, db.PartBase)})
 	}
 	people := []any{}
