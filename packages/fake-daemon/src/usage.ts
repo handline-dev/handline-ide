@@ -17,27 +17,44 @@ const OVERLAYS: Record<string, number[]> = {
   'grp:grp': [0, 2, 4.1, 5.5, 6.8, 7.5, 8.1, 8.4, 8.7, 9, 9.3, 9.6, 9.9],
 };
 
-/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. The fake does not pace, so there is no line. */
+const FIVE = 5 * HOUR;
+
+/** What an account's 5h window had left at t: it fills from `low` toward `high` used through each 5h window, so a graph shows the sawtooth the real samples make. */
+function fiveLeft(t: number, low: number, high: number): number {
+  const phase = (((t % FIVE) + FIVE) % FIVE) / FIVE;
+  return Math.round((100 - (low + (high - low) * phase)) * 100) / 100;
+}
+
+/** The 5h resets in (from, to], at the boundaries fiveLeft refills on. */
+function fiveResets(from: number, to: number): { at: Timestamp; window: '5h' }[] {
+  const out: { at: Timestamp; window: '5h' }[] = [];
+  for (let t = Math.floor(from / FIVE) * FIVE + FIVE; t <= to; t += FIVE) out.push({ at: new Date(t).toISOString(), window: '5h' });
+  return out;
+}
+
+/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. */
 function byAccount(past: Outlook['past'], future: Outlook['future'], now: number, head: number): Outlook['by_account'] {
-  const points = (pts: Outlook['past'], d: number) =>
+  const points = (pts: Outlook['past'], d: number, five?: [number, number]) =>
     pts.map((p) => ({
       at: p.at,
-      five_left: null,
+      five_left: five ? fiveLeft(Date.parse(p.at), ...five) : null,
       week_left: p.left_pct === null ? null : Math.min(100, Math.max(0, p.left_pct + d)),
       line_left: null,
     }));
   const reset = now + 70 * HOUR; // the same reset alpha's account row carries
+  const byTime = (a: { at: Timestamp }, b: { at: Timestamp }) => Date.parse(a.at) - Date.parse(b.at);
   return [
     {
       account: 'alpha',
-      past: points(past, 5),
+      past: points(past, 5, [10, 80]),
       future: points(future, 5),
       resets: [
+        ...fiveResets(now - head, now),
         { at: new Date(now - head / 2).toISOString(), window: '7d' as const },
         ...(reset <= now + head ? [{ at: new Date(reset).toISOString(), window: '7d' as const }] : []),
-      ],
+      ].sort(byTime),
     },
-    { account: 'beta', past: points(past, -5), future: points(future, -5), resets: [] },
+    { account: 'beta', past: points(past, -5, [0, 35]), future: points(future, -5), resets: fiveResets(now - head, now) },
   ];
 }
 /** [agent, account, tokens, list-price cost]: the architect and auditor share alpha with the founder's own sessions (agent ''), the auditor also used beta, which the architect moved to. */
