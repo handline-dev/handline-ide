@@ -360,6 +360,9 @@ def agent_pairs(store: Path, n: int) -> tuple[list, socket.socket, int]:
             pairs = [socket.socketpair() for _ in range(n)]
             for i in range(0, n, 50):
                 socket.send_fds(child_end, [b"p"], [s.fileno() for pair in pairs[i:i + 50] for s in pair])
+            # Closed only once the parent holds them: a socket whose only reference is an in-flight message can be thrown away by
+            # macOS's collector of in-flight descriptors, which any unix socket closed with rights on this machine sets off.
+            child_end.recv(1)
             for pair in pairs:
                 for s in pair:
                     s.close()
@@ -373,6 +376,7 @@ def agent_pairs(store: Path, n: int) -> tuple[list, socket.socket, int]:
         if not got:
             raise RuntimeError("the agent's session process ended before it made its connections")
         fds += got
+    ctl.send(b"k")  # it may close its copies now
     (store / SESSION_NS).mkdir(mode=0o700)
     (store / SESSION_NS / AGENT).write_text(session_line(pid))
     return [(socket.socket(fileno=fds[i]), socket.socket(fileno=fds[i + 1])) for i in range(0, 2 * n, 2)], ctl, pid
