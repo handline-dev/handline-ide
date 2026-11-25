@@ -1,8 +1,10 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
 // scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
-// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it. Standing beside an
-// agent floats its chat over the room (floater.tsx), beside the founder's own desk its decisions; walking away puts it away. The door
+// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and floats that
+// agent's chat over the room (floater.tsx), one on the founder's own desk its decisions; the window stays wherever the founder walks
+// until it is closed or another is clicked. The door
 // the founder came in by shuts behind it, and opens when it walks up into it to go back out.
+import { AnimatePresence } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WebGLRenderer } from 'three';
 import { Decisions, WORDS } from '#src/town/panel.tsx';
@@ -21,6 +23,8 @@ import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { groundOf } from '#src/town/ground.ts';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
+/** The window of the founder's own desk, beside an agent's by its key. */
+const MINE = 'mine';
 
 let renderer: WebGLRenderer | null = null;
 
@@ -123,20 +127,24 @@ export function Inside({
     if (!swing && entry && dz < 0 && Math.abs(x - entry[0]) < 0.35 && z < entry[1]) setSwing({ way: 'open', from: [x, z] });
   });
   const cast = drawn?.cast;
-  const near = useFounder(founder, (me) => (me && cast ? nearOf(cast, me.at) : null));
+  // Whose window floats: an agent's key, 'mine' for the founder's desk, or none; set by a click, never by walking past.
+  const [shown, setShown] = useState<string | null>(null);
   // The people are in depth order: those up to `behind` stand behind the founder.
   const behind = useFounder(founder, (me) => (me && cast ? cast.figures.filter((f) => f.z <= me.at[1]).length : 0));
-  const nearPerson = near && near !== 'mine' ? (house.people.find((p) => p.key === near) ?? null) : null;
+  const person = shown && shown !== MINE ? (house.people.find((p) => p.key === shown) ?? null) : null;
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
   useEffect(() => {
-    // Escape the chat took (to stop a turn, close a list) stays the chat's.
-    const onKey = (e: KeyboardEvent) =>
-      e.key === 'Escape' && !e.defaultPrevented && !(e.target instanceof Element && e.target.closest('[data-no-walk]')) && onBack();
+    // Escape the chat took (to stop a turn, close a list) stays the chat's; else it closes the window, then leaves the office.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || (e.target instanceof Element && e.target.closest('[data-no-walk]'))) return;
+      if (shown) setShown(null);
+      else onBack();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onBack]);
+  }, [onBack, shown]);
 
   const hit = (s: Spot, key: string) => (
     <rect
@@ -149,8 +157,12 @@ export function Inside({
       fill="transparent"
       stroke="transparent"
       strokeWidth={1 / scale}
-      className="cursor-pointer hover:stroke-accent"
-      onClick={() => founder.go(s.at)}
+      // Whose window is open stays outlined, wherever the founder walks.
+      className={shown === s.person.key ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
+      onClick={() => {
+        founder.go(s.at);
+        setShown(s.person.key);
+      }}
     >
       <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
     </rect>
@@ -246,8 +258,12 @@ export function Inside({
                     fill="transparent"
                     stroke="transparent"
                     strokeWidth={1 / scale}
-                    className="cursor-pointer hover:stroke-accent"
-                    onClick={() => drawn.cast.mine && founder.go(drawn.cast.mine.at)}
+                    className={shown === MINE ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
+                    onClick={() => {
+                      if (!drawn.cast.mine) return;
+                      founder.go(drawn.cast.mine.at);
+                      setShown(MINE);
+                    }}
                   >
                     <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
                   </rect>
@@ -258,39 +274,28 @@ export function Inside({
             </svg>
           )}
         </div>
-        {nearPerson && (
-          <Floater key={nearPerson.key} title={nearPerson.name} sub={nearPerson.doing ?? WORDS[nearPerson.activity]}>
-            <Chat agent={nearPerson.key} />
-          </Floater>
-        )}
-        {near === 'mine' && (
-          <Floater title="Your desk" sub={`${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <Decisions papers={house.decisions} onOpen={onOpen} />
-            </div>
-          </Floater>
-        )}
+        <AnimatePresence>
+          {person && (
+            <Floater key="window" title={person.name} sub={person.doing ?? WORDS[person.activity]} onClose={() => setShown(null)}>
+              <Chat key={person.key} agent={person.key} />
+            </Floater>
+          )}
+          {shown === MINE && (
+            <Floater
+              key="window"
+              title="Your desk"
+              sub={`${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}
+              onClose={() => setShown(null)}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <Decisions papers={house.decisions} onOpen={onOpen} />
+              </div>
+            </Floater>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
-}
-
-/** How close the founder stands to an agent or its desk, in metres, for its chat to float. */
-const NEAR = 0.75;
-
-/** Whose the founder stands beside: an agent's key, 'mine' for the founder's own desk, or null; the nearest within NEAR. */
-function nearOf(cast: Cast, [x, z]: FloorSpot): string | 'mine' | null {
-  const all: [string, [number, number]][] = [
-    ...cast.spots.map((s): [string, [number, number]] => [s.person.key, s.at]),
-    ...cast.desks.map((s): [string, [number, number]] => [s.person.key, s.at]),
-    ...(cast.mine ? [['mine', cast.mine.at] as [string, [number, number]]] : []),
-  ];
-  let best: [string | null, number] = [null, NEAR];
-  for (const [key, at] of all) {
-    const d = Math.hypot(at[0] - x, at[1] - z);
-    if (d < best[1]) best = [key, d];
-  }
-  return best[0];
 }
 
 /** A name under a person or desk: `font` and the halo keep their screen size whatever the scale. */

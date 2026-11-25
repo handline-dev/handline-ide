@@ -170,20 +170,21 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const seen = sofa
       ? draw('sit_mug', fx, fy, (i) => pic.depth[i] < depth - 0.6)
       : draw('walk_down', fx, fy, (i) => !FLAT.has(frame.meta[pic.id[i]]?.kind ?? '') && pic.depth[i] < body);
-    cast.spots.push({ person: p, ...seen, at: sofa ? [place.x, place.z + 0.55] : [place.x - 0.4, place.z] });
+    cast.spots.push({ person: p, ...seen, at: sofa ? [place.x, place.z + 0.55] : [place.x - 0.367, place.z] });
     cast.names.push({ person: p, x: seen.x + seen.w / 2, y: seen.y + seen.h + 1 });
   }
-  /** Behind a desk's chair, where the founder stands to talk. */
-  const behind = (tag: string): [number, number] => {
+  /** Right beside a desk's chair, at its left where the desks of a bench part, level with whoever sits in it: where the founder stands
+   *  to talk. */
+  const beside = (tag: string): [number, number] => {
     const top = room.blocks.find((b) => b.tag === tag && b.part?.startsWith('desk:'));
-    return top ? [top.from[0] + 0.38, top.to[2] + 1.0] : room.entry;
+    return top ? [top.from[0], top.to[2] + 0.2] : room.entry;
   };
   for (const person of room.people) {
     const desk = boxOf(pic, frame, `desk:${person.key}`);
-    if (desk) cast.desks.push({ ...desk, person, at: behind(`desk:${person.key}`) });
+    if (desk) cast.desks.push({ ...desk, person, at: beside(`desk:${person.key}`) });
   }
   const mine = boxOf(pic, frame, MY_DESK);
-  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: behind(MY_DESK) };
+  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: beside(MY_DESK) };
   return cast;
 }
 
