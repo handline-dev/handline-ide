@@ -78,7 +78,7 @@ export async function once(open: () => Promise<Transport>, calls: [string, Recor
 const rid = () => `app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 /** Pairs this computer and returns its device token. Throws NoFounderKey when the daemon has not made the key yet. */
-export async function pairSelf(d: PairDeps): Promise<Kept> {
+export async function pairSelf(d: PairDeps, replaces?: string): Promise<Kept> {
   const key = d.readKey();
   if (!key) throw new NoFounderKey();
   const paired = await once(d.open, [
@@ -87,7 +87,7 @@ export async function pairSelf(d: PairDeps): Promise<Kept> {
   ]);
   const code = paired.result?.code;
   if (typeof code !== 'string') throw new Error('device.pair gave no code');
-  const redeemed = await once(d.open, [['device.redeem', { code, name: d.name, request_id: rid() }]]);
+  const redeemed = await once(d.open, [['device.redeem', { code, name: d.name, request_id: rid(), ...(replaces ? { replaces } : {}) }]]);
   const { token, device } = redeemed.result ?? {};
   if (typeof token !== 'string' || typeof device !== 'string') throw new Error('device.redeem gave no token');
   return { token, device };
@@ -135,7 +135,7 @@ export async function ensureToken(d: PairDeps, file: TokenFile, wait: (ms: numbe
   if (kept && (await stillPaired(d, kept.device)) !== false) return kept.token;
   for (let i = 1; ; i++) {
     try {
-      const k = await pairSelf(d);
+      const k = await pairSelf(d, kept?.device);
       file.write(k);
       return k.token;
     } catch (e) {

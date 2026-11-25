@@ -45,7 +45,16 @@ function Invite({ invite, left }: { invite: Pairing; left: number }) {
         <Button className="w-fit" onClick={() => copy(invite.link, 'the link')}>
           {copied ? 'Copied' : 'Copy link'}
         </Button>
-        {wifi && <span className="text-xs text-muted">For another Mac&apos;s Handline app. Phones and browsers need Tailscale.</span>}
+        {/* Two lines, no more: what works without Tailscale, and what needs it. */}
+        <span className="text-xs text-muted">
+          On the same Wi-Fi, another Mac&apos;s Handline app connects without Tailscale.
+          <br />
+          Phones, browsers and anything away from home need{' '}
+          <a href="https://tailscale.com/download" target="_blank" rel="noreferrer" className="text-accent hover:underline">
+            Tailscale
+          </a>
+          .
+        </span>
         <span className="text-xs text-muted">
           Valid for <b className="tabular-nums text-fg">{countdown(left)}</b>
         </span>
