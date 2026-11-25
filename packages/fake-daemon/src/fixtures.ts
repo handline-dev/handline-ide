@@ -71,6 +71,8 @@ export const AGENTS: AgentFixture[] = [
     branch: 'yourname/handline.architect',
     repo: 'handline-dev/handline',
     session: 's-arch-1',
+    // Wrote to the founder, unread: the sidebar's unread button and view have something to show.
+    view: { founder_unread: 2, last_to_founder: { text: 'The plan is ready for a look.', at: '2026-11-25T09:00:00Z' } },
   },
   {
     name: 'handline.auditor',
@@ -85,6 +87,7 @@ export const AGENTS: AgentFixture[] = [
     repo: 'handline-dev/handline',
     session: 's-aud-1',
     wall: true,
+    view: { founder_unread: 1, last_to_founder: { text: 'Two findings on the last land.', at: '2026-11-25T10:00:00Z' } },
   },
 ];
 
