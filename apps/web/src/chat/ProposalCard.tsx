@@ -1,6 +1,7 @@
 // At the end of a chat whose agent asked the founder for something (a proposal: run a command, change a file or a setting): what it
 // asks, why, exactly what changes (the command, each change's lines, a file's text before and after), and Deny or Run here, the same
 // answers its Requests row gives.
+import { Refs } from '#src/ui/refs.tsx';
 import { changeRows, plainRefs, proposalTitle } from '@handline/app-core';
 import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
 import type { Proposal } from '@handline/client';
@@ -22,7 +23,11 @@ export function ProposalCards({ agent }: { agent: string }) {
           <Lightbulb size={16} className="mt-0.5 shrink-0 text-warning" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="font-medium text-fg">{proposalTitle(p, nameOf)}</p>
-            {p.reason && <p className="text-muted">{p.reason}</p>}
+            {p.reason && (
+              <p className="text-muted">
+                <Refs text={p.reason} />
+              </p>
+            )}
           </div>
         </div>
         <Changes p={p} />
