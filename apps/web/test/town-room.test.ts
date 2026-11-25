@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
 import type { House, Person } from '#src/town/model.ts';
 import { figuresOf } from '#src/town/people.ts';
-import { roomOf, type Room } from '#src/town/room.ts';
+import { inFront, roomOf, WALL_T, type Room } from '#src/town/room.ts';
 
 const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0 });
 const house = (people: Person[]): House => ({ key: 'w', name: 'w', lead: people[0], people, working: 0, decisions: [] });
@@ -46,6 +46,36 @@ describe('roomOf', () => {
       ).size;
     expect([sofas(1), sofas(4), sofas(5), sofas(9)]).toEqual([2, 2, 4, 6]);
     expect(idle(9).d).toBeGreaterThan(idle(4).d);
+  });
+
+  it("puts the door in the front wall, the founder's desk beside it, and the sofas behind a wall open at the front", () => {
+    const r = roomOf(house([person('a', 'working'), person('b', 'resting'), person('c', 'working')]));
+    const door = r.blocks.find((b) => b.kind === 'door')!;
+    // The founder comes up from below: the door stands in the front wall, the walk in starts just inside it.
+    expect(door.to[2]).toBeGreaterThan(r.d - WALL_T);
+    expect(r.entry[1]).toBeGreaterThan(r.d - 0.6);
+    const front = r.blocks.filter(inFront);
+    expect(front.filter((b) => b.solid).every((b) => b.from[2] >= r.d - WALL_T && b.to[2] === r.d)).toBe(true);
+    // The front wall stands across the whole front but for the doorway, which the founder walks through.
+    const spans = front.filter((b) => b.solid).map((b) => [b.from[0], b.to[0]]);
+    expect(spans).toEqual([
+      [-WALL_T, door.from[0]],
+      [door.to[0], r.w + WALL_T],
+    ]);
+    // The founder's desk ends just left of the door, in front of the agents' desks and clear of the front wall's cover.
+    const mine = r.blocks.find((b) => b.tag === 'desk:you' && b.part?.startsWith('desk:'))!;
+    expect(door.from[0] - mine.to[0]).toBeGreaterThan(0);
+    expect(door.from[0] - mine.to[0]).toBeLessThan(0.3);
+    const others = r.blocks.filter((b) => b.tag?.startsWith('desk:') && b.tag !== 'desk:you' && b.part?.startsWith('desk:'));
+    expect(Math.max(...others.map((b) => b.to[0]))).toBeLessThan(mine.from[0]);
+    expect(mine.to[2]).toBeLessThan(r.d - 1.6);
+    // The rest room's wall stands between the door and every sofa, from the back wall to short of the front, and the founder walks round it.
+    const wall = r.blocks.find((b) => b.part === 'wall:rest')!;
+    expect(wall.solid).toBe(true);
+    expect([wall.from[2], wall.to[2] < r.d - 1.5]).toEqual([0, true]);
+    expect(wall.from[0]).toBeGreaterThan(door.to[0]);
+    for (const s of r.blocks.filter((b) => b.part?.startsWith('sofa:'))) expect(s.from[0]).toBeGreaterThan(wall.to[0]);
+    expect(r.places.find((p) => p.person.key === 'b')?.x).toBeGreaterThan(wall.to[0]);
   });
 
   it('gives teammates different figures while there are enough', () => {

@@ -1,6 +1,7 @@
 // A workspace's office as a 3D room, in metres (scene3d.ts draws it, people.ts puts the people in): a cut-open box with the back wall at
-// z = 0, a desk per agent in rows of benches (the lead first), and a lounge of sofas right of them. An agent at work sits at its desk,
-// its screen lit while it works or waits for the founder; an idle one sits in the lounge; one starting stands at the door; an asleep
+// z = 0, a desk per agent in rows of benches (the lead first), the founder's desk by the door, and a rest room of sofas behind a wall
+// right of them. An agent at work sits at its desk, its screen lit while it works or waits for the founder; an idle one sits in the rest
+// room; one starting stands at the door; an asleep
 // one's desk is empty. The furniture is built in code (furniture.ts).
 import type { Activity } from '#src/layout/agentList.ts';
 import * as F from '#src/town/furniture.ts';
@@ -79,6 +80,11 @@ const ROW = 1.75; // from one bench to the next, with room for the names between
 const FIRST = 1.45; // the first bench's front edge
 const SOFA = 0.98;
 const SOFA_ROW = 1.6;
+const FRONT_H = 1.0; // the front wall, lower than the others: it is seen face on, from the side the founder comes in by
+const DOOR_W = 0.55;
+const DOOR_H = 0.95;
+const FRONT = 0.8; // the floor the front wall covers seen from above, added to the room's depth so nobody sits under it
+const REST_GAP = 0.9; // the way into the rest room, between the end of its wall and the front wall's top
 const STAND_ROW = 0.9; // from one row of standing people to the next
 const SHEET_T = 0.022; // one paper of a stack
 const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
@@ -86,6 +92,9 @@ const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
 export const MY_DESK = 'desk:you';
 /** The tag of the door the founder comes in and goes out by; a building's in the city is `door:<its key>`. */
 export const DOOR = 'door';
+const FRONT_PART = 'wall:front';
+/** Whether a block is the front wall or its door, which an office draws over the people (Inside.tsx). */
+export const inFront = (b: Block) => b.part === FRONT_PART || b.tag === DOOR;
 
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
@@ -93,8 +102,9 @@ const LIT: Activity[] = ['working', 'you'];
 /** How many desks a bench may have: COLS[0] to COLS[1]. */
 export const COLS = [2, 6] as const;
 
-/** The room for a house: benches of `cols` desks (by default as many as keep the desks about square), the lounge as deep as its sitters
- *  need. The HQ has no benches: its people (the pinned agents) stand together, `cols` to a row, wherever their desks are. */
+/** The room for a house: benches of `cols` desks (by default as many as keep the desks about square) on the left, the founder's desk
+ *  beside the door right of them, and a rest room behind a wall on the right, as deep as its sitters need. The HQ has no benches: its
+ *  people (the pinned agents) stand together, `cols` to a row, wherever their desks are. */
 export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.ceil(Math.sqrt(house.people.length))))): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
   const rows = Math.max(1, Math.ceil(people.length / cols));
@@ -102,11 +112,14 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
   const idle = hq ? [] : people.filter((p) => p.activity === 'resting');
   const sofaRows = Math.max(1, Math.ceil(idle.length / 4));
   const x0 = 0.6;
-  const lounge = x0 + cols * PITCH + 1.0;
-  const w = lounge + 2 * SOFA + 1.1;
-  // The founder's desk is a row of its own in front of the benches, or of those standing in the HQ.
-  const front = hq ? FIRST + rows * STAND_ROW + 0.4 : FIRST + rows * ROW;
-  const d = Math.max(front + 0.95, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55);
+  const benches = x0 + cols * PITCH;
+  // Right of the benches the founder's desk, then the door in the front wall, then the wall that closes off the rest room.
+  const door = benches + 1.2;
+  const wall = door + 0.85;
+  const lounge = wall + WALL_T + 0.45;
+  const w = lounge + 2 * SOFA + 0.45;
+  const last = hq ? FIRST + (rows - 1) * STAND_ROW : FIRST + (rows - 1) * ROW;
+  const d = FRONT + Math.max(last + 1.35, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55);
   const places: Place[] = [];
   const { blocks, put } = pen();
   /** A desk at (x, z) with a stack of `n` papers on its back right corner, each a little askew. */
@@ -137,44 +150,46 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
       if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
     });
 
-  // The founder's desk, with a paper for every decision waiting on the founder and an empty chair.
-  const mine = { x: x0 + ((cols - 1) * PITCH) / 2, z: front };
+  // The founder's desk, just inside the door at its left, with a paper for every decision waiting on the founder and an empty chair.
+  const mine = { x: door - 0.85, z: d - FRONT - 1.1 };
   desk(mine.x, mine.z, MY_DESK, house.decisions.length);
   F.screen(put, mine.x + 0.17, mine.z - 0.2, F.DESK_TOP, false);
   F.keyboard(put, mine.x + 0.22, mine.z - 0.08, F.DESK_TOP);
   F.chair(put, mine.x + 0.225, mine.z + 0.3, MY_DESK);
 
-  // The lounge: rows of two sofas, a rug and a coffee table in front of each; four sit on a row.
+  // The rest room: rows of two sofas, a rug and a coffee table in front of each; four sit on a row. A coffee corner on its back wall.
   for (let r = 0; r < sofaRows; r++) {
     const z = 1.75 + r * SOFA_ROW;
-    F.rug(put, lounge - 0.2, z + 1.0);
+    F.rug(put, lounge + 0.2, z + 1.0);
     F.sofa(put, lounge, z);
     F.sofa(put, lounge + SOFA, z);
-    F.coffeeTable(put, lounge + 0.25, z + 0.74);
+    F.coffeeTable(put, lounge + 0.65, z + 0.74);
   }
   idle.forEach((p, i) => {
     const r = Math.floor(i / 4);
     places.push({ person: p, x: lounge + 0.27 + (i % 4) * 0.48, z: 1.75 + r * SOFA_ROW - 0.13, how: 'sofa' });
   });
-  F.plant(put, lounge - 0.25, 1.5, 0, 0.72);
-  F.plant(put, lounge + 2 * SOFA + 0.2, 1.5, 0, 0.78);
+  F.plant(put, wall + WALL_T + 0.25, 0.25, 0, 0.72);
+  F.cabinet(put, lounge + 0.55, 0.47);
+  F.coffeeMachine(put, lounge + 0.65, 0.32, 0.45);
+  F.cabinet(put, lounge + 0.98, 0.47);
+  F.plant(put, w - 0.25, 0.25, 0, 0.78);
 
-  // Along the back wall: a bookcase, plants, a coffee corner, and the door at the right where whoever is starting walks in.
+  // Along the work room's back wall: a bookcase and plants; whoever is starting stands inside the door, clear of the front wall.
   F.bookcase(put, 0.05, 0.32);
   F.plant(put, 0.75, 0.25, 0, 0.85);
-  const door = w - 1.15;
-  F.cabinet(put, door - 0.95, 0.47);
-  F.coffeeMachine(put, door - 0.85, 0.32, 0.45);
-  F.plant(put, door - 0.25, 0.25, 0, 0.72);
+  F.plant(put, wall - 0.3, 0.25, 0, 0.85);
   (hq ? [] : people)
     .filter((p) => p.activity === 'waking')
-    .forEach((p, i) => places.push({ person: p, x: door + 0.35 - i * 0.4, z: 0.55, how: 'door' }));
+    .forEach((p, i) => places.push({ person: p, x: door + DOOR_W / 2 - i * 0.4, z: d - FRONT - 0.2, how: 'door' }));
 
-  return { w, d, wallH: WALL_H, people, blocks: [...shell(w, d, door), ...blocks], places, entry: [door + 0.35, 0.45] };
+  return { w, d, wallH: WALL_H, people, blocks: [...shell(w, d, door, wall), ...blocks], places, entry: [door + DOOR_W / 2, d - 0.45] };
 }
 
-/** The box itself: floor on a slab, three walls (palette.ts darkens their tops), a long window, a baseboard and the door. */
-function shell(w: number, d: number, door: number): Block[] {
+/** The box itself: floor on a slab, four walls (palette.ts darkens their tops), a long window, a baseboard, the front wall with the door
+ *  the founder comes up through, and the wall at `wall` closing off the rest room, open at the front. The front wall's blocks are
+ *  `inFront`: an office draws them as a layer of their own over the people. */
+function shell(w: number, d: number, door: number, wall: number): Block[] {
   const [t, h] = [WALL_T, WALL_H];
   const b: Block[] = [
     { from: [0, -0.01, 0], to: [w, 0, d], kind: 'floor' },
@@ -183,11 +198,16 @@ function shell(w: number, d: number, door: number): Block[] {
     { from: [-t, 0, 0], to: [0, h, d], kind: 'side', part: 'left' },
     { from: [w, 0, 0], to: [w + t, h, d], kind: 'side', part: 'right' },
     { from: [0, 0, 0], to: [w, 0.06, 0.09], kind: 'baseboard' },
-    { from: [door, 0, -0.02], to: [door + 0.7, 1.05, 0.015], kind: 'door', tag: DOOR },
-    { from: [door + 0.07, 0.62, -0.02], to: [door + 0.63, 0.98, 0.025], kind: 'glass', tag: DOOR },
+    { from: [-t, 0, d - t], to: [door, FRONT_H, d], kind: 'wall', part: FRONT_PART, solid: true },
+    { from: [door + DOOR_W, 0, d - t], to: [w + t, FRONT_H, d], kind: 'wall', part: FRONT_PART, solid: true },
+    { from: [door, DOOR_H, d - t], to: [door + DOOR_W, FRONT_H, d], kind: 'wall', part: FRONT_PART },
+    { from: [door, 0, d - 0.05], to: [door + DOOR_W, DOOR_H, d - 0.01], kind: 'door', tag: DOOR },
+    { from: [door + 0.06, 0.55, d - 0.055], to: [door + DOOR_W - 0.06, 0.85, d - 0.005], kind: 'glass', tag: DOOR },
   ];
-  // The window spans the wall from the bookcase to the coffee corner, in panes of about 0.9 m.
-  const [wx0, wx1] = [1.15, door - 1.05];
+  // The wall stops short of the front: seen from above, a gap in its middle hides behind the wall's own height.
+  b.push({ from: [wall, 0, 0], to: [wall + WALL_T, WALL_H, d - FRONT - REST_GAP], kind: 'side', part: 'wall:rest', solid: true });
+  // The window spans the work room's back wall from the bookcase to near the rest room, in panes of about 0.9 m.
+  const [wx0, wx1] = [1.15, wall - 0.6];
   const panes = Math.max(1, Math.round((wx1 - wx0) / 0.89));
   const pane = (wx1 - wx0 - 0.05) / panes;
   b.push({ from: [wx0, 0.42, -0.02], to: [wx1, 1.18, 0.01], kind: 'frame' });

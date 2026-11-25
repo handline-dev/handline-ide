@@ -201,6 +201,12 @@ const boxAt = (fx: number, fy: number, scale: number): Box => {
   return { x: fx - w / 2, y: fy + scale - h, w, h };
 };
 
+/** The founder's box on the picture standing at (x, z) on `ground`. */
+export function founderBox(ground: Ground, [x, z]: Spot): Box {
+  const [fx, fy] = ground.toPixel(x, 0, z);
+  return boxAt(fx, fy, ground.sprite);
+}
+
 /** The founder's figure in `box`, in the frame for its facing and stride. */
 function Sprite({ me, box, stride }: { me: Walker; box: Box; stride: number }) {
   const col = COL[me.facing] + (me.moving && Math.floor(me.walked / stride) % 2 === 1 ? 1 : 0);
