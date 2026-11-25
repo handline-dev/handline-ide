@@ -1,14 +1,14 @@
 import { Spinner } from '#src/ui/Loading.tsx';
 import { Segmented } from '#src/ui/Segmented.tsx';
 // Settings > Accounts: one card per account, its row Usage's, opened in place; several stay open and which is kept.
-import { AiToolsCard } from '#src/settings/AiToolsCard.tsx';
+import { ClaudeNotice } from '#src/settings/AiLogin.tsx';
 import { AccountFacts } from '#src/usage/AccountFacts.tsx';
-import { removeAccount, Row } from '#src/usage/AccountParts.tsx';
+import { removeAccount, renameAccount } from '#src/usage/AccountParts.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
 import type { Account } from '@handline/client';
 import { loginRunning } from '@handline/app-core';
 import { useAccounts, useAccountUsage, useSettings, useWrite, why } from '@handline/app-data';
-import { ChevronRight, Pause, Play, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Field, Input } from '#src/ui/Field.tsx';
@@ -51,7 +51,7 @@ function AutoManual({
   pick: (v: 'auto' | 'manual') => void;
 }) {
   return (
-    <section className="flex items-center justify-between gap-6 rounded-lg border border-border px-4 py-3">
+    <section className="flex items-center justify-between gap-6 px-4 py-3">
       <div className="min-w-0">
         <h3 className="text-sm text-fg">{name}</h3>
         {!!save.error && (
@@ -94,11 +94,9 @@ export function AccountsTab({ focus }: { focus?: string }) {
     <ScrollFade keep="accounts" className="min-h-0 flex-1">
       <Page>
         <div className="flex flex-col gap-4 pb-8 pt-3">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-semibold text-fg">Accounts</h1>
-              <p className="text-sm text-muted">Agents are spread across these Claude accounts.</p>
-            </div>
+          <div className="flex items-center justify-between gap-4">
+            <ClaudeNotice />
+            <span className="flex-1" />
             <AddAccount
               names={accounts.map((a) => a.name)}
               onAdded={(n) => {
@@ -107,23 +105,24 @@ export function AccountsTab({ focus }: { focus?: string }) {
               }}
             />
           </div>
-          <AiToolsCard />
-          <h2 className="pt-4 text-sm font-medium text-fg">Splitting work</h2>
-          <SplitSetting />
-          <h2 className="pt-4 text-sm font-medium text-fg">Claude accounts</h2>
-          {q.isPending && <RowsLoading rows={6} />}
-          {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
-          {accounts.map((a) => (
-            <Card
-              key={a.name}
-              account={a}
-              plan={plans.get(a.name)}
-              open={open.includes(a.name)}
-              toggle={() => toggle(a.name)}
-              autoLogin={fresh === a.name}
-              onStarted={() => setFresh(null)}
-            />
-          ))}
+          <div className="flex flex-col border-t border-border">
+            {q.isPending && <RowsLoading rows={6} />}
+            {q.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
+            {accounts.map((a) => (
+              <Card
+                key={a.name}
+                account={a}
+                plan={plans.get(a.name)}
+                open={open.includes(a.name)}
+                toggle={() => toggle(a.name)}
+                autoLogin={fresh === a.name}
+                onStarted={() => setFresh(null)}
+              />
+            ))}
+            <div className="border-b border-border">
+              <SplitSetting />
+            </div>
+          </div>
         </div>
       </Page>
     </ScrollFade>
@@ -178,14 +177,14 @@ function Card({
 }) {
   const out = a.login_state === 'needs_login';
   return (
-    <section data-account={a.name} className={`rounded-xl border border-border ${a.paused ? 'bg-surface/60' : 'bg-bg'}`}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pr-4">
+    <section data-account={a.name} className="border-b border-border">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pr-4 hover:bg-hover/30">
         <button
           type="button"
           aria-expanded={open}
           aria-label={`${open ? 'Close' : 'Open'} ${a.label}`}
           onClick={toggle}
-          className={`flex min-w-0 items-center gap-3 rounded-xl p-4 text-left hover:bg-hover/20 ${out ? 'pr-1' : '@container flex-1'}`}
+          className={`flex min-w-0 items-center gap-3 p-4 text-left ${out ? 'pr-1' : '@container flex-1'}`}
         >
           <ChevronRight size={16} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
           <AccountFacts account={a} plan={plan} bars={!out} />
@@ -193,9 +192,8 @@ function Card({
         {out && <Login account={a} autoStart={autoLogin} onStarted={onStarted} />}
       </div>
       {open && (
-        <div className="flex flex-col gap-5 border-t border-border bg-surface/40 p-4 pl-12">
-          <Row label="Login">{out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}</Row>
-          <Bottom account={a} />
+        <div className="flex flex-col gap-2 px-4 pb-4 pl-11">
+          <Bottom account={a} out={out} />
         </div>
       )}
     </section>
@@ -203,22 +201,25 @@ function Card({
 }
 
 /** Pause or Resume with what it does, and Remove at the right, which asks for the name typed in a modal. */
-function Bottom({ account: a }: { account: Account }) {
+function Bottom({ account: a, out }: { account: Account; out: boolean }) {
   const save = useWrite('account.set', a.name);
   return (
-    <div className="flex flex-col gap-2 border-t border-border pt-4">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-3">
-        <Button disabled={save.isPending} onClick={() => save.mutate({ account: a.name, paused: !a.paused })}>
+        {out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}
+        <span className="flex-1" />
+        <Button variant="ghost" onClick={() => void renameAccount(a)}>
+          <Pencil size={13} />
+          Rename
+        </Button>
+        <Button
+          disabled={save.isPending}
+          title={a.paused ? 'Let new agents start here again' : 'Start no new agents here'}
+          onClick={() => save.mutate({ account: a.name, paused: !a.paused })}
+        >
           {a.paused ? <Play size={13} /> : <Pause size={13} />}
           {a.paused ? 'Resume' : 'Pause'}
         </Button>
-        <span className="min-w-0 flex-1 text-xs text-muted">
-          {a.paused
-            ? a.agents.length
-              ? 'No new agents. The running one moves at its next turn.'
-              : 'No new agents go here.'
-            : 'Stops new agents here. Running ones move at their next turn.'}
-        </span>
         <Button variant="ghost" className="text-danger" onClick={() => void removeAccount(a)}>
           <Trash2 size={13} />
           Remove

@@ -1,20 +1,11 @@
-// The pieces of an opened account card: its Login row and Remove.
+// The modals of an opened account row: Rename and Remove.
 import type { Account } from '@handline/client';
 import { useWrite, why } from '@handline/app-data';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { Refs } from '#src/ui/refs.tsx';
-
-export function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-muted">{label}</span>
-      <div className="flex min-h-8 flex-wrap items-center gap-2 text-sm">{children}</div>
-    </div>
-  );
-}
 
 /** Remove, in a modal: a dry run says what would happen and who sits on it; the name typed confirms. */
 export function removeAccount(a: Account) {
@@ -63,6 +54,53 @@ function RemoveModal({ account: a, close }: { account: Account; close: Close<boo
         {!!(remove.error || (plan.error && !a.agents.length)) && (
           <p className="text-danger">
             <Refs text={why(remove.error ?? plan.error)} />
+          </p>
+        )}
+      </div>
+    </ModalFrame>
+  );
+}
+
+/** Rename, in a modal: the name screens show (the account's alias); empty goes back to its own name. */
+export function renameAccount(a: Account) {
+  return openModal<void>((close) => <RenameModal account={a} close={close} />);
+}
+
+function RenameModal({ account: a, close }: { account: Account; close: Close<void> }) {
+  const save = useWrite('account.set', a.name);
+  const [label, setLabel] = useState(a.label);
+  const submit = () => {
+    if (save.isPending) return;
+    if (label.trim() === a.label) return close();
+    save.mutate({ account: a.name, label: label.trim() }, { onSuccess: () => close() });
+  };
+  return (
+    <ModalFrame
+      title="Rename account"
+      size="sm"
+      footer={
+        <>
+          <Button onClick={() => close()}>Cancel</Button>
+          <Button variant="primary" disabled={save.isPending} onClick={submit}>
+            {save.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <Input
+          autoFocus
+          autoComplete="off"
+          aria-label="Account name"
+          maxLength={40}
+          placeholder={a.name}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+        />
+        {!!save.error && (
+          <p className="text-xs text-danger">
+            <Refs text={why(save.error)} />
           </p>
         )}
       </div>

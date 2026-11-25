@@ -1,6 +1,7 @@
 // Settings > Tools: what agents run on, installed or missing, and Install on what is missing.
 import { useStatus } from '@handline/app-data';
 import { Check, TriangleAlert } from 'lucide-react';
+import { CodexLogin } from '#src/settings/AiLogin.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { AI_VENDORS, BASE_TOOLS } from '#src/onboarding/data/steps.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -59,6 +60,7 @@ export function ToolsTab() {
                 </InstallButton>
               )}
               <Installing tool={r.tool} />
+              {r.tool === 'codex' && r.installed && <CodexLogin />}
             </div>
           ))}
       </div>
