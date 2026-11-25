@@ -1,6 +1,6 @@
 // What a right-click on a row of Requests offers, and what can be done to several picked rows at once. Only what is easy to undo
 // goes at once (seen, later, give back, done); a discard, of one row or several, is asked for one reason and confirmed.
-import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, pickGroup, type Picked } from '@handline/app-core';
+import { bulkNames, bulkOf, foundersTurn, laterChoices, laterKey, pickGroup, pickRange, type Picked } from '@handline/app-core';
 import { useNameOf, useProposals, useTaskActions, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Ban, Check, Clock, Eye, MessageSquare, Undo2, X } from 'lucide-react';
@@ -16,7 +16,7 @@ import { toast } from '#src/ui/toast.tsx';
 type Pick = {
   picked: Map<string, Picked>;
   toggle: (x: Picked) => void;
-  /** Picks every row from the last one toggled to `x`, in the order they are listed (a Shift-click on a box). */
+  /** A Shift-click on `x`'s box: the shown rows from the last one clicked to `x` take that row's state (pickRange). */
   range: (x: Picked) => void;
   /** Each listed row says it is there, so a range can find the rows between two. */
   listed: Map<string, Picked>;
@@ -54,10 +54,12 @@ export function PickProvider({ children }: { children: ReactNode }) {
     listed,
     range: (x) => {
       const keys = [...(list.current?.querySelectorAll<HTMLElement>('[data-pick-key]') ?? [])].map((el) => el.dataset.pickKey!);
-      const [a, b] = [keys.indexOf(anchor.current ?? x.key), keys.indexOf(x.key)].sort((i, j) => i - j);
+      const { keys: span, on } = pickRange(keys, anchor.current, x.key, (k) => picked.has(k));
       anchor.current = x.key;
-      const rows = (a < 0 ? [x.key] : keys.slice(a, b + 1)).filter((k) => !busy.has(k)).flatMap((k) => listed.get(k) ?? []);
-      value.pickAll(rows, true);
+      value.pickAll(
+        span.filter((k) => !busy.has(k)).flatMap((k) => listed.get(k) ?? []),
+        on,
+      );
     },
     toggle: (x) => {
       anchor.current = x.key;

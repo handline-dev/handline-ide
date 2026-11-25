@@ -19,6 +19,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { pickRange } from '@handline/app-core';
 import { AgentPlacement } from '#src/settings/AgentPlacement.tsx';
 import { DevicePage } from '#src/settings/DevicePage.tsx';
 import {
@@ -187,7 +188,19 @@ function RowMenu({ r, q, open }: { r: DeviceRow; q: Devices; open: () => void })
   );
 }
 
-function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: boolean; pick: (on: boolean) => void; open: () => void }) {
+function Row({
+  r,
+  q,
+  picked,
+  pick,
+  open,
+}: {
+  r: DeviceRow;
+  q: Devices;
+  picked: boolean;
+  pick: (on: boolean, shift: boolean) => void;
+  open: () => void;
+}) {
   const Icon = KIND_ICON[r.kind ?? 'desktop'];
   const busy = [`mode:${r.id}`, `revoke:${r.id}`, `update:${r.id}`].includes(q.pending ?? '');
   return (
@@ -206,8 +219,11 @@ function Row({ r, q, picked, pick, open }: { r: DeviceRow; q: Devices; picked: b
           checked={picked}
           disabled={r.master}
           className={r.master ? 'invisible' : ''}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => pick(e.target.checked)}
+          onChange={() => undefined}
+          onClick={(e) => {
+            e.stopPropagation();
+            pick(!picked, e.shiftKey);
+          }}
         />
         <Icon size={16} role="img" aria-label={KIND_WORD[r.kind ?? 'desktop']} className="shrink-0 text-muted" />
         <div className="min-w-0 flex-1">
@@ -288,23 +304,33 @@ export function DevicesTab({ open: start }: { open?: string }) {
   const [open, setOpen] = useState<string | null>(start ?? null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [showOld, setShowOld] = useState(false);
+  // The row clicked last, where a Shift-click's range starts.
+  const [anchor, setAnchor] = useState<string | null>(null);
   const page = open ? q.rows.find((r) => r.id === open || (open === MASTER && r.master)) : undefined;
   if (page) return <DevicePage row={page} q={q} back={() => setOpen(null)} />;
   const recent = q.rows.filter((r) => !r.stale);
   const old = q.rows.filter((r) => r.stale);
   const chosen = q.rows.filter((r) => picked.has(r.id));
   const runners = chosen.filter((r) => r.runner && r.mine);
-  const pick = (id: string, on: boolean) =>
+  // The master's box is hidden: a range passing it leaves it out.
+  const shown = [...recent, ...(showOld ? old : [])].filter((r) => !r.master).map((r) => r.id);
+  // A Shift-click takes the rows from the last one clicked, as every list's boxes do.
+  const pick = (id: string, on: boolean, shift: boolean) => {
+    const span = shift ? pickRange(shown, anchor, id, (k) => picked.has(k)) : { keys: [id], on };
+    setAnchor(id);
     setPicked((s) => {
       const n = new Set(s);
-      if (on) n.add(id);
-      else n.delete(id);
+      for (const k of span.keys) {
+        if (span.on) n.add(k);
+        else n.delete(k);
+      }
       return n;
     });
+  };
   const list = (items: DeviceRow[]) => (
     <div className="divide-y divide-border rounded-lg border border-border">
       {items.map((r) => (
-        <Row key={r.id} r={r} q={q} picked={picked.has(r.id)} pick={(on) => pick(r.id, on)} open={() => setOpen(r.id)} />
+        <Row key={r.id} r={r} q={q} picked={picked.has(r.id)} pick={(on, shift) => pick(r.id, on, shift)} open={() => setOpen(r.id)} />
       ))}
     </div>
   );
