@@ -10,15 +10,16 @@ import { Ago } from '#src/ui/Ago.tsx';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 
-/** `12 steps · 4m`: a turn's tool calls and the agent's own text, folded; a click opens them in order. */
+/** A turn's tool calls and the agent's own text, folded into one muted line ("Read docs/plan.md ›", "Ran 3 steps ›"), as Claude Code
+ *  folds them: no card; a click opens them in order under it. */
 export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
   const [open, setOpen] = useState(false);
   const notes = r.items.filter((i) => i.kind === 'reply').length;
   const steps = r.items.length - notes; // a permission ask is a step as a tool call is
-  const what = steps ? count(steps, 'step') : count(notes, 'note');
   // A permission ask still open says so on the folded line: it waits on the person, not on the agent.
   const asks = r.items.some((i) => i.kind === 'prompt' && i.open);
-  const min = Math.floor((Date.parse(r.until) - Date.parse(r.at)) / 60_000);
+  const only = steps === 1 ? r.items.find((i) => i.kind !== 'reply') : undefined;
+  const what = only ? oneLine(only) : steps ? `Ran ${count(steps, 'step')}` : count(notes, 'note');
   return (
     <motion.div
       data-id={`record:${r.id}`}
@@ -27,19 +28,19 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
       transition={spring}
       className="group flex flex-col items-start"
     >
-      <div className="w-full max-w-150 overflow-hidden rounded-lg border border-border text-sm">
+      <div className="w-full max-w-150 text-sm">
         <button
           type="button"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
-          className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-muted hover:bg-hover/30"
+          className="flex max-w-full items-center gap-1 py-0.5 text-left text-muted hover:text-fg"
         >
-          <ChevronRight size={12} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-          {asks && <span className="text-warning">Asks your permission ·</span>}
-          {what} · {min < 1 ? '<1m' : `${min}m`}
+          {asks && <span className="shrink-0 text-warning">Asks your permission ·</span>}
+          <span className="min-w-0 truncate">{what}</span>
+          <ChevronRight size={14} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
         </button>
         {open && (
-          <div className="flex flex-col gap-1.5 border-t border-border px-3 py-2">
+          <div className="mt-1 ml-1 flex flex-col gap-1.5 border-l border-border pl-3">
             {r.items.map((i) => (
               <Step key={i.id} i={i} />
             ))}
@@ -55,6 +56,12 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
       </time>
     </motion.div>
   );
+}
+
+/** One step as the folded line says it: the tool and what it touched, a permission ask as what it asked. */
+function oneLine(i: TranscriptItem): string {
+  if (i.kind === 'prompt') return `Asked to use ${i.prompt?.tool ?? 'a tool'}${i.prompt?.command ? `: ${i.prompt.command}` : ''}`;
+  return [i.tool, i.text].filter(Boolean).join(' ');
 }
 
 /** A tool call: its tool, then what it ran in mono, wrapped, never cut mid-path. A permission ask: who it waits on or how it ended, and
