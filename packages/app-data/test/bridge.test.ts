@@ -157,10 +157,12 @@ describe('tasks and inbox', () => {
     expect(stale(qk.inbox(D, { unread: true }))).toBe(true);
     expect(stale(qk.inbox(D))).toBe(false);
   });
-  it('an inbox event reads the agent list again, for founder_unread', () => {
+  it('an inbox event leaves the agent list alone: agent.changed brings founder_unread and last_to_founder with the row', () => {
     qc.setQueryData(qk.agents(D), { agents: [] });
+    qc.setQueryData(qk.resource(D, 'requests.pending'), { items: [] });
     applyEvent(c, ev('inbox.changed', item(1), { topic: 'inbox' }));
-    expect(stale(qk.agents(D))).toBe(true);
+    expect(stale(qk.agents(D))).toBe(false);
+    expect(stale(qk.resource(D, 'requests.pending'))).toBe(true);
   });
   it("request.changed replaces its task's row, puts a new task's on top, and leaves out a row with no task", () => {
     const key = [...qk.resource(D, 'requests.list'), { limit: 100 }];
