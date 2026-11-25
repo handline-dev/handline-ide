@@ -105,13 +105,30 @@ func TestAPauseIsToldOnTheStatusTopicAndEndsByItselfAtItsUntil(t *testing.T) {
 		t.Fatalf("still paused after resume: %v", p)
 	}
 
-	until := time.Now().Add(2 * time.Second).Truncate(time.Second).Add(time.Second)
+	until := time.Now().Add(time.Hour).Truncate(time.Second)
 	f.ask(8, fmt.Sprintf(`{"jsonrpc":"2.0","id":8,"method":"daemon.pause","params":{"until":%q,"request_id":"p2"}}`, until.UTC().Format(time.RFC3339)))
 	if p, _ := f.statusEvent(5 * time.Second)["paused"].(map[string]any); p == nil || p["until"] != until.UTC().Format("2006-01-02T15:04:05Z") {
 		t.Fatalf("paused %v", p)
 	}
-	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil || time.Now().Before(until) {
-		t.Fatalf("the until came and went: %v at %v", p, time.Now())
+	untilCame(t, d)
+	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil {
+		t.Fatalf("the until came and went: %v", p)
+	}
+}
+
+// untilCame brings the pause's until to now and fires the daemon's clock for it.
+func untilCame(t *testing.T, d *Daemon) {
+	t.Helper()
+	d.pause.mu.Lock()
+	defer d.pause.mu.Unlock()
+	if d.pause.timer == nil {
+		t.Fatal("no clock is set for the until")
+	}
+	if _, err := pause.Set(d.db, time.Now(), time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if !d.pause.timer.Reset(0) {
+		t.Fatal("the clock for the until had already gone off")
 	}
 }
 
@@ -123,7 +140,7 @@ func TestAPauseKeptAcrossARestartStillEndsAtItsUntil(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	until := time.Now().Add(2 * time.Second).Truncate(time.Second).Add(time.Second)
+	until := time.Now().Add(time.Hour).Truncate(time.Second)
 	if _, err := pause.Set(d.db, time.Now(), until.Unix()); err != nil {
 		t.Fatal(err)
 	}
@@ -133,12 +150,13 @@ func TestAPauseKeptAcrossARestartStillEndsAtItsUntil(t *testing.T) {
 	}
 	t.Cleanup(d.Close)
 	f := readAll(t, pipeTo(t, d, "k"), 2, 3)
-	if r := f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"daemon.status","params":{}}`)["result"].(map[string]any); r["paused"] == nil {
-		t.Fatal("the restart forgot the pause")
+	if p, _ := f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"daemon.status","params":{}}`)["result"].(map[string]any)["paused"].(map[string]any); p == nil || p["until"] != until.UTC().Format("2006-01-02T15:04:05Z") {
+		t.Fatalf("the restart forgot the pause: %v", p)
 	}
 	f.ask(3, `{"jsonrpc":"2.0","id":3,"method":"subscribe","params":{"topics":["status"]}}`)
-	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil || time.Now().Before(until) {
-		t.Fatalf("the until came and went: %v at %v", p, time.Now())
+	untilCame(t, d)
+	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil {
+		t.Fatalf("the until came and went: %v", p)
 	}
 }
 
@@ -146,14 +164,20 @@ func TestAPauseKeptAcrossARestartStillEndsAtItsUntil(t *testing.T) {
 func TestAPauseClockThatComesEarlyWaitsForItsUntil(t *testing.T) {
 	d := startStream(t)
 	f := readAll(t, pipeTo(t, d, "k"), 2)
-	until := time.Now().Add(time.Second).Truncate(time.Second).Add(time.Second)
+	until := time.Now().Add(time.Hour).Truncate(time.Second)
 	if _, err := pause.Set(d.db, time.Now(), until.Unix()); err != nil {
 		t.Fatal(err)
 	}
 	f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"subscribe","params":{"topics":["status"]}}`)
 	d.pauseCame()
-	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil || time.Now().Before(until) {
-		t.Fatalf("an early clock told: %v at %v", p, time.Now())
+	select {
+	case m := <-f.status:
+		t.Fatalf("an early clock told: %v", m)
+	case <-time.After(200 * time.Millisecond):
+	}
+	untilCame(t, d)
+	if p := f.statusEvent(5 * time.Second)["paused"]; p != nil {
+		t.Fatalf("the until came and went: %v", p)
 	}
 }
 
@@ -184,9 +208,12 @@ func TestTheAgentsAPauseHeldGoOnWhenItEnds(t *testing.T) {
 	if a := handed(); !reflect.DeepEqual(a, []string{"a1", "a3"}) {
 		t.Fatalf("a resume handed on %v", a)
 	}
-	until := time.Now().Add(2 * time.Second).Truncate(time.Second).Add(time.Second)
-	f.ask(4, fmt.Sprintf(`{"jsonrpc":"2.0","id":4,"method":"daemon.pause","params":{"until":%q,"request_id":"p2"}}`, until.UTC().Format(time.RFC3339)))
-	if a := handed(); !reflect.DeepEqual(a, []string{"a1", "a3"}) || time.Now().Before(until) {
-		t.Fatalf("the until handed on %v at %v", a, time.Now())
+	until := time.Now().Add(time.Hour).Truncate(time.Second)
+	if r := f.ask(4, fmt.Sprintf(`{"jsonrpc":"2.0","id":4,"method":"daemon.pause","params":{"until":%q,"request_id":"p2"}}`, until.UTC().Format(time.RFC3339))); r["result"] == nil {
+		t.Fatalf("a pause with an until: %v", r)
+	}
+	untilCame(t, d)
+	if a := handed(); !reflect.DeepEqual(a, []string{"a1", "a3"}) {
+		t.Fatalf("the until handed on %v", a)
 	}
 }
