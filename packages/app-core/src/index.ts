@@ -14,7 +14,6 @@ export * from '#src/settings.ts';
 export * from '#src/accounts.ts';
 export * from '#src/account-switch.ts';
 export * from '#src/stats.ts';
-export * from '#src/prices.ts';
 export * from '#src/task-verbs.ts';
 export * from '#src/task-people.ts';
 export * from '#src/task-graph.ts';
