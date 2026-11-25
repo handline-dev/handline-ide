@@ -83,6 +83,7 @@ var layer = map[string]int{
 	"prefs":                   3,
 	"push":                    3,
 	"taskboard/requestref":    3,
+	"taskboard/rulesfold":     3,
 	"scheduler/session":       3,
 	"scheduler/settings":      3,
 	"accounts/subscriptions":  3,

@@ -42,12 +42,13 @@ func lessonText(p map[string]any) (string, error) {
 
 // fullRefusal is the add or merge past the cap, saying how to make room.
 func fullRefusal(founder bool) error {
-	whose, merge, list := "your lessons are", `hl lesson merge <ids> "<text>"`, "hl lesson list"
+	whose, limit, merge, list := "your lessons are", db.LessonsCap, `hl lesson merge <ids> "<text>"`, "hl lesson list"
 	if founder {
-		whose, merge, list = "the founder's preferences are", `hl lesson merge <ids> "<text>" --about founder --said <comment|msg>`, "hl lesson list founder"
+		whose, limit = "the founder's preferences of this area are", db.AreaCap[db.AreaWork]
+		merge, list = `hl lesson merge <ids> "<text>" --about founder --said <comment|msg>`, "hl lesson list founder"
 	}
 	return refusal(fmt.Sprintf("%s at their %d-byte limit: merge similar ones with `%s` (`%s` shows their ids), then add this one",
-		whose, db.LessonsCap, merge, list))
+		whose, limit, merge, list))
 }
 
 // aboutFounder is whether a lesson write is about the caller's founder (about: founder) rather than its own.

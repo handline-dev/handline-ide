@@ -112,7 +112,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		reviewFlow := team.ReviewFlow(home)
 		var works []string // the kinds of work a finish held back for the founder is, from its commits: read before the write
 		if !actor.IsPerson(me) && !actor.IsPerson(to) {
-			works = taskWorks(home, me, tid)
+			works = TaskWorks(home, me, tid)
 		}
 		store := attachments.New(home)
 		files, err := store.AddFiles(c.Server().DB, home, me, false, paths) // read before the write: a video is large; one never linked is swept

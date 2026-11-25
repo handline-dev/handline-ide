@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -74,5 +75,58 @@ func TestLessonsStopAtTheCapAndAMergeMakesRoom(t *testing.T) {
 	}
 	if _, err := AddLesson(q, "a1", long, 0, "a1"); err != nil {
 		t.Fatalf("an add after the merge: %v", err)
+	}
+}
+
+// A person's rules are capped per area, and a set of revisions is checked once, on what it leaves.
+func TestAPersonsRulesAreCappedPerAreaAndRevisedAtOnce(t *testing.T) {
+	q := open(t)
+	long := strings.Repeat("x", 5000)
+	for range 2 {
+		if _, err := AddLesson(q, "p1", "Screen: "+long, 0, "p1"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := AddLesson(q, "p1", "Work: "+long, 0, "p1"); err != nil {
+			t.Fatal("each area has a cap of its own", err)
+		}
+	}
+	if _, err := AddLesson(q, "p1", "Screen: "+long+long, 0, "p1"); !errors.Is(err, ErrLessonsFull) {
+		t.Fatal("past the screen cap must be refused", err)
+	}
+	live, _ := LiveLessons(q, "p1")
+	// Replacing both screen rules with one longer one fits once the two go, whatever the order.
+	if err := ReviseLessons(q, "p1", []Revision{{Text: "Screen: " + long + long}, {IDs: []int64{live[0].ID, live[2].ID}, Text: "Screen: short", Task: 7}}, "f"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReviseLessons(q, "p1", []Revision{{Text: "Screen: " + long + long}}, "f"); !errors.Is(err, ErrLessonsFull) {
+		t.Fatal(err)
+	}
+	if err := ReviseLessons(q, "p1", []Revision{{IDs: []int64{live[1].ID}, Text: "a"}, {IDs: []int64{live[1].ID}, Text: "b"}}, "f"); err == nil {
+		t.Fatal("an id in two revisions must be refused")
+	}
+}
+
+// A launch prompt shows each area of a person's rules up to its cap, the most said first, in the order they were kept.
+func TestALaunchShowsAPersonsMostSaidRulesPerArea(t *testing.T) {
+	q := open(t)
+	long := strings.Repeat("y", 150)
+	for i := range 60 {
+		_, _ = AddLesson(q, "p1", fmt.Sprintf("Work: %s%d (said %d times)", long, i, i+2), 0, "p1")
+	}
+	_, _ = AddLesson(q, "p1", "Screen: no hints", 0, "p1")
+	_, _ = AddLesson(q, "p1", "Work: by hand", 0, "p1")
+	live, _ := LiveLessons(q, "p1")
+	s := PromptSection("p1", live)
+	if !strings.Contains(s, "- by hand\n") {
+		t.Fatal("a rule a person wrote by hand must show before the fold's most said:\n" + s)
+	}
+	if !strings.Contains(s, long+"59\n") || strings.Contains(s, long+"0\n") || !strings.Contains(s, "## Screen\n- no hints") || strings.Contains(s, "- Work: ") || strings.Contains(s, "(said") {
+		t.Fatal("the most said must show, only as its rule, and the least said fall past the cap:\n" + s)
+	}
+	if len(s) > ShowCap[AreaWork]+ShowCap[AreaScreen]+200 {
+		t.Fatal(len(s))
+	}
+	if PromptSection("a1", []Lesson{{Text: "x"}}) != LessonsSection([]Lesson{{Text: "x"}}) {
+		t.Fatal("an agent's own lessons show whole")
 	}
 }
