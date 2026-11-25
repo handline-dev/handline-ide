@@ -22,7 +22,7 @@ function folded(lines: Line[]): (Line | { hidden: number })[] {
 
 const rows = (diff: string) => diff.split('\n').filter((l) => l.trim());
 
-function TextDiff({ before, after }: { before: string; after: string }) {
+export function TextDiff({ before, after }: { before: string; after: string }) {
   return (
     <div className="flex flex-col overflow-hidden rounded-md border border-border font-mono text-xs leading-6">
       {folded(diffLines(before, after)).map((l, k) =>
