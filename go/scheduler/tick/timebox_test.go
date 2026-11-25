@@ -642,6 +642,7 @@ func TestATaskStillHeldAfterTheAskIsHandedOn(t *testing.T) {
 		if len(p.said) != 1 {
 			t.Fatalf("asked once: %v", p.said)
 		}
+		landHeldAsk(tk, tid, 1000)
 		tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(1500)) // closed again
 		if change != nil {
 			change(tk, tid)
@@ -662,7 +663,14 @@ func TestATaskStillHeldAfterTheAskIsHandedOn(t *testing.T) {
 	}
 }
 
-// heldAfterAsk sets up agent a closed holding a doing task T1 (opened by opener) that was asked at 1000 and closed again at 1500.
+// landHeldAsk has tid's held ask land in its agent's transcript at at.
+func landHeldAsk(tk *Tick, tid, at int64) {
+	rid := must(db.Cursor(tk.Q, heldAskPrefix+strconv.FormatInt(tid, 10)))
+	tk.Q.Exec("UPDATE requests SET state = 'landed', landed_at = ? WHERE id = ?", at, rid)
+}
+
+// heldAfterAsk sets up agent a closed holding a doing task T1 (opened by opener) that was asked at 1000, given the ask then, and closed
+// again at 1500.
 func heldAfterAsk(t *testing.T, opener string) (*Tick, *Timebox, *tbPorts, int64) {
 	tk, _, b, p := timebox(t)
 	tid := newTask(t, tk, "a", opener, 100)
@@ -671,8 +679,60 @@ func heldAfterAsk(t *testing.T, opener string) (*Tick, *Timebox, *tbPorts, int64
 	check(db.SetAgentState(tk.Q, "a", states.Idle, 0, ""))
 	tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(500))
 	check(b.Sweep(tk, 1000))
+	landHeldAsk(tk, tid, 1000)
 	tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(1500))
 	return tk, b, p, tid
+}
+
+// An agent that could not be woken (parked for usage, or held by the pause) closes again without being given the ask: the task stays
+// with it and the ask stays queued, across ticks, until the ask lands; a close after that, with nothing done, hands it on.
+func TestAHeldTaskStaysWithAnAgentNotGivenTheAsk(t *testing.T) {
+	for name, typing := range map[string]bool{"never sent": false, "typed but not landed": true} {
+		tk, _, b, p := timebox(t)
+		tid := newTask(t, tk, "a", "boss", 100)
+		p.doing[tid] = true
+		check(db.SetCurrentTask(tk.Q, "a", tid, true))
+		check(db.SetAgentState(tk.Q, "a", states.Idle, 0, ""))
+		tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(500))
+		check(b.Sweep(tk, 1000))
+		rid := must(db.Cursor(tk.Q, heldAskPrefix+strconv.FormatInt(tid, 10)))
+		if typing {
+			must(db.MarkDelivered(tk.Q, rid))
+		}
+		for i, at := range []int64{1500, 2500, 3500} { // each wake that failed closes it again
+			tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", at)
+			check(b.Sweep(tk, at+500))
+			if req := must(db.GetRequest(tk.Q, rid)); len(p.handed) != 0 || len(p.said) != 1 || req.State != "queued" {
+				t.Fatalf("%s, tick %d: the task stays and the ask waits: handed %v said %v state %s", name, i, p.handed, p.said, req.State)
+			}
+		}
+		tk.Q.Exec("UPDATE requests SET state = 'landed', landed_at = ? WHERE id = ?", int64(4100), rid)
+		check(b.Sweep(tk, 4200))
+		tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(4500))
+		check(b.Sweep(tk, 5000))
+		if len(p.handed) != 1 || len(p.said) != 1 {
+			t.Fatalf("%s: given the ask and closed with nothing done, handed on: handed %v said %v", name, p.handed, p.said)
+		}
+	}
+}
+
+// An ask that leaves the queue unlanded while its task is still held (withdrawn by someone, closed) is not sent again each tick: it
+// counts from when it left.
+func TestAHeldAskLeavingTheQueueUnlandedIsNotAskedAgain(t *testing.T) {
+	tk, _, b, p := timebox(t)
+	tid := newTask(t, tk, "a", "boss", 100)
+	p.doing[tid] = true
+	check(db.SetCurrentTask(tk.Q, "a", tid, true))
+	check(db.SetAgentState(tk.Q, "a", states.Idle, 0, ""))
+	tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(500))
+	check(b.Sweep(tk, 1000))
+	rid := must(db.Cursor(tk.Q, heldAskPrefix+strconv.FormatInt(tid, 10)))
+	tk.Q.Exec("UPDATE requests SET state = 'withdrawn', state_at = 1200 WHERE id = ?", rid)
+	check(b.Sweep(tk, 1300))
+	check(b.Sweep(tk, 1400))
+	if len(p.said) != 1 || must(db.Cursor(tk.Q, fmt.Sprintf("held_asked:%d", tid))) != 1200 {
+		t.Fatalf("asked once, counted from its leaving: %v", p.said)
+	}
 }
 
 func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t *testing.T) {
@@ -698,6 +758,7 @@ func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t
 		if len(p.handed) != 0 || len(p.said) != 2 {
 			t.Errorf("%s: worked, so asked anew and not handed on: handed %v said %v", name, p.handed, p.said)
 		}
+		landHeldAsk(tk, tid, 2000)
 		tk.Q.Exec("UPDATE agent_state SET closed_at = ? WHERE agent = 'a'", int64(2500))
 		check(b.Sweep(tk, 3000))
 		if len(p.handed) != 1 {
