@@ -1,4 +1,5 @@
 // An HR proposal read whole: what it does, who asked and why, each change, and Allow or Deny while it waits on the founder.
+import { CommandText } from '#src/ui/CommandText.tsx';
 import { plainRefs, proposalTitle } from '@handline/app-core';
 import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
@@ -83,6 +84,8 @@ export function ProposalView({ id }: { id: number }) {
                 </p>
                 <TextDiff before={c.before ?? ''} after={c.after} />
               </div>
+            ) : c.kind === 'run' ? (
+              <CommandText key={i} text={p.run?.command ?? plainRefs(dir, c.diff)} folder={p.run?.cwd} />
             ) : (
               <ul key={i} className="flex flex-col rounded-md border border-border">
                 {rows(plainRefs(dir, c.diff)).map((l, k) => (

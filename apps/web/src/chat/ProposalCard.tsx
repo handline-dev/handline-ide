@@ -5,12 +5,9 @@ import { changeRows, plainRefs, proposalTitle } from '@handline/app-core';
 import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
 import type { Proposal } from '@handline/client';
 import { ArrowRight, Lightbulb } from 'lucide-react';
-import { useState } from 'react';
+import { CommandText } from '#src/ui/CommandText.tsx';
 import { TextDiff } from '#src/requests/ProposalView.tsx';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
-
-/** Lines shown before a long change folds into "Show N more lines". */
-const SHOWN = 6;
 
 export function ProposalCards({ agent }: { agent: string }) {
   const listed = useProposals().data?.proposals ?? [];
@@ -53,37 +50,21 @@ function Changes({ p }: { p: Proposal }) {
             <TextDiff before={c.before ?? ''} after={c.after} />
           </div>
         ) : c.kind === 'run' ? (
-          <Lines
+          // The command as it will run, whole, and the folder it runs in; the words of the change when the daemon sends no run.
+          <CommandText
             key={i}
-            lines={plainRefs(dir, c.diff)
-              .split('\n')
-              .filter((l) => l.trim())}
+            text={
+              p.run?.command ??
+              plainRefs(dir, c.diff)
+                .split('\n')
+                .filter((l) => l.trim())
+                .join('\n')
+            }
+            folder={p.run?.cwd}
           />
         ) : (
           <Rows key={i} diff={plainRefs(dir, c.diff)} />
         ),
-      )}
-    </div>
-  );
-}
-
-/** A change's lines in a code block; past SHOWN lines the rest fold under one button. */
-function Lines({ lines }: { lines: string[] }) {
-  const [open, setOpen] = useState(false);
-  const hidden = open ? 0 : Math.max(0, lines.length - SHOWN);
-  return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
-      <pre className="overflow-x-auto px-3 py-2 font-mono text-xs leading-5 whitespace-pre text-fg">
-        {(hidden ? lines.slice(0, SHOWN) : lines).join('\n')}
-      </pre>
-      {hidden > 0 && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="w-full border-t border-border px-3 py-1 text-left text-xs text-muted hover:text-fg"
-        >
-          Show {hidden} more {hidden === 1 ? 'line' : 'lines'}
-        </button>
       )}
     </div>
   );
