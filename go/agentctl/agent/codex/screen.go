@@ -167,6 +167,9 @@ func (Screen) TrustScreen(tail []string) (string, bool) {
 // TrustAnswer: "Trust and continue" is already chosen, so Enter alone takes it.
 func (Screen) TrustAnswer() string { return "" }
 
+// FirstRunScreen: no first-run screen of codex's is known here.
+func (Screen) FirstRunScreen([]string) bool { return false }
+
 // Answering an approval from Handline is not built: it stays for the person at the terminal, which ScreenBlocker shows.
 func (Screen) Confirmation(*term.Dialog) *term.Confirmation                 { return nil }
 func (Screen) AskQuestion([]string) *term.Question                          { return nil }

@@ -208,6 +208,17 @@ func (t *Term) Relaunch(handle, command string, started func() bool) (bool, stri
 		// Whatever the process table says, a session is drawn there: the line would reach it as a prompt.
 		return false, "a session is on the terminal's screen; not typing a launch line at it"
 	}
+	if scr := t.screen(handle, 40); scr != nil && !ShellPromptIn(scr.Tail) && t.driver(handle).FirstRunScreen(scr.Tail) {
+		// A program that started before its config said setup was done sits on its first-run screens with no session under it: the
+		// line would only step it through them. A fresh shell drops it, and the launch starts past them.
+		h := t.host()
+		if h == nil {
+			return false, "the terminal shows a first-run screen and the " + t.Backend.Name() + " terminal host cannot restart its shell"
+		}
+		if ok, why := h.RespawnTerminal(handle); !ok {
+			return false, "could not clear the first-run screen: " + Cut(why, 200)
+		}
+	}
 	// The line and its Enter go as two sends, in case an Enter that arrives with the line is swallowed by a shell taking it as a paste.
 	ok, out := t.Send(handle, command, false)
 	if ok {

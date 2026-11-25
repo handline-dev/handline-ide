@@ -197,6 +197,33 @@ func (Screen) ScreenBlocker(tail []string) *term.Blocker {
 
 func (Screen) TrustAnswer() string { return trustPromptDownArrow }
 
+// firstRunScreens are Claude Code's first-run setup steps as drawn (Claude Code 2.1.331): two lines of each, and the row each ends the
+// screen with. The theme picker opens with "Let's get started." only on a first run (/theme in a session does not); the security notes
+// end on "Press Enter to continue". The step's own last row is required at the bottom, so the same words in scrollback or in a file
+// a program shows are not read as the step. The config key the daemon writes (hasCompletedOnboarding) keeps a new start from them; a
+// program already on one stays there.
+var firstRunScreens = []struct{ head, body, bottom string }{
+	{"Let's get started.", "Choose the text style that looks best with your terminal", "Syntax theme:"},
+	{"Due to prompt injection risks, only use it with code you trust", "You're responsible for Claude's actions", "Press Enter to continue"},
+}
+
+func (Screen) FirstRunScreen(tail []string) bool {
+	last := ""
+	for i := len(tail) - 1; i >= 0; i-- {
+		if t := strings.TrimSpace(tail[i]); t != "" {
+			last = t
+			break
+		}
+	}
+	text := strings.Join(tail, "\n")
+	for _, s := range firstRunScreens {
+		if strings.HasPrefix(last, s.bottom) && strings.Contains(text, s.head) && strings.Contains(text, s.body) {
+			return true
+		}
+	}
+	return false
+}
+
 // Verified against a live prompt: one Down off the default cursor ("No, exit") lands on "Yes, I trust this folder"; a bare Enter
 // then confirms it. A bare Enter with no Down confirms "No, exit" instead.
 const trustPromptDownArrow = "\x1b[B"

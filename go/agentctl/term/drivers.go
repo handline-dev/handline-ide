@@ -75,6 +75,9 @@ type Driver interface {
 	TrustScreen(tail []string) (folder string, shown bool)
 	// TrustAnswer is the keys sent, then Enter, to accept the folder TrustScreen named.
 	TrustAnswer() string
+	// FirstRunScreen is whether tail shows the vendor's first-run setup (its onboarding screens), which a program that started before
+	// its config said setup was done stays on: no session runs under it yet.
+	FirstRunScreen(tail []string) bool
 	Confirmation(d *Dialog) *Confirmation
 	AskQuestion(tail []string) *Question
 	// AnswerQuestionKeys is the keys that answer q with choices (0-based) or text, or nil when this is not sent this way.
@@ -94,6 +97,7 @@ func (Blind) IdleWithBackground([]string) bool                        { return f
 func (Blind) ScreenBlocker([]string) *Blocker                         { return nil }
 func (Blind) TrustScreen([]string) (string, bool)                     { return "", false }
 func (Blind) TrustAnswer() string                                     { return "" }
+func (Blind) FirstRunScreen([]string) bool                            { return false }
 func (Blind) Confirmation(*Dialog) *Confirmation                      { return nil }
 func (Blind) AskQuestion([]string) *Question                          { return nil }
 func (Blind) AnswerQuestionKeys(*Question, []int, *string) []string   { return nil }

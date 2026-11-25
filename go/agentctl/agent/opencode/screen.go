@@ -99,6 +99,7 @@ func (o Screen) ScreenBlocker(tail []string) *term.Blocker {
 // No folder-trust dialog, permission prompt or AskUserQuestion of its own to detect.
 func (Screen) TrustScreen([]string) (string, bool)                          { return "", false }
 func (Screen) TrustAnswer() string                                          { return "" }
+func (Screen) FirstRunScreen([]string) bool                                 { return false }
 func (Screen) Confirmation(*term.Dialog) *term.Confirmation                 { return nil }
 func (Screen) AskQuestion([]string) *term.Question                          { return nil }
 func (Screen) AnswerQuestionKeys(*term.Question, []int, *string) []string   { return nil }

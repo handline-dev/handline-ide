@@ -122,3 +122,53 @@ func TestWaitingForTheTrustPromptToGoGivesUpAfterFiveSeconds(t *testing.T) {
 		t.Fatal("it was showing")
 	}
 }
+
+// Claude Code's first-run steps as a stuck agent's terminal drew them (Claude Code 2.1.331).
+var (
+	themeStep = []string{" Let's get started.", " Choose the text style that looks best with your terminal", " To change this later, run /theme",
+		" ❯ ✔ Auto (match terminal)", "     Dark mode", "  Syntax theme: Monokai Extended (ctrl+t to disable)"}
+	securityStep = []string{" Security notes:", " 1. Claude can make mistakes", "    You're responsible for Claude's actions and should always",
+		"    review them, especially when running code.", " 2. Due to prompt injection risks, only use it with code you trust",
+		"    Learn more: https://code.claude.com/docs/en/security", " Press Enter to continue"}
+)
+
+func TestClaudesFirstRunStepsAreReadAndThemeInASessionIsNot(t *testing.T) {
+	for _, s := range [][]string{themeStep, securityStep} {
+		if !(claudecode.Screen{}).FirstRunScreen(s) {
+			t.Errorf("not read as first-run: %q", s)
+		}
+	}
+	themeInSession := themeStep[1:]                                                                  // /theme in a session draws the picker with no "Let's get started."
+	shown := append(append([]string{}, securityStep...), "  shown by a program, with more below it") // the words, not the step
+	for _, s := range [][]string{themeInSession, shown, composer, {"~/work $ "}} {
+		if (claudecode.Screen{}).FirstRunScreen(s) {
+			t.Errorf("read as first-run: %q", s)
+		}
+	}
+}
+
+// A program that started before its config said setup was done sits on a first-run step with no session under it. A wake restarts
+// the terminal's shell and launches there, instead of typing the line into the step, which would only move it to the next one.
+func TestARelaunchOnAFirstRunStepRestartsTheShellAndLaunchesInIt(t *testing.T) {
+	for _, step := range [][]string{themeStep, securityStep} {
+		h := &hostBackend{live: map[string]bool{"%1": true}}
+		h.screen = func(int) []string {
+			if len(h.respawn) == 0 {
+				return step
+			}
+			return []string{"~/work $ "}
+		}
+		ok, why := hostTerm(h).Relaunch("%1", "hl launch alice", func() bool { return true })
+		if !ok || strings.Join(h.respawn, ",") != "%1" || strings.Join(h.sent, ",") != "hl launch alice/false,/true" {
+			t.Fatalf("%v %q respawn %q sent %q", ok, why, h.respawn, h.sent)
+		}
+	}
+	// at a shell, nothing is restarted: with nothing above its prompt, or with the step's words printed above it (a file shown, a
+	// program that exited)
+	for _, scr := range [][]string{{"~/work $ "}, append(append([]string{}, securityStep...), "~/work $ ")} {
+		h := &hostBackend{live: map[string]bool{"%1": true}, screen: func(int) []string { return scr }}
+		if hostTerm(h).Relaunch("%1", "hl launch alice", func() bool { return true }); len(h.respawn) != 0 {
+			t.Fatalf("a shell was restarted: %q", h.respawn)
+		}
+	}
+}
