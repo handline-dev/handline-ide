@@ -1,5 +1,6 @@
 // An HR proposal read whole: what it does, who asked and why, each change, and Allow or Deny while it waits on the founder.
 import { CommandText } from '#src/ui/CommandText.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 import { plainRefs, proposalTitle } from '@handline/app-core';
 import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
@@ -71,7 +72,9 @@ export function ProposalView({ id }: { id: number }) {
         {p.reason && (
           <section className="flex flex-col gap-1">
             <h2 className="text-xs font-medium text-muted">Why</h2>
-            <p className="whitespace-pre-wrap text-fg">{p.reason}</p>
+            <p className="whitespace-pre-wrap text-fg">
+              <Refs text={p.reason} />
+            </p>
           </section>
         )}
         <section className="flex flex-col gap-1">

@@ -1,4 +1,5 @@
 import { Ago } from '#src/ui/Ago.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 import type { ChatMessage } from '@handline/client';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
@@ -27,7 +28,11 @@ export function AgentNote({ m }: { m: ChatMessage }) {
           <span className="shrink-0 font-medium">
             <Who k={m.to} />
           </span>
-          {!open && <span className="min-w-0 truncate">{first}</span>}
+          {!open && (
+            <span className="min-w-0 truncate">
+              <Refs text={first} />
+            </span>
+          )}
         </button>
         <motion.div
           initial={false}

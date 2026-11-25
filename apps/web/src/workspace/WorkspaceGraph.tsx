@@ -1,4 +1,5 @@
 import { useSize } from '#src/ui/useSize.ts';
+import { Refs } from '#src/ui/refs.tsx';
 import { UnreadDot } from '#src/ui/Dot.tsx';
 // Who waits on whom in a workspace: an arrow is a wait (a turn on you, or a task blocked by another's), a dot an unread message to you.
 import type { AgentView as Agent, Task } from '@handline/client';
@@ -99,7 +100,9 @@ function Box({ n }: { n: Node }) {
       </span>
       <span className="flex items-center gap-1 truncate text-muted">
         {Icon && <Icon size={12} className="shrink-0" />}
-        <span className="truncate">{n.line}</span>
+        <span className="truncate">
+          <Refs text={n.line} />
+        </span>
       </span>
     </>
   );

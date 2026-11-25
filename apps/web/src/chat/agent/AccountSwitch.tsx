@@ -1,4 +1,5 @@
 import { Spinner } from '#src/ui/Loading.tsx';
+import { Refs } from '#src/ui/refs.tsx';
 import { clockTime, moveSteps, roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
 import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data';
 import type { TranscriptItem } from '@handline/client';
@@ -289,7 +290,11 @@ function MoveFailed({ agent, at, failed }: { agent: string; at: string; failed?:
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div>
           <div className="font-medium">{`Did not move to ${failed?.to}`}</div>
-          {failed?.reason && <div className="text-muted">{failed.reason}</div>}
+          {failed?.reason && (
+            <div className="text-muted">
+              <Refs text={failed.reason} />
+            </div>
+          )}
         </div>
         <SwitchPick rows={rows} pending={false} go={go} />
       </div>

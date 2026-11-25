@@ -46,13 +46,21 @@ const REF = /<@([a-z]+[0-9]*)>/g;
 /** The keys text names with `<@key>`, in order. */
 export const refsIn = (text: string): string[] => [...text.matchAll(REF)].map((m) => m[1]);
 
-/** Text as the screens show it: each stored `<@key>` is `@` and its name. */
+/** A bare key inside a sentence (`a28`, `@a28`, `p1`), not part of a longer word or path: daemon text sometimes writes one so. */
+const BARE = /(^|[^\w/.-])@?([ap]\d+)(?![\w/-]|\.\w)/g;
+const known = (d: Directory, k: string) => d.agents.some((a) => a.key === k) || d.people.some((p) => p.key === k);
+
+/** Text as the screens show it: each stored `<@key>` is `@` and its name, and a bare agent or person key the lists hold is its name. */
 export const renderRefs = (d: Directory, text: string): string =>
-  text.includes('<@') ? text.replace(REF, (_, k: string) => `@${nameOf(d, k)}`) : text;
+  readable(d, text.includes('<@') ? text.replace(REF, (_, k: string) => `@${nameOf(d, k)}`) : text);
 
 /** Text as a plain sentence: each stored `<@key>` is the name alone, for lines that are not chat (a proposal's change lines). */
 export const plainRefs = (d: Directory, text: string): string =>
-  text.includes('<@') ? text.replace(REF, (_, k: string) => nameOf(d, k)) : text;
+  readable(d, text.includes('<@') ? text.replace(REF, (_, k: string) => nameOf(d, k)) : text);
+
+/** Each bare key a list holds, written as its name; any other word is left as it is. */
+const readable = (d: Directory, text: string): string =>
+  text.replace(BARE, (m, pre: string, k: string) => (known(d, k) ? `${pre}${nameOf(d, k)}` : m));
 
 /** Text as the app sends it: each `@word` that is an agent's word (`workspace/name`, or a name only one agent has) or a person's becomes `<@key>`;
  * any other `@word`, and one inside a path (`/@legacy/`), stays text. */

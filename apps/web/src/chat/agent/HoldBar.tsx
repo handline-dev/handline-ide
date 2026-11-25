@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useRefs } from '#src/ui/refs.tsx';
 import { useAccounts, useAgents, useUnstall, why } from '@handline/app-data';
 import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
@@ -25,9 +26,10 @@ export function useHoldLine(agent: string) {
   const a = useAgents().data?.agents.find((x) => x.key === agent);
   const act = a ? activityOf(a) : null;
   const login = useNeedsLogin(a, act);
+  const refs = useRefs();
   const line = a && !restarting(a) && (holdLine(a) ?? jobsLine(a, act)); // a restart shows in the turn's row already
   if (!a || !act || !line || login || a.needs_you?.source === 'daemon') return null;
-  return { act, line };
+  return { act, line: refs(line) };
 }
 
 /** The chat foot's row, always there so nothing moves: while the turn runs, the dots with the restart, the held task and its minutes,
@@ -88,6 +90,7 @@ export function FootRow({
  * one button that gets the agent going. */
 export function HoldCard({ agent }: { agent: string }) {
   const a = useAgents().data?.agents.find((x) => x.key === agent);
+  const refs = useRefs();
   const unstall = useUnstall(agent);
   const terminal = useOpenable('shell');
   const wake = useAction();
@@ -117,8 +120,8 @@ export function HoldCard({ agent }: { agent: string }) {
           <ActivityIcon act={act} />
         </span>
         <div className="flex min-w-0 flex-col gap-0.5 break-words">
-          <span className="font-medium">{need?.title ?? holdLine(a)}</span>
-          {need?.text && <span className="text-muted">{need.text}</span>}
+          <span className="font-medium">{refs(need?.title ?? holdLine(a) ?? '')}</span>
+          {need?.text && <span className="text-muted">{refs(need.text)}</span>}
         </div>
       </div>
       {button && <div className="flex justify-end">{button}</div>}

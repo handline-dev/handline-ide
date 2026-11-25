@@ -1,4 +1,5 @@
 import { byWorkspace, dotOf, queuedBehind } from '@handline/app-core';
+import { useRefs } from '#src/ui/refs.tsx';
 import { useAgents, useDirectory, useNameOf, useNav } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
@@ -77,6 +78,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
   const now = useNow();
   // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
   const nameOf = useNameOf(here);
+  const refs = useRefs();
   const names = agents.map((a) => a.key);
   const group = names.join('|');
   const [line, setLine] = useState<{ at: string; after: boolean } | null>(null);
@@ -137,7 +139,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
                 </span>
               }
               // A mark that is not plain says why first; else the unread message.
-              note={holdLine(agent) ?? unreadNote(agent)}
+              note={refs(holdLine(agent) ?? '') || unreadNote(agent)}
               unread={agent.founder_unread ?? 0}
             />
           </AgentRowCard>

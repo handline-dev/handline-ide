@@ -65,3 +65,10 @@ test('a key no list holds is never shown raw, and plain text names without @', (
   assert.equal(nameOf(dir, 'p77'), 'someone');
   assert.equal(plainRefs(dir, 'retire <@a404>, replace ROLE.md of <@a5>'), 'retire a removed agent, replace ROLE.md of auditor');
 });
+
+test('a bare key inside daemon text reads as its name, and only a key the lists hold', () => {
+  assert.equal(renderRefs(dir, 'Stalled: 3 starts for a5 failed'), 'Stalled: 3 starts for auditor failed');
+  assert.equal(renderRefs(dir, 'held by @a5, see p1'), 'held by auditor, see Sam');
+  assert.equal(plainRefs(dir, 'retire <@a5> after a1'), 'retire auditor after shop/lead');
+  assert.equal(renderRefs(dir, 'a99 and file a5.txt and x/a5 stay'), 'a99 and file a5.txt and x/a5 stay');
+});
