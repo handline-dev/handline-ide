@@ -4,12 +4,12 @@
 // of a building, the founder steps out of its open door, which shuts behind it.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { WebGLRenderer } from 'three';
-import { HQ, type City } from '#src/town/city.ts';
+import type { City } from '#src/town/city.ts';
 import { FounderDrawing, useFounder, useWalker, type Founder, type Ground } from '#src/town/founder.tsx';
 import { groundOf } from '#src/town/ground.ts';
 import { SIGN_INK, THROUGH } from '#src/town/palette.ts';
 import { boxesOf, type Box } from '#src/town/people.ts';
-import { DoorSwing, type Way } from '#src/town/door.tsx';
+import { DoorSwing, leavesOf, type Leaves, type Way } from '#src/town/door.tsx';
 import { DOOR } from '#src/town/room.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
@@ -20,7 +20,7 @@ import { nearestFree, type Spot } from '#src/town/walk.ts';
 /** What the city shows of a building besides its windows: its name, a line for its tooltip, and its counts. */
 export type Sign = { name: string; sub: string; decisions: number; waiting: number; more: number };
 
-type Drawn = { url: string; w: number; h: number; ground: Ground; doors: Door[]; boxes: Map<string, Box> };
+type Drawn = { url: string; w: number; h: number; ground: Ground; doors: (Door & { leaves: Leaves | null })[]; boxes: Map<string, Box> };
 
 let renderer: WebGLRenderer | null = null;
 let kept: { sig: string; drawn: Drawn } | null = null;
@@ -46,7 +46,11 @@ function drawCity({ sig, city, cars }: { sig: string; city: City; cars: number }
   canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
   const ground = groundOf(pic, frame, room, { speed: 2.4, stride: 0.2, grid: { cell: 0.1, body: 0.15, top: 0 } });
   // A doorway's spot is in the building's front, so the founder walks to the nearest it can stand on.
-  const doors = room.doors.map((d) => ({ ...d, in: nearestFree(ground.floor, d.in) ?? d.at }));
+  const doors = room.doors.map((d) => ({
+    ...d,
+    in: nearestFree(ground.floor, d.in) ?? d.at,
+    leaves: leavesOf(room.blocks, `${DOOR}:${d.key}`, 'left'),
+  }));
   const drawn = { url: canvas.toDataURL(), w: pic.w, h: pic.h, ground, doors, boxes: boxesOf(pic, frame) };
   kept = { sig, drawn };
   return drawn;
@@ -144,12 +148,12 @@ export function CityView({
               founder.go(walk.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
             }}
           />
-          {swung && doorway && way && (
+          {swung?.leaves && doorway && way && (
             <DoorSwing
               key={swung.key}
-              url={drawn.url}
-              size={[drawn.w, drawn.h]}
-              door={{ box: doorway, through: THROUGH.indoors, double: swung.key === HQ }}
+              pic={drawn.ground.pic}
+              door={{ box: doorway, through: THROUGH, leaves: swung.leaves }}
+              toPixel={drawn.ground.toPixel}
               way={way}
               onDone={() => {
                 if (way === 'shut') return swingTo(null);
