@@ -7,7 +7,7 @@ import { DaemonProvider } from '@handline/app-react';
 import { DaemonClient, masterOf, webSocketTransport, type Node } from '@handline/client';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { browserStorage, daemonUrl } from '#src/connection/daemon.ts';
-import { forgetToken, loadToken, needsToken, tokenRefused } from '#src/connection/pairing.ts';
+import { forgetToken, loadToken, needsToken, rememberCluster, tokenRefused } from '#src/connection/pairing.ts';
 import { Pair } from '#src/connection/Pair.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { doorUrl, Machines, masterConnect } from '#src/connection/cluster.ts';
@@ -47,10 +47,11 @@ export function Connect({ children }: { children: ReactNode }) {
   const seen = useCallback(
     (st: { master: { id: string; number: number }; nodes: Node[] }) => {
       machines.seen(st);
+      rememberCluster(storage, url, st.master.id, machines.get().urls);
       const doors = st.nodes.flatMap((n) => (n.door && doorUrl(n.door) ? [n.door] : []));
       if (doors.length) void shell()?.keepDoors?.(doors);
     },
-    [machines],
+    [machines, storage, url],
   );
   const store = useMemo(() => {
     const t = token ?? undefined;

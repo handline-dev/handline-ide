@@ -47,6 +47,8 @@ export async function redeemPairing(
   code: string,
   deviceName: string,
   timeoutMs = 10_000,
+  /** The device this client held before: the daemon revokes it in the same write, so pairing again leaves one row. */
+  replaces?: string,
 ): Promise<{ token: string; device: string }> {
   const t = await connect();
   const request_id = `pair-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -61,7 +63,14 @@ export async function redeemPairing(
       }
     };
     t.onclose = () => fail(new RpcError('transport', 'the listener closed the connection'));
-    t.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'device.redeem', params: { code, name: deviceName, request_id } }));
+    t.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'device.redeem',
+        params: { code, name: deviceName, request_id, ...(replaces ? { replaces } : {}) },
+      }),
+    );
   }).finally(() => {
     clearTimeout(timer);
     t.onclose = null;
