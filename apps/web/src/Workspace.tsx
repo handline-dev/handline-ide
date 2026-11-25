@@ -10,6 +10,7 @@ import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { useTabKeys } from '#src/layout/tabKeys.ts';
 import { DocTab } from '#src/tools/DocTab.tsx';
 import { ProposalView } from '#src/requests/ProposalView.tsx';
+import { AgentPage } from '#src/settings/AgentPage.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
@@ -290,6 +291,7 @@ function PaneView({
               {current?.opens?.startsWith('proposal:') && <ProposalView key={current.opens} id={Number(current.opens.slice(9))} />}
               {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
               <PageTab opens={current?.opens} />
+              {opened(current?.opens ?? '', 'agent') && <AgentPage key={current!.opens} agent={opened(current!.opens!, 'agent')!} />}
               {opened(current?.opens ?? '', 'ws') && <WorkspacePage key={current!.opens} ws={opened(current!.opens!, 'ws')!} />}
               {current?.opens === 'tasks' && <TasksTab agent={who ?? null} />}
             </PaneOpen.Provider>

@@ -42,12 +42,12 @@ const RUN = 10;
 /** Lessons shown before the rest fold into "N more". */
 const SHOWN = 8;
 
-export function AgentPage({ agent, back }: { agent: string; back: () => void }) {
+export function AgentPage({ agent, back }: { agent: string; back?: () => void }) {
   const name = useNameOf()(agent);
   const device = useAgentDevice(agent);
   return (
     <SettingsPage
-      bar={<SettingsBar title={name} icon={<Bot size={16} className="shrink-0 text-muted" />} back={back} backTo="Agents" />}
+      bar={back && <SettingsBar title={name} icon={<Bot size={16} className="shrink-0 text-muted" />} back={back} backTo="Agents" />}
       keep={`settings-agent-${agent}`}
       note={
         <>
