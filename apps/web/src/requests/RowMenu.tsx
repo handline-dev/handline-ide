@@ -7,6 +7,7 @@ import { Ban, Check, Clock, Eye, MessageSquare, Undo2, X } from 'lucide-react';
 import { createContext, useContext, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { OpenItems } from '#src/layout/openable.tsx';
+import { useTabState } from '#src/persist/tabState.ts';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { ContextMenu, Menu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
@@ -41,7 +42,8 @@ export function NoPick({ off, children }: { off?: boolean; children: ReactNode }
 
 /** Holds the picked rows of one Requests view; the bell's preview has none, so its rows only open. */
 export function PickProvider({ children }: { children: ReactNode }) {
-  const [picked, setPicked] = useState(new Map<string, Picked>()); // not kept: a selection lasts while it is acted on
+  // Kept with the tab, as its open row is: leaving Requests and coming back keeps what was checked.
+  const [picked, setPicked] = useTabState('picked', new Map<string, Picked>());
   const [busy, setBusyKeys] = useState(new Set<string>());
   const [hint, setHint] = useState<ReadonlySet<string> | null>(null);
   const list = useRef<HTMLDivElement>(null);
