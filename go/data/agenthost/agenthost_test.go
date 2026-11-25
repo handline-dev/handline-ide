@@ -15,7 +15,7 @@ func fakeTmux(t *testing.T) (log string) {
 	t.Helper()
 	dir := t.TempDir()
 	log = filepath.Join(dir, "calls")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + log + "\ncase \"$3\" in has-session) exit 1;; new-session|new-window) echo %7;; esac\n"
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + log + "\ncase \"$4\" in has-session) exit 1;; new-session|new-window) echo %7;; esac\n"
 	if err := os.WriteFile(filepath.Join(dir, "tmux"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestAScratchDaemonNeverReachesTheLiveTmuxServer(t *testing.T) {
 		}
 	}
 	for _, line := range calls(t, log) {
-		if !strings.HasPrefix(line, "-L handline-") {
+		if !strings.HasPrefix(line, "-u -L handline-") {
 			t.Errorf("not on the scratch home's own server: %q", line)
 		}
 	}
@@ -75,7 +75,7 @@ func TestATerminalNamesTheDaemonsHomeNotTheEnvironments(t *testing.T) {
 		t.Fatal(why)
 	}
 	made := calls(t, log)[1]
-	sock := strings.Fields(made)[1]
+	sock := strings.Fields(made)[2]
 	for _, want := range []string{"HANDLINE_HOME=" + home, "HANDLINE_TMUX_SOCKET=" + sock} {
 		if !strings.Contains(made, " -e "+want+" ") {
 			t.Errorf("no %s in %q", want, made)

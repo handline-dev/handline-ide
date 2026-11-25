@@ -55,8 +55,10 @@ type Tmux struct{ term.Place }
 
 func (Tmux) Name() string { return "tmux" }
 
+// tmux runs one tmux command on t's server. -u: a program started with no UTF-8 locale (a daemon an app launches has no LANG) gets tmux's
+// output with every tab and character past ASCII drawn as "_", which no reader here can split or read.
 func (t Tmux) tmux(timeout time.Duration, stdin string, args ...string) (int, string, string) {
-	return run(timeout, stdin, "tmux", append([]string{"-L", t.Socket}, args...)...)
+	return run(timeout, stdin, "tmux", append([]string{"-u", "-L", t.Socket}, args...)...)
 }
 
 func (Tmux) Available() bool { _, err := exec.LookPath("tmux"); return err == nil }

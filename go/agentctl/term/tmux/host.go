@@ -129,10 +129,22 @@ func (t Tmux) PaneRuns() map[string]term.PaneRun {
 		}
 		return nil
 	}
+	return parsePaneRuns(out)
+}
+
+// parsePaneRuns reads PaneRuns' listing. A line it cannot read makes the whole answer nil, "cannot say": skipped, its window would be
+// read as gone and the command running there told stopped.
+func parsePaneRuns(out string) map[string]term.PaneRun {
 	runs := map[string]term.PaneRun{}
 	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
 		f := strings.Split(line, "\t")
-		if len(f) != 6 || !paneRE.MatchString(f[0]) || f[1] == "" {
+		if len(f) != 6 || !paneRE.MatchString(f[0]) {
+			return nil
+		}
+		if f[1] == "" {
 			continue
 		}
 		r := term.PaneRun{Tag: f[1], Dead: f[2] == "1"}

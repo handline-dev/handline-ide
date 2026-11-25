@@ -20,7 +20,7 @@ func fakeTmux(t *testing.T) (log string) {
 	log = filepath.Join(dir, "calls")
 	script := `#!/bin/sh
 printf '%s\n' "$*" >> ` + log + `
-case "$3" in
+case "$4" in
   has-session) [ -f ` + dir + `/up ] && exit 0; echo "no server running on x" >&2; exit 1;;
   new-session) touch ` + dir + `/up; echo %7;;
   new-window) echo %7;;
@@ -50,20 +50,20 @@ func TestATerminalIsOpenedInTheWorktreeAndTheLaunchLineTypedAtItsShell(t *testin
 	}
 	got := calls(t, log)
 	// no server yet: a session is made with a size; the window name has no dots or colons; the home goes in the environment
-	want := "-L t new-session -d -s handline -x 200 -y 50 -n alice_x -c /wt/alice -e HANDLINE_HOME=/h -e HANDLINE_TMUX_SOCKET=t -P -F #{pane_id}"
+	want := "-u -L t new-session -d -s handline -x 200 -y 50 -n alice_x -c /wt/alice -e HANDLINE_HOME=/h -e HANDLINE_TMUX_SOCKET=t -P -F #{pane_id}"
 	if got[1] != want {
 		t.Fatalf("%q", got)
 	}
-	if got[len(got)-2] != "-L t send-keys -t %7 -l -- hl launch alice" || got[len(got)-1] != "-L t send-keys -t %7 Enter" {
+	if got[len(got)-2] != "-u -L t send-keys -t %7 -l -- hl launch alice" || got[len(got)-1] != "-u -L t send-keys -t %7 Enter" {
 		t.Fatalf("%q", got)
 	}
-	if !strings.Contains(strings.Join(got, "\n"), "-L t set-option -p -t %7 @hl_agent alice") {
+	if !strings.Contains(strings.Join(got, "\n"), "-u -L t set-option -p -t %7 @hl_agent alice") {
 		t.Fatalf("the pane is stamped with its agent: %q", got)
 	}
 	// a second terminal is a window of the session that is up
 	atH.CreateTerminal("hl launch bob", "/wt/bob", "bob", "bob")
 	got = calls(t, log)
-	if !strings.HasPrefix(got[len(got)-4], "-L t new-window -t handline: -n bob -c /wt/bob") {
+	if !strings.HasPrefix(got[len(got)-4], "-u -L t new-window -t handline: -n bob -c /wt/bob") {
 		t.Fatalf("%q", got)
 	}
 }
@@ -71,7 +71,7 @@ func TestATerminalIsOpenedInTheWorktreeAndTheLaunchLineTypedAtItsShell(t *testin
 func TestAWindowWhoseLaunchLineCouldNotBeTypedIsClosedAgain(t *testing.T) {
 	log := fakeTmux(t)
 	dir := filepath.Dir(log)
-	os.WriteFile(filepath.Join(dir, "tmux"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> "+log+"\ncase \"$3\" in has-session) exit 1;; new-session) echo %7;; send-keys) echo no pane >&2; exit 1;; esac\n"), 0o755)
+	os.WriteFile(filepath.Join(dir, "tmux"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> "+log+"\ncase \"$4\" in has-session) exit 1;; new-session) echo %7;; send-keys) echo no pane >&2; exit 1;; esac\n"), 0o755)
 	handle, why := atH.CreateTerminal("hl launch alice", "", "", "")
 	if handle != "" || !strings.Contains(why, "could not type the command") {
 		t.Fatalf("%q %q", handle, why)
@@ -88,7 +88,7 @@ func TestAWindowWhoseLaunchLineCouldNotBeTypedIsClosedAgain(t *testing.T) {
 func TestAWindowWhoseAgentStampFailedIsClosedAgain(t *testing.T) {
 	log := fakeTmux(t)
 	dir := filepath.Dir(log)
-	os.WriteFile(filepath.Join(dir, "tmux"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> "+log+"\ncase \"$3\" in has-session) exit 1;; new-session) echo %7;; set-option) echo no pane >&2; exit 1;; esac\n"), 0o755)
+	os.WriteFile(filepath.Join(dir, "tmux"), []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> "+log+"\ncase \"$4\" in has-session) exit 1;; new-session) echo %7;; set-option) echo no pane >&2; exit 1;; esac\n"), 0o755)
 	handle, why := atH.CreateTerminal("hl launch alice", "", "", "alice")
 	if handle != "" || !strings.Contains(why, "could not stamp the new window with its agent") {
 		t.Fatalf("%q %q", handle, why)
