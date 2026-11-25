@@ -123,7 +123,7 @@ func main() {
 	serveNetFDs := flag.String("serve-net-fds", "", "like -serve-fds, but each connection is served as one of the network listener's "+
 		"(past TLS), so it is unpaired until a device token says otherwise; needs -listen")
 	claude := flag.String("claude", "", "the claude binary the usage poll and the plan reads run: with it the daemon builds its agent side (the lifecycle, the session methods, the supervisor's ports, and with -terminal-tick the policy tick); empty runs none")
-	terminalTick := flag.Bool("terminal-tick", true, "run the policy tick over the terminal agents too, reading their sessions from <config dir>/sessions/<pid>.json (it wakes, closes, restarts and hands off their sessions); needs -claude, and the Python daemon must not tick beside it on the same home. The tick also reads every account's usage and token log")
+	terminalTick := flag.Bool("terminal-tick", true, "run the policy tick over the terminal agents too, reading their sessions from <config dir>/sessions/<pid>.json (it wakes, closes, restarts and hands off their sessions); the tick needs -claude and also reads every account's usage and token log. Off also stops the stream's watcher, which runs without -claude too")
 	notifiedNeedsYou := flag.Bool("notification-needs-you", true, "with -claude: a permission prompt Claude Code's Notification hook reports as unanswered raises the agent's needs-you card, until the agent moves on")
 	founderTyped := flag.Bool("founder-typed", true, "with -claude and -turns-from-hooks: the founder's own messages to a terminal agent are typed into its terminal as its person's prompt (it answers with hl say); one that cannot be typed then, and everything else, goes through the peer inbox. -founder-typed=false sends them all through the inbox")
 	turnsFromHooks := flag.Bool("turns-from-hooks", true, "tell whether a terminal agent is mid-turn or has background work from its hooks and transcript instead of its screen; the screen is still read where no hook has said")
@@ -166,7 +166,8 @@ func main() {
 		return
 	}
 	cfg := daemon.Config{Home: homeDir, DBFile: *db, SocketFile: *sock, Listen: *listen, CertFile: *cert, KeyFile: *key, Log: log.Printf,
-		WebDir: *web, Advertise: *advertise, AddressesHome: *addressesHome, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey, BoardCopy: true}
+		WebDir: *web, Advertise: *advertise, AddressesHome: *addressesHome, EnsureFounderKey: sessiontoken.New(homeDir).EnsureFounderKey, BoardCopy: true,
+		Watch: *terminalTick} // a board's changes reach the stream with or without the agent side (-claude)
 	work, stopWork := context.WithCancel(context.Background()) // the tick runs only while work is not done
 	tickEnded := make(chan struct{})                           // closed once the tick has returned, or is not to run
 	cfg.StopWork = func() {
@@ -198,7 +199,6 @@ func main() {
 		ccfg.Machine, ccfg.AgentsMemory = cfg.Resources.LatestMachine, cfg.Resources.AgentsMemory
 		shareLoad(&cfg, &ccfg)
 		parts := compose.New(ccfg)
-		cfg.Watch = *terminalTick
 		fromParts(&cfg, parts, &ccfg)
 		cfg.Transcripts = true
 		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry) {

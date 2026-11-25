@@ -3,7 +3,7 @@
 // last saw with what the database shows now and appends an event for each difference. The first look of a detector says nothing: a
 // client's snapshot already shows what is there.
 //
-// The daemon starts this with -terminal-tick. Retention is the stream hub's hourly prune.
+// A daemon that holds a board starts this unless -terminal-tick=false. Retention is the stream hub's hourly prune.
 package watcher
 
 import (

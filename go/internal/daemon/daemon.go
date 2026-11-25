@@ -116,8 +116,7 @@ type Config struct {
 
 	// Transcripts has hello say transcript, which clients read as chat.send taking parent_item (a reply to a chat.transcript item).
 	Transcripts bool
-	// Watch runs the detectors that have moved here from the Python daemon's watcher, which write their rows to the stream. Off while that
-	// watcher still runs: a second writer would double every event.
+	// Watch runs the detectors that turn the board's changes into rows of the stream.
 	Watch bool
 	// HealthEvery is how often DaemonStatus.health is looked at for a change to tell; 0 is healthEvery.
 	HealthEvery time.Duration

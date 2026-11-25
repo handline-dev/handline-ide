@@ -30,7 +30,7 @@ with `device.redeem` for a token, which is kept as a hash in the `devices` table
   (`retention`, which is also a cursor older than `stream:pruned`); a subscriber more than 1000 live events behind gets `gap` (`slow_client`)
   and is hung up. An agent session is sent what its role may read (`stream.AgentMay`). Retention is 7 days or 50000 rows, pruned hourly.
   The detectors that turn database changes into rows are `internal/watcher`: one per topic, each moved here from the Python watcher, and started
-  only with `-terminal-tick`. Moved so far: tasks, agents (with the stall notification), notifications, inbox, chat, proposals (whose change check also looks at the proposal files).
+  on any daemon that holds a board unless `-terminal-tick=false`. Moved so far: tasks, agents (with the stall notification), notifications, inbox, chat, proposals (whose change check also looks at the proposal files).
 
 ## Web UI and TLS
 

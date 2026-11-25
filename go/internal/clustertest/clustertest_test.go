@@ -1,6 +1,7 @@
 package clustertest
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,8 +9,12 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/internal/cluster"
+	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestMain(m *testing.M) {
@@ -89,4 +94,28 @@ func TestARunnerRunsLinkedToTheMasterAndForwardsOnlyItsAgents(t *testing.T) {
 	if _, err := r.Call("node.status", nil); err == nil || !strings.Contains(err.Error(), "runner") {
 		t.Fatalf("the runner's founder call: %v", err)
 	}
+}
+
+// A cluster's master streams the board's changes though it runs no agent side: a runner's heartbeat is a nodes.changed.
+func TestAClusterMasterStreamsARunnersHeartbeat(t *testing.T) {
+	c := Start(t, Opts{})
+	q, err := sql.Open("sqlite", paths.DBFile(c.Master.Home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	var since int64
+	if err := q.QueryRow("SELECT COALESCE(MAX(id), 0) FROM stream_log").Scan(&since); err != nil {
+		t.Fatal(err)
+	}
+	for end := time.Now().Add(2 * runner.BeatEvery); time.Now().Before(end); time.Sleep(250 * time.Millisecond) {
+		var n int
+		if err := q.QueryRow("SELECT COUNT(*) FROM stream_log WHERE id > ? AND type = 'nodes.changed'", since).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+	}
+	t.Fatal("no nodes.changed after a heartbeat")
 }
