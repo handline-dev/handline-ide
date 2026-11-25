@@ -47,6 +47,7 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
   const device = useAgentDevice(agent);
   return (
     <SettingsPage
+      bar={<SettingsBar title={name} icon={<Bot size={16} className="shrink-0 text-muted" />} back={back} backTo="Agents" />}
       keep={`settings-agent-${agent}`}
       note={
         <>
@@ -55,7 +56,6 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
         </>
       }
     >
-      <SettingsBar title={name} icon={<Bot size={16} className="shrink-0 text-muted" />} back={back} backTo="Agents" />
       <Lessons agent={agent} />
       <Sandbox agent={agent} />
       <Review agent={agent} />

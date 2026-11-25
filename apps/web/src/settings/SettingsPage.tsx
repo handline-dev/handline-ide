@@ -5,12 +5,15 @@ import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 
 export function SettingsPage({
   keep,
+  bar,
   title,
   note,
   action,
   children,
 }: {
   keep: string;
+  /** A detail page's navigation bar, above all else. */
+  bar?: ReactNode;
   /** None on a detail page, whose name the bar carries. */
   title?: string;
   note?: ReactNode;
@@ -21,6 +24,7 @@ export function SettingsPage({
     <ScrollFade keep={keep} className="min-h-0 flex-1">
       <Page>
         <div className="flex flex-col gap-4 pb-8 pt-3">
+          {bar}
           <div className="flex items-end justify-between gap-4">
             <div>
               {title && <h1 className="text-xl font-semibold text-fg">{title}</h1>}
