@@ -1,83 +1,27 @@
-import { cacheRewriteUsd, MODELS, VERBS } from '@handline/app-core';
-import { EFFORTS, useAgentDetail, useAgentStrip, useServes, useVerbRun, useWrite } from '@handline/app-data';
-import { ChevronDown, MessagesSquare, Shrink, X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { MODELS, VERBS } from '@handline/app-core';
+import { EFFORTS, useAgentDetail, useServes, useVerbRun, useWrite } from '@handline/app-data';
+import { ChevronDown } from 'lucide-react';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { ModalFrame, modalText, openModal } from '#src/ui/modal.tsx';
+import { confirm } from '#src/ui/modal.tsx';
 import { MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
-
-type Restart = 'resume' | 'fresh';
-
-/** One way to take the new model: a full-width button, its icon, its name and what it does inside it. */
-function Choice({
-  icon,
-  title,
-  text,
-  primary,
-  onClick,
-}: {
-  icon: ReactNode;
-  title: string;
-  text: ReactNode;
-  primary?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      autoFocus={primary}
-      onClick={onClick}
-      className={`flex w-full items-start gap-3 rounded-md border px-3 py-2.5 text-left outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-accent ${primary ? 'border-accent' : 'border-border'}`}
-    >
-      <span className={`mt-0.5 shrink-0 ${primary ? 'text-accent' : 'text-muted'}`}>{icon}</span>
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-medium">{title}</span>
-        <span className="text-sm text-muted">{text}</span>
-      </span>
-    </button>
-  );
-}
 
 type Change = { model?: string; effort?: string };
 
-/** The question's words for a change of model, effort or both. The cost is the context written once into the cache of the model the
- * conversation goes on in (a new effort clears the cached messages too). */
-export function restartWords(c: Change, current: string, used: number | null) {
-  const on = c.model ?? current;
-  const cost =
-    used == null
-      ? 'Its context is written into the cache once.'
-      : `${Math.round(used / 1000)}k tokens of context are written into the cache once, about $${cacheRewriteUsd(used, on).toFixed(2)} at list price.`;
+/** The confirm's words for a change of model, effort or both: a live session takes it at its next idle moment by writing a handoff note
+ *  and starting a new conversation on it. */
+export function restartWords(c: Change) {
   const what = c.model && c.effort ? `${c.model} at ${c.effort} effort` : (c.model ?? `${c.effort} effort`);
   return {
-    title: c.model ? `Switch to ${what}` : `Change effort to ${c.effort}`,
-    keep: `The same conversation on ${what}, from its next idle moment. ${cost}`,
-    compactTitle: c.model ? 'Compact, then switch' : 'Compact, then change',
-    compact: `The agent writes a handoff note, then starts a new conversation on ${what}.`,
-    cancel: c.model ? 'Keep the current model.' : 'Keep the current effort.',
+    title: c.model ? `Switch to ${what}?` : `Change effort to ${c.effort}?`,
+    message: `When it is next idle, it hands off and starts a new conversation on ${what}, without the cache it has now.`,
+    confirm: c.model ? 'Switch' : 'Change',
   };
 }
 
-/** Asks how a live session takes a new model or effort, at its next idle moment: the same conversation, a handoff then a new
- * conversation, or no change. Resolves the restart mode, or undefined for no change. */
-function askRestart(c: Change, current: string, used: number | null) {
-  const w = restartWords(c, current, used);
-  return openModal<Restart>((close) => (
-    <ModalFrame title={w.title} onClose={() => close()}>
-      <div className="flex flex-col gap-2 pb-1">
-        <Choice primary icon={<MessagesSquare size={16} />} title="Keep conversation" text={w.keep} onClick={() => close('resume')} />
-        <Choice icon={<Shrink size={16} />} title={w.compactTitle} text={w.compact} onClick={() => close('fresh')} />
-        <Choice icon={<X size={16} />} title={modalText.cancel} text={w.cancel} onClick={() => close()} />
-      </div>
-    </ModalFrame>
-  ));
-}
-
 /** The agent's model and effort, in the message box: a menu changes either. A new model for a live session first asks how it
- * restarts (askRestart); any other change applies from its next session, and "Apply now" restarts it to take it at once. */
+ * says it will hand off and start anew (a confirm); any other change applies from its next session, and "Apply now" restarts it to take it at once. */
 export function ModelChip({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
-  const used = useAgentStrip(agent).data?.ctx_used ?? null;
   const set = useWrite('agent.set', agent);
   const { served } = useServes('agent.set');
   const restart = useServes(VERBS.restart.method).served;
@@ -89,13 +33,12 @@ export function ModelChip({ agent }: { agent: string }) {
     (!!detail.settings?.model && detail.settings.model !== detail.model) ||
     (!!detail.settings?.effort && detail.settings.effort !== detail.effort);
   const models = [...new Set([...MODELS, ...(model ? [model] : [])])];
-  const change = (values: { model?: string; effort?: (typeof EFFORTS)[number] }, restart?: Restart) =>
-    set.mutate({ agent, values, ...(restart && { restart }) });
-  // A live session takes a new model or effort by restarting: it asks how first.
+  const change = (values: { model?: string; effort?: (typeof EFFORTS)[number] }) => set.mutate({ agent, values });
+  // A live session takes a new model or effort with a handoff and a new conversation: it says so first.
   const pick = async (values: { model?: string; effort?: (typeof EFFORTS)[number] }) => {
     if (!detail.session_open) return change(values);
-    const restart = await askRestart(values, detail.model ?? model ?? '', used);
-    if (restart) change(values, restart);
+    const w = restartWords(values);
+    if (await confirm({ title: w.title, message: w.message, confirmText: w.confirm })) change(values);
   };
   return (
     <Menu
