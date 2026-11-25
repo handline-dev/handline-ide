@@ -59,6 +59,9 @@ export function AccountFacts({
   );
 }
 
+/** At most this many circles in the stack, a +N one included. */
+const SHOWN = 6;
+
 /** The agents on an account as initial circles, filled while one works (its sidebar mark), and how many work over them. */
 function AgentsBar({ account: a }: { account: Account }) {
   const nameOf = useNameOf();
@@ -68,6 +71,10 @@ function AgentsBar({ account: a }: { account: Account }) {
     return !!v && activityOf(v) === 'working';
   };
   const busy = a.agents.filter(working).length;
+  // Working ones first; past SHOWN the rest is a count, so the stack stays in its column.
+  const ordered = [...a.agents.filter(working), ...a.agents.filter((k) => !working(k))];
+  const shown = ordered.length > SHOWN ? ordered.slice(0, SHOWN - 1) : ordered;
+  const more = ordered.length - shown.length;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between gap-6 text-xs">
@@ -76,7 +83,7 @@ function AgentsBar({ account: a }: { account: Account }) {
       </div>
       {a.agents.length ? (
         <div className="flex">
-          {a.agents.map((k) => (
+          {shown.map((k) => (
             <span
               key={k}
               title={`${nameOf(k)}${working(k) ? ' · working' : ''}`}
@@ -87,6 +94,14 @@ function AgentsBar({ account: a }: { account: Account }) {
               {nameOf(k).slice(0, 1)}
             </span>
           ))}
+          {more > 0 && (
+            <span
+              title={ordered.slice(shown.length).map(nameOf).join(', ')}
+              className="grid h-6 place-items-center rounded-full border-2 border-bg bg-hover px-1.5 text-xs text-muted tabular-nums"
+            >
+              +{more}
+            </span>
+          )}
         </div>
       ) : (
         <span className="text-xs text-muted">{a.paused ? 'paused' : 'No agents'}</span>

@@ -125,13 +125,14 @@ function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode
   );
 }
 
-/** Why new agents do not go to this account: loud when only the founder can fix it (an ended subscription, a login). */
+/** Why new agents do not go to this account, only when the founder must fix it (an ended subscription, a login): a full window
+    already shows on its bars. */
 function NotPicked({ why, needsLogin }: { why: Account['not_picked'] | undefined; needsLogin: boolean }) {
   if (!why || (why.kind === 'login' && needsLogin)) return null; // Needs login already says so
-  const loud = why.kind === 'subscription_ended' || why.kind === 'login';
+  if (why.kind !== 'subscription_ended' && why.kind !== 'login') return null;
   return (
-    <span className={`flex items-start gap-1 text-xs ${loud ? 'text-danger' : 'text-muted'}`} title={why.text}>
-      {loud && <TriangleAlert size={12} className="mt-0.5 shrink-0" />}
+    <span className="flex items-start gap-1 text-xs text-danger" title={why.text}>
+      <TriangleAlert size={12} className="mt-0.5 shrink-0" />
       <span className="line-clamp-2">Not used: {why.text}</span>
     </span>
   );
