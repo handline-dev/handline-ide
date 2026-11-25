@@ -76,6 +76,8 @@ const SHEET_T = 0.022; // one paper of a stack
 const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
 /** The founder's desk's tag; it holds the founder's decisions. */
 export const MY_DESK = 'desk:you';
+/** The tag of the door the founder comes in and goes out by; a building's in the city is `door:<its key>`. */
+export const DOOR = 'door';
 
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
@@ -180,8 +182,8 @@ function shell(w: number, d: number, door: number): Block[] {
     { from: [-t, 0, 0], to: [0, h, d], kind: 'side', part: 'left' },
     { from: [w, 0, 0], to: [w + t, h, d], kind: 'side', part: 'right' },
     { from: [0, 0, 0], to: [w, 0.06, 0.09], kind: 'baseboard' },
-    { from: [door, 0, -0.02], to: [door + 0.7, 1.05, 0.015], kind: 'door' },
-    { from: [door + 0.07, 0.62, -0.02], to: [door + 0.63, 0.98, 0.025], kind: 'glass' },
+    { from: [door, 0, -0.02], to: [door + 0.7, 1.05, 0.015], kind: 'door', tag: DOOR },
+    { from: [door + 0.07, 0.62, -0.02], to: [door + 0.63, 0.98, 0.025], kind: 'glass', tag: DOOR },
   ];
   // The window spans the wall from the bookcase to the coffee corner, in panes of about 0.9 m.
   const [wx0, wx1] = [1.15, door - 1.05];

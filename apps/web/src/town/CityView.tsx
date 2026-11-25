@@ -1,17 +1,21 @@
 // The city drawn as the offices are (street.ts builds it, scene3d.ts and shade.ts draw it), smaller than an office, the view following
 // the founder when the city is larger than the pane. Each building has its name on its sign and its counts beside it; a click on one
-// walks the founder to its door and in, as walking up into a door does; a click on the street walks there.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+// walks the founder to its door, which opens, and in, as walking up into a door does; a click on the street walks there. Coming back out
+// of a building, the founder steps out of its open door, which shuts behind it.
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { WebGLRenderer } from 'three';
-import type { City } from '#src/town/city.ts';
+import { HQ, type City } from '#src/town/city.ts';
 import { FounderDrawing, useFounder, useWalker, type Founder, type Ground } from '#src/town/founder.tsx';
 import { groundOf } from '#src/town/ground.ts';
-import { SIGN_INK } from '#src/town/palette.ts';
+import { SIGN_INK, THROUGH } from '#src/town/palette.ts';
 import { boxesOf, type Box } from '#src/town/people.ts';
+import { DoorSwing, type Way } from '#src/town/door.tsx';
+import { DOOR } from '#src/town/room.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
 import { cityRoom, type Door } from '#src/town/street.ts';
 import { useSize } from '#src/ui/useSize.ts';
+import { nearestFree, type Spot } from '#src/town/walk.ts';
 
 /** What the city shows of a building besides its windows: its name, a line for its tooltip, and its counts. */
 export type Sign = { name: string; sub: string; decisions: number; waiting: number; more: number };
@@ -40,7 +44,9 @@ function useDrawn(city: City, cars: number): Drawn | null {
       [canvas.width, canvas.height] = [pic.w, pic.h];
       canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
       const ground = groundOf(pic, frame, room, { speed: 2.4, stride: 0.2, grid: { cell: 0.1, body: 0.15, top: 0 } });
-      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, ground, doors: room.doors, boxes: boxesOf(pic, frame) };
+      // A doorway's spot is in the building's front, so the founder walks to the nearest it can stand on.
+      const doors = room.doors.map((d) => ({ ...d, in: nearestFree(ground.floor, d.in) ?? d.at }));
+      const next = { url: canvas.toDataURL(), w: pic.w, h: pic.h, ground, doors, boxes: boxesOf(pic, frame) };
       kept = { sig: laid.sig, drawn: next };
       setDrawn(next);
     });
@@ -51,8 +57,14 @@ function useDrawn(city: City, cars: number): Drawn | null {
   return drawn;
 }
 
-/** How close below a building's front the founder must be, in metres, for walking up to take it in. */
+/** How close below a building's front the founder must be, in metres, to be at its door: walking up there takes it in, and its door
+ *  stays open while it is there. */
 const AT_DOOR = 0.7;
+/** How close the founder stands to a front on its doorstep, where held keys stop it: it goes in from there. */
+const DOORSTEP = 0.3;
+const atDoor = (d: Door, [x, z]: Spot) => x > d.x0 && x < d.x1 && z > d.front && z - d.front < AT_DOOR;
+/** A door swinging; `from` is where the founder stood when it began to open. */
+type Swinging = { key: string; way: Way; from?: Spot };
 
 export function CityView({
   city,
@@ -64,8 +76,8 @@ export function CityView({
   city: City;
   cars: number;
   signs: Record<string, Sign>;
-  /** The building the founder last came out of: it starts at that door. */
-  left: string;
+  /** The building the founder last came out of: it steps out of that door. None when the city is first shown. */
+  left: string | null;
   onEnter: (key: string) => void;
 }) {
   const drawn = useDrawn(city, cars);
@@ -74,16 +86,50 @@ export function CityView({
   const walk = useMemo(() => {
     if (!drawn) return null;
     const door = drawn.doors.find((d) => d.key === left);
-    return door ? { ...drawn.ground, entry: door.at } : drawn.ground;
+    return door ? { ...drawn.ground, entry: door.in } : drawn.ground;
   }, [drawn, left]);
-  const founder = useWalker(walk, 'city', ([x, z], [, dz]) => {
-    const door = dz < 0 && drawn?.doors.find((d) => x > d.x0 && x < d.x1 && z > d.front && z - d.front < AT_DOOR);
-    if (door) onEnter(door.key);
+  // The door swinging, if any: one the founder came out of starts open. `live` is the latest, for walks that end after a render.
+  const [swing, setSwing] = useState<Swinging | null>(() => (left ? { key: left, way: 'held' } : null));
+  const live = useRef(swing);
+  useEffect(() => {
+    live.current = swing;
   });
+  const swingTo = (next: Swinging | null) => {
+    live.current = next;
+    setSwing(next);
+  };
+  /** Through an open door: in at once from its doorstep, else walking into the doorway first. */
+  const walkIn = (f: Founder, d: Door) => {
+    const me = f.get();
+    if (!me || me.at[1] - d.front < DOORSTEP) onEnter(d.key);
+    else f.go(d.in, () => onEnter(d.key));
+  };
+  /** At a door: it opens, and the founder goes in once it is open. Another door swinging snaps shut. */
+  const enter = (f: Founder, d: Door) => {
+    const s = live.current;
+    if (s?.key === d.key && s.way === 'held') walkIn(f, d);
+    else if (s?.key !== d.key || s.way === 'shut') swingTo({ key: d.key, way: 'open', from: f.get()?.at });
+  };
+  const founder = useWalker(walk, 'city', (at, [, dz], f) => {
+    const door = dz < 0 && drawn?.doors.find((d) => atDoor(d, at));
+    if (door) enter(f, door);
+  });
+  const swung = drawn?.doors.find((d) => d.key === swing?.key);
+  const near = useFounder(founder, (me) => !me || !swung || atDoor(swung, me.at));
+  // Out of the door the founder came out of; it shuts once the founder is past the doorstep.
+  const out = useRef(left);
+  useEffect(() => {
+    const d = walk && drawn?.doors.find((d) => d.key === out.current);
+    if (!d) return;
+    out.current = null;
+    founder.go(d.out);
+  }, [walk, drawn, founder]);
+  const way = swing && (swing.way === 'held' && !near ? 'shut' : swing.way);
   if (!drawn || !walk || pw === 0) return <div ref={setPane} className="min-h-0 flex-1" />;
   // The offices' size, larger when the whole city fits the pane larger.
   const scale = Math.max(1, Math.min(pw / drawn.w, ph / drawn.h));
   const box = (tag: string) => drawn.boxes.get(tag);
+  const doorway = swung && box(`${DOOR}:${swung.key}`);
   return (
     <div ref={setPane} className="relative min-h-0 flex-1 overflow-hidden">
       <Follow founder={founder} ground={walk} scale={scale} size={[drawn.w, drawn.h]} pane={[pw, ph]}>
@@ -104,13 +150,31 @@ export function CityView({
               founder.go(walk.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
             }}
           />
+          {swung && doorway && way && (
+            <DoorSwing
+              key={swung.key}
+              url={drawn.url}
+              size={[drawn.w, drawn.h]}
+              door={{ box: doorway, through: THROUGH.indoors, double: swung.key === HQ }}
+              way={way}
+              onDone={() => {
+                if (way === 'shut') return swingTo(null);
+                if (way !== 'open') return;
+                swingTo({ key: swung.key, way: 'held' });
+                // Sent somewhere else while it opened: the door shuts as it walks away.
+                const me = founder.get();
+                const from = swing?.from;
+                if (me && from && Math.hypot(me.at[0] - from[0], me.at[1] - from[1]) < 0.05) walkIn(founder, swung);
+              }}
+            />
+          )}
           {drawn.doors.map((d) => {
             const s = signs[d.key];
             const house = box(`house:${d.key}`);
             const sign = box(`sign:${d.key}`);
             if (!s || !house) return null;
             return (
-              <g key={d.key} className="cursor-pointer" onClick={() => founder.go(d.at, () => onEnter(d.key))}>
+              <g key={d.key} className="cursor-pointer" onClick={() => founder.go(d.at, () => enter(founder, d))}>
                 <title>{`${s.name} · ${s.sub}`}</title>
                 <rect
                   x={house.x - 1}

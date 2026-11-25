@@ -2,7 +2,7 @@
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
 // over it, as over the seated people. Its place lives outside React: only what draws it, or picks something by it, follows it.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { FLAT, frontPixels, type Box } from '#src/town/people.ts';
+import { frontPixels, type Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
@@ -31,7 +31,8 @@ export type Walk = { floor: Floor; entry: Spot; speed: number; stride: number };
 /** An office's ground: its walk, its pixels and objects, and where a floor spot or a point lands in the picture. */
 export type Ground = Walk & {
   pic: Picture;
-  kinds: string[];
+  /** By the picture's object ids: what never covers the founder, as the floor and a door it walks through. */
+  under: boolean[];
   toPixel: (x: number, y: number, z: number) => [number, number];
   /** The floor spot drawn at picture pixel (px, py). */
   toFloor: (px: number, py: number) => Spot;
@@ -58,7 +59,7 @@ const kept = new Map<string, { entry: string; me: Walker }>();
 /** The founder's state and its frame loop, which runs only while the founder moves. */
 function walkerOf() {
   const all = new Set<() => void>();
-  const bump: { current?: (at: Spot, dir: Spot) => void } = {};
+  const bump: { current?: Bump } = {};
   const s = {
     me: null as Walker | null,
     ground: null as Walk | null,
@@ -85,7 +86,7 @@ function walkerOf() {
     if (dir[0] || dir[1]) {
       s.plan = null;
       const at = step(g.floor, m.at, dir, g.speed * dt);
-      if (at === m.at) bump.current?.(m.at, dir);
+      if (at === m.at) bump.current?.(m.at, dir, founder);
       next = { at, facing: facingOf(dir, m.facing), walked: m.walked + Math.hypot(at[0] - m.at[0], at[1] - m.at[1]), moving: true };
     } else if (s.plan?.path.length) {
       const [tx, tz] = s.plan.path[0];
@@ -168,15 +169,18 @@ function walkerOf() {
       window.removeEventListener('blur', blur);
     };
   };
-  const onBump = (f?: (at: Spot, dir: Spot) => void) => {
+  const onBump = (f?: Bump) => {
     bump.current = f;
   };
   return { founder, place, listen, onBump };
 }
 
+/** Where held keys push the founder into something, and which way. */
+type Bump = (at: Spot, dir: Spot, founder: Founder) => void;
+
 /** The founder in `where` (the city, or a house's key) on `ground`; none while `ground` is null. `onBump` hears where held keys push into
  *  something. */
-export function useWalker(ground: Walk | null, where: string, onBump?: (at: Spot, dir: Spot) => void): Founder {
+export function useWalker(ground: Walk | null, where: string, onBump?: Bump): Founder {
   const [w] = useState(walkerOf);
   useEffect(() => w.onBump(onBump));
   useEffect(() => w.place(ground, where), [w, ground, where]);
@@ -184,8 +188,8 @@ export function useWalker(ground: Walk | null, where: string, onBump?: (at: Spot
   return w.founder;
 }
 
-/** What `pick` makes of the founder's place, drawn again only when that changes: keep it a string, a number or null. */
-export function useFounder<T extends string | number | null>(f: Founder, pick: (me: Walker | null) => T): T {
+/** What `pick` makes of the founder's place, drawn again only when that changes: keep it a string, a number, a boolean or null. */
+export function useFounder<T extends string | number | boolean | null>(f: Founder, pick: (me: Walker | null) => T): T {
   return useSyncExternalStore(f.subscribe, () => pick(f.get()));
 }
 
@@ -223,9 +227,9 @@ export function FounderDrawing({ founder, ground, label }: { founder: Founder; g
   useEffect(() => {
     const c = canvas.current;
     if (!c) return;
-    const { pic, kinds } = ground;
+    const { pic, under } = ground;
     [c.width, c.height] = [bw, bh];
-    const front = frontPixels(pic, { x: bx, y: by, w: bw, h: bh }, (i) => !FLAT.has(kinds[pic.id[i]] ?? '') && pic.depth[i] < depth);
+    const front = frontPixels(pic, { x: bx, y: by, w: bw, h: bh }, (i) => !under[pic.id[i]] && pic.depth[i] < depth);
     if (front) c.getContext('2d')?.putImageData(front.img, front.x - bx, front.y - by);
   }, [ground, bx, by, bw, bh, depth]);
   if (!me) return null;
