@@ -13,7 +13,7 @@ import { ProposalView } from '#src/requests/ProposalView.tsx';
 import { AgentPage } from '#src/settings/AgentPage.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
-import { ShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
+import { AnyShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
 import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
@@ -23,6 +23,7 @@ import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Colu
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { useCallback, useContext, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
+import { newTabKinds } from '#src/layout/newTabKinds.ts';
 import { agentKind, choices, iconOf, pages, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { isOpen, panes, whereTo, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
@@ -188,15 +189,21 @@ function PaneView({
   const pick = (kind: string, place: (opens: string) => void, of = who) => {
     const named = (k: string) => (of && agentKind(k) ? withAgent(k, of) : k);
     if (kind !== 'newshell') return place(named(kind));
-    if (of)
-      openShell
-        .mutateAsync({ agent: of })
-        .then((r) => place(named(shellOf(r.terminal))))
-        .catch((e: Error) => toast(`The terminal did not open: ${e.message}`, { tone: 'warning' }));
+    // With an agent on screen, a shell in its worktree; with none, a plain one in the home folder.
+    openShell
+      .mutateAsync(of ? { agent: of } : {})
+      .then((r) => place(named(shellOf(r.terminal))))
+      .catch((e: Error) => toast(`The terminal did not open: ${e.message}`, { tone: 'warning' }));
   };
   // With no agent on screen an agent's kind asks which agent.
   const agents = useAgents().data?.agents;
   const agentChoices = agents?.map((a) => ({ key: a.key, label: nameOf(a.key) }));
+  const menu = newTabKinds(
+    choices.filter((c) => BUILT.has(c.kind)),
+    who,
+    nameOf,
+    agentChoices,
+  );
   // A tab, or a thing to open, dropped among the tabs or on the pane (its middle, or an edge to split there).
   const onBar = useDropTarget({
     accepts: isTabDrag,
@@ -246,9 +253,7 @@ function PaneView({
             onSelect={(tab) => dispatch({ type: 'select', pane: pane.id, tab })}
             onClose={(tab) => close([tab])}
             onCloseTabs={close}
-            newTabKinds={choices
-              .filter((c) => BUILT.has(c.kind))
-              .flatMap((c) => (who || !agentKind(c.kind) ? [c] : agentChoices ? [{ ...c, agents: agentChoices }] : []))}
+            newTabKinds={menu}
             onAdd={(kind, how, of) =>
               pick(kind, (opens) => openFrom({ root, agent: whoKey, dispatch, nameOf, focus: onFocus }, pane.id, opens, how), of ?? who)
             }
@@ -276,7 +281,7 @@ function PaneView({
               {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
               {shown === 'diff' && who && <Changes key={who} agent={who} />}
               {shown === 'shell' && who && <TerminalTab key={who} agent={who} />}
-              {shellHandle(shown ?? '') && who && <ShellTab key={current!.id} agent={who} handle={shellHandle(shown!)!} />}
+              {shellHandle(shown ?? '') && <AnyShellTab key={current!.id} agent={own ? who : null} handle={shellHandle(shown!)!} />}
               {shown === 'markdown' && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} />}
               {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={who} />}
               {current?.opens?.startsWith('web:') && (

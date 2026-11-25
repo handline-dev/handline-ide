@@ -62,6 +62,11 @@ export function ShellTab({ agent, handle }: { agent: string; handle: string }) {
   return <BytesTab agent={agent} shell={handle} detail={{ terminal: handle }} />;
 }
 
+/** A shell tab: an agent's names it (its worktree), a plain one names no agent and is drawn as nobody's, titled Terminal. */
+export function AnyShellTab({ agent, handle }: { agent: string | null | undefined; handle: string }) {
+  return agent ? <ShellTab agent={agent} handle={handle} /> : <PaneTab handle={handle} label="Terminal" />;
+}
+
 /** A window that belongs to no agent (a tool's install), by the handle the daemon gave for it. */
 export function PaneTab({ handle, label }: { handle: string; label: string }) {
   return <BytesTab agent="" label={label} shell={handle} detail={{ terminal: handle }} />;

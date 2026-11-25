@@ -55,8 +55,10 @@ export const ownedBy = (opens: string) => {
   const agent = opens.slice(i + 1);
   return i > 0 && /^[\w.-]+$/.test(agent) && agentKind(opens.slice(0, i)) ? { kind: opens.slice(0, i), agent } : null;
 };
-/** `opens` naming agent `from` when it is one of an agent's kinds that does not yet. */
-export const carry = (opens: string, from: string | null) => (from && agentKind(opens) && !ownedBy(opens) ? withAgent(opens, from) : opens);
+/** `opens` naming agent `from` when it is one of an agent's kinds that does not yet. A shell's owner is set when it opens (a plain one
+ *  has none), so moving or reopening it never gives it one. */
+export const carry = (opens: string, from: string | null) =>
+  from && agentKind(opens) && !ownedBy(opens) && !shellHandle(opens) ? withAgent(opens, from) : opens;
 const chatName = (kind: string) => (kind.startsWith('chat:') ? kind.slice(5) : null);
 
 /** A plain shell shell.open opened (`shell:<handle>`); `newshell` is the menu's pick that opens one; `shell` alone is the agent's own terminal. */
