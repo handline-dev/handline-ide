@@ -120,7 +120,28 @@ func Section(agent string, lessons []Lesson) string {
 
 // ShowCap is the most bytes of each area of a person's rules a launch prompt shows: the most said first, a rule without a count as said
 // once.
-var ShowCap = map[string]int{AreaScreen: 3 << 10, AreaWork: 3 << 10}
+var ShowCap = map[string]int{AreaScreen: 5 << 10, AreaWork: 6 << 10}
+
+// ScreenDays is how far back the tasks an agent finished are looked at to say whether its work is mostly screens (MostlyScreen).
+const ScreenDays = 14
+
+// MostlyScreen is whether most of the tasks agents finished since are screen work, by the kinds of work their commits were (the review
+// ladder's works on each finish, the newest finish of a task counting); agents are an agent and, for a temp, the agent it was hired from.
+// known is false when none finished one since: nothing says what the agent does, so it is shown every area.
+func MostlyScreen(q Q, agents []string, since int64) (screen, known bool, err error) {
+	if len(agents) == 0 {
+		return false, false, nil
+	}
+	args := []any{WorkScreen, ReadyKind, since}
+	for _, a := range agents {
+		args = append(args, a)
+	}
+	var all, scr int
+	err = q.QueryRow("SELECT COUNT(*), COALESCE(SUM(EXISTS (SELECT 1 FROM json_each(r.payload, '$.works') WHERE value = ?)), 0) FROM events r "+
+		"WHERE r.id IN (SELECT MAX(id) FROM events WHERE kind = ? AND ts >= ? AND agent IN (?"+strings.Repeat(", ?", len(agents)-1)+") "+
+		"GROUP BY json_extract(payload, '$.task_id'))", args...).Scan(&all, &scr)
+	return scr*2 > all, all > 0, err
+}
 
 var (
 	saidTimes = regexp.MustCompile(` \(said (\d+) times`)
@@ -137,8 +158,9 @@ func saidCount(text string) int {
 }
 
 // PromptSection is the launch prompt's section of agent's lessons: all of an agent's own; of a person's, each area's most said rules up
-// to its ShowCap, in the order they were kept, each only its rule: how often it was said and where are for ranking, not for agents.
-func PromptSection(agent string, lessons []Lesson) string {
+// to its ShowCap, in the order they were kept, each only its rule: how often it was said and where are for ranking, not for agents. The
+// screen rules are shown only with screen (an agent whose work is mostly screens, MostlyScreen); the work rules always.
+func PromptSection(agent string, lessons []Lesson, screen bool) string {
 	if !actor.IsPerson(agent) {
 		return LessonsSection(lessons)
 	}
@@ -156,6 +178,9 @@ func PromptSection(agent string, lessons []Lesson) string {
 	used, shown := map[string]int{}, map[int64]bool{}
 	for _, l := range byCount {
 		a := LessonArea(l.Text)
+		if a == AreaScreen && !screen {
+			continue
+		}
 		n := len(section("", []Lesson{{Text: saidTail.ReplaceAllString(l.Text, "")}}))
 		if used[a]+n > ShowCap[a] {
 			continue
