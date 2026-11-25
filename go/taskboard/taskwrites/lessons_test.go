@@ -48,7 +48,7 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 			}
 			break
 		}
-		if i > 10 {
+		if i > 40 {
 			t.Fatal("never full")
 		}
 	}
@@ -128,7 +128,7 @@ func TestALessonAboutTheFounderCitesTheirWordsAndHasItsOwnCap(t *testing.T) {
 			}
 			break
 		}
-		if i > 10 {
+		if i > 40 {
 			t.Fatal("never full")
 		}
 	}

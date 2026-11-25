@@ -1017,7 +1017,7 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, db.Section(whose, lessons))
+		parts = append(parts, db.PromptSection(whose, lessons))
 	}
 	text, err := db.GetHandoff(l.Q, agent)
 	if err != nil {

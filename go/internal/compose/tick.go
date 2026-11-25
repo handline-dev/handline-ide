@@ -159,8 +159,10 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 	dev.Exe, _ = os.Executable()
 	dev.Baseline()
 	fds := &housekeeping.FDs{Log: logLine}
+	folds := rulesFold(cfg, q, uenv)
 	loop := &tick.Loop{Tick: t, Log: logLine, Stop: tc.Stop, Why: tc.Why, Dev: dev, Wake: wake, Act: p.acts, Housekeeping: []tick.NamedSweep{
 		{Name: "fd check", Run: func(db.Q, int64) error { fds.Check(); return nil }},
+		{Name: "rules fold", Run: func(db.Q, int64) error { folds.Check(ctx); return nil }},
 		{Name: "log rotation", Run: func(db.Q, int64) error { return housekeeping.RotateLogs(home) }},
 		{Name: "attachment sweep", Run: func(q db.Q, _ int64) error { return attachments.New(home).Sweep(q) }},
 		{Name: "handoff archive", Run: func(_ db.Q, now int64) error { return handoff.SweepArchive(home, time.Unix(now, 0)) }},

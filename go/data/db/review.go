@@ -122,3 +122,22 @@ func AddVerdict(q Q, tid int64, by, verdict string, memo int64) error {
 	_, err := AddEvent(q, by, VerdictKind, payload...)
 	return err
 }
+
+// ReadyWorks are the kinds of work the newest Ready of task tid recorded.
+func ReadyWorks(q Q, tid int64) ([]string, error) {
+	var works []string
+	rows, err := q.Query("SELECT j.value FROM events r, json_each(r.payload, '$.works') j WHERE r.id = "+
+		"(SELECT MAX(id) FROM events WHERE kind = ? AND json_extract(payload, '$.task_id') = ?)", ReadyKind, tid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var w string
+		if err := rows.Scan(&w); err != nil {
+			return nil, err
+		}
+		works = append(works, w)
+	}
+	return works, rows.Err()
+}

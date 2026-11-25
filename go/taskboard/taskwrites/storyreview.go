@@ -235,9 +235,9 @@ func skippedTask(tx *sql.Tx, tid int64, by string) (*db.Review, error) {
 	return r, nil
 }
 
-// taskWorks are the kinds of work agent's commits naming task tid are, in the repo it works in: none when they cannot be read, which is
+// TaskWorks are the kinds of work agent's commits naming task tid are, in the repo it works in: none when they cannot be read, which is
 // looked at every time.
-func taskWorks(home, agent string, tid int64) []string {
+func TaskWorks(home, agent string, tid int64) []string {
 	cfg, err := team.NewRoster(home).Read(agent)
 	repo, _ := cfg["repo"].(string)
 	if err != nil || repo == "" {
@@ -256,7 +256,7 @@ func redoToEvery(tx *sql.Tx, home, agent string, tid int64, by string) error {
 	if err != nil {
 		return err
 	}
-	works, err := readyWorks(tx, tid)
+	works, err := db.ReadyWorks(tx, tid)
 	if err != nil {
 		return err
 	}
@@ -272,25 +272,6 @@ func redoToEvery(tx *sql.Tx, home, agent string, tid int64, by string) error {
 		}
 	}
 	return nil
-}
-
-// readyWorks are the kinds of work task tid's newest Ready says it is.
-func readyWorks(tx *sql.Tx, tid int64) ([]string, error) {
-	var works []string
-	rows, err := tx.Query("SELECT j.value FROM events r, json_each(r.payload, '$.works') j WHERE r.id = "+
-		"(SELECT MAX(id) FROM events WHERE kind = ? AND json_extract(payload, '$.task_id') = ?)", db.ReadyKind, tid)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var w string
-		if err := rows.Scan(&w); err != nil {
-			return nil, err
-		}
-		works = append(works, w)
-	}
-	return works, rows.Err()
 }
 
 // checkReport is what the assignee's handoff of a finished sub-task says of its own check: the lessons it checked, what the fresh look
