@@ -205,6 +205,29 @@ Taken into Story 4 (`docs/story4-design.md` section 7, the founder's answers T38
 go whole to the machine with the most room, the rest stay; Handline ships its own browser and simulator tools
 with skills it installs by itself; a lent Mac needs only a Claude login, and agents install their own build tools.
 
+## 8. Reaching a local agent tool from another device (11-25)
+
+How tools that run on the person's own machine let a phone, a browser or another computer in, from each
+tool's own documentation (the pages are named in T9477 comment 8815):
+
+- **A terminal coding agent's remote control:** the machine opens no port. The local session connects out to
+  the vendor's service and the phone or browser comes in through the vendor's https site; the signed-in
+  account is the key.
+- **Self-hosted agent orchestrators:** reachable only on the machine by default; for other devices the
+  person turns on a login and binds a LAN, VPN or Tailscale address.
+- **Browser IDE servers:** an SSH tunnel is the advice; a self-made certificate is the last resort, as the
+  browser warns, and a tablet's Safari refuses its WebSocket unless the certificate is installed as a profile.
+- **File sync tools:** devices trust each other by the hash of each one's certificate, as our Mac apps pin
+  the fingerprint; the browser screen is local by default and wants a password and https when opened up.
+- **Tailscale's own serving:** the `*.ts.net` name gets a real certificate by itself, reachable only inside
+  the tailnet, once the tailnet has HTTPS on (which publishes the machine's and the tailnet's names in the
+  public certificate log).
+
+So a browser from another device is common, but the pattern is local by default, then a private network or
+the vendor's relay, on a real certificate. A browser page over plain `http://` on a name that is not
+localhost is not a secure context: copying to the clipboard, notifications and service workers are refused.
+Decision 16 in `story4-design.md` follows it.
+
 ## Sources
 
 `gh api repos/<r>` for every repository in the table (licence and description), and

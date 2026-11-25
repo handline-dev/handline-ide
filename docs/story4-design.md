@@ -262,6 +262,19 @@ built, and an agent that drives a simulator over many commands keeps it beside i
 15. **An agent's tools are its own (11-24, T9452 8749):** placement goes by load and room; no MCP server or
     program is checked or shown per device, and a session's MCP config is the same on every device. Ends the
     MCP part of slice 29 and T9465's per-device filter (slice 34).
+16. **Adding a device, one link (11-25, T9477 8802, 8811, 8813, 8815, 8816):** Connect a device asks nothing:
+    Handline picks the address, the Tailscale name while Tailscale is up, else this Mac's Wi-Fi address, and shows
+    one link with its QR and code. The link is a browser address; `handline://` shows on no screen, only the link's
+    page uses it, for Open in the Handline app beside Use in this browser. A browser on another device comes only
+    through Tailscale, on Tailscale's own certificate for the name once the tailnet has HTTPS (plain `http://` on
+    the name until then); a Wi-Fi address is for Mac apps only, which pin its certificate: a browser's warning for
+    a self-made certificate cannot tell a fake server from this Mac, and a code taken there runs agents here. A
+    link never names a host the apps refuse (the bare Tailscale IP is named by its MagicDNS name), and `hl device
+    join` trusts a link as the app does. Another Mac's app has a visible Join a Mac that takes the link or the
+    code and asks once: Control from this Mac, or Let the cluster run agents on this Mac (Run at once). A device's
+    page has Make master, pressed on the master or on that device. The device list drops the state word the Run ·
+    Pause · Off buttons already say, puts a reason that does not fit behind a warning mark with the whole reason on
+    hover, draws Mac or server as an icon, and says Controls only for a browser.
 
 ## Build slices
 
@@ -305,8 +318,12 @@ runner on one Mac (slice 3); the last check is two real Macs.
 | 32 | `hl sim`: Handline's iOS Simulator and Android emulator tool, nothing to install beyond Xcode and the Android SDK, held as the `@simulator` lease, with its skill | hl | 10 | 30 |
 | 33 | Devices shows where each agent runs and why, and Auto/Manual with a pinned agent: designed, then built | app | 7 | 29 |
 | 34 | An agent's tools are its own: placement and the launch stop reading MCP servers (the agent's and the shared ones it used, mcp_used, the runner's per-program filter); a device is told only the programs heavy commands ran; Devices shows no per-tool mark | daemon, app | 2 | 29, 33 |
+| 35 | One link for a device: device.pair picks the address (the Tailscale name while Tailscale is up, else the first Wi-Fi address) and gives the browser link only; the Tailscale door serves Tailscale's own certificate for the name when the tailnet has HTTPS, renewed by itself, and a client reaches it over a verified wss; Wi-Fi doors serve no web page; `hl device pair` prints the link and `hl device join` takes it, trusting a link as the app does | daemon, hl | 6 | |
+| 36 | Joining from another Mac's app: the link's page says Open in the Handline app or Use in this browser; the Mac app opens `handline://` links; a visible Join a Mac takes the link or the code; one question, Control from this Mac or Let the cluster run agents on this Mac (Run at once); `handline://` gone from every screen | app | 6 | 35 |
+| 37 | Make master on a device's page: on the master it asks that device to take over, on the device it is `node.promote`; one confirm line | daemon, app | 3 | |
+| 38 | The device list and Connect a device to the T9477 pictures: no state word, a warning mark with the reason on hover, an icon for Mac or server, Controls only for a browser, no address to pick | app | 3 | 35 |
 
-About 221 hours: phase 1 (slices 1 to 14, 17 to 20, 22 to 24, 26 and 27) about 163, phase 2 about 18, heavy
-agents and Handline's tools (28 to 34) about 40. Not in this list: taking over by itself, a majority vote among three or more machines,
+About 239 hours: phase 1 (slices 1 to 14, 17 to 20, 22 to 24, 26 and 27) about 163, phase 2 about 18, heavy
+agents and Handline's tools (28 to 34) about 40, adding a device with one link (35 to 38) about 18. Not in this list: taking over by itself, a majority vote among three or more machines,
 lending only at night, resting while the person uses the machine, bringing a set-aside board's tasks over, the
 phone, sending single heavy commands to another machine.
