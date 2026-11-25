@@ -53,7 +53,8 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       ['a7', 9460, 'Tab bar dimming'],
       ['a8', 9458, 'Spinner sizes'],
     ] as const) {
-      task(d, id, { id, from: ME, to: ARCH, title, state: id === 9458 ? 'done' : 'doing' });
+      // A task that went to a seat is the seat's, as the daemon gives it.
+      task(d, id, { id, from: ME, to: seat, title, state: id === 9458 ? 'done' : 'doing' });
       d.sessions.set(seat, newSession({ ...d.sessions.get(ARCH)!.fx, name: seat, view: { hired_from: ARCH } }, ago(10)));
     }
     d.chat.seedItem(ARCH, { kind: 'reply', text: 'Checking each settings page in dark…', at: ago(9) });

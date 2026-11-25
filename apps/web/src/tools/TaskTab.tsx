@@ -2,7 +2,7 @@ import { outsideBlockers } from '#src/tools/subtasks.ts';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
-import { Hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
+import { Hooks, useAgents, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
 import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
 import { Check, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
@@ -44,6 +44,8 @@ export function TaskTab({ id }: { id: number }) {
   const leases = useLeaseWaits();
   const me = useMe();
   const nameOf = useNameOf();
+  // A task a seat of an agent works is that agent's work beside its own: the page says so once.
+  const seatOf = useAgents().data?.agents.find((a) => a.key === q.data?.to)?.hired_from;
   useTaskSeen(id);
   const scroller = useRef<HTMLDivElement>(null);
   // The comment the box below answers, picked by Reply or a comment's Reference.
@@ -139,6 +141,7 @@ export function TaskTab({ id }: { id: number }) {
                 <p className="text-xs text-muted">
                   Reports to {isPerson(t.asker, me) ? 'you' : nameOf(t.asker)} · <span title={t.created}>created {ago(t.created)}</span>
                   {open && chain && <> · {chain}</>}
+                  {open && seatOf && <> · {nameOf(seatOf)} works it alongside its main work</>}
                   {t.done && (
                     <>
                       {' '}

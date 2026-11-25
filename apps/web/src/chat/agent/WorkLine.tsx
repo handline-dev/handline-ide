@@ -3,7 +3,7 @@ import type { TranscriptItem } from '@handline/client';
 import { ArrowRight, Check, ChevronRight, X } from 'lucide-react';
 import { count } from '#src/format/count.ts';
 import { ago, useNow } from '#src/format/time.ts';
-import { workOf } from '#src/layout/kinds.tsx';
+import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 
@@ -22,13 +22,13 @@ export function endedWork(entries: readonly { kind: string; item?: TranscriptIte
   );
 }
 
-/** A task the agent did beside its own work, at its start and its end: one line that opens what was done, read only. A start
+/** A task the agent did beside its own work, at its start and its end: one line that opens the task's page, as any task does. A start
  * line whose work has ended says when it started. */
 export function WorkLine({ work, at, over }: { work: Work; at: string; over: boolean }) {
   const title = useTask(work.task_id).data?.title;
   const commits = Hooks.useTaskChanges({ task: work.task_id }, { enabled: work.phase === 'ended' }).data?.commits.length;
   const now = useNow();
-  const open = useOpenable(workOf(work.seat, work.task_id));
+  const open = useOpenable(taskOf(work.task_id));
   const end = work.phase === 'ended' ? ENDED[work.ended ?? 'done'] : null;
   const running = !end && !over;
   return (

@@ -6,7 +6,6 @@ import {
   replaceEqualDeep,
   useInfiniteQuery,
   usePrefetchInfiniteQuery,
-  useQuery,
   useQueryClient,
   useSuspenseInfiniteQuery,
   type InfiniteData,
@@ -266,16 +265,3 @@ export function useChatActions(agent: string) {
     sending: send.isPending,
   };
 }
-
-/** What a seat did for one task, from its hire to its leave (or to now): chat.transcript with task, kept current by the chat feed. */
-export function useWorkTranscript(seat: string, task: number) {
-  const { store, daemon, served } = useChatBase(seat);
-  return useQuery({
-    queryKey: qk.work(daemon, seat, task),
-    queryFn: () => store.client.call('chat.transcript', { agent: seat, task, limit: WORK_LIMIT }),
-    enabled: served,
-    staleTime: Infinity,
-  });
-}
-/** The newest this many items of one hire: the most a transcript page holds (the daemon's maxLimit). */
-const WORK_LIMIT = 200;

@@ -40,8 +40,6 @@ function takeMessage(pages: Pages<MsgPage>, m: ChatMessage, me: string): Pages<M
 export function chatEvent({ qc, d, me }: Ctx, e: WireEvent): void {
   const agent = e.agent;
   if (!agent) return;
-  // A seat's record of a task is read again whole: its pages hold only that hire, which the event does not say.
-  if (e.type === 'chat.transcript' || e.type === 'chat.working') void qc.invalidateQueries({ queryKey: qk.workOf(d, agent) });
   if (e.type === 'chat.transcript') {
     const item = e.data as unknown as TranscriptItem;
     edit<Pages<TrPage>>(
