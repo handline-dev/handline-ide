@@ -3,6 +3,9 @@ package compose
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
@@ -16,6 +19,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/claudetrust"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/kit/paths"
@@ -242,10 +246,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 // tellOpener tells a notice about agent to the agent that opened the oldest task waiting for it, else the founder (db.AgentNoticeTo): the
 // daemon log alone reaches no one.
 func tellOpener(env *supervisor.Env, log func(string, ...any), q db.Q, agent, text, reason string) {
-	to, tid, err := db.AgentNoticeTo(q, agent)
-	if actor.IsPerson(to) {
-		tid = 0 // the founder's warning is about the agent: it leaves when the agent is mended, which the task's opener cannot do
-	}
+	to, tid, err := noticeRoute(q, agent)
 	if err == nil {
 		err = env.TellAbout(q, to, agent, tid, text, reason, time.Now().Unix())
 	}
@@ -254,18 +255,39 @@ func tellOpener(env *supervisor.Env, log func(string, ...any), q db.Q, agent, te
 	}
 }
 
+// noticeRoute is who hears that agent went wrong, and about which task.
+func noticeRoute(q db.Q, agent string) (string, int64, error) {
+	to, tid, err := db.AgentNoticeTo(q, agent)
+	if actor.IsPerson(to) {
+		tid = 0 // the founder's warning is about the agent: it leaves when the agent is mended, which the task's opener cannot do
+	}
+	return to, tid, err
+}
+
 // tellOpenerOfStall tells that agent's starts for waiting work failed and it is stalled.
 func tellOpenerOfStall(env *supervisor.Env, log func(string, ...any)) func(db.Q, string, string) {
 	return func(q db.Q, agent, why string) {
 		tellOpener(env, log, q, agent, fmt.Sprintf("%s is STALLED: %d starts for the work waiting for it failed. The last said: %s. "+
-			"Fix that (often its workspace folder), then clear the stall in the app.", agent, states.MaxFailedAttempts, why), "start_stall")
+			"Fix that (often its workspace folder), then clear the stall in the app.", addr.Ref(agent), states.MaxFailedAttempts, why), "start_stall")
 	}
 }
 
-// CheckRepos tells (tellOpener) when the repo its row names is no git checkout, since a start there fails. Once per break: a
-// daemon restart does not tell it again, and a repo fixed and broken again is told again.
+// badRepo is the agents whose one repo broke, all told to the same one about the same task.
+type badRepo struct {
+	repo, why, to string
+	tid           int64
+	agents        []string
+}
+
+// CheckRepos tells when the repo an agent's row names is no git checkout, since a start there fails. Once per break: a daemon restart does
+// not tell it again, and a repo fixed and broken again is told again. Agents that share the broken repo (a workspace's folder gone) and
+// the one who hears it are told in one notice, named, not one per agent. The founder's notice is kept under its first agent and leaves
+// when that one is mended, so a mend on a repo tells the founder again of the agents still broken on it.
 func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...any)) {
+	type seen struct{ agent, repo, why, told string }
 	roster := team.NewRoster(home)
+	var all []seen
+	mended := map[string]bool{} // repos an agent was told of and is off now
 	for _, agent := range paths.ListAgents(home) {
 		repo := roster.RepoOf(agent)
 		why := ""
@@ -273,8 +295,12 @@ func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...an
 			why = team.CheckoutProblem(repo)
 		}
 		_, last, _, err := db.LastEvent(q, agent, "bad_repo")
+		if err != nil {
+			continue
+		}
 		told, _ := last["repo"].(string)
-		if err != nil || why == "" && told == "" || why != "" && told == repo {
+		all = append(all, seen{agent, repo, why, told})
+		if why == "" && told == "" || why != "" && told == repo {
 			continue
 		}
 		bad := repo
@@ -283,14 +309,91 @@ func CheckRepos(q db.Q, home string, env *supervisor.Env, log func(string, ...an
 		}
 		if _, err := db.AddEvent(q, agent, "bad_repo", db.KV{K: "repo", V: bad}); err != nil {
 			log("  %s: bad_repo not recorded: %v", agent, err)
+			all = all[:len(all)-1]
 			continue
 		}
-		if why != "" {
-			log("  %s: repo %s %s", agent, repo, why)
-			tellOpener(env, log, q, agent, fmt.Sprintf("%s's repo %s %s, so it cannot be started there. Give it the absolute path of a "+
-				"git checkout (its workspace folder).", agent, repo, why), "bad_repo")
+		if told != "" {
+			mended[told] = true
 		}
 	}
+	var groups []*badRepo
+	for _, a := range all {
+		if a.why == "" {
+			continue
+		}
+		again := a.told == a.repo
+		if again && !mended[a.repo] {
+			continue
+		}
+		to, tid, err := noticeRoute(q, a.agent)
+		if err != nil {
+			log("  %s: bad_repo was not told: %v", a.agent, err)
+			continue
+		}
+		if again && !actor.IsPerson(to) {
+			continue // an agent's notice of it is its own; only the founder's shared one left with the mended agent
+		}
+		if !again {
+			log("  %s: repo %s %s", a.agent, a.repo, a.why)
+		}
+		groups = addBadRepo(groups, badRepo{repo: a.repo, why: a.why, to: to, tid: tid}, a.agent)
+	}
+	for _, g := range groups {
+		if err := env.TellAbout(q, g.to, g.agents[0], g.tid, badRepoText(g), "bad_repo", time.Now().Unix()); err != nil {
+			log("  %s: bad_repo was not told to %s: %v", g.agents[0], g.to, err)
+		}
+	}
+}
+
+// addBadRepo puts agent in the group of b's repo and receiver, opening one when none is.
+func addBadRepo(groups []*badRepo, b badRepo, agent string) []*badRepo {
+	for _, g := range groups {
+		if g.repo == b.repo && g.why == b.why && g.to == b.to && g.tid == b.tid {
+			g.agents = append(g.agents, agent)
+			return groups
+		}
+	}
+	b.agents = []string{agent}
+	return append(groups, &b)
+}
+
+// badRepoNamed is how many agents a bad-repo notice names before it counts the rest.
+const badRepoNamed = 3
+
+// badRepoText says which agents cannot start and why, each agent as a reference its reader sees by name and the repo under ~.
+func badRepoText(g *badRepo) string {
+	refs := make([]string, 0, badRepoNamed)
+	for _, a := range g.agents[:min(len(g.agents), badRepoNamed)] {
+		refs = append(refs, addr.Ref(a))
+	}
+	who := refs[0]
+	switch rest := len(g.agents) - len(refs); {
+	case rest > 0:
+		who = fmt.Sprintf("%s and %d more", strings.Join(refs, ", "), rest)
+	case len(refs) > 1:
+		who = strings.Join(refs[:len(refs)-1], ", ") + " and " + refs[len(refs)-1]
+	}
+	if len(g.agents) == 1 {
+		return fmt.Sprintf("%s cannot be started: its repo %s %s. Give it the absolute path of a git checkout (its workspace folder).",
+			who, homeShort(g.repo), g.why)
+	}
+	return fmt.Sprintf("%s cannot be started: their repo %s %s. Give them the absolute path of a git checkout (their workspace folder).",
+		who, homeShort(g.repo), g.why)
+}
+
+// homeShort is path with the user's home written as ~.
+func homeShort(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(path, home+string(filepath.Separator)); ok {
+		return "~/" + rest
+	}
+	return path
 }
 
 func nowOf(f func() time.Time) func() time.Time {
