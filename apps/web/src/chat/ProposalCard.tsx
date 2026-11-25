@@ -1,8 +1,8 @@
 // At the end of a chat whose agent asked the founder for something (a proposal: run a command, change a file or a setting): what it
 // asks, why, exactly what changes (the command, each change's lines, a file's text before and after), and Deny or Run here, the same
 // answers its Requests row gives.
-import { changeRows, proposalTitle } from '@handline/app-core';
-import { Hooks, useNameOf, useProposals } from '@handline/app-data';
+import { changeRows, plainRefs, proposalTitle } from '@handline/app-core';
+import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
 import type { Proposal } from '@handline/client';
 import { ArrowRight, Lightbulb } from 'lucide-react';
 import { useState } from 'react';
@@ -40,6 +40,7 @@ export function ProposalCards({ agent }: { agent: string }) {
 /** Each change a yes makes, full width: a file's text before and after, any other its own lines. */
 function Changes({ p }: { p: Proposal }) {
   const nameOf = useNameOf();
+  const dir = useDirectory();
   const steps = p.changes?.length ? p.changes : [{ kind: p.kind ?? '', agent: p.agent, diff: p.diff }];
   return (
     <div className="flex flex-col gap-2">
@@ -52,9 +53,14 @@ function Changes({ p }: { p: Proposal }) {
             <TextDiff before={c.before ?? ''} after={c.after} />
           </div>
         ) : c.kind === 'run' ? (
-          <Lines key={i} lines={c.diff.split('\n').filter((l) => l.trim())} />
+          <Lines
+            key={i}
+            lines={plainRefs(dir, c.diff)
+              .split('\n')
+              .filter((l) => l.trim())}
+          />
         ) : (
-          <Rows key={i} diff={c.diff} />
+          <Rows key={i} diff={plainRefs(dir, c.diff)} />
         ),
       )}
     </div>

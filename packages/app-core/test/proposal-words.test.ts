@@ -21,7 +21,16 @@ test('a bundle is called by its steps', () => {
       { kind: 'context', agent: 'a10' },
     ],
   };
-  assert.equal(proposalTitle(p, nameOf), "Change ui's settings, then Change ui's prompt");
+  assert.equal(proposalTitle(p, nameOf), "Change ui's settings, change ui's prompt");
+  const three = {
+    ...p,
+    changes: [
+      { kind: 'retire', agent: 'a4' },
+      { kind: 'context', agent: 'a3' },
+      { kind: 'context', agent: 'a8' },
+    ],
+  };
+  assert.equal(proposalTitle(three, nameOf), 'Retire a4, change 2 prompts');
 });
 
 test('change lines read as what, from and to', () => {

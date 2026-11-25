@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { byWorkspace, nameOf, renderRefs, toRefs, type Directory } from '#src/index.ts';
+import { byWorkspace, nameOf, plainRefs, renderRefs, toRefs, type Directory } from '#src/index.ts';
 
 const dir: Directory = {
   agents: [
@@ -20,7 +20,7 @@ const dir: Directory = {
 test('a key reads as an agent by its name, or workspace/name when two share it, a person by display name', () => {
   assert.deepEqual(
     ['a1', 'a2', 'a3', 'a4', 'a5', 'p1', 'w2', 'sys', 'a99'].map((k) => nameOf(dir, k)),
-    ['shop/lead', 'shop/designer', 'site/lead', 'site/designer', 'auditor', 'Sam', 'site', 'task-board', 'a99'],
+    ['shop/lead', 'shop/designer', 'site/lead', 'site/designer', 'auditor', 'Sam', 'site', 'task-board', 'a removed agent'],
   );
 });
 
@@ -58,4 +58,10 @@ test('agents group by workspace in its order, lead first, and an agent of an unk
       [null, ['a9']],
     ],
   );
+});
+
+test('a key no list holds is never shown raw, and plain text names without @', () => {
+  assert.equal(nameOf(dir, 'a404'), 'a removed agent');
+  assert.equal(nameOf(dir, 'p77'), 'someone');
+  assert.equal(plainRefs(dir, 'retire <@a404>, replace ROLE.md of <@a5>'), 'retire a removed agent, replace ROLE.md of auditor');
 });

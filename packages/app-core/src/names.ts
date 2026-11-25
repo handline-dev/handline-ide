@@ -33,7 +33,12 @@ export function nameOf(d: Directory, key: string, here?: string): string {
   if (p) return p.display_name;
   const w = d.workspaces.find((x) => x.key === key);
   if (w) return w.name;
-  return key === SYS ? 'task-board' : key;
+  if (key === SYS) return 'task-board';
+  // A key no list holds (an agent retired and gone, a person not read yet) is never shown raw: an id means nothing on a screen.
+  // Only once the list is read: before that, every key is just not known yet.
+  if (d.agents.length && /^a\d+$/.test(key)) return 'a removed agent';
+  if (d.people.length && /^p\d+$/.test(key)) return 'someone';
+  return key;
 }
 
 const REF = /<@([a-z]+[0-9]*)>/g;
@@ -44,6 +49,10 @@ export const refsIn = (text: string): string[] => [...text.matchAll(REF)].map((m
 /** Text as the screens show it: each stored `<@key>` is `@` and its name. */
 export const renderRefs = (d: Directory, text: string): string =>
   text.includes('<@') ? text.replace(REF, (_, k: string) => `@${nameOf(d, k)}`) : text;
+
+/** Text as a plain sentence: each stored `<@key>` is the name alone, for lines that are not chat (a proposal's change lines). */
+export const plainRefs = (d: Directory, text: string): string =>
+  text.includes('<@') ? text.replace(REF, (_, k: string) => nameOf(d, k)) : text;
 
 /** Text as the app sends it: each `@word` that is an agent's word (`workspace/name`, or a name only one agent has) or a person's becomes `<@key>`;
  * any other `@word`, and one inside a path (`/@legacy/`), stays text. */

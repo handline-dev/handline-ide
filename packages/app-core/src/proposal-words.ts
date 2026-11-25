@@ -13,12 +13,25 @@ const PHRASE: Record<string, (who: string) => string> = {
   run: () => 'Run a command',
 };
 
+/** The same kind of step for several agents, said once with how many. */
+const MANY: Record<string, (n: number) => string> = {
+  add: (n) => `Add ${n} agents`,
+  retire: (n) => `Retire ${n} agents`,
+  rename: (n) => `Rename ${n} agents`,
+  settings: (n) => `Change ${n} agents' settings`,
+  context: (n) => `Change ${n} prompts`,
+  schedule: (n) => `Change ${n} schedules`,
+};
+
 /** "Change ui's prompt"; a bundle is "3 changes"; a kind not known keeps the daemon's title. */
 export function proposalTitle(p: P, nameOf: (key: string) => string): string {
   if (p.kind === 'bundle') {
-    // Each step said as itself ("Change auditor's settings and Change auditor's prompt"), so the card says what it asks.
-    const steps = [...new Set((p.changes ?? []).map((c) => (PHRASE[c.kind] ? PHRASE[c.kind](nameOf(c.agent)) : '')))];
-    if (steps.length && steps.every(Boolean)) return steps.join(', then ');
+    // Said by what it changes ("Retire audit-tools, change 2 prompts"), never by a count alone.
+    const steps = p.changes ?? [];
+    const byKind = new Map<string, string[]>();
+    for (const c of steps) byKind.set(c.kind, [...(byKind.get(c.kind) ?? []), nameOf(c.agent)]);
+    const parts = [...byKind].map(([kind, who]) => (who.length === 1 ? PHRASE[kind]?.(who[0]) : MANY[kind]?.(who.length)));
+    if (parts.length && parts.every(Boolean)) return parts.map((x, i) => (i ? x!.charAt(0).toLowerCase() + x!.slice(1) : x)).join(', ');
     const n = p.diff.split('\n').filter((l) => l.trim()).length;
     return `${n} ${n === 1 ? 'change' : 'changes'}`;
   }

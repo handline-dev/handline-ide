@@ -1,6 +1,6 @@
 // An HR proposal read whole: what it does, who asked and why, each change, and Allow or Deny while it waits on the founder.
-import { proposalTitle } from '@handline/app-core';
-import { Hooks, useNameOf, useProposals } from '@handline/app-data';
+import { plainRefs, proposalTitle } from '@handline/app-core';
+import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 import { ago } from '#src/format/time.ts';
 import { DiffLines, diffLines, type Line } from '#src/tools/TaskDiff.tsx';
@@ -40,6 +40,7 @@ export function TextDiff({ before, after }: { before: string; after: string }) {
 
 export function ProposalView({ id }: { id: number }) {
   const nameOf = useNameOf();
+  const dir = useDirectory();
   const list = useProposals();
   const p = list.data?.proposals.find((x) => x.id === id);
   // The answer buttons are the row's own, from the founder's turn for this proposal.
@@ -84,7 +85,7 @@ export function ProposalView({ id }: { id: number }) {
               </div>
             ) : (
               <ul key={i} className="flex flex-col rounded-md border border-border">
-                {rows(c.diff).map((l, k) => (
+                {rows(plainRefs(dir, c.diff)).map((l, k) => (
                   <li key={k} className="border-t border-border px-3 py-2 font-mono text-xs first:border-t-0">
                     {l}
                   </li>
