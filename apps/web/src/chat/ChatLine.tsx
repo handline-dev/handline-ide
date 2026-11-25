@@ -1,5 +1,5 @@
 import { Ago } from '#src/ui/Ago.tsx';
-import { BASH_WATCH_MS, isPerson, isSystem, maybeRanNote, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
+import { BASH_WATCH_MS, drawsNothing, isPerson, maybeRanNote, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
 import { CornerDownRight } from 'lucide-react';
@@ -18,21 +18,6 @@ import { spring } from '#src/motion.ts';
 import { CommandsOf } from '#src/chat/CommandBlock.tsx';
 import { WorkLine } from '#src/chat/agent/WorkLine.tsx';
 export { endedWork } from '#src/chat/agent/WorkLine.tsx';
-
-/** Whether a line draws nothing (what others said to the agent, an empty item): the rules ChatLine follows, so a run of task
- * cards is not cut by a line nobody sees. */
-export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
-  if (e.kind === 'item')
-    return (
-      !e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed && !e.item.concurrent_work
-    );
-  if (e.kind === 'proposal') return true;
-  // The daemon's own bookkeeping (sys digests and nudges) is not shown anywhere.
-  if (isSystem(e.message.from)) return true;
-  if (!isPerson(e.message.from, me) && !isPerson(e.message.to, me)) return e.message.from !== agent;
-  const text = e.message.parts ? e.message.parts.some((p) => 'text' in p && p.text.trim()) : !!e.message.body;
-  return !text && !(e.message.attachments ?? []).some((a) => a.mime.startsWith('image/'));
-}
 
 /** One line of the chat: a compaction, or a message or reply (its pictures above its text) with copy and quote on hover. A line with neither draws nothing.
  * It fades in when it arrives; lines already there when the chat opens just show (AnimatePresence initial off, in the stream). */
@@ -70,8 +55,6 @@ export function ChatLine({
   const key = `${e.kind}:${e.id}`;
   if (drawsNothing(e, agent, me)) return null;
   const fade = { initial: fades ? { opacity: 0 } : (false as const), animate: { opacity: 1 }, transition: spring };
-  // A session started by an account move is part of that move: its Moved to line says it.
-  if (e.kind === 'item' && e.item.session?.cause === 'move') return null;
   if (e.kind === 'item' && e.item.session)
     return (
       <motion.div data-id={key} {...fade}>
@@ -108,7 +91,6 @@ export function ChatLine({
   // A message that does not involve the founder is the agent's talk with another. What it said to others is a quiet line, read
   // whole on a click; what others said to it is not shown.
   if ((e.kind === 'message' || e.kind === 'note') && !isPerson(e.message.from, me) && !isPerson(e.message.to, me)) {
-    if (e.message.from !== agent) return null;
     return (
       <motion.div data-id={key} {...fade} className="flex">
         <AgentNote m={e.message} />

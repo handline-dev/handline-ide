@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
-import { isPerson } from '@handline/app-core';
+import { isPerson, type TaskEvent } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
@@ -10,24 +10,6 @@ import { clock } from '#src/format/time.ts';
 import { Ago } from '#src/ui/Ago.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-
-/** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line". */
-export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start' | 'comment';
-export type TaskEvent = {
-  key: string;
-  kind: TaskEventKind;
-  id: string;
-  title: string;
-  detail: string;
-  before?: string;
-  after?: string;
-  /** The chat line it was drawn from (`item:<id>`), when it is not a message's. */
-  line?: string;
-  /** When it happened: shown under the card on hover. */
-  at?: string;
-  /** Who the task was given or handed to, for a made or handed task: matches a live change with its notice. */
-  to?: string;
-};
 
 /** Where the task stands now and who holds it: "With web-data", "Queued for daemon-core", "Done". */
 function holder(t: Task, me: string, nameOf: (key: string) => string): string {
@@ -38,25 +20,6 @@ function holder(t: Task, me: string, nameOf: (key: string) => string): string {
   if (t.state === 'draft') return `Draft for ${to}`;
   if (word === 'Waiting') return 'Waiting for you';
   return t.state === 'doing' && word === 'Doing' ? `With ${to}` : `${word} · with ${to}`;
-}
-
-/** Task cards with each task in one card only, the first it is in, which takes its later changes: a row stays where it came up and
- * changes in place; a later card left with no task goes. */
-export function onePerTask<R extends object>(rows: R[]): R[] {
-  const eventsOf = (r: R): TaskEvent[] | null => ('events' in r && Array.isArray(r.events) ? r.events : null);
-  const firstIn = new Map<string, number>();
-  rows.forEach((r, i) => eventsOf(r)?.forEach((e) => firstIn.has(e.id) || firstIn.set(e.id, i)));
-  const moved = new Map<number, TaskEvent[]>();
-  for (const r of rows)
-    for (const e of eventsOf(r) ?? []) {
-      const to = firstIn.get(e.id)!;
-      moved.set(to, [...(moved.get(to) ?? []), e]);
-    }
-  return rows.flatMap((r, i) => {
-    if (!eventsOf(r)) return [r];
-    const events = moved.get(i);
-    return events ? [{ ...r, events }] : [];
-  });
 }
 
 /** One task the card touched, with its changes, oldest first. */

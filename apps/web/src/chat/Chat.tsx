@@ -1,14 +1,5 @@
 import { Spinner } from '#src/ui/Loading.tsx';
-import {
-  chatView,
-  foldBash,
-  foldTurns,
-  unblockedStart,
-  isPerson,
-  turnMinutes,
-  type TimelineEntry,
-  type TurnRecord as Turn,
-} from '@handline/app-core';
+import { chatView, foldBash, foldTurns, knownUpTo, onePerTask, taskRuns, turnMinutes } from '@handline/app-core';
 import {
   useAgents,
   useChat,
@@ -19,7 +10,7 @@ import {
   useNameOf,
   useVerbRun,
 } from '@handline/app-data';
-import { noteText, restartingLine, VERBS } from '@handline/app-core';
+import { restartingLine, VERBS } from '@handline/app-core';
 import { useMe, useNearEnd } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { spring } from '#src/motion.ts';
@@ -36,9 +27,9 @@ import { FootRow, HoldCard, useHoldLine } from '#src/chat/agent/HoldBar.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
-import { onePerTask, TaskActivity, useTaskActivity, type TaskEvent } from '#src/chat/TaskActivity.tsx';
+import { TaskActivity, useTaskActivity } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
-import { ChatLine, drawsNothing, endedWork, type Reply } from '#src/chat/ChatLine.tsx';
+import { ChatLine, endedWork, type Reply } from '#src/chat/ChatLine.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
@@ -172,121 +163,6 @@ export function Chat({ agent }: { agent: string }) {
   );
 }
 
-/** A task this agent gave or handed another agent, or one another agent gave or handed it, said as a message (kind task): drawn as the task, not as talk. */
-const taskNotice = (e: TimelineEntry | Turn, agent: string, me: string) =>
-  e.kind === 'message' &&
-  e.message.kind === 'task' &&
-  e.message.tasks.length > 0 &&
-  (e.message.from === agent ? !isPerson(e.message.to, me) : e.message.to === agent && !isPerson(e.message.from, me));
-
-/** Whether a notice says a task was handed on, or made and given. */
-const noticeKind = (body: string) => (/^T\d+\s+handed\b/i.test(body) ? 'handoff' : 'add');
-
-/** A run of task rows as one card. `id`, its React key, names the line before it, so the card changes in place as rows join or give way to
-    their notice; `key` names its newest notice, so the reader's line is found again when an older page lands. */
-type Card = { id: string; key: string; events: TaskEvent[] };
-
-/** A comment's first line, without its leading address. */
-const firstLine = (body: string) =>
-  noteText(body)
-    .split('\n')
-    .find((l) => l.trim()) ?? '';
-
-/** The entries, with each run of task notices gathered into one card's rows. */
-function runs(
-  entries: (TimelineEntry | Turn)[],
-  agent: string,
-  me: string,
-  nameOf: (key: string) => string,
-  live: TaskEvent[] = [],
-): (TimelineEntry | Turn | Card)[] {
-  const out: (TimelineEntry | Turn | Card)[] = [];
-  // Task changes heard while the chat is open go in by their time, joining a card next to them, so they scroll up as talk goes on.
-  // A task made and given, or handed on, arrives twice, live and as the notice message: the notice's row is the one kept.
-  const noticed = new Set(
-    entries.flatMap((e) =>
-      e.kind === 'message' && taskNotice(e, agent, me)
-        ? e.message.tasks.map((t) => `${noticeKind(e.message.body)}:T${t.id}:${e.message.to}`)
-        : [],
-    ),
-  );
-  const heard = live
-    .filter((ev) => !noticed.has(`${ev.kind}:${ev.id}:${ev.to}`))
-    .sort((a, b) => Date.parse(a.at ?? '') - Date.parse(b.at ?? ''));
-  const add = (rows: TaskEvent[], key: string) => {
-    const last = out.at(-1);
-    if (last && 'events' in last) {
-      last.events.push(...rows);
-      last.key = key;
-    } else out.push({ id: `tasks:after:${last ? `${last.kind}:${last.id}` : ''}`, key, events: rows });
-  };
-  const until = (at: string) => {
-    while (heard.length && Date.parse(heard[0].at ?? '') <= Date.parse(at)) {
-      const ev = heard.shift()!;
-      add([ev], `tasks:${ev.key}`);
-    }
-  };
-  for (const e of entries) {
-    until(e.at);
-    // A comment on a task is that task's row, at its time, with its first line and who said it.
-    const said = e.kind === 'item' ? e.item.task_comment : undefined;
-    if (e.kind === 'item' && said) {
-      const who = said.kind === 'answer' || isPerson(said.who, me) ? 'You' : nameOf(said.who);
-      add(
-        [
-          {
-            key: `c${e.id}`,
-            kind: 'comment',
-            id: `T${said.task}`,
-            title: '',
-            detail: `${who}: ${firstLine(said.text)}`,
-            at: e.at,
-            line: `item:${e.id}`,
-          },
-        ],
-        `tasks:c${e.id}`,
-      );
-      continue;
-    }
-    const freed = e.kind === 'item' ? unblockedStart(e.item) : null;
-    if (freed) {
-      // The title is read with the task's state (TaskActivity).
-      add(
-        [{ key: `u${e.id}`, kind: 'start', id: `T${freed.task}`, title: '', detail: freed.detail, at: e.at, line: `item:${e.id}` }],
-        `tasks:u${e.id}`,
-      );
-      continue;
-    }
-    if (!taskNotice(e, agent, me) || e.kind !== 'message') {
-      // A line that draws nothing is kept out of the way: it goes before the card, so the run goes on.
-      const last = out.at(-1);
-      if (last && 'events' in last && e.kind !== 'record' && drawsNothing(e, agent, me)) out.splice(out.length - 1, 0, e);
-      else out.push(e);
-      continue;
-    }
-    const m = e.message;
-    // A task handed on from another holder, or a new one made and given: said in words, its icon telling which.
-    const handed = noticeKind(m.body) === 'handoff';
-    // Given to this agent: where its work starts, from whom.
-    const got = m.to === agent;
-    const rows = m.tasks.map((t) => ({
-      key: `${m.id}:${t.id}`,
-      kind: got ? ('start' as const) : handed ? ('handoff' as const) : ('add' as const),
-      id: `T${t.id}`,
-      title: t.title,
-      detail: got
-        ? `${handed ? 'Handed' : 'Assigned'} by ${nameOf(m.from)}`
-        : handed
-          ? `Handed to ${nameOf(m.to)}`
-          : `Created and assigned to ${nameOf(m.to)}`,
-      at: m.at,
-    }));
-    add(rows, `tasks:${m.id}`);
-  }
-  until(new Date(8.64e15).toISOString());
-  return out;
-}
-
 /** The stream's frame without its lines: what stands while they load. */
 function Shell({ children }: { children: ReactNode }) {
   return (
@@ -337,28 +213,14 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const endKey = end ? `${end.kind}:${end.id}` : null;
   const [tail, setTail] = useState({ end: endKey, before: endKey });
   if (tail.end !== endKey) setTail({ end: endKey, before: tail.end });
-  const known = (all: ReturnType<typeof runs>) => {
-    const at = all.map((r) =>
-      'events' in r
-        ? r.events.map((e) => e.line ?? `message:${e.key.split(':')[0]}`)
-        : r.kind === 'record'
-          ? r.items.map((i) => `item:${i.id}`)
-          : [`${r.kind}:${r.id}`],
-    );
-    for (let i = at.length - 1; i >= 0; i--) if (at[i].includes(tail.before ?? '')) return i;
-    // Not drawn: the line joined an earlier card of its task (onePerTask), so the rows that start above that line are the known ones.
-    const pos = new Map(entries.map((e, n) => [`${e.kind}:${e.id}`, n]));
-    const before = pos.get(tail.before ?? '');
-    if (before === undefined) return Infinity;
-    for (let i = at.length - 1; i >= 0; i--) if (Math.min(...at[i].map((k) => pos.get(k) ?? Infinity)) <= before) return i;
-    return -1;
-  };
   // The words of each loaded message, for the line above a reply.
   const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
   const tasks = useTaskActivity(agent);
   const ended = endedWork(entries);
   // Each task once, as a row where it first came up, changed in place by what comes later.
-  const rows = onePerTask(runs(foldTurns(entries), agent, me, nameOf, tasks));
+  const rows = onePerTask(taskRuns(foldTurns(entries), agent, me, nameOf, tasks));
+  // Rows after the last one drawn before this render are new and fade in; an older page landing above just shows.
+  const known = knownUpTo(rows, entries, tail.before);
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,
     margin: 400,
@@ -395,7 +257,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                   <motion.div
                     key={r.id}
                     data-id={r.key}
-                    initial={i <= known(all) ? false : { opacity: 0 }}
+                    initial={i <= known ? false : { opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={spring}
                     className="flex"
@@ -403,7 +265,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                     <TaskActivity events={r.events} />
                   </motion.div>
                 ) : r.kind === 'record' ? (
-                  <TurnRecord key={`record:${r.id}`} r={r} fade={i > known(all)} />
+                  <TurnRecord key={`record:${r.id}`} r={r} fade={i > known} />
                 ) : (
                   <ChatLine
                     key={`${r.kind}:${r.id}`}
@@ -415,7 +277,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                     bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
                     moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
                     workOver={r.kind === 'item' && !!r.item.concurrent_work && ended.has(r.item.concurrent_work.task_id)}
-                    fade={i > known(all)}
+                    fade={i > known}
                   />
                 ),
               )}
