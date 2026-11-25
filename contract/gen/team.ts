@@ -9,8 +9,6 @@ export type TeamAgent = {
   /** The word the caller uses for this agent: its name in the caller's workspace, another workspace's lead by that workspace's name, any other agent as name (workspace). */
   name: string;
   role: string;
-  /** The key of the agent or person it reports to; null for none. */
-  reports_to: string | null;
   role_file: {
     path: string;
     updated: Timestamp | null;

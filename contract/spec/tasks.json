@@ -2355,7 +2355,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Every team's tasks, not only the caller's and its reports'."
+      "description": "Every team's tasks, not only the caller's."
      }
     },
     {
@@ -2442,7 +2442,7 @@
     "feed": "tasks"
    },
    "x-since": 1,
-   "description": "Newest id first. To read every task, call with `all: true` and `limit: 200`, then again with `before` set to the smallest `id` of the page before, until `more` is false: nothing is skipped or repeated, because a page is the rows with an id below `before`. The caller's own scope still applies (itself and its reports for an agent, unless `everyone`)."
+   "description": "Newest id first. To read every task, call with `all: true` and `limit: 200`, then again with `before` set to the smallest `id` of the page before, until `more` is false: nothing is skipped or repeated, because a page is the rows with an id below `before`. The caller's own scope still applies (its own tasks for an agent, unless `everyone`)."
   },
   {
    "name": "task.get",
@@ -4629,7 +4629,7 @@
   },
   {
    "name": "task.board",
-   "summary": "The caller's open tasks and its reports', and who holds each now. The founder's board is the tasks the founder owns.",
+   "summary": "The caller's open tasks, and who holds each now. The founder's board is the tasks the founder owns.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4637,7 +4637,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Every team's open tasks, not only the caller's and its reports'."
+      "description": "Every team's open tasks, not only the caller's."
      }
     }
    ],
@@ -4651,17 +4651,10 @@
        "items": {
         "$ref": "#/components/schemas/TaskBoardRow"
        }
-      },
-      "reports": {
-       "type": "array",
-       "items": {
-        "$ref": "#/components/schemas/TaskBoardRow"
-       }
       }
      },
      "required": [
-      "mine",
-      "reports"
+      "mine"
      ]
     }
    },

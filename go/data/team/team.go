@@ -28,15 +28,6 @@ func SplitLegacy(legacy string) (ws, agent string) {
 	return ws, agent
 }
 
-// ParentName is the agent a name hangs under: harbor.sea -> harbor; "" for a name with no dot.
-func ParentName(agent string) string {
-	i := strings.LastIndex(agent, ".")
-	if i <= 0 {
-		return ""
-	}
-	return agent[:i]
-}
-
 // Decision is what routing says about one request: a link only allows a message.
 type Decision struct {
 	Allowed    bool

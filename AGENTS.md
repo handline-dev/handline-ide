@@ -19,8 +19,6 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
   inside your own task.
 - You hold one task at a time. Its done or handoff is how the result reaches
   whoever asked, never a second task repeating it.
-- A lead keeps one queued task behind each report's current one, so the next
-  starts the moment the current one ends.
 - A memo meant for someone names them: `@<agent>`; a memo that only informs names no one.
 - Close with `hl task done T<n> <pushed sha>`. A wrong result is reopened by its asker (`hl task reopen T<n> "<why>"`).
 - Work lands on main directly, as above (Landing), with no story branches and no founder merge step.
@@ -36,8 +34,6 @@ True for any agent, whatever tool runs it. Your name is in `$HANDLINE_AGENT`.
   `hl team` (a bare `auditor` for `<team>.auditor`) is refused with "unknown
   target" in the command's own output - read it, or you wait for a reply that
   never comes.
-- A manager cannot hand a report work by message: write to a report about its task with
-  `hl task comment T<n> add "@<report> ..."`.
 - Agents never open a task for the founder. News on a task is `hl task comment T<n> add "@human ..."`; news with no task is `hl say human "..."`.
 
 ## Repositories

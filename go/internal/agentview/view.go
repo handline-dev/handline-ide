@@ -467,7 +467,6 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 			}
 		}
 	}
-	var parent any // agents are peers; parent stays null until clients stop reading it
 	st := e.status(agent, row, state, detail, handoff, now)
 	var doing any
 	if e.Doing != nil && state == "running" && st.Reason != status.Background { // no turn runs: what it last did is not what it does
@@ -488,7 +487,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"block": block, "wall_reason": wallBanner(must(e.WallReason(e.Q, agent, row)), st), "background_since": bg,
 		"would_wake": row != nil && must(e.WouldWake(row)),
 		"blocker":    blocker, "account": account, "task": task, "cache_until": cache, "ctx_pct": ctx,
-		"has_dialog": word == "DIALOG", "parent": parent, "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
+		"has_dialog": word == "DIALOG", "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
 		"account_switch": must(e.switchView(row, now)), "pending_move": must(e.pendingMove(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
 	}, nil
 }

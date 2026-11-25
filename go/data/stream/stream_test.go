@@ -235,15 +235,15 @@ func TestAnAgentFilterKeepsItsEventsAndThoseOfNoAgent(t *testing.T) {
 
 func TestAnAgentSessionIsSentWhatItsRoleMayRead(t *testing.T) {
 	h, _ := rig(t)
-	reach := func(string) (map[string]bool, error) { return map[string]bool{"bob": true, "carol": true}, nil }
-	w, _ := subscribe(t, h, []string{"inbox", "tasks", "agents", "chat", "notifications"}, "", nil, newAgentView("bob", reach).may)
+	w, _ := subscribe(t, h, []string{"inbox", "tasks", "agents", "chat", "notifications"}, "", nil, agentView("bob"))
 	add(t, h, "inbox", "inbox.added", "alice") // another's inbox
 	i := add(t, h, "inbox", "inbox.added", "bob")
-	add(t, h, "tasks", "task.changed", "dave") // outside its reach
-	k := add(t, h, "tasks", "task.changed", "carol")
+	add(t, h, "tasks", "task.changed", "dave") // another's task
+	k := add(t, h, "tasks", "task.changed", "bob")
 	add(t, h, "chat", "chat.message", "bob") // a member's topic
 	add(t, h, "notifications", "prompt_asked", "bob")
-	n := add(t, h, "notifications", "stall", "carol")
+	add(t, h, "notifications", "stall", "carol")
+	n := add(t, h, "notifications", "stall", "bob")
 	if err := h.poll(); err != nil {
 		t.Fatal(err)
 	}

@@ -412,10 +412,9 @@ func (s *Spawns) EnsureRun() (string, error) {
 	return "", nil
 }
 
-// RegisterWorker makes this agent's terminal a worker in the Run, under its supervisor. Without it an agent is one more tab: the host
+// RegisterWorker makes this agent's terminal a worker in the Run, on a card of its own. Without it an agent is one more tab: the host
 // has no idea it belongs to a team, which is why an agent asked to get work done reached for a subagent - the only child it knew how to
-// make. The tree comes from the roster, so the card and the routing cannot disagree about who reports to whom. "" when nothing was
-// registered.
+// make. "" when nothing was registered.
 func (s *Spawns) RegisterWorker(agent, handle string) (string, error) {
 	if !s.Host.HasRuns() {
 		return "", nil

@@ -136,40 +136,6 @@ func (e *Env) openTasks() ([]row, error) {
 	return query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE "+openTask+" ORDER BY priority, id")
 }
 
-// reach is the agents whose tasks agent sees: itself and everyone under it, walked down the supervisor edges the
-// stored views record (the Python daemon wrote them into agent_view each tick).
-// Reach is the agent and the agents under it that are registered: what an agent session may read of tasks and notifications.
-func (e *Env) Reach(agent string) (map[string]bool, error) { return e.reach(agent) }
-
-func (e *Env) reach(agent string) (map[string]bool, error) {
-	views, err := query(e.DB, "SELECT agent, view FROM agent_view")
-	if err != nil {
-		return nil, err
-	}
-	boss := map[string]string{}
-	for _, v := range views {
-		if p, _ := decodeObject(v.str("view"))["parent"].(string); p != "" {
-			boss[v.str("agent")] = p
-		}
-	}
-	registered := map[string]bool{}
-	for _, n := range e.listAgents() {
-		registered[n] = true
-	}
-	seen, todo := map[string]bool{agent: true}, []string{agent}
-	for len(todo) > 0 {
-		top := todo[len(todo)-1]
-		todo = todo[:len(todo)-1]
-		for a, b := range boss {
-			if b == top && registered[a] && !seen[a] {
-				seen[a] = true
-				todo = append(todo, a)
-			}
-		}
-	}
-	return seen, nil
-}
-
 func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 	owner, err := optStr(params, "owner")
 	if err != nil {
@@ -261,15 +227,11 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 		me := c.Caller.Actor()
 		acting = &me
 	}
-	var owners map[string]bool
 	if !everyone && c.Caller.Role == "agent" {
-		if owners, err = e.reach(c.Caller.Key); err != nil {
-			return nil, err
-		}
-	}
-	for _, name := range []*string{owner, acting, closer} {
-		if name != nil && owners != nil && !owners[*name] {
-			return nil, rpc.Refused(fmt.Sprintf("%s is not you or one of your reports: everyone shows every team's tasks", *name), "", "")
+		for _, name := range []*string{owner, acting, closer} {
+			if name != nil && *name != c.Caller.Key {
+				return nil, rpc.Refused(fmt.Sprintf("%s is not you: everyone shows every team's tasks", *name), "", "")
+			}
 		}
 	}
 	// The filter is SQL, so a board of thousands is not loaded to show a few. Only the state's last step (draft, queued or doing) is
@@ -300,13 +262,8 @@ func (e *Env) tasksList(c *rpc.Conn, params map[string]any) (any, error) {
 			cond(f.col+" = ?", *f.v)
 		}
 	}
-	if owners != nil { // a task is in scope by its assignee or its owner
-		names := make([]any, 0, len(owners))
-		for n := range owners {
-			names = append(names, n)
-		}
-		in := "(" + placeholders(len(names)) + ")"
-		cond("(owner IN "+in+" OR "+askerSQL+" IN "+in+")", append(names, names...)...)
+	if !everyone && c.Caller.Role == "agent" { // a task is in scope by its assignee or its owner
+		cond("(owner = ? OR "+askerSQL+" = ?)", c.Caller.Key, c.Caller.Key)
 	}
 	if parent != nil {
 		cond("parent_task = ?", *parent)

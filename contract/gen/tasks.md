@@ -32,7 +32,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.request` | agent | yes | `request`, `title?`, `owner?`, `request_id` | `Accepted & {task, existing}` | `refused`, `not_found`, `bad_request` |  | decided: make a request |
 | `task.wait` | agent | yes | `task`, `watch`, `time_box?`, `request_id` | `Accepted & {gate}` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.discard` | agent | yes | `task?`, `tasks?`, `reason?`, `reasons?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: discard |
-| `task.board` | agent |  | `everyone?` | `{mine, reports}` |  |  | `board`, fed by tasks |
+| `task.board` | agent |  | `everyone?` | `{mine}` |  |  | `board`, fed by tasks |
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
 | `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `parent?`, `no_parent?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
 | `task.plan` | agent | yes | `task`, `text`, `request_id` | `Accepted & {version}` | `refused`, `not_found`, `bad_request` |  | decided: plan |
@@ -48,7 +48,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 ### `tasks.list`
 
-Task rows. Newest id first. To read every task, call with `all: true` and `limit: 200`, then again with `before` set to the smallest `id` of the page before, until `more` is false: nothing is skipped or repeated, because a page is the rows with an id below `before`. The caller's own scope still applies (itself and its reports for an agent, unless `everyone`).
+Task rows. Newest id first. To read every task, call with `all: true` and `limit: 200`, then again with `before` set to the smallest `id` of the page before, until `more` is false: nothing is skipped or repeated, because a page is the rows with an id below `before`. The caller's own scope still applies (its own tasks for an agent, unless `everyone`).
 
 ### `task.get`
 
@@ -156,7 +156,7 @@ Throw away a task that is not done: anyone may, with a reason the opener, assign
 
 ### `task.board`
 
-The caller's open tasks and its reports', and who holds each now. The founder's board is the tasks the founder owns.
+The caller's open tasks, and who holds each now. The founder's board is the tasks the founder owns.
 
 ### `task.withdraw`
 

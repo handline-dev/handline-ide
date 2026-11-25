@@ -46,7 +46,6 @@ export type AgentView = {
   /** Whole percent of the context window the agent's own session has used; null when it has no account, no session of its own, or a usage snapshot too old to trust. A view without the field is the same as null. */
   ctx_pct?: number | null;
   has_dialog: boolean;
-  parent: Who | null;
   /** Who holds the input; one in v1, a list so more can later. A structured agent has no input to hold: []. */
   input_holders?: InputHolder[];
   /** The text drawn beside the state word (a clock, what a wait is for), at most 40 characters; empty when there is none. The state column is drawn from state and state_detail alone. */

@@ -61,9 +61,6 @@
          "tasks": []
         }
        }
-      },
-      "reports": {
-       "$type": "array"
       }
      }
     }
@@ -134,7 +131,7 @@
       }
      },
      "result": {
-      "reports": {
+      "mine": {
        "$contains": {
         "task": {
          "id": "{{made}}"
@@ -157,7 +154,7 @@
    "name": "task.board.an_agents_own_board",
    "spec": "task.board",
    "as": "agent",
-   "about": "An agent reads its own board: its open tasks and its reports', each with who holds it.",
+   "about": "An agent reads its own board: its open tasks, each with who holds it.",
    "steps": [
     {
      "send": {
@@ -194,9 +191,6 @@
          }
         }
        }
-      },
-      "reports": {
-       "$type": "array"
       }
      }
     }

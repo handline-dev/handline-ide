@@ -18,7 +18,7 @@ import (
 
 // retireMethod is agent.retire: the founder retires an agent by the same step an approved retire proposal runs (doRetire), and the call
 // answers only with how it ended. One with a session running is held until its turn ends and the call waits for it, up to RetireWait.
-// Refused while another agent reports to it or hangs under its name.
+// Refused while it is its workspace's contact and others are still in that workspace.
 func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	agent, _ := params["agent"].(string)
 	if agent == "" {
@@ -40,7 +40,7 @@ func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	if deps, err := e.dependents(agent, everyone); err != nil {
 		return nil, err
 	} else if len(deps) > 0 {
-		return nil, rpc.Refused(fmt.Sprintf("%s has agents under it (%s): retire or move them first.", addr.Ref(agent), strings.Join(deps, ", ")), "state", "")
+		return nil, rpc.Refused(fmt.Sprintf("%s is its workspace's contact, and others are still in it (%s): retire or move them first.", addr.Ref(agent), strings.Join(deps, ", ")), "state", "")
 	}
 	choice, _ := params["worktree"].(string)
 	if v, has := params["worktree"]; has && choice != worktreeprune.Keep && choice != worktreeprune.Save && choice != worktreeprune.Force {
