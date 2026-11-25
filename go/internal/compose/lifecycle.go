@@ -148,7 +148,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	ho.Note = handoff.NoteEnv{Settings: noteSettings{settings, roster}, Telling: lc.Env, Log: cfg.Log}
 	if cfg.CLI != "" {
 		meter := &usagepoll.Meter{Home: home, Claude: cfg.CLI, Env: cfg.Env, Now: cfg.Now}
-		ho.Summary = &handoff.Summarizer{Log: cfg.Log, Run: summaryRun(home, meter, uenv, q)}
+		ho.Summary = &handoff.Summarizer{Log: cfg.Log, Run: summaryRun(home, launcher.MayStartHere, meter, uenv, q)}
 		p.summary = ho.Summary
 	}
 	tm := cfg.Term

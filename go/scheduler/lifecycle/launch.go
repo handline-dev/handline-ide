@@ -214,6 +214,10 @@ func (l *Launcher) mayStartAccounts(agent string) []string {
 	return l.mayStartOn(l.machineOf(agent), agent)
 }
 
+// MayStartHere is the accounts agent may start on here, whatever machine its session runs on: a call Handline makes here
+// (the handoff note's) uses no account a launch here would not.
+func (l *Launcher) MayStartHere(agent string) []string { return l.mayStartOn(machine{}, agent) }
+
 func (l *Launcher) mayStartOn(m machine, agent string) []string {
 	allowed, _ := l.accountsRule(agent)
 	var out []string
