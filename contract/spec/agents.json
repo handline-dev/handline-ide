@@ -1595,18 +1595,6 @@
      }
     },
     {
-     "name": "restart",
-     "required": false,
-     "description": "Ignored, kept until the app stops sending it: a changed launch setting reaches a live session as a handoff note, then a new conversation, at its next idle moment.",
-     "schema": {
-      "type": "string",
-      "enum": [
-       "resume",
-       "fresh"
-      ]
-     }
-    },
-    {
      "name": "request_id",
      "required": true,
      "schema": {

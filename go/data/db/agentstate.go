@@ -12,13 +12,13 @@ type AgentState struct {
 	Agent, State                                                        string
 	WakeAt, ClosedAt, CurrentTask                                       sql.NullInt64
 	Detail, Terminal, Worktree, Account, ResumeSession, Task            sql.NullString
-	Handoff, AccountSource, LaunchParts, LaunchFingerprint              sql.NullString
+	Handoff, AccountSource, LaunchParts                                 sql.NullString
 	NotifiedSession, StallKind, ParkReason, StallArgs                   sql.NullString
 	Updated, FailedAttempts, Continuations, ThrottleCount, WakeFailures int64
 }
 
 const stateCols = "agent, state, wake_at, detail, updated, failed_attempts, continuations, throttle_count, wake_failures, terminal, worktree, " +
-	"account, closed_at, resume_session, task, handoff, account_source, launch_parts, launch_fingerprint, notified_session, current_task, stall_kind, park_reason, stall_args"
+	"account, closed_at, resume_session, task, handoff, account_source, launch_parts, notified_session, current_task, stall_kind, park_reason, stall_args"
 
 type scanner interface{ Scan(...any) error }
 
@@ -26,7 +26,7 @@ func scanState(r scanner) (*AgentState, error) {
 	s := &AgentState{}
 	err := r.Scan(&s.Agent, &s.State, &s.WakeAt, &s.Detail, &s.Updated, &s.FailedAttempts, &s.Continuations, &s.ThrottleCount, &s.WakeFailures,
 		&s.Terminal, &s.Worktree, &s.Account, &s.ClosedAt, &s.ResumeSession, &s.Task, &s.Handoff, &s.AccountSource, &s.LaunchParts,
-		&s.LaunchFingerprint, &s.NotifiedSession, &s.CurrentTask, &s.StallKind, &s.ParkReason, &s.StallArgs)
+		&s.NotifiedSession, &s.CurrentTask, &s.StallKind, &s.ParkReason, &s.StallArgs)
 	return s, err
 }
 

@@ -9,7 +9,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.get` | agent |  | `agent` | `AgentDetail & ReadCursor` | `not_found` |  | `agent` by agent, fed by agents |
 | `agent.timeline` | member |  | `agent`, `before?`, `limit?` | `{items, more} & ReadCursor` | `not_found` |  | `timeline`, fed by agents |
 | `agent.options` | member |  | none | `AgentOptions` |  |  | `agent-options`, snapshot |
-| `agent.set` | agent (only agent, owner) | yes | `agent`, `values`, `speaker?`, `restart?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
+| `agent.set` | agent (only agent, owner) | yes | `agent`, `values`, `speaker?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | not_self | authored: set |
 | `agent.move` | agent | yes | `agent`, `account`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move |
 | `agent.move_cancel` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: cancel move |
 | `agent.move_now` | owner | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move now |

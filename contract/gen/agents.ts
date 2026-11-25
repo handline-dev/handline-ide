@@ -362,7 +362,6 @@ export interface AgentsMethods {
   agent: Who;
   values: AgentSettingValues;
   speaker?: string;
-  restart?: "resume" | "fresh";
   request_id: RequestId;
 }; result: Accepted };
   "agent.move": { params: {

@@ -166,7 +166,6 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 		check(db.SetMeta(t.Q, SettingsApplied+agent, text))
 		check(db.SetSettingsOwed(t.Q, agent, nil, 0, false))
 		check(db.SetMeta(t.Q, db.SettingsByMeta(agent), ""))
-		check(db.SetMeta(t.Q, db.SettingsRestartMeta(agent), ""))
 		t.logf("  %s: restarted to apply changed settings (%s), as a new conversation", agent, strings.Join(names, ", "))
 	} else {
 		t.logf("  %s: changed settings (%s) not applied yet - %s", agent, strings.Join(names, ", "), said)

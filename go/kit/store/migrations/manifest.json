@@ -168,5 +168,10 @@
   "version": 133,
   "name": "temps",
   "additive": true
+ },
+ {
+  "version": 134,
+  "name": "drop_launch_fingerprint",
+  "additive": false
  }
 ]
