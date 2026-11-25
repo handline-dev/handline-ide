@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Resources } from '@handline/client';
-import { bytesText, loadFull, memoryLow, useRows } from '#src/index.ts';
+import { byLoad, bytesText, loadFull, memoryLow, useRows } from '#src/index.ts';
 
 const GB = 2 ** 30;
 const res = (m: Partial<Resources['machine']> = {}, agents: Resources['agents'] = {}): Resources => ({
@@ -51,4 +51,17 @@ test('a limit of never holds nothing, and the memory floor holds under it', () =
   assert.equal(loadFull(r, 150), true);
   assert.equal(memoryLow(r, 10), true);
   assert.equal(memoryLow(r, 0), false);
+});
+
+test('agents are listed heaviest first: CPU, then memory, then name', () => {
+  const rows = [
+    { agent: 'b', cpu_pct: 5, rss_bytes: 100 },
+    { agent: 'a', cpu_pct: 90, rss_bytes: 10 },
+    { agent: 'd', cpu_pct: 5, rss_bytes: 900 },
+    { agent: 'c', cpu_pct: 5, rss_bytes: 100 },
+  ];
+  assert.deepEqual(
+    byLoad(rows).map((r) => r.agent),
+    ['a', 'd', 'b', 'c'],
+  );
 });

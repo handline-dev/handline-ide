@@ -33,3 +33,8 @@ export function useRows(r: Resources | null | undefined): { rows: UseRow[]; tota
   const n = rows.length;
   return { rows, total: `${n} agent${n === 1 ? '' : 's'} · CPU ${Math.round(cpu)}% · memory ${bytesText(rss)}` };
 }
+
+/** Agents by what they use now, heaviest first: CPU, then memory, then name, so the list holds still between equal reads. */
+export function byLoad<T extends { agent: string; cpu_pct: number; rss_bytes: number }>(agents: readonly T[]): T[] {
+  return [...agents].sort((a, b) => b.cpu_pct - a.cpu_pct || b.rss_bytes - a.rss_bytes || a.agent.localeCompare(b.agent));
+}

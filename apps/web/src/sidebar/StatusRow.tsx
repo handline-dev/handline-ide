@@ -6,6 +6,7 @@ import { BellButton } from '#src/requests/BellButton.tsx';
 import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
+import { LoadButton } from '#src/sidebar/LoadButton.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import { MODES, useOwnMac, useSetAsideUnseen, type Mode } from '#src/settings/data/devices.ts';
 import { useStatusRow, type Level } from '#src/sidebar/status.ts';
@@ -51,6 +52,7 @@ export function StatusRow() {
       <span className="min-w-0 flex-1 truncate tabular-nums">{s.usagePct !== null && `Week ${s.usagePct}% used`}</span>
       <MasterGone />
       <SetAside />
+      <LoadButton bar={bar} />
       <KeepAwakeButton s={s} busy={busy} bar={bar} />
       <ModeButton busy={busy} bar={bar} />
       <BellButton bar={bar} />
