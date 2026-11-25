@@ -15,18 +15,18 @@ func TestInitSetsUpTheHomeOnceAndNeverRunsPython(t *testing.T) {
 		t.Fatalf("%q %q %d", out, errs, code)
 	}
 	for _, want := range []string{"installed Handline event hooks\n", "sandbox: agents may write under " + r.home + "\n",
-		"initialized git repo in " + r.home + "\n", "initialized " + r.home + "\n"} {
+		"initialized " + r.home + "\n"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
 	}
-	for _, p := range []string{"agents", "accounts", ".git", "config.yaml", "shared/.claude/skills"} {
+	for _, p := range []string{"agents", "accounts", "config.yaml", "shared/.claude/skills"} {
 		if _, err := os.Stat(filepath.Join(r.home, p)); err != nil {
 			t.Error(err)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(r.home, ".gitignore")); !strings.Contains(string(b), "accounts/\n") {
-		t.Errorf(".gitignore: %q", b)
+	if _, err := os.Stat(filepath.Join(r.home, ".git")); err == nil {
+		t.Error("init made the home a git repo")
 	}
 	settings, err := os.ReadFile(filepath.Join(r.home, "shared", ".claude", "settings.json"))
 	if err != nil {
@@ -39,7 +39,7 @@ func TestInitSetsUpTheHomeOnceAndNeverRunsPython(t *testing.T) {
 	}
 
 	out, errs, code = r.run(env, "init")
-	if code != 0 || errs != "" || strings.Contains(out, "initialized git repo") || strings.Contains(out, "sandbox:") {
+	if code != 0 || errs != "" || strings.Contains(out, "sandbox:") {
 		t.Fatalf("second init: %q %q %d", out, errs, code)
 	}
 	again, _ := os.ReadFile(filepath.Join(r.home, "shared", ".claude", "settings.json"))
