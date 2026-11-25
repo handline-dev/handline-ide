@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
 import type { House, Person } from '#src/town/model.ts';
 import { figuresOf } from '#src/town/people.ts';
-import { roomOf } from '#src/town/room.ts';
+import { roomOf, type Room } from '#src/town/room.ts';
 
 const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0 });
 const house = (people: Person[]): House => ({ key: 'w', name: 'w', lead: people[0], people, working: 0, decisions: [] });
+/** A desk's top is the one block of a desk with a tag. */
+const desks = (r: Room) => r.blocks.filter((b) => b.tag && b.part?.startsWith('desk:')).map((b) => b.tag);
 
 describe('roomOf', () => {
   it("stacks a paper per queued task on each desk and per decision on the founder's, up to a limit", () => {
@@ -26,20 +28,22 @@ describe('roomOf', () => {
         person('f', 'held'),
       ]),
     );
-    expect(r.things.filter((t) => t.model === 'desk').map((t) => t.tag)).toEqual([
-      ...['a', 'b', 'c', 'd', 'e', 'f'].map((k) => `desk:${k}`),
-      'desk:you',
-    ]);
+    expect(desks(r)).toEqual([...['a', 'b', 'c', 'd', 'e', 'f'].map((k) => `desk:${k}`), 'desk:you']);
     // At their desks: working, waiting for the founder and on hold; the idle one on a sofa, the starting one at the door, the asleep nowhere.
     const where = Object.fromEntries(r.places.map((p) => [p.person.key, p.how]));
     expect(where).toEqual({ a: 'desk', b: 'desk', f: 'desk', d: 'sofa', e: 'door' });
     // Only the working and the waiting agents' screens are lit.
-    expect(r.things.filter((t) => t.model === 'computerScreen' && t.lit)).toHaveLength(2);
+    expect(r.blocks.filter((b) => b.kind === 'lit')).toHaveLength(2);
   });
 
   it('adds a row of sofas for every four idle agents and deepens the room for them', () => {
     const idle = (n: number) => roomOf(house(Array.from({ length: n }, (_, i) => person(`p${i}`, 'resting'))));
-    const sofas = (n: number) => idle(n).things.filter((t) => t.model === 'loungeSofa').length;
+    const sofas = (n: number) =>
+      new Set(
+        idle(n)
+          .blocks.map((b) => b.part)
+          .filter((p) => p?.startsWith('sofa:')),
+      ).size;
     expect([sofas(1), sofas(4), sofas(5), sofas(9)]).toEqual([2, 2, 4, 6]);
     expect(idle(9).d).toBeGreaterThan(idle(4).d);
   });
@@ -52,6 +56,6 @@ describe('roomOf', () => {
     const h = house([person('a', 'working'), person('b', 'resting'), person('c', 'waking'), person('d', 'asleep')]);
     const r = roomOf({ ...h, hq: true });
     expect(r.places.map((p) => [p.person.key, p.how])).toEqual(['a', 'b', 'c', 'd'].map((k) => [k, 'door']));
-    expect(r.things.filter((t) => t.model === 'desk').map((t) => t.tag)).toEqual(['desk:you']);
+    expect(desks(r)).toEqual(['desk:you']);
   });
 });

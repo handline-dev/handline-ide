@@ -1,10 +1,9 @@
 // The city in metres, built from boxes and cylinders as the office is (scene3d.ts draws it): city.ts's layout, a tile to U metres, with
 // each workspace a building as wide as its team, a window per seat lit while that agent works, and the street things between them.
 import { HQ, ROAD, type City, type Lot } from '#src/town/city.ts';
-import { DOOR, type Block, type Kind, type Room } from '#src/town/room.ts';
+import { DOOR, pen, type Kind, type Put, type Room } from '#src/town/room.ts';
 
 type RGB = [number, number, number];
-type V3 = [number, number, number];
 
 export const U = 0.75; // metres a tile
 /** A person's height in the city's pixels: smaller than in an office, so more of the town is in view. */
@@ -24,14 +23,6 @@ const LOOKS: { wall: RGB; roof: RGB; brick: boolean }[] = [
   { wall: [150, 96, 78], roof: [86, 74, 70], brick: true },
   { wall: [186, 204, 196], roof: [110, 120, 124], brick: false },
 ];
-
-/** Blocks for one city, gathered by `put`; every builder below takes metres. */
-function pen() {
-  const blocks: Block[] = [];
-  const put = (from: V3, to: V3, kind: Kind, more: Partial<Block> = {}) => blocks.push({ from, to, kind, ...more });
-  return { blocks, put };
-}
-type Put = ReturnType<typeof pen>['put'];
 
 /** A building on a lot, its front at z = `front`, named `name` on the sign over its door; `lit[k]` lights window k. */
 function building(put: Put, lot: Lot, front: number) {
@@ -302,7 +293,6 @@ export function cityRoom(city: City, cars: number): CityRoom {
     d: D,
     wallH: tallest,
     people: [],
-    things: [],
     blocks,
     places: [],
     entry: hq?.at ?? [W / 2, D / 2],
