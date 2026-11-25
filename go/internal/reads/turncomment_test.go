@@ -113,7 +113,7 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 			got = append(got, fmt.Sprintf("%s %v %s %q", c["kind"], c["memo"], c["who"], c["text"]))
 		}
 	}
-	want := `[turn 7 amy "A or B? I recommend A" answer 8 p1 "A" note 9 amy "@human A is in" turn 11 amy "@human C or D?"]`
+	want := `[turn 7 amy "A or B? I recommend A" answer 8 p1 "A" note 9 amy "@human A is in" note 11 amy "@human C or D?"]`
 	if fmt.Sprint(got) != want {
 		t.Fatalf("got  %v\nwant %v", got, want)
 	}
@@ -122,8 +122,11 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 			t.Fatalf("event %d goes live to %q %v %v", id, agent, ok, err)
 		}
 	}
-	if _, _, ok, _ := e.TaskEventItem(5); ok {
-		t.Fatal("the comment a turn hangs on goes live once, as the turn")
+	if _, _, ok, _ := e.TaskEventItem(5); !ok {
+		t.Fatal("an @human comment goes live as its line")
+	}
+	if _, _, ok, _ := e.TaskEventItem(6); ok {
+		t.Fatal("the turn put with that comment does not draw it again")
 	}
 	if items, _ := e.transcriptItems("bob", nil); len(items) != 0 {
 		t.Fatalf("not bob's: %v", items)

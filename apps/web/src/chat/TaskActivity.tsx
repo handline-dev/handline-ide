@@ -40,16 +40,16 @@ function holder(t: Task, me: string, nameOf: (key: string) => string): string {
   return t.state === 'doing' && word === 'Doing' ? `With ${to}` : `${word} · with ${to}`;
 }
 
-/** Task cards with each task in one card only, the newest it is in, which takes its changes from the cards before it; a card left
- * with no task goes. */
+/** Task cards with each task in one card only, the first it is in, which takes its later changes: a row stays where it came up and
+ * changes in place; a later card left with no task goes. */
 export function onePerTask<R extends object>(rows: R[]): R[] {
   const eventsOf = (r: R): TaskEvent[] | null => ('events' in r && Array.isArray(r.events) ? r.events : null);
-  const lastIn = new Map<string, number>();
-  rows.forEach((r, i) => eventsOf(r)?.forEach((e) => lastIn.set(e.id, i)));
+  const firstIn = new Map<string, number>();
+  rows.forEach((r, i) => eventsOf(r)?.forEach((e) => firstIn.has(e.id) || firstIn.set(e.id, i)));
   const moved = new Map<number, TaskEvent[]>();
   for (const r of rows)
     for (const e of eventsOf(r) ?? []) {
-      const to = lastIn.get(e.id)!;
+      const to = firstIn.get(e.id)!;
       moved.set(to, [...(moved.get(to) ?? []), e]);
     }
   return rows.flatMap((r, i) => {
@@ -120,10 +120,10 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
     .join(' · ');
   return (
     <motion.div
-      // A row that comes in only fades in.
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      // A row that comes in opens from no height, so the card grows to it.
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
       transition={spring}
       className="overflow-hidden"
     >

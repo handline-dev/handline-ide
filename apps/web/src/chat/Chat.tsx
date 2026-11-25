@@ -346,7 +346,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
           : [`${r.kind}:${r.id}`],
     );
     for (let i = at.length - 1; i >= 0; i--) if (at[i].includes(tail.before ?? '')) return i;
-    // Not drawn: a task's newer row moved it to the end (onePerTask), so the rows that start above that line are the known ones.
+    // Not drawn: the line joined an earlier card of its task (onePerTask), so the rows that start above that line are the known ones.
     const pos = new Map(entries.map((e, n) => [`${e.kind}:${e.id}`, n]));
     const before = pos.get(tail.before ?? '');
     if (before === undefined) return Infinity;
@@ -357,7 +357,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
   const tasks = useTaskActivity(agent);
   const ended = endedWork(entries);
-  // Each task once, as a row at the newest thing on it: a change or a comment.
+  // Each task once, as a row where it first came up, changed in place by what comes later.
   const rows = onePerTask(runs(foldTurns(entries), agent, me, nameOf, tasks));
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
     atTop: true,

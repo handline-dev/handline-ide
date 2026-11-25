@@ -869,13 +869,8 @@ func promptItemOf(agent string, b row) map[string]any {
 // gave it back, an @human comment.
 var commentCardKinds = []string{"memo_add", "task_turn_ask", "task_turn_pop", "task_turn_push"}
 
-// commentBodySQL is, on an events row, the text of the comment its payload names (memo_body), and for a comment whether a turn on the
-// founder hangs on it (turned). The turn lookup seeks events_kind_task by the comment's task.
-const commentBodySQL = "(SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) AS memo_body, " +
-	"CASE WHEN kind = 'memo_add' THEN EXISTS (SELECT 1 FROM events t WHERE t.kind IN ('task_turn_push', 'task_turn_ask') " +
-	"AND CASE WHEN json_valid(t.payload) THEN json_extract(t.payload, '$.task_id') END = json_extract(events.payload, '$.task_id') " +
-	"AND t.id > events.id AND json_extract(t.payload, '$.memo') = json_extract(events.payload, '$.memo') " +
-	"AND '" + actor.OwnerKey + "' IN (json_extract(t.payload, '$.to'), json_extract(t.payload, '$.agent'))) ELSE 0 END AS turned"
+// commentBodySQL is, on an events row, the text of the comment its payload names (memo_body).
+const commentBodySQL = "(SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) AS memo_body"
 
 // commentCardOf is an event as a task_comment item and the agent whose chat shows it; false for an event that is none. A turn put on the
 // founder is in the chat of the agent below it, the founder's comment that gives it back in the chat of the agent it returns to, an @human
@@ -890,6 +885,10 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 		if !actor.IsPerson(text(p["to"])) && !actor.IsPerson(text(p["agent"])) {
 			return nil, "", false
 		}
+		// A turn put with an @human comment is that comment's line already: drawing it again would swap the line under the reader.
+		if memo != 0 && !actor.IsPerson(ev.str("agent")) && db.ToPerson(ev.str("memo_body")) {
+			return nil, "", false
+		}
 		kind, agent, words = "turn", ev.str("agent"), text(p["ask"])
 	case "task_turn_pop":
 		if !actor.IsPerson(ev.str("agent")) || memo == 0 || text(p["to"]) == "" || actor.IsPerson(text(p["to"])) {
@@ -897,7 +896,7 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 		}
 		kind, agent = "answer", text(p["to"])
 	case "memo_add":
-		if actor.IsPerson(ev.str("agent")) || ev.i("turned") != 0 || !db.ToPerson(text(p["now"])) {
+		if actor.IsPerson(ev.str("agent")) || !db.ToPerson(text(p["now"])) {
 			return nil, "", false
 		}
 		kind, agent, words = "note", ev.str("agent"), text(p["now"])
