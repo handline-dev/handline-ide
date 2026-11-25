@@ -29,13 +29,13 @@ const BOOKS: RGB[] = [
   [130, 90, 160],
 ];
 
-/** A desk 0.73 m wide and 0.39 m deep: a white top on four steel legs, a panel across the back between them. */
+/** A desk 0.73 m wide and 0.39 m deep: a white top on four square steel legs, a panel across the back between them. */
 export function desk(put: Put, x: number, z: number, tag: string) {
   const part = `desk:${x},${z}`;
   const [x0, x1, z0, z1] = [x, x + 0.734, z - 0.39, z];
   put([x0, DESK_TOP - 0.03, z0], [x1, DESK_TOP, z1], 'thing', { part, tag, colour: DESK, solid: true });
-  for (const lx of [x0 + 0.02, x1 - 0.05])
-    for (const lz of [z0 + 0.02, z1 - 0.05]) put([lx, 0, lz], [lx + 0.03, DESK_TOP - 0.03, lz + 0.03], 'thing', { part, colour: STEEL });
+  for (const lx of [x0 + 0.02, x1 - 0.08])
+    for (const lz of [z0 + 0.02, z1 - 0.08]) put([lx, 0, lz], [lx + 0.06, DESK_TOP - 0.03, lz + 0.06], 'thing', { part, colour: STEEL });
   put([x0 + 0.05, 0.12, z0 + 0.03], [x1 - 0.05, DESK_TOP - 0.03, z0 + 0.05], 'thing', { part, colour: STEEL });
 }
 
@@ -81,27 +81,39 @@ export function keyboard(put: Put, x: number, z: number, y: number, mouse?: numb
     put([x + mouse - 0.025, y, z - 0.085], [x + mouse + 0.025, y + 0.024, z], 'thing', { colour: [60, 64, 78], round: 'z' });
 }
 
-/** A plant in a round white pot centred on (x, z) at height y, `size` metres tall: tiers of leaves, broadest at the bottom. */
+/** A plant in a round white pot centred on (x, z) at height y, `size` metres tall: a short trunk under a round crown of leaf clumps, the
+ *  lower ones darker. */
 export function plant(put: Put, x: number, z: number, y: number, size: number) {
   const part = `plant:${x},${z},${y}`;
-  const r = size * 0.15;
-  const pot = size * 0.37;
+  const r = size * 0.14;
+  const pot = size * 0.32;
   put([x - r, y, z - r], [x + r, y + pot, z + r], 'thing', { part, colour: POT, round: 'y', solid: y === 0 });
   put([x - r * 0.85, y + pot, z - r * 0.85], [x + r * 0.85, y + pot + 0.005, z + r * 0.85], 'thing', { part, colour: SOIL, round: 'y' });
-  const tiers = [
-    [1.5, 0.3],
-    [1.15, 0.25],
-    [0.7, 0.2],
-  ];
-  let top = y + pot - size * 0.05;
-  tiers.forEach(([w, h], i) => {
-    const [lr, lh] = [r * w, size * h];
-    put([x - lr, top, z - lr], [x + lr, top + lh, z + lr], 'thing', { part, colour: LEAVES[i], round: 'y' });
-    top += lh * 0.85;
-  });
+  const trunk = size * 0.025;
+  put([x - trunk, y + pot, z - trunk], [x + trunk, y + size * 0.6, z + trunk], 'thing', { part, colour: BARK, round: 'y' });
+  // Clumps as (across, back, up, radius, height), in crowns: a ring low, a smaller ring over it, one on top.
+  const crown = size * 0.22;
+  const mid = y + size * 0.62;
+  for (const [dx, dz, dy, cr, ch, shade] of CLUMPS) {
+    const [cx, cz, cy, rr] = [x + dx * crown, z + dz * crown, mid + dy * crown, cr * crown];
+    put([cx - rr, cy - ch * crown, cz - rr], [cx + rr, cy + ch * crown, cz + rr], 'thing', { part, colour: LEAVES[shade], round: 'y' });
+  }
 }
 
-/** A two-seat sofa 0.98 m wide facing the camera: a base on short wooden feet, two seat cushions with a seam between, and a back and arms
+const BARK: RGB = [120, 86, 60];
+const CLUMPS: [number, number, number, number, number, 0 | 1 | 2][] = [
+  [0, 0, 0, 0.95, 0.5, 0],
+  [-0.55, 0.15, -0.1, 0.55, 0.38, 0],
+  [0.55, 0.2, -0.05, 0.55, 0.38, 0],
+  [0.05, 0.5, -0.15, 0.55, 0.36, 1],
+  [-0.3, -0.35, 0.35, 0.6, 0.4, 1],
+  [0.35, -0.2, 0.4, 0.55, 0.38, 1],
+  [-0.2, 0.3, 0.5, 0.5, 0.34, 2],
+  [0.25, 0.35, 0.55, 0.45, 0.3, 2],
+  [0, 0, 0.9, 0.45, 0.3, 2],
+];
+
+/** A two-seat sofa 0.98 m wide facing the camera: a base on short wooden feet, two seat cushions with a seam between, a slim back and arms
  *  rolled over at the top. */
 export function sofa(put: Put, x: number, z: number) {
   const part = `sofa:${x},${z}`;
@@ -110,13 +122,13 @@ export function sofa(put: Put, x: number, z: number) {
   put([x, 0.04, z - 0.41], [x + 0.98, 0.2, z], 'thing', { part, colour: fabric, solid: true });
   for (const fx of [x + 0.03, x + 0.91])
     for (const fz of [z - 0.38, z - 0.07]) put([fx, 0, fz], [fx + 0.04, 0.04, fz + 0.04], 'thing', { part, colour: [120, 80, 50] });
-  put([x, 0.2, z - 0.41], [x + 0.98, 0.42, z - 0.27], 'thing', { part, colour: fabric });
-  put([x, 0.36, z - 0.42], [x + 0.98, 0.52, z - 0.26], 'thing', { part, colour: roll, round: 'x' });
+  put([x, 0.2, z - 0.41], [x + 0.98, 0.4, z - 0.35], 'thing', { part, colour: fabric });
+  put([x, 0.38, z - 0.41], [x + 0.98, 0.42, z - 0.35], 'thing', { part, colour: roll, round: 'x' });
   for (const ax of [x, x + 0.86]) {
     put([ax, 0.2, z - 0.41], [ax + 0.12, 0.3, z], 'thing', { part, colour: fabric });
     put([ax, 0.24, z - 0.41], [ax + 0.12, 0.36, z], 'thing', { part, colour: roll, round: 'z' });
   }
-  for (const sx of [x + 0.12, x + 0.495]) put([sx, 0.2, z - 0.27], [sx + 0.36, 0.28, z - 0.01], 'thing', { part, colour: roll });
+  for (const sx of [x + 0.12, x + 0.495]) put([sx, 0.2, z - 0.35], [sx + 0.36, 0.28, z - 0.01], 'thing', { part, colour: roll });
 }
 
 /** A low coffee table, its top 0.66 by 0.4 m, on four legs, with a shelf under. */

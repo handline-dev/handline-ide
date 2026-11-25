@@ -143,7 +143,8 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     if (place.how === 'desk' && place.chair) {
       const chair = boxOf(pic, frame, place.chair);
       if (!chair) continue;
-      // Head and shoulders show over the chair's back: the head's top 22 px above the chair's top, whatever the figure's height.
+      // Head and shoulders show over the chair's back, the head's top 17 px above the chair's top whatever the figure's height: low
+      // enough to leave the screen in view.
       const tall = TALL.sit_back[row] * SCALE;
       // Only the sitter's own chair covers it, and anything nearer than that chair: the desk and screen behind it never do.
       const tag = place.chair;
@@ -152,7 +153,7 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
       const seen = draw(
         'sit_back',
         chair.x + chair.w / 2,
-        chair.y - 22 + tall,
+        chair.y - 17 + tall,
         (i) => frame.meta[pic.id[i]]?.tag === tag || pic.depth[i] < near - 0.05,
       );
       if (p.activity === 'you') cast.bubbles.push({ x: seen.x + seen.w - 8, y: seen.y - 6, w: BUBBLE_PX, h: BUBBLE_PX });
