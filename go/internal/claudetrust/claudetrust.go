@@ -1,5 +1,6 @@
 // Package claudetrust marks a folder trusted in a claude account's global config, so a session started there opens without the
-// folder-trust dialog, and turns off claude's question whether to resume a long-idle conversation, which Handline decides itself.
+// folder-trust dialog, and turns off two screens a launched session would stop on: claude's question whether to resume a long-idle
+// conversation, which Handline decides itself, and its first-run onboarding, which a freshly logged-in account shows once.
 // The way it writes is IDE A's (github.com/link-removed, src/main/claude/claude-folder-trust-file.ts at dff65d55a, MIT License,
 // Copyright (c) 2026 Lovecast Inc.): never create the file, never break claude's own lock, never rewrite a file that does not parse,
 // and replace it by a rename from beside it. Unlike IDE A it edits the text in place, so every byte outside the one entry it sets is
@@ -32,8 +33,10 @@ const (
 
 const trustKey = "hasTrustDialogAccepted"
 
-// resumeKey, set at the top of the config, keeps claude from asking whether to resume a long-idle conversation (Claude Code 2.1.322).
-const resumeKey = "resumeReturnDismissed"
+// dismissKeys, each set true at the top of the config, keep claude from stopping a launch on a screen nobody answers:
+// resumeReturnDismissed the question whether to resume a long-idle conversation (Claude Code 2.1.322), hasCompletedOnboarding the
+// first-run theme and security screens that a config made by a login alone still shows (Claude Code 2.1.331).
+var dismissKeys = []string{"resumeReturnDismissed", "hasCompletedOnboarding"}
 
 // lockWaits are the pauses between tries at claude's lock (IDE A's: 4 retries, factor 2, 50 to 250 ms).
 var lockWaits = []time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 200 * time.Millisecond, 250 * time.Millisecond}
@@ -146,8 +149,8 @@ func Grant(configFile string, keys []string) (Outcome, error) {
 	return edit(configFile, func(text []byte) ([]byte, bool, error) { return apply(text, keys) })
 }
 
-// DismissResume sets resumeReturnDismissed = true in configFile; Unchanged when it is already.
-func DismissResume(configFile string) (Outcome, error) { return edit(configFile, dismissResume) }
+// Dismiss sets each of dismissKeys true in configFile; Unchanged when all are already.
+func Dismiss(configFile string) (Outcome, error) { return edit(configFile, dismiss) }
 
 // edit writes change's text over configFile when it changes anything, under claude's lock and by a rename.
 func edit(configFile string, change func([]byte) ([]byte, bool, error)) (Outcome, error) {
@@ -285,22 +288,28 @@ func apply(text []byte, keys []string) ([]byte, bool, error) {
 	return text, true, nil
 }
 
-// dismissResume is text with resumeReturnDismissed true at the top, changed false when it was.
-func dismissResume(text []byte) ([]byte, bool, error) {
+// dismiss is text with each of dismissKeys true at the top, changed false when all were.
+func dismiss(text []byte) ([]byte, bool, error) {
 	if !json.Valid(text) {
 		return nil, false, errors.New("not JSON")
 	}
-	top, err := parseObject(text, skipWS(text, 0))
-	if err != nil {
-		return nil, false, err
+	changed := false
+	for _, k := range dismissKeys {
+		top, err := parseObject(text, skipWS(text, 0))
+		if err != nil {
+			return nil, false, err
+		}
+		switch m := top.get(k); {
+		case m == nil:
+			text, changed = top.insert(text, k, "true"), true
+		case string(text[m.valStart:m.valEnd]) != "true":
+			text, changed = splice(text, m.valStart, m.valEnd, "true"), true
+		}
 	}
-	switch m := top.get(resumeKey); {
-	case m == nil:
-		return top.insert(text, resumeKey, "true"), true, nil
-	case string(text[m.valStart:m.valEnd]) != "true":
-		return splice(text, m.valStart, m.valEnd, "true"), true, nil
+	if !changed {
+		return nil, false, nil
 	}
-	return nil, false, nil
+	return text, true, nil
 }
 
 func projects(text []byte) (top object, p *member, err error) {

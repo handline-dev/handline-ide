@@ -258,20 +258,32 @@ func TestTheLegacyConfigWins(t *testing.T) {
 	}
 }
 
-func TestTheResumeQuestionIsDismissedOnceAndNoOtherByteMoves(t *testing.T) {
+// A config made by a login alone has neither key: both are added, once, after the last member, and nothing else moves.
+func TestTheResumeQuestionAndOnboardingAreDismissedOnceAndNoOtherByteMoves(t *testing.T) {
 	f := write(t, claudeShaped)
-	if out, err := DismissResume(f); err != nil || out != Granted {
+	if out, err := Dismiss(f); err != nil || out != Granted {
 		t.Fatalf("%s %v", out, err)
 	}
-	want := strings.Replace(claudeShaped, "12345678901234567890\n}", "12345678901234567890,\n  \"resumeReturnDismissed\": true\n}", 1)
+	want := strings.Replace(claudeShaped, "12345678901234567890\n}",
+		"12345678901234567890,\n  \"resumeReturnDismissed\": true,\n  \"hasCompletedOnboarding\": true\n}", 1)
 	if got := readText(t, f); got != want {
 		t.Fatalf("got %s", got)
 	}
-	if out, _ := DismissResume(f); out != Unchanged {
+	if out, _ := Dismiss(f); out != Unchanged {
 		t.Fatalf("a second dismissal wrote: %s", out)
 	}
-	f = write(t, `{"resumeReturnDismissed": false}`)
-	if DismissResume(f); readText(t, f) != `{"resumeReturnDismissed": true}` {
+	f = write(t, `{"resumeReturnDismissed": false, "hasCompletedOnboarding": false}`)
+	if Dismiss(f); readText(t, f) != `{"resumeReturnDismissed": true, "hasCompletedOnboarding": true}` {
+		t.Fatal(readText(t, f))
+	}
+	// Only onboarding missing, as on an account whose resume question was turned off before this key was written.
+	// A one-line file keeps its own spacing: nothing sits between a comma and the next key.
+	f = write(t, `{"resumeReturnDismissed": true}`)
+	if out, _ := Dismiss(f); out != Granted || readText(t, f) != `{"resumeReturnDismissed": true,"hasCompletedOnboarding": true}` {
+		t.Fatalf("%s %s", out, readText(t, f))
+	}
+	f = write(t, `{}`)
+	if Dismiss(f); readText(t, f) != `{"resumeReturnDismissed": true,"hasCompletedOnboarding": true}` {
 		t.Fatal(readText(t, f))
 	}
 }
