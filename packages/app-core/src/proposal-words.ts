@@ -39,6 +39,17 @@ export function proposalTitle(p: P, nameOf: (key: string) => string): string {
   return phrase ? phrase(nameOf(p.agent)) : p.title;
 }
 
+/** A decided proposal's title, where no line under it says why: a command run is called by its Why's first line (never the command,
+ *  which can be cut at an id), any other by what it does; `plain` writes the ids inside as names. */
+export function decidedTitle(p: P & { reason?: string | null }, nameOf: (key: string) => string, plain: (text: string) => string): string {
+  const why = p.reason
+    ?.split('\n')
+    .find((l) => l.trim())
+    ?.trim();
+  if (p.kind === 'run') return why ? plain(why) : 'Run a command';
+  return plain(proposalTitle(p, nameOf));
+}
+
 /** One line of a change, read for a person: what it sets, from what (when the line says), to what. */
 export type ChangeRow = { what: string; from?: string; to: string } | { text: string };
 
