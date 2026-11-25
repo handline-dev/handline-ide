@@ -58,19 +58,21 @@ func TestATriggerThatMovesNothingWritesNoSwitch(t *testing.T) {
 	}
 }
 
+// putOff is each way a handoff is put off to a later tick.
+var putOff = []struct {
+	name  string
+	setup func(g *termMoveRig)
+}{
+	{"mid-turn", func(g *termMoveRig) { g.run.status = "busy" }},
+	{"note hold", func(g *termMoveRig) { g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true } }},
+	{"too soon after the last", func(g *termMoveRig) {
+		db.StartHandoff(g.m.Q, "h0", "a", "s", "usage", 0)
+		db.AdvanceHandoff(g.m.Q, "h0", "released", "done", "")
+	}},
+}
+
 func TestSavingShowsWhileTheHandoffWaitsAndKeepsItsSince(t *testing.T) {
-	cases := []struct {
-		name  string
-		setup func(g *termMoveRig)
-	}{
-		{"mid-turn", func(g *termMoveRig) { g.run.status = "busy" }},
-		{"note hold", func(g *termMoveRig) { g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true } }},
-		{"too soon after the last", func(g *termMoveRig) {
-			db.StartHandoff(g.m.Q, "h0", "a", "s", "usage", 0)
-			db.AdvanceHandoff(g.m.Q, "h0", "released", "done", "")
-		}},
-	}
-	for _, c := range cases {
+	for _, c := range putOff {
 		g := newTermMoveRig(t)
 		seen := watchSwitch(g)
 		c.setup(g)
@@ -82,6 +84,55 @@ func TestSavingShowsWhileTheHandoffWaitsAndKeepsItsSince(t *testing.T) {
 		if !slices.Equal(*seen, []string{"saving:"}) {
 			t.Fatalf("%s: %v", c.name, *seen)
 		}
+	}
+}
+
+// With every account at its wall the close will not move, so a handoff put off shows no move, a saving one already shown is taken back, a
+// wait is kept, and the park after the turn writes the wait (T9503).
+func TestAHandoffPutOffWithNoAccountToGoToShowsNoMove(t *testing.T) {
+	for _, c := range putOff {
+		g := newTermMoveRig(t)
+		g.l.dest, g.l.why = "", "no account can take one more agent"
+		c.setup(g)
+		db.SetSwitch(g.m.Q, db.AccountSwitch{Agent: "a", Cause: "usage", From: "acct", Phase: db.SwitchSaving, Since: 1})
+		for range 2 {
+			if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
+				t.Fatalf("%s: %v %v", c.name, ok, err)
+			}
+			if s, err := db.GetSwitch(g.m.Q, "a"); err != nil || s != nil {
+				t.Fatalf("%s: a move is shown that the close will not make: %+v %v", c.name, s, err)
+			}
+		}
+		wait := db.AccountSwitch{Agent: "a", Cause: "usage", From: "acct", Phase: db.SwitchWaiting, Since: g.m.now()}
+		db.SetSwitch(g.m.Q, wait)
+		g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
+		if s := switchOf(t, g); s != wait {
+			t.Fatalf("%s: the wait was not kept: %+v", c.name, s)
+		}
+	}
+	g := newTermMoveRig(t)
+	g.l.dest, g.l.why = "", "no account can take one more agent"
+	g.run.status = "busy"
+	g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, "")
+	g.run.status = "idle"
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: "usage", Reason: "wall"}, ""); !ok || err != nil {
+		t.Fatalf("%v %v", ok, err)
+	}
+	if s := switchOf(t, g); s.Phase != db.SwitchWaiting {
+		t.Fatalf("the park did not write the wait: %+v", s)
+	}
+}
+
+// An early move put off behind its note goes where the tick picked, so it shows the move though no other account would be picked now.
+func TestAnEarlyMovePutOffShowsTheMoveToTheAccountPicked(t *testing.T) {
+	g := newTermMoveRig(t)
+	g.l.dest = ""
+	g.v.E.NoteHold = func(db.Q, string, string, int64) bool { return true }
+	if ok, err := g.v.PerformHandoff("a", HandoffTrigger{Kind: states.EarlyUsageTrigger, Reason: "early"}, "beta"); !ok || err != nil {
+		t.Fatalf("%v %v", ok, err)
+	}
+	if s := switchOf(t, g); s.Phase != db.SwitchSaving {
+		t.Fatalf("%+v", s)
 	}
 }
 

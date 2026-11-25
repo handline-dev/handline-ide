@@ -192,6 +192,15 @@ func (v *Mover) moveExclude(agent, here string) map[string]string {
 	return exclude
 }
 
+// closePlan is the account a close of kind moves the agent to, and why: dest held to the room test when one is given, else MovePlan's pick.
+func (v *Mover) closePlan(agent, kind, dest string) (string, string) {
+	if dest != "" {
+		return v.forcedPlan(agent, dest)
+	}
+	there, why, _ := v.plan(agent, kind, false)
+	return there, why
+}
+
 // forcedPlan holds a person's chosen destination to the same room test.
 func (v *Mover) forcedPlan(agent, dest string) (string, string) {
 	m := v.M
@@ -245,14 +254,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 		return false, false
 	}
 	here := m.Agents.CurrentAccount(m.Q, agent)
-	var there, why string
-	if dest != "" {
-		there, why = v.forcedPlan(agent, dest)
-	} else {
-		var err error
-		there, why, err = v.MovePlan(agent, t.Kind, false)
-		check(err)
-	}
+	there, why := v.closePlan(agent, t.Kind, dest)
 	if there == "" {
 		v.log("  %s: staying on %s - %s", agent, here, why)
 		return false, false
@@ -371,7 +373,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	if last != nil && t.Kind != "forced" && !outTrigger(t.Kind) && now-*last < states.MinHandoffIntervalS {
 		v.log("  %s: %s fired again %ds after the last handoff - too soon, skipping", agent, t.Kind, now-*last)
 		if usageTrigger(t.Kind) && m.sessionAlive(agent) {
-			v.saving(agent, t.Kind, "")
+			v.deferredSaving(agent, t.Kind, dest, "")
 		}
 		return true, nil
 	}
@@ -395,7 +397,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 			}
 			v.log("  %s: %s fired - deferring, waits for %s", agent, t.Kind, waits)
 			check(db.MarkDeferred(m.Q, agent, now))
-			v.saving(agent, t.Kind, waits)
+			v.deferredSaving(agent, t.Kind, dest, waits)
 			return true, nil
 		}
 		return false, fmt.Errorf("%s: the forced move did not happen: a terminal's turn cannot be interrupted without typing", agent)
@@ -405,7 +407,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, t.Kind, now) {
 		v.log("  %s: %s fired - waiting for its handoff note", agent, t.Kind)
 		check(db.MarkNoteWait(m.Q, agent, t.Kind, now))
-		v.saving(agent, t.Kind, "its handoff note")
+		v.deferredSaving(agent, t.Kind, dest, "its handoff note")
 		return true, nil
 	}
 	// A person's kept move names where any handoff takes the agent; one that cannot go there says so rather than vanish.

@@ -45,6 +45,23 @@ func (v *Mover) saving(agent, kind, waits string) {
 	m.refreshView(agent)
 }
 
+// deferredSaving is saving for a handoff put off to a later tick, shown only while closePlan finds an account to move to: with none the close
+// will not move, so a saving switch is cleared and a wait is left as it is.
+func (v *Mover) deferredSaving(agent, kind, dest, waits string) {
+	if !MovableTrigger(kind) {
+		return
+	}
+	if there, _ := v.closePlan(agent, kind, dest); there != "" {
+		v.saving(agent, kind, waits)
+		return
+	}
+	m := v.M
+	if s := must(db.GetSwitch(m.Q, agent)); s != nil && s.Phase == db.SwitchSaving {
+		check(db.ClearSavingSwitch(m.Q, agent))
+		m.refreshView(agent)
+	}
+}
+
 // parkedSwitch is what a park does to the switch: a wait for the wall, none for a park that is no wall, and a move's short retry keeps the
 // step it stopped at.
 func (v *Mover) parkedSwitch(agent, kind, from string, reason verdict.ParkReason, wake int64) {
