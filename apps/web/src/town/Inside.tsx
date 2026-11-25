@@ -15,7 +15,7 @@ import { viewOf } from '#src/town/view.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade } from '#src/town/shade.ts';
 import { NAME_HALO, NAME_INK, THROUGH } from '#src/town/palette.ts';
-import { DoorSwing, type Way } from '#src/town/door.tsx';
+import { DoorSwing, leavesOf, type Leaves, type Way } from '#src/town/door.tsx';
 import { FounderDrawing, useFounder, useWalker, type Ground } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { groundOf } from '#src/town/ground.ts';
@@ -24,7 +24,7 @@ const PIXEL = { imageRendering: 'pixelated' } as const;
 
 let renderer: WebGLRenderer | null = null;
 
-type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground; door: Box | null };
+type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground; door: Box | null; leaves: Leaves | null };
 
 /** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
 const sigOf = (house: House, cols: number) =>
@@ -55,7 +55,16 @@ function drawOffice({ room, sig, house: key }: { room: Room | null; sig: string 
   [canvas.width, canvas.height] = [pic.w, pic.h];
   canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
   const ground = groundOf(pic, frame, room, { speed: 1.4, stride: 0.16 });
-  const drawn = { url: canvas.toDataURL(), w: pic.w, h: pic.h, cast, ground, door: boxOf(pic, frame, DOOR) };
+  const drawn = {
+    url: canvas.toDataURL(),
+    w: pic.w,
+    h: pic.h,
+    cast,
+    ground,
+    door: boxOf(pic, frame, DOOR),
+    // Hinged by the corner, it opens out of the room.
+    leaves: leavesOf(room.blocks, DOOR, 'right'),
+  };
   drawings.delete(key);
   drawings.set(key, { sig, drawn });
   for (const old of drawings.keys()) if (drawings.size > MOST) drawings.delete(old);
@@ -188,11 +197,11 @@ export function Inside({
                   founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
                 }}
               />
-              {drawn.door && swing && (
+              {drawn.door && drawn.leaves && swing && (
                 <DoorSwing
-                  url={drawn.url}
-                  size={[drawn.w, drawn.h]}
-                  door={{ box: drawn.door, through: THROUGH.outdoors }}
+                  pic={drawn.ground.pic}
+                  door={{ box: drawn.door, through: THROUGH, leaves: drawn.leaves }}
+                  toPixel={drawn.ground.toPixel}
                   way={swing.way}
                   onDone={() => {
                     if (swing.way !== 'open') return setSwing(null);
