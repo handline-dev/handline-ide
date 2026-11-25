@@ -1,6 +1,7 @@
 import { count } from '#src/format/count.ts';
 import type { TurnRecord as Turn } from '@handline/app-core';
 import type { TranscriptItem } from '@handline/client';
+import { commandGist } from '@handline/app-core';
 import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
@@ -13,7 +14,10 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
   const [open, setOpen] = useState(false);
   const notes = r.items.filter((i) => i.kind === 'reply').length;
-  const what = r.steps ? `${count(r.steps, 'step')}` : `${count(notes, 'note')}`;
+  const steps = r.items.length - notes; // a permission ask is a step as a tool call is
+  const what = steps ? count(steps, 'step') : count(notes, 'note');
+  // A permission ask still open says so on the folded line: it waits on the person, not on the agent.
+  const asks = r.items.some((i) => i.kind === 'prompt' && i.open);
   const min = Math.floor((Date.parse(r.until) - Date.parse(r.at)) / 60_000);
   return (
     <motion.div
@@ -31,6 +35,7 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
           className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-xs text-muted hover:bg-hover/30"
         >
           <ChevronRight size={12} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+          {asks && <span className="text-warning">Asks your permission ·</span>}
           {what} · {min < 1 ? '<1m' : `${min}m`}
         </button>
         {open && (
@@ -52,12 +57,42 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
   );
 }
 
-/** A tool call as `Tool text` in mono, a permission ask in words, the agent's text as it wrote it. */
+/** A tool call: its tool, then what it ran in mono, wrapped, never cut mid-path. A permission ask: who it waits on or how it ended, and
+ *  the command, with what it does in plain words when its first word says so. The agent's text as it wrote it. */
 export function Step({ i }: { i: TranscriptItem }) {
   if (i.kind === 'reply') return <div className="min-w-0 text-sm text-muted">{i.text && <Markdown text={i.text} />}</div>;
-  const text =
-    i.kind === 'prompt'
-      ? `Asked permission: ${[i.prompt?.tool, i.prompt?.command].filter(Boolean).join(' ')}${i.open ? ' (waiting)' : ''}`
-      : [i.tool, i.text].filter(Boolean).join(' ');
-  return <code className="min-w-0 truncate font-mono text-xs text-fg">{text}</code>;
+  if (i.kind === 'prompt') {
+    const command = i.prompt?.command ?? null;
+    const gist = commandGist(command);
+    const a = i.answer;
+    const ended = i.open
+      ? 'waiting for you'
+      : a && 'label' in a && a.label
+        ? `${a.label}${a.by ? ` by ${a.by}` : ''}`
+        : 'answered in the terminal';
+    return (
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="text-xs text-muted">
+          <span className={i.open ? 'text-warning' : 'text-fg'}>Asked to use {i.prompt?.tool ?? 'a tool'}</span>
+          {gist && ` · ${gist}`} · {ended}
+        </p>
+        {command && <Code text={command} />}
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-w-0 items-baseline gap-2">
+      {i.tool && <span className="shrink-0 text-xs text-muted">{i.tool}</span>}
+      {i.text && <Code text={i.text} />}
+    </div>
+  );
+}
+
+/** What a step ran, in mono: whole and wrapped at three lines, the rest on hover. */
+function Code({ text }: { text: string }) {
+  return (
+    <code title={text} className="line-clamp-3 min-w-0 font-mono text-xs break-all whitespace-pre-wrap text-fg">
+      {text}
+    </code>
+  );
 }

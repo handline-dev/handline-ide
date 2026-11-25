@@ -215,3 +215,21 @@ export function turnMinutes(since: string | null, now = Date.now()): string {
   const m = since ? Math.floor((now - Date.parse(since)) / 60_000) : 0;
   return m < 1 ? '<1m' : `${m}m`;
 }
+
+const GIST: [RegExp, string][] = [
+  [/^(sudo\s+)?cp\b/, 'Copies files'],
+  [/^(sudo\s+)?mv\b/, 'Moves files'],
+  [/^(sudo\s+)?rm\b/, 'Deletes files'],
+  [/^mkdir\b/, 'Makes a folder'],
+  [/^git\s+push\b/, 'Pushes commits'],
+  [/^git\s+commit\b/, 'Makes a commit'],
+  [/^git\s+(checkout|switch)\b/, 'Switches branch'],
+  [/^(pnpm|npm|yarn)\s+(run\s+)?test\b|^go\s+test\b|^pytest\b|^vitest\b/, 'Runs tests'],
+  [/^(pnpm|npm|yarn)\s+(install|add|i)\b|^go\s+get\b|^pip\s+install\b/, 'Installs packages'],
+  [/^curl\b|^wget\b/, 'Fetches from the network'],
+];
+/** What a shell command does, in a few plain words, when its first word says so plainly; else null, never guessed. */
+export function commandGist(command: string | null | undefined): string | null {
+  const c = (command ?? '').trim().replace(/^(cd\s+\S+\s*&&\s*)+/, '');
+  return GIST.find(([re]) => re.test(c))?.[1] ?? null;
+}
