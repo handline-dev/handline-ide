@@ -26,6 +26,9 @@ func watchedRows(t *testing.T, watch bool) map[string]int {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
+	// bob is hired before the daemon starts: a newly listed agent is an agent.changed of its own, which the watch's first look absorbs.
+	teamtest.Seed(t, dir, "bob")
+	bob := teamtest.Key(t, dir, "bob")
 	d, err := Start(Config{Home: dir, DBFile: filepath.Join(dir, "db.sqlite"), SocketFile: filepath.Join(dir, "d.sock"), Auth: fakeAuth{}, Watch: watch})
 	if err != nil {
 		if strings.Contains(err.Error(), "operation not permitted") {
@@ -45,17 +48,23 @@ func watchedRows(t *testing.T, watch bool) map[string]int {
 	} else {
 		time.Sleep(3 * watcher.Every)
 	}
-	teamtest.Seed(t, dir, "bob")
-	bob := teamtest.Key(t, dir, "bob")
+	// One change, so one commit: the agents topic reads the board too, and a scan between separate writes would see half of it.
+	tx, err := d.db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, q := range [][]any{
 		{"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', ?, ?, 1)", bob, actor.OwnerKey},
 		{`INSERT INTO agent_view(agent, view, updated) VALUES(?, '{"name":"bob","state":"idle"}', 0)`, bob},
 		{`INSERT INTO events(ts, agent, kind, payload) VALUES(1, ?, 'mark_task_done', '{"task_id": 1}')`, bob},
 		{"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(1, 5, ?, ?, 'hi', 'queued', 'say')", actor.OwnerKey, bob},
 	} {
-		if _, err := d.db.Exec(q[0].(string), q[1:]...); err != nil {
+		if _, err := tx.Exec(q[0].(string), q[1:]...); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
 	}
 	// a proposal file: the store is files, so no database commit tells of it
 	os.MkdirAll(filepath.Join(dir, "proposals"), 0o755)

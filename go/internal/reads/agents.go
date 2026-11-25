@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/status"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
 )
@@ -116,35 +117,67 @@ func (e *Env) agentsList(c *rpc.Conn, params map[string]any) (any, error) {
 	roster := team.NewRoster(e.Home)
 	agents := []map[string]any{}
 	for _, n := range e.listAgents() {
-		v, err := e.viewMap(n, stored, x)
+		v, err := e.listRow(roster, n, stored, x, status)
 		if err != nil {
 			return nil, err
-		}
-		if status {
-			if err := e.addStatusLine(roster, n, v); err != nil {
-				return nil, err
-			}
-		}
-		l, err := e.leastLooked(roster, n)
-		if err != nil {
-			return nil, err
-		}
-		v["review_level"], v["review_work"] = l.Level, nil
-		if l.Level != db.LevelEvery {
-			v["review_work"] = l.Work
-		}
-		v["folder"] = nil // the folder of its workspace it works in
-		if f := roster.RepoOf(n); f != "" {
-			v["folder"] = f
-		}
-		v["node"] = nil // the machine it stays on (package placement), nil before its first session
-		var node sql.NullString
-		if e.DB.QueryRow("SELECT node FROM agent_state WHERE agent = ?", n).Scan(&node) == nil && node.String != "" {
-			v["node"] = node.String
 		}
 		agents = append(agents, v)
 	}
 	return map[string]any{"agents": agents}, nil
+}
+
+// listRow is an agent's row as agents.list sends it: its view with the fields read beside it, its review level, folder and node, and
+// with status what hl team draws of it too.
+func (e *Env) listRow(roster *team.Roster, n string, stored map[string]json.RawMessage, x *viewCtx, status bool) (map[string]any, error) {
+	v, err := e.viewMap(n, stored, x)
+	if err != nil {
+		return nil, err
+	}
+	if status {
+		if err := e.addStatusLine(roster, n, v); err != nil {
+			return nil, err
+		}
+	}
+	l, err := e.leastLooked(roster, n)
+	if err != nil {
+		return nil, err
+	}
+	v["review_level"], v["review_work"] = l.Level, nil
+	if l.Level != db.LevelEvery {
+		v["review_work"] = l.Work
+	}
+	v["folder"] = nil // the folder of its workspace it works in
+	if f := roster.RepoOf(n); f != "" {
+		v["folder"] = f
+	}
+	v["node"] = nil // the machine it stays on (package placement), nil before its first session
+	var node sql.NullString
+	if e.DB.QueryRow("SELECT node FROM agent_state WHERE agent = ?", n).Scan(&node) == nil && node.String != "" {
+		v["node"] = node.String
+	}
+	return v, nil
+}
+
+// AgentRows is the row agents.list sends for each agent it lists, by key, with views as the stored views: the agents topic sends a
+// changed one as agent.changed, so a client that puts it in place of its listed row loses no field the list gave.
+func (e *Env) AgentRows(views map[string]json.RawMessage) (map[string]map[string]any, error) {
+	x, err := e.viewCtx()
+	if err != nil {
+		return nil, err
+	}
+	// A roster that cannot be read is an error, not an empty list: the topic would tell every agent removed.
+	names, err := paths.ReadAgents(e.Home)
+	if err != nil {
+		return nil, err
+	}
+	roster := team.NewRoster(e.Home)
+	out := make(map[string]map[string]any, len(names))
+	for _, n := range names {
+		if out[n], err = e.listRow(roster, n, views, x, false); err != nil {
+			return nil, fmt.Errorf("agent %s: %w", n, err)
+		}
+	}
+	return out, nil
 }
 
 // addStatusLine adds what hl team draws of an agent beyond its view (rpc_agents._status_line). The screen word is read back from the

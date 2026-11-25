@@ -140,7 +140,7 @@ func detectorsOver(t *testing.T) []struct {
 		db  *sql.DB
 	}
 	for _, mk := range []func(*reads.Env) Detector{
-		func(e *reads.Env) Detector { return &Tasks{Reads: e} }, func(*reads.Env) Detector { return &Agents{} },
+		func(e *reads.Env) Detector { return &Tasks{Reads: e} }, func(e *reads.Env) Detector { return &Agents{Reads: e} },
 		func(e *reads.Env) Detector { return &Notifications{Reads: e} }, func(e *reads.Env) Detector { return &Inbox{Reads: e} },
 		func(e *reads.Env) Detector { return &ForYou{Reads: e} }, func(*reads.Env) Detector { return &Prefs{} },
 		func(e *reads.Env) Detector { return &Requests{Reads: e} }, func(e *reads.Env) Detector { return &Proposals{Reads: e} },
@@ -154,7 +154,7 @@ func detectorsOver(t *testing.T) []struct {
 		seedWatched(t, seed)
 		seed.Close()
 		d := captured(t, path)
-		det := mk(&reads.Env{DB: d, Home: t.TempDir()})
+		det := mk(&reads.Env{DB: d, Home: filepath.Dir(path)}) // the home its database is in, as the roster reads it
 		out = append(out, struct {
 			det Detector
 			db  *sql.DB

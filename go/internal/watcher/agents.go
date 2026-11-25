@@ -6,24 +6,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/handline/handline/go/agentctl/dialogs"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
 )
 
-// Agents is the agents topic: a changed agent_view row is agent.changed (the view as data), one that turned stalled also says so on the
-// notifications topic, and a row gone is agent.removed. It reads the table whoever wrote the row; a view carries the agent's name,
-// workspace and owner, so a rename is agent.changed too. Its first look says nothing.
+// Agents is the agents topic over the rows agents.list sends (reads.AgentRows): a changed row is agent.changed with the whole row as
+// data, one that turned stalled also says so on the notifications topic, and an agent no longer listed is agent.removed. A client puts
+// the row in place of its listed one, so it carries every field the list does: a bare stored view would drop the queue count and the
+// rest read beside it until the list is read again. A row carries the agent's name, workspace and owner, so a rename is agent.changed
+// too. Its first look says nothing.
 type Agents struct {
+	Reads *reads.Env
 	seen  map[string]string
 	query string // tests: a read that fails part way
 }
 
 func (*Agents) Name() string { return "agents" }
 
-func (*Agents) Tables() []string { return []string{"agent_view", "agents"} }
+// Tables are those an agents.list row is read from that count their changes: the stored view, the roster, and the board its queue
+// count, ready and founder fields come from (events: whether a task has begun), so a task that joins or leaves an agent's queue sends
+// its row again. What no counted table holds shows at the next change of another: a role or review level (the app reads the list
+// again after it sets one), and the wall and fire, which follow usage and the clock.
+func (*Agents) Tables() []string {
+	return []string{"agent_state", "agent_view", "agents", "cursors", "events", "meta", "requests", "task_blocks", "task_requests",
+		"task_turns", "tasks", "workspaces"}
+}
 
 func stateOf(view string) string {
 	var v struct {
@@ -60,29 +69,33 @@ func stuck(view string) bool {
 }
 
 func (a *Agents) Scan(q *sql.DB, emit Emit) error {
-	ids, err := reads.Idents(q)
-	if err != nil {
-		return err
-	}
 	rows, err := q.Query(cmp.Or(a.query, "SELECT agent, view FROM agent_view"))
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	now := map[string]string{}
+	views := map[string]json.RawMessage{}
 	for rows.Next() {
 		var name, view string
 		if err := rows.Scan(&name, &view); err != nil {
 			return err
 		}
-		wire, err := withIdent(name, view, ids)
-		if err != nil {
-			return fmt.Errorf("agent %s: view: %w", name, err) // as agents.list refuses it
-		}
-		now[name] = wire
+		views[name] = json.RawMessage(view)
 	}
 	if err := rows.Err(); err != nil { // a read that stopped short is not a list with agents gone
 		return err
+	}
+	listed, err := a.Reads.AgentRows(views)
+	if err != nil {
+		return err // as agents.list refuses it
+	}
+	now := make(map[string]string, len(listed))
+	for name, row := range listed {
+		b, err := json.Marshal(row)
+		if err != nil {
+			return fmt.Errorf("agent %s: %w", name, err)
+		}
+		now[name] = string(b)
 	}
 	before := a.seen
 	a.seen = now
@@ -129,17 +142,4 @@ func (a *Agents) Scan(q *sql.DB, emit Emit) error {
 		}
 	}
 	return nil
-}
-
-// withIdent is the stored view of the agent whose key is key as the wire has it (reads.WithIdent).
-func withIdent(key, view string, ids map[string]reads.Ident) (string, error) {
-	var v map[string]any
-	dec := json.NewDecoder(strings.NewReader(view))
-	dec.UseNumber()
-	if err := dec.Decode(&v); err != nil {
-		return "", err
-	}
-	reads.WithIdent(v, key, ids)
-	b, err := json.Marshal(v)
-	return string(b), err
 }

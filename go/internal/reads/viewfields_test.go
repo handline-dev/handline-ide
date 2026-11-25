@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
@@ -210,4 +211,56 @@ func TestTaskCountLeavesOutWhatIsNotTheAgentsToDoNow(t *testing.T) {
 	count(2, "the blocker done")
 	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'pick', '"+bob+"', 1)")
 	count(2, "the held task counts on the founder's turn")
+}
+
+// The agents topic sends AgentRows as agent.changed and a client puts it in place of the listed row: it must be that row, field for
+// field, or the queue count and the rest drop out of the list until it is read again.
+func TestAgentRowsAreTheRowsAgentsListSends(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	bob := teamtest.Key(t, e.Home, "bob")
+	run(t, e, `INSERT INTO agent_view(agent, view, updated) VALUES('`+bob+`', '{"name":"`+bob+`","state":"idle"}', 0)`)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', '"+bob+"', 'p1', 1, 'p1'), (3, 'c', '"+bob+"', 'p1', 1, 'p1')")
+	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task, node) VALUES('"+bob+"', 'IDLE', 0, 1, 'n1')")
+	run(t, e, "INSERT INTO requests(ts, requester, target, body, state, kind) VALUES(5, '"+bob+"', 'p1', 'look', 'landed', 'say')")
+	stored, err := e.storedViews()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := e.AgentRows(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(rows[bob])
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := viewOfAgent(t, e, bob)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("agent row\n got %v\nwant %v", got, want)
+	}
+	for _, k := range []string{"task_count", "ready", "kind", "last_to_founder", "founder_unread", "review_level", "folder", "node"} {
+		if _, has := got[k]; !has {
+			t.Errorf("the row lacks %s", k)
+		}
+	}
+	if got["task_count"] != float64(2) || got["ready"] != true || got["node"] != "n1" || got["last_to_founder"] == nil {
+		t.Fatalf("%v", got)
+	}
+}
+
+// A roster that cannot be read is an error: an empty list would tell the agents topic that every agent left.
+func TestAgentRowsOfAnUnreadableRosterIsAnError(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	broken := t.TempDir()
+	if err := os.Mkdir(filepath.Join(broken, "db.sqlite"), 0o755); err != nil { // a database file that cannot be opened
+		t.Fatal(err)
+	}
+	e.Home = broken
+	if rows, err := e.AgentRows(nil); err == nil {
+		t.Fatalf("no error, %d rows", len(rows))
+	}
 }

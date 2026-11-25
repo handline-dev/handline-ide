@@ -13,7 +13,7 @@ func TestARenameIsAgentChangedAndAWriteToPeopleOrWorkspacesIsTheirChanged(t *tes
 	exec(t, d, "INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(7, 5, 'designer', 'p1', 0)")
 	exec(t, d, `INSERT INTO agent_view(agent, view, updated) VALUES('a7', '{"name":"a7","state":"idle"}', 0)`)
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
-	dets := []Detector{&Agents{}, People(), Workspaces(), Nodes()}
+	dets := []Detector{agentsOn(t, d), People(), Workspaces(), Nodes()}
 	scan := func() {
 		for _, x := range dets {
 			if err := x.Scan(d, emit); err != nil {

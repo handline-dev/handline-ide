@@ -198,44 +198,6 @@ func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 	}
 }
 
-func TestGoAndPythonWriteTheSameRowsForTheSameAgentChanges(t *testing.T) {
-	v := func(name, state string) string { return `{"name":"` + name + `","state":"` + state + `","role":"r"}` }
-	py, events := parity(t, func(*sql.DB) Detector { return &Agents{} },
-		func(run func(string, ...any)) {
-			run("INSERT INTO agent_view(agent, view, updated) VALUES('amy', ?, 0), ('bob', ?, 0), ('cat', ?, 0)", v("amy", "idle"), v("bob", "idle"), v("cat", "idle"))
-		},
-		func(run func(string, ...any)) {
-			run("UPDATE agent_view SET view = ? WHERE agent = 'amy'", v("amy", "stalled"))
-			run("UPDATE agent_view SET view = ? WHERE agent = 'bob'", v("bob", "running"))
-			run("DELETE FROM agent_view WHERE agent = 'cat'")
-			run("INSERT INTO agent_view(agent, view, updated) VALUES('dan', ?, 0)", v("dan", "stalled"))
-		})
-	if len(py) != len(events) || len(py) != 6 {
-		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
-	}
-	for i, e := range events {
-		sameRow(t, i, py[i], e)
-		if want := identified(py[i]); !same(want, e.Data) {
-			t.Errorf("row %d data: python %v, go %s", i, want, e.Data)
-		}
-	}
-}
-
-// identified is a recorded agents row's data with what Python never sent: an agent view's key, workspace and owner (an agent with no
-// row: its name is its key, the rest empty) and agent.removed's key in place of its name.
-func identified(row map[string]any) any {
-	s, _ := row["data"].(string)
-	var v map[string]any
-	if row["topic"] != "agents" || json.Unmarshal([]byte(s), &v) != nil {
-		return row["data"]
-	}
-	if row["type"] == "agent.removed" {
-		return map[string]any{"key": v["name"]}
-	}
-	v["key"], v["workspace"], v["owner"] = v["name"], "", ""
-	return v
-}
-
 func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {
 	ins := "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(?, ?, ?, ?, ?, ?, 'say')"
 	pb := "INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) VALUES(?, 'question', 'f', 't', '[]', '{}', 1, ?, ?)"

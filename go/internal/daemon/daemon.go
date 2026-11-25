@@ -498,7 +498,7 @@ func Start(cfg Config) (*Daemon, error) {
 			emit = d.push.Tee(emit, notes)
 		}
 		w = &watcher.Watcher{DB: db, Emit: emit, Log: cfg.Log, Signature: func() string { return proposalSignature() + "/" + watcher.ForYouSignature(db) },
-			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
+			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Proposals{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.ForYou{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Prefs{}, &watcher.Requests{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns, Tail: d.paneTail, Log: cfg.Log}}}
