@@ -202,7 +202,7 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
           full
           word={several && <HereWord />}
           chosen={!!chosen && keyOf(chosen) === keyOf(x)}
-          onPick={split && (x.p.task !== null || isProposal(x.p)) ? () => choose(x, showable.indexOf(x)) : undefined}
+          onPick={split && x.p.task !== null ? () => choose(x, showable.indexOf(x)) : undefined}
         />
       </NoPick>
     </InCluster>
@@ -344,7 +344,7 @@ type Decision = { kind: 'task'; at: string; t: DecidedTask } | { kind: 'proposal
 
 const ANSWER: Record<string, string> = { approved: 'Allowed', rejected: 'Denied', apply_failed: 'Allowed, not applied' };
 
-/** An HR proposal the founder answered, drawn as a task decision is: what it asked, the answer, and when. It opens the asking agent's
+/** A proposal the founder answered, drawn as a task decision is: what it asked, the answer, and when. It opens the asking agent's
  *  chat, as its Your turn row did. */
 function DecidedProposal({ x }: { x: Proposal }) {
   const nameOf = useNameOf();
@@ -357,7 +357,6 @@ function DecidedProposal({ x }: { x: Proposal }) {
           <span className="grid h-lh w-4 shrink-0 self-start place-items-center text-muted">
             <Lightbulb size={16} />
           </span>
-          <span className="shrink-0 text-muted">HR</span>
           <span className="truncate font-medium text-fg">{x.title}</span>
           <span className="shrink-0 text-muted">{nameOf(asker)}</span>
           <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">

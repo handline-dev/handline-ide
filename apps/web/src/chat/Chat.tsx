@@ -26,6 +26,7 @@ import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { FootRow, HoldCard, useHoldLine } from '#src/chat/agent/HoldBar.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
+import { ProposalCards } from '#src/chat/ProposalCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
 import { TaskActivity, useTaskActivity } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
@@ -299,6 +300,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             )}
             <PauseCard agent={agent} />
             <PromptCard agent={agent} />
+            <ProposalCards agent={agent} />
           </Page>
         </div>
       </div>

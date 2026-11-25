@@ -238,10 +238,11 @@ function Line({
 
 /** Where a row opens: its task; for a daemon warning, the account, the chat or the settings it is about; else the asking agent's
  * chat, or Requests. Null for the disk and review warnings, which open Settings. */
-function turnOpens(p: PendingRequest): string | null {
+function turnOpens(p: PendingRequest, asker?: string | null): string | null {
   const w = p.warning;
   if (p.task !== null) return taskOf(p.task);
-  if (p.source === 'proposal' && p.id) return proposalOf(Number(p.id));
+  // A proposal is answered in the chat of the agent that asked, where its card waits; one the daemon made opens on its own.
+  if (p.source === 'proposal' && p.id) return asker ? chatOf(asker) : proposalOf(Number(p.id));
   if (w?.account && w.kind === 'login') return 'usage';
   if (w?.kind === 'disk' || w?.kind === 'review') return null;
   if (w?.agent) return chatOf(w.agent);
@@ -274,9 +275,9 @@ export function TurnLine({
   const refs = useRefs();
   const cluster = useCluster();
   const daemon = p.kind === 'warning' || p.agent === null;
-  // An HR proposal is called by what it does, under it its reason; the daemon's title is `<kind> <agent>`.
+  // A proposal is called by what it does, under it its reason; the daemon's title is `<kind> <agent>`.
   const proposal = useProposals().data?.proposals.find((x) => p.source === 'proposal' && String(x.id) === p.id);
-  const opens = turnOpens(p);
+  const opens = turnOpens(p, proposal?.requested_by !== 'human' ? proposal?.requested_by : null);
   const login = p.warning?.kind === 'login' ? p.warning.account : undefined;
   return (
     <Line
@@ -288,7 +289,7 @@ export function TurnLine({
       title={proposal ? proposalTitle(proposal, nameOf) : refs(p.title)}
       icon={full ? subjectIcon(p) : turnIcon(p)}
       {...(full && {
-        lead: p.source === 'proposal' ? 'HR' : p.task !== null ? `T${p.task}` : p.warning ? WARN_WORD[p.warning.kind] : '',
+        lead: p.source === 'proposal' ? '' : p.task !== null ? `T${p.task}` : p.warning ? WARN_WORD[p.warning.kind] : '',
         who: proposal ? (proposal.requested_by ? nameOf(proposal.requested_by) : 'daemon') : daemon ? 'daemon' : nameOf(p.agent!),
         wait: until ? `back ${until}` : ago(p.last_at),
         answers: answersShown(p) ? <TurnQuick p={p} /> : undefined,
