@@ -238,7 +238,7 @@ func (t *Tracker) hook(tr *turn, agent, event string, raw map[string]any, at int
 		tasks, listed := raw["background_tasks"]
 		tr.at, tr.background, tr.bgKnown = at, runningTasks(tasks), listed
 		tr.set(Idle)
-		tr.settled = event == "Stop" // a StopFailure may leave the usage-limit dialog up
+		tr.settled = event == "Stop" || raw["error"] != "rate_limit" // a usage limit may leave its dialog up
 	case "PermissionRequest":
 		tr.settled = false
 	case "Notification":

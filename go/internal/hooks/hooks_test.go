@@ -430,3 +430,31 @@ func TestAHeavyBashCallIsKeptByItsShapeAndAWeekOldOneGoes(t *testing.T) {
 		t.Errorf("%d rows: the week-old one stayed or the light one was kept", n)
 	}
 }
+
+// A turn that ended on an error leaves the agent idle, so the wake for an idle agent with work sends it on; a usage limit says so.
+func TestATurnEndedOnAnErrorLeavesTheAgentIdleAndSettled(t *testing.T) {
+	h := testRecorder(t)
+	h.Turns = &turns.Tracker{Agent: func(string) string { return "w" }}
+	at := time.Now().Unix() - 10
+	for i, c := range []struct{ err, detail string }{
+		{"server_error", "its turn ended on an error: server_error"},
+		{"rate_limit", "at its usage limit: rate_limit"},
+	} {
+		if err := h.apply("w", "UserPromptSubmit", map[string]any{}, "p"+strconv.Itoa(i), at); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.apply("w", "StopFailure", map[string]any{"error": c.err}, "f"+strconv.Itoa(i), at+1); err != nil {
+			t.Fatal(err)
+		}
+		at += 2
+		var state, detail string
+		h.DB.QueryRow("SELECT state, detail FROM agent_state WHERE agent = 'w'").Scan(&state, &detail)
+		if state != "IDLE" || detail != c.detail {
+			t.Fatalf("%s: %s %q", c.err, state, detail)
+		}
+		// Only a usage limit may leave a dialog up: the screen is still read for one.
+		if settled := h.Turns.Settled("%1"); settled != (c.err != "rate_limit") {
+			t.Fatalf("%s: settled %v", c.err, settled)
+		}
+	}
+}

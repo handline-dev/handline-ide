@@ -203,7 +203,7 @@ func TestAStopFailureLeavesTheBackgroundUnknown(t *testing.T) {
 	}
 }
 
-func TestOnlyAStopWithNoPromptSinceSettlesTheTurn(t *testing.T) {
+func TestAStopOrANonLimitStopFailureWithNoPromptSinceSettlesTheTurn(t *testing.T) {
 	tr, _ := tracker(t)
 	at := int64(10)
 	hook := func(event string, raw map[string]any) { tr.Hook("amy", event, raw, at); at++ }
@@ -214,7 +214,8 @@ func TestOnlyAStopWithNoPromptSinceSettlesTheTurn(t *testing.T) {
 	}{
 		{[]string{"UserPromptSubmit"}, nil, false},
 		{[]string{"UserPromptSubmit", "Stop"}, nil, true},
-		{[]string{"UserPromptSubmit", "StopFailure"}, nil, false},
+		{[]string{"UserPromptSubmit", "StopFailure"}, map[string]any{"error": "server_error"}, true},
+		{[]string{"UserPromptSubmit", "StopFailure"}, map[string]any{"error": "rate_limit"}, false},
 		{[]string{"UserPromptSubmit", "Stop", "PermissionRequest"}, nil, false},
 		{[]string{"UserPromptSubmit", "Stop", "Notification"}, map[string]any{"notification_type": "permission_prompt"}, false},
 		{[]string{"UserPromptSubmit", "Stop", "Notification"}, map[string]any{"notification_type": "idle_prompt"}, true},

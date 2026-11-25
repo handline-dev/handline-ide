@@ -344,11 +344,16 @@ func markActivity(tx *sql.Tx, agent, event string, payload map[string]any) error
 			return nil // already correct; do not rewrite on every prompt
 		}
 		return setState(tx, agent, rowstate.Running, "working")
-	case event == "StopFailure" && payload["limit"] != nil && payload["limit"] != "":
-		// Out of usage is not working: the turn ended and nothing will run.
-		if row.found && row.state == rowstate.Running {
+	case event == "StopFailure" && row.found && row.state == rowstate.Running:
+		// The turn ended on an error (out of usage, the API unreachable): nothing runs, and an idle agent with work is woken.
+		if payload["limit"] != nil && payload["limit"] != "" {
 			return setState(tx, agent, rowstate.Idle, "at its usage limit: "+cut(fmt.Sprint(payload["limit"]), 80))
 		}
+		detail := "its turn ended on an error"
+		if e, ok := payload["error"].(string); ok && e != "" {
+			detail += ": " + cut(e, 80)
+		}
+		return setState(tx, agent, rowstate.Idle, detail)
 	case event == "Stop" && row.found && row.state == rowstate.Running:
 		return setState(tx, agent, rowstate.Idle, "idle")
 	}
