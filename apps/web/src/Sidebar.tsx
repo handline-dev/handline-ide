@@ -65,7 +65,6 @@ type Pick = {
   /** The agents on screen (every pane's shown tab), each marked as picked. */
   shown: string[];
   onSelect: (name: string) => void;
-  onSettings: (name: string) => void;
 };
 
 /** The agent row being dragged and the section it came from; a drop reorders only within that section. */
@@ -114,7 +113,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
         {line?.at === agent.key && (
           <span className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`} />
         )}
-        <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)} onSettings={() => pick.onSettings(agent.key)}>
+        <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)}>
           <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
             <Row
               opens={opens}
@@ -286,7 +285,6 @@ function JoinedAgents({ joined, pick }: { joined: Joined; pick: Pick }) {
   const inIt: Pick = {
     shown: pick.shown.map(splitSpace).flatMap((h) => (h.cluster === joined.id ? [h.agent] : [])),
     onSelect: (name) => pick.onSelect(spaceOf(joined.id, name)),
-    onSettings: (name) => pick.onSettings(spaceOf(joined.id, name)),
   };
   return (
     <InCluster id={joined.id} dim>
@@ -313,14 +311,12 @@ export function Sidebar({
   onScreen,
   onSelectPage,
   onSelectAgent,
-  onAgentSettings,
 }: {
   width: number;
   /** What the panes show (agents' keys, pages' kinds): each is marked as picked. */
   onScreen: string[];
   onSelectPage: (kind: string, title: string) => void;
   onSelectAgent: (name: string) => void;
-  onAgentSettings: (name: string) => void;
 }) {
   const joined = useJoined();
   // Only the agents scroll; the pages above and the buttons below stay put.
@@ -344,11 +340,11 @@ export function Sidebar({
       </nav>
       <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
         <Agents
-          pick={{ shown: onScreen, onSelect: onSelectAgent, onSettings: onAgentSettings }}
+          pick={{ shown: onScreen, onSelect: onSelectAgent }}
           onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
         />
         {joined.map((j) => (
-          <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent, onSettings: onAgentSettings }} />
+          <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent }} />
         ))}
         <div className="-mx-2 mt-1 border-t border-border">
           <button

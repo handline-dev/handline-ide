@@ -128,7 +128,7 @@ function Frame() {
               {section === 'general' && <GeneralTab />}
               {section === 'onboarding' && <OnboardingTab go={setSection} />}
               {section === 'accounts' && <AccountsTab focus={to.account} />}
-              {section === 'agents' && <AgentsTab open={to.agent} />}
+              {section === 'agents' && <AgentsTab />}
               {section === 'tools' && <ToolsTab />}
               {section === 'notifications' && <NotificationsTab />}
               {section === 'projects' && <ProjectsTab />}

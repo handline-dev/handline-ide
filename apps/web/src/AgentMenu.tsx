@@ -5,7 +5,8 @@ import type { AgentView } from '@handline/client';
 import { Copy, FolderOpen, Pin, PinOff, Settings, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
-import { OpenItems } from '#src/layout/openable.tsx';
+import { OpenItems, useOpenable } from '#src/layout/openable.tsx';
+import { agentSettingsOf } from '#src/layout/kinds.tsx';
 import { ContextMenu, MenuItem, MenuSeparator, SubMenu } from '#src/ui/Menu.tsx';
 import { confirm, ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -36,18 +37,16 @@ function askWorktree(name: string, held: HeldWorktree[]) {
   ));
 }
 
-/** Right-click on an agent row: open it (as its click does, `onShow` for a plain open), pin, settings, open in, delete. */
+/** Right-click on an agent row: open it (as its click does, `onShow` for a plain open), pin, its settings tab, open in, delete. */
 export function AgentMenu({
   agent,
   opens,
   onShow,
-  onSettings,
   children,
 }: {
   agent: AgentView;
   opens: string;
   onShow: () => void;
-  onSettings: () => void;
   children: ReactNode;
 }) {
   const name = agent.key;
@@ -57,6 +56,7 @@ export function AgentMenu({
   const pinned = nav.pins.includes(name);
   const detail = useAgentDetail(name).data;
   const retire = useRetireAgent(name);
+  const settings = useOpenable(agentSettingsOf(name));
 
   const remove = async () => {
     if (
@@ -93,7 +93,7 @@ export function AgentMenu({
           <MenuItem icon={pinned ? <PinOff size={14} /> : <Pin size={14} />} onClick={() => togglePin(name)}>
             {pinned ? 'Unpin' : 'Pin to top'}
           </MenuItem>
-          <MenuItem icon={<Settings size={14} />} onClick={onSettings}>
+          <MenuItem icon={<Settings size={14} />} onClick={settings.onClick}>
             Settings…
           </MenuItem>
           <MenuSeparator />

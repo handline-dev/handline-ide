@@ -4,11 +4,10 @@ import { count } from '#src/format/count.ts';
 // reviewed, per kind of work.
 import { useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
-import { AppWindow, Bot, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
+import { AppWindow, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
-import { SettingsBar } from '#src/settings/SettingsBar.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { InfoTip } from '#src/ui/InfoTip.tsx';
@@ -42,12 +41,10 @@ const RUN = 10;
 /** Lessons shown before the rest fold into "N more". */
 const SHOWN = 8;
 
-export function AgentPage({ agent, back }: { agent: string; back?: () => void }) {
-  const name = useNameOf()(agent);
+export function AgentPage({ agent }: { agent: string }) {
   const device = useAgentDevice(agent);
   return (
     <SettingsPage
-      bar={back && <SettingsBar title={name} icon={<Bot size={16} className="shrink-0 text-muted" />} back={back} backTo="Agents" />}
       keep={`settings-agent-${agent}`}
       note={
         <>
