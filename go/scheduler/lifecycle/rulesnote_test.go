@@ -25,8 +25,7 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fp, _ := r.l.Fingerprint("ann")
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", fp, rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", rec); err != nil {
 		t.Fatal(err)
 	}
 	row := func() *db.AgentState {
@@ -40,9 +39,6 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 		t.Fatalf("unchanged rules told: %q", note)
 	}
 	rules = "# Rules for team core\n- keep it short\n- reply in Korean"
-	if r.l.Drifted("ann", row()) {
-		t.Fatal("a rules change relaunches the session")
-	}
 	was := row()
 	note, kept, err := r.l.RulesNote("ann", was)
 	want := "Your team rules changed (" + core + "). Your session goes on; follow the new rules from now.\n\nAdded:\n+ - reply in Korean\n\nRemoved:\n- - reply in English"
@@ -66,7 +62,7 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	stale := row()
 	_, kept, _ = r.l.RulesNote("ann", stale)
 	fresh, _ := r.l.LaunchRecord("ann")
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", fp, fresh); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", fresh); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.l.KeepRulesTold(r.l.Q, "ann", stale.LaunchParts.String, kept); err != nil || row().LaunchParts.String != fresh {
@@ -78,7 +74,7 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	delete(old, LaunchedRules)
 	old[rulesPart] = "0badc0de"
 	b, _ := json.Marshal(old)
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", fp, string(b)); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", string(b)); err != nil {
 		t.Fatal(err)
 	}
 	if note, _, _ := r.l.RulesNote("ann", row()); !strings.HasSuffix(note, "They now read:\n\n"+rules) {
@@ -86,18 +82,15 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	}
 }
 
-// The rules are not in the fingerprint; anything else in the preamble still is.
-func TestTheFingerprintLeavesOutTheRulesAlone(t *testing.T) {
+// ROLE.md moves its part, and the rules still reach the system prompt.
+func TestROLEmdMovesItsPartAndTheRulesStayInThePrompt(t *testing.T) {
 	r := newLaunchRig(t)
 	rules := "RULES-A"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
-	before, _ := r.l.Fingerprint("ann")
 	rules = "RULES-B"
-	if after, _ := r.l.Fingerprint("ann"); after != before {
-		t.Fatal("the rules moved the fingerprint")
-	}
+	before, _ := partsJSON(r.l, "ann")
 	r.setPart(t, db.PartRole, "a new role")
-	if after, _ := r.l.Fingerprint("ann"); after == before {
+	if after, _ := partsJSON(r.l, "ann"); after == before {
 		t.Fatal("ROLE.md did not move the fingerprint")
 	}
 	if ctx, _ := r.l.ContextFor("ann"); !strings.Contains(ctx, "RULES-B") {
@@ -136,5 +129,26 @@ func (r *launchRig) setPart(t *testing.T, part, text string) {
 	}
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A resume keeps the rules its conversation began with, so rules changed before it are still told after it.
+func TestRulesChangedBeforeAResumeAreStillTold(t *testing.T) {
+	r := newLaunchRig(t)
+	rules := "# Rules for team core\n- keep it short"
+	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
+	if err := r.prepare("ann", nil, false, "", "main", "launch", ""); err != nil {
+		t.Fatal(err)
+	}
+	rules = "# Rules for team core\n- keep it short\n- reply in Korean"
+	if err := r.prepare("ann", []string{"--resume", "s1"}, false, "", "main", "wake", ""); err != nil {
+		t.Fatal(err)
+	}
+	row, err := db.GetAgentState(r.l.Q, "ann")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if note, _, err := r.l.RulesNote("ann", row); err != nil || !strings.Contains(note, "+ - reply in Korean") {
+		t.Fatalf("the changed rules are not told after the resume: %q %v", note, err)
 	}
 }

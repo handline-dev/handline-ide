@@ -36,7 +36,7 @@ import (
 // DisallowedTools is the tools a session may not use. Work for another agent goes through `hl task new`, where the bridge can see it:
 // SendMessage reaches another agent's own session directly, bypassing the bridge. A subagent (Agent) is allowed for research or review
 // inside the session's own task; the PreToolUse guard records it and refuses it when the account's pace says it would reach a limit. ScheduleWakeup and CronCreate: a self-scheduled wakeup survives the park's /clear and fires into a session at the usage
-// wall, and Handline types the answer into the session when it comes, so nothing an agent schedules is needed. Build and Fingerprint name
+// wall, and Handline types the answer into the session when it comes, so nothing an agent schedules is needed. Build and the launch record name
 // the same tools, or a change to one reads as a launch that never drifted to the other.
 const DisallowedTools = "SendMessage,ScheduleWakeup,CronCreate"
 
@@ -774,7 +774,7 @@ func (l *Launcher) mcpConfigArg() (argv []string, problem string) {
 	return []string{"--mcp-config", p}, ""
 }
 
-// mcpConfigMaterial is what Fingerprint hashes for the shared mcp.json: whether a launch would pass --mcp-config at all, and if so the
+// mcpConfigMaterial is what the mcp config part hashes for the shared mcp.json: whether a launch would pass --mcp-config at all, and if so the
 // file's content, so editing it in place reads as drift even though the path never changes. Missing and invalid hash the same.
 func (l *Launcher) mcpConfigMaterial() string {
 	if argv, _ := l.mcpConfigArg(); len(argv) == 0 {
@@ -972,8 +972,8 @@ func youAre(name, handle string) string {
 }
 
 // staticPreamble is the part of ContextFor that a rebuild reproduces byte for byte, but for the team rules: everything except the
-// handoff, which is supposed to differ every time this agent is parked. The rules follow it in ContextFor; Fingerprint hashes its inputs
-// (preambleMaterial).
+// handoff, which is supposed to differ every time this agent is parked. The rules follow it in ContextFor; FingerprintParts hashes the
+// inputs a person changes.
 func (l *Launcher) staticPreamble(agent string) (string, error) {
 	parts := []string{
 		youAre(addr.For(l.Q, agent, agent), paths.AgentHandle(l.Home, agent)),
@@ -1142,13 +1142,6 @@ func (l *Launcher) teamMaterial(agent string) string {
 	return strings.Join([]string{f.ws, contact, strconv.FormatBool(f.founderTyped)}, "\x1f")
 }
 
-// preambleMaterial is the static preamble's inputs a person or an agent changes (the agent's names, its team, ROLE.md and base.md),
-// without Handline's own sentences: a Handline update alone never makes a running session drift.
-func (l *Launcher) preambleMaterial(agent string) string {
-	return strings.Join([]string{addr.For(l.Q, agent, agent), paths.AgentHandle(l.Home, agent), l.teamMaterial(agent),
-		l.instruction(agent, db.PartRole), l.instruction(agent, db.PartBase)}, "\x1e")
-}
-
 func sha256Hex(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
@@ -1191,32 +1184,6 @@ func (l *Launcher) plainMode(agent string, cfg team.Config) bool {
 	return m == team.DefaultMode
 }
 
-// Fingerprint is what Build would launch this agent with right now, boiled down to the pieces a running session cannot pick up on its
-// own: the model, the effort level, the disallowed-tools list, the shared mcp.json, and what people change in the static preamble
-// (preambleMaterial). Never the account or the handoff - the account is chosen fresh on every real launch, and the handoff is supposed to
-// be different every time this agent is parked. Recorded at launch time and compared by Drifted before typing a handoff into a session
-// that is still open: a row with nothing recorded disagrees too.
-func (l *Launcher) Fingerprint(agent string) (string, error) {
-	cfg, err := l.Roster.Read(agent)
-	if err != nil {
-		return "", err
-	}
-	material := strings.Join([]string{modelOf(cfg), l.effortOf(cfg), l.disallowed(agent), l.mcpConfigMaterial(), l.preambleMaterial(agent)}, "\x1e")
-	if !l.plainMode(agent, cfg) {
-		material += "\x1emode:" + l.modeOf(agent, cfg) // only when not the default, like chrome
-	}
-	if !l.Roster.SandboxOn(agent, cfg) {
-		material += "\x1esandbox-off"
-	}
-	if mcp := team.MCPConfigArgs(cfg); len(mcp) > 0 {
-		material += "\x1emcp:" + mcp[1] // only when set, like chrome
-	}
-	if team.Chrome(cfg) {
-		material += "\x1echrome" // only when on, like the mcp config
-	}
-	return sha256Hex(material)[:16], nil
-}
-
 // SandboxOffPart is what FingerprintParts records under "sandbox" for a session launched with the sandbox off.
 var SandboxOffPart = sha256Hex("off")[:8]
 
@@ -1248,7 +1215,7 @@ const textBytesMax = 256 << 10
 var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", rulesPart}
 
 // FingerprintParts is what a launch reads from the settings a person edits, one short hash each, named for the person. Recorded at
-// launch beside Fingerprint, and compared by the daemon to name what a running session has not picked up. Not here: what Build reads
+// launch (LaunchRecord), and compared by the daemon to name what a running session has not picked up. Not here: what Build reads
 // from the machine (the account, the handoff, hidden transcripts, the main-ref files) and the fixed text of the preamble.
 func (l *Launcher) FingerprintParts(agent string) (map[string]string, error) {
 	texts, rules := l.texts(agent)
@@ -1318,7 +1285,7 @@ func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string
 	if !l.plainMode(agent, cfg) {
 		perm += "\x1emode:" + l.modeOf(agent, cfg)
 	}
-	// A kept grant lifts a hide only at launch, so a new one restarts the session at its next idle, as a settings change does.
+	// A kept grant lifts a hide only at launch, so a new one is applied as a person's settings change is (tick.ApplySettings).
 	kept, err := l.keptGrants(agent)
 	if err != nil {
 		return nil, err
@@ -1372,8 +1339,19 @@ func (l *Launcher) instruction(agent, part string) string {
 	return text
 }
 
+// PromptParts are the parts a launch gives in the appended system prompt. claude --resume keeps the system prompt its conversation began
+// with, so a resume does not pick them up: they reach a session only at a fresh start.
+var PromptParts = []string{"ROLE.md", "base.md", "team instructions"}
+
 // LaunchRecord is the parts as JSON, in order, with the launch's own stamp, as `launch_parts` keeps them.
-func (l *Launcher) LaunchRecord(agent string) (string, error) {
+func (l *Launcher) LaunchRecord(agent string) (string, error) { return l.launchRecord(agent, "") }
+
+// resumeRecord is LaunchRecord for a resume of the session recorded as was: the prompt parts and the team rules stay as was has them
+// (hash, text and the instruction version seen), since the resumed session still has those: a prompt part stays owed until a fresh
+// start, and changed rules are still told.
+func (l *Launcher) resumeRecord(agent, was string) (string, error) { return l.launchRecord(agent, was) }
+
+func (l *Launcher) launchRecord(agent, was string) (string, error) {
 	seen, err := db.LastInstructionID(l.Q, 0) // before the texts: a version written while they are read is one this launch may not have
 	if err != nil {
 		return "", err
@@ -1382,6 +1360,27 @@ func (l *Launcher) LaunchRecord(agent string) (string, error) {
 	parts, err := l.partsOf(agent, texts, rules)
 	if err != nil {
 		return "", err
+	}
+	var old map[string]json.RawMessage
+	if was != "" && json.Unmarshal([]byte(was), &old) == nil && old != nil {
+		oldTexts := launchedTexts(old)
+		kept := false
+		for _, k := range append(slices.Clone(PromptParts), rulesPart) { // the rules too: a session is told of them, by message
+			var h string
+			if json.Unmarshal(old[k], &h) != nil {
+				continue // a record without the part: the launch's own stands
+			}
+			parts[k], kept = h, true
+			if t, ok := oldTexts[k]; ok {
+				texts[k] = t
+			} else {
+				delete(texts, k) // no text kept: a text beside the old hash would read as unchanged
+			}
+		}
+		var s int64
+		if kept && json.Unmarshal(old[LaunchedInstructions], &s) == nil {
+			seen = s
+		}
 	}
 	var items []string
 	for _, k := range partOrder {
@@ -1641,16 +1640,6 @@ func LaunchedAtOf(row *db.AgentState) string {
 	return string(v)
 }
 
-// Drifted is whether this agent's running session was launched with a different recipe than Build produces now. A recipe that cannot
-// be read is not drift. The team rules are not in it: a session is told of those (RulesNote), not relaunched.
-func (l *Launcher) Drifted(agent string, row *db.AgentState) bool {
-	fp, err := l.Fingerprint(agent)
-	if err != nil {
-		return false
-	}
-	return fp != row.LaunchFingerprint.String
-}
-
 // TakePrompt reads and removes a prompt file the daemon left for this launch. Taken only after Build has let the launch go ahead: a
 // launch that refuses leaves the file, which is how the daemon tells its own session from one somebody else started. Removed as it is
 // read, so no later launch picks it up: a prompt belongs to one launch.
@@ -1693,8 +1682,6 @@ func CommandFor(account, why, by, agent string) string {
 
 // LaunchPort is a Launcher as the Launch the manager and spawn read it through.
 type LaunchPort struct{ L *Launcher }
-
-func (p LaunchPort) Drifted(agent string, row *db.AgentState) bool { return p.L.Drifted(agent, row) }
 
 func (p LaunchPort) WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait {
 	return p.L.WakeWait(q, agent, row)

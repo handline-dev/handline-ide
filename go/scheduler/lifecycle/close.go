@@ -519,8 +519,9 @@ type RestartOpts struct {
 }
 
 // RestartAgent ends this agent's session and starts it again at once, in the same terminal: the close and the wake, nothing of its own.
-// By default it resumes the same conversation, whatever its prompt cache says, so it picks up what a launch reads; Fresh starts a new
-// one from the handoff record. A working agent is refused unless Force, which closes it as any close does (the handoff record first,
+// By default it resumes the same conversation, whatever its prompt cache says, so it picks up the launch flags (model, permissions and the
+// like) but not the prompt parts, which claude keeps from the conversation's start (PromptParts); Fresh starts a new one from the
+// handoff record. A working agent is refused unless Force, which closes it as any close does (the handoff record first,
 // /exit once its turn has ended) and so waits for that turn. Work queued for it is the resume's first prompt, after the line that says it
 // was restarted, by By.
 func (m *Manager) RestartAgent(agent string, st SessionStatus, o RestartOpts) (ok bool, said string, err error) {

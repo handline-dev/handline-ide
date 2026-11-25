@@ -273,7 +273,7 @@ func TestExecAgentKeepsHowItStartedAndWhereItRunsThenExecs(t *testing.T) {
 	if err != nil || row == nil {
 		t.Fatalf("%v %v", row, err)
 	}
-	if row.Terminal.String != "term_1" || row.Worktree.String != "wt_1" || row.Account.String != "main" || row.LaunchFingerprint.String == "" {
+	if row.Terminal.String != "term_1" || row.Worktree.String != "wt_1" || row.Account.String != "main" || row.LaunchParts.String == "" {
 		t.Fatalf("%+v", row)
 	}
 	// With a prompt file the handoff is left for the daemon, and the file is taken.
@@ -441,27 +441,23 @@ func TestCommandForNamesTheLaunchAndQuotesWhatIsGiven(t *testing.T) {
 	}
 }
 
-func TestDriftedIsAFingerprintThatDiffersFromTheRecordedOne(t *testing.T) {
+// A launch record's stamp reads back.
+func TestALaunchRecordsStampReadsBack(t *testing.T) {
 	r := newLaunchRig(t)
-	fp, err := r.l.Fingerprint("ann")
-	if err != nil || fp == "" {
-		t.Fatal(fp, err)
-	}
 	rec, _ := r.l.LaunchRecord("ann")
-	row := &db.AgentState{LaunchFingerprint: sql.NullString{String: fp, Valid: true}, LaunchParts: sql.NullString{String: rec, Valid: true}}
-	if r.l.Drifted("ann", row) {
-		t.Fatal("drifted from itself")
-	}
-	row.LaunchFingerprint.String = "other"
-	if !r.l.Drifted("ann", row) || !(LaunchPort{r.l}).Drifted("ann", row) {
-		t.Fatal("a different recipe did not drift")
-	}
-	if LaunchedAtOf(row) == "" {
+	if LaunchedAtOf(&db.AgentState{LaunchParts: sql.NullString{String: rec, Valid: true}}) == "" {
 		t.Fatal("the launch stamp was not read back")
 	}
-	if r.l.Drifted("nobody", row) {
-		t.Fatal("an unreadable recipe is not drift")
+}
+
+// partsJSON is FingerprintParts as one comparable string.
+func partsJSON(l *Launcher, agent string) (string, error) {
+	p, err := l.FingerprintParts(agent)
+	if err != nil {
+		return "", err
 	}
+	b, err := json.Marshal(p)
+	return string(b), err
 }
 
 func TestLaunchPortAnswersForTheLauncher(t *testing.T) {
@@ -856,7 +852,7 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	}
 	record := func(parts string) {
 		t.Helper()
-		if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", parts); err != nil {
+		if err := db.SetLaunchParts(r.l.Q, "ann", parts); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -909,7 +905,7 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", rec); err != nil {
 		t.Fatal(err)
 	}
 	rules = "new rules"
@@ -925,7 +921,7 @@ func TestWhatChangedNamesTheTeamRulesFile(t *testing.T) {
 	delete(old, "team rules")
 	old["team"] = "0badc0de"
 	b, _ := json.Marshal(old)
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", string(b)); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", string(b)); err != nil {
 		t.Fatal(err)
 	}
 	if got, _, _ := r.l.whatChanged("ann"); got != "" {
@@ -943,7 +939,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", rec); err != nil {
 		t.Fatal(err)
 	}
 	rules = "# Rules\n- keep it short\n- reply in Korean"
@@ -981,7 +977,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	delete(old, LaunchedTexts)
 	delete(old, LaunchedRules)
 	b, _ := json.Marshal(old)
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", string(b)); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", string(b)); err != nil {
 		t.Fatal(err)
 	}
 	if got, lines, _ := r.l.whatChanged("ann"); got != "ROLE.md changed by the founder, base.md changed by the founder, team rules changed" || lines != nil {
@@ -993,7 +989,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	r := newLaunchRig(t)
 	rec, _ := r.l.LaunchRecord("ann")
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", rec); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "model", Val: "m2"}}); err != nil {
@@ -1183,7 +1179,7 @@ func TestAnAgentOnARunnerIsChosenAnAccountLoggedInThere(t *testing.T) {
 func TestBuildAddsTheWorkspacesDeniedToolsAndHoldsTheModeToItsCap(t *testing.T) {
 	r := newLaunchRig(t)
 	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "main" }
-	base, _ := r.l.Fingerprint("ann")
+	base, _ := partsJSON(r.l, "ann")
 	r.l.Ports.Held = func(string) team.Held {
 		return team.Held{Deny: []string{"WebFetch", "Bash(rm:*)"}, ModeMax: "plan", ModeSetBy: "p1"}
 	}
@@ -1195,7 +1191,7 @@ func TestBuildAddsTheWorkspacesDeniedToolsAndHoldsTheModeToItsCap(t *testing.T) 
 	if !strings.Contains(got, "--disallowed "+DisallowedTools+",WebFetch,Bash(rm:*)") || !strings.Contains(got, "--permission-mode plan") || strings.Contains(got, "--permission-mode auto") {
 		t.Fatalf("%s", got)
 	}
-	if now, _ := r.l.Fingerprint("ann"); now == base {
+	if now, _ := partsJSON(r.l, "ann"); now == base {
 		t.Error("a rule that changes what a session starts with leaves its fingerprint as it was")
 	}
 }
@@ -1286,7 +1282,7 @@ func TestAnAlwaysGrantChangesThePermissionsPartAndAOnceGrantDoesNot(t *testing.T
 // fingerprint, so the running session is not restarted for it.
 func TestALaunchPromptCarriesTheAgentsLessons(t *testing.T) {
 	r := newLaunchRig(t)
-	before, err := r.l.Fingerprint("ann")
+	before, err := partsJSON(r.l, "ann")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1304,7 +1300,7 @@ func TestALaunchPromptCarriesTheAgentsLessons(t *testing.T) {
 	if at < 0 || handoff < at || !strings.Contains(text[at:handoff], "- show the screen in both themes") || strings.Contains(text, "a removed one") {
 		t.Fatalf("%s", text)
 	}
-	if after, _ := r.l.Fingerprint("ann"); after != before {
+	if after, _ := partsJSON(r.l, "ann"); after != before {
 		t.Error("a lesson changed the fingerprint")
 	}
 }
@@ -1348,7 +1344,7 @@ func TestAStartNamesWhoChangedEachPart(t *testing.T) {
 	teamtest.Set(t, r.l.Home, "bob", "vendor", "claude")
 	r.setPart(t, db.PartRole, "builds")
 	rec, _ := r.l.LaunchRecord("ann")
-	if err := db.SetLaunchFingerprint(r.l.Q, "ann", "fp", rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, "ann", rec); err != nil {
 		t.Fatal(err)
 	}
 	ann, bob := teamtest.Key(t, r.l.Home, "ann"), teamtest.Key(t, r.l.Home, "bob")
@@ -1371,7 +1367,7 @@ func TestAStartNamesWhoChangedEachPart(t *testing.T) {
 	}
 }
 
-// Handline's own wording is no change to a running session: the fingerprint and the team part hash the team's facts, never the
+// Handline's own wording is no change to a running session: the team part hashes the team's facts, never the
 // sentences a build writes around them.
 func TestHandlinesWordingIsNoChange(t *testing.T) {
 	r := newLaunchRig(t)
@@ -1382,23 +1378,18 @@ func TestHandlinesWordingIsNoChange(t *testing.T) {
 		t.Fatalf("the preamble lacks the team section: %v", err)
 	}
 	for _, sentence := range []string{team.Protocol("ends"), "Stay inside", "# Your team"} {
-		if strings.Contains(r.l.preambleMaterial(ann), sentence) {
-			t.Fatalf("Handline's wording %q is in what the fingerprint hashes", sentence)
+		if strings.Contains(r.l.teamMaterial(ann), sentence) {
+			t.Fatalf("Handline's wording %q is in what the team part hashes", sentence)
 		}
-	}
-	fp, err := r.l.Fingerprint(ann)
-	if err != nil {
-		t.Fatal(err)
 	}
 	rec, err := r.l.LaunchRecord(ann)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetLaunchFingerprint(r.l.Q, ann, fp, rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, ann, rec); err != nil {
 		t.Fatal(err)
 	}
-	row, _ := db.GetAgentState(r.l.Q, ann)
-	if r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "" {
+	if r.l.WhatChanged(ann) != "" {
 		t.Fatalf("drifted from itself: %q", r.l.WhatChanged(ann))
 	}
 }
@@ -1415,12 +1406,11 @@ func TestAPeerJoiningRestartsNoMemberButANewContactDoes(t *testing.T) {
 		}
 		return tm
 	}
-	fp, _ := r.l.Fingerprint(ann)
 	rec, err := r.l.LaunchRecord(ann)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetLaunchFingerprint(r.l.Q, ann, fp, rec); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, ann, rec); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := r.l.PartsSince(ann)
@@ -1428,9 +1418,8 @@ func TestAPeerJoiningRestartsNoMemberButANewContactDoes(t *testing.T) {
 		t.Fatal("bob is listed before it joined")
 	}
 	teamtest.Set(t, r.l.Home, "ann.bob", "vendor", "claude")
-	row, _ := db.GetAgentState(r.l.Q, ann)
 	after, _ := r.l.PartsSince(ann)
-	if r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "" || after["team instructions"] != before["team instructions"] {
+	if r.l.WhatChanged(ann) != "" || after["team instructions"] != before["team instructions"] {
 		t.Fatalf("a new peer restarts the member: %q", r.l.WhatChanged(ann))
 	}
 	if static, _ := r.l.staticPreamble(ann); !strings.Contains(static, "`bob`") {
@@ -1441,27 +1430,8 @@ func TestAPeerJoiningRestartsNoMemberButANewContactDoes(t *testing.T) {
 	if _, err := r.l.Q.Exec("UPDATE workspaces SET lead = ? WHERE name = 'ann'", id); err != nil {
 		t.Fatal(err)
 	}
-	if !r.l.Drifted(ann, row) || r.l.WhatChanged(ann) != "team instructions changed (team.yaml or the agent list)" {
+	if r.l.WhatChanged(ann) != "team instructions changed (team.yaml or the agent list)" {
 		t.Fatalf("a new contact is no change: %q", r.l.WhatChanged(ann))
-	}
-}
-
-// The fingerprint of a fixed agent is a fixed value: what it hashes changes only on purpose, since a new value restarts every running
-// session at its next idle on the build that brings it. A build that only rewords Handline's sentences must leave it alone.
-func TestFingerprintIsPinned(t *testing.T) {
-	r := newLaunchRig(t)
-	ann := teamtest.Key(t, r.l.Home, "ann")
-	bob := teamtest.Key(t, r.l.Home, "bob")
-	r.l.Ports.Routing = func() *team.Team {
-		return &team.Team{Agents: map[string]team.Member{ann: {Workspace: "core"}, bob: {Workspace: "core"}},
-			Teams: map[string][]string{"core": {ann, bob}}}
-	}
-	fp, err := r.l.Fingerprint(ann)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fp != "e6a4273399ecc62d" {
-		t.Fatalf("the fingerprint is %s: if its inputs changed on purpose, pin the new value; if only Handline's wording changed, it must not", fp)
 	}
 }
 
@@ -1472,7 +1442,6 @@ func TestARehashedPartWithTheSameTextIsNoChange(t *testing.T) {
 	ann := teamtest.Key(t, r.l.Home, "ann")
 	members := []string{ann, "cat"}
 	r.l.Ports.Routing = coreTeam(&members)
-	fp, _ := r.l.Fingerprint(ann)
 	rec, err := r.l.LaunchRecord(ann)
 	if err != nil {
 		t.Fatal(err)
@@ -1481,7 +1450,7 @@ func TestARehashedPartWithTheSameTextIsNoChange(t *testing.T) {
 	json.Unmarshal([]byte(rec), &parts)
 	parts["team instructions"], _ = json.Marshal("0ldsha1e") // hashed the old way: the whole section's text
 	b, _ := json.Marshal(parts)
-	if err := db.SetLaunchFingerprint(r.l.Q, ann, fp, string(b)); err != nil {
+	if err := db.SetLaunchParts(r.l.Q, ann, string(b)); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := r.l.PartsSince(ann); got["team instructions"] != "0ldsha1e" {
@@ -1515,5 +1484,30 @@ func coreTeam(members *[]string) func() *team.Team {
 			tm.Agents[m] = team.Member{Workspace: "core"}
 		}
 		return tm
+	}
+}
+
+// claude --resume keeps the system prompt its conversation began with, so a resume records the prompt parts the session really has: a
+// ROLE.md change stays owed across it, while a flag change is recorded. A fresh launch reads the new text and owes nothing.
+func TestAResumeKeepsThePromptPartsItHasAndAFreshLaunchTakesTheNewOnes(t *testing.T) {
+	r := newLaunchRig(t)
+	r.setPart(t, db.PartRole, "builds")
+	if err := r.prepare("ann", nil, false, "", "main", "launch", ""); err != nil {
+		t.Fatal(err)
+	}
+	r.setPart(t, db.PartRole, "builds\nreviews")
+	teamtest.Set(t, r.l.Home, "ann", "effort", "low")
+	if err := r.prepare("ann", []string{"-r", "s1"}, false, "", "main", "wake", ""); err != nil { // any of claude's spellings
+		t.Fatal(err)
+	}
+	words, lines, err := r.l.whatChanged("ann")
+	if err != nil || !strings.HasPrefix(words, "ROLE.md changed") || strings.Contains(words, "effort") || len(lines) != 1 || lines[0].Added[0] != "reviews" {
+		t.Fatalf("after a resume: %q %+v %v", words, lines, err)
+	}
+	if err := r.prepare("ann", nil, false, "", "main", "launch", ""); err != nil {
+		t.Fatal(err)
+	}
+	if words := r.l.WhatChanged("ann"); words != "" {
+		t.Fatalf("a fresh launch still owes: %q", words)
 	}
 }

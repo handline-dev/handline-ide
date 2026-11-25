@@ -109,7 +109,6 @@ func (f *fakeTerm) Relaunch(_, cmd string, started func() bool) (bool, string) {
 
 type fakeLaunch struct{ Launch }
 
-func (fakeLaunch) Drifted(string, *db.AgentState) bool                { return false }
 func (fakeLaunch) ManualSplit() bool                                  { return false }
 func (fakeLaunch) AccountUsage(string) AccountStatus                  { return AccountStatus{} }
 func (fakeLaunch) WakeWait(db.Q, string, *db.AgentState) *WakeWait    { return nil }

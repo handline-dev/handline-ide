@@ -241,10 +241,10 @@ func SetAccount(q Q, agent, account, source string) error {
 	return err
 }
 
-// SetLaunchFingerprint is db.set_launch_fingerprint.
-func SetLaunchFingerprint(q Q, agent, fingerprint, parts string) error {
-	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, launch_fingerprint, launch_parts) VALUES(?,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET launch_fingerprint=excluded.launch_fingerprint, launch_parts=excluded.launch_parts, updated=excluded.updated",
-		agent, "IDLE", Now(), nullStr(fingerprint), nullStr(parts))
+// SetLaunchParts keeps what the agent's session was launched with (launch_parts).
+func SetLaunchParts(q Q, agent, parts string) error {
+	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, launch_parts) VALUES(?,?,?,?) ON CONFLICT(agent) DO UPDATE SET launch_parts=excluded.launch_parts, updated=excluded.updated",
+		agent, "IDLE", Now(), nullStr(parts))
 	return err
 }
 

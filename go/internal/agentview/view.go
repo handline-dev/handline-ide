@@ -708,7 +708,7 @@ func (e *Env) restartView(agent string, row *db.AgentState, now int64) (map[stri
 		return nil, nil
 	}
 	o, err := db.GetSettingsOwed(e.Q, agent)
-	if err != nil || o == nil {
+	if err != nil || o == nil || !o.Restart { // owed until a fresh start is no restart to wait for
 		return nil, err
 	}
 	return restartPhase("settings_applied", "waiting", o.Since, o.Settings), nil

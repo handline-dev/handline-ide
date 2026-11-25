@@ -371,25 +371,6 @@ func (m *Manager) wakeAgent(agent string, o WakeOpts) (bool, string) {
 	if !m.Term.Available() || !(handle != "" || (closed && wt != "")) {
 		return false, "no terminal to wake"
 	}
-	if !closed && row != nil && must(m.Delivery.SessionPresent(agent)) {
-		// A drifted session is ended and takes the closed agent's wake path below, with its own session id to resume. Ending it is only for
-		// the resume that follows, and nothing resumes without a message; with none waiting it is woken in place as before.
-		if m.Launch.Drifted(agent, row) && m.waitingFor(agent) {
-			st := m.Status.ReadForAgent(agent, m.Agents.CurrentAccount(m.Q, agent))
-			switch {
-			case st.SessionID == "":
-				m.Log("  %s: launch recipe changed but there is no session id to resume - waking it in place", agent)
-			default:
-				if ended, _ := m.endSession(agent, st.SessionID, st, true, false); !ended {
-					m.Log("  %s: launch recipe changed but its session would not end - waking it in place", agent)
-				} else {
-					m.Log("  %s: launch recipe changed since this session started - relaunching instead of waking it in place", agent)
-					row = must(db.GetAgentState(m.Q, agent))
-					closed = isClosed(row)
-				}
-			}
-		}
-	}
 	switch {
 	case closed:
 		return m.wakeClosed(agent, row, wt, o)

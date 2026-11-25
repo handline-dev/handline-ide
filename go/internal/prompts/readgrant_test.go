@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	_ "github.com/handline/handline/go/agentctl/agent/vendors"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
@@ -97,6 +99,9 @@ func TestAllowAlwaysKeepsTheGrantAndAPlainAllowKeepsNothing(t *testing.T) {
 	gs, _ := access.Grants(e.DB, agent)
 	if len(gs) != 1 || gs[0].Path != paths.AgentsDir(e.Home) || gs[0].Scope != "always" {
 		t.Fatalf("kept %+v", gs)
+	}
+	if by, _, _ := db.Meta(e.DB, db.SettingsByMeta(agent)); by != actor.OwnerKey { // a kept grant is the founder's settings change
+		t.Fatalf("the grant's change is kept as %q's", by)
 	}
 	var label string
 	e.DB.QueryRow("SELECT answer_label FROM prompt_blocks WHERE id = ?", b.ID).Scan(&label)

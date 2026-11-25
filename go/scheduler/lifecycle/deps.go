@@ -102,7 +102,6 @@ type Blocked interface {
 
 // Launch is session/launch.py (the next group of this port): what a wake launches and where it can.
 type Launch interface {
-	Drifted(agent string, row *db.AgentState) bool
 	// WakeWait is why the account a wake would land on is full, nil when it has room.
 	WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait
 	// WorkspaceWait is the hold of the agent's workspace at its agent_cap, nil when it has room.

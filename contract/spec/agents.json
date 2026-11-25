@@ -1597,7 +1597,7 @@
     {
      "name": "restart",
      "required": false,
-     "description": "How the restart that applies a changed setting to a live session goes: resume (the same conversation, the default) or fresh (a handoff note, then a new conversation).",
+     "description": "Ignored, kept until the app stops sending it: a changed launch setting reaches a live session as a handoff note, then a new conversation, at its next idle moment.",
      "schema": {
       "type": "string",
       "enum": [

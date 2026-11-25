@@ -3,6 +3,7 @@ package tick
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
@@ -10,16 +11,13 @@ import (
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
-// A session whose launch settings (model, effort, mcp config, browser, permissions, ROLE.md, base.md, the team line) have changed is
-// restarted once at an idle moment, as session.restart does (resumed, unless agent.set asked for fresh), never mid-turn or over a dialog.
-// A change of the team rules alone restarts no one: the session is told the changed lines once, in a message. Each tick
-// compares the parts the launch recorded with what the next launch would read, so a change made mid-turn is applied after the turn.
-const (
-	// SettingsWho is who the restart says asked for it when no person's change is kept (db.SettingsByMeta).
-	SettingsWho = "the daemon"
-	// SettingsApplied is the meta key prefix that keeps what a restart was for.
-	SettingsApplied = "settings_applied:"
-)
+// A running session is never restarted for changed prompt parts (ROLE.md, base.md, team instructions): claude --resume keeps the system
+// prompt its conversation began with, so a resume would cost the turn and the cache and apply nothing. They are owed until its next
+// fresh start (a cold-cache wake, a handoff when context fills). Changed team rules are told once, in a message.
+// A launch flag a person changed (agent.set, an approved proposal, a kept grant; who is kept in db.SettingsByMeta) is applied at an idle
+// moment as a handoff note and a fresh start; one nobody changed is owed like the prompt parts. SettingsApplied is the meta key
+// prefix that keeps what a restart was for.
+const SettingsApplied = "settings_applied:"
 
 // Part is one named setting a launch reads, in launch order.
 type Part struct {
@@ -43,7 +41,10 @@ type SettingsPorts interface {
 // RulesPart is the one setting a running session is told of rather than restarted for: its team rules (lifecycle's part name).
 const RulesPart = "team rules"
 
-// ApplySettings restarts sessions launched with settings that have changed.
+// PromptParts are lifecycle.PromptParts: what only a fresh start gives a session.
+var PromptParts = []string{"ROLE.md", "base.md", "team instructions"}
+
+// ApplySettings tells, owes or applies what changed since a session was launched.
 type ApplySettings struct{ Ports SettingsPorts }
 
 // Changed is the named settings the running session was launched without, in launch order; nothing for a session that recorded none (a
@@ -109,7 +110,7 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 		return
 	}
 	names := must(a.Changed(agent, row))
-	if len(names) == 1 && names[0] == RulesPart {
+	if i := slices.Index(names, RulesPart); i >= 0 {
 		note, record := must2(a.Ports.RulesNote(agent, row))
 		if note != "" || record != "" {
 			check(a.Ports.TellRules(agent, note, row.LaunchParts.String, record))
@@ -117,56 +118,56 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 		if note != "" {
 			t.logf("  %s: told of its changed team rules, not restarted", agent)
 		}
-		names = nil
+		names = slices.Delete(names, i, i+1)
 	}
-	if len(names) == 0 {
-		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
+	isFlag := func(n string) bool { return !slices.Contains(PromptParts, n) && n != RulesPart }
+	by, _ := must2(db.Meta(t.Q, db.SettingsByMeta(agent)))
+	if !slices.ContainsFunc(names, isFlag) {
+		if by != "" { // a writer keeps who with what it writes, in one write: a change of no flag is theirs no longer
+			check(db.SetMeta(t.Q, db.SettingsByMeta(agent), ""))
+		}
+		check(db.SetSettingsOwed(t.Q, agent, names, now, false)) // until the session's next fresh start, which reads them
 		return
 	}
-	// What this restart is for, kept: a launch that still disagrees with the settings after it (it has happened with things a launch
-	// cannot reproduce) is not restarted again for the same change.
+	if by == "" { // nobody's change: a Handline update, or a workspace hold, which applies from the next session
+		check(db.SetSettingsOwed(t.Q, agent, names, now, false))
+		return
+	}
+	// What this restart is for, kept: a launch that still disagrees with the flags after it (it has happened with things a launch cannot
+	// reproduce) is not restarted again for the same change. The flags alone: a prompt part edited since is no new reason to restart.
 	parts := must(a.Ports.FingerprintParts(agent))
 	obj := map[string]any{}
 	for _, p := range parts {
-		obj[p.Name] = p.Value
+		if isFlag(p.Name) {
+			obj[p.Name] = p.Value
+		}
 	}
 	text := pyjson.PyJSON(obj, true, true)
 	if applied, _ := must2(db.Meta(t.Q, SettingsApplied+agent)); applied == text {
-		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
+		check(db.SetSettingsOwed(t.Q, agent, names, now, false)) // a launch cannot give it: the next fresh start tries again
 		return
 	}
+	check(db.SetSettingsOwed(t.Q, agent, names, now, true)) // the agent view says the restart waits; the restart clears it
 	if busy || !t.Delivery.SessionPresent(agent) || !t.Host.SessionIdle(agent) {
-		check(db.SetSettingsOwed(t.Q, agent, names, now)) // the agent view says the restart waits for the turn to end
-		return                                            // mid-turn or waiting on a permission: the next tick asks again
+		return // mid-turn or waiting on a permission: the next tick asks again
 	}
 	st := t.Usage.ReadForAgent(agent, a.Ports.CurrentAccount(t.Q, agent))
 	if st.SessionID == "" {
 		return
 	}
-	by, _ := must2(db.Meta(t.Q, db.SettingsByMeta(agent)))
-	if by == "" {
-		by = SettingsWho
-	}
-	mode, _ := must2(db.Meta(t.Q, db.SettingsRestartMeta(agent)))
-	fresh := mode == "fresh"
 	// A new conversation starts from the handoff: the agent is asked for its note first, as before any other fresh start, and the
 	// restart waits for it (for at most handoff.AskWaitS). The next tick tries again.
-	if fresh && t.Handoff.NoteHold(t.Q, agent, now) {
-		check(db.SetSettingsOwed(t.Q, agent, names, now))
+	if t.Handoff.NoteHold(t.Q, agent, now) {
 		t.logf("  %s: changed settings (%s) wait for its handoff note before a new conversation", agent, strings.Join(names, ", "))
 		return
 	}
-	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, by, names, "settings_applied", fresh)
+	ok, said := t.Lifecycle.RestartAgent(t.Q, agent, st, by, names, "settings_applied", true)
 	if ok {
 		check(db.SetMeta(t.Q, SettingsApplied+agent, text))
-		check(db.SetSettingsOwed(t.Q, agent, nil, 0))
+		check(db.SetSettingsOwed(t.Q, agent, nil, 0, false))
 		check(db.SetMeta(t.Q, db.SettingsByMeta(agent), ""))
 		check(db.SetMeta(t.Q, db.SettingsRestartMeta(agent), ""))
-		how := ""
-		if fresh {
-			how = ", as a new conversation"
-		}
-		t.logf("  %s: restarted to apply changed settings (%s)%s", agent, strings.Join(names, ", "), how)
+		t.logf("  %s: restarted to apply changed settings (%s), as a new conversation", agent, strings.Join(names, ", "))
 	} else {
 		t.logf("  %s: changed settings (%s) not applied yet - %s", agent, strings.Join(names, ", "), said)
 	}

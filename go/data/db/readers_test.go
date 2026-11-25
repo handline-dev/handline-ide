@@ -90,12 +90,12 @@ func TestEveryWriterChangesItsRow(t *testing.T) {
 		t.Fatalf("%+v", s)
 	}
 	SetAccount(q, "a", "acct", "assumed")
-	SetLaunchFingerprint(q, "a", "fp", `{"x": 1}`)
+	SetLaunchParts(q, "a", `{"x": 1}`)
 	SetClosed(q, "a", "sess")
 	ForgetResume(q, "a")
 	SetNotifiedSession(q, "a", "s9")
 	s, _ := GetAgentState(q, "a")
-	if s.Account.String != "acct" || s.AccountSource.String != "assumed" || s.LaunchFingerprint.String != "fp" || s.LaunchParts.String != `{"x": 1}` ||
+	if s.Account.String != "acct" || s.AccountSource.String != "assumed" || s.LaunchParts.String != `{"x": 1}` ||
 		s.ResumeSession.Valid || !s.ClosedAt.Valid || s.NotifiedSession.String != "s9" {
 		t.Fatalf("%+v", s)
 	}

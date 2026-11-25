@@ -39,7 +39,7 @@ func (s settingsPorts) TellRules(agent, note, _, record string) error {
 func settled(t *testing.T) (*Tick, *world, *ApplySettings) {
 	tk, w := newWorld(t)
 	setState(t, tk, "a", states.Idle, 0)
-	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "sonnet", "effort": 3}' WHERE agent = 'a'`); err != nil {
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "sonnet", "effort": 3, "build": "b1"}' WHERE agent = 'a'`); err != nil {
 		t.Fatal(err)
 	}
 	w.idle, w.restartOK = true, true
@@ -47,32 +47,115 @@ func settled(t *testing.T) (*Tick, *world, *ApplySettings) {
 	return tk, w, &ApplySettings{Ports: settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(3)}}, account: "acct"}}
 }
 
-func TestAChangedSettingRestartsTheIdleSessionOnceAndRemembersWhatItWasFor(t *testing.T) {
-	tk, w, a := settled(t)
-	a.Sweep(tk, 10_000)
-	if !w.did("restart a by the daemon for model (settings_applied)") || !w.logged("restarted to apply changed settings (model)") {
-		t.Fatalf("%v %v", w.calls, w.logs)
-	}
-	if v, _, _ := db.Meta(tk.Q, SettingsApplied+"a"); !strings.Contains(v, `"model"`) || !strings.Contains(v, "opus") {
-		t.Fatalf("what the restart was for was not kept: %q", v)
-	}
-	// A launch that still disagrees afterwards is not restarted again for the same change.
-	w.calls = nil
-	a.Sweep(tk, 10_030)
-	if w.did("restart") {
-		t.Fatalf("restarted twice for one change: %v", w.calls)
-	}
-	// A different change is restarted for.
-	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(2)}}, account: "acct"}
-	a.Sweep(tk, 10_060)
-	if !w.did("restart a by the daemon for model,effort (settings_applied)") && !w.did("restart a by the daemon for effort (settings_applied)") {
-		t.Fatalf("%v", w.calls)
+// byPerson keeps that a person made agent a's newest settings change, as agent.set and an approved proposal do.
+func byPerson(t *testing.T, tk *Tick) {
+	t.Helper()
+	if err := db.SetMeta(tk.Q, db.SettingsByMeta("a"), actor.OwnerKey); err != nil {
+		t.Fatal(err)
 	}
 }
 
-// A change made mid-turn is kept as owed, for the agent view to say the restart waits for the turn; the restart clears it.
-func TestAChangeMadeMidTurnIsOwedUntilItsRestart(t *testing.T) {
+// A person's change of no launch flag (a prompt part, or a setting no launch reads) leaves no name behind for a later Handline change.
+func TestWhoChangedIsDroppedWhenNoFlagChanged(t *testing.T) {
 	tk, w, a := settled(t)
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "ROLE.md": "r1", "build": "b1"}' WHERE agent = 'a'`); err != nil {
+		t.Fatal(err)
+	}
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"ROLE.md", "r2"}}, account: "acct"}
+	byPerson(t, tk)
+	a.Sweep(tk, 10_000)
+	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" || w.did("restart") {
+		t.Fatalf("who changed outlived a change of no flag: %q %v", v, w.calls)
+	}
+	// a Handline update moving a flag afterwards is owed, not restarted in the person's name
+	a.Ports = settingsPorts{parts: []Part{{"model", "sonnet"}, {"ROLE.md", "r2"}}, account: "acct"}
+	a.Sweep(tk, 10_030)
+	if w.did("restart") {
+		t.Fatalf("restarted in a stale name: %v", w.calls)
+	}
+}
+
+// A launch flag nobody changed (a Handline update, a workspace hold) restarts nothing: it is owed until the next fresh start.
+func TestAFlagNobodyChangedIsOwedNotApplied(t *testing.T) {
+	tk, w, a := settled(t)
+	a.Sweep(tk, 10_000)
+	if w.did("restart") {
+		t.Fatalf("restarted for a change no person made: %v", w.calls)
+	}
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil || strings.Join(o.Settings, ",") != "model" || o.Since != 10_000 {
+		t.Fatalf("not owed: %+v", o)
+	}
+}
+
+// A prompt part (ROLE.md, base.md, the team instructions) never restarts a session, even a person's change: a resume would not give
+// it, and a fresh start costs the cache. It is owed until the next fresh start.
+func TestAPromptPartChangeIsOwedEvenWhenAPersonMadeIt(t *testing.T) {
+	tk, w, a := settled(t)
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "ROLE.md": "r1", "team instructions": "t1"}' WHERE agent = 'a'`); err != nil {
+		t.Fatal(err)
+	}
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"ROLE.md", "r2"}, {"team instructions", "t1"}}, account: "acct"}
+	byPerson(t, tk)
+	a.Sweep(tk, 10_000)
+	if w.did("restart") || w.hold {
+		t.Fatalf("restarted for a prompt part: %v", w.calls)
+	}
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil || strings.Join(o.Settings, ",") != "ROLE.md" {
+		t.Fatalf("not owed: %+v", o)
+	}
+	// once a fresh launch carries it, nothing is owed
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "ROLE.md": "r2", "team instructions": "t1"}' WHERE agent = 'a'`); err != nil {
+		t.Fatal(err)
+	}
+	a.Sweep(tk, 10_030)
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil {
+		t.Fatalf("still owed after the fresh launch: %+v", o)
+	}
+}
+
+// A person's flag change is applied at an idle moment as a handoff note and a new conversation, in their name, once; what it was for
+// is kept, so a launch that still disagrees is not restarted again for the same change.
+func TestAPersonsFlagChangeStartsFreshFromTheHandoffNoteOnce(t *testing.T) {
+	tk, w, a := settled(t)
+	byPerson(t, tk)
+	w.hold = true
+	a.Sweep(tk, 10_000)
+	if w.did("restart") || !w.logged("wait for its handoff note") {
+		t.Fatalf("restarted before the note: %v %v", w.calls, w.logs)
+	}
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil {
+		t.Fatal("the held restart is not shown as owed")
+	}
+	w.hold = false
+	a.Sweep(tk, 10_030)
+	if !w.did("restart fresh a by "+actor.OwnerKey+" for model (settings_applied)") || !w.logged("as a new conversation") {
+		t.Fatalf("%v %v", w.calls, w.logs)
+	}
+	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" {
+		t.Fatalf("who asked outlived the restart: %q", v)
+	}
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil {
+		t.Fatalf("owed after its restart: %+v", o)
+	}
+	w.calls = nil
+	byPerson(t, tk)
+	a.Sweep(tk, 10_060)
+	if w.did("restart") {
+		t.Fatalf("restarted twice for one change: %v", w.calls)
+	}
+	// a prompt part edited while the same flag still disagrees is no new reason to restart
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(3)}, {"ROLE.md", "r2"}}, account: "acct"}
+	byPerson(t, tk)
+	a.Sweep(tk, 10_090)
+	if w.did("restart") {
+		t.Fatalf("restarted for a prompt part beside a flag a launch cannot give: %v", w.calls)
+	}
+}
+
+// A person's change made mid-turn is owed, for the agent view to say the restart waits for the turn; the restart clears it.
+func TestAPersonsChangeMadeMidTurnIsOwedUntilItsRestart(t *testing.T) {
+	tk, w, a := settled(t)
+	byPerson(t, tk)
 	setState(t, tk, "a", states.Running, 0)
 	a.Sweep(tk, 10_000)
 	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil || o.Since != 10_000 || strings.Join(o.Settings, ",") != "model" || w.did("restart") {
@@ -80,72 +163,8 @@ func TestAChangeMadeMidTurnIsOwedUntilItsRestart(t *testing.T) {
 	}
 	setState(t, tk, "a", states.Idle, 0)
 	a.Sweep(tk, 10_030)
-	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil || !w.did("restart a") {
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil || !w.did("restart fresh a") {
 		t.Fatalf("%+v %v", o, w.calls)
-	}
-}
-
-// A person's change is restarted in their name, once: the next change with no one kept is the daemon's.
-func TestAPersonsChangeIsRestartedInTheirName(t *testing.T) {
-	tk, w, a := settled(t)
-	if err := db.SetMeta(tk.Q, db.SettingsByMeta("a"), actor.OwnerKey); err != nil {
-		t.Fatal(err)
-	}
-	a.Sweep(tk, 10_000)
-	if !w.did("restart a by " + actor.OwnerKey + " for model (settings_applied)") {
-		t.Fatalf("%v", w.calls)
-	}
-	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" {
-		t.Fatalf("who asked outlived the restart: %q", v)
-	}
-}
-
-// agent.set asking for a fresh restart makes the next one a new conversation, once: the mode goes with the restart it was for.
-func TestARestartAskedFreshStartsANewConversationOnce(t *testing.T) {
-	tk, w, a := settled(t)
-	if err := db.SetMeta(tk.Q, db.SettingsRestartMeta("a"), "fresh"); err != nil {
-		t.Fatal(err)
-	}
-	a.Sweep(tk, 10_000)
-	if !w.did("restart fresh a by the daemon for model (settings_applied)") || !w.logged("restarted to apply changed settings (model), as a new conversation") {
-		t.Fatalf("%v %v", w.calls, w.logs)
-	}
-	if v, _, _ := db.Meta(tk.Q, db.SettingsRestartMeta("a")); v != "" {
-		t.Fatalf("the mode outlived its restart: %q", v)
-	}
-	w.calls = nil
-	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(2)}}, account: "acct"}
-	a.Sweep(tk, 10_060)
-	if w.did("restart fresh") || !w.did("restart a") {
-		t.Fatalf("the next change resumes: %v", w.calls)
-	}
-}
-
-// A fresh restart is a new conversation, so the agent is asked for its handoff note first; while it is out the restart waits, and once
-// it is in (or the ask gave up) the restart goes. A resumed restart keeps the conversation and asks nothing.
-func TestAFreshRestartForChangedSettingsWaitsForTheHandoffNote(t *testing.T) {
-	tk, w, a := settled(t)
-	if err := db.SetMeta(tk.Q, db.SettingsRestartMeta("a"), "fresh"); err != nil {
-		t.Fatal(err)
-	}
-	w.hold = true
-	a.Sweep(tk, 10_000)
-	if w.did("restart") || !w.logged("wait for its handoff note") {
-		t.Fatalf("restarted fresh before the note: %v %v", w.calls, w.logs)
-	}
-	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil {
-		t.Fatal("the held restart is not shown as owed")
-	}
-	w.hold = false
-	a.Sweep(tk, 10_030)
-	if !w.did("restart fresh a") {
-		t.Fatalf("the note in, the restart did not go: %v", w.calls)
-	}
-	tk, w, a = settled(t)
-	w.hold = true
-	a.Sweep(tk, 10_000)
-	if !w.did("restart a") {
-		t.Fatalf("a resumed restart waited for a note: %v", w.calls)
 	}
 }
 
@@ -161,6 +180,7 @@ func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.
 	}
 	for name, mutate := range cases {
 		tk, w, a := settled(t)
+		byPerson(t, tk)
 		mutate(tk, w)
 		a.Sweep(tk, 10_000)
 		if w.did("restart") {
@@ -169,6 +189,7 @@ func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.
 	}
 	// A launch that recorded no parts (from before they were kept) is not restarted.
 	tk, w, a := settled(t)
+	byPerson(t, tk)
 	tk.Q.Exec(`UPDATE agent_state SET launch_parts = NULL WHERE agent = 'a'`)
 	a.Sweep(tk, 10_000)
 	if w.did("restart") {
@@ -178,6 +199,7 @@ func TestAChangedSettingWaitsForAnIdleMomentAndAnOpenRunnableSession(t *testing.
 
 func TestARestartThatDidNotHappenIsLoggedAndTriedAgainNextTick(t *testing.T) {
 	tk, w, a := settled(t)
+	byPerson(t, tk)
 	w.restartOK, w.restartSaid = false, "mid-turn"
 	a.Sweep(tk, 10_000)
 	if !w.logged("changed settings (model) not applied yet - mid-turn") {
@@ -195,10 +217,11 @@ func TestARestartThatDidNotHappenIsLoggedAndTriedAgainNextTick(t *testing.T) {
 
 func TestOneAgentsFailureApplyingSettingsDoesNotStopTheSweep(t *testing.T) {
 	tk, w, a := settled(t)
+	byPerson(t, tk)
 	w.agents = []string{"b", "a"} // b has no row at all
 	a.Ports = failingFor{settingsPorts: a.Ports.(settingsPorts), bad: "b"}
 	a.Sweep(tk, 10_000)
-	if !w.did("restart a") {
+	if !w.did("restart fresh a") {
 		t.Fatalf("%v %v", w.calls, w.logs)
 	}
 }
@@ -215,7 +238,7 @@ func (f failingFor) FingerprintParts(agent string) ([]Part, error) {
 	return f.settingsPorts.FingerprintParts(agent)
 }
 
-// A change of the team rules alone is told to the session at its next turn, not restarted for; with anything else it restarts as before.
+// A change of the team rules is told to the session at its next turn, never restarted for, also beside another change.
 func TestATeamRulesChangeAloneIsToldNotRestarted(t *testing.T) {
 	tk, w, a := settled(t)
 	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "team rules": "r1"}' WHERE agent = 'a'`); err != nil {
@@ -237,9 +260,10 @@ func TestATeamRulesChangeAloneIsToldNotRestarted(t *testing.T) {
 	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o != nil {
 		t.Fatalf("a told change is owed: %+v", o)
 	}
-	a.Ports = settingsPorts{parts: []Part{{"model", "sonnet"}, {RulesPart, "r2"}}, told: &told, kept: &kept}
+	// with a flag that changed too, the rules are still told, and the flag is owed
+	a.Ports = settingsPorts{parts: []Part{{"model", "sonnet"}, {RulesPart, "r3"}}, note: "Added:\n+ be kind", told: &told, kept: &kept}
 	a.Sweep(tk, 10_030)
-	if !w.did("restart a by the daemon for model,team rules (settings_applied)") || len(told) != 1 {
-		t.Fatalf("%v %v", w.calls, told)
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); w.did("restart") || len(told) != 2 || o == nil || strings.Join(o.Settings, ",") != "model" {
+		t.Fatalf("%v %v %+v", w.calls, told, o)
 	}
 }

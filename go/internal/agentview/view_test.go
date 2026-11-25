@@ -459,10 +459,16 @@ func TestASettingsRestartShowsWaitingForTheTurnThenStartingUntilTheNewSession(t 
 		return h
 	}
 	r.state(t, "a", states.Running, "")
-	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"model"}, 4990); err != nil {
+	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"ROLE.md"}, 4980, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"model"}, 4995); err != nil { // the same change keeps its start
+	if h := handoff(); h != nil {
+		t.Fatalf("owed until a fresh start shows a restart: %v", h)
+	}
+	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"model"}, 4990, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"model"}, 4995, true); err != nil { // the same change keeps its start
 		t.Fatal(err)
 	}
 	h := handoff()

@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/term"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/hooks"
+	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
@@ -60,7 +62,8 @@ func (w *hookWaits) take(id int64) chan Decision {
 // IsHook is whether the row was raised by the hook.
 func (b *Block) IsHook() bool { return b.Detail["source"] == HookSource }
 
-// keepGrants keeps each of grant as agent's always grant, all or none.
+// keepGrants keeps each of grant as agent's always grant, all or none, as the founder's settings change: a kept grant lifts a hide only
+// at launch, so the session starts fresh with it at its next idle moment (tick.ApplySettings).
 func (e *Env) keepGrants(agent string, grant []string) error {
 	tx, err := e.DB.Begin()
 	if err != nil {
@@ -70,6 +73,11 @@ func (e *Env) keepGrants(agent string, grant []string) error {
 	now := e.now().Unix()
 	for _, g := range grant {
 		if _, err := access.Put(tx, agent, g, "always", now); err != nil {
+			return err
+		}
+	}
+	if len(grant) > 0 {
+		if err := db.SetMeta(tx, db.SettingsByMeta(agent), actor.OwnerKey); err != nil {
 			return err
 		}
 	}

@@ -265,16 +265,8 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 // keepWhatItStartsWith keeps every session a launch starts (db.session_starts): why, whether it resumes the old conversation (then its
 // id is the one after --resume), and what it is given. Bookkeeping never blocks a launch.
 func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string, prompt, why, by string) error {
-	resumed, sid := false, ""
-	for i, x := range extra {
-		if x == "--resume" {
-			resumed = true
-			if i+1 < len(extra) {
-				sid = extra[i+1]
-			}
-			break
-		}
-	}
+	sid := resumeID(extra)
+	resumed := sid != ""
 	text, err := db.GetHandoff(l.Q, agent)
 	if err != nil {
 		return err
@@ -371,7 +363,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 		return nil, l.refused(agent, refuse("the session of %s could not be recorded, so it is not started", agent))
 	}
 	prompt := TakePrompt(promptFile)
-	if promptFile == "" && !slices.Contains(extra, "--resume") {
+	if promptFile == "" && resumeID(extra) == "" {
 		if prompt, err = l.handLaunchPrompt(agent); err != nil {
 			return nil, err
 		}
@@ -393,8 +385,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 			return nil, err
 		}
 	}
-	fp, _ := l.Fingerprint(agent)
-	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], fp)
+	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], resumeID(extra) != "")
 	if site.Node == "" {
 		gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it; a runner's worktree is made with it
 	}
@@ -445,7 +436,7 @@ func (l *Launcher) handLaunchPrompt(agent string) (string, error) {
 // recordTerminal remembers where we are about to become the agent: the terminal, the account, and what Build produced this launch with.
 // The host puts the handle in the environment of every terminal it launches, and this is the only moment it can be seen. A handle or
 // worktree carrying a control byte is refused, not rewritten.
-func (l *Launcher) recordTerminal(site *Site, agent, acct, fp string) {
+func (l *Launcher) recordTerminal(site *Site, agent, acct string, resumed bool) {
 	handle, wt := site.Handle, site.WorktreeID
 	if handle != "" && textsafe.HasUnsafe(handle) {
 		handle = ""
@@ -468,10 +459,16 @@ func (l *Launcher) recordTerminal(site *Site, agent, acct, fp string) {
 				}
 			}
 			rec, err := l.LaunchRecord(agent)
+			if resumed { // the resumed conversation keeps the prompt it began with: its record keeps those parts
+				var row *db.AgentState
+				if row, err = db.GetAgentState(l.Q, agent); err == nil && row != nil {
+					rec, err = l.resumeRecord(agent, row.LaunchParts.String)
+				}
+			}
 			if err != nil {
 				return err
 			}
-			if err := db.SetLaunchFingerprint(l.Q, agent, fp, rec); err != nil {
+			if err := db.SetLaunchParts(l.Q, agent, rec); err != nil {
 				return err
 			}
 		}
