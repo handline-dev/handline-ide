@@ -193,25 +193,26 @@ function Card({
       </div>
       {open && (
         <div className="flex flex-col gap-2 px-4 pb-4 pl-11">
-          <Bottom account={a} out={out} />
+          <AccountActions account={a} out={out} />
         </div>
       )}
     </section>
   );
 }
 
-/** Pause or Resume with what it does, and Remove at the right, which asks for the name typed in a modal. */
-function Bottom({ account: a, out }: { account: Account; out: boolean }) {
+/** One account's own settings, the same in Settings and over Usage (accountModal): its login, Rename, Pause or Resume, and Remove at the right, which asks for the name typed in a modal. */
+export function AccountActions({ account: a, out }: { account: Account; out: boolean }) {
   const save = useWrite('account.set', a.name);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-3">
-        {out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}
-        <span className="flex-1" />
+        {/* Rename first, under the name it changes; the changes that stop or remove the account together at the right. */}
         <Button variant="ghost" onClick={() => void renameAccount(a)}>
           <Pencil size={13} />
           Rename
         </Button>
+        {out ? <AccountEmail account={a} className="text-sm text-fg" /> : <Login account={a} emailBefore />}
+        <span className="flex-1" />
         <Button
           disabled={save.isPending}
           title={a.paused ? 'Let new agents start here again' : 'Start no new agents here'}
@@ -281,9 +282,21 @@ export function Login({
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       {emailBefore && <AccountEmail account={a} before={a.login_state === 'ok' ? 'Logged in as' : ''} className="text-sm text-fg" />}
-      <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name })}>
-        {login.isPending ? 'Starting…' : a.login_state === 'ok' ? 'Log in again' : 'Log in'}
-      </Button>
+      {a.login_state === 'ok' ? (
+        // A login that works needs no button's weight: logging in again is a link beside it.
+        <button
+          type="button"
+          disabled={login.isPending}
+          onClick={() => login.mutate({ account: a.name })}
+          className="text-sm text-accent hover:underline disabled:opacity-50"
+        >
+          {login.isPending ? 'Starting…' : 'Log in again'}
+        </button>
+      ) : (
+        <Button disabled={login.isPending} onClick={() => login.mutate({ account: a.name })}>
+          {login.isPending ? 'Starting…' : 'Log in'}
+        </Button>
+      )}
       {!emailBefore && <AccountEmail account={a} before="as" />}
       {a.login?.state === 'failed' && (
         <span className="text-danger">

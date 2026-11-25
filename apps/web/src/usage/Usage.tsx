@@ -13,6 +13,7 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { Page } from '#src/ui/Page.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { openSettings } from '#src/settings/open.ts';
+import { AccountActions } from '#src/usage/AccountsTab.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { uuid } from '#src/ui/uuid.ts';
 import { Outlook } from '#src/usage/Outlook.tsx';
@@ -97,29 +98,43 @@ function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode
   const plans = new Map(usage.map((u) => [u.name, u.plan]));
   // Why the daemon would not pick an account now (its week cap, an ended subscription); absent when it would.
   const notPicked = new Map(usage.flatMap((u) => (u.not_picked ? [[u.name, u.not_picked] as const] : [])));
+  // The account whose settings are open under its row, as Settings > Accounts opens a row.
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <>
       {accounts.map((a) => (
-        <section
-          key={a.name}
-          data-account={a.name}
-          className={`relative flex scroll-mt-4 flex-col gap-2 border-b @md:flex-row @md:items-center @md:gap-x-6 border-border py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
-        >
-          <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
-            <AccountFacts
-              account={a}
-              plan={plans.get(a.name)}
-              note={<NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />}
-            />
-          </div>
-          <div className="absolute top-3 right-0 flex @md:static">
-            {word}
-            <ReadAgain account={a} />
-            <IconButton label={`Settings for ${a.label}`} onClick={() => openSettings({ section: 'accounts', account: a.name, cluster })}>
-              <Settings size={14} />
-            </IconButton>
-          </div>
-        </section>
+        <div key={a.name} className="border-b border-border">
+          <section
+            data-account={a.name}
+            className={`relative flex scroll-mt-4 flex-col gap-2 @md:flex-row @md:items-center @md:gap-x-6 py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
+          >
+            <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
+              <AccountFacts
+                account={a}
+                plan={plans.get(a.name)}
+                note={<NotPicked why={notPicked.get(a.name)} needsLogin={a.login_state === 'needs_login'} />}
+              />
+            </div>
+            <div className="absolute top-3 right-0 flex @md:static">
+              {word}
+              <ReadAgain account={a} />
+              <IconButton
+                label={`Settings for ${a.label}`}
+                aria-expanded={cluster ? undefined : open === a.name}
+                onClick={() =>
+                  cluster ? openSettings({ section: 'accounts', account: a.name, cluster }) : setOpen(open === a.name ? null : a.name)
+                }
+              >
+                <Settings size={14} />
+              </IconButton>
+            </div>
+          </section>
+          {open === a.name && (
+            <div className="pb-3">
+              <AccountActions account={a} out={a.login_state === 'needs_login'} />
+            </div>
+          )}
+        </div>
       ))}
     </>
   );
