@@ -331,7 +331,7 @@ func TestWithoutTheWebPageThePairingHasNoWebLink(t *testing.T) {
 
 func TestUnsetAddressesKeepADoorForTheDesktopAppThatIsListedNowhere(t *testing.T) {
 	n := &netDoors{cfg: Config{Home: t.TempDir(), Listen: "100.64.0.1:7443"}}
-	hosts, doors, chosen := n.want()
+	hosts, doors, _, chosen := n.want()
 	if chosen || len(hosts) != 1 || hosts[0].Host != "100.64.0.1" {
 		t.Fatalf("only the -listen host is listed: %v %v", hosts, chosen)
 	}
@@ -383,5 +383,49 @@ func TestWithChosenAddressesALoopbackDoorThatCannotBeBoundFailsTheStartAndAnothe
 	defer mu.Unlock()
 	if !strings.Contains(strings.Join(logged, "\n"), "network listener on 10.9.9.9") {
 		t.Fatalf("a chosen host that cannot be bound is logged and the start goes on: %q", logged)
+	}
+}
+
+func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsChosen(t *testing.T) {
+	d, c := startDoors(t, true)
+	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
+		netAddress{Host: "mac.tail1.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
+	setAddresses(t, c, `["127.0.0.1"]`)
+	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
+	res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any)
+	u, _ := url.Parse(res["uri"].(string))
+	if q := u.Query(); q.Get("host") != "mac.tail1.ts.net:"+port || q.Get("fp") != "" {
+		t.Fatalf("the plain Tailscale IP is not named by its MagicDNS name: %v", res)
+	}
+	if res["web_link"] != "http://mac.tail1.ts.net:"+port+"/#pair="+res["code"].(string) {
+		t.Fatalf("web link %v", res["web_link"])
+	}
+	if _, dev, err := d.dev.Redeem(res["code"].(string), "phone", "", "", "100.64.0.9"); err != nil || dev.Address != "mac.tail1.ts.net" {
+		t.Fatalf("%v %v", dev, err)
+	}
+	if res := call(t, c, "device.pair", `{"address":"mac.tail1.ts.net"}`)["result"]; res == nil {
+		t.Fatalf("the MagicDNS name of a chosen Tailscale IP is refused")
+	}
+	if h := d.net.hosts(); !reflect.DeepEqual(h, []string{"127.0.0.1", "mac.tail1.ts.net"}) {
+		t.Fatalf("hosts %v", h)
+	}
+	// A relisten keeps the device paired by the name, though the setting lists only the IP.
+	if r := setAddresses(t, c, `["127.0.0.1"]`); !reflect.DeepEqual(r["unreachable_devices"], []any{}) {
+		t.Fatalf("%v", r)
+	}
+	// Both rows chosen share the one door and pair by the name.
+	setAddresses(t, c, `["127.0.0.1","mac.tail1.ts.net"]`)
+	if h := d.net.hosts(); !reflect.DeepEqual(h, []string{"127.0.0.1", "mac.tail1.ts.net"}) {
+		t.Fatalf("hosts %v", h)
+	}
+	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=mac.tail1.ts.net") {
+		t.Fatalf("%v", res)
+	}
+
+	// Without a MagicDNS name the IP is named as before.
+	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
+	d.net.relisten()
+	if res := call(t, c, "device.pair", `{"address":"127.0.0.1"}`)["result"].(map[string]any); !strings.Contains(res["uri"].(string), "host=127.0.0.1") {
+		t.Fatalf("%v", res)
 	}
 }
