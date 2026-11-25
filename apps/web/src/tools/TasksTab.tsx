@@ -5,7 +5,7 @@ import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 import type { Task } from '@handline/client';
-import { foundersTurn, turnChain } from '@handline/app-core';
+import { foundersTurn, isPersonKey, turnChain } from '@handline/app-core';
 import { useGiveBack, useNameOf, useTasks, why } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { ago, useNow } from '#src/format/time.ts';
@@ -32,10 +32,13 @@ const SHOWS: { key: Show; label: string }[] = [
 const HOLD_MS = 14 * 24 * 60 * 60 * 1000;
 const onHold = (t: Task, now: number) => t.state !== 'doing' && !t.turns?.length && now - Date.parse(t.delivered ?? t.created) > HOLD_MS;
 
+/** A person's turn is on top: the task waits on them, whatever its owner's state. */
+const personsTurn = (t: Task) => !!t.turns?.length && isPersonKey(t.acting);
+
 /** Open work first by what it is doing: doing, then held, then queued; each group newest first. */
 const GROUPS: { title: string; has: (t: Task) => boolean }[] = [
-  { title: 'Doing', has: (t) => t.state === 'doing' && !t.waiting && !t.block_reason && !t.hold_reason },
-  { title: 'Waiting', has: (t) => !!(t.waiting || t.block_reason || t.hold_reason) },
+  { title: 'Doing', has: (t) => t.state === 'doing' && !t.waiting && !t.block_reason && !t.hold_reason && !personsTurn(t) },
+  { title: 'Waiting', has: (t) => !!(t.waiting || t.block_reason || t.hold_reason) || personsTurn(t) },
   { title: 'Up next', has: () => true },
 ];
 

@@ -149,6 +149,17 @@ function mergeSessions(a: Extract<TimelineEntry, { kind: 'item' }>, b: Extract<T
 
 /** The name the daemon records for the person's own words: the CLI's `human`, or the device they typed on (`me`, e.g. "Handline desktop"). */
 export const isPerson = (name: string, me: string) => name === 'human' || (!!me && name === me);
+/** A key that names a person, not an agent: people.list keys are `p<n>`; `human` is the founder's older name. */
+export const isPersonKey = (key: string | null | undefined): boolean => key === 'human' || (!!key && /^p\d+$/.test(key));
+/** One line of Markdown as plain words, for a one-line preview: emphasis, code ticks, heading and quote marks and link targets dropped. */
+export const plainLine = (text: string): string =>
+  text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(?<!\w)(\*\*|__|\*|_|~~)(?=\S)([^\n]*?\S)\1(?!\w)/g, '$2')
+    .replace(/^\s*(#{1,6}|>|[-*+]|\d+\.)\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 /** A task handed to an agent: the board sends it in the asker's name, when the agent reaches it, so it is the task's delivery and not words the person wrote then. */
 export const isTaskDelivery = (m: ChatMessage) => m.kind === 'task' && !!m.tasks?.length;
 /** Who a message is from, for the agent whose chat this is: the person, the agent, or someone else (another agent, the task board: the *all* tab, notices). Only the person's own words sit on the person's side. */

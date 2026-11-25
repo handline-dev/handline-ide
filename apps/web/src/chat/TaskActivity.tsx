@@ -1,7 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
-import { isPerson, type TaskEvent } from '@handline/app-core';
+import { isPerson, plainLine, type TaskEvent } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
@@ -77,7 +77,7 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   // Where it stands now, then the newest comment ("With lander · You: OK") or how often it changed ("· 2 changes"). The time shows on hover.
   // An edit heard live after a comment (the comment's own memo row) leaves the comment the newest thing said.
   const at = t.events.map((e) => e.kind).lastIndexOf('comment');
-  const said = at >= 0 && t.events.slice(at + 1).every((e) => e.kind === 'edit') ? t.events[at].detail : undefined;
+  const said = at >= 0 && t.events.slice(at + 1).every((e) => e.kind === 'edit') ? plainLine(t.events[at].detail) : undefined;
   const line = [task ? holder(task, me, nameOf) : said ? '' : last.detail, said ?? (t.events.length > 1 && `${t.events.length} changes`)]
     .filter(Boolean)
     .join(' · ');

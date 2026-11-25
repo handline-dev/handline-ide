@@ -5,6 +5,8 @@ type Seed = (d: FakeDaemon) => void;
 
 const ARCH = 'handline.architect';
 const ME = 'human';
+/** A person's turn is held under their people.list key, as the live daemon holds it. */
+const FOUNDER = 'p1';
 
 export const TURN_SEEDS: Record<string, Seed> = {
   /** The founder's turn on a task the architect holds, passed with its comment asking an A)/B) question, after a few comments. */
@@ -38,8 +40,8 @@ export const TURN_SEEDS: Record<string, Seed> = {
       body: 'The bell counts every pause as its own line. Pick how repeats are shown.',
       memos,
       turnLog: [{ at: iso(3), who: `${ARCH} → ${ME}`, text: ask, turn: 'push', memo: 4 }],
-      turns: [{ agent: ME, ask, memo: 4, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
-      acting: ME,
+      turns: [{ agent: FOUNDER, ask, memo: 4, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      acting: FOUNDER,
     });
     d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: how a pause is counted', body: ask, task: 8809 });
   },
@@ -79,8 +81,8 @@ export const TURN_SEEDS: Record<string, Seed> = {
         { at: iso(30), who: `${ME} → ${ARCH}`, text: '', turn: 'pop', memo: 13 },
         { at: iso(3), who: `${ARCH} → ${ME}`, text: again, turn: 'push', memo: 15 },
       ],
-      turns: [{ agent: ME, ask: again, memo: 15, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
-      acting: ME,
+      turns: [{ agent: FOUNDER, ask: again, memo: 15, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      acting: FOUNDER,
     });
     // The same in the architect's chat, as task_comment items: its card there.
     d.chat.seed(ARCH, {

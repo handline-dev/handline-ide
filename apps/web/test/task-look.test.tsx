@@ -35,3 +35,14 @@ describe('the hand is for the founder alone', () => {
 
 it("a task on the founder's turn shows the hand", () =>
   expect(look({ state: 'doing', block_reason: null, hold_reason: null, turns: [{}], acting: 'human' }).word).toBe('Waiting'));
+const doing = { state: 'doing', block_reason: null, hold_reason: null };
+
+it("a person's turn on top reads as Waiting, never Doing", () => {
+  expect(look({ ...doing, turns: [{}], acting: 'p1' }).word).toBe('Waiting');
+  expect(look({ ...doing, turns: [{}], acting: 'human' }).word).toBe('Waiting');
+});
+
+it("an agent's turn on top still reads as Doing", () => {
+  expect(look({ ...doing, turns: [{}], acting: 'handline.architect' }).word).toBe('Doing');
+  expect(look({ ...doing, acting: 'p1' }).word).toBe('Doing');
+});

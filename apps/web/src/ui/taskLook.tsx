@@ -1,5 +1,5 @@
 import { Check, CircleDot, Hand, Hourglass, Layers, LoaderCircle, X, type LucideProps } from 'lucide-react';
-import { taskOutcome } from '@handline/app-core';
+import { isPersonKey, taskOutcome } from '@handline/app-core';
 import type { ReactNode } from 'react';
 
 /** Doing: a circle turning slowly, the sidebar's working agent; still when motion is reduced. */
@@ -34,10 +34,10 @@ export type Lookable = {
   evidence?: string | null;
   title?: string;
 };
-/** The task's look, the same everywhere: the hand only when the founder is needed; other waits read as queued or blocked. */
+/** The task's look, the same everywhere: the hand only when a person is needed (a person's turn on top); other waits read as queued or blocked. */
 export const look = (t: Lookable) => {
   const open = !['done', 'discarded'].includes(t.state);
-  const onFounder = open && (t.waiting?.on === 'founder' || (!!t.turns?.length && t.acting === 'human'));
+  const onFounder = open && (t.waiting?.on === 'founder' || (!!t.turns?.length && isPersonKey(t.acting)));
   const blocked = open && t.state !== 'queued' && !!(t.waiting || t.block_reason);
   const failed = t.state === 'done' && failedLine(t.evidence, t.title) !== null;
   const key = onFounder ? 'waiting' : blocked ? 'blocked' : failed ? 'failed' : t.state;

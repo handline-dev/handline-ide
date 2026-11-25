@@ -113,7 +113,7 @@ test('story-review seeds a sub-task Ready for you with pictures and a video, and
     ],
   );
   const ready = await client.call('task.get', { task: 9411 });
-  assert.equal(ready.turns?.at(-1)?.agent, 'human');
+  assert.equal(ready.turns?.at(-1)?.agent, 'p1');
   const files = ready.memos.find((m) => m.id === ready.review?.memo)?.files ?? [];
   const video = files.find((f) => f.kind === 'video');
   assert.deepEqual(

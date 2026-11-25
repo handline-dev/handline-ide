@@ -143,7 +143,7 @@ export class TaskComments extends TaskStore {
       if (t.state === 'done' || t.state === 'discarded') continue;
       const top = t.turns?.at(-1);
       const v = this.view(t);
-      if (top?.agent === 'human' && !answer.has(`task:${t.id}`))
+      if (top?.agent === 'p1' && !answer.has(`task:${t.id}`))
         answer.set(`task:${t.id}`, {
           task: t.id,
           title: t.title,

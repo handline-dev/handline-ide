@@ -27,7 +27,7 @@ test('a comment asks nothing; the founder is asked by a comment with a turn, and
     ).at(-1);
   const first = (await worker.call('task.comment.add', { task, text: 'A or B?', turn: 'human', request_id: 'a3' })).memo;
   const u = await turn();
-  assert.deepEqual([u?.agent, u?.ask, u?.memo, u?.edited], ['human', 'A or B?', first, null]);
+  assert.deepEqual([u?.agent, u?.ask, u?.memo, u?.edited], ['p1', 'A or B?', first, null]);
   const second_ = (await worker.call('task.comment.add', { task, text: 'A, B or C?', turn: 'human', request_id: 'a5' })).memo;
   const t = await turn();
   assert.deepEqual([t?.ask, t?.memo, t?.earlier?.map((e) => e.ask), !!t?.edited], ['A, B or C?', second_, ['A or B?'], true]);
