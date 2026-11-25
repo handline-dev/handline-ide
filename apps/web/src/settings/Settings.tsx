@@ -1,6 +1,7 @@
 // Settings: over the whole app so the founder can focus on it, its sections in a menu on the left; Back at the menu's top, or Escape, leaves.
 // The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
+import { SettingsBarFrame } from '#src/settings/SettingsBar.tsx';
 import { ArrowLeft, Bell, Bot, FolderGit2, ListChecks, MonitorSmartphone, Settings2, UserRound, Wrench } from 'lucide-react';
 import { InCluster, useJoined } from '#src/connection/clusters.tsx';
 import { ClusterPicker } from '#src/settings/ClusterPicker.tsx';
@@ -121,20 +122,20 @@ function Frame() {
           ))}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {/* Empty tab bar, matching the app's. */}
-          <LayerDragStrip height="40px" className="shrink-0 border-b border-border bg-surface" />
-          <main key={cluster} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
-            <InCluster id={cluster}>
-              {section === 'general' && <GeneralTab />}
-              {section === 'onboarding' && <OnboardingTab go={setSection} />}
-              {section === 'accounts' && <AccountsTab focus={to.account} />}
-              {section === 'agents' && <AgentsTab open={to.agent} />}
-              {section === 'tools' && <ToolsTab />}
-              {section === 'notifications' && <NotificationsTab />}
-              {section === 'projects' && <ProjectsTab />}
-              {section === 'devices' && <DevicesTab open={to.device} />}
-            </InCluster>
-          </main>
+          <SettingsBarFrame>
+            <main key={cluster} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-4">
+              <InCluster id={cluster}>
+                {section === 'general' && <GeneralTab />}
+                {section === 'onboarding' && <OnboardingTab go={setSection} />}
+                {section === 'accounts' && <AccountsTab focus={to.account} />}
+                {section === 'agents' && <AgentsTab open={to.agent} />}
+                {section === 'tools' && <ToolsTab />}
+                {section === 'notifications' && <NotificationsTab />}
+                {section === 'projects' && <ProjectsTab />}
+                {section === 'devices' && <DevicesTab open={to.device} />}
+              </InCluster>
+            </main>
+          </SettingsBarFrame>
         </div>
       </div>
     </div>

@@ -4,10 +4,11 @@ import { count } from '#src/format/count.ts';
 // reviewed, per kind of work.
 import { useAgentDetail, useAgentReview, useLessons, useNameOf, useWrite, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
-import { AppWindow, ArrowLeft, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
+import { AppWindow, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
+import { SettingsBar } from '#src/settings/SettingsBar.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { InfoTip } from '#src/ui/InfoTip.tsx';
@@ -54,13 +55,8 @@ export function AgentPage({ agent, back }: { agent: string; back: () => void }) 
           {device && <DeviceLine device={device} />}
         </>
       }
-      action={
-        <Button variant="ghost" onClick={back}>
-          <ArrowLeft size={14} />
-          Agents
-        </Button>
-      }
     >
+      <SettingsBar title={name} back={back} backTo="Agents" />
       <Lessons agent={agent} />
       <Sandbox agent={agent} />
       <Review agent={agent} />
