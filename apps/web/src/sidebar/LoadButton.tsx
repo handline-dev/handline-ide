@@ -22,7 +22,12 @@ export function LoadButton({ bar }: { bar: RefObject<HTMLDivElement | null> }) {
       open={open}
       onOpenChange={setOpen}
       trigger={
-        <button type="button" aria-label="What each agent uses" className="flex size-5 items-center justify-center">
+        <button
+          type="button"
+          aria-label="What each agent uses"
+          title="CPU and memory by agent"
+          className="flex size-5 items-center justify-center"
+        >
           <Activity size={14} />
         </button>
       }
@@ -46,6 +51,13 @@ function LoadList() {
           CPU {pct(m.load_per_core * 100)} · {bytesText(m.ram_used_bytes)} of {bytesText(m.ram_total_bytes)}
         </span>
       </p>
+      {rows.length > 0 && (
+        <p className="flex gap-3 px-2 pb-1 text-xs text-muted">
+          <span className="flex-1">Agent</span>
+          <span className="w-14 text-right">CPU</span>
+          <span className="w-16 text-right">Memory</span>
+        </p>
+      )}
       {rows.length === 0 && <p className="px-2 py-1.5 text-sm text-muted">No agent is running.</p>}
       {rows.map((r) => (
         <Row key={r.agent} agent={r.agent} cpu={r.cpu_pct / Math.max(1, m.cores)} rss={r.rss_bytes} />
