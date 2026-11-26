@@ -36,22 +36,37 @@ Every 60 s the daemon reads each open gate, one at a time, on a clock of its own
 Every open gate is looked at on every pass, whatever the daemon remembers: what one pass could not finish, the next does,
 and so does a daemon that starts later.
 
+When a gate opens, the holder of the task it blocked is told its evidence in the unblock notice. The task keeps it too:
+`task.get` lists the gates the task waited on that have opened, newest first (`TaskDetail.gates`: what each watched, its
+result and its evidence), and `hl task show T<n>` prints them under `waited on`. That is how an agent learns which checks
+failed or that changes were requested: it cannot read the pull request itself (`task.pr` is a person's read).
+
 ## A gate that closes its task (`--then done`)
 
 `hl task wait T<n> --pr <n> --until landed --then done` opens a gate that names the task it closes (`TaskWatch.closes`).
 Only a watch whose pass names a merge commit can: a pull request until `landed`. When it passes:
 
 1. Outside any write, the daemon fetches origin's default branch in the folder the roster keeps for the agent acting on the
-   task (`git fetch origin <default branch>`, nothing prompting, 60 s at most), and looks for the merge commit on that
-   branch, on origin's copy or the local one. It fetches nowhere a caller names: a fetch honours a repository's config.
+   task (`git fetch origin <default branch>`, nothing prompting, 60 s at most, over https, ssh or git only), and looks
+   for the merge commit on that branch: origin's copy of it when the clone has one, else the local branch. It fetches
+   nowhere a caller names: a fetch honours a repository's config. Every git question the done needs is asked here, so no
+   git runs while the write holds the database.
 2. In one write it marks the gate done (`merged <sha>`) and the task done, in that agent's name, with the merge commit as
    the evidence, as a review turn's pass closes a task. It is a done like any other: the workspace's `review_required`
    applies, and the task's result says the commit is on the default branch. The evidence is never words.
 
 One write means no daemon death leaves a gate that passed beside a task it did not close.
 
-- **The fetch fails:** nothing is closed. The gate stays open, its status says
+- **The fetch fails** (network, credentials, a timeout): nothing is closed. The gate stays open, its status says
   `watching <label> - passed, not closing T<n> yet: <why>`, and the next pass tries again, until the gate's deadline.
+- **The origin cannot be fetched at all:** an origin that is a local path, or any transport other than https, ssh and git,
+  is refused by the daemon's fetch (`transport 'file' not allowed`), and no later fetch goes better. The gate does not wait
+  out its deadline on it: it checks the clone as it stands. A clone that already holds the merge on origin's copy of the
+  default branch (someone fetched it there) closes the task. Otherwise, after 3 passes (about 3 minutes), the gate opens as
+  passed with `merged <sha>; T<n> not closed: its merge commit <sha> is not on origin/<branch> of <agent>'s repository, and
+  the daemon cannot fetch that repository's origin to look again (git fetch: transport 'file' not allowed: it fetches over
+  https, ssh, git only)`, and the task goes back to its holder, who closes it with `hl task done T<n> <sha>` after a fetch
+  of its own.
 - **The done is refused** (an open sub-task, another blocker, a review the workspace wants), **the merge is not on the
   default branch** after 3 passes that fetched (a merge into another branch, or in another repository), **the merge names
   no commit**, the agent has no folder on this machine, or the task is a person's turn: the task is not closed. The gate

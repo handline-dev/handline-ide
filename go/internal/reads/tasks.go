@@ -945,6 +945,9 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 		bs = append(bs, item)
 	}
 	task["blockers"] = bs
+	if task["gates"], err = e.openedGates(*tid); err != nil {
+		return nil, err
+	}
 	kids, err := query(e.DB, "SELECT *, "+taskActing+" FROM tasks WHERE parent_task = ? ORDER BY id", *tid)
 	if err != nil {
 		return nil, err

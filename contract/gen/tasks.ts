@@ -145,6 +145,17 @@ export type TaskDetail = Task & {
     owner: string;
     title: string;
   } & TaskLook)[];
+  /** The gates the task waited on that have opened, newest first, at most five: what each watched and how it opened. blockers holds only what still blocks, so this is where the task keeps why a wait ended (the checks that failed, changes requested, the merge). Absent from a daemon that does not send it. */
+  gates?: {
+    /** The gate task. */
+    task: number;
+    /** What it watched, in words ("PR #418 to land"). */
+    label: string;
+    result: "passed" | "failed" | "timed_out";
+    /** The line it opened with: the vendor's evidence ("ci failed: build, lint", "changes requested", "merged <sha>"), "timed out", or "gone: ...". */
+    evidence: string;
+    at: Timestamp;
+  }[];
   children: number[];
   handoffs: {
     at: Timestamp;

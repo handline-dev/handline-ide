@@ -660,6 +660,45 @@
          ]
         }
        },
+       "gates": {
+        "type": "array",
+        "description": "The gates the task waited on that have opened, newest first, at most five: what each watched and how it opened. blockers holds only what still blocks, so this is where the task keeps why a wait ended (the checks that failed, changes requested, the merge). Absent from a daemon that does not send it.",
+        "items": {
+         "type": "object",
+         "properties": {
+          "task": {
+           "type": "integer",
+           "description": "The gate task."
+          },
+          "label": {
+           "type": "string",
+           "description": "What it watched, in words (\"PR #418 to land\")."
+          },
+          "result": {
+           "type": "string",
+           "enum": [
+            "passed",
+            "failed",
+            "timed_out"
+           ]
+          },
+          "evidence": {
+           "type": "string",
+           "description": "The line it opened with: the vendor's evidence (\"ci failed: build, lint\", \"changes requested\", \"merged <sha>\"), \"timed out\", or \"gone: ...\"."
+          },
+          "at": {
+           "$ref": "#/components/schemas/Timestamp"
+          }
+         },
+         "required": [
+          "task",
+          "label",
+          "result",
+          "evidence",
+          "at"
+         ]
+        }
+       },
        "children": {
         "type": "array",
         "items": {

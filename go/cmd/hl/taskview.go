@@ -189,6 +189,14 @@ func detailLines(t obj, now float64, home string) []string {
 			out = append(out, fmt.Sprintf("  T%d (%s)  %s", num(b, "task"), str(b, "owner"), str(b, "title")))
 		}
 	}
+	// Why its waits ended: the notice that said so went to whoever held the task then, and the task keeps it for whoever reads it now.
+	if gs := list(t, "gates"); len(gs) > 0 {
+		out = append(out, "", "waited on (newest first)")
+		for _, g := range gs {
+			out = append(out, fmt.Sprintf("  T%d  %s: %s - %s  %s", num(g, "task"), str(g, "label"), strings.ReplaceAll(str(g, "result"), "_", " "),
+				str(g, "evidence"), stamp(g["at"])))
+		}
+	}
 	if ks := list(t, "subtasks"); len(ks) > 0 {
 		out = append(out, "", "child tasks")
 		for _, k := range ks {
