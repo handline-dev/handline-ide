@@ -27,7 +27,7 @@ import (
 )
 
 // perAgent is rpc_settings.PER_AGENT: the settings an agent's row may override.
-var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", "bg_grace_s", "bg_check_s", "notice_digest_s", handoff.PromptKey}
+var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", "bg_grace_s", "bg_check_s", "notice_digest_s", handoff.PromptKey, usage.SplitKey}
 
 // hooksWanted is the events our hook is installed for: claudecode.Wanted, which a test keeps equal.
 var hooksWanted = []string{"SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "PostCompact", "UserPromptSubmit",

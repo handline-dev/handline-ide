@@ -156,7 +156,7 @@ func (v *Mover) plan(agent, kind string, starting bool) (dest, why string, rooml
 		d := float64(max(0, reset-now))
 		resetIn = &d
 	}
-	if !outTrigger(kind) && m.Launch.ManualSplit() {
+	if !outTrigger(kind) && m.Launch.ManualSplit(agent) {
 		return "", "account_split is manual - it waits on " + here + " for its reset", false
 	}
 	work := starting || len(must(db.QueuedFor(m.Q, agent))) > 0

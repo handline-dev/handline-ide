@@ -74,7 +74,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	team.DefaultModelKey("codex"): model, team.DefaultEffortKey("codex"): effort}
 
 var perAgent = map[string]bool{"park_timeout_s": true, "ignore_cache_expiry": true, "bg_notice_s": true, "bg_grace_s": true, "bg_check_s": true,
-	"notice_digest_s": true, handoff.PromptKey: true}
+	"notice_digest_s": true, handoff.PromptKey: true, usage.SplitKey: true}
 
 // joinLines is a handoff prompt as one line: the line breaks typed in the box become one space, and the ends are trimmed.
 func joinLines(s string) string {

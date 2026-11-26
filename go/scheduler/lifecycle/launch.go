@@ -281,10 +281,20 @@ func (l *Launcher) PinOf(agent string) string {
 	return strings.TrimSpace(pin)
 }
 
+// ManualSplit is whether account_split is manual for agent: its own value in its row, else the config's.
+func (l *Launcher) ManualSplit(agent string) bool {
+	if cfg, err := l.Roster.Read(agent); err == nil {
+		if v, ok := cfg[usage.SplitKey].(string); ok && (v == usage.SplitManual || v == usage.SplitAuto) {
+			return v == usage.SplitManual
+		}
+	}
+	return l.Ports.Usage.ManualSplit()
+}
+
 // heldTo is the one account the agent may start on, "" for any: its pin, else with account_split manual the account it is on. An agent
 // on no account yet, or on one it cannot use at all (another vendor's, left out, logged out or paused), is placed as in auto.
 func (l *Launcher) heldTo(m machine, agent string) string {
-	if pin := l.PinOf(agent); pin != "" || !l.Ports.Usage.ManualSplit() {
+	if pin := l.PinOf(agent); pin != "" || !l.ManualSplit(agent) {
 		return pin
 	}
 	own := l.Ports.CurrentAccount(l.Q, agent)
@@ -417,7 +427,7 @@ func (l *Launcher) paused(acct string, assumed bool) *WakeWait {
 // SlowestPaced is the account a closed agent moves to when its own (skip) cannot take it: of the other accounts that may start, take this
 // vendor, fit and are not paused, the one whose week runs out soonest. "" when none can.
 func (l *Launcher) SlowestPaced(q db.Q, agent string, skip string) string {
-	if l.Ports.Usage.ManualSplit() && !l.Ports.Usage.Read(skip).Paused {
+	if l.ManualSplit(agent) && !l.Ports.Usage.Read(skip).Paused {
 		return ""
 	}
 	best, _ := l.RoomElsewhere(q, agent, map[string]string{skip: ""}, false)
@@ -1733,7 +1743,7 @@ func (p LaunchPort) AccountFor(q db.Q, agent string, resuming bool) string {
 
 func (p LaunchPort) Placing() func() { return p.L.Placing() }
 
-func (p LaunchPort) ManualSplit() bool { return p.L.Ports.Usage.ManualSplit() }
+func (p LaunchPort) ManualSplit(agent string) bool { return p.L.ManualSplit(agent) }
 
 func (p LaunchPort) AccountUsage(acct string) AccountStatus { return p.L.Ports.Usage.Read(acct) }
 

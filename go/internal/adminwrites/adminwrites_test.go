@@ -146,6 +146,14 @@ func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {
 	if r.setting("alice", "park_timeout_s") != "60" {
 		t.Fatal("the agent's own setting")
 	}
+	r.result(r.one("settings.set", `{"changes":{"account_split":"manual"},"agent":"alice","request_id":"t5"}`))
+	if r.setting("alice", "account_split") != "manual" || strings.Contains(r.file("config.yaml"), "account_split") {
+		t.Fatal("account_split is the agent's own, not the config's")
+	}
+	r.result(r.one("settings.set", `{"changes":{"account_split":null},"agent":"alice","request_id":"t6"}`))
+	if r.setting("alice", "account_split") != "" {
+		t.Fatal("null clears the agent's own")
+	}
 }
 
 func TestTheLoadLimitsAreWholeNumbersForTheWholeMachine(t *testing.T) {

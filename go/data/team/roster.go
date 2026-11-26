@@ -47,7 +47,7 @@ var settingKinds = map[string]byte{
 	"handoff_note": 'b', "park_timeout_s": 'i', "sandbox": 'b', "sandbox_allow": 's', "device": 's', "sandbox_domains": 's', "chrome": 'b',
 	"mcp_config": 's', "schedules": 's', "peer_inbox": 'b', "account": 's', "ignore_cache_expiry": 'b', "bg_notice_s": 'i',
 	"bg_grace_s": 'i', "bg_check_s": 'i', "notice_digest_s": 'i', "handoff_prompt": 's', "cache_renewal": 'b', "idle_fold": 'b',
-	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b',
+	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b', "account_split": 's',
 }
 
 // settingKeys is settingKinds' keys in order, for the SELECT.

@@ -2220,7 +2220,7 @@
        "manual"
       ],
       "default": "auto",
-      "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart."
+      "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. Per agent with `agent`: that agent's own value, over the global one; manual keeps it on the account it is on, wherever a person moves it."
      },
      "temp_workers": {
       "type": "string",
@@ -2751,7 +2751,7 @@
         "type": "null"
        }
       ],
-      "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default)."
+      "description": "How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. Per agent with `agent`: that agent's own value, over the global one; manual keeps it on the account it is on, wherever a person moves it. null removes the key (back to the default)."
      },
      "temp_workers": {
       "oneOf": [
@@ -5694,7 +5694,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt. Any other key with `agent` is bad_request."
+      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split. Any other key with `agent` is bad_request."
      }
     },
     {

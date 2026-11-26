@@ -418,7 +418,7 @@ export type SettingsValues = {
   subagent_pace_guard?: boolean;
   /** How agents are placed on the cluster's devices at each session's start: auto, the default, keeps a light agent on the master's machine and sends a heavy one (over 2 h of heavy commands or a 6 GB peak in its last 7 days) to the lent device with the most room that has all it needs; manual starts an agent pinned to a device (its device setting) there and places the others as auto does. Switching keeps the pins. */
   agent_placement?: "auto" | "manual";
-  /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. */
+  /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. Per agent with `agent`: that agent's own value, over the global one; manual keeps it on the account it is on, wherever a person moves it. */
   account_split?: "auto" | "manual";
   /** Whether a task that comes to an agent mid-turn on another goes to a seat of it: auto, the default, gives it to the agent's lowest idle seat, or a new one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), on a fresh conversation; the seat stays, idle, once the task is over. manual keeps the task waiting for the agent. A seat starts only where a start would: the load, agent_cap and account limits hold. */
   temp_workers?: "auto" | "manual";
@@ -526,7 +526,7 @@ export type SettingsChanges = {
   subagent_pace_guard?: boolean;
   /** How agents are placed on the cluster's devices at each session's start: auto, the default, keeps a light agent on the master's machine and sends a heavy one (over 2 h of heavy commands or a 6 GB peak in its last 7 days) to the lent device with the most room that has all it needs; manual starts an agent pinned to a device (its device setting) there and places the others as auto does. Switching keeps the pins. null removes the key (back to the default). */
   agent_placement?: ("auto" | "manual") | null;
-  /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. null removes the key (back to the default). */
+  /** How agents are spread over the accounts: auto, the default, places each new start and moves an agent off an account near its wall; manual never does: an agent stays on the account it is on, waits at its wall for the reset and goes on with the same conversation. A person's move (agent.move) goes in both. Applied at the next start or move, without a restart. Per agent with `agent`: that agent's own value, over the global one; manual keeps it on the account it is on, wherever a person moves it. null removes the key (back to the default). */
   account_split?: ("auto" | "manual") | null;
   /** Whether a task that comes to an agent mid-turn on another goes to a seat of it: auto, the default, gives it to the agent's lowest idle seat, or a new one (the agent's name and a number, with its settings, role, lessons and memory folder, in a desk of its own), on a fresh conversation; the seat stays, idle, once the task is over. manual keeps the task waiting for the agent. A seat starts only where a start would: the load, agent_cap and account limits hold. null removes the key (back to the default). */
   temp_workers?: ("auto" | "manual") | null;
@@ -1173,7 +1173,7 @@ export interface CoreMethods {
 }; result: Settings };
   "settings.set": { params: {
   changes: SettingsChanges;
-  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt. Any other key with `agent` is bad_request. */
+  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split. Any other key with `agent` is bad_request. */
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };

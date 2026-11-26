@@ -609,7 +609,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 	session := row.ResumeSession.String
 	rehomed := false
 	moveFrom, moveReason := "", "" // moveReason: the moved_account reason of a move this wake makes
-	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) && !m.Launch.ManualSplit() {
+	if movedTo == "" && !warm && session != "" && m.cachePast(agent, session, m.now()) && !m.Launch.ManualSplit(agent) {
 		// Past its cache's life the agent is on no account: it goes to the one whose unused week runs out soonest that has room (a clear
 		// gain, else it stays), its own included, taking the session along (so ignore_cache_expiry, which only keeps the session, does not hold it).
 		if to, _ := m.Launch.RoomElsewhere(m.Q, agent, nil, false); to != "" && to != row.Account.String && m.Launch.WorthRepick(row.Account.String, to) {

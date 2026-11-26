@@ -5,12 +5,13 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
-// manualLaunch is moveLaunch with account_split manual.
+// manualLaunch is moveLaunch with account_split manual for agent a alone, so a caller that asks of another agent is caught.
 type manualLaunch struct{ *moveLaunch }
 
-func (manualLaunch) ManualSplit() bool { return true }
+func (manualLaunch) ManualSplit(agent string) bool { return agent == "a" }
 
 // With account_split manual an agent starts on the account it is on, not where the pick says, and the daemon moves it nowhere; a new
 // agent, on none yet, is placed as in auto.
@@ -63,10 +64,43 @@ func TestManualSplitPlansNoMoveAtAWall(t *testing.T) {
 	}
 }
 
-// manualHeadroom is headroomLaunch with account_split manual.
+// An agent's own account_split manual keeps it on its account while the config says auto, and its own auto lets the daemon move it while the
+// config says manual.
+func TestAnAgentsOwnManualSplitKeepsItOnItsAccountNearItsWall(t *testing.T) {
+	r := pinRig(t, "")
+	r.l.Ports.CurrentAccount = func(db.Q, string) string { return "a" }
+	near := 95
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, by: map[string]AccountStatus{"a": {Exists: true, ShortTrusted: &near}}, pick: "b"}
+	if r.l.ManualSplit("ann") || r.l.SlowestPaced(r.l.Q, "ann", "a") != "b" {
+		t.Fatal("unset, the config's auto moves it")
+	}
+	teamtest.Set(t, r.l.Home, "ann", "account_split", "manual")
+	if !r.l.ManualSplit("ann") || r.l.ManualSplit("bob") || !(LaunchPort{L: r.l}).ManualSplit("ann") {
+		t.Fatal("manual is ann's alone")
+	}
+	if got := r.l.SlowestPaced(r.l.Q, "ann", "a"); got != "" {
+		t.Fatalf("near its wall it is not moved: %q", got)
+	}
+	if got := r.l.FindRoom("ann"); got != "" {
+		t.Fatalf("its start waits for its own account, not another: %q", got)
+	}
+	if got, _ := r.l.RoomNow(r.l.Q, "ann", "a"); got != "b" {
+		t.Fatalf("a person's start off its account still goes: %q", got)
+	}
+	teamtest.Set(t, r.l.Home, "ann", "account_split", "auto")
+	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, by: map[string]AccountStatus{"a": {Exists: true, ShortTrusted: &near}}, pick: "b", manual: true}
+	if r.l.ManualSplit("ann") || !r.l.ManualSplit("bob") || !(LaunchPort{L: r.l}).ManualSplit("bob") {
+		t.Fatal("ann's own auto is over the config's manual")
+	}
+	if got := r.l.SlowestPaced(r.l.Q, "ann", "a"); got != "b" {
+		t.Fatalf("with its own auto it moves: %q", got)
+	}
+}
+
+// manualHeadroom is headroomLaunch with account_split manual for agent a alone.
 type manualHeadroom struct{ headroomLaunch }
 
-func (manualHeadroom) ManualSplit() bool { return true }
+func (manualHeadroom) ManualSplit(agent string) bool { return agent == "a" }
 
 // A cold wake past its cache's life is not re-homed with account_split manual: it starts on its own account.
 func TestManualSplitKeepsAColdWakeOnItsAccount(t *testing.T) {
