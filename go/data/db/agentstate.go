@@ -419,6 +419,20 @@ func LastEventOfTS(q Q, agent string, kinds []string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM events WHERE agent = ? AND kind IN (?"+strings.Repeat(", ?", len(kinds)-1)+")", args...)
 }
 
+// LaunchSession is the session of the agent's latest launch, as its own hooks reported it after that launch began (by event id, since a
+// late hook keeps its own time); "" while that session has reported nothing, so a hook of the session before is never taken for it.
+func LaunchSession(q Q, agent string) (string, error) {
+	var id sql.NullString
+	err := q.QueryRow("SELECT json_extract(payload, '$.session_id') FROM events WHERE agent = ?1 AND kind IN "+
+		"('SessionStart', 'UserPromptSubmit', 'Stop', 'StopFailure', 'PostCompact') AND json_valid(payload) "+
+		"AND json_extract(payload, '$.session_id') IS NOT NULL "+
+		"AND id > COALESCE((SELECT MAX(id) FROM events WHERE agent = ?1 AND kind = 'launching'), 0) ORDER BY id DESC LIMIT 1", agent).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return id.String, err
+}
+
 // LaunchOver are the events that say a launch is no longer starting: a hook of its session (it is up), its end, or the wake that failed.
 var LaunchOver = []string{"SessionStart", "UserPromptSubmit", "Stop", "StopFailure", "PostCompact", "SessionEnd", "wake_failed"}
 

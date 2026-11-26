@@ -197,12 +197,23 @@ func (e *Env) landedAlready(q db.Q, agent string, rid int64) bool {
 	if row == nil {
 		return false
 	}
-	for _, p := range e.transcriptsOf(distinct(row.TypedSess.String, e.liveSession(q, agent)), acct) {
+	launched := func() string { return must(db.LaunchSession(q, agent)) }
+	for _, p := range e.transcriptsOf(landingSessions(row, e.liveSession(q, agent), launched), acct) {
 		if e.shownIn(q, row, p, false) {
 			return true
 		}
 	}
 	return false
+}
+
+// landingSessions are the sessions whose transcripts may show row: the one it was typed into and the live one; when neither is known
+// (a fresh start's wake prompt is typed before its session has an id on record), the latest launch's session as its hooks report it
+// (launched, read once by the caller).
+func landingSessions(row *db.Request, live string, launched func() string) []string {
+	if out := distinct(row.TypedSess.String, live); len(out) > 0 {
+		return out
+	}
+	return distinct(launched())
 }
 
 // LandingSweep confirms or owes again every request typed at the agent and not yet shown in its transcript: shown, it is landed; not shown
@@ -226,8 +237,15 @@ func (e *Env) LandingSweep(q db.Q, agent string) (err error) {
 	}
 	live := e.liveSession(q, agent)
 	state := stateOf(q, agent)
+	var launch *string
+	launched := func() string {
+		if launch == nil {
+			launch = new(must(db.LaunchSession(q, agent)))
+		}
+		return *launch
+	}
 	for _, r := range rows {
-		sessions := distinct(r.TypedSess.String, live)
+		sessions := landingSessions(r, live, launched)
 		if len(sessions) == 0 {
 			continue // no session id is known yet: a missing line cannot be told from a missing id
 		}
