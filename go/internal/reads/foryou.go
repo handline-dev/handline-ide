@@ -52,7 +52,7 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		if err != nil {
 			return nil, 0, err
 		}
-		kind, id, title, task := "comment", m.ref, firstLine(withoutHumanTag(m.body)), int64(0)
+		kind, id, title, task := "comment", m.ref, firstLine(withoutLead(m.body)), int64(0)
 		if linked != nil {
 			task = linked.i("id")
 		}
@@ -184,14 +184,13 @@ func (e *Env) taskIsOpen(id int64) bool {
 	return err == nil && r != nil
 }
 
-// withoutHumanTag is a comment's ask without the leading mention that addressed it (addr.Lead, as the daemon reads whom it is to),
-// and without the older word @human.
-func withoutHumanTag(text string) string {
+// withoutLead is a comment's ask without the leading mention that addressed it (addr.Lead, as the daemon reads whom it is to).
+func withoutLead(text string) string {
 	t := strings.TrimSpace(text)
 	if lead := addr.Lead(t); lead != "" {
 		t = strings.TrimPrefix(t, addr.Ref(lead))
 	}
-	return strings.TrimSpace(strings.ReplaceAll(t, "@human", ""))
+	return strings.TrimSpace(t)
 }
 
 // personIsOwner is whether the person the reads are for is an owner: the prompts, proposals and machine needs are theirs.

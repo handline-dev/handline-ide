@@ -6,8 +6,8 @@ import { TaskFailure, TaskStore, type Row } from '#src/taskstore.ts';
 /** Why task.comment.recipients names an agent. */
 type Why = 'asked' | 'assignee' | 'owner' | 'last_writer';
 
-/** `@human` in a comment: at the start or after a character that is not part of a name. */
-const NAMES_HUMAN = /(?:^|[^A-Za-z0-9._@-])@human(?:[^A-Za-z0-9_-]|$)/;
+/** A comment written to the founder, as the daemon reads it: it opens with the founder's mention (addr.Lead). */
+const TO_FOUNDER = /^\s*<@human>/;
 
 /** An `@name` in a comment, as the daemon reads it: at the start or after a character that is not part of a name. */
 const NAMED = /(?:^|[^A-Za-z0-9._@-])@([A-Za-z0-9][A-Za-z0-9._-]*)/g;
@@ -194,7 +194,7 @@ export class TaskComments extends TaskStore {
     };
   }
 
-  /** As the daemon: the newest `@human` comment by anyone but the founder, unread on its task and in its author's chat, on a task no row
+  /** As the daemon: the newest comment to the founder by anyone but the founder, unread on its task and in its author's chat, on a task no row
    * stands for, is a note. */
   private notes(answer: Map<string, Pending>): Pending[] {
     const notes: Pending[] = [];
@@ -202,7 +202,7 @@ export class TaskComments extends TaskStore {
       if (answer.has(`task:${t.id}`) || t.state === 'discarded') continue;
       const v = this.view(t);
       const m = (t.memos ?? [])
-        .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && NAMES_HUMAN.test(x.text))
+        .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && TO_FOUNDER.test(x.text))
         .at(-1);
       const seen = m && this.host.chat.seenAt(m.author);
       if (!m || (seen && seen >= m.at)) continue; // seen as a card in its author's chat
@@ -213,7 +213,7 @@ export class TaskComments extends TaskStore {
         source: 'comment',
         id: String(m.id),
         agent: m.author,
-        ask: m.text.replace(NAMES_HUMAN, ' ').trim().split('\n')[0]!,
+        ask: m.text.replace(TO_FOUNDER, '').trim().split('\n')[0]!,
         warning: null,
         items: [],
         unread: v.unread ?? 0,
@@ -266,14 +266,14 @@ export class TaskComments extends TaskStore {
   }
 
   /**
-   * The ask to the founder that comment `m` raised, kept as the comment reads now: an ask an agent's `@human` comment opened before comments stopped asking stays open.
+   * The ask to the founder that comment `m` raised, kept as the comment reads now: an ask an agent's comment to the founder opened before comments stopped asking stays open.
    * The founder writing on the task answers it.
    */
   protected askFor(t: Row, m: Memo, adding: boolean, gone = false): void {
     const inbox = this.host.inbox;
     if (!this.isAgent(m.author)) return adding ? inbox.closeAsks(t.id) : undefined;
     const open = inbox.askOf(t.id, m.id);
-    const want = !gone && NAMES_HUMAN.test(m.text);
+    const want = !gone && TO_FOUNDER.test(m.text);
     if (want && open) inbox.retext(open, m.text);
     else if (open) inbox.close(open);
   }

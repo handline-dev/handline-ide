@@ -50,7 +50,6 @@ export type Row = Task &
     commits?: SeedCommit[];
   };
 
-/** `@human` in a comment: at the start or after a character that is not part of a name. */
 export class TaskStore {
   protected held: Row[] | null = null;
   protected nextId = 2000;

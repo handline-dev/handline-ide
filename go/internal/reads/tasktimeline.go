@@ -26,7 +26,7 @@ func seconds(v any) float64 {
 }
 
 // taskTimeline is TaskDetail.timeline, as actions.task_timeline: the task's memos, handoffs (a request that carried one is that handoff's
-// row), the other requests linked to it (not a memo's tell, the ask an @human memo opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with and the lessons added on it, oldest first to the
+// row), the other requests linked to it (not a memo's tell, the ask a memo to the founder opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with and the lessons added on it, oldest first to the
 // fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
 func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {
 	type entry struct {
@@ -76,7 +76,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		}
 	}
 	for _, r := range reqs {
-		if carried[r.i("id")] || r.i("notice") == 2 || r.set("memo_id") { // a memo's tell, or the ask an @human memo opened, repeats the memo row
+		if carried[r.i("id")] || r.i("notice") == 2 || r.set("memo_id") { // a memo's tell, or the ask a memo to the founder opened, repeats the memo row
 			continue
 		}
 		if r.str("requester") == db.NoticeRequester && r.str("kind") == "say" { // the board's notice to an agent belongs to its chat

@@ -281,13 +281,13 @@ func TestATaskHoldingSeveralItemsIsOneRowTheStrongestNames(t *testing.T) {
 	setup := func(first, second string) *Env {
 		e := testEnv(t)
 		runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'p1', 1, 'p1')",
-			"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 7, 'bob', 'which one @human?', 10)",
+			"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 7, 'bob', 'which one <@p1>?', 10)",
 			"INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES"+first+", "+second,
 			"INSERT INTO task_requests(task_id, request_id) VALUES(7, 20), (7, 21)")
 		noteLost(t, e, db.RefusedTaskPrefix, 7, "gone", "refused")
 		return e
 	}
-	const decide, comment = "'amy', 'p1', 'pick', 'queued', 'task', NULL, 1)", "'bob', 'p1', 'which one @human?', 'queued', 'ask', 1, 1)"
+	const decide, comment = "'amy', 'p1', 'pick', 'queued', 'task', NULL, 1)", "'bob', 'p1', 'which one <@p1>?', 'queued', 'ask', 1, 1)"
 	for name, c := range map[string]struct {
 		e                       *Env
 		source, id, agent, kind string
@@ -301,7 +301,7 @@ func TestATaskHoldingSeveralItemsIsOneRowTheStrongestNames(t *testing.T) {
 		}
 		r := rows[0]
 		w, _ := r["warning"].(map[string]any)
-		if r["kind"] != c.kind || r["source"] != c.source || r["id"] != c.id || r["agent"] != c.agent || r["ask"] != "which one ?" || w["kind"] != "undelivered" {
+		if r["kind"] != c.kind || r["source"] != c.source || r["id"] != c.id || r["agent"] != c.agent || r["ask"] != "which one <@p1>?" || w["kind"] != "undelivered" {
 			t.Fatalf("%s: %v", name, r)
 		}
 	}

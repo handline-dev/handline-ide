@@ -223,9 +223,9 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		}
 		answer = append(answer, out)
 	}
-	// Notes (the bell's dot, not its count): @human comments unread on their task and in their author's chat, on a task no row above has.
+	// Notes (the bell's dot, not its count): comments that open with a person, unread on their task and in their author's chat, on a task no row above has.
 	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
-		"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?1 AND (m.body LIKE '%@human%' OR m.body LIKE '<@p%') AND m.id > MAX(?2, COALESCE(c.row_id, 0)) "+
+		"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?1 AND m.body LIKE '<@p%' AND m.id > MAX(?2, COALESCE(c.row_id, 0)) "+
 		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.memo_id = m.id AND r.target = ?1 AND r.read_at IS NOT NULL) "+
 		"AND COALESCE((SELECT r.ts FROM requests r JOIN cursors s ON r.id = s.row_id WHERE s.name = 'for_you_seen:' || m.author), 0) < m.created_at "+
 		"ORDER BY m.id DESC", e.person(), e.seenFloor(), db.SeenPrefixOf(e.person()))
@@ -237,17 +237,11 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		if byTask[tid] != nil || !db.ToPerson(m.str("body")) {
 			continue
 		}
-		whose := addr.Lead(m.str("body")) // the person the comment opens with; an old @human comment's is the task's person
-		if !actor.IsPerson(whose) {
-			if whose, err = db.TaskPerson(e.DB, tid); err != nil {
-				return nil, err
-			}
-		}
-		if whose != e.person() {
+		if addr.Lead(m.str("body")) != e.person() { // the person the comment opens with
 			continue
 		}
 		out := row(tid, m.str("title"), "note", []int64{}, all[tid], ts(m["created_at"]))
-		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(m.str("body")))
+		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutLead(m.str("body")))
 		byTask[tid] = out
 		answer = append(answer, out)
 	}
