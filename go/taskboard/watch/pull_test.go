@@ -80,7 +80,7 @@ func TestAPullRequestIsReadFromWhatGhPrints(t *testing.T) {
 	if !reflect.DeepEqual(p, want) {
 		t.Fatalf("\n got %+v\nwant %+v", p, want)
 	}
-	if got := strings.Join(ran, " "); got != "pr view 418 -R acme/app --json number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup,commits,latestReviews" {
+	if got := strings.Join(ran, " "); got != "pr view 418 -R acme/app --json number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup,commits,latestReviews,reviews" {
 		t.Fatalf("ran gh %s", got)
 	}
 	if !reflect.DeepEqual(p.Failed(), []string{"build"}) || p.Count(CheckWaiting) != 1 || p.Count(CheckPassed) != 2 {

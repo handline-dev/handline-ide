@@ -307,7 +307,8 @@ func closedVerdict(p *Pull) (Verdict, string) {
 // closed unmerged is failed. While it is open, a check that stands failed by its latest run is failed, the checks named, and so is a
 // reviewer asking for changes after the watch started: each is work for whoever holds the task, so the task goes back to them. A
 // request for changes made before the watch started is not news to them (they waited knowing it, and GitHub keeps that decision until
-// the reviewer looks again), so it waits like a review not yet given, a check still running or a draft.
+// the reviewer looks again), so it waits like a review not yet given, a check still running or a draft. Whether changes are requested
+// is the host's own decision (Review); when it says so and no request's time can be seen, it is taken as made now: failed, not waited on.
 func landedVerdict(p *Pull, since time.Time) (Verdict, string) {
 	if v, evidence := closedVerdict(p); v != Waiting {
 		return v, evidence
@@ -315,7 +316,7 @@ func landedVerdict(p *Pull, since time.Time) (Verdict, string) {
 	if failed := p.Failed(); len(failed) > 0 {
 		return Failed, "ci failed: " + strings.Join(failed, ", ")
 	}
-	if p.Review == ReviewChanges && p.ChangesAt.After(since) {
+	if p.Review == ReviewChanges && (p.ChangesAt.IsZero() || p.ChangesAt.After(since)) {
 		return Failed, "changes requested"
 	}
 	return Waiting, ""

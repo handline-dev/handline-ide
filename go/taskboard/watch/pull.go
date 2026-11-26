@@ -45,8 +45,9 @@ type Pull struct {
 	HeadSha, MergeSha string
 	Review            string  // ReviewApproved, ReviewChanges or ReviewRequired; "" when no review is asked for
 	Checks            []Check // in the order the checks first appear
-	// HeadAt is when its newest commit was made, and ChangesAt when a reviewer last asked for changes (zero when none stands); both
-	// are zero when the read did not ask (a branch's lookup does not).
+	// HeadAt is when its newest commit was made, and ChangesAt the newest request for changes among the reviews the read shows (zero
+	// when it shows none; it does not say that changes are requested now, which is Review). Both are zero when the read did not ask
+	// (a branch's lookup does not).
 	HeadAt, ChangesAt time.Time
 }
 
@@ -75,7 +76,7 @@ func (p *Pull) Count(state string) int {
 // The fields a read asks gh for. A branch's lookup lists up to ten pull requests, so it leaves out their commits and reviews.
 const (
 	branchPullFields = "number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup"
-	pullFields       = branchPullFields + ",commits,latestReviews"
+	pullFields       = branchPullFields + ",commits,latestReviews,reviews"
 )
 
 // ghPull is one pull request as `gh pr view --json` and `gh pr list --json` print it.
@@ -90,11 +91,14 @@ type ghPull struct {
 	ReviewDecision string
 	Rollup         Rollup `json:"statusCheckRollup"`
 	Commits        []struct{ CommittedDate time.Time }
-	// Each reviewer's latest review: only what it decided and when is taken, never who wrote it.
-	LatestReviews []struct {
-		State       string
-		SubmittedAt time.Time
-	}
+	// Reviews: only what each decided and when is taken, never who wrote it. LatestReviews is each reviewer's newest review of any
+	// kind, so a reviewer who asked for changes and then left a plain comment shows there as the comment; Reviews has them all.
+	LatestReviews, Reviews []ghReview
+}
+
+type ghReview struct {
+	State       string
+	SubmittedAt time.Time
 }
 
 func (g ghPull) pull(repo string) *Pull {
@@ -120,7 +124,9 @@ func (g ghPull) pull(repo string) *Pull {
 	if n := len(g.Commits); n > 0 {
 		p.HeadAt = g.Commits[n-1].CommittedDate
 	}
-	for _, r := range g.LatestReviews {
+	// The newest request for changes that can be seen, in either list. Whether changes are requested at all is the host's decision
+	// (Review), never this: a request an approval has since replaced is still in the list.
+	for _, r := range append(append([]ghReview{}, g.LatestReviews...), g.Reviews...) {
 		if r.State == "CHANGES_REQUESTED" && r.SubmittedAt.After(p.ChangesAt) {
 			p.ChangesAt = r.SubmittedAt
 		}
@@ -148,7 +154,15 @@ func (g *GitHub) keep(key string, p *Pull, err error) {
 	if g.kept == nil {
 		g.kept = map[string]kept{}
 	}
-	g.kept[key] = kept{pull: p, err: err, until: g.now().Add(PullTTL)}
+	now := g.now()
+	// What nobody asked about again goes: an answer two more lives past its own is dropped, so the map holds only the pull requests and
+	// branches still being looked at.
+	for k, old := range g.kept {
+		if now.Sub(old.until) > 2*PullTTL {
+			delete(g.kept, k)
+		}
+	}
+	g.kept[key] = kept{pull: p, err: err, until: now.Add(PullTTL)}
 }
 
 // pullKey is where a pull request's read is kept; a branch's answer is kept under its repository and name, which hold no "\x01".
