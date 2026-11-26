@@ -8,14 +8,21 @@ describe('the new-agent choices', () => {
     await client.start();
     const o = await client.call('agent.options', {});
     const c = shapeChoices(o);
-    expect(c).toMatchObject({ fromDaemon: true, efforts: o.efforts, models: o.models, freeNames: o.free_names });
+    expect(c).toMatchObject({ fromDaemon: true, efforts: o.efforts, models: o.models, defaultNames: o.default_names });
     expect(c.accounts.find((a) => a.name === 'gamma')).toMatchObject({ login_state: 'needs_login', offered: false });
     expect(c.accounts.find((a) => a.name === 'alpha')?.offered).toBe(true);
     client.close();
   });
 
   it("fall back to today's lists without agent.options", () => {
-    expect(shapeChoices(undefined)).toEqual({ fromDaemon: false, efforts: EFFORTS, models: null, accounts: [], roles: [], freeNames: [] });
+    expect(shapeChoices(undefined)).toEqual({
+      fromDaemon: false,
+      efforts: EFFORTS,
+      models: null,
+      accounts: [],
+      roles: [],
+      defaultNames: {},
+    });
   });
 });
 

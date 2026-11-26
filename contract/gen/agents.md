@@ -18,7 +18,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.force_start` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: force start |
 | `agent.retire` | owner | yes | `agent`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found` | state, dirty, worktree | decided: retire |
 | `agent.rename` | owner | yes | `agent`, `to`, `request_id` | `Accepted` | `not_found`, `refused`, `bad_request` | state | decided: rename an agent |
-| `agent.create` | owner | yes | `name`, `role`, `workspace`, `folder?`, `base?`, `model?`, `effort?`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create |
+| `agent.create` | owner | yes | `name?`, `role?`, `workspace`, `folder?`, `base?`, `model?`, `effort?`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create |
 | `session.start` | agent | yes | `agent`, `account?`, `repo?`, `base?`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: start |
 | `session.wake` | agent | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | not from the app |
 | `session.stop` | agent | yes | `agent`, `mode`, `fresh?`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, state | decided: stop |

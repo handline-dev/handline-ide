@@ -31,6 +31,15 @@ func UserHome() string {
 	return h
 }
 
+// Projects is the folder Handline makes project folders in when the person names none (a clone, a new workspace): ~/Handline,
+// visible in Finder; "" when this user has no home folder.
+func Projects() string {
+	if h := UserHome(); h != "" {
+		return filepath.Join(h, "Handline")
+	}
+	return ""
+}
+
 var testRoot = sync.OnceValue(func() string {
 	exe, err := os.Executable()
 	if err != nil {

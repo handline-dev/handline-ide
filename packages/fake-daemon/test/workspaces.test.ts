@@ -28,6 +28,25 @@ test('workspace.create starts its lead as agent.create does, and the workspace i
   client.close();
 });
 
+test('workspace.create with no folder makes ~/Handline/<name>; with no name it takes the folder’s, else workspace, the first free', async () => {
+  const { client } = setup();
+  await client.start();
+  const seen: Event[] = [];
+  client.onEvent((e) => e.topic === 'operations' && seen.push(e));
+  await client.subscribe(['operations']);
+  const made = async (p: Record<string, unknown>, n: number) => {
+    await client.call('workspace.create', p as never);
+    await until(() => seen.filter((e) => (e.data as { state: string }).state === 'done').length === n, 'done');
+  };
+  await made({ request_id: 'wc-blank' }, 1);
+  assert.equal((await named(client, 'workspace')).folder, '/Users/me/Handline/workspace');
+  await made({ name: ' ', request_id: 'wc-blank-2' }, 2);
+  assert.equal((await named(client, 'workspace-2')).folder, '/Users/me/Handline/workspace-2');
+  await made({ folder: '~/code/garden', request_id: 'wc-garden' }, 3);
+  assert.equal((await named(client, 'garden')).folder, '/Users/me/code/garden');
+  client.close();
+});
+
 test('workspace.create refuses a bad name, a taken one and a missing folder, before any operation', async () => {
   const { client } = setup();
   await client.start();

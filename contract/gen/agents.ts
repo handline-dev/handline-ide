@@ -232,7 +232,8 @@ export type AgentOptions = {
     name: string;
     login_state: string;
   }[];
-  free_names: string[];
+  /** By workspace key: the name agent.create gives an agent there when none is typed. */
+  default_names: { [key: string]: string };
 };
 
 /** The result of a write that starts a long-running operation. */
@@ -410,10 +411,10 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "agent.create": { params: {
-  /** Its plain name in the workspace; a dot is bad_request, field name. */
-  name: string;
-  /** A free string today. */
-  role: string;
+  /** Its plain name in the workspace; a dot is bad_request, field name. Left out or blank: the first plain name free in the workspace, as agent.options default_names gives it. */
+  name?: string;
+  /** A free string. Left out or blank: "Helps with anything in this workspace." */
+  role?: string;
   /** The workspace's key (w3) or name. An unknown one is not_found, what workspace; one with no folder is refused (gate state). */
   workspace: string;
   /** The folder of the workspace the agent works in, as workspaces.list gives its path; absent, the default. One the workspace does not hold is bad_request, field folder. In a git folder the agent gets a worktree of it; in a plain folder it works in the folder itself, on no branch. It reads the workspace's other folders. */

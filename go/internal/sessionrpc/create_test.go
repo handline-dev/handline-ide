@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/protocol/operations"
@@ -259,6 +261,22 @@ func TestCreateInAWorkspaceWorksInTheFolderAskedFor(t *testing.T) {
 		p["request_id"] = rid("f" + string(rune('3'+i)))
 		if f := badField(c.call("agent.create", p)); f != []string{"name", "folder"}[i] {
 			t.Errorf("%v: field %q", p, f)
+		}
+	}
+}
+
+// A name or role left out or blank gets the daemon's default: the first plain name free in the workspace, and the plain role.
+func TestCreateWithNoNameOrRoleTakesTheFirstFreePlainNameAndThePlainRole(t *testing.T) {
+	r, _, c := createRig(t)
+	annIn(t, r)
+	result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": " ", "request_id": rid("d1")}))
+	result(t, c.call("agent.create", map[string]any{"workspace": "ann", "role": "", "request_id": rid("d2")}))
+	for _, name := range []string{"ann/" + names.Plain[0], "ann/" + names.Plain[1]} {
+		if paths.AgentKey(r.e.Home, name) == "" {
+			t.Fatalf("%s was not made: %v", name, r.ctl.calls)
+		}
+		if role, err := team.AgentInstruction(r.e.DB, name, db.PartRole); err != nil || !strings.Contains(role, DefaultRole) {
+			t.Fatalf("%s's role: %q %v", name, role, err)
 		}
 	}
 }

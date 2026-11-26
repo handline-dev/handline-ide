@@ -82,9 +82,9 @@
    ]
   },
   {
-   "name": "agent.create.needs_a_name",
+   "name": "agent.create.a_name_that_is_not_text_is_bad",
    "spec": "agent.create",
-   "about": "No name is bad_request naming it, before the workspace is looked up.",
+   "about": "A name that is not text is bad_request naming it, before the workspace is looked up; a name left out is the daemon's pick.",
    "as": "founder",
    "steps": [
     {
@@ -108,7 +108,8 @@
       "params": {
        "role": "worker",
        "workspace": "{{create_workspace}}",
-       "request_id": "conf-ac-3"
+       "request_id": "conf-ac-3",
+       "name": 5
       }
      },
      "error": {
@@ -116,46 +117,6 @@
       "data": {
        "code": "bad_request",
        "field": "name"
-      }
-     }
-    }
-   ]
-  },
-  {
-   "name": "agent.create.needs_a_role",
-   "spec": "agent.create",
-   "about": "No role is bad_request naming it, before the workspace is looked up.",
-   "as": "founder",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1,
-       "key": "{{founder_key}}"
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "agent.create",
-      "params": {
-       "name": "new",
-       "workspace": "{{create_workspace}}",
-       "request_id": "conf-ac-4"
-      }
-     },
-     "error": {
-      "code": -32602,
-      "data": {
-       "code": "bad_request",
-       "field": "role"
       }
      }
     }

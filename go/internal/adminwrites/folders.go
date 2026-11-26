@@ -133,14 +133,14 @@ func (e *Env) folderClone(c *rpc.Conn, p map[string]any) (any, error) {
 		return nil, err
 	}
 	if !given {
-		name, home := repoName(src), paths.UserHome()
+		name, projects := repoName(src), paths.Projects()
 		if name == "" {
 			return nil, badParam("url ends in no repository name to call its folder: give path", "url")
 		}
-		if home == "" {
+		if projects == "" {
 			return nil, badParam("this Mac user has no home folder to clone under: give path", "path")
 		}
-		path = filepath.Join(home, "Handline", name)
+		path = filepath.Join(projects, name)
 	}
 	if !filepath.IsAbs(path) {
 		return nil, badParam("path is an absolute path", "path")

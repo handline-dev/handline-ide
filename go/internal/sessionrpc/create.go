@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/outcome"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/policy"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -36,19 +37,22 @@ const (
 )
 
 func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
-	name, err := createText(params, "name", true)
+	name, err := createText(params, "name", false)
 	if err != nil {
 		return nil, err
 	}
-	if strings.Contains(name, "/") || textsafe.HasUnsafe(name) || !yamlcompat.IsPlainText(name) {
+	if name != "" && (strings.Contains(name, "/") || textsafe.HasUnsafe(name) || !yamlcompat.IsPlainText(name)) {
 		return nil, bad("name is an agent's name, plain text", "name")
 	}
 	if strings.Contains(name, ".") {
 		return nil, bad("name is a plain name in its workspace, with no dot", "name")
 	}
-	role, err := createText(params, "role", true)
+	role, err := createText(params, "role", false)
 	if err != nil {
 		return nil, err
+	}
+	if role == "" {
+		role = DefaultRole
 	}
 	effort, err := createText(params, "effort", false)
 	if err != nil {
@@ -97,8 +101,11 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
+// DefaultRole is a new agent's role when none is typed.
+const DefaultRole = "Helps with anything in this workspace."
+
 // inWorkspace is the workspace/name Register takes for agent name of workspace who (its key or name), and the folder of it the agent works
-// in: folder, one of the workspace's, or its default when "".
+// in: folder, one of the workspace's, or its default when "". A name "" is the first plain name free there (names.Plain).
 func (e *Env) inWorkspace(who, name, folder string) (qualified, works string, err error) {
 	q, arg := "SELECT id, name FROM workspaces WHERE name = ?", any(who)
 	if k, n, ok := actor.Parse(who); ok && k == actor.Workspace {
@@ -110,6 +117,11 @@ func (e *Env) inWorkspace(who, name, folder string) (qualified, works string, er
 		return "", "", notFound("workspace", who, "no workspace "+who)
 	} else if err != nil {
 		return "", "", err
+	}
+	if name == "" {
+		if name, err = names.Free(e.DB, names.Agent, id, names.Plain...); err != nil {
+			return "", "", err
+		}
 	}
 	fs, err := team.Folders(e.DB, id)
 	if err != nil {
@@ -359,6 +371,9 @@ func createText(p map[string]any, key string, required bool) (string, error) {
 		return "", nil
 	}
 	s, ok := v.(string)
+	if ok && !required && strings.TrimSpace(s) == "" {
+		return "", nil // an optional field left blank is one not given: its default
+	}
 	if !ok || strings.TrimSpace(s) == "" {
 		return "", bad(key+" is text and not empty", key)
 	}

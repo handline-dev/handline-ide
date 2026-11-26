@@ -62,3 +62,51 @@ func TestCheck(t *testing.T) {
 		}
 	}
 }
+
+// Free takes the first word Check passes, then the first word with a number; a plain name is free in one workspace while taken in
+// another, and no Plain name breaks the rules.
+func TestFreePicksTheFirstWordCheckTakes(t *testing.T) {
+	db := storetest.Open(t)
+	for _, q := range []string{
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('shop', '/x', 0)",
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('workspace', '/y', 0)",
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('workspace-2', '/z', 0)",
+		"INSERT INTO agents(workspace, name, owner, created_at) VALUES(1, 'ada', 'p1', 0)",
+		"INSERT INTO workspaces(name, folder, created_at) VALUES('" + strings.Repeat("x", 32) + "', '/w', 0)",
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []struct {
+		kind  Kind
+		ws    int64
+		words []string
+		want  string
+	}{
+		{Agent, 1, Plain, "bea"},
+		{Agent, 2, Plain, "ada"},
+		{Workspace, 0, []string{"workspace"}, "workspace-3"},
+		{Workspace, 0, []string{"shop", "workspace"}, "shop-2"},
+		{Workspace, 0, []string{strings.Repeat("x", 32)}, strings.Repeat("x", 28) + "-2"},
+	} {
+		if got, err := Free(db, c.kind, c.ws, c.words...); err != nil || got != c.want {
+			t.Errorf("%v %v: %q %v, want %q", c.kind, c.words, got, err, c.want)
+		}
+	}
+	empty := storetest.Open(t)
+	for _, w := range Plain {
+		if err := Check(empty, Agent, w, 1); err != nil {
+			t.Errorf("plain name %q: %v", w, err)
+		}
+	}
+}
+
+func TestFromMakesAWordAName(t *testing.T) {
+	for in, want := range map[string]string{"My Project": "my-project", "handline-ide": "handline-ide", "2024_Site.v2": "site-v2",
+		"한글": "", strings.Repeat("ab", 20): strings.Repeat("ab", 16), "--x--": "x"} {
+		if got := From(in); got != want {
+			t.Errorf("From(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

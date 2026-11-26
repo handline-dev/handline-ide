@@ -12,7 +12,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `person.set_role` | owner | yes | `person`, `role`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: change role |
 | `person.remove` | owner | yes | `person`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: remove |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
-| `workspace.create` | owner | yes | `name`, `folder`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create workspace |
+| `workspace.create` | owner | yes | `name?`, `folder?`, `account?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create workspace |
 | `workspace.set` | owner | yes | `workspace`, `name?`, `add_folder?`, `remove_folder?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
 | `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty, worktree | decided: delete workspace |
 | `workspace.rules` | agent |  | `workspace?`, `agent?` | `{rules, text_bytes, limit_bytes}` | `not_found`, `bad_request` |  | not cached |

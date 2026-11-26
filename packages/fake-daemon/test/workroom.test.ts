@@ -67,7 +67,7 @@ test('agent.create checks its params in order and starts nothing when one is wro
   client.close();
 });
 
-test('agent.options lists the repos, roles, models, efforts, accounts with their login state and free names; an agent is refused', async () => {
+test('agent.options lists the repos, roles, models, efforts, accounts with their login state and each workspace’s default name; an agent is refused', async () => {
   const { client, daemon } = setup();
   await client.start();
   const o = await client.call('agent.options', {});
@@ -86,7 +86,7 @@ test('agent.options lists the repos, roles, models, efforts, accounts with their
     o.accounts.find((a) => a.name === 'gamma'),
     { name: 'gamma', login_state: 'needs_login' },
   );
-  assert.equal(o.free_names.includes('handline.new-builder'), true);
+  assert.equal(o.default_names.w1, 'ada');
   client.close();
   const agent = setup({ role: 'agent' });
   await agent.client.start();
@@ -94,15 +94,16 @@ test('agent.options lists the repos, roles, models, efforts, accounts with their
   agent.client.close();
 });
 
-test('a name taken leaves the free names', async () => {
-  const { client } = setup();
+test('agent.create with no name and no role makes the default name with the plain role, and the next default moves on', async () => {
+  const { client, daemon } = setup();
   await client.start();
   const seen: Event[] = [];
   client.onEvent((e) => e.topic === 'operations' && seen.push(e));
   await client.subscribe(['operations']);
-  await client.call('agent.create', make('new-builder'));
+  await client.call('agent.create', make('', { role: ' ' }));
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'done'), 'done');
-  assert.equal((await client.call('agent.options', {})).free_names.includes('handline.new-builder'), false);
+  assert.equal(daemon.sessions.get('handline.ada')?.fx.role, 'Helps with anything in this workspace.');
+  assert.equal((await client.call('agent.options', {})).default_names.w1, 'bea');
   client.close();
 });
 

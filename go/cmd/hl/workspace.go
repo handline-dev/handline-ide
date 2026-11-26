@@ -23,7 +23,7 @@ func workspaceCmd(c *hlclient.Client, args []string) (int, bool) {
 	switch sub {
 	case "new":
 		p, ok := parse(rest, []string{"--folder"}, nil, nil)
-		if !ok || len(p.pos) != 1 {
+		if !ok || len(p.pos) > 1 {
 			return 0, false
 		}
 		folder, _ := p.opt("--folder")
@@ -34,7 +34,10 @@ func workspaceCmd(c *hlclient.Client, args []string) (int, bool) {
 		if err != nil {
 			return wrongArgs("the current folder cannot be read: %v", err)
 		}
-		method, params["name"], params["folder"] = "workspace.create", p.pos[0], abs
+		method, params["folder"] = "workspace.create", abs
+		if len(p.pos) == 1 {
+			params["name"] = p.pos[0] // else the folder's name, the daemon's pick
+		}
 	case "rename":
 		p, ok := parse(rest, []string{"--to"}, nil, nil)
 		if !ok || len(p.pos) != 1 {
