@@ -9,8 +9,8 @@ import (
 func TestABoardReadsTheTeamOnce(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	d := teamtest.Seed(t, e.Home, "lead", "lead.w")
-	w := teamtest.Key(t, e.Home, "lead.w")
+	d := teamtest.Seed(t, e.Home, "lead", "lead/w")
+	w := teamtest.Key(t, e.Home, "lead/w")
 	b := &board{}
 	if got := b.teamOf(e.Home).TaskRole(w); got != "work" {
 		t.Fatalf("role %q", got)

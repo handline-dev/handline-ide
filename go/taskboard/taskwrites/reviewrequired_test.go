@@ -16,9 +16,9 @@ import (
 // commits and another workspace's agents are not held.
 func TestReviewRequiredHoldsADoneWithCommitsUntilAnotherAgentComments(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "shop", "shop.bob", "shop.rev", "lab")
+	d := teamtest.Seed(t, home, "shop", "shop/bob", "shop/rev", "lab")
 	k := func(n string) string { return teamtest.Key(t, home, n) }
-	bob, rev, lead, lab := k("shop.bob"), k("shop.rev"), k("shop"), k("lab")
+	bob, rev, lead, lab := k("shop/bob"), k("shop/rev"), k("shop"), k("lab")
 	repo := t.TempDir()
 	git := gitIn(t, repo)
 	git("init", "-q", "-b", "main")

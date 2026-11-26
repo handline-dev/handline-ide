@@ -97,9 +97,9 @@ func (e *Env) create(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
-// inWorkspace is the dotted name Register takes for agent name of workspace who (its key or name), and the folder of it the agent works
+// inWorkspace is the workspace/name Register takes for agent name of workspace who (its key or name), and the folder of it the agent works
 // in: folder, one of the workspace's, or its default when "".
-func (e *Env) inWorkspace(who, name, folder string) (dotted, works string, err error) {
+func (e *Env) inWorkspace(who, name, folder string) (qualified, works string, err error) {
 	q, arg := "SELECT id, name FROM workspaces WHERE name = ?", any(who)
 	if k, n, ok := actor.Parse(who); ok && k == actor.Workspace {
 		q, arg = "SELECT id, name FROM workspaces WHERE id = ?", n
@@ -131,7 +131,7 @@ func (e *Env) inWorkspace(who, name, folder string) (dotted, works string, err e
 			return "", "", bad("folder is one of workspace "+ws+"'s folders", "folder")
 		}
 	}
-	return ws + "." + name, works, nil
+	return ws + "/" + name, works, nil
 }
 
 // operate runs register and then starts agent name as operation kind (agent.create, workspace.create), and answers once it ended.

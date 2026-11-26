@@ -62,7 +62,6 @@ session.input.screen_blocker_gate
 session.input.shell_prompt_gate
 session.input.wall_gate
 session.stop.state_gate_refuses_a_session_mid_work
-stats.outlook.a_group_pick_has_an_overlay
 stats.outlook.a_pick_that_is_nobody_has_an_empty_overlay
 stats.outlook.agent_use_rows_carry_what_the_table_draws
 stats.outlook.an_agent_asked_for_has_an_overlay

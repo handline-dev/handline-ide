@@ -9,7 +9,6 @@ import (
 
 	"github.com/handline/handline/go/internal/devinstance"
 	"github.com/handline/handline/go/internal/hlclient"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 )
 
@@ -23,13 +22,6 @@ const devUsage = `usage: hl dev on <team> [--worktree PATH] [--listen ADDR] [--f
 // does not read is answered with the usage here.
 func dev(c *hlclient.Client, args []string) (int, bool) {
 	agent := hlclient.Agent()
-	if keys, err := paths.AgentKeys(c.Home); err == nil { // by its old dotted name, as a team is named here
-		for name, k := range keys {
-			if k == agent {
-				agent = name
-			}
-		}
-	}
 	if len(args) > 0 && args[0] == "cluster" {
 		return runCluster(c.Home, args[1:], os.Stdout, os.Stderr), true
 	}

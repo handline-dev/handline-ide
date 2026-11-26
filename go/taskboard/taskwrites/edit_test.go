@@ -10,10 +10,10 @@ import (
 func TestEditChangesATaskInOneTransactionAndLeavesTheTellingToTheTeller(t *testing.T) {
 	t.Parallel()
 	db, home, mk := discardEnvHome(t)
-	hand := teamtest.Key(t, home, "ops.hand")
+	hand := teamtest.Key(t, home, "ops/hand")
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, priority) VALUES(1, 'old title', 'worker', 'crew.asker', 1, 2), (2, 'wait', 'other', 'manager', 1, 2)",
-		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts) VALUES(10, 'crew.asker', 'worker', 'the brief', 'queued', 'task', 10, 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, priority) VALUES(1, 'old title', 'worker', 'crew/asker', 1, 2), (2, 'wait', 'other', 'manager', 1, 2)",
+		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts) VALUES(10, 'crew/asker', 'worker', 'the brief', 'queued', 'task', 10, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10)")
 	line := func(id int, params, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.edit","params":{"task":1,%s"request_id":%q}}`, id, params, rid)
@@ -47,10 +47,10 @@ func TestEditChangesATaskInOneTransactionAndLeavesTheTellingToTheTeller(t *testi
 	if r[7]["result"] == nil || len(f.edited) < 3 || fmt.Sprint(f.edited[len(f.edited)-2].Freed) != "[worker]" {
 		t.Fatalf("clearing the last wait frees its owner: %v %+v", r[7], f.edited)
 	}
-	if why := r[8]["error"].(map[string]any)["message"]; code(r[8]) != "refused" || why != "T1 cannot go to ops.hand: its brief is sent on crew.asker's behalf, and denied: ops.hand is in another workspace (ops): send it to that workspace, whose lead hands it on" {
+	if why := r[8]["error"].(map[string]any)["message"]; code(r[8]) != "refused" || why != "T1 cannot go to ops/hand: its brief is sent on crew/asker's behalf, and denied: ops/hand is in another workspace (ops): send it to that workspace, whose lead hands it on" {
 		t.Fatalf("a move its brief cannot be delivered to is refused: %v", r[8])
 	}
-	if count(t, db, "SELECT COUNT(*) FROM events WHERE kind = 'edit_task' AND json_extract(payload, '$.owner.new') = 'ops.hand'") != 0 ||
+	if count(t, db, "SELECT COUNT(*) FROM events WHERE kind = 'edit_task' AND json_extract(payload, '$.owner.new') = 'ops/hand'") != 0 ||
 		count(t, db, "SELECT COUNT(*) FROM events WHERE kind = 'edit_task' AND json_extract(payload, '$.owner.new') = 'other'") != 1 {
 		t.Fatal("the refused move changed the owner")
 	}
@@ -77,13 +77,13 @@ func TestAWaitChangeIsToldToTheLeadOnlyWhenTheBlockerIsHeldOutsideTheTeam(t *tes
 	t.Parallel()
 	db, mk := discardEnv(t)
 	exec(t, db,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'crew.asker', 'manager', 1), (2, 'mate', 'crew.mate', 'manager', 1), "+
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'crew/asker', 'manager', 1), (2, 'mate', 'crew/mate', 'manager', 1), "+
 			"(3, 'outside', 'gp', 'manager', 1), (4, 'founder', 'p1', 'manager', 1)")
 	f := &fakeTeller{}
 	line := func(id int, params string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.edit","params":{"task":1,%s,"request_id":"r%d"}}`, id, params, id)
 	}
-	r := call(t, mk("crew.asker", f),
+	r := call(t, mk("crew/asker", f),
 		line(2, `"blocked_by":2`), line(3, `"unblock":2`),
 		line(4, `"blocked_by":3`), line(5, `"unblock":3`),
 		line(6, `"blocked_by":4`))

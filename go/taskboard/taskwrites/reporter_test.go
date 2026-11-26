@@ -16,7 +16,7 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 	}
 	defer db.Close()
 	home := t.TempDir()
-	teamtest.Seed(t, home, "shop", "shop.a", "shop.b", "other", "other.c")
+	teamtest.Seed(t, home, "shop", "shop/a", "shop/b", "other", "other/c")
 	homes.Store(db, home)
 	k := func(p *string) *string { // an edit's who, by key as a handler gets it
 		if p == nil {
@@ -25,7 +25,7 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 		v := teamtest.Key(t, home, *p)
 		return &v
 	}
-	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter) VALUES(1, 'for other', 'shop.b', 'other.c', 1, 'other')")); err != nil {
+	if _, err := db.Exec(keyed(db, "INSERT INTO tasks(id, title, owner, opened_by, created_at, reporter) VALUES(1, 'for other', 'shop/b', 'other/c', 1, 'other')")); err != nil {
 		t.Fatal(err)
 	}
 	s := func(v string) *string { return &v }
@@ -54,16 +54,16 @@ func TestAnyoneMayEditOrReassignATask(t *testing.T) {
 	if why := edit("other", nil, nil, s("renamed")); why != "" {
 		t.Fatalf("the reporter may edit: %s", why)
 	}
-	if why := edit("shop.a", s("shop.a"), nil, nil); why != "" {
+	if why := edit("shop/a", s("shop/a"), nil, nil); why != "" {
 		t.Fatalf("anyone may take it on: %s", why)
 	}
 	if why := edit("shop", nil, s("shop"), nil); why != "" {
 		t.Fatalf("anyone may change who answers for it: %s", why)
 	}
-	if why := edit("shop.a", s("shop.b"), nil, s("both")); why != "" {
+	if why := edit("shop/a", s("shop/b"), nil, s("both")); why != "" {
 		t.Fatalf("anyone may reshape it too: %s", why)
 	}
-	if owner, reporter, _ := read(); owner != "shop.b" || reporter != "shop" {
+	if owner, reporter, _ := read(); owner != "shop/b" || reporter != "shop" {
 		t.Fatalf("owner %q reporter %q", owner, reporter)
 	}
 	if n := count(t, db, "SELECT COUNT(*) FROM events WHERE kind = 'edit_task' AND agent = 'shop' AND json_extract(payload, '$.reporter.new') = 'shop'"); n != 1 {

@@ -2,7 +2,6 @@ package team
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
@@ -18,15 +17,6 @@ const (
 	// AskWindowS is how long a refused message sent again unchanged is the same refusal, not a new denied row.
 	AskWindowS = 3600
 )
-
-// The roster, proposals and session creation name an agent by its dotted name: its workspace's name for the lead, else
-// workspace.agent: SplitLegacy and paths.LegacyNameSQL.
-
-// SplitLegacy is the workspace and agent name an old dotted name stands for; agent is "" for a bare workspace name, the lead.
-func SplitLegacy(legacy string) (ws, agent string) {
-	ws, agent, _ = strings.Cut(legacy, ".")
-	return ws, agent
-}
 
 // Decision is what routing says about one request: a link only allows a message.
 type Decision struct {

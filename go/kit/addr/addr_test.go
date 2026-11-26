@@ -56,7 +56,7 @@ func TestResolve(t *testing.T) {
 		{shopAgent, "a9", ""},
 		{outside, "designer", ""}, // a person outside every folder has no agent names
 		{outside, "blog", "a3"},
-		{shopAgent, "blog.designer", ""}, // an old dotted name
+		{shopAgent, "blog.designer", ""}, // a dot is no form of a name
 		{shopAgent, "founder", ""},
 		{shopAgent, "nobody", ""},
 	} {

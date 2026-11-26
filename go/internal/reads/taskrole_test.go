@@ -13,13 +13,13 @@ import (
 func TestATaskOfACheckAgentIsACheck(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	teamtest.Seed(t, e.Home, "auditor", "dev", "dev.auditor", "odd")
+	teamtest.Seed(t, e.Home, "auditor", "dev", "dev/auditor", "odd")
 	teamtest.Set(t, e.Home, "auditor", "role", "check")
 	nameOf := map[string]string{} // by key, so the wants read by name
 	key := func(name string) string { k := teamtest.Key(t, e.Home, name); nameOf[k] = name; return k }
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', ?, ?, 1), (2, 'b', ?, ?, 1), "+
 		"(3, 'c', ?, ?, 1), (4, 'd', 'nobody', ?, 1), (5, 'e', ?, ?, 1)", key("auditor"), key("dev"), key("dev"), key("dev"),
-		key("dev.auditor"), key("dev"), key("dev"), key("odd"), key("dev"))
+		key("dev/auditor"), key("dev"), key("dev"), key("odd"), key("dev"))
 	nameOf["nobody"] = "nobody"
 	got, err := e.tasksList(asFounder, map[string]any{"all": true})
 	if err != nil {
@@ -30,7 +30,7 @@ func TestATaskOfACheckAgentIsACheck(t *testing.T) {
 		row := it.(map[string]any)
 		roles[nameOf[fmt.Sprint(row["to"])]] = row["role"]
 	}
-	if want := "map[auditor:check dev:work dev.auditor:work nobody:work odd:work]"; fmt.Sprint(roles) != want {
+	if want := "map[auditor:check dev:work dev/auditor:work nobody:work odd:work]"; fmt.Sprint(roles) != want {
 		t.Errorf("Task.role by owner %v, want %s", roles, want)
 	}
 	list, err := e.agentsList(nil, nil)

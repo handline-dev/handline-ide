@@ -74,9 +74,12 @@ func (e *Env) peopleList(c *rpc.Conn, params map[string]any) (any, error) {
 	return map[string]any{"people": people}, rs.Err()
 }
 
-// workspacesList is workspaces.list: every workspace, by key, with its lead's key and its folders, the default first.
+// workspacesList is workspaces.list: every workspace, by key, with its lead's key, the key of the agent that would lead it once the lead
+// goes (team.NextLead), and its folders, the default first.
 func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
-	rs, err := e.DB.Query("SELECT id, name, folder, added_folders, lead FROM workspaces ORDER BY id")
+	rs, err := e.DB.Query(`SELECT w.id, w.name, w.folder, w.added_folders, w.lead,
+		(SELECT MIN(a.id) FROM agents a WHERE a.workspace = w.id AND a.hired_from IS NULL AND (w.lead IS NULL OR a.id != w.lead))
+		FROM workspaces w ORDER BY w.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -85,17 +88,20 @@ func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
 	for rs.Next() {
 		var id int64
 		var name, folder, added string
-		var lead sql.NullInt64
-		if err := rs.Scan(&id, &name, &folder, &added, &lead); err != nil {
+		var lead, next sql.NullInt64
+		if err := rs.Scan(&id, &name, &folder, &added, &lead, &next); err != nil {
 			return nil, err
 		}
 		folders := []string{}
 		if err := json.Unmarshal([]byte(added), &folders); err != nil {
 			return nil, fmt.Errorf("workspace %s: added_folders: %w", name, err)
 		}
-		var l any
+		var l, n any
 		if lead.Valid {
 			l = actor.Key(actor.Agent, lead.Int64)
+		}
+		if next.Valid {
+			n = actor.Key(actor.Agent, next.Int64)
 		}
 		each := []any{}
 		for i, f := range append([]string{folder}, folders...) {
@@ -104,7 +110,7 @@ func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
 			}
 		}
 		out = append(out, map[string]any{"key": actor.Key(actor.Workspace, id), "name": name, "folder": folder, "added_folders": folders,
-			"folders": each, "lead": l})
+			"folders": each, "lead": l, "next_lead": n})
 	}
 	return map[string]any{"workspaces": out}, rs.Err()
 }

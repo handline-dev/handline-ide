@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 )
 
 // The rig's tests name agents (alice, bob) and the founder (human); the daemon writes and reads keys (a1, p1). k turns a name into its
@@ -20,7 +19,7 @@ var tokenWord = regexp.MustCompile(`<@([^>]+)>`)
 // namer is named over home's agents.
 func namer(home string) func(string) string {
 	return func(s string) string {
-		m, _ := paths.AgentKeys(home)
+		m := teamtest.Names(home)
 		byKey := map[string]string{"p1": "human"}
 		for n, k := range m {
 			byKey[k] = n
@@ -46,7 +45,7 @@ func (r *rig) namedQ(tid int64, by string, queued bool) string {
 
 // sql is q with each agent named in quotes ('bob', or "bob" in a JSON payload) by its key, longest names first, and 'human' by p1.
 func (r *rig) sql(q string) string {
-	m, _ := paths.AgentKeys(r.home)
+	m := teamtest.Names(r.home)
 	names := make([]string, 0, len(m))
 	for n := range m {
 		names = append(names, n)

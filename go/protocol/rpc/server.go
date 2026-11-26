@@ -575,7 +575,8 @@ func (c *Conn) route(msg any) (routed, error) {
 	}}, nil
 }
 
-// keyed is c with an agent caller named by its key: a session recorded under its old name still acts as the agent's key.
+// keyed is c with an agent caller named by its key: a caller that says its name (a runner's session names it as HANDLINE_AGENT does)
+// is the agent that word names.
 func (s *Server) keyed(c Caller) Caller {
 	if c.Kind == "agent" && s.Names != nil {
 		if k, err := paths.AgentKeyIn(s.Names, c.Key); err == nil && k != "" {

@@ -127,7 +127,7 @@ func (e *Env) carry(prop *Prop, p HeldPorts) error {
 			if it.kind() != "rename" {
 				continue
 			}
-			key := paths.AgentKey(e.Home, it.str("to")) // a rename keeps the key: the new name finds it
+			key := paths.AgentKey(e.Home, it.str("agent")) // a rename keeps the key
 			if key != "" && slices.Contains(waiting, key) {
 				if started, why := p.Start(key); !started {
 					prop.set("start_agent", key)

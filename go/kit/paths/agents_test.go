@@ -52,12 +52,12 @@ func TestReadAgentsTellsAnUnreadableListingFromAnEmptyOne(t *testing.T) {
 func TestAnAgentsFolderIsNamedByItsKeyWhateverItIsCalled(t *testing.T) {
 	home := t.TempDir()
 	seedAgents(t, home)
-	for who, want := range map[string]string{"w.x": "a1", "w": "a2", "a1": "a1", "w.nobody": ""} {
+	for who, want := range map[string]string{"w/x": "a1", "w": "a2", "a1": "a1", "w/nobody": "", "w.x": ""} {
 		if got := AgentKey(home, who); got != want {
 			t.Errorf("AgentKey(%s) = %q, want %q", who, got, want)
 		}
 	}
-	if AgentDir(home, "w.x") != filepath.Join(home, "agents", "a1") || CacheDir(home, "w") != filepath.Join(home, "caches", "a2") {
+	if AgentDir(home, "w/x") != filepath.Join(home, "agents", "a1") || CacheDir(home, "w") != filepath.Join(home, "caches", "a2") {
 		t.Error("a folder by key")
 	}
 	if got := AgentDir(home, "w.nobody"); got != filepath.Join(home, "agents", ".unregistered", "w.nobody") {
@@ -76,8 +76,8 @@ func TestAgentKeyInTakesAKeyOrAName(t *testing.T) {
 		"INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(3, 2, 'lead', 'p1', 0)"); err != nil {
 		t.Fatal(err)
 	}
-	// its key, its old dotted name, "workspace/name", or a name no other agent has; "lead" is two agents' name
-	for who, want := range map[string]string{"a1": "a1", "a9": "", "w.x": "a1", "w": "a2", "w.nobody": "", "x": "a1", "w/x": "a1",
+	// its key, its workspace (its lead), "workspace/name", or a name no other agent has; never w.x; "lead" is two agents' name
+	for who, want := range map[string]string{"a1": "a1", "a9": "", "w.x": "", "w": "a2", "w.nobody": "", "x": "a1", "w/x": "a1",
 		"w/lead": "a2", "v/lead": "a3", "lead": "", "v/x": ""} {
 		if got, err := AgentKeyIn(d, who); err != nil || got != want {
 			t.Errorf("AgentKeyIn(%s) = %q %v, want %q", who, got, err, want)
@@ -94,7 +94,7 @@ func TestAgentHandleIsANameThatResolvesBack(t *testing.T) {
 		"INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(3, 2, 'lead', 'p1', 0)"); err != nil {
 		t.Fatal(err)
 	}
-	for key, want := range map[string]string{"a1": "x", "a2": "w/lead", "a3": "v/lead", "w.x": "x", "a9": "a9"} {
+	for key, want := range map[string]string{"a1": "x", "a2": "w/lead", "a3": "v/lead", "w/x": "x", "a9": "a9"} {
 		got := AgentHandle(home, key)
 		if got != want {
 			t.Errorf("AgentHandle(%s) = %q, want %q", key, got, want)

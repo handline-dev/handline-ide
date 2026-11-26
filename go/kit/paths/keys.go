@@ -6,23 +6,22 @@ import (
 	"path/filepath"
 
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/store"
 )
 
-// Folders are named by key (docs/design/people-workspaces.md, Disk), so a rename moves nothing. A caller may name an agent by its
-// dotted name, and the folder helpers look it up here.
+// Folders are named by key (docs/design/people-workspaces.md, Disk), so a rename moves nothing. A caller may name an agent by any
+// word addr.Resolve takes, and the folder helpers look it up here.
 
 // Unregistered holds the folders of a name no agent has: nothing lists it, and no key can be it.
 const Unregistered = ".unregistered"
 
-// AgentKey is who's key: who itself when it is an agent's key, else the key of the agent whose old dotted name it is. "" when no
+// AgentKey is who's key: who itself when it is an agent's key, else the key of the agent the word names (AgentKeyIn). "" when no
 // agent is who, or the agents table cannot be read: a caller that must tell the two apart uses AgentKeyIn.
 func AgentKey(home, who string) string { return keyOf(home, who, actor.Agent, AgentKeyIn) }
 
 // rowQ is a database or a transaction, as the key lookups read them.
-type rowQ interface {
-	QueryRow(string, ...any) *sql.Row
-}
+type rowQ = addr.Q
 
 // keyOf is who itself when it is a key of kind, else the key lookup finds for it in home's database; "" when none is, or the
 // database cannot be read.
@@ -39,42 +38,30 @@ func keyOf(home, who string, kind actor.Kind, lookup func(rowQ, string) (string,
 }
 
 // AgentKeyIn is AgentKey read through q, which may be the transaction that changed the agent's row: "" and no error when no agent
-// is who. who is a key, an old dotted name, "workspace/name", or a name no other agent has.
+// is who. who is any word addr.Resolve takes for no workspace in particular: a key, "workspace/name", a workspace (its lead), or a name
+// no other agent has.
 func AgentKeyIn(q rowQ, who string) (string, error) {
-	var id int64
-	var err error
-	if k, n, ok := actor.Parse(who); ok && k == actor.Agent {
-		err = q.QueryRow("SELECT id FROM agents WHERE id = ?", n).Scan(&id)
-	} else {
-		err = q.QueryRow(`SELECT a.id FROM agents a JOIN workspaces w ON w.id = a.workspace
-			WHERE `+LegacyNameSQL+` = ?1 OR w.name || '/' || a.name = ?1
-				OR (a.name = ?1 AND (SELECT COUNT(*) FROM agents b WHERE b.name = a.name) = 1)
-			ORDER BY a.id LIMIT 1`, who).Scan(&id)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
+	k, err := addr.Resolve(q, addr.Who{}, who)
+	if _, refused := errors.AsType[*addr.Refusal](err); refused || (err == nil && actor.KindOf(k) != actor.Agent) {
 		return "", nil
 	}
-	if err != nil {
-		return "", err
-	}
-	return actor.Key(actor.Agent, id), nil
+	return k, err
 }
 
-// AgentNameIn is the dotted name of the agent whose key is key, read through q: "" and no error when no agent has it.
-func AgentNameIn(q rowQ, key string) (string, error) {
+// AgentNamed is the workspace and name of the agent whose key is key, read through q: both "" and no error when no agent has it.
+func AgentNamed(q rowQ, key string) (ws, name string, err error) {
 	k, id, ok := actor.Parse(key)
 	if !ok || k != actor.Agent {
-		return "", nil
+		return "", "", nil
 	}
-	var name string
-	err := q.QueryRow(`SELECT `+LegacyNameSQL+` FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).Scan(&name)
+	err = q.QueryRow(`SELECT w.name, a.name FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).Scan(&ws, &name)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
+		return "", "", nil
 	}
-	return name, err
+	return ws, name, err
 }
 
-// AgentDir is the agent's folder, agents/<key>; who is its key or its old dotted name. A name not looked up gets
+// AgentDir is the agent's folder, agents/<key>; who is its key or a word that names it. A name not looked up gets
 // agents/.unregistered/<name>.
 func AgentDir(home, who string) string {
 	if k := AgentKey(home, who); k != "" {
@@ -89,30 +76,6 @@ func CacheDir(home, who string) string {
 		return filepath.Join(home, "caches", k)
 	}
 	return filepath.Join(home, "caches", Unregistered, who)
-}
-
-// AgentKeys is each agent's key by its old dotted name, in one read.
-func AgentKeys(home string) (map[string]string, error) {
-	d, err := store.SharedIfThere(DBFile(home))
-	if d == nil {
-		return map[string]string{}, err
-	}
-	rows, err := d.Query(`SELECT ` + LegacyNameSQL + `, a.id
-		FROM agents a JOIN workspaces w ON w.id = a.workspace`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var n string
-		var id int64
-		if err := rows.Scan(&n, &id); err != nil {
-			return nil, err
-		}
-		out[n] = actor.Key(actor.Agent, id)
-	}
-	return out, rows.Err()
 }
 
 // AccountKey is who's key: who itself when it is an account's key, else the key of the account named who; "" when none is, or the
@@ -189,7 +152,7 @@ func WorkspaceDir(home, who string) string {
 	return filepath.Join(home, "workspaces", Unregistered, who)
 }
 
-// WhoKey is the key a who param's word stands for: human is the owner, a key is itself, an agent's dotted name its key. A word
+// WhoKey is the key a who param's word stands for: human is the owner, a key is itself, a word that names an agent its key. A word
 // none of these is, or a home whose database cannot be read, gives the word back.
 func WhoKey(home, word string) string {
 	if word == "human" {

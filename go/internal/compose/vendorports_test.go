@@ -37,9 +37,9 @@ func TestADeliveryGoesThroughThePortOfTheAgentsVendor(t *testing.T) {
 	cli.Register(portAgent{})
 	cli.RegisterAgent("portvendor", func(cli.Host) cli.Agent { return portAgent{} })
 	home := t.TempDir()
-	writeVendor(t, home, "a.other", "portvendor")
-	writeVendor(t, home, "a.claude", "claude")
-	writeVendor(t, home, "a.unknown", "nosuch")
+	writeVendor(t, home, "a/other", "portvendor")
+	writeVendor(t, home, "a/claude", "claude")
+	writeVendor(t, home, "a/unknown", "nosuch")
 	p := &Parts{home: home, Peer: func(string) bool { return false }}
 	v, ok := p.agentsPort().(vendorAgents)
 	if !ok {
@@ -49,7 +49,7 @@ func TestADeliveryGoesThroughThePortOfTheAgentsVendor(t *testing.T) {
 		t.Fatalf("a port per launchable vendor but Claude Code: %v", v.others)
 	}
 	v.claude = namedPort{"claude"}
-	for agent, want := range map[string]string{"a.other": "portvendor", "a.claude": "claude", "a.unknown": "claude"} {
+	for agent, want := range map[string]string{"a/other": "portvendor", "a/claude": "claude", "a/unknown": "claude"} {
 		r, err := v.Send(agent, "op", "x", delivery.Queue)
 		w, _, _ := v.Withdraw(agent, "op")
 		pr, _ := v.Promote(agent, "op")

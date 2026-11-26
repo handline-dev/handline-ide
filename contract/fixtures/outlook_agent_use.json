@@ -140,52 +140,9 @@
    ]
   },
   {
-   "name": "stats.outlook.a_group_pick_has_an_overlay",
-   "spec": "stats.outlook",
-   "about": "grp:<name> asks for the curve of the whole group. Needs --var outlook_group: the first dotted part of the names of agents that used tokens in the range.",
-   "as": "founder",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1,
-       "key": "{{founder_key}}"
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "stats.outlook",
-      "params": {
-       "range": "7d",
-       "agent": "grp:{{outlook_group}}"
-      }
-     },
-     "result": {
-      "overlay": {
-       "$type": "array",
-       "$contains": {
-        "$type": "number"
-       },
-       "$each": {
-        "$type": "number"
-       }
-      }
-     }
-    }
-   ]
-  },
-  {
    "name": "stats.outlook.a_pick_that_is_nobody_has_an_empty_overlay",
    "spec": "stats.outlook",
-   "about": "A name that is no agent and no group is not an error: the overlay is empty. Needs --var outlook_group: the daemon is seeded with agents.",
+   "about": "A name that is no agent is not an error: the overlay is empty. Needs --var outlook_agent: the daemon is seeded with agents.",
    "as": "founder",
    "steps": [
     {
@@ -208,7 +165,7 @@
       "method": "stats.outlook",
       "params": {
        "range": "7d",
-       "agent": "{{outlook_group}}.nobody"
+       "agent": "{{outlook_agent}}-nobody"
       }
      },
      "result": {

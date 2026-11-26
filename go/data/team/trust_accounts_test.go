@@ -228,13 +228,13 @@ func TestEnvFromDropsTheOldPrefixAndKeepsHandlines(t *testing.T) {
 	account(t, home, "alpha")
 	base := map[string]string{"OCP_AGENT": "aud", "OCP_HOME": "/old/home", "OCP_ACCOUNT": "beta", "OCP_TMUX_SOCKET": "/old/sock",
 		"HANDLINE_TMUX_SOCKET": "/new/sock", "HANDLINE_LIVE_ACCOUNTS": "delta", "PATH": "/bin"}
-	env := a.EnvFrom(base, "alpha", "aud.c")
+	env := a.EnvFrom(base, "alpha", "aud/c")
 	for k := range env {
 		if strings.HasPrefix(k, "OCP_") {
 			t.Errorf("%s was carried into the new session", k)
 		}
 	}
-	want := map[string]string{"HANDLINE_HOME": home, "HANDLINE_ACCOUNT": "alpha", "HANDLINE_AGENT": "aud.c",
+	want := map[string]string{"HANDLINE_HOME": home, "HANDLINE_ACCOUNT": "alpha", "HANDLINE_AGENT": "aud/c",
 		"HANDLINE_TMUX_SOCKET": "/new/sock", "HANDLINE_LIVE_ACCOUNTS": "delta", "PATH": "/bin"}
 	for k, v := range want {
 		if env[k] != v {
@@ -364,7 +364,7 @@ func (f *fakeIdle) Set(text, agent string) (bool, string) {
 func TestSaveSettingsWritesThroughRegisterAndTheRest(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
-	r.Register("worker", RegisterOpts{})
+	r.Register("worker/lead", RegisterOpts{})
 	idle := &fakeIdle{}
 	changes := []Change{{"model", "sonnet", "opus"}, {"context_k", "200", "100"}, {"handoff_note", "default", "on"}, {"idle_close", "", "30"},
 		{"browser", "off", "chrome"}}
@@ -447,9 +447,9 @@ func TestEnvForNamesTheAgentByItsName(t *testing.T) {
 	home := newHome(t)
 	account(t, home, "alpha")
 	r := NewRoster(home)
-	for _, n := range []string{"shop", "shop.quill", "blog"} {
+	for _, n := range []string{"shop/lead", "shop/quill", "blog/lead"} {
 		o := RegisterOpts{}
-		if !strings.Contains(n, ".") { // a workspace's lead holds its folder
+		if n != "shop/quill" { // a workspace's lead holds its folder
 			o.Repo = testfiles.GitCheckout(t)
 		}
 		if _, err := r.Register(n, o); err != nil {
@@ -457,7 +457,7 @@ func TestEnvForNamesTheAgentByItsName(t *testing.T) {
 		}
 	}
 	a, k := Accounts{Home: home}, keyer(home)
-	for who, want := range map[string]string{"shop.quill": "quill", "shop": "shop/lead"} {
+	for who, want := range map[string]string{"shop/quill": "quill", "shop": "shop/lead"} {
 		if got := a.EnvFor("alpha", k(who))["HANDLINE_AGENT"]; got != want {
 			t.Errorf("%s: %q, want %q", who, got, want)
 		}

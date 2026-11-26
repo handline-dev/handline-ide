@@ -224,35 +224,50 @@ def agent_dir(home: Path, name: str) -> None:
     (home / "agents" / name / "ROLE.md").write_text("seeded by conformance_fds\n")
 
 
-def seed_agents(con: sqlite3.Connection, names: list[str], folders: dict[str, str]) -> None:
-    """Each agent as a row, named by its old dotted name as the daemon reads it until names change: a bare name is the lead of the
-    workspace it names, ws.agent an agent of workspace ws, reporting to that lead. The owner (p1) has every one; folders sets a
-    workspace's folder. AGENT is in LEAD's workspace, so LEAD is its lead."""
-    for n in sorted(set(names), key=lambda n: "." in n):
-        ws, _, agent = n.partition(".")
+def place(label: str) -> tuple[str, str]:
+    """The workspace and name a seed label stands for. A label is the fake daemon's key for the agent (packages/fake-daemon/src/names.ts):
+    its workspace and name joined, the workspace alone for its lead, named lead."""
+    ws, _, agent = label.partition(".")
+    return ws, agent or "lead"
+
+
+def seed_agents(con: sqlite3.Connection, labels: list[str], folders: dict[str, str]) -> None:
+    """Each agent as a row in the workspace and under the name its label stands for (place); a workspace's lead is seeded first. The
+    owner (p1) has every one; folders sets a workspace's folder. AGENT is in LEAD's workspace, so LEAD is its lead."""
+    for label in sorted(set(labels), key=lambda n: "." in n):
+        ws, agent = place(label)
         con.execute("INSERT OR IGNORE INTO workspaces(name, folder, created_at) VALUES(?, ?, 0)", (ws, folders.get(ws, "")))
         ws_id, lead = con.execute("SELECT id, lead FROM workspaces WHERE name = ?", (ws,)).fetchone()
-        if not agent and lead:
+        if "." not in label and lead:
             continue
-        cur = con.execute("INSERT INTO agents(workspace, name, owner, created_at) VALUES(?, ?, 'p1', 0)", (ws_id, agent or "lead"))
-        if not agent:
+        cur = con.execute("INSERT INTO agents(workspace, name, owner, created_at) VALUES(?, ?, 'p1', 0)", (ws_id, agent))
+        if "." not in label:
             con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (cur.lastrowid, ws_id))
+        SEEDED.add(label)
 
 
-# The columns that name a who: the seeds write old dotted names and human, and rekey puts each agent's key and p1 in their place.
+# The labels seed_agents seeded, which agent_keys reads back.
+SEEDED: set[str] = set()
+
+# The columns that name a who: the seeds write labels and human, and rekey puts each agent's key and p1 in their place.
 WHO_COLUMNS = {"agent", "requester", "target", "owner", "opened_by", "reporter", "discarded_by", "author", "pushed_by", "queued_by",
                "accepted_by", "updated_by"}
 
 
 def agent_keys(con: sqlite3.Connection) -> dict[str, str]:
-    """Each agent's key by its old dotted name."""
-    return dict(con.execute("SELECT CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END, 'a' || a.id "
-                            "FROM agents a JOIN workspaces w ON w.id = a.workspace").fetchall())
+    """Each seeded agent's key by its label."""
+    out = {}
+    for label in SEEDED:
+        row = con.execute("SELECT 'a' || a.id FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE w.name = ? AND a.name = ?",
+                          place(label)).fetchone()
+        if row:
+            out[label] = row[0]
+    return out
 
 
 def rekey(home: Path, con: sqlite3.Connection) -> dict[str, str]:
-    """Every seeded row and folder that names an agent by its old name named by its key instead, as the daemon writes them (base-v2 1b),
-    and the founder by p1. Returns the keys by old name."""
+    """Every seeded row and folder that names an agent by its label named by its key instead, as the daemon writes them, and the
+    founder by p1. Returns the keys by label."""
     keys = agent_keys(con)
     tables = [t for (t,) in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
     for t in tables:
@@ -378,7 +393,8 @@ def agent_pairs(store: Path, n: int) -> tuple[list, socket.socket, int]:
         fds += got
     ctl.send(b"k")  # it may close its copies now
     (store / SESSION_NS).mkdir(mode=0o700)
-    (store / SESSION_NS / AGENT).write_text(session_line(pid))
+    # Recorded before the seed gives AGENT its key, so by its name, which no other seeded agent has: the daemon resolves it to the key.
+    (store / SESSION_NS / place(AGENT)[1]).write_text(session_line(pid))
     return [(socket.socket(fileno=fds[i]), socket.socket(fileno=fds[i + 1])) for i in range(0, 2 * n, 2)], ctl, pid
 
 

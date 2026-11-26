@@ -1,5 +1,5 @@
-// Package teamtest seeds a test home's workspaces and agents as rows, named by their old dotted names: a bare name is
-// a workspace's lead, ws.agent an agent of workspace ws.
+// Package teamtest seeds a test home's workspaces and agents as rows. An agent is named by its workspace and name, ws/agent; a bare
+// ws is that workspace's lead, named lead, as the word ws names it (addr.Resolve).
 package teamtest
 
 import (
@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/kit/storetest"
@@ -47,9 +46,10 @@ func Seed(t testing.TB, home string, agents ...string) *sql.DB {
 	t.Helper()
 	d := DB(t, home)
 	sorted := append([]string(nil), agents...)
-	sort.SliceStable(sorted, func(i, j int) bool { return !strings.Contains(sorted[i], ".") && strings.Contains(sorted[j], ".") })
+	sort.SliceStable(sorted, func(i, j int) bool { return !strings.Contains(sorted[i], "/") && strings.Contains(sorted[j], "/") })
 	for _, n := range sorted {
-		if err := add(d, n); err != nil {
+		ws, agent := split(t, n)
+		if err := add(d, ws, agent); err != nil {
 			t.Fatalf("seed %s: %v", n, err)
 		}
 		if err := os.MkdirAll(paths.AgentDir(home, n), 0o755); err != nil {
@@ -59,8 +59,17 @@ func Seed(t testing.TB, home string, agents ...string) *sql.DB {
 	return d
 }
 
-func add(d *sql.DB, legacy string) error {
-	ws, agent := team.SplitLegacy(legacy)
+// split is the workspace and agent name of a seeded name; agent is "" for a bare ws, its lead.
+func split(t testing.TB, name string) (ws, agent string) {
+	t.Helper()
+	if strings.Contains(name, ".") {
+		t.Fatalf("teamtest: %q: name an agent as ws/agent", name)
+	}
+	ws, agent, _ = strings.Cut(name, "/")
+	return ws, agent
+}
+
+func add(d *sql.DB, ws, agent string) error {
 	if _, err := d.Exec("INSERT OR IGNORE INTO workspaces(name, folder, created_at) VALUES(?, '', 0)", ws); err != nil {
 		return err
 	}
@@ -96,7 +105,7 @@ func Set(t testing.TB, home, agent string, kv ...any) {
 	if len(kv)%2 != 0 {
 		t.Fatalf("teamtest.Set %s: an odd number of key, value arguments", agent)
 	}
-	ws, name := team.SplitLegacy(agent)
+	ws, name := split(t, agent)
 	where := "workspace = (SELECT id FROM workspaces WHERE name = ?) AND name = ?"
 	args := []any{ws, name}
 	if name == "" {
@@ -138,10 +147,33 @@ func Account(t testing.TB, home, name string) string {
 	return name
 }
 
-// Key is the key of the agent whose old dotted name is name in home; a word no agent has (human, nobody) comes back as it is, and
+// Key is the key of the agent name names in home (ws/agent, or ws for its lead); a word no agent has (human, nobody) comes back as it is, and
 // human is the owner's key, p1.
 func Key(t testing.TB, home, name string) string {
 	t.Helper()
 	DB(t, home)
 	return paths.WhoKey(home, name)
+}
+
+// Names is each agent's key in home by the name Seed takes for it: ws for a workspace's lead, ws/agent for any other. Empty when home
+// has no database.
+func Names(home string) map[string]string {
+	out := map[string]string{}
+	d, err := store.SharedIfThere(paths.DBFile(home))
+	if d == nil || err != nil {
+		return out
+	}
+	rows, err := d.Query(`SELECT CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '/' || a.name END, 'a' || a.id
+		FROM agents a JOIN workspaces w ON w.id = a.workspace`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var n, k string
+		if rows.Scan(&n, &k) == nil {
+			out[n] = k
+		}
+	}
+	return out
 }

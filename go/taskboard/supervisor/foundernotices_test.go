@@ -59,13 +59,13 @@ func TestARefusalOfTheFoundersTaskIsKeptAsAWarningAndSaysNothing(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
 	r.DB.Exec("UPDATE tasks SET opened_by = ? WHERE id = ?", actor.OwnerKey, tid)
-	if _, _, err := r.AdvanceCurrentTask(r.DB, r.k("eng.bob")); err != nil {
+	if _, _, err := r.AdvanceCurrentTask(r.DB, r.k("eng/bob")); err != nil {
 		t.Fatal(err)
 	}
 	raw, ok, err := db.Meta(r.DB, fmt.Sprintf("%s%d", db.RefusedTaskPrefix, tid))
 	r.must(err)
 	var u db.Undelivered
-	if !ok || json.Unmarshal([]byte(raw), &u) != nil || u.Agent != r.k("eng.bob") || u.Why == "" {
+	if !ok || json.Unmarshal([]byte(raw), &u) != nil || u.Agent != r.k("eng/bob") || u.Why == "" {
 		t.Fatalf("%q", raw)
 	}
 	if n := r.toFounder(); n != 0 {

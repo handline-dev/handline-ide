@@ -201,8 +201,8 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 func TestInboxQueueListsOnlyForTheAgentAndTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	teamtest.Seed(t, e.Home, "bob", "bob.kid", "amy")
-	bob, kid, amy := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "bob.kid"), teamtest.Key(t, e.Home, "amy")
+	teamtest.Seed(t, e.Home, "bob", "bob/kid", "amy")
+	bob, kid, amy := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "bob/kid"), teamtest.Key(t, e.Home, "amy")
 	for whose, ok := range map[string]bool{bob: true, kid: false, amy: false, actor.OwnerKey: false} {
 		_, err := e.inboxQueue(asAgent(bob), map[string]any{"whose": whose})
 		var refused *rpc.Error

@@ -55,7 +55,7 @@ func TestOpenRefusesWhatIsNotAnAgentWithATerminal(t *testing.T) {
 			t.Fatalf("%v: %v", p, err)
 		}
 	}
-	if _, err := r.e.open(person("casey"), map[string]any{"agent": "nobody.here"}); err == nil {
+	if _, err := r.e.open(person("casey"), map[string]any{"agent": "nobody/here"}); err == nil {
 		t.Fatal("an agent nobody registered")
 	}
 	if _, err := r.e.DB.Exec("UPDATE agent_state SET closed_at = 5 WHERE agent = ?", r.ann); err != nil {

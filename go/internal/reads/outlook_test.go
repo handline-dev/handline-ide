@@ -213,7 +213,7 @@ func TestOutlookGivesWhatEachAgentUsedAndTheEstimateOfTheWeek(t *testing.T) {
 func TestOutlookOverlayIsThePicksCurveAgainstPast(t *testing.T) {
 	t.Parallel()
 	e, clock := outlookWithUse(t)
-	for pick, nonEmpty := range map[string]bool{"grp.one": true, "grp:grp": true, "grp.nobody": false, "nobody": false} {
+	for pick, nonEmpty := range map[string]bool{"grp.one": true, "grp.nobody": false, "nobody": false} {
 		got, err := e.outlookAt("24h", 24, clock, &pick)
 		if err != nil {
 			t.Fatal(err)
@@ -242,9 +242,9 @@ func TestOutlookOverlayIsThePicksCurveAgainstPast(t *testing.T) {
 //	a: 0 for the 45 points before 04:30, then 6 (4 -> 10 into the first sample), 16, 26, 26   (the 2 -> 4 before past is not counted)
 //	b: 0 for the 45 points before 04:30, then 0 (nothing before it), 5, 10, 10
 //
-// grp.one spent 3/4 of a's cost and all of b's; the group grp all of both. Averaged over the two accounts:
+// grp.one spent 3/4 of a's cost and all of b's. Averaged over the two accounts:
 //
-//	grp.one: (3/4*a + b) / 2 = 2.25, 8.5, 14.75, 14.75      grp:grp: (a + b) / 2 = 3, 10.5, 18, 18
+//	grp.one: (3/4*a + b) / 2 = 2.25, 8.5, 14.75, 14.75
 func TestOutlookOverlayValuesByNumber(t *testing.T) {
 	t.Parallel()
 	e, clock := outlookWithUse(t)
@@ -256,7 +256,7 @@ func TestOutlookOverlayValuesByNumber(t *testing.T) {
 		w := fmt.Sprintf(`[{"minutes":10080,"used_percent":%d,"resets_at":%d}]`, s.used, now+86400)
 		run(t, e, "INSERT INTO usage_samples(account, ts, exists_, windows) VALUES('a',?,1,?)", now-s.ago, w)
 	}
-	for pick, tail := range map[string][4]float64{"grp.one": {2.25, 8.5, 14.75, 14.75}, "grp:grp": {3, 10.5, 18, 18}} {
+	for pick, tail := range map[string][4]float64{"grp.one": {2.25, 8.5, 14.75, 14.75}} {
 		got, err := e.outlookAt("24h", 24, clock, &pick)
 		if err != nil {
 			t.Fatal(err)

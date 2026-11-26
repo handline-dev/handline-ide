@@ -188,7 +188,7 @@ export type Outlook = {
     week_resets_at: Timestamp | null;
   }[];
   cost_per_day: DayCosts;
-  /** What each agent used over the last `range` (the span of `past`), largest cost first, ties by name. A client groups agents by the first part of the dotted name; a group's numbers are the sums of its members' (est_pct null if any member's is). Absent from a daemon that does not send it. */
+  /** What each agent used over the last `range` (the span of `past`), largest cost first, ties by name. Absent from a daemon that does not send it. */
   agent_use?: {
     agent: string;
     /** Tokens the agent used in the span. */
@@ -365,7 +365,7 @@ export interface AccountsMethods {
   "stats.outlook": { params: {
   /** Headroom: that long back and as long ahead. Cost per day: the last that many days (under 1 day counts as 1). */
   range: "12h" | "24h" | "3d" | "7d" | "14d" | "30d";
-  /** Also give `overlay` for this pick: an agent's name, or `grp:<name>` for the group of agents whose dotted names start with `<name>.` (and the agent `<name>` itself), the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent. */
+  /** Also give `overlay` for this pick: an agent, the key of a row of the agents table a client draws. It rides on this call and not on a method of its own because the curve is read against `past` and must be sampled at the same moment as it; one pick costs one array, not one per agent. */
   agent?: Who;
 }; result: Outlook };
   "stats.retro": { params: {

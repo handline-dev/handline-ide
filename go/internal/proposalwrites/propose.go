@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
@@ -50,6 +51,15 @@ func argList(v any) []string {
 	return out
 }
 
+// badName is whether name cannot be the agent a proposal of kind names: a new one (add) is workspace/name, any other one word.
+func badName(kind, name string) bool {
+	if kind == "add" {
+		ws, agent, ok := strings.Cut(name, "/")
+		return !ok || ws == "" || agent == "" || strings.ContainsAny(agent, "/.")
+	}
+	return strings.ContainsAny(name, "/.")
+}
+
 // teamNames are a team's members' full names, or why not (_team_names in hr.py): nothing may exist yet in the roster.
 func (e *Env) teamNames(name string, members []string, repos map[string]string, exists func(string) bool) ([]string, string) {
 	if len(members) == 0 {
@@ -57,16 +67,14 @@ func (e *Env) teamNames(name string, members []string, repos map[string]string, 
 	}
 	var full []string
 	for _, m := range members {
-		if strings.HasPrefix(m, name+".") {
-			full = append(full, m)
-		} else {
-			full = append(full, name+"."+m)
+		bare := strings.TrimPrefix(m, name+"/")
+		if textsafe.HasUnsafe(bare) || strings.ContainsAny(bare, "/,. ") {
+			return nil, fmt.Sprintf("bad agent name: %q", m)
 		}
+		full = append(full, name+"/"+bare)
 	}
-	for _, n := range append([]string{name}, full...) {
-		if textsafe.HasUnsafe(n) || strings.ContainsAny(n, "/, ") {
-			return nil, fmt.Sprintf("bad agent name: %q", n)
-		}
+	if textsafe.HasUnsafe(name) || strings.ContainsAny(name, "/, ") {
+		return nil, fmt.Sprintf("bad agent name: %q", name)
 	}
 	seen := map[string]bool{}
 	for _, n := range full {
@@ -121,12 +129,21 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 	if kind != "add" && kind != "team" { // these name an agent there is; add and team name one to make
 		name = paths.WhoKey(e.Home, name)
 	}
+	if t := argStr(args, "team"); kind == "add" && t != "" && !strings.Contains(name, "/") {
+		name = t + "/" + name // a new agent is named in its workspace
+	}
 	str := func(k string) string { return argStr(args, k) }
 	why = strings.TrimSpace(why)
 	if !slices.Contains(proposable, kind) {
 		return nil, fmt.Sprintf("kind %q is not raised this way yet: one of %s", kind, strings.Join(proposable, ", "))
 	}
-	if name == "" || strings.Contains(name, "/") || strings.HasPrefix(name, ".") || textsafe.HasUnsafe(name) {
+	if t := argStr(args, "team"); kind == "add" && t != "" && !strings.HasPrefix(name, t+"/") && strings.Contains(name, "/") {
+		return nil, fmt.Sprintf("%s would be in workspace %s, not %s: an agent's workspace is the first part of its name", name, strings.SplitN(name, "/", 2)[0], t)
+	}
+	if kind == "add" && badName(kind, name) {
+		return nil, fmt.Sprintf("a new agent is named as workspace/name, or by its name with team: not %q", name)
+	}
+	if name == "" || badName(kind, name) || textsafe.HasUnsafe(name) {
 		return nil, fmt.Sprintf("bad agent name: %q", name)
 	}
 	if why == "" {
@@ -156,14 +173,17 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 		}
 	}
 	if kind == "rename" {
-		if to == "" || strings.Contains(to, "/") || strings.HasPrefix(to, ".") {
+		if to == "" || strings.ContainsAny(to, "/.") {
 			return nil, "a rename needs a new name (--to)"
 		}
 		if textsafe.HasUnsafe(to) {
 			return nil, fmt.Sprintf("bad agent name: %q", to)
 		}
-		if exists(to) {
-			return nil, fmt.Sprintf("%s is already an agent", to)
+		var ws int64 // name is the agent's key here
+		if err := e.DB.QueryRow("SELECT workspace FROM agents WHERE 'a' || id = ?", name).Scan(&ws); err == nil {
+			if err := names.Check(e.DB, names.Agent, to, ws); err != nil {
+				return nil, err.Error()
+			}
 		}
 	}
 	if teamName != "" && textsafe.HasUnsafe(teamName) {
@@ -237,7 +257,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 				return nil, fmt.Sprintf("%s would work in %s, but a workspace has one folder: its lead's, %s", n, repos[n], repo)
 			}
 		}
-		if ws, agent := team.SplitLegacy(name); kind == "add" && agent != "" {
+		if ws, _, _ := strings.Cut(name, "/"); kind == "add" {
 			if folder := team.NewRoster(e.Home).RepoOf(ws); folder != "" && folder != repo {
 				return nil, fmt.Sprintf("%s would work in %s, but workspace %s has one folder: %s", name, repo, ws, folder)
 			}
@@ -471,10 +491,7 @@ func rosterAfter(registered []string, d *Prop) []string {
 		}
 	case "retire":
 		delete(names, d.str("agent"))
-	case "rename":
-		delete(names, d.str("agent"))
-		names[d.str("to")] = true
-	}
+	} // a rename keeps the agent's key, which is what registered holds
 	out := make([]string, 0, len(names))
 	for n := range names {
 		out = append(out, n)

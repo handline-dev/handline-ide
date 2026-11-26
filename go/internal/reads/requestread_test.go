@@ -201,13 +201,13 @@ func TestAMessagesImagesReadBackInPartsWithAPathOnlyForAnAgent(t *testing.T) {
 func TestRequestReadIsForTheEndsTheTaskAndTheFounder(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	teamtest.Seed(t, e.Home, "amy", "amy.kid", "bob", "cat", "dan", "eve")
+	teamtest.Seed(t, e.Home, "amy", "amy/kid", "bob", "cat", "dan", "eve")
 	key := func(name string) string { return teamtest.Key(t, e.Home, name) }
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, ?, ?, 'private', 'landed', 'ask', 1)", key("amy.kid"), key("bob"))
+	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, ?, ?, 'private', 'landed', 'ask', 1)", key("amy/kid"), key("bob"))
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', ?, ?, 1)", key("dan"), key("eve"))
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)")
 	agent := func(name string) *rpc.Conn { return asAgent(key(name)) }
-	for who, conn := range map[string]*rpc.Conn{"founder": asFounder, "requester": agent("amy.kid"), "target": agent("bob"),
+	for who, conn := range map[string]*rpc.Conn{"founder": asFounder, "requester": agent("amy/kid"), "target": agent("bob"),
 		"assignee of a linked task": agent("dan"), "opener of a linked task": agent("eve")} {
 		if got, err := e.requestRead(conn, map[string]any{"id": num64(1)}); err != nil || got.(map[string]any)["body"] != "private" {
 			t.Errorf("%s: %v %v", who, got, err)

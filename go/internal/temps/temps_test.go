@@ -38,8 +38,8 @@ type rig struct {
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "team", "team.ui", "team.lander")
-	teamtest.Set(t, home, "team.ui", "model", "opus", "effort", "high", "sandbox_allow", "pnpm-install")
+	d := teamtest.Seed(t, home, "team", "team/ui", "team/lander")
+	teamtest.Set(t, home, "team/ui", "model", "opus", "effort", "high", "sandbox_allow", "pnpm-install")
 	r := &rig{t: t, home: home, db: d, present: map[string]bool{}, idle: map[string]bool{}}
 	clock := time.Unix(1_000_000, 0)
 	r.env = &Env{DB: d, Home: home, Now: func() time.Time { return clock },
@@ -75,9 +75,9 @@ func (r *rig) agents() map[string]bool {
 	r.t.Helper()
 	out := map[string]bool{}
 	for _, k := range paths.ListAgents(r.home) {
-		n, err := paths.AgentNameIn(r.db, k)
+		ws, n, err := paths.AgentNamed(r.db, k)
 		r.must(err)
-		out[n] = true
+		out[ws+"/"+n] = true
 	}
 	return out
 }
@@ -85,7 +85,7 @@ func (r *rig) agents() map[string]bool {
 // task is a task the lander queued for agent.
 func (r *rig) task(agent string) int64 {
 	r.t.Helper()
-	lander := r.key("team.lander")
+	lander := r.key("team/lander")
 	tid, err := db.NewTask(r.db, "a typo", agent, lander, 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
 	_, err = db.SetTaskQueued(r.db, tid, lander)
@@ -131,9 +131,9 @@ func (r *rig) over(seat string, tid int64) {
 // on, and the hire is a line in the agent's chat. A second task while the first seat is at work takes a new seat.
 func TestAHireTakesASeatWithTheAgentsSettings(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	seat, tid := r.hire(ui)
-	if name, _ := paths.AgentNameIn(r.db, seat); name != "team.ui-2" {
+	if _, name, _ := paths.AgentNamed(r.db, seat); name != "ui-2" {
 		t.Fatalf("named %q", name)
 	}
 	if from, _ := paths.HiredFrom(r.db, seat); from != ui {
@@ -154,7 +154,7 @@ func TestAHireTakesASeatWithTheAgentsSettings(t *testing.T) {
 	// a seat's next task is a seat of the agent, the next number while the first is at work
 	if next, _ := r.hire(seat); next == seat {
 		t.Fatal("a seat at work took a second task")
-	} else if name, _ := paths.AgentNameIn(r.db, next); name != "team.ui-3" {
+	} else if _, name, _ := paths.AgentNamed(r.db, next); name != "ui-3" {
 		t.Fatalf("second named %q", name)
 	} else if from, _ := paths.HiredFrom(r.db, next); from != ui {
 		t.Fatalf("second hired from %q", from)
@@ -164,7 +164,7 @@ func TestAHireTakesASeatWithTheAgentsSettings(t *testing.T) {
 // With no room to start one, with temps Manual, or when the handoff fails, no seat is at work and nothing else is left behind.
 func TestNoRoomManualOrAFailedHandoffPutsNoSeatToWork(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	before := len(r.agents())
 	var asked []string
 	r.env.Room = func(a string) string { asked = append(asked, a); return r.room }
@@ -204,7 +204,7 @@ func TestNoRoomManualOrAFailedHandoffPutsNoSeatToWork(t *testing.T) {
 // conversation with no handoff.
 func TestASeatStaysIdleOnceItsTaskIsOverAndTheNextHireTakesItFresh(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	seat, tid := r.hire(ui)
 	r.present[seat] = true
 	r.must(r.env.Sweep())
@@ -226,7 +226,7 @@ func TestASeatStaysIdleOnceItsTaskIsOverAndTheNextHireTakesItFresh(t *testing.T)
 		t.Fatalf("closed %v, at work on T%d; it leaves once its session is gone", r.closed, at)
 	}
 	r.must(r.env.Sweep())
-	if at, _ := team.HiredFor(r.db, seat); at != 0 || !r.agents()["team.ui-2"] {
+	if at, _ := team.HiredFor(r.db, seat); at != 0 || !r.agents()["team/ui-2"] {
 		t.Fatalf("at work on T%d, or its row went", at)
 	}
 	if got := r.events(ui, LeftEvent); len(got) != 1 || got[0] != `{"seat":"`+seat+`","task_id":`+itoa(tid)+`,"ended":"done"}` {
@@ -287,7 +287,7 @@ func mustOwner(t *testing.T, q db.Q, tid int64) string {
 // A seat's task with someone else's turn on top (the founder's, a checker's) is still its work: it does not leave.
 func TestASeatWhoseTaskWaitsOnATurnStaysAtWork(t *testing.T) {
 	r := newRig(t)
-	ui, lander := r.key("team.ui"), r.key("team.lander")
+	ui, lander := r.key("team/ui"), r.key("team/lander")
 	seat, tid := r.hire(ui)
 	r.must(db.PushTurn(r.db, tid, db.Turn{Agent: lander, By: seat, Since: 1}))
 	r.present[seat] = true
@@ -303,7 +303,7 @@ func TestASeatWhoseTaskWaitsOnATurnStaysAtWork(t *testing.T) {
 // that began keeps it.
 func TestASeatThatNeverStartedGivesItsTaskBack(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	seat, tid := r.hire(ui)
 	r.handed = nil
 	r.must(r.env.Sweep())
@@ -330,7 +330,7 @@ func TestASeatThatNeverStartedGivesItsTaskBack(t *testing.T) {
 // Waiting is a seat at work with no session yet: another is not hired meanwhile.
 func TestASeatAtWorkWithNoSessionIsWaiting(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	seat, _ := r.hire(ui)
 	if !r.env.Waiting(ui) {
 		t.Fatal("a seat at work with no session does not read as waiting")
@@ -344,7 +344,7 @@ func TestASeatAtWorkWithNoSessionIsWaiting(t *testing.T) {
 // A task that comes back to an idle seat, reopened, goes to the agent it is of.
 func TestATaskReopenedOnAnIdleSeatGoesToItsAgent(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	seat, tid := r.hire(ui)
 	r.over(seat, tid)
 	_, err := r.db.Exec("UPDATE tasks SET done_evidence = NULL, done_at = NULL WHERE id = ?", tid)
@@ -362,7 +362,7 @@ func TestATaskReopenedOnAnIdleSeatGoesToItsAgent(t *testing.T) {
 // An agent is busy while a seat of it at work holds an open task, not once that task is over, nor when temps are Manual; a seat is never busy.
 func TestAnAgentIsBusyWhileASeatOfItHoldsATask(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	if r.env.Busy(ui) {
 		t.Fatal("busy with no seat")
 	}
@@ -389,14 +389,14 @@ func TestAnAgentIsBusyWhileASeatOfItHoldsATask(t *testing.T) {
 // When a seat leaves, what it did reaches its agent as a notice, waking nothing: the done's evidence, or the handoff's note.
 func TestASeatsResultReachesItsAgentAsANotice(t *testing.T) {
 	r := newRig(t)
-	ui := r.key("team.ui")
+	ui := r.key("team/ui")
 	seat, tid := r.hire(ui)
 	r.present[seat] = true
 	r.over(seat, tid)
 	seat2, tid2 := r.hire(ui)
-	_, err := db.AddEvent(r.db, seat2, "task_handoff", db.KV{K: "task_id", V: tid2}, db.KV{K: "to", V: r.key("team.lander")}, db.KV{K: "note", V: "needs a review"})
+	_, err := db.AddEvent(r.db, seat2, "task_handoff", db.KV{K: "task_id", V: tid2}, db.KV{K: "to", V: r.key("team/lander")}, db.KV{K: "note", V: "needs a review"})
 	r.must(err)
-	_, err = r.db.Exec("UPDATE tasks SET owner = ? WHERE id = ?", r.key("team.lander"), tid2)
+	_, err = r.db.Exec("UPDATE tasks SET owner = ? WHERE id = ?", r.key("team/lander"), tid2)
 	r.must(err)
 	r.idle[seat2] = true
 	r.must(r.env.Sweep())

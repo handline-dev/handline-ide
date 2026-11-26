@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -24,7 +23,7 @@ func keyed(db *sql.DB, q string) string {
 	if !ok {
 		return q
 	}
-	m, _ := paths.AgentKeys(h.(string))
+	m := teamtest.Names(h.(string))
 	names := make([]string, 0, len(m))
 	for n := range m {
 		names = append(names, n)
@@ -56,7 +55,7 @@ func named(db *sql.DB, s string) string {
 	if !ok {
 		return s
 	}
-	m, _ := paths.AgentKeys(h.(string))
+	m := teamtest.Names(h.(string))
 	byKey := map[string]string{"p1": "human"}
 	for n, k := range m {
 		byKey[k] = n

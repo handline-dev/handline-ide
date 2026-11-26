@@ -21,18 +21,18 @@ import (
 // Ready again, and OK hands it to the land_by agent; after the OK, and for any other task, the handoff goes as asked.
 func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.lander")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/lander")
 	homes.Store(d, home)
 	k := func(n string) string { return teamtest.Key(t, home, n) }
-	worker, lander := k("gp.worker"), k("gp.lander")
+	worker, lander := k("gp/worker"), k("gp/lander")
 	gp, _, _ := team.WorkspaceID(d, "gp")
 	if err := team.SetRule(d, gp, team.RuleLandBy, lander, "p1", 1); err != nil {
 		t.Fatal(err)
 	}
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', 'gp.worker', 'gp', 1), (2, 'plain', 'gp.worker', 'gp', 1)",
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', 'gp/worker', 'gp', 1), (2, 'plain', 'gp/worker', 'gp', 1)",
 		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'gp', 'task_new', '{"task_id": 1, "draft": true}')`,
-		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('gp.worker', 'IDLE', 1, 1)")
-	dir := paths.AgentDir(home, "gp.worker")
+		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('gp/worker', 'IDLE', 1, 1)")
+	dir := paths.AgentDir(home, "gp/worker")
 	for name, b := range map[string]string{"demo.png": "\x89PNG\r\n\x1a\nxx", "demo.mp4": "\x00\x00\x00\x18ftypisom\x00\x00", "fake.mov": "not a video"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(b), 0o600); err != nil {
 			t.Fatal(err)
@@ -81,7 +81,7 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	if !r.Ready || r.LandBy != lander || r.Redo != 0 || r.OK {
 		t.Fatalf("%+v", r)
 	}
-	if acting, _ := db.Acting(d, 1); acting != "p1" || count(t, d, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'gp.worker'") != 1 {
+	if acting, _ := db.Acting(d, 1); acting != "p1" || count(t, d, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'gp/worker'") != 1 {
 		t.Fatalf("the founder's turn is on the worker's task: acting %s", acting)
 	}
 	files, _ := attachments.MemoFiles(d, r.Memo)
@@ -141,7 +141,7 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 		t.Fatal("a redo with no note")
 	}
 
-	if got := said(as("", "task.redo", `"task":1,"note":"the badge overlaps on the phone",`)); got != "T1 sent back to gp.worker: Redo 1" {
+	if got := said(as("", "task.redo", `"task":1,"note":"the badge overlaps on the phone",`)); got != "T1 sent back to gp/worker: Redo 1" {
 		t.Fatalf("%q", named(d, got))
 	}
 	if r = review(); r.Ready || r.Redo != 1 {
@@ -150,27 +150,27 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	if acting, _ := db.Acting(d, 1); acting != worker {
 		t.Fatalf("redo goes back to the worker, not %s", acting)
 	}
-	if h := f.handed[len(f.handed)-1]; h.Task != 1 || h.To != "gp.worker" || h.RID == 0 {
+	if h := f.handed[len(f.handed)-1]; h.Task != 1 || h.To != "gp/worker" || h.RID == 0 {
 		t.Fatalf("the worker is not moved on to the redo: %+v", h)
 	}
 	if got := errText(as(k("gp"), "task.handoff", fmt.Sprintf(`"task":1,"to":%q,"note":"ship it",`, lander))); !strings.Contains(got, "who works it, finishes it") {
 		t.Fatal("the lead skipped the founder")
 	}
-	if count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'gp.worker' AND body LIKE 'T1 대표님 Redo 1 (댓글 %): the badge overlaps on the phone%First keep one lesson%hl lesson add \"<the lesson>\" --task T1%'") != 1 {
+	if count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'gp/worker' AND body LIKE 'T1 대표님 Redo 1 (댓글 %): the badge overlaps on the phone%First keep one lesson%hl lesson add \"<the lesson>\" --task T1%'") != 1 {
 		t.Fatal("the worker is not told the redo")
 	}
 
 	if got := said(hand(1, lander, "fixed the badge")); !strings.HasPrefix(got, "T1 is Ready for the founder") {
 		t.Fatalf("after a redo the finish is Ready again: %q", got)
 	}
-	if got := said(as("", "task.ok", `"task":1,`)); named(d, got) != "T1 is OK: handed to gp.lander to merge" {
+	if got := said(as("", "task.ok", `"task":1,`)); named(d, got) != "T1 is OK: handed to gp/lander to merge" {
 		t.Fatalf("%q", named(d, got))
 	}
 	if r = review(); r.Ready || !r.OK || r.Redo != 1 {
 		t.Fatalf("%+v", r)
 	}
-	if count(t, d, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'gp.lander'") != 1 ||
-		count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'gp.lander' AND body LIKE '%OK, merge (the founder). fixed the badge%'") != 1 {
+	if count(t, d, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'gp/lander'") != 1 ||
+		count(t, d, "SELECT COUNT(*) FROM requests WHERE target = 'gp/lander' AND body LIKE '%OK, merge (the founder). fixed the badge%'") != 1 {
 		t.Fatal("OK hands the task to the land_by agent with the result")
 	}
 	if count(t, d, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1") != 0 {
@@ -181,10 +181,10 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	if as(lander, "task.handoff", fmt.Sprintf(`"task":1,"to":%q,"note":"rebase please",`, worker))["error"] != nil {
 		t.Fatal("the lander could not send it back")
 	}
-	if got := said(hand(1, lander, "rebased")); !strings.HasPrefix(named(d, got), "T1 handed to gp.lander") {
+	if got := said(hand(1, lander, "rebased")); !strings.HasPrefix(named(d, got), "T1 handed to gp/lander") {
 		t.Fatalf("%q", named(d, got))
 	}
-	if got := said(hand(2, lander, "plain work")); !strings.HasPrefix(named(d, got), "T2 handed to gp.lander") {
+	if got := said(hand(2, lander, "plain work")); !strings.HasPrefix(named(d, got), "T2 handed to gp/lander") {
 		t.Fatalf("%q", named(d, got))
 	}
 	if errCode(hand(2, k("gp"), "x", "demo.png")) != "bad_request" {
@@ -196,16 +196,16 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 // story's sub-task is: OK hands it on, Redo sends it back. Off, it goes as asked; a task of agents only goes as asked either way.
 func TestWithTheReviewFlowAFinishOfTheFoundersWorkIsReady(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.lander")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/lander")
 	homes.Store(d, home)
 	k := func(n string) string { return teamtest.Key(t, home, n) }
-	worker, lander := k("gp.worker"), k("gp.lander")
+	worker, lander := k("gp/worker"), k("gp/lander")
 	gp, _, _ := team.WorkspaceID(d, "gp")
 	if err := team.SetRule(d, gp, team.RuleLandBy, lander, "p1", 1); err != nil {
 		t.Fatal(err)
 	}
-	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(1, 'asked', 'gp.worker', 'p1', NULL, 1), "+
-		"(2, 'part', 'gp.worker', 'gp', 1, 1), (3, 'below it', 'gp.worker', 'gp', 2, 1), (4, 'agents only', 'gp.worker', 'gp', NULL, 1)")
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at) VALUES(1, 'asked', 'gp/worker', 'p1', NULL, 1), "+
+		"(2, 'part', 'gp/worker', 'gp', 1, 1), (3, 'below it', 'gp/worker', 'gp', 2, 1), (4, 'agents only', 'gp/worker', 'gp', NULL, 1)")
 	for tid := range int64(4) {
 		if err := db.SetTaskRequest(d, tid+1); err != nil { // the request task.new gives each
 			t.Fatal(err)
@@ -222,7 +222,7 @@ func TestWithTheReviewFlowAFinishOfTheFoundersWorkIsReady(t *testing.T) {
 		return named(d, res["said"].(string))
 	}
 
-	if got := hand(2); !strings.HasPrefix(got, "T2 handed to gp.lander") {
+	if got := hand(2); !strings.HasPrefix(got, "T2 handed to gp/lander") {
 		t.Fatalf("with the flow off the founder's work goes as asked: %q", got)
 	}
 	cfg, err := os.OpenFile(paths.ConfigFile(home), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
@@ -235,16 +235,16 @@ func TestWithTheReviewFlowAFinishOfTheFoundersWorkIsReady(t *testing.T) {
 	if got := hand(3); !strings.HasPrefix(got, "T3 is Ready for the founder") {
 		t.Fatalf("a task below the founder's request: %q", got)
 	}
-	if got := named(d, as("", "task.ok", `"task":3,`)["result"].(map[string]any)["said"].(string)); got != "T3 is OK: handed to gp.lander to merge" {
+	if got := named(d, as("", "task.ok", `"task":3,`)["result"].(map[string]any)["said"].(string)); got != "T3 is OK: handed to gp/lander to merge" {
 		t.Fatalf("%q", got)
 	}
 	if got := hand(1); !strings.HasPrefix(got, "T1 is Ready for the founder") {
 		t.Fatalf("the founder's own request: %q", got)
 	}
-	if got := named(d, as("", "task.redo", `"task":1,"note":"not yet",`)["result"].(map[string]any)["said"].(string)); got != "T1 sent back to gp.worker: Redo 1" {
+	if got := named(d, as("", "task.redo", `"task":1,"note":"not yet",`)["result"].(map[string]any)["said"].(string)); got != "T1 sent back to gp/worker: Redo 1" {
 		t.Fatalf("%q", got)
 	}
-	if got := hand(4); !strings.HasPrefix(got, "T4 handed to gp.lander") {
+	if got := hand(4); !strings.HasPrefix(got, "T4 handed to gp/lander") {
 		t.Fatalf("a task of agents only goes as asked: %q", got)
 	}
 }

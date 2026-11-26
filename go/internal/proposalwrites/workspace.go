@@ -130,7 +130,7 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 }
 
 // refuseRename refuses a rename that would change a name in use: while one of the agents has a session (an identity does not change
-// under a running session, as for an agent's rename), or an open proposal names one by its dotted name, which would then reach nobody.
+// under a running session, as for an agent's rename), or an open proposal names one as workspace/name, which would then reach nobody.
 func (e *Env) refuseRename(w workspaceAt) error {
 	live, ok := map[string]bool(nil), false
 	if e.Live != nil {
@@ -157,7 +157,7 @@ func (e *Env) refuseRename(w workspaceAt) error {
 				continue
 			}
 			for _, n := range strings.Split(fmt.Sprint(kv.Val), ",") {
-				if n == w.name || strings.HasPrefix(n, w.name+".") {
+				if n == w.name || strings.HasPrefix(n, w.name+"/") {
 					return rpc.Refused(fmt.Sprintf("proposal %s names %s: decide or withdraw it before renaming %s.", p.id(), n, w.name), "state", "")
 				}
 			}
@@ -217,7 +217,7 @@ func (e *Env) workspaceDelete(c *rpc.Conn, params map[string]any) (any, error) {
 	prop := &Prop{}
 	prop.set("kind", bundle)
 	prop.set("id", fmt.Sprintf("ws-%s-%d", w.key, time.Now().UnixNano()))
-	for i, a := range w.agents { // the lead last: it goes only as the workspace's last agent, and the workspace with it
+	for i, a := range w.agents { // the lead last, so none of the others is made lead on the way
 		prop.set(fmt.Sprintf("i%d.kind", i), "retire")
 		prop.set(fmt.Sprintf("i%d.agent", i), a)
 		if choice != "" {

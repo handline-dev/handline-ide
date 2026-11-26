@@ -19,9 +19,9 @@ import (
 // one.
 func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.other")
-	worker := teamtest.Key(t, home, "gp.worker")
-	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', %q, 'gp', 1), (2, 'not mine', 'gp.other', 'gp', 1)", worker))
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/other")
+	worker := teamtest.Key(t, home, "gp/worker")
+	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', %q, 'gp', 1), (2, 'not mine', 'gp/other', 'gp', 1)", worker))
 	as := lessonCaller(t, d)
 	id := func(r map[string]any) float64 {
 		t.Helper()
@@ -55,7 +55,7 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 			t.Fatal("never full")
 		}
 	}
-	if got := errText(as(teamtest.Key(t, home, "gp.other"), "lesson.merge", fmt.Sprintf(`"ids":[%v,%v],"text":"x",`, one, two))); !strings.Contains(got, "not one of your live lessons") {
+	if got := errText(as(teamtest.Key(t, home, "gp/other"), "lesson.merge", fmt.Sprintf(`"ids":[%v,%v],"text":"x",`, one, two))); !strings.Contains(got, "not one of your live lessons") {
 		t.Errorf("another agent's merge: %q", got)
 	}
 	if got := errText(as(worker, "lesson.merge", fmt.Sprintf(`"ids":[%v,%v],"text":"x",`, one, one))); !strings.Contains(got, "two or more different") {
@@ -80,8 +80,8 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 // it, any agent may merge them, and their own cap is apart from each agent's.
 func TestALessonAboutTheFounderCitesTheirWordsAndHasItsOwnCap(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.other")
-	worker, other := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.other")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/other")
+	worker, other := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "gp/other")
 	founder, err := addr.OwnerOf(d, worker)
 	if err != nil {
 		t.Fatal(err)
@@ -157,8 +157,8 @@ func lessonCaller(t *testing.T, d *sql.DB) func(agent, method, params string) ma
 // said in; an agent's own lesson is said once and has neither.
 func TestAPersonsRuleListsItsAreaCountAndQuote(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
-	worker := teamtest.Key(t, home, "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
+	worker := teamtest.Key(t, home, "gp/worker")
 	founder, err := addr.OwnerOf(d, worker)
 	if err != nil {
 		t.Fatal(err)

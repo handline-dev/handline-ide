@@ -16,10 +16,10 @@ import (
 // bobWithKid is the rig with bob.kid in bob's workspace, and the keys of both.
 func bobWithKid(t *testing.T, r *rig) (bob, kid string) {
 	t.Helper()
-	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
+	if _, err := team.NewRoster(r.home).Register("bob/kid", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
-	return r.who("bob"), r.who("bob.kid")
+	return r.who("bob"), r.who("bob/kid")
 }
 
 func workspaceCount(r *rig, name string) int {
@@ -36,11 +36,11 @@ func TestWorkspaceSetRenamesOnlyAndItsAgentsFollow(t *testing.T) {
 	if m := r.call("workspace.set", `{"workspace":"`+ws+`","name":"shop","request_id":"s1"}`); m["result"] == nil {
 		t.Fatalf("%v", m)
 	}
-	if r.who("shop") != bob || r.who("shop.kid") != kid || workspaceCount(r, "bob") != 0 {
-		t.Fatalf("the agents keep their keys under the new name: %s %s", r.who("shop"), r.who("shop.kid"))
+	if r.who("shop") != bob || r.who("shop/kid") != kid || workspaceCount(r, "bob") != 0 {
+		t.Fatalf("the agents keep their keys under the new name: %s %s", r.who("shop"), r.who("shop/kid"))
 	}
-	if r.who("bob.kid") == kid {
-		t.Fatal("the old dotted name no longer reaches the agent")
+	if r.who("bob/kid") == kid {
+		t.Fatal("the old workspace/name no longer reaches the agent")
 	}
 	if m := r.call("workspace.set", `{"workspace":"shop","name":"shop","request_id":"s2"}`); m["result"] == nil {
 		t.Fatalf("the same name is no change: %v", m)
@@ -119,12 +119,12 @@ func TestWorkspaceDeleteRefusesWithNothingDone(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	bob, kid := bobWithKid(t, r)
-	r.setLive("bob.kid", true)
+	r.setLive("bob/kid", true)
 	m := r.call("workspace.delete", `{"workspace":"bob","request_id":"d1"}`)
 	if gate(m) != "state" || !strings.Contains(refusalOf(m), "stop them first") {
 		t.Fatalf("a running session: %v", m)
 	}
-	r.setLive("bob.kid", false)
+	r.setLive("bob/kid", false)
 	bobsWorktrees(t, r)
 	if g := gate(r.call("workspace.delete", `{"workspace":"bob","request_id":"d2"}`)); g != "dirty" {
 		t.Fatalf("work with no answer: gate %q", g)
@@ -217,21 +217,21 @@ func TestWorkspaceDeleteListsEveryAgentsHeldWork(t *testing.T) {
 	}
 }
 
-// A rename that would change a name in use is refused: a session running, or an open proposal naming an agent by its dotted name.
+// A rename that would change a name in use is refused: a session running, or an open proposal naming an agent as workspace/name.
 func TestWorkspaceSetRefusesWhileANameIsInUse(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	bobWithKid(t, r)
-	r.setLive("bob.kid", true)
+	r.setLive("bob/kid", true)
 	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s1"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "session running") {
 		t.Fatalf("%v", m)
 	}
-	r.setLive("bob.kid", false)
-	r.propose("0a01", "kind", "rename", "agent", "bob.kid", "to", "bob.helper")
-	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s2"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "names bob.helper") {
+	r.setLive("bob/kid", false)
+	r.propose("0a01", "kind", "add", "agent", "bob/helper")
+	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s2"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "names bob/helper") {
 		t.Fatalf("%v", m)
 	}
-	if r.who("bob.kid") == "bob.kid" {
+	if r.who("bob/kid") == "bob/kid" {
 		t.Fatal("not renamed")
 	}
 }

@@ -54,7 +54,7 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
-// useWorkspace holds the workspace agent is in (or would be, by its dotted name) against its delete while a call starts or adds
+// useWorkspace holds the workspace agent is in (or would be: a new agent's workspace/name, a new workspace's name) against its delete while a call starts or adds
 // an agent there. A workspace that does not exist yet needs no hold.
 func (e *Env) useWorkspace(agent string) (release func(), err error) {
 	var ws string
@@ -69,7 +69,7 @@ func (e *Env) useWorkspace(agent string) (release func(), err error) {
 			return nil, err
 		}
 	} else {
-		wsName, _ := team.SplitLegacy(agent)
+		wsName, _, _ := strings.Cut(agent, "/")
 		if ws, err = paths.WorkspaceKeyIn(e.DB, wsName); err != nil {
 			return nil, err
 		}

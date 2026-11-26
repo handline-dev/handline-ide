@@ -28,7 +28,7 @@ func (e *Env) optionsRole(name string) string {
 		}
 	}
 	if e.DB != nil {
-		if n, err := paths.AgentNameIn(e.DB, name); err == nil && n != "" {
+		if _, n, err := paths.AgentNamed(e.DB, name); err == nil && n != "" {
 			name = n // the title names the agent, not its key
 		}
 	}

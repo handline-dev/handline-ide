@@ -10,10 +10,10 @@ import (
 func TestFounderHeldTaskIsClosedByItsParentOwner(t *testing.T) {
 	t.Parallel()
 	sdb, _, call := reportEnv(t,
-		"INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at, expects) VALUES(1, 'parent', 'mgr', 'boss', 'lead.auditor', 1, 'report')",
+		"INSERT INTO tasks(id, title, owner, opened_by, reporter, created_at, expects) VALUES(1, 'parent', 'mgr', 'boss', 'lead/auditor', 1, 'report')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, expects) VALUES(2, 'parent no reporter', 'mgr', 'boss', 1, 'report')",
 		"INSERT INTO tasks(id, title, owner, opened_by, parent_task, created_at, expects) VALUES(3, 'k', 'p1', 'w', 1, 1, 'report'), (4, 'k', 'p1', 'w', 1, 1, 'report'), "+
-			"(5, 'k', 'p1', 'w', 2, 1, 'report'), (6, 'k', 'p1', 'lead.auditor', NULL, 1, 'report'), (7, 'k', 'p1', 'w', 1, 1, 'report')")
+			"(5, 'k', 'p1', 'w', 2, 1, 'report'), (6, 'k', 'p1', 'lead/auditor', NULL, 1, 'report'), (7, 'k', 'p1', 'w', 1, 1, 'report')")
 	n := func(q string) (c int) { sdb.QueryRow(keyed(sdb, q)).Scan(&c); return }
 	if r := call("boss", "task.done", "r0", `,"task":7,"evidence":"taken back"`); r["error"] == nil {
 		t.Fatalf("a stranger closed a founder-held task: %v", r)
@@ -24,7 +24,7 @@ func TestFounderHeldTaskIsClosedByItsParentOwner(t *testing.T) {
 	for _, c := range []struct {
 		agent string
 		task  int
-	}{{"mgr", 3}, {"lead.auditor", 4}, {"boss", 5}} {
+	}{{"mgr", 3}, {"lead/auditor", 4}, {"boss", 5}} {
 		said(t, call(c.agent, "task.done", fmt.Sprint("r", c.task), fmt.Sprintf(`,"task":%d,"evidence":"taken back"`, c.task)))
 		if n(fmt.Sprintf("SELECT COUNT(*) FROM tasks WHERE id = %d AND done_evidence = 'taken back'", c.task)) != 1 {
 			t.Fatalf("%s did not close T%d", c.agent, c.task)

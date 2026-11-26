@@ -301,7 +301,7 @@ func TestEverySlowMethodIsAMethodTheDaemonServes(t *testing.T) {
 }
 
 func TestAVerbChainNoteRidesOnTheNextHelloOnce(t *testing.T) {
-	t.Setenv("HANDLINE_AGENT", "a.one")
+	t.Setenv("HANDLINE_AGENT", "a/one")
 	d, to := serve(t, func(m map[string]any) string { return ok(m, `{}`) })
 	c := client(to)
 	c.NoteVerbChain([]string{"say", strings.Repeat("x", 80), "c", "dropped"})
@@ -314,7 +314,7 @@ func TestAVerbChainNoteRidesOnTheNextHelloOnce(t *testing.T) {
 	defer d.mu.Unlock()
 	note, _ := d.lines[0]["params"].(map[string]any)["note"].(map[string]any)
 	argv, _ := note["argv"].([]any)
-	if note["agent"] != "a.one" || note["kind"] != "verb_chain" || len(argv) != 3 || argv[1] != strings.Repeat("x", 40) {
+	if note["agent"] != "a/one" || note["kind"] != "verb_chain" || len(argv) != 3 || argv[1] != strings.Repeat("x", 40) {
 		t.Fatalf("note: %v", note)
 	}
 	if _, again := d.lines[2]["params"].(map[string]any)["note"]; again {
@@ -342,8 +342,8 @@ func TestAnAgentsSessionHoldsNoFounderKey(t *testing.T) {
 func TestAgentIsTheKeyOfTheNameInTheEnvironment(t *testing.T) {
 	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
 	home := paths.Home()
-	teamtest.Seed(t, home, "shop", "shop.quill")
-	ui := teamtest.Key(t, home, "shop.quill")
+	teamtest.Seed(t, home, "shop", "shop/quill")
+	ui := teamtest.Key(t, home, "shop/quill")
 	for env, want := range map[string]string{"quill": ui, "shop/quill": ui, ui: ui, "human": "human", "": "", "nobody": "nobody"} {
 		t.Setenv("HANDLINE_AGENT", env)
 		if got := Agent(); got != want {
