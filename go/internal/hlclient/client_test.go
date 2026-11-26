@@ -338,7 +338,7 @@ func TestAnAgentsSessionHoldsNoFounderKey(t *testing.T) {
 	}
 }
 
-// HANDLINE_AGENT holds the agent's name; hl takes it back to the key. A key, from a session started before names, stays a key.
+// HANDLINE_AGENT holds the agent's name; hl takes it back to the key.
 func TestAgentIsTheKeyOfTheNameInTheEnvironment(t *testing.T) {
 	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
 	home := paths.Home()

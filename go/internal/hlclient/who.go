@@ -6,16 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 )
 
-// Agent is the key of the agent $HANDLINE_AGENT names (its name, or its key in a session started before names), "" when unset; a
-// name no agent has, as given, for the daemon to refuse.
+// Agent is the key of the agent $HANDLINE_AGENT names, "" when unset; a name no agent has, as given, for the daemon to refuse.
 func Agent() string {
 	v, _ := paths.Getenv("AGENT")
-	if v == "" || v == Human || actor.KindOf(v) == actor.Agent {
+	if v == "" || v == Human {
 		return v
 	}
 	if k, err := paths.AgentKeyReadOnly(paths.Home(), v); err == nil && k != "" {

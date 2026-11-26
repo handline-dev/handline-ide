@@ -456,7 +456,8 @@ func TestAHelloNoteIsHandedToTheServerOnTheLocalSocketOnly(t *testing.T) {
 }
 
 // A who param's word, and a who inside an object param, reach the handler as the key addr.Resolve gives; anything else is left as
-// sent. A word that names no one goes on as sent for the app, and is refused with the names to use for hl.
+// sent. A word that names no one goes on as sent for the app, and is refused with the names to use for hl; so is hl naming another
+// agent by its key, except in the daemon's own launch command.
 func TestWhoParamsAreResolvedBeforeTheHandler(t *testing.T) {
 	srv := NewServer(fakeAuth{}, "abc1234", 7, "local", func(string, ...any) {})
 	db := storetest.Open(t)
@@ -485,6 +486,17 @@ func TestWhoParamsAreResolvedBeforeTheHandler(t *testing.T) {
 	c.helloClient = "hl"
 	if err := c.resolveWho("load.get", p); err == nil || !strings.Contains(err.Error(), "names no one you can reach: use human, or a workspace") {
 		t.Fatalf("hl's word that names no one: %v", err)
+	}
+	if err := c.resolveWho("load.get", map[string]any{"agent": "a1"}); err == nil || !strings.Contains(err.Error(), "name the agent (lead), not its key (a1)") {
+		t.Fatalf("hl naming an agent by its key: %v", err)
+	}
+	p = map[string]any{"agent": "a1"}
+	if err := c.resolveWho("session.launch_prepare", p); err != nil || p["agent"] != "a1" {
+		t.Fatalf("the daemon's own hl launch <key>: %v %v", p, err)
+	}
+	c.Caller = Caller{Kind: "agent", Key: "a1"}
+	if err := c.resolveWho("load.get", map[string]any{"agent": "a1"}); err != nil {
+		t.Fatalf("an agent naming itself by its key: %v", err)
 	}
 }
 

@@ -632,8 +632,12 @@ func (c *Conn) Reader() (addr.Who, error) {
 	return addr.Of(c.srv.Names, c.Caller.Key, c.cwd)
 }
 
+// keyTyped is the methods hl may name an agent in by its key: the daemon itself types `hl launch <key>`.
+var keyTyped = map[string]bool{"session.launch_prepare": true}
+
 // resolveWho puts the key in place of each who param's word (SpecParam.Who), so a handler sees keys only.
 // A word addr.Resolve refuses is refused here for a Typed caller; for another it goes on as sent, for the handler to refuse.
+// A Typed caller names another agent by its name, not its key (keyTyped aside).
 func (c *Conn) resolveWho(method string, params map[string]any) error {
 	names := c.srv.Names
 	sp, ok := Spec(method)
@@ -658,9 +662,11 @@ func (c *Conn) resolveWho(method string, params map[string]any) error {
 		var refused *addr.Refusal
 		switch {
 		case err == nil:
-			if c.Typed() && k == w && actor.KindOf(w) == actor.Agent {
-				// counted until keys stop being taken (T9202)
-				c.srv.Log("  who by key: %s %s=%s from %s", method, param, w, c.Caller.Key)
+			if c.Typed() && k == w && actor.KindOf(w) == actor.Agent && !keyTyped[method] {
+				e := NotFoundError(fmt.Sprintf("name the agent (%s), not its key (%s)", addr.Name(names, r, k), k))
+				e.Data = map[string]any{"what": "who", "name": w, "field": param}
+				failed = e
+				return w
 			}
 			return k
 		case !errors.As(err, &refused):

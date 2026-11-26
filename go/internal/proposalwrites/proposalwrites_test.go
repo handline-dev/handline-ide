@@ -437,8 +437,9 @@ func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	if !strings.Contains(r.rosterText(), "  eng: {}") || team.NewRoster(r.home).RepoOf("eng/carol") != repo {
 		t.Fatalf("%s", r.rosterText())
 	}
-	if in := r.agentPart("eng/carol", db.PartRole); in.Text == "" || in.Actor == team.SeedActor || in.Approver != actor.OwnerKey {
-		t.Fatalf("registered with a role by its proposer, with the founder's OK: %+v", in)
+	// its role is the proposal's why, with no date or proposer's key in front
+	if in := r.agentPart("eng/carol", db.PartRole); !strings.HasSuffix(in.Text, "\n\nbecause") || strings.Contains(in.Text, "Added on") || in.Actor == team.SeedActor || in.Approver != actor.OwnerKey {
+		t.Fatalf("registered with the why as its role by its proposer, with the founder's OK: %+v", in)
 	}
 	// the team named is the workspace its name says
 	p, id = r.propose("aaaa0013", "kind", "add", "agent", "dave", "team", "eng")

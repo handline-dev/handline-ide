@@ -35,7 +35,8 @@ Only personal mode is built: one person, the owner. The person columns are there
 `addr.Resolve(caller, word)` turns a word into a key, in this order: `human` (the caller's owner, or the task's person), a key that
 names a row, an agent of the caller's workspace, `workspace/agent`, a workspace (its lead receives it), an agent whose name no other
 agent has, a handle. Anything else is refused with the names the caller may use. `hl say`, `--assign`, `hl task handoff`, `--turn` and
-comment mentions all take these words.
+comment mentions all take these words. From hl, another agent's key is refused with its name to use, except in `hl launch <key>`,
+which the daemon itself types; the app sends keys.
 
 Routing follows the same lines: an agent may reach every agent of its workspace, its owner and any workspace's lead; the founder may
 reach anyone. `addr.Name` writes a key out as the word the reader would use: an agent of another workspace whose name another agent
@@ -58,7 +59,7 @@ Folders under the home are named by key, so Claude's project history, keyed by w
 `agents/<a-key>/`, `workspaces/<w-key>/`, `caches/<a-key>/`. An account's folder, `accounts/<folder>/` (its Claude config dir), is a
 random hex name its row records (`accounts.folder`); an account whose row records none has its key, `accounts/<c-key>/`. The folder
 never moves: the Keychain keeps a login under its path. An agent works in
-a desk (worktree) of its workspace's project folder. `HANDLINE_AGENT` carries the key.
+a desk (worktree) of its workspace's project folder. `HANDLINE_AGENT` carries its name; hl looks the key up.
 
 ## Contract
 

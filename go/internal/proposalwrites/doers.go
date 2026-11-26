@@ -43,10 +43,6 @@ func strPtr(s string) *string {
 	return &s
 }
 
-func (e *Env) roleOf(p step, with string) string {
-	return fmt.Sprintf("Added on %s at %s's request%s: %s", stamp(p.get("created")), p.str("requested_by"), with, p.str("why"))
-}
-
 func (e *Env) register(name string, p step, repo, role string) error {
 	_, err := e.rosterIn(p).Register(name, team.RegisterOpts{Role: role, Repo: repo, By: p.str("requested_by"), Approver: actor.OwnerKey,
 		Model: strPtr(p.str("model")), Effort: strPtr(p.str("effort")),
@@ -113,7 +109,7 @@ func (e *Env) doAdd(p step) (bool, string, error) {
 	if ws, _, _ := strings.Cut(name, "/"); p.str("team") != "" && p.str("team") != ws {
 		return false, fmt.Sprintf("%s would be in workspace %s, not %s: an agent's workspace is the first part of its name", name, ws, p.str("team")), nil
 	}
-	if err := e.register(name, p, p.str("repo"), e.roleOf(p, "")); err != nil {
+	if err := e.register(name, p, p.str("repo"), p.str("why")); err != nil {
 		return false, "", err
 	}
 	repo := p.str("repo")
@@ -136,7 +132,7 @@ func (e *Env) doTeam(p step) (bool, string, error) {
 	if why := applyRepoProblem(p.str("repo")); why != "" {
 		return false, why, nil
 	}
-	role := e.roleOf(p, ", with team "+name)
+	role := p.str("why") // the role text the new agents start from
 	seen := map[string]bool{}
 	var repos []string
 	for _, n := range everyone {
