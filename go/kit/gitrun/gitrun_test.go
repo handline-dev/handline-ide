@@ -209,6 +209,52 @@ func TestTheBaseIsOriginsCopyOfTheDefaultBranchThenTheLocalOne(t *testing.T) {
 	}
 }
 
+// A name read from a ref file or from the main worktree's HEAD is the default branch only when git itself would take it as a branch's
+// name: one that starts like an option, or climbs out of refs/heads, never reaches git as an argument.
+func TestTheDefaultBranchIsAlwaysAPlainBranchName(t *testing.T) {
+	for name, want := range map[string]bool{
+		"main": true, "release/1.x": true, "feat_x-2": true,
+		"": false, "-a": false, "-d": false, "--upload-pack=x": false, "../../config": false, "a..b": false, ".hidden": false, "a/.b": false,
+		"a b": false, "a\nb": false, "a:b": false, "a*": false, "a~1": false, "a^": false, "a.lock": false, "/a": false, "a/": false, "a@{1}": false,
+	} {
+		if PlainBranch(name) != want {
+			t.Errorf("PlainBranch(%q) is %v", name, !want)
+		}
+	}
+
+	// no main or master, and an origin/HEAD that names a branch origin has not got: the main worktree's branch is the last word, and
+	// its HEAD is a file a session can write
+	_, clone := remote(t, "trunk")
+	head := filepath.Join(clone, ".git", "HEAD")
+	for _, odd := range []string{"-a", "-d", "../../x"} {
+		tgit(t, clone, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/gone")
+		if err := os.WriteFile(head, []byte("ref: refs/heads/"+odd+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if b := DefaultBranch(clone); b != "main" {
+			t.Fatalf("HEAD on %q: the default branch is %q", odd, b)
+		}
+		if NameOriginHead(clone) {
+			t.Fatalf("HEAD on %q: origin/HEAD was set", odd)
+		}
+		if got := tgit(t, clone, "symbolic-ref", "refs/remotes/origin/HEAD"); got != "refs/remotes/origin/gone" {
+			t.Fatalf("HEAD on %q: git took the name as an option: origin/HEAD is %q", odd, got)
+		}
+	}
+	// origin/HEAD itself naming a ref that is no branch's name, though the ref is there
+	if err := os.WriteFile(head, []byte("ref: refs/heads/trunk\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tgit(t, clone, "update-ref", "refs/remotes/origin/-x", "refs/remotes/origin/trunk")
+	tgit(t, clone, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/-x")
+	if b := DefaultBranch(clone); b != "trunk" {
+		t.Fatalf("origin/HEAD on -x: the default branch is %q", b)
+	}
+	if !NameOriginHead(clone) || originHeadOf(clone) != "origin/trunk" {
+		t.Fatalf("origin/HEAD on -x was not named again: %q", originHeadOf(clone))
+	}
+}
+
 func TestDefaultBranchIsReadFromTheRepository(t *testing.T) {
 	git := func(dir string, args ...string) {
 		t.Helper()

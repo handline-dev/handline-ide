@@ -57,8 +57,24 @@ func NoPrompts(protocols []string) []string {
 	return env
 }
 
+// PlainBranch is whether b can be a branch's name as git itself would take one (check-ref-format). Only such a name is a default
+// branch: the answer is handed to git as an argument and joined into a path under refs/heads, and both places it is read from, a ref
+// file and the main worktree's HEAD, can be written by hand with a name that starts like an option ("-d") or climbs out of the folder.
+func PlainBranch(b string) bool {
+	if b == "" || b[0] == '-' || b[0] == '.' || b[0] == '/' || strings.HasSuffix(b, "/") || strings.HasSuffix(b, ".") || strings.HasSuffix(b, ".lock") {
+		return false
+	}
+	for _, bad := range []string{"..", "//", "/.", "@{"} {
+		if strings.Contains(b, bad) {
+			return false
+		}
+	}
+	return !strings.ContainsFunc(b, func(r rune) bool { return r <= ' ' || r == 0x7f || strings.ContainsRune(`~^:?*[\`, r) })
+}
+
 // DefaultBranch is the branch the repository at repo merges into: origin's HEAD when it names a branch origin has, else main or master
-// when it has one, else the branch its main worktree has checked out, else IntegrationBranch. repo may be any of its worktrees.
+// when it has one, else the branch its main worktree has checked out, else IntegrationBranch. repo may be any of its worktrees. The
+// answer is always a plain branch name (PlainBranch): a name that is not is passed over.
 func DefaultBranch(repo string) string {
 	if b := originHead(repo); b != "" {
 		return b
@@ -74,7 +90,7 @@ func DefaultBranch(repo string) string {
 	if r := Run(repo, "worktree", "list", "--porcelain"); r.RC == 0 {
 		first, _, _ := strings.Cut(r.Stdout, "\n\n")
 		for _, l := range strings.Split(first, "\n") {
-			if b, ok := strings.CutPrefix(l, "branch refs/heads/"); ok {
+			if b, ok := strings.CutPrefix(l, "branch refs/heads/"); ok && PlainBranch(b) {
 				return b
 			}
 		}
@@ -87,7 +103,7 @@ func DefaultBranch(repo string) string {
 func originHead(repo string) string {
 	r := Run(repo, "symbolic-ref", "-q", "refs/remotes/origin/HEAD")
 	b, ok := strings.CutPrefix(strings.TrimSpace(r.Stdout), "refs/remotes/origin/")
-	if r.RC != 0 || !ok || b == "" || Run(repo, "rev-parse", "-q", "--verify", "refs/remotes/origin/"+b+"^{commit}").RC != 0 {
+	if r.RC != 0 || !ok || !PlainBranch(b) || Run(repo, "rev-parse", "-q", "--verify", "refs/remotes/origin/"+b+"^{commit}").RC != 0 {
 		return ""
 	}
 	return b
@@ -96,11 +112,17 @@ func originHead(repo string) string {
 // NameOriginHead gives origin/HEAD a branch when it names none that origin has: the repository's default branch (DefaultBranch), which
 // a session then reads from it as the branch work merges into. One that names a branch of origin is left as it is, whichever branch
 // that is: it is the remote's own word, or the person's. True when it was set; false when it was left, or origin has no such branch.
+// The name given to git is a plain branch name and origin is checked to have it, so git reads it as a branch and never as one of
+// set-head's options, which ask the remote or delete origin/HEAD.
 func NameOriginHead(cwd string) bool {
 	if originHead(cwd) != "" {
 		return false
 	}
-	return Run(cwd, "remote", "set-head", "origin", DefaultBranch(cwd)).RC == 0
+	b := DefaultBranch(cwd)
+	if !PlainBranch(b) || Run(cwd, "rev-parse", "-q", "--verify", "refs/remotes/origin/"+b+"^{commit}").RC != 0 {
+		return false
+	}
+	return Run(cwd, "remote", "set-head", "origin", b).RC == 0
 }
 
 // Base is where a repository's landed work is. Branch is its default branch, and Refs are the refs of it the repository has: origin's
