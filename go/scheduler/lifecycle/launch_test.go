@@ -735,6 +735,24 @@ func TestBuildHandsTheDriverTheGrants(t *testing.T) {
 	}
 }
 
+// The founder's always-allowed rules go to the driver with every launch.
+func TestBuildHandsTheDriverTheAlwaysAllowedRules(t *testing.T) {
+	r := newLaunchRig(t)
+	var got cli.LaunchArgs
+	r.l.Ports.Vendors = argsVendors{fakeVendors{"claude"}, argsDriver{fakeDriver{vendor: "claude"}, &got}}
+	t.Setenv("HANDLINE_AGENT", "") // the founder keeps the rule: the protected store refuses an agent's session
+	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	if err := access.AddRule(r.l.Home, "ann", "Bash(npm test)", time.Unix(1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := r.build("ann", nil, false, "main"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got.AlwaysAllow, []string{"Bash(npm test)"}) {
+		t.Fatalf("%v", got.AlwaysAllow)
+	}
+}
+
 // A resume Build puts on an account that does not hold the session finds it there all the same: carried over from the old account.
 func TestAResumeBuildCarriesTheSessionToItsAccount(t *testing.T) {
 	r := newLaunchRig(t)

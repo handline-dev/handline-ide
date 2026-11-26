@@ -37,11 +37,11 @@ func (e *Env) agentNamed(params map[string]any) (string, error) {
 }
 
 // answerFor is what Answer takes for choice on this block: allow or deny, the two a hook's question offers, and always when it offers a
-// grant; bad_request for anything else.
-func answerFor(b *Block, choice any) (Choice, error) {
+// grant or a rule; bad_request for anything else.
+func (e *Env) answerFor(b *Block, choice any) (Choice, error) {
 	c, _ := choice.(string)
 	offers := "allow, deny"
-	if b.Grant() != nil {
+	if b.Grant() != nil || e.hooks.rule(b.ID) != "" {
 		offers += ", " + AlwaysKey
 	}
 	if !b.IsHook() || !slices.Contains(strings.Split(offers, ", "), c) {
@@ -94,12 +94,12 @@ func (e *Env) answer(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		return nil, StaleError(current)
 	}
-	pick, err := answerFor(block, choice)
+	pick, err := e.answerFor(block, choice)
 	if err != nil {
 		return nil, err
 	}
 	if pick.Always && !c.Caller.Allows("owner") { // it is a grant, and only the owner grants (access.grant)
-		return nil, rpc.Refused("only the owner can allow always: it grants a read of every agent's memory and transcripts", "role", "")
+		return nil, rpc.Refused("only the owner can allow always: it keeps a grant or a rule for the agent's every session", "role", "")
 	}
 	if note, has := params["note"]; has {
 		text, ok := note.(string)

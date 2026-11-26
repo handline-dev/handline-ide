@@ -92,6 +92,7 @@ export const useInputTake = (target?: string) => useWrite("input.take", target);
 export const useInputRelease = (target?: string) => useWrite("input.release", target);
 export const useAccessGrant = (target?: string) => useWrite("access.grant", target);
 export const useAccessRevoke = (target?: string) => useWrite("access.revoke", target);
+export const useAccessRuleRemove = (target?: string) => useWrite("access.rule_remove", target);
 export const useAgentReviewSet = (target?: string) => useWrite("agent.review_set", target);
 export const useAgentContextSet = (target?: string) => useWrite("agent.context.set", target);
 export const useAgentMemoryRemove = (target?: string) => useWrite("agent.memory.remove", target);

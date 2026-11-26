@@ -87,6 +87,8 @@ export type PromptOption = {
   label: string;
   answer?: "yes" | "no" | "other";
   highlighted?: boolean;
+  /** On a hook permission prompt's always option that keeps a rule: the exact rule, Tool(content). */
+  rule?: string;
 };
 
 export type Prompt = {

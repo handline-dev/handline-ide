@@ -1200,7 +1200,7 @@
    },
    "AccessChanged": {
     "type": "object",
-    "description": "access.changed: an agent's grants after a change (x-access).",
+    "description": "access.changed: an agent's grants and always-allowed rules after a change (x-access).",
     "properties": {
      "agent": {
       "$ref": "#/components/schemas/Who"
@@ -1210,11 +1210,18 @@
       "items": {
        "$ref": "#/components/schemas/Grant"
       }
+     },
+     "rules": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/AllowRule"
+      }
      }
     },
     "required": [
      "agent",
-     "grants"
+     "grants",
+     "rules"
     ]
    },
    "BackgroundJob": {
@@ -1337,6 +1344,23 @@
      "output"
     ],
     "additionalProperties": false
+   },
+   "AllowRule": {
+    "type": "object",
+    "description": "An exact Bash command the founder always allows an agent (x-access), kept where no agent can write it: each fresh session of the agent, and of its temps, starts with it allowed.",
+    "properties": {
+     "rule": {
+      "type": "string",
+      "description": "Claude Code's rule for the exact command, as the card's Always allow named it: Bash(npm test)."
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp"
+     }
+    },
+    "required": [
+     "rule",
+     "at"
+    ]
    }
   }
  },
@@ -3114,7 +3138,7 @@
     "terminal_lock",
     "input_holder"
    ],
-   "description": "For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask); one that also offers always (a read of another agent's memory or a transcript) takes it too, from the owner only (refused, field role, for anyone else): allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them)."
+   "description": "For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask); one that also offers always takes it too, from the owner only (refused, field role, for anyone else). For a read of another agent's memory or a transcript: allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them). For a rule (the option carries `rule`): allowed, the running session applies the rule from now, and it is kept as the agent's always-allowed rule (access.list), which each fresh session of the agent and of its temps starts with; access.changed is emitted."
   },
   {
    "name": "permission.ask",
@@ -3161,6 +3185,22 @@
       "message": {
        "type": "string",
        "description": "With deny: what the agent is told, with the founder's note when one was given."
+      },
+      "rule": {
+       "type": "object",
+       "description": "With allow, after Always allow: the rule the running session applies from now (the hook's updatedPermissions, destination session).",
+       "properties": {
+        "tool": {
+         "type": "string"
+        },
+        "content": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "tool",
+        "content"
+       ]
       }
      },
      "required": [
@@ -3180,7 +3220,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session."
+   "description": "Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript, or, labeled \"Always allow <agent> <rule>\" with allow labeled \"Allow once\", for a Bash command this agent was asked in the same exact text before: the rule is Bash(<that command>). Only a plain command is offered: none with a shell character (* \\ ( ) $ ` ' \" ~ ; & | < > { } [ ] ! # or a tab or newline), with words not single-spaced, over 300 characters, or naming tmux, send-keys, osascript, security, a credential, keychain, token, secret, password, .ssh, handline, push, sqlite3, the handline home or the protected store. The rule pressed is the one the daemon worked out from the call's own input, never one read back from the prompt row), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session."
   },
   {
    "name": "input.take",
@@ -3718,7 +3758,7 @@
   },
   {
    "name": "access.list",
-   "summary": "The paths the founder granted an agent, newest first.",
+   "summary": "The paths the founder granted an agent, and the tool rules they always allow it, newest first.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3739,10 +3779,17 @@
        "items": {
         "$ref": "#/components/schemas/Grant"
        }
+      },
+      "rules": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/AllowRule"
+       }
       }
      },
      "required": [
-      "grants"
+      "grants",
+      "rules"
      ]
     }
    },
@@ -3765,7 +3812,89 @@
    "x-gates": [
     "role"
    ],
-   "description": "See x-access. Only grants: the roots every session reads are not listed. An unknown agent is not_found, what agent; an agent or member caller is refused, gate role."
+   "description": "See x-access. Only grants and the founder's always-allowed rules: the roots every session reads are not listed. A temp's sessions start with the rules of the agent it was hired from. An unknown agent is not_found, what agent; an agent or member caller is refused, gate role."
+  },
+  {
+   "name": "access.rule_remove",
+   "summary": "The founder takes back a tool rule they always allow an agent.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "rule",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "The rule as access.list gives it."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "removed": {
+         "type": "boolean",
+         "description": "false when the agent had no such rule."
+        },
+        "applies_from": {
+         "type": "string",
+         "enum": [
+          "next_session"
+         ],
+         "description": "A session that started with the rule keeps it until the agent's next fresh session."
+        }
+       },
+       "required": [
+        "removed",
+        "applies_from"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "remove always-allowed rule"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role"
+   ],
+   "description": "See x-access. A rule never kept is accepted with removed false, so a retried tap is no error. An empty rule is bad_request, field rule; an unknown agent is not_found, what agent. An agent or member caller is refused, gate role. Emits access.changed."
   },
   {
    "name": "agent.review_set",

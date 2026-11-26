@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/status"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
@@ -357,6 +358,11 @@ func optionsOf(kind string, answerable bool, detail map[string]any) []any {
 			out := []any{map[string]any{"key": "allow", "label": "Allow", "answer": "yes", "highlighted": false}}
 			if _, grants := detail["grant"]; grants { // a read of another agent's memory or transcripts (prompts.ReadGrant)
 				out = append(out, map[string]any{"key": "always", "label": "Allow always: every agent's memory and transcripts", "answer": "yes", "highlighted": false})
+			} else if rule, _ := detail["rule"].(string); rule != "" && detail["offer_rule"] == true { // asked before (prompts.AskPermission)
+				agent, _ := detail["agent"].(string)
+				out[0].(map[string]any)["label"] = "Allow once"
+				out = append(out, map[string]any{"key": "always", "label": "Always allow " + addr.Ref(agent) + " " + rule, "answer": "yes",
+					"highlighted": false, "rule": rule})
 			}
 			return append(out, map[string]any{"key": "deny", "label": "Deny", "answer": "no", "highlighted": false})
 		}

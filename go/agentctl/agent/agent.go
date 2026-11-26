@@ -41,6 +41,8 @@ type LaunchArgs struct {
 	MCPApproved               []string
 	// ReadAllow are files and folders the session may read with its file tools without asking: the attachments folder and the founder's grants.
 	ReadAllow []string
+	// AlwaysAllow are the tool rules (Tool(content)) the founder always allows the agent: its session starts with them allowed.
+	AlwaysAllow []string
 	// LandPush lets the session run `git push origin HEAD:main` without asking: it is the workspace's land_by agent.
 	LandPush bool
 	// AskRead is the part of Hide whose Read tool asks the founder instead of refusing; Bash is refused all of Hide.

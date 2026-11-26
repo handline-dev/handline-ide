@@ -207,6 +207,10 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if err != nil {
 		return nil, nil, err
 	}
+	rules, err := access.RulesForLaunch(l.Q, l.Home, agent)
+	if err != nil {
+		return nil, nil, err
+	}
 	confined, err := l.Confinement(agent, cwd, drv, granted)
 	if err != nil {
 		return nil, nil, err
@@ -231,8 +235,9 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		MemoryDir: memoryDir, Trusted: trusted, Chrome: team.Chrome(cfg),
 		SandboxOff:  !sandboxed,
 		MCPApproved: approved, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
-		LandPush:   l.held(agent).LandBy == agent,
-		AllowWrite: allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.Roster.OtherFolders(agent),
+		AlwaysAllow: rules,
+		LandPush:    l.held(agent).LandBy == agent,
+		AllowWrite:  allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.Roster.OtherFolders(agent),
 		WeakerNetwork: allowed.WeakerNetwork, Excluded: allowed.Excluded,
 	})
 	// The pair goes whole or not at all: a caller's own mode wins, and a lone value left behind would be read as the opening prompt.

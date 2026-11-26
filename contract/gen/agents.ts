@@ -287,10 +287,11 @@ export type Grant = {
   at: Timestamp;
 };
 
-/** access.changed: an agent's grants after a change (x-access). */
+/** access.changed: an agent's grants and always-allowed rules after a change (x-access). */
 export type AccessChanged = {
   agent: Who;
   grants: Grant[];
+  rules: AllowRule[];
 };
 
 /** One piece of work running behind an agent's prompt. */
@@ -329,6 +330,13 @@ export type AgentJob = {
   started: number | null;
   /** A shell's last 5 output lines that are not blank, each at most 200 characters; [] when its output file cannot be read; null for a job that is no shell. */
   output: string[] | null;
+};
+
+/** An exact Bash command the founder always allows an agent (x-access), kept where no agent can write it: each fresh session of the agent, and of its temps, starts with it allowed. */
+export type AllowRule = {
+  /** Claude Code's rule for the exact command, as the card's Always allow named it: Bash(npm test). */
+  rule: string;
+  at: Timestamp;
 };
 
 export interface AgentsMethods {
@@ -543,6 +551,11 @@ export interface AgentsMethods {
     behavior: ("allow" | "deny") | null;
     /** With deny: what the agent is told, with the founder's note when one was given. */
     message?: string;
+    /** With allow, after Always allow: the rule the running session applies from now (the hook's updatedPermissions, destination session). */
+    rule?: {
+      tool: string;
+      content: string;
+    };
   } };
   "input.take": { params: {
   agent: Who;
@@ -611,6 +624,18 @@ export interface AgentsMethods {
   agent: Who;
 }; result: {
     grants: Grant[];
+    rules: AllowRule[];
+  } };
+  "access.rule_remove": { params: {
+  agent: Who;
+  /** The rule as access.list gives it. */
+  rule: string;
+  request_id: RequestId;
+}; result: Accepted & {
+    /** false when the agent had no such rule. */
+    removed: boolean;
+    /** A session that started with the rule keeps it until the agent's next fresh session. */
+    applies_from: "next_session";
   } };
   "agent.review_set": { params: {
   agent: Who;
@@ -730,6 +755,7 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "access.grant": { role: "owner", callers: null, write: true, since: 1 },
   "access.revoke": { role: "owner", callers: null, write: true, since: 1 },
   "access.list": { role: "owner", callers: null, write: false, since: 1 },
+  "access.rule_remove": { role: "owner", callers: null, write: true, since: 1 },
   "agent.review_set": { role: "owner", callers: null, write: true, since: 1 },
   "agent.review": { role: "member", callers: null, write: false, since: 1 },
   "agent.context": { role: "member", callers: null, write: false, since: 1 },
@@ -757,7 +783,7 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "access.rule_remove" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
@@ -785,6 +811,7 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move
   "say": false,
   "access.grant": {"kind": "decided", "label": "allow access"},
   "access.revoke": {"kind": "decided", "label": "remove access"},
+  "access.rule_remove": {"kind": "decided", "label": "remove always-allowed rule"},
   "agent.review_set": {"kind": "decided", "label": "set a review level"},
   "agent.context.set": {"kind": "decided", "label": "change an agent's role or standing context"},
   "agent.memory.remove": {"kind": "decided", "label": "remove a memory note"},

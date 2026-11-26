@@ -279,6 +279,7 @@ const permissionWaitS = 3600 + 30
 // is down, the hour passed, or the input is not an object), and the agent's own dialog shows in its terminal. An AskUserQuestion is
 // never asked: an allow would carry no answers. The question lives as long as the call: when the connection breaks before a reply (the
 // daemon restarted), the same question is asked again of the daemon that comes back, within the same hour, so its card returns.
+// An allow that carries a rule (an Always allow) applies it to the running session, which asks no more for it.
 func askPermission(c *hlclient.Client, tool string, input any) string {
 	in, ok := input.(map[string]any)
 	if tool == "" || tool == "AskUserQuestion" || !ok {
@@ -313,6 +314,10 @@ func askPermission(c *hlclient.Client, tool string, input any) string {
 	decision := map[string]any{"behavior": behavior}
 	if msg, _ := res["message"].(string); behavior == "deny" && msg != "" {
 		decision["message"] = msg
+	}
+	if r, _ := res["rule"].(map[string]any); behavior == "allow" && r != nil {
+		decision["updatedPermissions"] = []any{map[string]any{"type": "addRules", "behavior": "allow", "destination": "session",
+			"rules": []any{map[string]any{"toolName": r["tool"], "ruleContent": r["content"]}}}}
 	}
 	return pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PermissionRequest", "decision": decision}}, true, true)
 }
