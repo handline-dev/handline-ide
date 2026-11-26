@@ -49,9 +49,10 @@ func TestATerminalIsOpenedInTheWorktreeAndTheLaunchLineTypedAtItsShell(t *testin
 		t.Fatalf("%q %q", handle, why)
 	}
 	got := calls(t, log)
-	// no server yet: a session is made with a size; the window name has no dots or colons; the home goes in the environment
+	// no server yet: a session is made with a size; the window name has no dots or colons; the home goes in the environment. Counted
+	// from the end: on macOS a keychain probe of the running server comes first (keychain.go).
 	want := "-u -L t new-session -d -s handline -x 200 -y 50 -n alice_x -c /wt/alice -e HANDLINE_HOME=/h -e HANDLINE_TMUX_SOCKET=t -P -F #{pane_id}"
-	if got[1] != want {
+	if len(got) < 4 || got[len(got)-4] != want {
 		t.Fatalf("%q", got)
 	}
 	if got[len(got)-2] != "-u -L t send-keys -t %7 -l -- hl launch alice" || got[len(got)-1] != "-u -L t send-keys -t %7 Enter" {

@@ -30,6 +30,9 @@ func (t Tmux) serverUp() bool {
 const AgentOption = "@hl_agent"
 
 func (t Tmux) CreateTerminal(command, cwd, title, agent string) (string, string) {
+	if why := t.keychainRefusal(); why != "" {
+		return "", why
+	}
 	pane, why := t.newPane(cwd, title, "")
 	if pane == "" {
 		return "", why
