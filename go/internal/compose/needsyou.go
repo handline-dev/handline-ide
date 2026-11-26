@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/handline/handline/go/internal/heal"
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/scheduler/session"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
 // titles is the card's title for a need the agent's session or a hook reports, by its kind.
@@ -52,12 +54,11 @@ func (p *Parts) switchOffer(agent string) *agentview.NeedsYou {
 		Text: to + " is the closest, and may reach its limit again soon."}
 }
 
-// needsYou is where an agent's need of a person comes from, never the screen: the session's own file saying status waiting (read through
-// terminalSession, the one reader of a terminal agent's session), and the wait file the PermissionRequest hook writes. An agent that is not
-// there to wait (no row, closed, or no live session) needs nobody; a live session that says it is not waiting is past the prompt whatever a
-// wait file still says, since the file is taken away only by the call that ran or a hook that ends the turn, and the call may run for
-// minutes. The hook's file counts for an agent whose row is running: a session at a prompt sends no Stop, so its row stays running, and one
-// that died there leaves the file behind. With Config.NotifiedNeedsYou, a prompt hooks.Notified reports unanswered counts too.
+// needsYou is where an agent's need of a person comes from, never the screen: its session file saying waiting (terminalSession, the one
+// reader of a terminal agent's session) and the PermissionRequest hook's wait file. An agent not there to wait (no row, closed, no live
+// session) needs nobody; a live session not waiting is past the prompt whatever the wait file says, as that file goes only when the call
+// ran or the turn ended. The wait file counts while the row is running: a session at a prompt sends no Stop. With Config.NotifiedNeedsYou,
+// a prompt hooks.Notified reports unanswered counts too. Any of them said before the agent's card was last answered ends with it.
 func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 	home, q, notified := p.home, p.db, p.notified
 	return func(agent string) *agentview.NeedsYou {
@@ -80,31 +81,42 @@ func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 		if rec, _, found := p.terminalSession(agent, p.liveTerminals()); found == sessionFound {
 			sess = &rec
 		}
+		answered := answeredAt(q, agent)
+		settled := func(at int64) bool { return at > 0 && at <= answered } // said before a person answered its card
 		if sess != nil && sess.Status != "waiting" {
 			return nil
 		}
 		w := hooks.ReadWait(home, agent)
 		// Claude Code saying nobody answered comes first; a question is left to its own card.
-		if since, ok := hooks.Notified(home, agent); notified && ok && w["tool"] != "AskUserQuestion" {
+		if since, ok := hooks.Notified(home, agent); notified && ok && !settled(since) && w["tool"] != "AskUserQuestion" {
 			return &agentview.NeedsYou{Kind: "permission", Source: "notification", Since: since, Title: titles["permission"]}
 		}
-		if w != nil && row.State == states.Running && !movedOn(q, agent, w) {
-			since, _ := w["since"].(float64)
+		if since, _ := w["since"].(float64); w != nil && row.State == states.Running && !settled(int64(since)) && !movedOn(q, agent, w) {
 			tool, _ := w["tool"].(string)
 			command, _ := w["command"].(string)
 			kind := "permission"
 			if tool == "AskUserQuestion" {
 				kind = "question"
 			}
-			return &agentview.NeedsYou{Kind: kind, Source: "hook", Since: int64(since), Title: titles[kind], Text: strings.TrimSpace(tool + ": " + command)}
+			return &agentview.NeedsYou{Kind: kind, Source: "hook", Since: int64(since), Title: titles[kind],
+				Text: agentview.AskLine(tool, command, worktreepaths.RecordedPath(row.Worktree.String))}
 		}
-		if sess != nil {
+		if sess != nil && !settled(sess.UpdatedAt/1000) {
 			s := peerinbox.Session{Status: sess.Status, WaitingFor: sess.WaitingFor}
 			kind := s.NeedsKind()
 			return &agentview.NeedsYou{Kind: kind, Source: "session", Since: sess.UpdatedAt / 1000, Title: titles[kind], Text: sess.WaitingFor}
 		}
 		return nil
 	}
+}
+
+// answeredAt is when a person last answered one of agent's prompts on its card, 0 for never. A wait the hooks or the session file
+// reported before then was that prompt, so it ends with the answer and does not outlive the card.
+func answeredAt(q db.Q, agent string) int64 {
+	var at sql.NullInt64
+	// An error reads as never: no wait ends early.
+	_ = q.QueryRow("SELECT MAX(answered_at) FROM prompt_blocks WHERE agent = ? AND answer_ok = 1", agent).Scan(&at)
+	return at.Int64
 }
 
 // stallNeed is the card for a stall the daemon raised itself, one of five kinds: the title and the sentence under it are fixed here, from the

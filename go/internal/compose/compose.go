@@ -118,12 +118,17 @@ func New(cfg Config) *Parts {
 
 // ActNow is supervisor.Env.ActNow: each agent's view is stored now and the tick loop supervises it between ticks.
 func (p *Parts) ActNow(agents ...string) {
-	if v := p.view.Load(); v != nil {
-		for _, a := range agents {
-			v.RefreshOne(a)
-		}
+	for _, a := range agents {
+		p.RefreshView(a)
 	}
 	p.acts.Add(agents...)
+}
+
+// RefreshView stores agent's view now, not at the next tick: its prompt opened or went. Nothing before the tick is built.
+func (p *Parts) RefreshView(agent string) {
+	if v := p.view.Load(); v != nil {
+		v.RefreshOne(agent)
+	}
 }
 
 // KeepAwake is whether the tick holds the sleep lock now, and since when (daemon.Config.KeepAwake).

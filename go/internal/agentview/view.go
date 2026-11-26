@@ -5,6 +5,7 @@ package agentview
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/dialogs"
@@ -19,6 +20,7 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/session"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
 // DetailCap bounds the text drawn beside a state word (the contract's state_detail).
@@ -106,6 +108,8 @@ type Env struct {
 	// LimitDialogOwned is whether the dialog on agent's screen is the usage-limit one and the daemon is handling that wall, so it is no
 	// person's to answer. Nil is never.
 	LimitDialogOwned func(agent string) bool
+
+	writing sync.Map // agent -> *sync.Mutex held while its view is worked out and stored
 }
 
 // Job is one BackgroundJob: kind shell, monitor or subagent, its label, when it started, and for a subagent whether the turn waits on it.
@@ -199,15 +203,15 @@ func (e *Env) roleLine(name string) string {
 	return ""
 }
 
-// promptHeadline is what an open prompt is, in one line.
-func promptHeadline(b *prompts.Block) string {
+// promptHeadline is what an open prompt is, in one line; dir is the agent's own folder.
+func promptHeadline(b *prompts.Block, dir string) string {
 	if b.Kind == "permission" {
 		tool, _ := b.Detail["tool"].(string)
 		if tool == "" {
 			tool = "tool"
 		}
 		cmd, _ := b.Detail["command"].(string)
-		return strings.TrimSpace(tool + ": " + cmd)
+		return AskLine(tool, cmd, dir)
 	}
 	if b.Title != "" {
 		return b.Title
@@ -258,7 +262,7 @@ func (e *Env) word(agent string, row *db.AgentState, now int64, needs *NeedsYou,
 		return "IDLE", ""
 	}
 	if prompt != nil {
-		return "DIALOG", clip(textsafe.Oneline(promptHeadline(prompt)), DetailCap)
+		return "DIALOG", clip(textsafe.Oneline(promptHeadline(prompt, worktreepaths.RecordedPath(row.Worktree.String))), DetailCap)
 	}
 	if needs != nil && needs.Kind != dialogs.SwitchOffer { // the wait goes on by itself, so its state stays the wait's
 		return "DIALOG", clip(textsafe.Oneline(needs.Text), DetailCap)
@@ -581,6 +585,10 @@ func (e *Env) RefreshOne(agent string) {
 	if !e.Structured(agent) {
 		return
 	}
+	// One at a time per agent: a slow tick's view, worked out before a prompt went, is not written over the one written when it went.
+	mu, _ := e.writing.LoadOrStore(agent, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
 	view, err := e.Compute(agent)
 	if err != nil {
 		e.logf("  agent view: " + agent + ": " + err.Error())
