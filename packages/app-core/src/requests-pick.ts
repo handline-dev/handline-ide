@@ -28,6 +28,8 @@ export function turnsCounted(ps: PendingRequest[]): string {
 }
 
 /** A finished request the founder has not opened since it ended. */
+/** News that asks nothing: an unread @human note, or a daemon notice. It is not counted as waiting on the person; reading it ends it. */
+export const isNews = (p: PendingRequest): boolean => p.kind === 'note' || (p.kind === 'warning' && p.warning?.kind === 'notice');
 export const isUnseen = (r: RequestRow): boolean => r.ended?.seen === false;
 
 /** Several rows can stand for one task: a task takes each write once, or the second would fail on what the first did. The write

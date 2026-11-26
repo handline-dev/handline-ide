@@ -146,5 +146,5 @@ export const iconOf = (kind?: string): ReactNode => {
 };
 
 /** The sidebar's pages: above the agents, and at the bottom (the app's settings and help). */
-export const pages = ['tasks', 'requests', 'usage', 'town'].map((kind) => ({ kind, ...kinds[kind] }));
+export const pages = ['tasks', 'usage', 'town'].map((kind) => ({ kind, ...kinds[kind] }));
 export const footerPages = ['preferences', 'help'].map((kind) => ({ kind, ...kinds[kind] }));

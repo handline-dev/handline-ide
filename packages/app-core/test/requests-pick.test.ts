@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import {
   bulkNames,
+  isNews,
   bulkOf,
   pickGroup,
   refusalLine,
@@ -113,4 +114,11 @@ test('proposals are picked apart from the rest and answered together', () => {
   );
   assert.equal(bulkNames(b).allow, 'Allow 2');
   assert.equal(bulkOf([task], new Set([9])).answer.length, 0);
+});
+
+test('a note and a daemon notice are news; a login warning and a question wait on the person', () => {
+  assert.equal(isNews(turn({ kind: 'note' })), true);
+  assert.equal(isNews(turn({ kind: 'warning', warning: { kind: 'notice' } as PendingRequest['warning'] })), true);
+  assert.equal(isNews(turn({ kind: 'warning', warning: { kind: 'login' } as PendingRequest['warning'] })), false);
+  assert.equal(isNews(turn({ kind: 'ask' })), false);
 });

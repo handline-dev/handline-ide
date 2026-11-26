@@ -281,6 +281,9 @@ export function TurnLine({
   const proposal = useProposals().data?.proposals.find((x) => p.source === 'proposal' && String(x.id) === p.id);
   const opens = turnOpens(p, proposal?.requested_by !== 'human' ? proposal?.requested_by : null);
   const login = p.warning?.kind === 'login' ? p.warning.account : undefined;
+  // A notice asks nothing: opening it is reading it, so it goes, as a note does once read.
+  const dismiss = useWrite('warning.dismiss');
+  const notice = p.warning?.kind === 'notice' && p.id ? p.id : null;
   return (
     <Line
       mark
@@ -325,6 +328,7 @@ export function TurnLine({
       }
       focus={login ? () => focusIn('usage', '', login) : undefined}
       onOpen={() => {
+        if (notice) dismiss.mutate({ id: notice });
         // The task opens at what it asks of the founder, as the Your turn click does; a note opens it where it was read last.
         if (p.task !== null && p.kind !== 'warning' && p.kind !== 'note') goToTurnOf(p.task);
         onOpened?.();

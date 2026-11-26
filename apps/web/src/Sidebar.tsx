@@ -12,13 +12,12 @@ import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { ago, useNow } from '#src/format/time.ts';
 import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLeft } from 'lucide-react';
-import { Across, InCluster, spaceOf, splitSpace, useJoined, type Joined } from '#src/connection/clusters.tsx';
+import { InCluster, spaceOf, splitSpace, useJoined, type Joined } from '#src/connection/clusters.tsx';
 import { ClusterWord } from '#src/connection/ClusterWord.tsx';
 import { useRef, useState, type ReactNode } from 'react';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { useRequests } from '#src/requests/data.ts';
 import { Row } from '#src/sidebar/Row.tsx';
 import { FoldMarks, UnreadButton, UnreadList } from '#src/sidebar/Unread.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
@@ -302,18 +301,7 @@ function JoinedAgents({ joined, pick }: { joined: Joined; pick: Pick }) {
   );
 }
 
-const useWaitingCount = () => useRequests().count;
-
-/** How many requests wait on the founder, in every cluster; nothing for none. */
-function Waiting() {
-  return (
-    <Across hook={useWaitingCount} sig={String}>
-      {(all) => all.reduce((n, a) => n + a.data, 0) || null}
-    </Across>
-  );
-}
-
-/** The pages (Tasks, Requests, Usage), then the agents by workspace. Picking a page or an agent brings up its own
+/** The pages (Tasks, Usage, Town), then the agents by workspace. Picking a page or an agent brings up its own
  * workspace; dragging one opens its chat as a tab in the current one. Width is set by the splitter (see App). */
 export function Sidebar({
   width,
@@ -344,7 +332,6 @@ export function Sidebar({
             icon={p.icon}
             selected={onScreen.includes(p.kind)}
             onShow={() => onSelectPage(p.kind, p.label)}
-            trail={p.kind === 'requests' ? <Waiting /> : undefined}
           />
         ))}
       </nav>

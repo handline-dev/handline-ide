@@ -1,7 +1,8 @@
-// The update in the bell's list, from the desktop shell: Restart to update once it is built, the step while it builds, Try again after a failure.
+// The desktop shell's update, its own place in the status bar: Restart to update once it is built, the step while it builds, Try again after a failure.
 import type { ShellUpdate } from '@handline/app-core';
 import { RotateCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
+import { Popover } from '#src/ui/Popover.tsx';
 import { shell } from '#src/shell.ts';
 
 /** The shell's update, null in a plain browser or while there is none. */
@@ -13,7 +14,7 @@ export function useShellUpdate(): ShellUpdate | null {
 
 export const updateReady = (u: ShellUpdate | null) => u?.phase === 'ready' || u?.phase === 'later';
 
-/** The update's row at the top of the bell's list. */
+/** The update's line in its popover. */
 export function UpdateRow({ u }: { u: ShellUpdate }) {
   const act = (what: 'restart' | 'retry') =>
     void shell()
@@ -39,5 +40,32 @@ export function UpdateRow({ u }: { u: ShellUpdate }) {
         </button>
       )}
     </div>
+  );
+}
+
+/** Nothing while there is no update; else a mark in the status bar (accent once ready) that opens the update's line. */
+export function UpdateButton({ bar }: { bar: RefObject<HTMLElement | null> }) {
+  const u = useShellUpdate();
+  const [open, setOpen] = useState(false);
+  if (!u) return null;
+  const ready = updateReady(u);
+  return (
+    <Popover
+      side="top"
+      align="end"
+      corner={bar}
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <button type="button" className={`flex items-center gap-1 ${ready ? 'text-accent' : ''}`} aria-label="Handline update">
+          <RotateCw size={14} />
+          {ready && <span>Update</span>}
+        </button>
+      }
+    >
+      <div className="-mx-2 w-80">
+        <UpdateRow u={u} />
+      </div>
+    </Popover>
   );
 }

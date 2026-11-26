@@ -3,6 +3,7 @@ import { ArchiveX, Check, Coffee, Pause, Unplug } from 'lucide-react';
 import { MODE_WORD, OFF_TEXT, StateWord, refused } from '#src/settings/DeviceControls.tsx';
 import { confirm } from '#src/ui/modal.tsx';
 import { BellButton } from '#src/requests/BellButton.tsx';
+import { UpdateButton } from '#src/sidebar/UpdateButton.tsx';
 import { useRef, useState, type RefObject } from 'react';
 import type { KeepAwake } from '#src/settings/data/machine.ts';
 import { Popover } from '#src/ui/Popover.tsx';
@@ -55,7 +56,8 @@ export function StatusRow() {
       <LoadButton bar={bar} />
       <KeepAwakeButton s={s} busy={busy} bar={bar} />
       <ModeButton busy={busy} bar={bar} />
-      <BellButton bar={bar} />
+      <UpdateButton bar={bar} />
+      <BellButton />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { laterHolds, laterKey, navOf, type LaterAt } from '@handline/app-core';
+import { isNews, laterHolds, laterKey, navOf, type LaterAt } from '@handline/app-core';
 import { Hooks, useFeed, usePrefs } from '@handline/app-data';
 import type { PendingRequest, RequestRow } from '@handline/client';
 import { useNow } from '#src/format/time.ts';
@@ -9,7 +9,7 @@ const FINISHED = new Set<RequestRow['status']>(['done']);
 export type TaskRequest = RequestRow & { task: number };
 
 /** The founder's requests in the sections of the Requests view and the bell: their turn, notes to them, in progress, finished. `count` is
- * the one number the bell and the sidebar's Requests show: the Your turn rows, without notes or rows put off. */
+ * the one number the bell shows: the Your turn rows, without notes or rows put off. */
 export function useRequests() {
   const pending = Hooks.useRequestsPending();
   // The daemon's warnings reach requests.pending only through the for_you topic's events.
@@ -25,13 +25,13 @@ export function useRequests() {
     const k = laterKey(p);
     return !!k && laterHolds(later[k], now, open);
   };
-  const turn = all.filter((p) => !held(p) && p.kind !== 'note');
+  const turn = all.filter((p) => !held(p) && !isNews(p));
   return {
     loaded: !!pending.data && !!list.data,
     failed: pending.isError || list.isError,
     turn,
-    /** @human comments the founder has not read: news that asks nothing. */
-    notes: all.filter((p) => !held(p) && p.kind === 'note'),
+    /** @human comments the founder has not read and the daemon's notices: news that asks nothing. */
+    notes: all.filter((p) => !held(p) && isNews(p)),
     /** Rows put off for later, each with when it comes back. */
     later: all.filter(held).map((p) => ({ p, at: later[laterKey(p)!] })),
     doing: rows.filter((r) => !FINISHED.has(r.status)),
