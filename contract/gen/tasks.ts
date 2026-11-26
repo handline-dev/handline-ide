@@ -819,8 +819,6 @@ export interface TasksMethods {
   text: string;
   /** Tell every reader at once, even mid-turn. */
   now?: boolean;
-  /** Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored. */
-  skip?: Who[];
   /** The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment. */
   reply?: number;
   /** Hand the task to this agent, or to a person, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. human is the task's person: the person it or its nearest parent answers to, else whose request it serves, else the owner. For a person, the comment is the decision and what you recommend. */

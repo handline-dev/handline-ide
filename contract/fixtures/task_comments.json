@@ -317,9 +317,6 @@
       "params": {
        "task": "{{tid}}",
        "text": "@{{task_owner}} please look",
-       "skip": [
-        "{{task_owner}}"
-       ],
        "request_id": "conf-rcp-2"
       }
      },
@@ -344,46 +341,6 @@
        "$contains": {
         "text": "<@{{task_owner}}> please look"
        }
-      }
-     }
-    }
-   ]
-  },
-  {
-   "name": "task.comment.add.skip_is_a_list_of_names",
-   "spec": "task.comment.add",
-   "about": "skip names agents: anything else is bad_request naming it.",
-   "as": "agent",
-   "steps": [
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 1,
-      "method": "hello",
-      "params": {
-       "client": "conformance/1",
-       "protocol": 1
-      }
-     },
-     "result": {}
-    },
-    {
-     "send": {
-      "jsonrpc": "2.0",
-      "id": 2,
-      "method": "task.comment.add",
-      "params": {
-       "task": 999999,
-       "text": "a comment",
-       "skip": "alice",
-       "request_id": "conf-rcp-3"
-      }
-     },
-     "error": {
-      "code": -32602,
-      "data": {
-       "code": "bad_request",
-       "field": "skip"
       }
      }
     }
