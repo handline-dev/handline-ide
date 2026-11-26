@@ -37,6 +37,10 @@ export const NOT_QUERIES = [
   'unsubscribe',
   'events.feed',
   'progress.get',
+  // An agent's window capture (hl screen) and the hook's question about shell screenshots: no screen draws them.
+  'screen.list',
+  'screen.shot',
+  'screen.policy',
   // An image's bytes are read once per image into an object URL (attachments.ts), not kept as a cache entry.
   'attachment.get',
   // Logins found on this Mac are read when onboarding's AI step opens (useFoundLogins), not kept.

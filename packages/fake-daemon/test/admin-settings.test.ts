@@ -22,6 +22,8 @@ const KEYS = [
   'push_only_away',
   'push_sound',
   'account_split',
+  'block_screen_capture',
+  'screencapture_via_handline',
   'agent_placement',
   'review_flow',
   'pace_target_pct',

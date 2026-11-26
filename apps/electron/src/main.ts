@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { app, desktopCapturer, dialog, ipcMain, Notification, session, shell, type BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, Notification, session, shell, type BrowserWindow } from 'electron';
 import { DaemonClient } from '@handline/client';
 import { unixSocketTransport } from '@handline/client-node';
 import { drawsTray, inBackground } from '#src/background.ts';
@@ -10,7 +10,6 @@ import { setMenu } from '#src/menu.ts';
 import { Desk } from '#src/desk.ts';
 import { ownConnection } from '#src/joined.ts';
 import { Composer, LOGIN_PROBE, loginAnswer, sweepTemp, type EditorEnv } from '#src/editor.ts';
-import { serveCapture } from '#src/capture.ts';
 import { chooseFolder, serveFolderPick } from '#src/folder-pick.ts';
 import { gitView, scratch } from '#src/git-view.ts';
 import { Opener } from '#src/open.ts';
@@ -167,7 +166,6 @@ function handleConnection(origin: string, own: Own, f?: Follower): void {
   });
   ipcMain.handle(CHANNELS.follow, (e) => c.follow(e));
   ipcMain.handle(CHANNELS.checkUpdate, (e) => c.checkUpdate(e));
-  serveCapture(ipcMain, origin, { sources: (thumbnailSize) => desktopCapturer.getSources({ types: ['window'], thumbnailSize }) });
   serveFolderPick(
     ipcMain,
     origin,

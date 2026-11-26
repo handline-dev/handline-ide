@@ -31,6 +31,7 @@ var commands = map[string]command{
 	"progress":  progress,
 	"read":      read,
 	"say":       say,
+	"screen":    screenCmd,
 	"sim":       simCmd,
 	"task":      task,
 	"team":      teamCmd,

@@ -107,6 +107,9 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		cwd, _ := raw["cwd"].(string)
 		why = landGuard(c, agent, tool, input, cwd)
 	}
+	if why == "" && session.RunsScreencapture(tool, input) && screenViaHandline(c, agent) {
+		why = session.ScreencaptureWhy
+	}
 	if why == "" && tool == "Agent" {
 		why = subagentStart(c, agent, raw)
 	}
@@ -182,6 +185,14 @@ func landGuard(c *hlclient.Client, agent, tool string, input any, cwd string) st
 		return tail, err == nil
 	}
 	return session.LandGuard(tool, input, agent, cwd, rules, git, check)
+}
+
+// screenViaHandline is whether the daemon says a shell screencapture is refused, asked within 2s: a daemon that does not answer lets it go.
+func screenViaHandline(c *hlclient.Client, agent string) bool {
+	quick := &hlclient.Client{Home: c.Home, Dial: hlclient.Dialer(c.Home, 2*time.Second), As: "hook", Deadline: 2 * time.Second}
+	got, err := quick.Call("screen.policy", map[string]any{"agent": agent})
+	via, _ := got["via"].(bool)
+	return err == nil && via
 }
 
 // subagentStart asks the daemon whether a subagent may start and has it recorded, within 2s: the refusal's reason, or "" to let it

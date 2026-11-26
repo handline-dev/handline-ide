@@ -367,3 +367,19 @@ func TestOnlyADroppedConnectionAsksAgain(t *testing.T) {
 		}
 	}
 }
+
+// A shell screencapture is refused, naming the ways through Handline, only while the daemon says the setting is on.
+func TestHookRefusesScreencaptureOnlyWithItsSettingOn(t *testing.T) {
+	in := preToolUse("Bash", map[string]any{"command": "screencapture -x /tmp/a.png"})
+	r := hookRig(t, true)
+	r.daemon(map[string]string{"screen.policy": `{"via": false}`})
+	if out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse"); strings.TrimSpace(out) != "{}" {
+		t.Fatalf("setting off: %q", out)
+	}
+	r = hookRig(t, true)
+	r.daemon(map[string]string{"screen.policy": `{"via": true}`})
+	out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse")
+	if !strings.Contains(out, `"permissionDecision": "deny"`) || !strings.Contains(out, "hl screen shot") || !strings.Contains(out, "hl browser shot") {
+		t.Fatalf("setting on: %q", out)
+	}
+}

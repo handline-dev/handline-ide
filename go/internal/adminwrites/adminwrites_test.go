@@ -150,6 +150,14 @@ func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {
 	if r.setting("alice", "account_split") != "manual" || strings.Contains(r.file("config.yaml"), "account_split") {
 		t.Fatal("account_split is the agent's own, not the config's")
 	}
+	r.result(r.one("settings.set", `{"changes":{"block_screen_capture":true},"agent":"alice","request_id":"t7"}`))
+	if r.setting("alice", "block_screen_capture") != "true" || strings.Contains(r.file("config.yaml"), "block_screen_capture") {
+		t.Fatal("block_screen_capture is the agent's own, not the config's")
+	}
+	if r.code(r.one("settings.set", `{"changes":{"screencapture_via_handline":true},"agent":"alice","request_id":"t8"}`)) != "bad_request" {
+		t.Fatal("screencapture_via_handline has no per-agent value")
+	}
+	r.result(r.one("settings.set", `{"changes":{"screencapture_via_handline":true},"request_id":"t9"}`))
 	r.result(r.one("settings.set", `{"changes":{"account_split":null},"agent":"alice","request_id":"t6"}`))
 	if r.setting("alice", "account_split") != "" {
 		t.Fatal("null clears the agent's own")

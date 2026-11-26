@@ -41,6 +41,7 @@ import (
 	"github.com/handline/handline/go/internal/push"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/runner"
+	"github.com/handline/handline/go/internal/screen"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/internal/sim"
 	"github.com/handline/handline/go/internal/termchan"
@@ -752,6 +753,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 		func(s *rpc.Server) { filerw.Register(s, d.files) },
 		func(s *rpc.Server) { d.hooks.Register(s) },
 		func(s *rpc.Server) { pausewrites.Register(s, nil, d.pauseChanged) },
+		func(s *rpc.Server) { (&screen.Env{DB: d.db, Home: d.cfg.Home}).Register(s) },
 		func(s *rpc.Server) { proposalwrites.Register(s, d.proposalEnv()) },
 		func(s *rpc.Server) { prompts.Register(s, d.prompts) },
 		func(s *rpc.Server) {

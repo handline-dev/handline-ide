@@ -122,7 +122,8 @@
   "hl events": "events.feed",
   "hl account list": "accounts.list",
   "hl task request": "task.request",
-  "hl task plan": "task.plan"
+  "hl task plan": "task.plan",
+  "hl screen": "screen.shot"
  },
  "x-dropped-from-agents": {
   "note": "Agent commands the spec does not keep at agent role, for the founder to decide. Each is founder-only or a person's act today, or is not a daemon call.",
@@ -2375,6 +2376,16 @@
       "minLength": 1,
       "maxLength": 40,
       "description": "The cluster's name, one line. A board without one gets two random words in Title Case (\"Blue Harbor\") at the daemon's start; the owner renames it."
+     },
+     "block_screen_capture": {
+      "type": "boolean",
+      "description": "Refuse hl screen (a window captured through the daemon) for every agent. Off: an agent may capture a window. Per agent with `agent`: that agent's own switch, on over a global one that is off.",
+      "default": false
+     },
+     "screencapture_via_handline": {
+      "type": "boolean",
+      "description": "Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs.",
+      "default": false
      }
     },
     "description": "Every global setting by its config.yaml name, with its default; every one is the founder's to set. Per-account keys (label, usage recovery, cycle) are account.set; per-agent keys are agent.set and schedule.*; a key marked Per agent also takes `agent` in settings.set."
@@ -2897,6 +2908,28 @@
       "minLength": 1,
       "maxLength": 40,
       "description": "The cluster's new name (SettingsValues.cluster_name), trimmed; a blank one, one over 40 characters, more than one line or null is bad_request naming cluster_name: a cluster always has a name."
+     },
+     "block_screen_capture": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Refuse hl screen (a window captured through the daemon) for every agent. Off: an agent may capture a window. Per agent with `agent`: that agent's own switch, on over a global one that is off. null removes the key (back to the default)."
+     },
+     "screencapture_via_handline": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. null removes the key (back to the default)."
      }
     },
     "description": "settings.set's changes: any of SettingsValues' keys; null removes one."
@@ -5695,7 +5728,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split. Any other key with `agent` is bad_request."
+      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture. Any other key with `agent` is bad_request."
      }
     },
     {
@@ -5771,6 +5804,191 @@
     }
    ],
    "description": "requests.pending leaves it out until its cause ends and begins again, or a login warning grows worse (cannot be used); daemon.status needs_you is unaffected. A warning the founder does not have now is not_found, data.what `warning`."
+  },
+  {
+   "name": "screen.list",
+   "summary": "The on-screen windows, front to back: app, title and id. Refused while Block screen capture is on for the agent or for all.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "windows": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "integer"
+         },
+         "app": {
+          "type": "string"
+         },
+         "title": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "id",
+         "app",
+         "title"
+        ]
+       }
+      }
+     },
+     "required": [
+      "windows"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "not_self"
+   ],
+   "x-callers": [
+    "agent"
+   ],
+   "x-app-cache": false
+  },
+  {
+   "name": "screen.shot",
+   "summary": "Capture one window to a PNG under the home's shots folder for the agent, in the daemon, so macOS asks for screen recording only for Handline. The app's front window, or the window given. Each call leaves one screen.capture event (agent, task held, app, title, path, ok, status). Refused while Block screen capture is on; when macOS denies the capture the refusal says where to turn Handline on.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "app",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The app's name as screen.list shows it; its front window is taken."
+     }
+    },
+    {
+     "name": "window",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "A window id from screen.list; wins over app."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "path": {
+       "type": "string"
+      },
+      "app": {
+       "type": "string"
+      },
+      "title": {
+       "type": "string"
+      },
+      "window": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "path",
+      "app",
+      "title",
+      "window"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "not_self"
+   ],
+   "x-callers": [
+    "agent"
+   ],
+   "x-app-cache": false
+  },
+  {
+   "name": "screen.policy",
+   "summary": "Whether the PreToolUse guard refuses a shell screencapture (the setting screencapture_via_handline).",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "via": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "via"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "not_self"
+   ],
+   "x-callers": [
+    "agent"
+   ],
+   "x-app-cache": false
   }
  ],
  "x-access": {

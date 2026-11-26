@@ -460,6 +460,10 @@ export type SettingsValues = {
   node_build_auto?: boolean;
   /** The cluster's name, one line. A board without one gets two random words in Title Case ("Blue Harbor") at the daemon's start; the owner renames it. */
   cluster_name?: string;
+  /** Refuse hl screen (a window captured through the daemon) for every agent. Off: an agent may capture a window. Per agent with `agent`: that agent's own switch, on over a global one that is off. */
+  block_screen_capture?: boolean;
+  /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. */
+  screencapture_via_handline?: boolean;
 };
 
 /** settings.set's changes: any of SettingsValues' keys; null removes one. */
@@ -556,6 +560,10 @@ export type SettingsChanges = {
   node_build_auto?: boolean | null;
   /** The cluster's new name (SettingsValues.cluster_name), trimmed; a blank one, one over 40 characters, more than one line or null is bad_request naming cluster_name: a cluster always has a name. */
   cluster_name?: string;
+  /** Refuse hl screen (a window captured through the daemon) for every agent. Off: an agent may capture a window. Per agent with `agent`: that agent's own switch, on over a global one that is off. null removes the key (back to the default). */
+  block_screen_capture?: boolean | null;
+  /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. null removes the key (back to the default). */
+  screencapture_via_handline?: boolean | null;
 };
 
 /** One method as a daemon lists it: its role and whether this caller may call it. */
@@ -1173,7 +1181,7 @@ export interface CoreMethods {
 }; result: Settings };
   "settings.set": { params: {
   changes: SettingsChanges;
-  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split. Any other key with `agent` is bad_request. */
+  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture. Any other key with `agent` is bad_request. */
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };
@@ -1182,6 +1190,32 @@ export interface CoreMethods {
   id: string;
   request_id: RequestId;
 }; result: Accepted };
+  "screen.list": { params: {
+  agent: Who;
+}; result: {
+    windows: {
+      id: number;
+      app: string;
+      title: string;
+    }[];
+  } };
+  "screen.shot": { params: {
+  agent: Who;
+  /** The app's name as screen.list shows it; its front window is taken. */
+  app?: string;
+  /** A window id from screen.list; wins over app. */
+  window?: number;
+}; result: {
+    path: string;
+    app: string;
+    title: string;
+    window: number;
+  } };
+  "screen.policy": { params: {
+  agent: Who;
+}; result: {
+    via: boolean;
+  } };
 }
 
 export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -1210,10 +1244,13 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "settings.get": { role: "owner", callers: null, write: false, since: 1 },
   "settings.set": { role: "owner", callers: null, write: true, since: 1 },
   "warning.dismiss": { role: "owner", callers: null, write: true, since: 1 },
+  "screen.list": { role: "agent", callers: ["agent"], write: false, since: 1 },
+  "screen.shot": { role: "agent", callers: ["agent"], write: false, since: 1 },
+  "screen.policy": { role: "agent", callers: ["agent"], write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get" | "screen.list" | "screen.shot" | "screen.policy"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1230,6 +1267,9 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "prefs.get": {"resource": "prefs", "feed": "prefs"},
   "connection.addresses": {"resource": "addresses", "feed": null},
   "settings.get": {"resource": "settings", "feed": null},
+  "screen.list": false,
+  "screen.shot": false,
+  "screen.policy": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */

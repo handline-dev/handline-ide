@@ -86,7 +86,7 @@ Every read has x-app-cache and every write x-app-write; false: the app does not 
 
 One file per group, generated from `spec/<group>.json`; field types are in `protocol.ts`.
 
-- [core](gen/core.md): 25 methods
+- [core](gen/core.md): 28 methods
 - [accounts](gen/accounts.md): 14 methods
 - [agents](gen/agents.md): 45 methods
 - [chat](gen/chat.md): 20 methods
@@ -151,6 +151,7 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl account list` | `accounts.list` |
 | `hl task request` | `task.request` |
 | `hl task plan` | `task.plan` |
+| `hl screen` | `screen.shot` |
 
 ## Dropped from agents on purpose
 

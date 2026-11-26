@@ -114,14 +114,6 @@ export interface ShellApi {
   cancelCompose?(): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** The system's chooser for one folder: its path, or null when the person cancels. Absent in a shell that lacks it (a plain browser). */
   pickFolder?(): Promise<{ ok: true; path: string | null } | Fail<'bad_request'>>;
-  /** The windows open on this machine, each with a small picture (a data URL). Absent in a shell that cannot capture. */
-  captureWindows?(): Promise<
-    { ok: true; windows: { id: string; name: string; thumb: string }[] } | Fail<'bad_request' | 'unavailable' | 'no_permission'>
-  >;
-  /** One window of that list as a PNG (base64). */
-  captureWindow?(a: {
-    id: string;
-  }): Promise<{ ok: true; name: string; png: string } | Fail<'bad_request' | 'unavailable' | 'no_permission' | 'not_found' | 'too_large'>>;
   /** The page can draw <webview> elements: a web tab shows any site in one (an iframe otherwise). */
   webview?: boolean;
   /** A web tab's <webview> page as it is on screen, a PNG (base64), by its getWebContentsId(). */
