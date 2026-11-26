@@ -417,12 +417,44 @@ func closeHookQuestion(tx *sql.Tx, agent string, raw map[string]any, at int64) e
 	return err
 }
 
-// Heavy is the field hl adds to a heavy Bash call's PostToolUse: {"shape": session.HeavyShape, "seconds": how long it ran}.
+// Heavy is the field hl adds to a heavy Bash call's PostToolUse: {"shape": session.HeavyShape, "seconds": how long it ran}, and
+// "timed_out": true when the call failed at the time limit it gave itself.
 const Heavy = "handline_heavy"
+
+// Ran is the field hl adds to the end of every Bash call its hooks timed: {"shape": what the call counts as once it runs long
+// (session.Ended.Would), "long": whether it ran session.HeavyAfter}.
+const Ran = "handline_ran"
+
+func oneIf(yes bool) int {
+	if yes {
+		return 1
+	}
+	return 0
+}
+
+// noteRan counts the timed Bash call a hook ended under its shape's day in shape_days, and as a long run when it was one, and drops
+// the days older than policy.HeavyKeep.
+func noteRan(tx *sql.Tx, raw map[string]any, at int64) error {
+	r, _ := raw[Ran].(map[string]any)
+	shape, _ := r["shape"].(string)
+	if shape == "" {
+		return nil
+	}
+	const day = 24 * 3600
+	if _, err := tx.Exec("DELETE FROM shape_days WHERE day < ?", (at-int64(policy.HeavyKeep/time.Second))/day); err != nil {
+		return err
+	}
+	_, err := tx.Exec("INSERT INTO shape_days(shape, day, runs, long) VALUES(?, ?, 1, ?) "+
+		"ON CONFLICT(shape, day) DO UPDATE SET runs = runs + 1, long = long + excluded.long", cut(shape, 60), at/day, oneIf(r["long"] == true))
+	return err
+}
 
 // noteHeavy keeps the heavy Bash call a PostToolUse ended in heavy_runs, by the agent's key, and drops the runs older than
 // policy.HeavyKeep.
 func noteHeavy(tx *sql.Tx, agent string, raw map[string]any, at int64) error {
+	if err := noteRan(tx, raw, at); err != nil {
+		return err
+	}
 	h, _ := raw[Heavy].(map[string]any)
 	shape, _ := h["shape"].(string)
 	secs, ok := rpc.AsInt(h["seconds"])
@@ -437,6 +469,7 @@ func noteHeavy(tx *sql.Tx, agent string, raw map[string]any, at int64) error {
 	if _, err := tx.Exec("DELETE FROM heavy_runs WHERE ended < ?", at-int64(policy.HeavyKeep/time.Second)); err != nil {
 		return err
 	}
-	_, err := tx.Exec("INSERT INTO heavy_runs(agent, ended, seconds, shape) VALUES(?, ?, ?, ?)", agent, at, secs, cut(shape, 60))
+	_, err := tx.Exec("INSERT INTO heavy_runs(agent, ended, seconds, shape, timed_out) VALUES(?, ?, ?, ?, ?)", agent, at, secs, cut(shape, 60),
+		oneIf(h["timed_out"] == true))
 	return err
 }

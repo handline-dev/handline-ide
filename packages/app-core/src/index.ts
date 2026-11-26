@@ -33,6 +33,7 @@ export * from '#src/task-time.ts';
 export * from '#src/task-activity.ts';
 export * from '#src/marks.ts';
 export * from '#src/resources.ts';
+export * from '#src/run-load.ts';
 export * from '#src/status.ts';
 export * from '#src/outlook.ts';
 export * from '#src/worktrees.ts';

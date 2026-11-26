@@ -82,6 +82,11 @@ func (e *Env) Health() (Health, error) {
 	if e.Machine != nil {
 		in.m = e.Machine()
 	}
+	if e.RunLoad != nil {
+		if v := e.RunLoad(); v.State.Slow {
+			in.slow = slowText(v.State.Causes)
+		}
+	}
 	level, text := healthOf(in)
 	return Health{level, text, e.HealthClock.at(level, time.Now().Unix(), e.Started.Unix())}, nil
 }
@@ -111,13 +116,14 @@ func (h Health) view() map[string]any {
 // and the machine against its limits (m nil before the first measure).
 type healthIn struct {
 	paused, startHold string
+	slow              string // DaemonHealth's line while the machine is slow under the agents' runs, "" while it is not
 	needs, waiting    []string
 	limits            loadgate.Limits
 	m                 *sysres.Machine
 }
 
-// healthOf is DaemonHealth's level and text: held for the first cause that holds work back, else near for a set limit within
-// nearPoints, else ok. A near text names the limit, not the figure, so it does not move with every measure.
+// healthOf is DaemonHealth's level and text: held for the first cause that holds work back, else near while the machine is slow or
+// for a set limit within nearPoints, else ok. A near text names the limit, not the figure, so it does not move with every measure.
 func healthOf(in healthIn) (level, text string) {
 	switch {
 	case in.paused != "":
@@ -130,6 +136,9 @@ func healthOf(in healthIn) (level, text string) {
 		return healthHeld, "1 agent waits for an account: " + accountWait[in.waiting[0]]
 	case len(in.waiting) > 1:
 		return healthHeld, fmt.Sprintf("%d agents wait for an account: %s", len(in.waiting), accountWait[in.waiting[0]])
+	}
+	if in.slow != "" {
+		return healthNear, in.slow
 	}
 	if m := in.m; m != nil {
 		if l := in.limits.LoadPct; l > 0 && m.Cores > 0 {

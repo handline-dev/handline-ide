@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"maps"
+	"reflect"
 	"sync"
 	"time"
 
@@ -9,8 +10,8 @@ import (
 	"github.com/handline/handline/go/internal/reads"
 )
 
-// healthEvery is how often the daemon looks at DaemonStatus.health and keep_awake, so status.changed is told within 10 s of a change
-// of either: the load, the account waits, config.yaml and the sleep lock change with no write the daemon makes.
+// healthEvery is how often the daemon looks at DaemonStatus.health, keep_awake and run_load, so status.changed is told within 10 s of
+// a change of any: the load, the account waits, config.yaml and the sleep lock change with no write the daemon makes.
 const healthEvery = 5 * time.Second
 
 // healthWatch is the health and keep_awake the status topic was last told. mu is held from the read to the append, so two tellers
@@ -19,6 +20,7 @@ type healthWatch struct {
 	mu    sync.Mutex
 	told  reads.Health
 	awake map[string]any
+	runs  map[string]any // what of DaemonStatus.run_load was last told (reads.Env.RunLoadTold)
 }
 
 // healthLoop looks at health every healthEvery (Config.HealthEvery) until the daemon closes.
@@ -40,7 +42,7 @@ func (d *Daemon) healthLoop() {
 	}
 }
 
-// checkHealth tells status.changed when health's level or text, or keep_awake, is not what the topic was last told; it says whether it
+// checkHealth tells status.changed when health's level or text, keep_awake or run_load is not what the topic was last told; it says whether it
 // told. Only those are read until there is something to tell.
 func (d *Daemon) checkHealth() bool { return d.tell(false) }
 
@@ -52,7 +54,7 @@ func (d *Daemon) seedHealth() {
 	renv := d.readsEnv()
 	d.health.mu.Lock()
 	defer d.health.mu.Unlock()
-	d.health.awake = renv.KeepAwakeView()
+	d.health.awake, d.health.runs = renv.KeepAwakeView(), renv.RunLoadTold()
 	if h, err := renv.Health(); err == nil {
 		d.health.told = h
 	}
@@ -65,7 +67,8 @@ func (d *Daemon) tell(always bool) bool {
 	renv := d.readsEnv()
 	if !always {
 		h, err := renv.Health()
-		if err != nil || h.Level == d.health.told.Level && h.Text == d.health.told.Text && maps.Equal(renv.KeepAwakeView(), d.health.awake) {
+		if err != nil || h.Level == d.health.told.Level && h.Text == d.health.told.Text && maps.Equal(renv.KeepAwakeView(), d.health.awake) &&
+			reflect.DeepEqual(renv.RunLoadTold(), d.health.runs) {
 			return false
 		}
 	}
@@ -80,5 +83,6 @@ func (d *Daemon) tell(always bool) bool {
 	}
 	d.health.told = h
 	d.health.awake, _ = st["keep_awake"].(map[string]any)
+	d.health.runs = renv.RunLoadTold()
 	return true
 }

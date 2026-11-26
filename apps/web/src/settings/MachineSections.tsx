@@ -7,6 +7,7 @@ import { bytesText, loadFull, LOW_DISK_BYTES, memoryLow } from '@handline/app-co
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Bar, toneOf } from '#src/ui/Meter.tsx';
 import { SharedRuns } from '#src/settings/SharedRuns.tsx';
+import { HeavyRuns } from '#src/settings/HeavyRuns.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useService } from '#src/settings/data/service.ts';
 import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
@@ -159,6 +160,8 @@ export function MachineSections() {
           <p className="text-sm text-muted">The daemon has not reported the machine yet.</p>
         )}
       </Block>
+
+      <HeavyRuns m={m} send={send} why={why} />
 
       <Block
         title="Agents"

@@ -1,0 +1,172 @@
+{
+ "fixtures": [
+  {
+   "name": "run.admit.agent_is_a_name",
+   "spec": "run.admit",
+   "about": "An ask that names no agent is refused, naming the field.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "run.admit",
+      "params": {
+       "id": "toolu_1",
+       "shape": "check.sh"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "agent"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "run.admit.id_is_the_calls_own",
+   "spec": "run.admit",
+   "about": "An ask with no id is refused, naming the field: one ask stands for one Bash call.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "run.admit",
+      "params": {
+       "agent": "nobody",
+       "shape": "check.sh"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "id"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "run.load.is_the_runs_or_null",
+   "spec": "run.load",
+   "about": "run.load answers the runs going, or null from a daemon that has not looked at them yet.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "run.load",
+      "params": {}
+     },
+     "result": {
+      "$oneOf": [
+       {
+        "$type": "null"
+       },
+       {
+        "policy": {
+         "$type": "string"
+        },
+        "slow": {
+         "$type": "boolean"
+        },
+        "runs": {
+         "$type": "array"
+        },
+        "waiting": {
+         "$type": "array"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "settings.heavy_runs_policy_is_one_of_its_words",
+   "spec": "settings.set",
+   "about": "heavy_runs_policy takes observe, priority, turns or fixed and nothing else.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "settings.set",
+      "params": {
+       "changes": {
+        "heavy_runs_policy": "stop"
+       },
+       "request_id": "run-load-policy-1"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

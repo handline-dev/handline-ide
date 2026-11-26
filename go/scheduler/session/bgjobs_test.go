@@ -6,7 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
+
+	"github.com/handline/handline/go/kit/storetest"
 )
 
 func TestFooterCountAddsEveryNumber(t *testing.T) {
@@ -98,5 +101,40 @@ func TestAJobsLabelIsItsDescriptionElseItsCommand(t *testing.T) {
 	}
 	if l := (BgJob{Description: strings.Repeat("é", 150)}).Label(); utf8.RuneCountInString(l) != CommandWidth {
 		t.Fatal(utf8.RuneCountInString(l))
+	}
+}
+
+// A background shell still runs while its output is there and has not ended; one that ended, one whose output is gone and one of
+// no shape are not told.
+func TestOpenBackgroundsAreTheShellsWhoseOutputHasNotEnded(t *testing.T) {
+	q, now := storetest.Open(t), time.Now().Unix()
+	dir := t.TempDir()
+	write := func(name, text string) string {
+		f := filepath.Join(dir, name)
+		if err := os.WriteFile(f, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return f
+	}
+	running, ended := write("running.output", "still going\n"), write("ended.output", "ok\n\n[exited with code 0]\n")
+	for _, p := range []string{
+		`{"command": "tools/check.sh origin/main", "job": "bjob1", "session": "s", "output": "` + running + `"}`,
+		`{"command": "tools/check.sh", "job": "bjob2", "session": "s", "output": "` + ended + `"}`,
+		`{"command": "tools/check.sh", "job": "bjob3", "session": "s", "output": "` + filepath.Join(dir, "gone.output") + `"}`,
+		`{"command": "sleep 600", "job": "bjob4", "session": "s", "output": "` + running + `"}`,
+	} {
+		if _, err := q.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, 'a8', 'background_started', ?)", now-100, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := OpenBackgrounds(q, now-1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != (OpenBackground{Agent: "a8", Job: "bjob1", Started: now - 100, Shape: "check.sh"}) {
+		t.Errorf("%+v", got)
+	}
+	if got, _ := OpenBackgrounds(q, now-10); len(got) != 0 {
+		t.Errorf("started before since: %+v", got)
 	}
 }

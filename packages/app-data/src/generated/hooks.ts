@@ -9,6 +9,7 @@ type ReadOpts = NonNullable<Parameters<typeof useRead>[2]>;
 export const useDaemonStatus = (params: CallParams<"daemon.status"> = {}, opts?: ReadOpts) => useRead("daemon.status", params, opts);
 export const useLeaseGet = (params: CallParams<"lease.get"> = {}, opts?: ReadOpts) => useRead("lease.get", params, opts);
 export const useRunList = (params: CallParams<"run.list"> = {}, opts?: ReadOpts) => useRead("run.list", params, opts);
+export const useRunLoad = (params: CallParams<"run.load"> = {}, opts?: ReadOpts) => useRead("run.load", params, opts);
 export const useLoadGet = (params: CallParams<"load.get"> = {}, opts?: ReadOpts) => useRead("load.get", params, opts);
 export const useOperationGet = (params: CallParams<"operation.get">, opts?: ReadOpts) => useRead("operation.get", params, opts);
 export const usePrefsGet = (params: CallParams<"prefs.get"> = {}, opts?: ReadOpts) => useRead("prefs.get", params, opts);

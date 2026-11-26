@@ -431,6 +431,48 @@ func TestAHeavyBashCallIsKeptByItsShapeAndAWeekOldOneGoes(t *testing.T) {
 	}
 }
 
+// Every timed Bash call is counted under its shape's day, long or short, so a shape's share of long runs is known; a heavy run that
+// failed at its own time limit is kept as timed out.
+func TestEveryTimedCallIsCountedUnderItsShapeAndATimeoutIsKept(t *testing.T) {
+	h := testRecorder(t)
+	now := time.Now().Unix()
+	day := now / (24 * 3600)
+	post := func(rid, event string, extra map[string]any, at int64) {
+		t.Helper()
+		raw := map[string]any{"tool_name": "Bash", "tool_input": map[string]any{"command": "tools/check.sh"}}
+		for k, v := range extra {
+			raw[k] = v
+		}
+		if err := Apply(h.DB, h.Home, "w", event, raw, rid, at); err != nil {
+			t.Fatal(err)
+		}
+	}
+	post("short", "PostToolUse", map[string]any{Ran: map[string]any{"shape": "check.sh", "long": false}}, now-30)
+	post("long", "PostToolUse", map[string]any{Ran: map[string]any{"shape": "check.sh", "long": true},
+		Heavy: map[string]any{"shape": "check.sh", "seconds": json.Number("300")}}, now-20)
+	post("out", "PostToolUseFailure", map[string]any{Ran: map[string]any{"shape": "check.sh", "long": true},
+		Heavy: map[string]any{"shape": "check.sh", "seconds": json.Number("600"), "timed_out": true}}, now-10)
+	post("untimed", "PostToolUse", nil, now-5)
+	post("old", "PostToolUse", map[string]any{Ran: map[string]any{"shape": "old.sh", "long": true}}, now-9*24*3600)
+	post("newer", "PostToolUse", map[string]any{Ran: map[string]any{"shape": "git status", "long": false}}, now-1)
+	var runs, long int
+	if err := h.DB.QueryRow("SELECT SUM(runs), SUM(long) FROM shape_days WHERE shape = 'check.sh' AND day >= ?", day-1).Scan(&runs, &long); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 3 || long != 2 {
+		t.Errorf("check.sh: %d runs, %d long", runs, long)
+	}
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM shape_days WHERE shape = 'old.sh'"); n != 0 {
+		t.Errorf("a day older than a week stayed")
+	}
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM heavy_runs WHERE timed_out = 1 AND seconds = 600"); n != 1 {
+		t.Errorf("%d runs kept as timed out", n)
+	}
+	if n := count(t, h.DB, "SELECT COUNT(*) FROM heavy_runs WHERE timed_out = 0 AND seconds = 300"); n != 1 {
+		t.Errorf("%d runs kept as ended in time", n)
+	}
+}
+
 // A turn that ended on an error leaves the agent idle, so the wake for an idle agent with work sends it on; a usage limit says so.
 func TestATurnEndedOnAnErrorLeavesTheAgentIdleAndSettled(t *testing.T) {
 	h := testRecorder(t)

@@ -44,6 +44,10 @@ type Tick struct {
 	OffMachine func(agent string) string
 	// View stores an agent's view at once, after SuperviseNow; nil leaves it to the next agent-view pass.
 	View func(agent string)
+	// Began and Ended are told when a tick begins and how long it took once it ends, so a tick that runs long is seen while it
+	// still runs; nil tells no one.
+	Began func()
+	Ended func(took time.Duration)
 
 	said, saidClose map[string]string
 	memOver         bool // this tick's reading of the agents' memory is over the cap and not yet acted on
@@ -602,7 +606,16 @@ func (t *Tick) guarded(name string, f func() error) {
 func (t *Tick) Run() (Result, error) {
 	t.init()
 	began := time.Now()
-	defer func() { t.logSlow(time.Since(began)) }()
+	if t.Began != nil {
+		t.Began()
+	}
+	defer func() {
+		took := time.Since(began)
+		if t.Ended != nil {
+			t.Ended(took)
+		}
+		t.logSlow(took)
+	}()
 	now := t.Now()
 	var actions []string
 	q := t.Q

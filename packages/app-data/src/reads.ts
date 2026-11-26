@@ -65,6 +65,7 @@ export const NOT_QUERIES = [
   'permission.ask',
   // `hl use`: an agent's wait for a lease, its giving back and --extend. No screen yet.
   'lease.take',
+  'run.admit', // the PreToolUse hook asks before a heavy run
   'lease.release',
   'lease.extend',
   // Read by useWorkspaceRules.

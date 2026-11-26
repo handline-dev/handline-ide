@@ -67,6 +67,9 @@ func (e *Env) StatusHealth(srv *rpc.Server) (map[string]any, Health, error) {
 			out["missing_tools"] = missing
 		}
 	}
+	if rl := e.runLoad(); rl != nil {
+		out["run_load"] = rl
+	}
 	// The machine's own needs-you items, none of an agent's: a disk too full for builds.
 	if needs := e.machineNeeds(); len(needs) > 0 {
 		out["needs_you"] = needs

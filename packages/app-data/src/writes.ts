@@ -171,8 +171,14 @@ const settings: Record<string, Patch> = {
   'run.set': { touches: (d) => [qk.resource(d, 'run.list'), qk.resource(d, 'lease.get')] },
   'run.remove': { touches: (d) => [qk.resource(d, 'run.list'), qk.resource(d, 'lease.get')] },
   'settings.set': {
-    // network_addresses moves the doors: the addresses are read again; the lease limits show on lease.get.
-    touches: (d) => [qk.resource(d, 'settings.get'), qk.resource(d, 'connection.addresses'), qk.resource(d, 'lease.get')],
+    // network_addresses moves the doors: the addresses are read again; the lease limits show on lease.get, and the heavy runs' policy
+    // on run.load (daemon.status has it too, and the daemon tells that one itself).
+    touches: (d) => [
+      qk.resource(d, 'settings.get'),
+      qk.resource(d, 'connection.addresses'),
+      qk.resource(d, 'lease.get'),
+      qk.resource(d, 'run.load'),
+    ],
     // A per-agent override is not the shared value, so only the shared one is shown early; null is the default, which only the daemon knows.
     patch: (c, p) => {
       const { agent, changes } = as<{ agent?: string; changes: PageSettings }>(p);

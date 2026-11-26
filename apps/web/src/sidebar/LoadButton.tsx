@@ -1,12 +1,14 @@
-// The status bar's load: an icon that opens what each agent uses now, CPU and memory, heaviest first, under this machine's totals.
+// The status bar's load: an icon that opens the heavy runs going now and what each agent uses, CPU and memory, heaviest first, under
+// this machine's totals. Beside the icon it says when the Mac is slow or runs wait for a turn, and nothing while it is calm.
 // CPU is a share of the whole machine, as its total is, not of one core. A row opens the agent's chat by the app's one scheme. It reads load.get only while open.
-import { byLoad, bytesText } from '@handline/app-core';
+import { byLoad, bytesText, runLoadChip } from '@handline/app-core';
 import { Hooks, useNameOf } from '@handline/app-data';
 import { Activity } from 'lucide-react';
 import { useState, type RefObject } from 'react';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
+import { RunLoadPart } from '#src/sidebar/RunLoad.tsx';
 
 /** How often the open list reads: about the daemon's own sampling. */
 const EVERY_MS = 5000;
@@ -14,6 +16,7 @@ const pct = (n: number) => `${Math.round(n)}%`;
 
 export function LoadButton({ bar }: { bar: RefObject<HTMLDivElement | null> }) {
   const [open, setOpen] = useState(false);
+  const chip = runLoadChip(Hooks.useDaemonStatus().data?.run_load);
   return (
     <Popover
       side="top"
@@ -25,10 +28,11 @@ export function LoadButton({ bar }: { bar: RefObject<HTMLDivElement | null> }) {
         <button
           type="button"
           aria-label="What each agent uses"
-          title="CPU and memory by agent"
-          className="flex size-5 items-center justify-center"
+          title="Heavy runs, and CPU and memory by agent"
+          className="flex h-5 min-w-5 shrink-0 items-center justify-center gap-1.5"
         >
-          <Activity size={14} />
+          {chip && <span className={chip.slow ? 'text-warning' : 'text-fg'}>{chip.text}</span>}
+          <Activity size={14} className={chip?.slow ? 'text-warning' : ''} />
         </button>
       }
     >
@@ -44,7 +48,8 @@ function LoadList() {
   const m = load.machine;
   const rows = byLoad(load.agents ?? []);
   return (
-    <div className="flex max-h-96 w-80 flex-col overflow-y-auto">
+    <div className="flex max-h-128 w-80 flex-col overflow-y-auto">
+      <RunLoadPart everyMs={EVERY_MS} />
       <p className="flex justify-between px-2 pb-1.5 text-xs text-muted">
         <span>This Mac</span>
         <span className="tabular-nums">

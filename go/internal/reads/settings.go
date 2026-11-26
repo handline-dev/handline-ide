@@ -22,6 +22,7 @@ import (
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/loadgate"
+	"github.com/handline/handline/go/scheduler/runload"
 	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
@@ -106,6 +107,7 @@ func (e *Env) settingsValues() map[string]any {
 	s := &settings.Settings{Home: e.Home}
 	park := s.DefaultCloseTimeoutS()
 	limits := loadgate.LimitsOf(cfg)
+	heavyRuns := runload.ConfigOf(cfg)
 	pace := usage.PaceSettingsOf(cfg)
 	bgNotice := park
 	if bgNotice == 0 {
@@ -137,6 +139,7 @@ func (e *Env) settingsValues() map[string]any {
 		"push_stall": s.Flag("push_stall", true), "push_account_out": s.Flag("push_account_out", true),
 		"push_only_away": s.Flag("push_only_away", false), "push_sound": s.Flag("push_sound", true),
 		loadgate.AgentCapKey: limits.Agents, loadgate.LoadPctKey: limits.LoadPct, loadgate.RAMFreePctKey: limits.RAMFreePct, loadgate.DiskFreeGBKey: limits.DiskFreeGB,
+		runload.PolicyKey: string(heavyRuns.Policy), runload.AtOnceKey: heavyRuns.AtOnce,
 		keepawake.Key: keepawake.ModeOf(cfg), housekeeping.OrphansKey: housekeeping.OrphansModeOf(cfg),
 		usage.PaceTargetKey: pace.Target, usage.PaceBurstKey: pace.Burst,
 		usage.SubagentGuardKey:          s.Flag(usage.SubagentGuardKey, false),

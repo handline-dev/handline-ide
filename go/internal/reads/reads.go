@@ -23,6 +23,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/procload"
+	"github.com/handline/handline/go/scheduler/runload"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -58,6 +59,8 @@ type Env struct {
 	LoadSeries func(from int64) (map[string][]procload.Point, error)
 	// Machine is the latest measure of the machine alone (sysres.Sampler.LatestMachine), for whether new starts are held; nil says none.
 	Machine func() *sysres.Machine
+	// RunLoad is what the watcher of the agents' runs knows now (runload.Watcher.View); nil on a daemon that does not watch them.
+	RunLoad func() runload.View
 	// NodeProjects is a runner's workspaces' repos there, as node.status shows them (projects.Syncer.Of); nil shows none.
 	NodeProjects func(node string) []any
 	// NodeOnline is whether a machine of this master is online (nodes.Registry.Online); nil has only the master's own online.
