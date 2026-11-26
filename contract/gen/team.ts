@@ -231,10 +231,10 @@ export interface TeamMethods {
     workspaces: Workspace[];
   } };
   "workspace.create": { params: {
-  /** The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name. */
-  name: string;
-  /** The workspace's first folder, its default: an absolute path (~ is the home folder), a git checkout or a plain folder. */
-  folder: string;
+  /** The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name. Left out or blank: the folder's name made into one (else "workspace"), with -2, -3 and so on when taken. */
+  name?: string;
+  /** The workspace's first folder, its default: an absolute path (~ is the home folder), a git checkout or a plain folder. Left out or blank: a new folder ~/Handline/<name> (-2, -3 and so on past one that is there and not empty). */
+  folder?: string;
   /** An account to pin the lead to: it runs that account's vendor and never moves off it. Needed for a codex account, which the pick never places an unpinned agent on. Omitted: the lead is placed as any agent. An unknown account is not_found, what account; one not logged in is accepted, and the lead waits for its login as any agent pinned to a logged-out account does. */
   account?: string;
   request_id: RequestId;

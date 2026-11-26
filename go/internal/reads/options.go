@@ -1,11 +1,12 @@
 package reads
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -44,27 +45,37 @@ func (e *Env) optionsRole(name string) string {
 	return pick
 }
 
-func (e *Env) freeNames() []any {
-	t, err := team.LoadTeam(e.Home)
+// defaultNames is the name an agent made with no name typed would get in each workspace (names.Plain), by workspace key.
+func (e *Env) defaultNames() (map[string]any, error) {
+	out := map[string]any{}
+	if e.DB == nil {
+		return out, nil
+	}
+	rows, err := e.DB.Query("SELECT id FROM workspaces ORDER BY id")
 	if err != nil {
-		return []any{}
+		return nil, err
 	}
-	have := map[string]bool{}
-	for _, a := range paths.ListAgents(e.Home) {
-		have[a] = true
-	}
-	var names []string
-	for a := range t.Agents {
-		if !have[a] {
-			names = append(names, a)
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
 		}
+		ids = append(ids, id)
 	}
-	sort.Strings(names)
-	out := make([]any, len(names))
-	for i, n := range names {
-		out[i] = n
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
-	return out
+	for _, id := range ids {
+		n, err := names.Free(e.DB, names.Agent, id, names.Plain...)
+		if err != nil {
+			return nil, err
+		}
+		out[actor.Key(actor.Workspace, id)] = n
+	}
+	return out, nil
 }
 
 // agentOptions is agent.options: what the new-agent form offers.
@@ -78,8 +89,12 @@ func (e *Env) agentOptions(_ *rpc.Conn, _ map[string]any) (any, error) {
 		in, known := e.loginState(a)
 		accts = append(accts, map[string]any{"name": a, "login_state": loginName(in, known)})
 	}
+	defaults, err := e.defaultNames()
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{"repos": e.repos(), "roles": roles, "models": strs(knownModels), "efforts": strs(validEfforts),
-		"accounts": accts, "free_names": e.freeNames()}, nil
+		"accounts": accts, "default_names": defaults}, nil
 }
 
 func strs(xs []string) []any {

@@ -16,6 +16,8 @@ interface Host {
   accounts: { list(): { accounts: { name: string; login_state: string }[] } };
   spaces: {
     place(name: string, workspace: unknown, folder: unknown): { name: string; repo: Repo; git: boolean };
+    defaultName(workspace: unknown): string;
+    list(): { key: string }[];
     settle(agent: string, folder: string): void;
   };
 }
@@ -27,8 +29,8 @@ const ROLE_NOTES: Record<string, string> = {
   architect: 'Plans and reviews the design; does not build.',
   auditor: 'Reviews a branch before it goes up.',
 };
-/** Agents the team file names that have no session yet: what the form suggests as a name. */
-const TEAM_NAMES = ['handline.new-builder', 'handline.new-reviewer'];
+/** A new agent's role when none is typed, as the daemon's. */
+const DEFAULT_ROLE = 'Helps with anything in this workspace.';
 const STEPS = ['registering the agent', 'making its worktree', 'starting the agent'];
 const METHODS = /^(agent\.create|agent\.options|operation\.get)$/;
 
@@ -66,7 +68,7 @@ export class FakeWork {
     }
   }
 
-  /** agent.options: what the new-agent form offers, from the fake's repos, agents, accounts and the team's free names. */
+  /** agent.options: what the new-agent form offers, from the fake's repos, agents and accounts, and each workspace's default name. */
   private options(): AgentOptions {
     const { sessions, admin } = this.host;
     return {
@@ -75,7 +77,7 @@ export class FakeWork {
       models: MODELS,
       efforts: EFFORTS,
       accounts: this.host.accounts.list().accounts.map((a) => ({ name: a.name, login_state: a.login_state })),
-      free_names: TEAM_NAMES.filter((n) => !sessions.has(n)),
+      default_names: Object.fromEntries(this.host.spaces.list().map((w) => [w.key, this.host.spaces.defaultName(w.key)])),
     };
   }
 
@@ -87,17 +89,20 @@ export class FakeWork {
   }
 
   private create(p: Record<string, unknown>, accepted: Accepted) {
-    const { role, base } = p;
-    if (typeof p.name !== 'string' || !/^[^./\s]+$/.test(p.name))
+    const { base } = p;
+    const blank = (v: unknown) => v === undefined || (typeof v === 'string' && !v.trim());
+    if (p.workspace === undefined) throw invalidParams('workspace is the one the agent is made in', 'workspace');
+    const typed = blank(p.name) ? this.host.spaces.defaultName(p.workspace) : p.name;
+    if (typeof typed !== 'string' || !/^[^./\s]+$/.test(typed))
       throw invalidParams('name is a plain name in its workspace: no dot, no / and no spaces', 'name');
-    if (typeof role !== 'string' || !role) throw invalidParams('role is the agent’s role, a string', 'role');
+    const role = blank(p.role) ? DEFAULT_ROLE : p.role;
+    if (typeof role !== 'string') throw invalidParams('role is the agent’s role, a string', 'role');
     for (const k of ['model', 'base'] as const)
       if (p[k] !== undefined && typeof p[k] !== 'string') throw invalidParams(`${k} is a string`, k);
     if (p.effort !== undefined && !EFFORTS.includes(String(p.effort)))
       throw invalidParams(`effort is one of ${EFFORTS.join(', ')}`, 'effort');
     if (p.account !== undefined) throw invalidParams('a new agent’s account is chosen when it starts; none can be named yet', 'account');
-    if (p.workspace === undefined) throw invalidParams('workspace is the one the agent is made in', 'workspace');
-    const placed = this.host.spaces.place(p.name, p.workspace, p.folder);
+    const placed = this.host.spaces.place(typed, p.workspace, p.folder);
     const { name, repo: found } = placed;
     if (this.host.sessions.has(name)) throw refused('state', `${name} is already an agent`);
     const fx: AgentFixture = {

@@ -15,17 +15,18 @@ export interface NewAgentChoices {
   /** Every account with its login state; `offered` is false for one that is not logged in. Empty when the daemon sent none. */
   accounts: { name: string; login_state: string; offered: boolean }[];
   roles: AgentOptions['roles'];
-  freeNames: string[];
+  /** By workspace key: the name an agent made there with no name typed gets (the name field's placeholder). */
+  defaultNames: Record<string, string>;
 }
 export function shapeChoices(o: AgentOptions | undefined): NewAgentChoices {
-  if (!o) return { fromDaemon: false, efforts: EFFORTS, models: null, accounts: [], roles: [], freeNames: [] };
+  if (!o) return { fromDaemon: false, efforts: EFFORTS, models: null, accounts: [], roles: [], defaultNames: {} };
   return {
     fromDaemon: true,
     efforts: o.efforts,
     models: o.models,
     accounts: o.accounts.map((a) => ({ ...a, offered: a.login_state === 'ok' })),
     roles: o.roles,
-    freeNames: o.free_names,
+    defaultNames: o.default_names,
   };
 }
 

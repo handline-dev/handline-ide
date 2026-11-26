@@ -25,6 +25,18 @@ const PLAIN_FOLDERS = [`${HOME}/Documents/recipe-site`];
 /** The seeded handline workspace holds a second repo and a plain folder beside its own. */
 const SEEDED_ADDED: [string, string[]][] = [['handline', ['/work/docs-site', PLAIN_FOLDERS[0]!]]];
 
+/** The names a new agent gets when none is typed, as the daemon's names.Plain. */
+export const PLAIN_NAMES = ['ada', 'bea', 'cal', 'dot', 'eli', 'fay', 'gus', 'ivy', 'jo', 'kit', 'lou', 'mia', 'ned', 'ola', 'pip'];
+
+/** A folder's name as a workspace name: lowercase, other runs as -, starting with a letter, at most 32. */
+const nameFrom = (w: string) =>
+  w
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^[-0-9]+|-+$/g, '')
+    .slice(0, 32)
+    .replace(/-+$/, '');
+
 const notFound = (message: string, what: string) => new Failure('not_found', message, { what });
 
 export class FakeWorkspaces {
@@ -35,6 +47,8 @@ export class FakeWorkspaces {
   private works = new Map<string, string>();
   /** Segments whose lead is being made: their name and folder are taken before the lead is registered. */
   private starting = new Set<string>();
+  /** Plain folders: the seeded ones and those workspace.create made under ~/Handline. */
+  private plain = new Set(PLAIN_FOLDERS);
   private host: Host;
 
   constructor(host: Host) {
@@ -45,13 +59,19 @@ export class FakeWorkspaces {
 
   list(): Workspace[] {
     const seats = new Set([...this.host.sessions].filter(([, s]) => s.fx.view?.hired_from).map(([k]) => k));
-    return workspacesOf([...this.host.sessions.keys()], seats, this.names, this.folderOf(), this.added, (f) => PLAIN_FOLDERS.includes(f));
+    return workspacesOf([...this.host.sessions.keys()], seats, this.names, this.folderOf(), this.added, (f) => this.plain.has(f));
   }
 
   /** The folder agent key works in: its own, else its workspace's default. */
   folderFor(key: string): string | null {
     const ws = this.list().find((w) => w.key === identOf(key).workspace);
     return this.works.get(key) ?? ws?.folder ?? null;
+  }
+
+  /** The name agent.create gives an agent of workspace (key or name) when none is typed: the first plain name free there. */
+  defaultName(workspace: unknown): string {
+    const { seg } = this.find(workspace);
+    return PLAIN_NAMES.find((n) => !this.host.sessions.has(`${seg}.${n}`)) ?? `${PLAIN_NAMES[0]}-${this.agentsOf(seg).length + 1}`;
   }
 
   /** agent.create's workspace and folder: the dotted name it registers, and the folder of it (its default if none) as a repo. */
@@ -113,6 +133,12 @@ export class FakeWorkspaces {
     return name;
   }
 
+  /** base, else base-2, base-3 and so on: the first no workspace, agent segment or handle has. */
+  private freeName(base: string): string {
+    const free = (n: string) => !this.list().some((w) => w.name === n) && !this.segments().has(n) && !PEOPLE.some((x) => x.handle === n);
+    for (let i = 1; ; i++) if (free(i === 1 ? base : `${base.slice(0, 28)}-${i}`)) return i === 1 ? base : `${base.slice(0, 28)}-${i}`;
+  }
+
   private agentsOf = (seg: string) => [...this.host.sessions.keys()].filter((k) => segment(k) === seg);
 
   private busy(seg: string): void {
@@ -121,15 +147,24 @@ export class FakeWorkspaces {
       throw refused('state', `${open.join(', ')} ${open.length === 1 ? 'has a session' : 'have sessions'} running: close them first.`);
   }
 
-  /** workspace.create: the checkout the folder is in, then agent.create's operation for its lead. Another workspace's folder fails it. */
+  /** workspace.create: the checkout the folder is in, then agent.create's operation for its lead. Another workspace's folder fails it.
+   * No name: the folder's, else "workspace", the first free; no folder: a new one ~/Handline/<name>. */
   private create(p: Record<string, unknown>, ok: Ok) {
-    const name = this.checkName(p.name);
-    if (typeof p.folder !== 'string' || !p.folder) throw invalidParams('folder is an absolute path', 'folder');
-    const folder = p.folder.replace(/^~(?=\/|$)/, HOME);
-    const { repos, recent } = this.host.admin.worktrees;
-    const top = [...repos, ...recent].find((r) => folder === r.path || folder.startsWith(`${r.path}/`))?.path;
-    const at = top ?? (PLAIN_FOLDERS.includes(folder) ? folder : undefined);
-    if (!at) throw notFound(`${folder} is not a folder`, 'folder');
+    const blank = (v: unknown) => v === undefined || (typeof v === 'string' && !v.trim());
+    if (!blank(p.folder) && typeof p.folder !== 'string') throw invalidParams('folder is an absolute path', 'folder');
+    let at: string | undefined;
+    if (!blank(p.folder)) {
+      const folder = (p.folder as string).replace(/^~(?=\/|$)/, HOME);
+      const { repos, recent } = this.host.admin.worktrees;
+      const top = [...repos, ...recent].find((r) => folder === r.path || folder.startsWith(`${r.path}/`))?.path;
+      at = top ?? (this.plain.has(folder) ? folder : undefined);
+      if (!at) throw notFound(`${folder} is not a folder`, 'folder');
+    }
+    const name = blank(p.name) ? this.freeName(nameFrom(at?.split('/').pop() ?? '') || 'workspace') : this.checkName(p.name);
+    if (!at) {
+      at = `${HOME}/Handline/${name}`;
+      this.plain.add(at);
+    }
     const repo = this.repoAt(at);
     const segs = this.segments();
     const other = [...this.folderOf()].find(([seg, f]) => f === repo.path && segs.has(seg))?.[0];

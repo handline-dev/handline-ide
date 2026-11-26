@@ -25,7 +25,10 @@ func TestWorkspaceNewRenameDeleteCallTheOwnersMethods(t *testing.T) {
 			t.Errorf("%v: %d %q %q", c.args, code, out, errs)
 		}
 	}
-	for _, args := range [][]string{{"workspace"}, {"workspace", "new"}, {"workspace", "rename", "shop"}, {"workspace", "rename", "shop", "--to", ""},
+	if _, errs, code := r.run(nil, "workspace", "new"); code != 0 || errs != "" {
+		t.Errorf("workspace new with no name, for the daemon to name from the folder: %d %q", code, errs)
+	}
+	for _, args := range [][]string{{"workspace"}, {"workspace", "new", "a", "b"}, {"workspace", "rename", "shop"}, {"workspace", "rename", "shop", "--to", ""},
 		{"workspace", "delete", "a", "--worktree", "keep"}, {"workspace", "move", "a"}} {
 		if _, errs, code := r.run(nil, args...); code != 2 || !strings.Contains(errs, "arguments not understood") {
 			t.Errorf("%v: %d %q", args, code, errs)
@@ -41,6 +44,7 @@ func TestWorkspaceNewRenameDeleteCallTheOwnersMethods(t *testing.T) {
 		`workspace.create {"folder":"` + root + `","name":"here"}`,
 		`workspace.set {"name":"store","workspace":"shop"}`,
 		`workspace.delete {"workspace":"store","worktree":"save"}`,
+		`workspace.create {"folder":"` + root + `"}`,
 	}
 	if got := sent(calls()); !reflect.DeepEqual(got, want) {
 		t.Errorf("calls\n got  %v\n want %v", got, want)

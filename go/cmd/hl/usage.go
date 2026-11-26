@@ -70,7 +70,7 @@ var usages = map[string][2]string{
 	"device":           {`hl device pair [--name N] | hl device join <link>`, `hl device pair --name phone`},
 	"node":             {`hl node promote (run on one of the owner's machines that joined: it becomes the master)`, `hl node promote`},
 	"workspace":        {`hl workspace <new|rename|delete> ... (the founder's; an agent proposes a team)`, `hl workspace new shop --folder ~/code/shop`},
-	"workspace new":    {`hl workspace new <name> [--folder PATH] (default: this folder's git checkout)`, `hl workspace new shop --folder ~/code/shop`},
+	"workspace new":    {`hl workspace new [<name>] [--folder PATH] (default: this folder's git checkout; no name: the folder's)`, `hl workspace new shop --folder ~/code/shop`},
 	"workspace rename": {`hl workspace rename <workspace> --to <new name>`, `hl workspace rename shop --to store`},
 	"workspace delete": {`hl workspace delete <workspace> [--worktree save|force] (retires its agents, lead last; the project folder stays)`, `hl workspace delete shop --worktree save`},
 	"dev":              {`hl dev cluster up|down|status [--runners N] [--worktree PATH]`, `hl dev cluster up --runners 2`},

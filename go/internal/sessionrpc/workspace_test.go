@@ -1,11 +1,13 @@
 package sessionrpc
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/kit/wslock"
@@ -94,4 +96,49 @@ func TestWorkspaceCreateOnAPlainFolder(t *testing.T) {
 	plain := t.TempDir()
 	result(t, c.call("workspace.create", map[string]any{"name": "notes", "folder": plain, "request_id": rid("wp")}))
 	startedByKey(t, r, "notes", filepath.Clean(plain))
+}
+
+// With no folder the daemon makes ~/Handline/<name>; with no name the name comes from the folder, else "workspace", the first free.
+func TestWorkspaceCreateFillsWhatIsLeftOut(t *testing.T) {
+	r, _, c := createRig(t)
+	result(t, c.call("workspace.create", map[string]any{"request_id": rid("wd1")}))
+	made := filepath.Join(paths.Projects(), "workspace")
+	startedByKey(t, r, "workspace", made)
+	if err := os.MkdirAll(filepath.Join(paths.Projects(), "workspace-2", "kept"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result(t, c.call("workspace.create", map[string]any{"name": "", "request_id": rid("wd2")}))
+	startedByKey(t, r, "workspace-2", filepath.Join(paths.Projects(), "workspace-2-2")) // a folder there with files is passed over
+	plain := filepath.Join(t.TempDir(), "My Notes")
+	if err := os.Mkdir(plain, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	result(t, c.call("workspace.create", map[string]any{"folder": plain, "request_id": rid("wd3")}))
+	startedByKey(t, r, "my-notes", plain)
+}
+
+// A typed name the rules refuse makes no folder; a projects folder inside a git checkout is refused and leaves nothing behind.
+func TestWorkspaceCreateMakesNoFolderItCannotUse(t *testing.T) {
+	r, sn, c := createRig(t)
+	if m := c.call("workspace.create", map[string]any{"name": "Shop", "request_id": rid("wn1")}); badField(m) != "name" {
+		t.Fatalf("a name of the wrong shape: %v", m)
+	}
+	if _, err := os.Stat(filepath.Join(paths.Projects(), "Shop")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a folder was made for a refused name: %v", err)
+	}
+	if err := os.MkdirAll(paths.Projects(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if res := gitrun.Run(filepath.Dir(paths.Projects()), "init", "-q"); res.RC != 0 {
+		t.Fatal(res.Stderr)
+	}
+	if m := c.call("workspace.create", map[string]any{"name": "notes", "request_id": rid("wn2")}); refused(m) != "state" {
+		t.Fatalf("projects inside a checkout: %v", m)
+	}
+	if _, err := os.Stat(filepath.Join(paths.Projects(), "notes")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the folder made was left: %v", err)
+	}
+	if len(r.ctl.calls) != 0 || len(sn.got) != 0 {
+		t.Fatalf("no operation started: %v %v", r.ctl.calls, sn.got)
+	}
 }

@@ -995,11 +995,12 @@
        ]
       }
      },
-     "free_names": {
-      "type": "array",
-      "items": {
+     "default_names": {
+      "type": "object",
+      "additionalProperties": {
        "type": "string"
-      }
+      },
+      "description": "By workspace key: the name agent.create gives an agent there when none is typed."
      }
     },
     "required": [
@@ -1008,7 +1009,7 @@
      "models",
      "efforts",
      "accounts",
-     "free_names"
+     "default_names"
     ]
    },
    "OperationStarted": {
@@ -2054,18 +2055,18 @@
    "params": [
     {
      "name": "name",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
-      "description": "Its plain name in the workspace; a dot is bad_request, field name."
+      "description": "Its plain name in the workspace; a dot is bad_request, field name. Left out or blank: the first plain name free in the workspace, as agent.options default_names gives it."
      }
     },
     {
      "name": "role",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
-      "description": "A free string today."
+      "description": "A free string. Left out or blank: \"Helps with anything in this workspace.\""
      }
     },
     {

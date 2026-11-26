@@ -951,18 +951,18 @@
    "params": [
     {
      "name": "name",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
-      "description": "The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name."
+      "description": "The workspace's name: lowercase letters, digits and -, 1 to 32 long, starting with a letter, used by no workspace and no person's handle. A dot or a slash is bad_request, field name. Left out or blank: the folder's name made into one (else \"workspace\"), with -2, -3 and so on when taken."
      }
     },
     {
      "name": "folder",
-     "required": true,
+     "required": false,
      "schema": {
       "type": "string",
-      "description": "The workspace's first folder, its default: an absolute path (~ is the home folder), a git checkout or a plain folder."
+      "description": "The workspace's first folder, its default: an absolute path (~ is the home folder), a git checkout or a plain folder. Left out or blank: a new folder ~/Handline/<name> (-2, -3 and so on past one that is there and not empty)."
      }
     },
     {
