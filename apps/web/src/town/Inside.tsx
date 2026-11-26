@@ -2,19 +2,21 @@
 // scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
 // The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and brings up that
 // agent's chat in the town's windows (Windows.tsx), one on the founder's own desk the decisions; whose chat a tab bar shows stays
-// outlined. The door
-// the founder came in by shuts behind it, and opens when it walks up into it to go back out.
+// outlined. The door the founder came in by shuts behind it, and opens when it walks up into it to go back out. A person whose place
+// changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WORDS, type House, type Person } from '#src/town/model.ts';
 import { useTownShown } from '#src/town/Windows.tsx';
-import { BUBBLE, PEOPLE_SHEET, SHEET, type Figure, type Spot } from '#src/town/people.ts';
+import type { Spot } from '#src/town/people.ts';
 import { COLS, roomOf } from '#src/town/room.ts';
 import { viewOf } from '#src/town/view.ts';
-import { NAME_HALO, NAME_INK, THROUGH } from '#src/town/palette.ts';
+import { THROUGH } from '#src/town/palette.ts';
 import { DoorSwing, type Way } from '#src/town/door.tsx';
-import { FounderDrawing, founderBox, useFounder, useWalker } from '#src/town/founder.tsx';
+import { useWalker } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
-import { touches, useDrawn } from '#src/town/office.ts';
+import { useDrawn } from '#src/town/office.ts';
+import { useCrowd } from '#src/town/crowd.ts';
+import { Bubbles, Label, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 /** What the founder's own desk opens: the decisions waiting for them. */
@@ -65,20 +67,21 @@ export function Inside({
   const drawn = useDrawn(house, cols);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
   // The door, pushed open into the room as the founder comes in, shuts behind it; walking down into it pushes it open out, toward the
-  // viewer, and then goes back out to the city.
-  const [swing, setSwing] = useState<{ way: Way; from?: FloorSpot; out?: boolean } | null>(cameIn ? { way: 'shut' } : null);
+  // viewer, and then goes back out to the city. One of the people (`crowd`) coming or going holds it open while in the doorway.
+  const [swing, setSwing] = useState<{ way: Way; from?: FloorSpot; out?: boolean; crowd?: boolean } | null>(
+    cameIn ? { way: 'shut' } : null,
+  );
   const founder = useWalker(drawn?.ground ?? null, house.key, ([x, z], [, dz]) => {
     const entry = drawn?.ground.entry;
     if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z], out: true });
   });
-  const cast = drawn?.cast;
+  const crowd = useCrowd(drawn?.stage ?? null);
   // The front wall goes see-through while a person reaches into it.
-  const seeThrough = useFounder(
-    founder,
-    (me) => !!drawn && (drawn.front.people || (!!me && touches(drawn.front.top, founderBox(drawn.ground, me.at)))),
-  );
-  // The people are in depth order: those up to `behind` stand behind the founder.
-  const behind = useFounder(founder, (me) => (me && cast ? cast.figures.filter((f) => f.z <= me.at[1]).length : 0));
+  const seeThrough = useSeeThrough(drawn, founder, crowd);
+  // The door opens for whoever comes near it once it is free, and shuts when nobody is near.
+  const through = useThroughDoor(crowd, drawn?.stage.door);
+  if (through && (!swing || (swing.crowd && swing.way === 'shut'))) setSwing({ way: 'open', out: through === 'out', crowd: true });
+  else if (!through && swing?.crowd && swing.way === 'open') setSwing({ way: 'shut', out: swing.out, crowd: true });
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
@@ -155,16 +158,7 @@ export function Inside({
                   founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
                 }}
               />
-              {drawn.cast.figures.slice(0, behind).map((f) => (
-                <Drawing key={f.person.key} figure={f} />
-              ))}
-              {drawn.cast.names.map((n) => (
-                <Label key={n.person.key} x={n.x} y={n.y} font={font} scale={scale} text={n.person.name} />
-              ))}
-              <FounderDrawing founder={founder} ground={drawn.ground} />
-              {drawn.cast.figures.slice(behind).map((f) => (
-                <Drawing key={f.person.key} figure={f} />
-              ))}
+              <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} />
               <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
                 <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
                 {drawn.front.door && drawn.leaves && swing && (
@@ -175,6 +169,7 @@ export function Inside({
                     way={swing.way}
                     out={swing.out}
                     onDone={() => {
+                      if (swing.crowd && swing.way === 'open') return; // held open till they are through
                       if (swing.way !== 'open') return setSwing(null);
                       // Sent somewhere else while it opened: it shuts again.
                       const [me, from] = [founder.get()?.at, swing.from];
@@ -184,18 +179,7 @@ export function Inside({
                   />
                 )}
               </g>
-              {drawn.cast.bubbles.map((b) => (
-                <image
-                  key={`${b.x},${b.y}`}
-                  href={BUBBLE}
-                  x={b.x}
-                  y={b.y}
-                  width={b.w}
-                  height={b.h}
-                  style={PIXEL}
-                  className="pointer-events-none"
-                />
-              ))}
+              <Bubbles drawn={drawn} crowd={crowd} />
               {drawn.cast.mine && (
                 <>
                   <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} scale={scale} text="You" />
@@ -226,38 +210,5 @@ export function Inside({
         </div>
       </div>
     </div>
-  );
-}
-
-/** A name under a person or desk: `font` and the halo keep their screen size whatever the scale. */
-function Label({ x, y, font, scale, text }: { x: number; y: number; font: number; scale: number; text: string }) {
-  return (
-    <text
-      x={x}
-      y={y + font}
-      textAnchor="middle"
-      fontSize={font}
-      fontWeight={600}
-      fill={NAME_INK}
-      stroke={NAME_HALO}
-      strokeWidth={2.5 / scale}
-      paintOrder="stroke"
-      className="pointer-events-none"
-    >
-      {text}
-    </text>
-  );
-}
-
-/** A person at the screen's own resolution (smoothly scaled, never snapped to the room's pixels), then the room's nearer pixels over it. */
-function Drawing({ figure: { box, col, row, front } }: { figure: Figure }) {
-  const [cw, ch] = SHEET.cell;
-  return (
-    <g className="pointer-events-none">
-      <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * cw} ${row * ch} ${cw} ${ch}`}>
-        <image href={PEOPLE_SHEET} width={SHEET.size[0]} height={SHEET.size[1]} />
-      </svg>
-      {front && <image href={front.url} x={front.x} y={front.y} width={front.w} height={front.h} style={PIXEL} />}
-    </g>
   );
 }

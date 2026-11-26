@@ -47,6 +47,9 @@ export type Block = {
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing (`door`, as one starting does inside the door, and the HQ's
  *  people do); (x, z) on the floor. */
 export type Place = { person: Person; x: number; z: number; how: 'desk' | 'turned' | 'sofa' | 'door'; chair?: string };
+/** A place's name, the same for one desk's chair turned round or not, and different once the desk stands elsewhere. */
+export const seatName = (p: Place) =>
+  `${p.how === 'turned' ? 'desk' : p.how}:${p.x.toFixed(2)},${(p.how === 'turned' ? p.z - TURN : p.z).toFixed(2)}`;
 /** `entry`: where the founder comes in, inside the door. */
 /** `distance`, `pitch` and `personPx`: how far the camera stands, in metres, how steeply it looks down, in radians, and how many
  *  pixels tall a person is drawn (view.ts). */
@@ -76,6 +79,7 @@ export const WALL_H = 1.29;
 export const WALL_T = 0.12;
 export const SLAB = 0.22;
 const PITCH = 0.734; // desks in a bench share an edge
+const TURN = 0.08; // how much nearer the room one turned round in a desk chair sits
 const ROW = 1.75; // from one bench to the next, with room for the names between
 const FIRST = 1.45; // the first bench's front edge
 const SOFA = 0.98;
@@ -150,7 +154,7 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
       if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
       F.chair(put, x + 0.225, z + 0.3, chair, turned(p));
       if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
-      if (turned(p)) places.push({ person: p, x: x + 0.367, z: z + 0.28, how: 'turned', chair });
+      if (turned(p)) places.push({ person: p, x: x + 0.367, z: z + 0.2 + TURN, how: 'turned', chair });
     });
 
   // The founder's desk, just inside the door at its left, with a paper for every decision waiting on the founder and an empty chair.
