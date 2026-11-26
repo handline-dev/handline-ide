@@ -27,6 +27,8 @@ import { openSettings } from '#src/settings/open.ts';
 import '#src/styles.css';
 import '#src/theme.ts';
 import { trackShellInsets } from '#src/shellInsets.ts';
+import { MainSkeleton, SidebarSkeleton } from '#src/ui/AppSkeleton.tsx';
+import { useDirectoryReady } from '@handline/app-data';
 
 const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWidth.min, px));
 
@@ -36,6 +38,8 @@ function App() {
   const [dragging, setDragging] = useState(false);
   const { agent, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
   const root = useRef<HTMLDivElement>(null);
+  // Until the lists every name is read through arrive, bars stand where names will be: never a raw key.
+  const ready = useDirectoryReady();
   // A joined cluster's agent opens in its own cluster.
   const here = splitSpace(agent ?? '');
   // A cluster left while one of its agents was on screen: Requests instead.
@@ -74,7 +78,7 @@ function App() {
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
             <div className="app-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
-            <Sidebar width={width} onScreen={onScreen} onSelectPage={goPage} onSelectAgent={select} />
+            {ready ? <Sidebar width={width} onScreen={onScreen} onSelectPage={goPage} onSelectAgent={select} /> : <SidebarSkeleton />}
           </motion.div>
           {open && (
             <Splitter
@@ -87,34 +91,38 @@ function App() {
               label="Resize sidebar"
             />
           )}
-          <InCluster key={here.cluster} id={here.cluster}>
-            <SpaceCluster.Provider value={here.cluster}>
-              <Workspace
-                root={layout}
-                agent={agent === null ? null : here.agent}
-                focus={focus}
-                onFocus={setFocus}
-                dispatch={dispatch}
-                reopenClosed={reopenClosed}
-                lead={
-                  <AnimatePresence initial={false}>
-                    {!open && (
-                      <motion.div
-                        key="lead"
-                        initial={{ width: 0 }}
-                        animate={{ width: 'auto' }}
-                        exit={{ width: 0 }}
-                        transition={spring}
-                        className="shrink-0"
-                      >
-                        <div style={{ width: 'calc(104px + var(--lights-w, 0px))' }} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                }
-              />
-            </SpaceCluster.Provider>
-          </InCluster>
+          {ready ? (
+            <InCluster key={here.cluster} id={here.cluster}>
+              <SpaceCluster.Provider value={here.cluster}>
+                <Workspace
+                  root={layout}
+                  agent={agent === null ? null : here.agent}
+                  focus={focus}
+                  onFocus={setFocus}
+                  dispatch={dispatch}
+                  reopenClosed={reopenClosed}
+                  lead={
+                    <AnimatePresence initial={false}>
+                      {!open && (
+                        <motion.div
+                          key="lead"
+                          initial={{ width: 0 }}
+                          animate={{ width: 'auto' }}
+                          exit={{ width: 0 }}
+                          transition={spring}
+                          className="shrink-0"
+                        >
+                          <div style={{ width: 'calc(104px + var(--lights-w, 0px))' }} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  }
+                />
+              </SpaceCluster.Provider>
+            </InCluster>
+          ) : (
+            <MainSkeleton />
+          )}
         </div>
         <StatusRow />
       </div>

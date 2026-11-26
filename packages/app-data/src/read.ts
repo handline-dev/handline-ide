@@ -58,6 +58,14 @@ export function useDirectory(): Directory {
   );
 }
 
+/** Whether the three lists every key is written out through have been read: until then a screen shows a skeleton, never a raw key. */
+export function useDirectoryReady(): boolean {
+  const agents = useRead('agents.list', {}).isSuccess;
+  const people = useRead('people.list', {}).isSuccess;
+  const workspaces = useRead('workspaces.list', {}).isSuccess;
+  return agents && people && workspaces;
+}
+
 /** nameOf over the directory: what a screen shows for a key; `here`, a workspace key, when the screen is that workspace's. */
 export function useNameOf(here?: string): (key: string) => string {
   const d = useDirectory();
