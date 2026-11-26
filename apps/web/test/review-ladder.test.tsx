@@ -49,7 +49,7 @@ const mount = async (node: React.ReactNode) => {
   const r = (root = createRoot(el));
   await act(async () => r.render(node));
 };
-beforeEach(() => void Object.assign(settings, { sandbox: 'off', sandbox_allow: 'weaker-network' }));
+beforeEach(() => void Object.assign(settings, { sandbox: 'off', sandbox_allow: '' }));
 afterEach(async () => {
   calls.length = 0;
   await act(async () => root?.unmount());
@@ -79,24 +79,27 @@ describe('the review ladder', () => {
 
 describe('the sandbox block', () => {
   const sw = (label: string) => document.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`)!;
-  it('keeps the allowances in place and greyed while the sandbox is off, and turns the sandbox on with agent.set', async () => {
+  const list = '2026-11-20 host pypi.org\n2026-11-21 cert\n2026-11-22 command pnpm install';
+  it('turns the sandbox on with agent.set, and lists nothing allowed until there is an entry', async () => {
     await mount(<AgentPage agent="ui" />);
-    expect(sw('Allow Go module downloads').disabled).toBe(true);
-    expect(sw('Allow Go module downloads').getAttribute('aria-checked')).toBe('true');
+    expect(document.body.textContent).not.toContain('Allowed');
     await act(async () => sw('Run in a sandbox').click());
     expect(calls).toEqual([{ method: 'agent.set', params: { agent: 'ui', values: { sandbox: 'on' } } }]);
   });
-  it('adds and removes an allowance word, keeping the others', async () => {
-    settings.sandbox = 'on';
+  it('lists each entry, and its x writes the list without that line, one entry per line', async () => {
+    Object.assign(settings, { sandbox: 'on', sandbox_allow: `${list}\nnot an entry` });
     await mount(<AgentPage agent="ui" />);
-    await act(async () => sw('Allow pnpm install').click());
-    await act(async () => root?.unmount()); // the mock has no cache to re-render from: mount again on what the write left
-    document.body.innerHTML = '';
-    await mount(<AgentPage agent="ui" />);
-    await act(async () => sw('Allow Go module downloads').click());
+    const entries = [...document.querySelectorAll('li')]
+      .filter((li) => li.querySelector('[aria-label^="Stop allowing"]'))
+      .map((li) => li.textContent);
+    expect(entries).toEqual([
+      expect.stringMatching(/^Reachpypi\.org/),
+      expect.stringMatching(/^Certificate checkThe certificate check Go tools need/),
+      expect.stringMatching(/^Run outsidepnpm install/),
+    ]);
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Stop allowing pypi.org"]')!.click());
     expect(calls.map((c) => (c.params as { values: object }).values)).toEqual([
-      { sandbox_allow: 'weaker-network pnpm-install' },
-      { sandbox_allow: 'pnpm-install' },
+      { sandbox_allow: '2026-11-21 cert\n2026-11-22 command pnpm install' },
     ]);
   });
 });
