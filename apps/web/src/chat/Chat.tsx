@@ -39,6 +39,7 @@ import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
+import { useChatAim } from '#src/chat/aim.ts';
 import { JumpDown } from '#src/ui/JumpDown.tsx';
 import { Boundary } from '#src/ui/Boundary.tsx';
 import { Button } from '#src/ui/Button.tsx';
@@ -185,7 +186,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const me = useMe();
   // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
   useChatReadMarks(agent, chat);
-  const { entries, bash } = foldBash(chatView(chat, 'mine', agent, me, [], true).entries);
+  const drawn = chatView(chat, 'mine', agent, me, [], true);
+  const { entries, bash } = foldBash(drawn.entries);
   const view = useAgents().data?.agents.find((a) => a.key === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
@@ -204,6 +206,13 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   // older pages or images land (the legacy chat's scroll, shared logic in app-core).
   const scroll = useChatScroll({ stream, content, ready: true, agent, reading: chat.holdPlace });
   useImperativeHandle(ref, () => ({ sent: scroll.sent }), [scroll.sent]);
+  // A message asked for from outside the chat (a schedule's last run): read back to it and shown mid-view.
+  useChatAim(
+    agent,
+    stream,
+    { floor: drawn.floor, hasOlder: chat.hasOlder, loadingOlder: chat.loadingOlder, loadOlder: chat.loadOlder },
+    scroll.leave,
+  );
   // Lines added at the end (not an older page landing at the top): counted from the last line known.
   const last = useRef<string | null>(null);
   useEffect(() => {

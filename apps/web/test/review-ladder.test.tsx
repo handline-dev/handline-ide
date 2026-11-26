@@ -29,7 +29,11 @@ vi.mock('@handline/app-data', () => ({
   useAgentReview: () => ok({ agent: 'ui', ladder, lessons: 0 }),
   useAgentDetail: () => ok({ settings: { ...settings } }),
   useLessons: () => ok({ items: [] }),
-  Hooks: { useAccessList: () => ({ data: { rules: [] } }), useAccessRuleRemove: () => ({ mutate() {} }) },
+  Hooks: {
+    useAccessList: () => ({ data: { rules: [] } }),
+    useAccessRuleRemove: () => ({ mutate() {} }),
+    useSchedulesList: () => ({ data: undefined }),
+  },
   useSettings: () => ({ isSuccess: false }),
   useNameOf: () => (k: string) => k,
   useProposals: () => ok({ proposals: [] }),

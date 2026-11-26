@@ -1,19 +1,22 @@
 import { Ago } from '#src/ui/Ago.tsx';
 import { Refs } from '#src/ui/refs.tsx';
+import { SCHEDULE_SENDER, scheduledText } from '@handline/app-core';
 import type { ChatMessage } from '@handline/client';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CalendarClock } from 'lucide-react';
 import { useState } from 'react';
 import { spring } from '#src/motion.ts';
 import { Markdown } from '#src/ui/Markdown.tsx';
 import { Who } from '#src/ui/Who.tsx';
 
 /** A message this agent sent another agent: one quiet line, set apart from the conversation, with to whom and the start of it.
- * A click opens it in place, whole (its height from none to its own), and closes it again. */
+ * A click opens it in place, whole (its height from none to its own), and closes it again. A message the daemon typed at the agent
+ * on a schedule is the same quiet line, under the word Scheduled. */
 export function AgentNote({ m }: { m: ChatMessage }) {
   const [open, setOpen] = useState(false);
-
-  const first = m.body.replace(/\s+/g, ' ').trim();
+  const scheduled = m.from === SCHEDULE_SENDER;
+  const body = scheduled ? scheduledText(m.body) : m.body;
+  const first = body.replace(/\s+/g, ' ').trim();
   return (
     // Like a message line, its time shows on hover in the row under it, which keeps its height so nothing moves.
     <div className="group flex max-w-150 min-w-0 flex-col items-start">
@@ -24,10 +27,8 @@ export function AgentNote({ m }: { m: ChatMessage }) {
           onClick={() => setOpen(!open)}
           className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left outline-none hover:bg-hover/30 hover:text-fg focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <ArrowRight size={12} className="shrink-0" />
-          <span className="shrink-0 font-medium">
-            <Who k={m.to} />
-          </span>
+          {scheduled ? <CalendarClock size={12} className="shrink-0" /> : <ArrowRight size={12} className="shrink-0" />}
+          <span className="shrink-0 font-medium">{scheduled ? 'Scheduled' : <Who k={m.to} />}</span>
           {!open && (
             <span className="min-w-0 truncate">
               <Refs text={first} />
@@ -41,7 +42,7 @@ export function AgentNote({ m }: { m: ChatMessage }) {
           className="overflow-hidden"
         >
           <div className="px-2 pt-1 pb-2 text-sm text-fg">
-            <Markdown text={m.body} />
+            <Markdown text={body} />
           </div>
         </motion.div>
       </div>

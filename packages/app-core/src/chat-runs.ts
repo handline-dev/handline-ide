@@ -26,6 +26,11 @@ export type TaskEvent = {
 export type TaskCard = { id: string; key: string; events: TaskEvent[] };
 export type ChatRow = TimelineEntry | TurnRecord | TaskCard;
 
+/** Who a message the daemon typed on a schedule is from. */
+export const SCHEDULE_SENDER = 'schedule';
+/** A scheduled message's own words: the daemon types `[schedule <cron>] <message>`, and the chat shows the message. */
+export const scheduledText = (body: string): string => body.replace(/^\[schedule [^\]]*\]\s*/, '');
+
 /** Whether a line draws nothing (what others said to the agent, a session a move started, an empty item): the chat line's own rules, so a
  * run of task cards is not cut by a line nobody sees. */
 export function drawsNothing(e: TimelineEntry, agent: string, me: string): boolean {
@@ -35,6 +40,8 @@ export function drawsNothing(e: TimelineEntry, agent: string, me: string): boole
       (!e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed && !e.item.concurrent_work)
     );
   if (e.kind === 'proposal') return true;
+  // A message typed on a schedule is a quiet line: it is why the agent took a turn nobody asked for, and the list of schedules opens on it.
+  if (e.message.from === SCHEDULE_SENDER) return !scheduledText(e.message.body).trim();
   // The daemon's own bookkeeping (sys digests and nudges) is not shown anywhere.
   if (isSystem(e.message.from)) return true;
   if (!isPerson(e.message.from, me) && !isPerson(e.message.to, me)) return e.message.from !== agent;

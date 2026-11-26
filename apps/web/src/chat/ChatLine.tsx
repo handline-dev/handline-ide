@@ -89,7 +89,7 @@ export function ChatLine({
     );
   }
   // A message that does not involve the founder is the agent's talk with another. What it said to others is a quiet line, read
-  // whole on a click; what others said to it is not shown.
+  // whole on a click, and so is a message typed at it on a schedule; what others said to it is not shown.
   if ((e.kind === 'message' || e.kind === 'note') && !isPerson(e.message.from, me) && !isPerson(e.message.to, me)) {
     return (
       <motion.div data-id={key} {...fade} className="flex">

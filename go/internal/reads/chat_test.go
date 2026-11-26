@@ -581,6 +581,33 @@ func TestChatLocateReadsTheToolsAroundTheMessage(t *testing.T) {
 	}
 }
 
+// A message the daemon typed on a schedule has no person at either end: it is found by its number or its ref in its agent's chat, in the
+// scope that shows everything the agent received (schedules.list gives both for each time a schedule ran).
+func TestChatLocateFindsAScheduledMessageInItsAgentsChat(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	for _, q := range []string{
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(1, 1000, 'p1', 'bob', 'first', 'queued', 'say', 'aaaa11112222')",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(7, 2000, 'schedule', 'bob', '[schedule 0 9 * * *] look', 'queued', 'say', 'dddd77778888')",
+	} {
+		if _, err := e.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []any{json.Number("7"), "dddd77778888"} {
+		got, err := e.chatLocate(nil, map[string]any{"request": name})
+		if err != nil {
+			t.Fatalf("%v: %v", name, err)
+		}
+		m := got.(map[string]any)
+		msg := m["message"].(map[string]any)
+		if m["agent"] != "bob" || m["scope"] != "all" || msg["id"] != int64(7) || msg["from"] != "schedule" || len(m["messages"].([]any)) != 2 {
+			t.Fatalf("%v: %v", name, m)
+		}
+	}
+}
+
 // A reply item carries the runs of its command blocks; one with none has no runs, and a message's runs of the same id are not its.
 func TestChatTranscriptServesAReplysRuns(t *testing.T) {
 	t.Parallel()

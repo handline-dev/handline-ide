@@ -1,7 +1,7 @@
 // Settings: over the whole app so the founder can focus on it, its sections in a menu on the left; Back at the menu's top, or Escape, leaves.
-// The rest of legacy's Settings (schedules, saved answers, appearance) joins the menu as it is built.
+// The rest of legacy's Settings (saved answers, appearance) joins the menu as it is built.
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowLeft, Bell, Bot, FolderGit2, ListChecks, MonitorSmartphone, Settings2, UserRound, Wrench } from 'lucide-react';
+import { ArrowLeft, Bell, Bot, CalendarClock, FolderGit2, ListChecks, MonitorSmartphone, Settings2, UserRound, Wrench } from 'lucide-react';
 import { InCluster, useJoined } from '#src/connection/clusters.tsx';
 import { ClusterPicker } from '#src/settings/ClusterPicker.tsx';
 import { GeneralTab } from '#src/settings/GeneralTab.tsx';
@@ -12,6 +12,7 @@ import { AccountsTab } from '#src/usage/AccountsTab.tsx';
 import { NotificationsTab } from '#src/settings/NotificationsTab.tsx';
 import { OnboardingTab } from '#src/settings/OnboardingTab.tsx';
 import { ProjectsTab } from '#src/settings/ProjectsTab.tsx';
+import { SchedulesTab } from '#src/settings/Schedules.tsx';
 import { ToolsTab } from '#src/settings/ToolsTab.tsx';
 import { useOnboarding } from '#src/onboarding/data/progress.ts';
 import { usePersisted } from '#src/persist/kv.ts';
@@ -20,12 +21,17 @@ import { useBackCloses } from '#src/ui/backCloses.ts';
 import { closeSettings, isSection, settingsTarget, useSettingsOpen, type Section } from '#src/settings/open.ts';
 
 /** The menu's groups: the setup first, then the details of each part, then the devices. */
-const GROUPS: Section[][] = [['general', 'onboarding'], ['accounts', 'agents', 'tools', 'notifications', 'projects'], ['devices']];
+const GROUPS: Section[][] = [
+  ['general', 'onboarding'],
+  ['accounts', 'agents', 'schedules', 'tools', 'notifications', 'projects'],
+  ['devices'],
+];
 const MENU: Record<Section, { word: string; icon: ReactNode }> = {
   general: { word: 'General', icon: <Settings2 size={14} /> },
   onboarding: { word: 'Onboarding', icon: <ListChecks size={14} /> },
   accounts: { word: 'Accounts', icon: <UserRound size={14} /> },
   agents: { word: 'Agents', icon: <Bot size={14} /> },
+  schedules: { word: 'Schedules', icon: <CalendarClock size={14} /> },
   tools: { word: 'Tools', icon: <Wrench size={14} /> },
   notifications: { word: 'Notifications', icon: <Bell size={14} /> },
   projects: { word: 'Projects', icon: <FolderGit2 size={14} /> },
@@ -129,6 +135,7 @@ function Frame() {
               {section === 'onboarding' && <OnboardingTab go={setSection} />}
               {section === 'accounts' && <AccountsTab focus={to.account} />}
               {section === 'agents' && <AgentsTab />}
+              {section === 'schedules' && <SchedulesTab />}
               {section === 'tools' && <ToolsTab />}
               {section === 'notifications' && <NotificationsTab />}
               {section === 'projects' && <ProjectsTab />}

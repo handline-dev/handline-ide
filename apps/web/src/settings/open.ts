@@ -1,7 +1,17 @@
 import { createStore } from '#src/persist/store.ts';
 
 /** Where Settings opens: a section, and in it one account, agent or device. Without it, the section it was last on. */
-export const SECTIONS = ['general', 'onboarding', 'accounts', 'agents', 'tools', 'notifications', 'projects', 'devices'] as const;
+export const SECTIONS = [
+  'general',
+  'onboarding',
+  'accounts',
+  'agents',
+  'schedules',
+  'tools',
+  'notifications',
+  'projects',
+  'devices',
+] as const;
 export type Section = (typeof SECTIONS)[number];
 export const isSection = (s: unknown): s is Section => SECTIONS.some((x) => x === s);
 /** `cluster`: whose settings, '' (this Mac's) when left out. */

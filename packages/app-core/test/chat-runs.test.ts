@@ -1,7 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatMessage, TranscriptItem } from '@handline/client';
-import { drawsNothing, knownUpTo, onePerTask, taskRuns, type TaskCard, type TaskEvent, type TimelineEntry } from '#src/index.ts';
+import {
+  drawsNothing,
+  knownUpTo,
+  onePerTask,
+  scheduledText,
+  taskRuns,
+  type TaskCard,
+  type TaskEvent,
+  type TimelineEntry,
+} from '#src/index.ts';
 
 const A = 'handline.ui';
 const at = (n: number) => `2026-01-01T00:00:0${n}Z`;
@@ -82,6 +91,28 @@ test('a task change heard live goes in by its time, and one its notice already s
 test('a session a move started draws nothing: its move line says it', () => {
   assert.equal(drawsNothing(item(1, { text: '', session: { cause: 'move' } } as Partial<TranscriptItem>), A, 'human'), true);
   assert.equal(drawsNothing(item(1, { text: '', session: { cause: 'context_full' } } as Partial<TranscriptItem>), A, 'human'), false);
+});
+
+test('a message typed on a schedule is drawn, by its own words; the rest of what the daemon sends is not', () => {
+  const scheduled = msg(1, { from: 'schedule', to: A, body: '[schedule 30 9 * * 1-5] Read the open requests.' });
+  assert.equal(drawsNothing(scheduled, A, 'human'), false);
+  assert.equal(scheduledText(scheduled.kind === 'message' ? scheduled.message.body : ''), 'Read the open requests.');
+  // a message that only happens to start like one keeps its words
+  assert.equal(scheduledText('[scheduled] look'), '[scheduled] look');
+  assert.equal(drawsNothing(msg(2, { from: 'schedule', to: A, body: '[schedule 0 9 * * *] ' }), A, 'human'), true);
+  assert.equal(drawsNothing(msg(3, { from: 'sys', to: A, body: 'three tasks wait' }), A, 'human'), true);
+  assert.equal(drawsNothing(msg(4, { from: 'web.lead', to: A, body: 'look' }), A, 'human'), true);
+  // it stands between two task cards as a line of its own
+  const rows = taskRuns(
+    [notice(1, 10), msg(2, { from: 'schedule', to: A, body: '[schedule 0 9 * * *] look' }), notice(3, 11)],
+    A,
+    'human',
+    nameOf,
+  );
+  assert.deepEqual(
+    rows.map((r) => ('events' in r ? 'card' : r.kind)),
+    ['card', 'message', 'card'],
+  );
 });
 
 test('each task shows once, in the first card it came up in, with all its changes; a later card left empty goes', () => {

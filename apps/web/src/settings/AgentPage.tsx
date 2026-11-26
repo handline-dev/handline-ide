@@ -1,7 +1,7 @@
 import { day } from '#src/format/time.ts';
 import { count } from '#src/format/count.ts';
-// Settings › Agents › one agent: what it learned (its lessons, each removable), what its sandbox allows (SandboxBlock), and how its finished work is
-// reviewed, per kind of work.
+// Settings › Agents › one agent: what it learned (its lessons, each removable), the messages it is sent on a schedule, what its sandbox allows
+// (SandboxBlock), and how its finished work is reviewed, per kind of work.
 import { useAgentReview, useLessons, useWrite, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { AppWindow, ChevronDown, Database, FileText, Lock, Server, Trash2, X } from 'lucide-react';
@@ -17,6 +17,7 @@ import { Toggle } from '#src/ui/Toggle.tsx';
 import { Memory, Role } from '#src/settings/AgentContext.tsx';
 import { AllowRules } from '#src/settings/AllowRules.tsx';
 import { Sandbox } from '#src/settings/SandboxBlock.tsx';
+import { Schedules } from '#src/settings/Schedules.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { useAccountPin } from '#src/chat/agent/accountPin.ts';
@@ -60,6 +61,7 @@ export function AgentPage({ agent }: { agent: string }) {
       <Role agent={agent} />
       <Memory agent={agent} />
       <Lessons agent={agent} />
+      <Schedules agent={agent} />
       <AllowRules agent={agent} />
       <AccountPin agent={agent} />
       <Sandbox agent={agent} />

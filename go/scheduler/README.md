@@ -11,7 +11,7 @@ When and whether agent sessions run: the session lifecycle, the tick, and the re
 | `tick`, `dangling` | What one pass decides for each agent, and work left hanging |
 | `loadgate`, `procload`, `sysres`, `agentload`, `pause` | Whether the machine has room to start more, what each agent's processes hold, the founder's switch that holds new work |
 | `leases`, `leasestore`, `runs`, `keepawake` | Shared resources (ports, a workspace's shared runs) taken in turn, staying awake |
-| `schedules`, `cronspec` | Messages typed at an agent on a cron schedule |
+| `schedules`, `cronspec` | Messages typed at an agent on a cron schedule; the list of them with each cron in words and when it last ran (`schedules.list`) |
 | `settings`, `staymove`, `access` | Lifecycle settings, account moves, the paths a session may read without asking |
 | `worktreepool`, `worktreesetup`, `worktreelock`, `worktreepaths` | A project's desks (the worktrees agents take), their setup script, locks and paths |
 
