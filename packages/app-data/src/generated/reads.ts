@@ -111,7 +111,8 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
   ],
   "access.changed": [
     "agent",
-    "grants"
+    "grants",
+    "rules"
   ],
   "inbox.added": [
     "id",

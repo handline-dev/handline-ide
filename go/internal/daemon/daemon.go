@@ -381,6 +381,10 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	d.logins = newLogins(cfg)
 	d.prompts = prompts.New(db, cfg.Home, &reads.Env{DB: db, Home: cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion()})
+	d.prompts.Emit = func(topic, typ string, data map[string]any) error {
+		_, err := d.hub.Append(stream.Entry{Topic: topic, Type: typ, Data: data})
+		return err
+	}
 	runners := d.nodes.Terminals()
 	d.tchan = termchan.New(db, cfg.Home, func() term.Backend {
 		local := cfg.Terminal

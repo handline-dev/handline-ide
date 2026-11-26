@@ -233,6 +233,14 @@ func TestLandPushAllowsOnlyTheExactPushCommand(t *testing.T) {
 	}
 }
 
+// The founder's always-allowed rules start the session allowed.
+func TestAlwaysAllowedRulesAreInTheAllowList(t *testing.T) {
+	argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", Disallowed: "Task", AlwaysAllow: []string{"Bash(npm test)"}})
+	if s := argv[len(argv)-1]; !strings.Contains(s, `"allow": ["Bash(npm test)"]`) && !strings.Contains(s, `"allow":["Bash(npm test)"]`) {
+		t.Fatalf("%s", s)
+	}
+}
+
 // A hidden folder in AskRead is still denied to Bash, but its Read tool asks; the rest of Hide is refused outright.
 func TestAskReadAsksForTheReadToolAndStillHidesFromBash(t *testing.T) {
 	argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", Disallowed: "Task",

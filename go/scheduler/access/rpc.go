@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -15,7 +16,7 @@ import (
 // Emit puts one event on a topic (stream_log), for access.changed.
 type Emit func(topic, typ string, data map[string]any) error
 
-// Register adds access.grant, access.revoke and access.list. live gives the agent's running session a folder at once and says whether it
+// Register adds access.grant, access.revoke, access.list and access.rule_remove. live gives the agent's running session a folder at once and says whether it
 // did (nil never does); a grant it did not give applies from the next session.
 func Register(srv *rpc.Server, home string, emit Emit, live func(agent, dir string) bool) {
 	srv.Register("access.grant", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
@@ -33,7 +34,7 @@ func Register(srv *rpc.Server, home string, emit Emit, live func(agent, dir stri
 			e.Data = map[string]any{"what": "path", "name": path}
 			return nil, e
 		}
-		out, err := changed(c, emit, agent, func(tx *sql.Tx) (map[string]any, error) {
+		out, err := changed(c, home, emit, agent, func(tx *sql.Tx) (map[string]any, error) {
 			g, err := Put(tx, agent, path, scope, time.Now().Unix())
 			return map[string]any{"accepted": true, "grant": g.Map(), "applies_from": "next_session"}, err
 		})
@@ -64,7 +65,7 @@ func Register(srv *rpc.Server, home string, emit Emit, live func(agent, dir stri
 		if err != nil {
 			return nil, err
 		}
-		return changed(c, emit, agent, func(tx *sql.Tx) (map[string]any, error) {
+		return changed(c, home, emit, agent, func(tx *sql.Tx) (map[string]any, error) {
 			removed, err := Remove(tx, agent, path)
 			return map[string]any{"accepted": true, "removed": removed}, err
 		})
@@ -78,24 +79,68 @@ func Register(srv *rpc.Server, home string, emit Emit, live func(agent, dir stri
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"grants": maps(gs)}, nil
+		rs, err := ownRules(c.Server().DB, home, agent)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"grants": maps(gs), "rules": ruleMaps(rs)}, nil
+	}})
+	srv.Register("access.rule_remove", rpc.Method{Handler: func(c *rpc.Conn, p map[string]any) (any, error) {
+		agent, err := agentNamed(home, p)
+		if err != nil {
+			return nil, err
+		}
+		rule, _ := p["rule"].(string)
+		if rule == "" {
+			return nil, rpc.BadRequestError("rule is the rule as access.list gives it", "rule", rpc.InvalidParams)
+		}
+		return changed(c, home, emit, agent, func(tx *sql.Tx) (map[string]any, error) {
+			owner, err := RuleOwner(tx, agent)
+			if err != nil {
+				return nil, err
+			}
+			removed, err := RemoveRule(home, owner, rule)
+			return map[string]any{"accepted": true, "removed": removed, "applies_from": "next_session"}, err
+		})
 	}})
 }
 
-// changed runs a grant change and says the agent's grants after it, as the change left them, on the agents topic.
-func changed(c *rpc.Conn, emit Emit, agent string, fn func(tx *sql.Tx) (map[string]any, error)) (map[string]any, error) {
-	var gs []Grant
+// ruleMaps is the rules as the contract's AllowRule.
+func ruleMaps(rs []Rule) []map[string]any {
+	out := make([]map[string]any, len(rs))
+	for i, r := range rs {
+		out[i] = map[string]any{"rule": r.Rule, "at": time.Unix(r.At, 0).UTC().Format(time.RFC3339)}
+	}
+	return out
+}
+
+// changed runs a grant or rule change and says the agent's grants and rules after it, as the change left them, on the agents topic.
+func changed(c *rpc.Conn, home string, emit Emit, agent string, fn func(tx *sql.Tx) (map[string]any, error)) (map[string]any, error) {
+	var now map[string]any
 	out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		out, err := fn(tx)
 		if err == nil {
-			gs, err = Grants(tx, agent)
+			now, err = Changed(tx, home, agent)
 		}
 		return out, err
 	})
 	if err != nil {
 		return nil, err
 	}
-	return out, emit("agents", "access.changed", map[string]any{"agent": agent, "grants": maps(gs)})
+	return out, emit("agents", "access.changed", now)
+}
+
+// Changed is the access.changed event for the agent as it stands: its grants and the always-allowed rules its sessions start with.
+func Changed(q db.Q, home, agent string) (map[string]any, error) {
+	gs, err := Grants(q, agent)
+	if err != nil {
+		return nil, err
+	}
+	rs, err := ownRules(q, home, agent)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"agent": agent, "grants": maps(gs), "rules": ruleMaps(rs)}, nil
 }
 
 func agentNamed(home string, p map[string]any) (string, error) {
@@ -133,4 +178,13 @@ func maps(gs []Grant) []map[string]any {
 		out[i] = g.Map()
 	}
 	return out
+}
+
+// ownRules is the rules agent's sessions start with, kept under it or, for a temp, under the agent it was hired from.
+func ownRules(q db.Q, home, agent string) ([]Rule, error) {
+	owner, err := RuleOwner(q, agent)
+	if err != nil {
+		return nil, err
+	}
+	return Rules(home, owner)
 }

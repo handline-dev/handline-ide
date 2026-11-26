@@ -34,7 +34,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings}` | `refused`, `not_found` | role, state | not cached |
 | `prompt.list` | member |  | `agent` | `{prompts} & ReadCursor` | `not_found` |  | `prompts` by agent, fed by notifications |
 | `prompt.answer` | owner | yes | `agent`, `prompt`, `choice`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `stale_prompt` | role, terminal_lock, input_holder | decided: answer |
-| `permission.ask` | agent |  | `tool`, `input` | `{behavior, message}` | `bad_request`, `refused` |  | not cached |
+| `permission.ask` | agent |  | `tool`, `input` | `{behavior, message, rule}` | `bad_request`, `refused` |  | not cached |
 | `input.take` | owner | yes | `agent`, `force?`, `request_id` | `Accepted & {holder}` | `refused`, `not_found` | role, input_holder, unsupported | decided: take control |
 | `input.release` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, unsupported | decided: release |
 | `agent.strip` | member |  | `agent` | `{agent, model, account, ctx_pct, ctx_used, ctx_limit, cache_left_s, screen_word, screen_detail} & ReadCursor` | `not_found`, `bad_request` |  | `strip` by agent, fed by agents |
@@ -42,7 +42,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `say` | agent | yes | `target`, `body`, `parent?`, `files?`, `request_id` | `Accepted` | `refused`, `bad_request` |  | not from the app |
 | `access.grant` | owner | yes | `agent`, `path`, `scope`, `request_id` | `Accepted & {grant, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: allow access |
 | `access.revoke` | owner | yes | `agent`, `path`, `request_id` | `Accepted & {removed}` | `refused`, `not_found`, `bad_request` | role | decided: remove access |
-| `access.list` | owner |  | `agent` | `{grants}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
+| `access.list` | owner |  | `agent` | `{grants, rules}` | `refused`, `not_found` | role | `access` by agent, fed by agents |
+| `access.rule_remove` | owner | yes | `agent`, `rule`, `request_id` | `Accepted & {removed, applies_from}` | `refused`, `not_found`, `bad_request` | role | decided: remove always-allowed rule |
 | `agent.review_set` | owner | yes | `agent`, `work`, `level`, `request_id` | `Accepted` | `refused`, `bad_request` |  | decided: set a review level |
 | `agent.review` | member |  | `agent` | `{agent, ladder, lessons}` |  |  | not cached |
 | `agent.context` | member |  | `agent` | `{agent, role, base}` | `not_found` |  | not cached |
@@ -164,11 +165,11 @@ The open permission prompts and dialogs.
 
 ### `prompt.answer`
 
-Answer the prompt the caller saw; if it changed nothing is sent. For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask); one that also offers always (a read of another agent's memory or a transcript) takes it too, from the owner only (refused, field role, for anyone else): allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them).
+Answer the prompt the caller saw; if it changed nothing is sent. For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask); one that also offers always takes it too, from the owner only (refused, field role, for anyone else). For a read of another agent's memory or a transcript: allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them). For a rule (the option carries `rule`): allowed, the running session applies the rule from now, and it is kept as the agent's always-allowed rule (access.list), which each fresh session of the agent and of its temps starts with; access.changed is emitted.
 
 ### `permission.ask`
 
-An agent's session asks the founder whether it may run a tool call, and waits for the answer. Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session.
+An agent's session asks the founder whether it may run a tool call, and waits for the answer. Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript, or, labeled "Always allow <agent> <rule>" with allow labeled "Allow once", for a Bash command this agent was asked in the same exact text before: the rule is Bash(<that command>). Only a plain command is offered: none with a shell character (* \ ( ) $ ` ' " ~ ; & | < > { } [ ] ! # or a tab or newline), with words not single-spaced, over 300 characters, or naming tmux, send-keys, osascript, security, a credential, keychain, token, secret, password, .ssh, handline, push, sqlite3, the handline home or the protected store. The rule pressed is the one the daemon worked out from the call's own input, never one read back from the prompt row), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session.
 
 ### `input.take`
 
@@ -200,7 +201,11 @@ The founder takes back an agent's grant of a path. See x-access. A path never gr
 
 ### `access.list`
 
-The paths the founder granted an agent, newest first. See x-access. Only grants: the roots every session reads are not listed. An unknown agent is not_found, what agent; an agent or member caller is refused, gate role.
+The paths the founder granted an agent, and the tool rules they always allow it, newest first. See x-access. Only grants and the founder's always-allowed rules: the roots every session reads are not listed. A temp's sessions start with the rules of the agent it was hired from. An unknown agent is not_found, what agent; an agent or member caller is refused, gate role.
+
+### `access.rule_remove`
+
+The founder takes back a tool rule they always allow an agent. See x-access. A rule never kept is accepted with removed false, so a retried tap is no error. An empty rule is bad_request, field rule; an unknown agent is not_found, what agent. An agent or member caller is refused, gate role. Emits access.changed.
 
 ### `agent.review_set`
 

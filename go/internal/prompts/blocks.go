@@ -33,6 +33,8 @@ type Env struct {
 	Reads *reads.Env
 	// Refresh is how often a waiting hook call marks its question seen and looks for its agent having moved on; zero is StaleS/3 seconds.
 	Refresh time.Duration
+	// Emit puts an event on a topic: access.changed once a rule is kept. Nil emits nothing.
+	Emit func(topic, typ string, data map[string]any) error
 
 	hooks hookWaits
 }

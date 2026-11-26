@@ -27,23 +27,33 @@ const HookSource = "hook"
 type Decision struct {
 	Allow bool
 	Note  string // why not, for a deny
+	Rule  string // an always-allowed rule the running session applies from now (Tool(content)), "" for none
 }
 
-// hookWaits are the permission calls waiting now, by their prompt row.
+// hookWaits are the permission calls waiting now, by their prompt row, each with the rule its Always allow keeps ("" for none):
+// held here, from the call's own input, since the row's detail is in a database every agent can write.
 type hookWaits struct {
-	mu sync.Mutex
-	by map[int64]chan Decision
+	mu    sync.Mutex
+	by    map[int64]chan Decision
+	rules map[int64]string
 }
 
-func (w *hookWaits) add(id int64) chan Decision {
+func (w *hookWaits) add(id int64, rule string) chan Decision {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.by == nil {
-		w.by = map[int64]chan Decision{}
+		w.by, w.rules = map[int64]chan Decision{}, map[int64]string{}
 	}
 	ch := make(chan Decision, 1)
-	w.by[id] = ch
+	w.by[id], w.rules[id] = ch, rule
 	return ch
+}
+
+// rule is the rule the waiting call on id offers, "" for none or no call.
+func (w *hookWaits) rule(id int64) string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.rules[id]
 }
 
 func (w *hookWaits) waiting(id int64) bool {
@@ -57,6 +67,7 @@ func (w *hookWaits) take(id int64) chan Decision {
 	defer w.mu.Unlock()
 	ch := w.by[id]
 	delete(w.by, id)
+	delete(w.rules, id)
 	return ch
 }
 
@@ -99,6 +110,7 @@ func (b *Block) Grant() []string {
 
 // AskPermission raises agent's permission question as a prompt row and waits for the founder's answer: answered false when ctx ends or
 // HookWaitS passes first. A question already waiting for the same agent is waited out first, as a screen shows one at a time.
+// The same exact Bash command asked again is offered as Always allow.
 func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[string]any) (d Decision, answered bool, err error) {
 	ctx, cancel := context.WithTimeout(ctx, HookWaitS*time.Second)
 	defer cancel()
@@ -115,6 +127,12 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 		"reason": reason, "title": title, "lines": panel}
 	if grant := e.ReadGrant(tool, input); grant != nil {
 		detail["grant"] = grant
+	} else if r, ok := e.exactRule(tool, input); ok {
+		// Offered only when this agent was asked the same rule before: a one-off question keeps Allow and Deny.
+		detail["rule"] = r.String()
+		if detail["offer_rule"], err = e.askedBefore(agent, r.String()); err != nil {
+			return d, false, err
+		}
 	}
 	var since int64 // the agent's latest event now: a turn event after it means the agent has moved on from this question
 	_ = e.DB.QueryRow("SELECT COALESCE(MAX(id), 0) FROM events WHERE agent = ?", agent).Scan(&since)
@@ -142,7 +160,11 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 		case <-time.After(time.Second):
 		}
 	}
-	ch := e.hooks.add(id)
+	offered := ""
+	if detail["offer_rule"] == true {
+		offered, _ = detail["rule"].(string)
+	}
+	ch := e.hooks.add(id, offered)
 	defer func() {
 		e.hooks.take(id)
 		e.closeRow(id, e.now().Unix())
@@ -185,8 +207,13 @@ func (e *Env) answerHook(row *Block, c Choice) (bool, string) {
 	if !e.hooks.waiting(row.ID) {
 		return e.record(row, false, row.Agent+": the question is no longer waiting - nothing sent")
 	}
+	rule := ""
 	if c.Always { // kept whole before the call is let go, so a failure leaves the question to answer again
-		if err := e.keepGrants(row.Agent, row.Grant()); err != nil {
+		if rule = e.hooks.rule(row.ID); rule != "" {
+			if err := e.keepRule(row.Agent, rule); err != nil {
+				return e.record(row, false, row.Agent+": the rule was not kept - nothing sent: "+err.Error())
+			}
+		} else if err := e.keepGrants(row.Agent, row.Grant()); err != nil {
 			return e.record(row, false, row.Agent+": the grant was not kept - nothing sent: "+err.Error())
 		}
 	}
@@ -194,7 +221,10 @@ func (e *Env) answerHook(row *Block, c Choice) (bool, string) {
 	if ch == nil {
 		return e.record(row, false, row.Agent+": the question is no longer waiting - nothing sent")
 	}
-	ch <- Decision{Allow: c.Yes, Note: c.Note}
+	ch <- Decision{Allow: c.Yes, Note: c.Note, Rule: rule}
+	if rule != "" {
+		return e.record(row, true, row.Agent+": allowed always: "+rule)
+	}
 	if c.Always {
 		return e.record(row, true, row.Agent+": allowed always, from its next session")
 	}
@@ -231,6 +261,9 @@ func (e *Env) permissionAsk(c *rpc.Conn, params map[string]any) (any, error) {
 	d, answered, err := e.AskPermission(ctx, agent, tool, input)
 	if err != nil || !answered {
 		return map[string]any{"behavior": nil}, err
+	}
+	if r, ok := ParseRule(d.Rule); d.Allow && ok {
+		return map[string]any{"behavior": "allow", "rule": map[string]any{"tool": r.Tool, "content": r.Content}}, nil
 	}
 	if d.Allow {
 		return map[string]any{"behavior": "allow"}, nil

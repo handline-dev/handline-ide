@@ -1038,6 +1038,10 @@
      },
      "highlighted": {
       "type": "boolean"
+     },
+     "rule": {
+      "type": "string",
+      "description": "On a hook permission prompt's always option that keeps a rule: the exact rule, Tool(content)."
      }
     },
     "required": [
@@ -5773,6 +5777,7 @@
   "readable": "The agent's worktree and extra worktrees, its agent folder, the scratch root, the attachments folder, and its grants. An upload always lands in attachments, so only a ref can be outside.",
   "check": "With chat_refs_need_grant on, chat.send with a ref no readable root holds is refused, gate access_needed, and writes nothing, so the same call may be sent again once granted. Off, a read the session may not make asks in the session, and the prompt shows in chat.",
   "grants": "access.grant, founder only. always is kept by the daemon and goes into each later session launch of the agent; once lasts one session: the running one when applies_from is now (the running session was given the path), else the next. A second grant of a path replaces its scope. access.revoke takes effect from the next session. Each change is access.changed on the agents topic.",
+  "rules": "Always allow on a hook permission card (prompt.answer always, on an option with `rule`), founder only, keeps the exact Bash command as the agent's rule, in the protected store: the running session applies it at once, and each fresh session of the agent and of its temps starts with it allowed. It is offered only when the agent was asked the same exact command before, and never for a command a rule could not hold to its own text (see permission.ask). access.list gives the rules; access.rule_remove takes one back from the agent's next fresh session. Each change is access.changed.",
   "client": "On access_needed a client keeps the unsent message and shows the agent and each path, with Allow once, Always and Cancel. Allow calls access.grant for each path, then sends the same chat.send again."
  }
 }

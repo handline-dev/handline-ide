@@ -282,6 +282,19 @@ func TestThePermissionHookReturnsTheFoundersAnswer(t *testing.T) {
 	}
 }
 
+// An Always allow's rule comes back as a session rule the running session applies.
+func TestAnAlwaysAllowAppliesItsRuleToTheSession(t *testing.T) {
+	ask := `{"hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "Bash", "tool_input": {"command": "npm test"}}`
+	r := hookRig(t, false)
+	r.daemon(map[string]string{"permission.ask": `{"behavior": "allow", "rule": {"tool": "Bash", "content": "npm test"}}`})
+	out, _, code := r.runIn(ask, asAgent, "hook", "PermissionRequest")
+	want := `{"hookSpecificOutput": {"decision": {"behavior": "allow", "updatedPermissions": [{"behavior": "allow", "destination": "session", ` +
+		`"rules": [{"ruleContent": "npm test", "toolName": "Bash"}], "type": "addRules"}]}, "hookEventName": "PermissionRequest"}}`
+	if code != 0 || out != want+"\n" {
+		t.Errorf("exit %d\n got  %q\n want %q", code, out, want)
+	}
+}
+
 func TestAQuestionIsLeftToTheTerminal(t *testing.T) {
 	ask := `{"hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "AskUserQuestion", "tool_input": {"questions": []}}`
 	r := hookRig(t, false)
