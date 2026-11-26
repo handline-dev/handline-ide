@@ -1,7 +1,11 @@
 // Package worktreeprune is the one rule for which worktrees are done with (tools/prune_worktrees.py runs it too): a worktree goes only
 // when its branch is merged into the repository's default branch (gitrun.Base: origin's copy of it when the clone has one, since a
-// push moves that and not the clone's own branch, else the local one), it has no uncommitted or untracked file, and no agent works in it. The default branch's own, a locked one and one on no branch stay. Removing
-// one leaves its branch: `git branch -d` takes that.
+// push moves that and not the clone's own branch, else the local one), it has no uncommitted or untracked file, and no agent works in
+// it. The default branch's own, a locked one and one on no branch stay. Removing one leaves its branch: `git branch -d` takes that.
+//
+// Origin's copy of the default branch is as the clone last heard it: a ref the agents' own fetch and push write, and behind the
+// remote's when that was rewound since the last fetch. A prune and a retire both take its word, since a push is how work lands and
+// nothing moves the clone's own branch: asking again at a retire would ask about every branch that landed by a push.
 package worktreeprune
 
 import (
@@ -288,9 +292,9 @@ func Size(path string) (int64, error) {
 }
 
 // DeleteMergedBranch deletes branch in repo with `git branch -d`, never -D: git keeps a branch not merged, and false says so. The
-// repo's default branch is never deleted.
+// repo's default branch is never deleted, and the branch is named after "--", so its name is never read as an option.
 func DeleteMergedBranch(repo, branch string) bool {
-	return branch != "" && branch != gitrun.DefaultBranch(repo) && gitrun.Run(repo, "branch", "-d", branch).RC == 0
+	return branch != "" && branch != gitrun.DefaultBranch(repo) && gitrun.Run(repo, "branch", "-d", "--", branch).RC == 0
 }
 
 // Held is a worktree of an agent that holds work: its path, its changed or untracked files and its commits not on Base, its

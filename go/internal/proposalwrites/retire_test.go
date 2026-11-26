@@ -288,6 +288,34 @@ func TestARetireInAMasterRepositoryJudgesItsWorktreesAgainstMaster(t *testing.T)
 	}
 }
 
+// A branch that landed by a push is on origin's copy of the default branch while the clone's own branch stays behind, since nothing
+// moves it: a retire takes that worktree with no question, where one whose commit no push has landed is still asked about.
+func TestARetireTakesAWorktreeWhoseBranchLandedOnOriginsCopy(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	main, wt, git := bobsWorktrees(t, r)
+	if m := r.call("agent.retire", `{"agent":"bob","request_id":"p0"}`); m["error"] == nil {
+		t.Fatalf("a commit that has not landed anywhere: %v", m)
+	}
+	git(main, "update-ref", "refs/remotes/origin/main", "refs/heads/ahead") // as a push of it to origin's main leaves the clone
+	if git(main, "merge-base", "--is-ancestor", "ahead", "main") {
+		t.Fatal("the local main has the work: the test proves nothing")
+	}
+	m := r.call("agent.retire", `{"agent":"bob","request_id":"p1"}`)
+	res, _ := m["result"].(map[string]any)
+	if said, _ := res["said"].(string); !strings.Contains(said, wt["ahead"]+" is removed") || !strings.Contains(said, wt["done"]+" is removed with its branch done") {
+		t.Fatalf("%v", m)
+	}
+	for name, gone := range map[string]bool{"done": true, "ahead": true, "shared": false} {
+		if _, err := os.Stat(wt[name]); (err != nil) != gone {
+			t.Errorf("%s gone %v", name, err != nil)
+		}
+	}
+	if !git(main, "rev-parse", "--verify", "-q", "refs/heads/ahead") {
+		t.Fatal("the branch whose commits the local main lacks went with its worktree")
+	}
+}
+
 // assertNotRetired is bob still on the team with each of its worktrees where it was.
 func assertNotRetired(t *testing.T, r *rig, wt map[string]string) {
 	t.Helper()
