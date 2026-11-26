@@ -34,7 +34,6 @@ var layer = map[string]int{
 	"claudetrust":            0,
 	"contracttest":           0,
 	"data/rowstate":          0,
-	"devinstance":            0,
 	"fixtureplay":            0,
 	"layers":                 0,
 	"homefiles":              0,

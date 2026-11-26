@@ -72,8 +72,6 @@ waits on you.
 ## What to run
 
 - `pnpm app`: run Handline on your real home. The everyday app; it follows main and offers the restart.
-- `pnpm dev <team>`: work on the app. It rebuilds the main process, the preloads and the page on save, against that team's dev
-  instance (`hl dev on <team>` first), never the live home. Go changes rebuild the team's daemon.
 - `tools/check.sh`: before a push, what CI runs. A change to the app's main, owner or follow also runs `tools/app-smoke.mjs` (a Mac, about a minute): the real app on a scratch home through a follow restart, a quit and a kill -9.
 - `pnpm format`: rewrite formatting.
 

@@ -42,14 +42,6 @@ code into the page, as in a browser.
 
 Main-process files (`apps/electron/src/`) are outside hot reload: `start` rebuilds them, and a change there needs a relaunch.
 
-## `pnpm dev <team>`
-
-It runs against the team's dev instance (`hl dev on <team>`), never the live home: an instance that is off is said and the run
-stops. Ctrl-C or a TERM stops the vite server, the shell's watch and its Electron together. It shows no update notice. A save under `go/` (not a `_test.go`) runs
-`hl dev rebuild <team>`: a failed build prints its error and the old daemon keeps running; a good one restarts the daemon and
-the window reconnects. That happens only when the instance is built from this checkout. An agent's run stays in the
-background (`apps/electron/README.md`).
-
 ## Pairing and devices
 
 Every pairing is a device acting as the founder; the app's Devices list shows them and revokes one. Too many
