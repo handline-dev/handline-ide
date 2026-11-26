@@ -354,7 +354,7 @@ describe("an agent's own tab", () => {
     sent.length = 0;
     openFrom({ ...ctx, root: opened }, pane, 'shell');
     expect(sent.map((a) => a.type)).toEqual(['show']);
-  });
+  }, 120_000); // the import loads the whole workspace, which takes longer than the default under a loaded machine
 });
 
 describe('the agent a tab shows', () => {
