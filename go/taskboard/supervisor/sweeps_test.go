@@ -392,3 +392,48 @@ func TestAMemoUnreadAnHourIsToldToItsWriterOnce(t *testing.T) {
 		t.Fatalf("alice is told once, no one else: %d %d", told, others)
 	}
 }
+
+// A fresh start's wake prompt carrying the founder's answer is typed before its session has an id on record: the session its hooks
+// report lands it, and once its task waits on another, it is not nudged.
+func TestAFreshStartsWakePromptLandsByItsHooksSessionAndItsBlockedTaskIsNotNudged(t *testing.T) {
+	r := newRig(t)
+	r.agentUp("bob")
+	db.SetAccount(r.DB, r.k("bob"), "acct", "recorded")
+	r.sessions.live = ""
+	tr, old := filepath.Join(r.home, "s9.jsonl"), filepath.Join(r.home, "s0.jsonl")
+	r.sessions.transcripts = map[string]string{"s9": tr, "s0": old}
+	for _, f := range []string{tr, old} {
+		r.must(os.WriteFile(f, nil, 0o644))
+	}
+	// the session before the relaunch reported last, then the relaunch began
+	must(db.AddEvent(r.DB, r.k("bob"), "Stop", db.KV{K: "session_id", V: "s0"}))
+	must(db.AddEvent(r.DB, r.k("bob"), "launching"))
+	head := r.task("bob", r.k("alice"), "the job")
+	must(db.AddEvent(r.DB, r.k("bob"), "task_turn_pop", db.KV{K: "request_id", V: head}, db.KV{K: "agent", V: "p1"}))
+	r.DeliverQueued(r.DB, r.k("bob"))
+	if row, _ := db.GetRequest(r.DB, head); !row.TypedAt.Valid || row.TypedSess.String != "" {
+		t.Fatalf("typed with no session on record: %+v", row)
+	}
+	row, _ := db.GetRequest(r.DB, head)
+	r.must(os.WriteFile(tr, []byte(`{"type":"user","message":{"content":"`+row.Name(r.DB)+` from alice, waiting for you:\nthe job"}}`+"\n"), 0o644))
+	tasks, _ := db.TasksForRequest(r.DB, head)
+	other := must(db.NewTask(r.DB, "other", r.k("alice"), r.k("alice"), 0, db.DefaultPriority, "", 0, ""))
+	r.must(db.AddBlock(r.DB, tasks[0].ID, other))
+	state := mustState(r, r.k("bob"))
+	if f := r.forgottenResolve(r.DB, r.k("bob"), state, r.clock+700); f == nil {
+		t.Fatal("the founder's answer not yet read is nudged whatever its task waits on")
+	}
+	r.clock += LandingWaitS + 1
+	r.must(r.LandingSweep(r.DB, r.k("bob")))
+	if row, _ := db.GetRequest(r.DB, head); row.State == "landed" || !row.TypedAt.Valid {
+		t.Fatalf("while the new session has reported nothing, it waits: neither landed nor typed again (not looked for in s0): %+v", row)
+	}
+	must(db.AddEvent(r.DB, r.k("bob"), "SessionStart", db.KV{K: "session_id", V: "s9"}))
+	r.must(r.LandingSweep(r.DB, r.k("bob")))
+	if row, _ := db.GetRequest(r.DB, head); row.State != "landed" {
+		t.Fatalf("its hooks' session shows it: %+v", row)
+	}
+	if f := r.forgottenResolve(r.DB, r.k("bob"), state, r.clock+700); f != nil {
+		t.Fatalf("read, and its task waits on another: not nudged: %+v", f)
+	}
+}
