@@ -84,6 +84,7 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"new brief", []string{"task", "edit", "T3", "--body", "-", "--assign", "b.two", "--owner", "a.one", "--blocked-by", "T9"},
 			[]string{`task.edit {"blocked_by":9,"body":"new brief","owner":"b.two","reporter":"a.one","task":3}`}},
 		{"", []string{"task", "edit", "T3", "--tag", "fe", "--untag", "be"}, []string{`task.edit {"add_tags":["fe"],"remove_tags":["be"],"task":3}`}},
+		{"", []string{"task", "edit", "T3", "--pr", "#412", "--repo", "o/r"}, []string{`task.edit {"pr":412,"pr_repo":"o/r","task":3}`}},
 		{"", []string{"task", "edit", "T3", "--estimate", "5"}, []string{`task.edit {"estimate":5,"task":3}`}},
 		{"", []string{"task", "edit", "T3", "--parent", "T5"}, []string{`task.edit {"parent":5,"task":3}`}},
 		{"", []string{"task", "edit", "T3", "--no-parent"}, []string{`task.edit {"no_parent":true,"task":3}`}},

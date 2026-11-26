@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/stream"
@@ -122,7 +123,13 @@ func sameRow(t *testing.T, i int, want map[string]any, e *stream.Event) {
 }
 
 // sinceRecorded are the Task fields Go added after the Python rows were recorded.
-var sinceRecorded = map[string]bool{"waits": true, "waiting": true, "tags": true, "pr": true, "status": true, "watch": true, "unread": true, "first_unread": true, "spent_usd": true, "request": true, "role": true, "acting": true, "turns": true, "my_request": true, "decided": true}
+var sinceRecorded = func() map[string]bool {
+	added := map[string]bool{}
+	for _, field := range strings.Fields("waits waiting tags pr pr_repo status watch unread first_unread spent_usd request role acting turns my_request decided") {
+		added[field] = true
+	}
+	return added
+}()
 
 func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 	py, events := parity(t, func(d *sql.DB) Detector { return &Tasks{Reads: &reads.Env{DB: d}} },

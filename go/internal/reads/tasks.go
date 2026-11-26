@@ -554,7 +554,7 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	}
 	withUnread(task, u)
 	task["discarded"] = nil
-	task["pr"] = t.intOrNil("pr")
+	task["pr"], task["pr_repo"] = t.intOrNil("pr"), t.strOrNil("pr_repo")
 	task["watch"] = nil
 	if t.set("watch_vendor") {
 		task["watch"] = map[string]any{"vendor": t.str("watch_vendor"), "target": t.str("watch_target"), "until": t.str("watch_until"),

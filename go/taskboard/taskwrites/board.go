@@ -24,14 +24,15 @@ type task struct {
 	TimeoutS                            sql.NullInt64
 	Parent                              sql.NullInt64
 	PR                                  sql.NullInt64
+	PRRepo                              string // the repository of PR as its host names it (owner/name), "" when only a number was given
 }
 
 func getTask(tx *sql.Tx, tid int64) (*task, error) {
 	t := &task{ID: tid}
 	err := tx.QueryRow("SELECT owner, opened_by, title, done_evidence, discarded_by, queued_by, sent_at, timeout_s, parent_task, reporter, "+
-		"pr, "+db.ActingSQL("tasks")+" FROM tasks WHERE id = ?", tid).
+		"pr, COALESCE(pr_repo, ''), "+db.ActingSQL("tasks")+" FROM tasks WHERE id = ?", tid).
 		Scan(&t.Owner, &t.OpenedBy, &t.Title, &t.DoneEvidence, &t.DiscardedBy, &t.QueuedBy, &t.SentAt, &t.TimeoutS, &t.Parent, &t.Reporter,
-			&t.PR, &t.Acting)
+			&t.PR, &t.PRRepo, &t.Acting)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

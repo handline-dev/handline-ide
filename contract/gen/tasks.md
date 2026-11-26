@@ -34,7 +34,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.discard` | agent | yes | `task?`, `tasks?`, `reason?`, `reasons?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: discard |
 | `task.board` | agent |  | `everyone?` | `{mine}` |  |  | `board`, fed by tasks |
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
-| `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `parent?`, `no_parent?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
+| `task.edit` | agent | yes | `task`, `owner?`, `reporter?`, `title?`, `body?`, `evidence?`, `time_box?`, `priority?`, `estimate?`, `blocked_by?`, `unblock?`, `parent?`, `no_parent?`, `add_tags?`, `remove_tags?`, `request_id`, `pr?`, `pr_repo?` | `Accepted` | `refused`, `not_found` |  | authored: edit |
 | `task.plan` | agent | yes | `task`, `text`, `request_id` | `Accepted & {version}` | `refused`, `not_found`, `bad_request` |  | decided: plan |
 | `task.plan_ok` | owner | yes | `task`, `ok?`, `version?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: plan OK |
 | `task.ok` | owner | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: OK, merge |

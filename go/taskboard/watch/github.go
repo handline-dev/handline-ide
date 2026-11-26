@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/handline/handline/go/data/db"
 )
 
 // NoCIWait is how long a PR with no checks at all is waited on, from its head commit or the watch's start, whichever is later, before it
@@ -26,6 +29,17 @@ type GitHub struct {
 var githubTarget = regexp.MustCompile(`^([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#([1-9][0-9]*)$`)
 
 func (*GitHub) Untils() []string { return []string{"ci", "closed", "done"} }
+
+// PullOf is the pull request watch w is about, as its host names it: the repository (owner/name) and the number. ok is false for a watch
+// on anything else: an issue, or another vendor's target.
+func PullOf(w db.Watch) (repo string, number int64, ok bool) {
+	m := githubTarget.FindStringSubmatch(w.Target)
+	if w.Vendor != "github" || w.Until == "done" || m == nil {
+		return "", 0, false
+	}
+	n, err := strconv.ParseInt(m[2], 10, 64)
+	return m[1], n, err == nil
+}
 
 func (g *GitHub) Ready(ctx context.Context) (bool, string) {
 	if _, err := g.gh(ctx, "auth", "status"); err != nil {

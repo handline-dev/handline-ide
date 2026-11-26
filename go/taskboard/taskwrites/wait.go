@@ -6,10 +6,12 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 // waitMethod is task.wait {task, watch, time_box?}: a gate on watch, the task blocked by it and, when doing, released, all in one
-// transaction, so the task never waits on a gate that blocks nothing. It comes back to its holder's queue when the gate opens.
+// transaction, so the task never waits on a gate that blocks nothing. It comes back to its holder's queue when the gate opens. A watch
+// on a pull request also names it as the task's (Task.pr, Task.pr_repo), in the same write.
 func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tid, err := taskID(p)
@@ -70,6 +72,12 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 					err = refusal(why)
 				}
 				return nil, err
+			}
+			// A pull request the task waits on is the task's pull request: named here, by the one who knows, never guessed from a branch.
+			if repo, pr, ok := watch.PullOf(*w); ok {
+				if _, _, err := linkPR(tx, t, me, pr, repo); err != nil {
+					return nil, err
+				}
 			}
 			return accepted(said, map[string]any{"gate": gate}), nil
 		})

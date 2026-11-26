@@ -410,7 +410,18 @@
         "type": "null"
        }
       ],
-      "description": "The pull request its work merges in (task.edit pr), as a link. Absent from a daemon that does not send it."
+      "description": "The number of the pull request its work merges in, named by task.edit pr or by a task.wait on that pull request. Absent from a daemon that does not send it."
+     },
+     "pr_repo": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The repository of pr as its host names it (owner/name on GitHub); null when only a number was given, which is then read in the repository the task's holder works in. Absent from a daemon that does not send it."
      },
      "watch": {
       "oneOf": [
@@ -4910,7 +4921,15 @@
      "required": false,
      "schema": {
       "type": "integer",
-      "description": "The pull request the task's work merges in (`hl task edit T<n> --pr <n>`), on an open task. A link only: nothing waits on it."
+      "description": "The pull request the task's work merges in (`hl task edit T<n> --pr <n>`), on an open task. A link only: nothing waits on it; task.wait makes the task wait on one, and names it here too."
+     }
+    },
+    {
+     "name": "pr_repo",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The repository of pr as its host names it (owner/name), given with pr (`--repo`; hl sends the origin of the checkout it runs in). Without it the task keeps no repository for its pull request."
      }
     }
    ],

@@ -3,6 +3,7 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/handline/handline/go/kit/addr"
@@ -309,8 +310,39 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	return "", fmt.Sprintf("task T%d edited by %s: %s", tid, addr.Ref(by), strings.Join(said, ", ")), nil
 }
 
-// setPR names the pull request an open task's work merges in: accepted, the task then waits on that PR's merge (acceptForMerge).
-func setPR(tx *sql.Tx, tid int64, by string, pr int64) (string, string, error) {
+// prRepoName is a pull request's repository as GitHub names it: owner/name.
+var prRepoName = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
+
+// prParam is task.edit's pr and pr_repo: a pull request number, and the repository it is in when the caller knows it.
+func prParam(p map[string]any) (pr int64, repo string, err error) {
+	if p["pr"] != nil {
+		n, ok := rpc.AsInt(p["pr"])
+		if !ok || n <= 0 {
+			return 0, "", badParam("pr is a pull request number", "pr")
+		}
+		pr = n
+	}
+	if p["pr_repo"] != nil {
+		s, ok := p["pr_repo"].(string)
+		if !ok || !prRepoName.MatchString(s) || pr == 0 {
+			return 0, "", badParam("pr_repo is the repository of pr as owner/name, given with pr", "pr_repo")
+		}
+		repo = s
+	}
+	return pr, repo, nil
+}
+
+// prWords is a task's pull request in words: "#418", or "owner/name#418" when its repository is known; "" for none.
+func prWords(repo string, pr sql.NullInt64) string {
+	if !pr.Valid {
+		return ""
+	}
+	return fmt.Sprintf("%s#%d", repo, pr.Int64)
+}
+
+// setPR names the pull request an open task's work merges in (task.edit pr), in repo when the caller says which ("" forgets the one
+// it had: a bare number is read in the repository its holder works in).
+func setPR(tx *sql.Tx, tid int64, by string, pr int64, repo string) (string, string, error) {
 	t, err := getTask(tx, tid)
 	if err != nil || t == nil {
 		return fmt.Sprintf("no task T%d", tid), "", err
@@ -318,20 +350,26 @@ func setPR(tx *sql.Tx, tid int64, by string, pr int64) (string, string, error) {
 	if t.done() || t.DiscardedBy.String != "" {
 		return fmt.Sprintf("task T%d is already finished - its PR no longer matters", tid), "", nil
 	}
-	if t.PR.Int64 == pr {
+	if t.PR.Int64 == pr && (repo == "" || repo == t.PRRepo) {
 		return fmt.Sprintf("task T%d already names PR #%d - nothing to edit", tid, pr), "", nil
 	}
-	old := ""
-	if t.PR.Valid {
-		old = fmt.Sprintf("#%d", t.PR.Int64)
+	return linkPR(tx, t, by, pr, repo)
+}
+
+// linkPR writes task t's pull request, pr in repo, with its event; nothing when it already names that one. task.wait links the pull
+// request it is told to watch through this, in its own write, so the link is never a guess from a branch.
+func linkPR(tx *sql.Tx, t *task, by string, pr int64, repo string) (string, string, error) {
+	if t.PR.Valid && t.PR.Int64 == pr && t.PRRepo == repo {
+		return "", "", nil
 	}
-	if _, err := tx.Exec("UPDATE tasks SET pr = ?, edited_by = ?, edited_at = ? WHERE id = ?", pr, by, db.Now(), tid); err != nil {
+	old, now := prWords(t.PRRepo, t.PR), prWords(repo, sql.NullInt64{Int64: pr, Valid: true})
+	if _, err := tx.Exec("UPDATE tasks SET pr = ?, pr_repo = NULLIF(?, ''), edited_by = ?, edited_at = ? WHERE id = ?", pr, repo, by, db.Now(), t.ID); err != nil {
 		return "", "", err
 	}
-	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"pr", pyjson.Pairs{{K: "old", V: old}, {K: "new", V: fmt.Sprintf("#%d", pr)}}}); err != nil {
+	if err := addEvent(tx, by, "edit_task", kv{"task_id", t.ID}, kv{"pr", pyjson.Pairs{{K: "old", V: old}, {K: "new", V: now}}}); err != nil {
 		return "", "", err
 	}
-	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> '#%d'", tid, addr.Ref(by), pyRepr(old), pr), nil
+	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> %s", t.ID, addr.Ref(by), pyRepr(old), pyRepr(now)), nil
 }
 
 // saidAs is how an edit's reply names a field: the owner column holds who works the task (its assignee), the reporter who answers for it
@@ -427,13 +465,9 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			return nil, err
 		}
 		hasTags := len(addTags) > 0 || len(removeTags) > 0
-		var pr int64
-		if p["pr"] != nil {
-			n, ok := rpc.AsInt(p["pr"])
-			if !ok || n <= 0 {
-				return nil, badParam("pr is a pull request number", "pr")
-			}
-			pr = n
+		pr, prRepo, err := prParam(p)
+		if err != nil {
+			return nil, err
 		}
 		fields := owner != nil || reporter != nil || title != nil || body != nil || evidence != nil || timeoutS != nil || priority != nil || estimate != nil
 		if !fields && len(blockers) == 0 && !hasUnblock && !hasTags && pr == 0 && !moveParent {
@@ -507,7 +541,7 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				msgs = append(msgs, msg)
 			}
 			if pr != 0 {
-				why, msg, err := setPR(tx, tid, me, pr)
+				why, msg, err := setPR(tx, tid, me, pr, prRepo)
 				if err != nil {
 					return nil, err
 				}

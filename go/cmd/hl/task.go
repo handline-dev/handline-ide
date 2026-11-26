@@ -572,7 +572,7 @@ func taskQueue(queued bool) taskCmd {
 
 func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--assign", "--owner", "--title", "--body", "--body-file", "--priority", "--estimate", "--blocked-by", "--unblock",
-		"--timeout", "--tag", "--untag", "--pr", "--parent"}, []string{"--no-parent"}, nil)
+		"--timeout", "--tag", "--untag", "--pr", "--repo", "--parent"}, []string{"--no-parent"}, nil)
 	if !ok || len(p.pos) != 1 {
 		return 0, false
 	}
@@ -583,9 +583,10 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	timeout, hasTimeout, ok4 := optTimeout(p, "--timeout")
 	prText, hasPR := p.opt("--pr")
 	pr, err := strconv.ParseInt(strings.TrimPrefix(prText, "#"), 10, 64)
+	prRepo, hasRepo := p.opt("--repo")
 	points, hasEstimate, ok5 := optEstimate(p)
 	parent, hasParent, ok6 := optTask(p, "--parent")
-	if !ok || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || hasPR && (err != nil || pr <= 0) || hasParent && p.flags["--no-parent"] {
+	if !ok || !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || hasPR && (err != nil || pr <= 0) || hasRepo && !hasPR || hasParent && p.flags["--no-parent"] {
 		return 0, false
 	}
 	mutating(c, "edit")
@@ -638,6 +639,13 @@ func taskEdit(c *hlclient.Client, args []string) (int, bool) {
 	}
 	if hasPR {
 		params["pr"] = pr
+		// A bare number is of the checkout this runs in, as hl task wait --pr reads it: said here, where the origin is known.
+		if !hasRepo {
+			prRepo = originRepo()
+		}
+		if prRepo != "" {
+			params["pr_repo"] = prRepo
+		}
 	}
 	if hasUnblock {
 		params["unblock"] = unblock

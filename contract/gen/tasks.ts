@@ -92,8 +92,10 @@ export type Task = {
   waiting?: TaskWaiting | null;
   /** The task's clock, the same object task.get gives; null once it is done or discarded. Absent from a daemon that does not send it. */
   time?: TaskClock | null;
-  /** The pull request its work merges in (task.edit pr), as a link. Absent from a daemon that does not send it. */
+  /** The number of the pull request its work merges in, named by task.edit pr or by a task.wait on that pull request. Absent from a daemon that does not send it. */
   pr?: number | null;
+  /** The repository of pr as its host names it (owner/name on GitHub); null when only a number was given, which is then read in the repository the task's holder works in. Absent from a daemon that does not send it. */
+  pr_repo?: string | null;
   /** What the task watches when its owner is gate; null for any other. Absent from a daemon that does not send it. */
   watch?: TaskWatch | null;
   /** What it is doing and why (x-status). Absent from a daemon that does not send it. */
@@ -950,8 +952,10 @@ export interface TasksMethods {
   /** Tags to remove; one it has not got is left as it is. */
   remove_tags?: Tag[];
   request_id: RequestId;
-  /** The pull request the task's work merges in (`hl task edit T<n> --pr <n>`), on an open task. A link only: nothing waits on it. */
+  /** The pull request the task's work merges in (`hl task edit T<n> --pr <n>`), on an open task. A link only: nothing waits on it; task.wait makes the task wait on one, and names it here too. */
   pr?: number;
+  /** The repository of pr as its host names it (owner/name), given with pr (`--repo`; hl sends the origin of the checkout it runs in). Without it the task keeps no repository for its pull request. */
+  pr_repo?: string;
 }; result: Accepted };
   "task.plan": { params: {
   task: number;

@@ -20,9 +20,7 @@ var hashAllowed = []struct{ file, line, why string }{
 	{"cmd/hl/taskview.go", `PR #%d`, "a task's PR"},
 	{"taskboard/taskwrites/endreviews.go", `PR #%d`, "a task's PR"},
 	{"taskboard/taskwrites/edit.go", `PR #%d`, "a task's PR"},
-	{"taskboard/taskwrites/edit.go", `fmt.Sprintf("#%d", t.PR.Int64)`, "a task's PR"},
-	{"taskboard/taskwrites/edit.go", `fmt.Sprintf("#%d", pr)`, "a task's PR"},
-	{"taskboard/taskwrites/edit.go", `-> '#%d'`, "a task's PR"},
+	{"taskboard/taskwrites/edit.go", `fmt.Sprintf("%s#%d", repo, pr.Int64)`, "a task's PR, owner/name#N"},
 	{"cmd/hl/taskwait.go", `"%s#%d"`, "a github target, owner/name#N"},
 }
 
