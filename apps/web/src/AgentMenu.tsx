@@ -4,6 +4,7 @@ import { classify, sentence, useAgentDetail, useNameOf, useNav, useRetireAgent, 
 import type { AgentView } from '@handline/client';
 import { Copy, FolderOpen, Pencil, Pin, PinOff, Settings, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { OpenInItems, useOpenInApps } from '#src/AgentOpenIn.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { OpenItems, useOpenable } from '#src/layout/openable.tsx';
 import { agentSettingsOf } from '#src/layout/kinds.tsx';
@@ -72,6 +73,8 @@ export function AgentMenu({
       },
     });
   const settings = useOpenable(agentSettingsOf(name));
+  // Asked here, while the row is on screen, so the menu opens with its apps already in it.
+  const apps = useOpenInApps();
 
   const remove = async () => {
     if (
@@ -117,8 +120,9 @@ export function AgentMenu({
             Settings…
           </MenuItem>
           <MenuSeparator />
-          {/* Opening a folder or an app needs the desktop app; in a browser the paths can be copied. */}
+          {/* Opening a folder or an app needs the desktop app on a Mac; in a browser the paths can be copied. */}
           <SubMenu label="Open in" icon={<FolderOpen size={14} />}>
+            {apps.length > 0 && <OpenInItems agent={name} apps={apps} />}
             <MenuItem icon={<Copy size={14} />} disabled={!detail?.cwd} onClick={() => detail && copy(detail.cwd, 'folder path')}>
               Copy folder path
             </MenuItem>

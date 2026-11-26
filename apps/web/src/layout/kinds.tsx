@@ -13,7 +13,6 @@ import {
   Workflow,
   MessageSquare,
   Plus,
-  Smartphone,
   SquareTerminal,
   type LucideIcon,
 } from 'lucide-react';
@@ -32,8 +31,6 @@ const kinds: Record<string, { label: string; icon: ReactNode }> = {
   plan: tab('Plan', Workflow),
   markdown: tab('Markdown', FileText),
   web: tab('Web', Globe),
-  android: tab('Android', Smartphone),
-  ios: tab('iOS', Smartphone),
   requests: tab('Requests', Inbox),
   usage: tab('Usage', Gauge),
   town: tab('Town', House),
@@ -116,7 +113,7 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
 };
 
 /** What a new tab can open (legacy CHOICES). Chat is not here: the first pane's Chat is the one chat. */
-export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web', 'android', 'ios'].map((kind) => ({
+export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web'].map((kind) => ({
   kind,
   ...kinds[kind],
 }));

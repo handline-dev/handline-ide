@@ -98,9 +98,6 @@ function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
   );
 }
 
-/** The kinds of tab that draw something yet; the others (terminal, phones) stay off the + menu until they do. */
-const BUILT = new Set(['newshell', 'diff', 'tasks', 'markdown', 'web']);
-
 /** Cmd+W on a Mac, Ctrl+W elsewhere; in a terminal there Ctrl+W deletes a word, so it is Ctrl+Shift+W. */
 function isCloseChord(e: KeyboardEvent): boolean {
   if (letterOf(e) !== 'w' || e.altKey) return false;
@@ -167,12 +164,7 @@ function PaneView({
   // With no agent on screen an agent's kind asks which agent.
   const agents = useAgents().data?.agents;
   const agentChoices = agents?.map((a) => ({ key: a.key, label: nameOf(a.key) }));
-  const menu = newTabKinds(
-    choices.filter((c) => BUILT.has(c.kind)),
-    who,
-    nameOf,
-    agentChoices,
-  );
+  const menu = newTabKinds(choices, who, nameOf, agentChoices);
   // A tab, or a thing to open, dropped among the tabs or on the pane (its middle, or an edge to split there).
   const onBar = useDropTarget({
     accepts: isTabDrag,
