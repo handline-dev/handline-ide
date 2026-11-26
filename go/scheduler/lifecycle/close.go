@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
@@ -228,7 +229,25 @@ func (m *Manager) ClosedWakeCause(agent string, row *db.AgentState) (c *WakeCaus
 // ResumableWithoutTerminal: a closed agent whose pane closed with its session and whose worktree is still there is woken (resuming),
 // not started fresh.
 func (m *Manager) ResumableWithoutTerminal(row *db.AgentState) bool {
-	return row != nil && row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 && row.Terminal.String == "" && m.Spawn.WorktreePath(row.Worktree.String) != ""
+	return row != nil && row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 && row.Terminal.String == "" && m.keptWorktree(row) != ""
+}
+
+// keptWorktree is the worktree a closed agent's wake starts in: the one its row records while it is there, or its own from the pool
+// even when deleted while it slept (worktreepool.RemoveOnSleepKey), which the wake makes again at the same path; "" for none.
+func (m *Manager) keptWorktree(row *db.AgentState) string {
+	if wt := m.Spawn.WorktreePath(row.Worktree.String); wt != "" || m.Desks == nil {
+		return wt
+	}
+	path := worktreepaths.RecordedPath(row.Worktree.String)
+	if path == "" {
+		return ""
+	}
+	var held int
+	check(m.Q.QueryRow("SELECT COUNT(*) FROM worktree_folders WHERE path = ? AND holder = ?", path, row.Agent).Scan(&held))
+	if held == 0 {
+		return ""
+	}
+	return path
 }
 
 // StartOrWakeNeeded is ("start" | "wake", what) when the daemon owes this agent a session; kind "" otherwise. The one decision the tick

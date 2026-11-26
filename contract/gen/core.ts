@@ -460,6 +460,8 @@ export type SettingsValues = {
   default_effort_codex?: "low" | "medium" | "high" | "xhigh" | "max";
   /** Free disk to keep on the volume the daemon home is on, in GB; 0 is off, the default. Under it the daemon removes free, unpinned desks of any project, oldest first, never one holding changes, until it is back over it. */
   disk_keep_free_gb?: number;
+  /** Delete an agent's worktree when it sleeps: when its session closes, changes to tracked files are committed on its branch (never pushed) and the folder is deleted; untracked files or an operation half done keep it. Its next wake makes it again at the same path from its branch, runs the project's setup there and resumes the same conversation. Off by default. */
+  worktree_remove_on_sleep?: boolean;
   /** Most memory the agents' processes may use together, in GB; 0 is off, the default. Over it the daemon closes the longest-idle sessions one at a time, never one mid-turn; their work stays and they wake from their handoff. */
   agents_memory_max_gb?: number;
   /** A lent Mac whose heartbeat says it went on battery is set to Off, and back to Run when it is plugged in again. Off by default. */

@@ -406,6 +406,13 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	root := realpath(path)
+	if !isDir(root) {
+		root = filepath.Join(realpath(filepath.Dir(path)), filepath.Base(path)) // its parent stays when it is deleted
+		if agent := e.sleeper(root); agent != "" {
+			// deleted while its agent sleeps (worktreepool.RemoveOnSleepKey): its work is all on its branch, read from the repository
+			return e.branchDiff(path, root, agent, file, hasFile, against)
+		}
+	}
 	if _, ok := kn.who[root]; !ok {
 		nf := rpc.NotFoundError(path + " is not a worktree an agent works in")
 		nf.Data = map[string]any{"what": "worktree", "path": path}
@@ -450,6 +457,60 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		fileOut = file
 	}
 	return map[string]any{"path": path, "file": fileOut, "diff": shown, "truncated": truncated, "against": against, "base_ref": baseRef}, nil
+}
+
+// branchDiff is worktree.diff of a worktree deleted while its agent sleeps: nothing is uncommitted, so against head is empty, and
+// against base is its branch from the merge-base, read in its repository.
+func (e *Env) branchDiff(path, root, agent, file string, hasFile bool, against string) (any, error) {
+	repo, branch, err := e.goneFolder(root, agent)
+	if err != nil {
+		return nil, err
+	}
+	var fileOut any
+	if hasFile {
+		fileOut = file
+	}
+	out, baseRef := "", any(nil)
+	if against == "base" {
+		if ref, mb := baseMergeBase(repo, branch); mb != "" {
+			args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", mb, branch}
+			if hasFile {
+				args = append(args, "--", file)
+			}
+			_, out = git(repo, args...)
+			baseRef = ref
+		} else {
+			against = "head"
+		}
+	}
+	truncated := false
+	if r := []rune(out); len(r) > maxDiffChars {
+		out, truncated = string(r[:maxDiffChars]), true
+	}
+	return map[string]any{"path": path, "file": fileOut, "diff": out, "truncated": truncated, "against": against, "base_ref": baseRef}, nil
+}
+
+// sleeper is the agent whose worktree root is, as the pool records it; "" for none.
+func (e *Env) sleeper(root string) string {
+	var agent string
+	e.DB.QueryRow("SELECT COALESCE(holder, '') FROM worktree_folders WHERE path = ?", root).Scan(&agent)
+	return agent
+}
+
+// goneFolder is the repository and the branch of agent's worktree root, deleted while it sleeps; not_found when either is unknown.
+func (e *Env) goneFolder(root, agent string) (repo, branch string, err error) {
+	var r, b sql.NullString
+	err = e.DB.QueryRow("SELECT (SELECT repo FROM worktree_folders WHERE path = ?), (SELECT branch FROM agent_state WHERE agent = ?)",
+		root, agent).Scan(&r, &b)
+	if err != nil {
+		return "", "", err
+	}
+	if r.String == "" || b.String == "" || !isDir(r.String) {
+		nf := rpc.NotFoundError(root + " is gone and its branch is not known")
+		nf.Data = map[string]any{"what": "worktree", "path": root}
+		return "", "", nf
+	}
+	return r.String, "refs/heads/" + b.String, nil
 }
 
 // baseMergeBase is the ref the branch is measured against (origin/<default branch> when that exists, else the local branch, so a

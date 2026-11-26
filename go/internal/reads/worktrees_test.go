@@ -293,15 +293,7 @@ func TestTheDiffAgainstBaseShowsTheBranchsCommitsAndTheUncommittedWork(t *testin
 	git("add", ".")
 	git("commit", "-q", "-m", "on the branch")
 	write("loose.txt")
-	diff := func(p map[string]any) map[string]any {
-		t.Helper()
-		p["path"] = dir
-		got, err := e.worktreeDiff(nil, p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return got.(map[string]any)
-	}
+	diff := diffOf(t, e, dir)
 	head := diff(map[string]any{})
 	if d := head["diff"].(string); strings.Contains(d, "committed.txt") || !strings.Contains(d, "loose.txt") || head["against"] != "head" {
 		t.Fatalf("absent against is the uncommitted work only:\n%v", head)
@@ -326,5 +318,47 @@ func agentGit(t *testing.T, e *Env, name string) (string, func(args ...string)) 
 		if out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v %s", args, err, out)
 		}
+	}
+}
+
+// A worktree deleted while its agent sleeps holds nothing uncommitted; against base its branch is read in its repository.
+func TestTheDiffOfAWorktreeDeletedWhileItsAgentSleepsReadsItsBranch(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	prAgent(t, e, "wb", "")
+	agent := teamtest.Key(t, e.Home, "wb")
+	row, _ := queryOne(e.DB, "SELECT worktree FROM agent_state WHERE agent = ?", agent)
+	repo := row.str("worktree")
+	git := gitIn(t)
+	os.WriteFile(filepath.Join(repo, "a.txt"), []byte("a\n"), 0o644)
+	git(repo, "add", ".")
+	git(repo, "commit", "-q", "-m", "base")
+	wt := repo + "-wb-1a2b3c"
+	git(repo, "worktree", "add", "-q", "-b", "feat", wt)
+	os.WriteFile(filepath.Join(wt, "committed.txt"), []byte("c\n"), 0o644)
+	git(wt, "add", ".")
+	git(wt, "commit", "-q", "-m", "on the branch")
+	e.DB.Exec("UPDATE agent_state SET worktree = ?, branch = 'feat' WHERE agent = ?", wt, agent)
+	e.DB.Exec("INSERT INTO worktree_folders(path, repo, holder, last_used) VALUES(?, ?, ?, 0)", realpath(wt), repo, agent)
+	git(repo, "worktree", "remove", wt)
+	diff := diffOf(t, e, wt)
+	if head := diff(map[string]any{}); head["diff"] != "" || head["against"] != "head" {
+		t.Fatalf("nothing uncommitted: %v", head)
+	}
+	if got := diff(map[string]any{"against": "base"}); !strings.Contains(got["diff"].(string), "committed.txt") || got["against"] != "base" {
+		t.Fatalf("the branch against base: %v", got)
+	}
+}
+
+// diffOf is worktree.diff of the worktree at path with the given params, failing the test on an error.
+func diffOf(t *testing.T, e *Env, path string) func(p map[string]any) map[string]any {
+	return func(p map[string]any) map[string]any {
+		t.Helper()
+		p["path"] = path
+		got, err := e.worktreeDiff(nil, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.(map[string]any)
 	}
 }

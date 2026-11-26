@@ -127,3 +127,23 @@ func TestFilesListTakesTheWholeLimitListsAConflictOnceAndFailsWithoutGit(t *test
 		t.Fatalf("a worktree that is gone: %s", got)
 	}
 }
+
+// A worktree deleted while its agent sleeps lists the files on its branch, read in its repository.
+func TestFilesListOfAWorktreeDeletedWhileItsAgentSleepsReadsItsBranch(t *testing.T) {
+	r := gitRig(t)
+	gone := filepath.Join(filepath.Dir(r.wt), "alice-1a2b3c")
+	r.env.DB.Exec("UPDATE agent_state SET worktree = ?, branch = 'main' WHERE agent = 'alice'", gone)
+	r.env.DB.Exec("INSERT INTO worktree_folders(path, repo, holder, last_used) VALUES(?, ?, 'alice', 0)", gone, r.wt)
+	res := result(t, r.call("files.list", map[string]any{"agent": "alice"}))
+	want := []string{".gitignore", "README.md", "docs/domain.md", "gone.md", "lib/main.go", "main/deep/nested/tool.sh", "main/run.sh", "src/app/Main.tsx", "src/my_animation.ts"}
+	if got := paths(t, res); !slices.Equal(got, want) {
+		t.Fatalf("the branch's files: %q", got)
+	}
+	if f := res["files"].([]any)[1].(map[string]any); f["size"] != float64(6) {
+		t.Fatalf("README.md's size: %v", f["size"])
+	}
+	r.env.DB.Exec("DELETE FROM worktree_folders")
+	if res := r.call("files.list", map[string]any{"agent": "alice"}); res["error"] == nil {
+		t.Fatalf("an unknown repository is not_found: %v", res)
+	}
+}
