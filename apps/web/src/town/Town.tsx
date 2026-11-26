@@ -5,12 +5,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Hooks, useAgents, useNav } from '@handline/app-data';
 import { useNow } from '#src/format/time.ts';
-import { taskOf } from '#src/layout/kinds.tsx';
-import { useOpenTab } from '#src/layout/openTab.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 import { useRequests } from '#src/requests/data.ts';
 import { townOf, type House } from '#src/town/model.ts';
-import { Decisions, Panel } from '#src/town/panel.tsx';
+import { TownWindows } from '#src/town/Windows.tsx';
+import { Face } from '#src/town/face.tsx';
+import { figuresOf } from '#src/town/people.ts';
 import { Inside } from '#src/town/Inside.tsx';
 import { CityView, type Sign } from '#src/town/CityView.tsx';
 import { cityOf, HQ, seatsOf } from '#src/town/city.ts';
@@ -40,10 +40,13 @@ export function TownTab() {
   const town = useMemo(() => townOf(workspaces ?? [], agents ?? [], turn, now), [workspaces, agents, turn, now]);
   const [pane, aspect] = useAspect();
   const city = useMemo(() => cityOf(town.houses, aspect), [town.houses, aspect]);
-  // eslint-disable-next-line no-restricted-syntax -- the clicks land on shapes over a drawn picture (a person, a desk, a paper), not on elements that can take useOpenable's props
-  const open = useOpenTab();
   const [picked, setPicked] = useTabState<string | null>('house', null);
-  const [mail, setMail] = useTabState('mail', false);
+  // A person's chat tab shows their face, as drawn in their office.
+  const rows = useMemo(() => new Map(town.houses.flatMap((h) => [...figuresOf(h.people)])), [town.houses]);
+  const iconFor = (opens: string | undefined) => {
+    const row = opens?.startsWith('chat:') ? rows.get(opens.slice(5)) : undefined;
+    return row === undefined ? undefined : <Face row={row} />;
+  };
   const houseOf = (key: string) => town.houses.find((h) => h.key === key);
   const pins = useNav().nav.pins;
   const hq = useMemo((): House => {
@@ -85,19 +88,9 @@ export function TownTab() {
   }, [town, city]);
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 bg-bg">
+    <TownWindows iconFor={iconFor}>
       {house ? (
-        <Inside
-          key={house.key}
-          house={house}
-          cameIn={left === house.key}
-          onBack={() => {
-            setPicked(null);
-            setMail(false);
-          }}
-          onOpen={(d) => open(d.task ? taskOf(d.task) : 'requests', 'side')}
-          onMail={() => setMail((m) => !m)}
-        />
+        <Inside key={house.key} house={house} cameIn={left === house.key} onBack={() => setPicked(null)} />
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div ref={pane} className="flex min-h-0 flex-1">
@@ -106,12 +99,7 @@ export function TownTab() {
           <Legend />
         </div>
       )}
-      {house && mail && (
-        <Panel title="Decisions" sub={house.name} onClose={() => setMail(false)}>
-          <Decisions papers={house.decisions} onOpen={(d) => open(d.task ? taskOf(d.task) : 'requests', 'side')} />
-        </Panel>
-      )}
-    </div>
+    </TownWindows>
   );
 }
 

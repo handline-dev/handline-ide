@@ -41,6 +41,7 @@ export function usePersisted<T>(name: string, fallback: T) {
   const set = (next: T | ((v: T) => T)) =>
     setValue((v) => {
       const n = typeof next === 'function' ? (next as (v: T) => T)(v) : next;
+      if (n === v) return v;
       write(name, n);
       return n;
     });

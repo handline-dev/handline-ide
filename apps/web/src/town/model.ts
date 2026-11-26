@@ -3,6 +3,17 @@
 import type { AgentView, PendingRequest, Workspace } from '@handline/client';
 import { activityOf, type Activity } from '#src/layout/agentList.ts';
 
+/** What a person is doing, in a word, under their name. */
+export const WORDS: Record<Activity, string> = {
+  working: 'Working',
+  waking: 'Starting',
+  asleep: 'Asleep',
+  you: 'Waiting for you',
+  held: 'On hold',
+  error: 'Stopped',
+  resting: 'Idle',
+};
+
 /** `queue`: the tasks it owns that are not done; `cached`: its prompt cache still holds its conversation. */
 export type Person = { key: string; name: string; activity: Activity; doing: string | null; queue: number; cached: boolean };
 export type Decision = { id: string; task: number | null; title: string; agent: string | null; house: string | null };

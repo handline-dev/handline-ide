@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // An agent runs, looks at and presses a separate test instance of this worktree's desktop app, never the user's window: it has its own
 // scratch home, data folder, free ports (never 9333) and a DevTools port only it knows. Clicks are the page's own (DevTools input).
-// Usage: app.mjs start [--fake [--cluster[=offline]] | --attach HOME ADDR] [--no-build] | shot [--out FILE] | click <css | x,y> | type "<text>" | text <css> | eval "<js>"
+// Usage: app.mjs start [--fake [--cluster[=offline]] | --attach HOME ADDR] [--no-build] | shot [--out FILE] [--width W] | click <css | x,y> | drag <from> <to> (a press, moves, a release) | type "<text>" | text <css> | eval "<js>"
 //   | drag-check (clickable things whose middle is an `-webkit-app-region: drag` area)
 //   | overflow [width ...] (what runs past the window's right edge at each width; default 480 768 1280) | status | stop [--all]
 // --attach HOME ADDR: the app adopts the daemon already running on HOME and listening on ADDR (hl dev cluster's master), never stopping it.
@@ -163,7 +163,8 @@ const [verb, ...rest] = process.argv.slice(2);
 const flag = (n) => rest.includes(n);
 const opt = (n) => (rest.includes(n) ? rest[rest.indexOf(n) + 1] : undefined);
 // Only the flags this tool knows are dropped, so an argument like "--foo" reaches click, type and eval.
-const positional = () => rest.filter((a, i) => !['--fake', '--no-build', '--all', '--out'].includes(a) && rest[i - 1] !== '--out');
+const positional = () =>
+  rest.filter((a, i) => !['--fake', '--no-build', '--all', '--out', '--width'].includes(a) && !['--out', '--width'].includes(rest[i - 1]));
 if (os.platform() !== 'darwin') die('the desktop app is run on a Mac');
 
 const commands = {
@@ -267,7 +268,17 @@ const commands = {
   async shot() {
     const s = need();
     const out = path.resolve(opt('--out') ?? path.join(s.root, `shot-${Date.now()}.png`));
-    const r = await cdp(s, 'Page.captureScreenshot', { format: 'png' });
+    // --width W: the page as a window that wide shows it (a phone's, say), back to the window's own after.
+    const width = Number(opt('--width') ?? 0);
+    const r = await session(s, async (call) => {
+      if (width) await call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 0, mobile: false });
+      try {
+        if (width) await new Promise((done) => setTimeout(done, 800));
+        return await call('Page.captureScreenshot', { format: 'png' });
+      } finally {
+        if (width) await call('Emulation.clearDeviceMetricsOverride');
+      }
+    });
     fs.writeFileSync(out, Buffer.from(r.data, 'base64'));
     console.log(out);
   },
@@ -279,6 +290,19 @@ const commands = {
     for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased'])
       await cdp(s, 'Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: type === 'mouseMoved' ? 0 : 1 });
     console.log(`clicked ${Math.round(x)},${Math.round(y)}`);
+  },
+  async drag() {
+    const s = need();
+    const [from, to] = positional();
+    if (!from || !to) die('usage: node tools/app.mjs drag <css | x,y> <css | x,y>');
+    const [a, b] = [await pointOf(s, from), await pointOf(s, to)];
+    const mouse = (type, { x, y }, buttons) => cdp(s, 'Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons, clickCount: 1 });
+    await mouse('mouseMoved', a, 0);
+    await mouse('mousePressed', a, 1);
+    const STEPS = 12;
+    for (let i = 1; i <= STEPS; i++) await mouse('mouseMoved', { x: a.x + ((b.x - a.x) * i) / STEPS, y: a.y + ((b.y - a.y) * i) / STEPS }, 1);
+    await mouse('mouseReleased', b, 0);
+    console.log(`dragged ${Math.round(a.x)},${Math.round(a.y)} to ${Math.round(b.x)},${Math.round(b.y)}`);
   },
   async type() {
     const s = need();

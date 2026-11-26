@@ -1,15 +1,12 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
 // scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
-// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and floats that
-// agent's chat over the room (floater.tsx), one on the founder's own desk its decisions; the window stays wherever the founder walks
-// until it is closed or another is clicked. The door
+// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and brings up that
+// agent's chat in the town's windows (Windows.tsx), one on the founder's own desk the decisions; whose chat a tab bar shows stays
+// outlined. The door
 // the founder came in by shuts behind it, and opens when it walks up into it to go back out.
-import { AnimatePresence } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Decisions, WORDS } from '#src/town/panel.tsx';
-import type { Decision, House, Person } from '#src/town/model.ts';
-import { Chat } from '#src/chat/Chat.tsx';
-import { Floater } from '#src/town/floater.tsx';
+import { WORDS, type House, type Person } from '#src/town/model.ts';
+import { useTownShown } from '#src/town/Windows.tsx';
 import { BUBBLE, PEOPLE_SHEET, SHEET, type Figure, type Spot } from '#src/town/people.ts';
 import { COLS, roomOf } from '#src/town/room.ts';
 import { viewOf } from '#src/town/view.ts';
@@ -20,8 +17,8 @@ import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { touches, useDrawn } from '#src/town/office.ts';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
-/** The window of the founder's own desk, beside an agent's by its key. */
-const MINE = 'mine';
+/** What the founder's own desk opens: the decisions waiting for them. */
+const DESK = { opens: 'requests', title: 'Requests' };
 /** How much of the front wall shows while a person reaches into it. */
 const SEE_THROUGH = 0.4;
 
@@ -56,16 +53,13 @@ export function Inside({
   house,
   cameIn,
   onBack,
-  onOpen,
-  onMail,
 }: {
   house: House;
   /** The founder walked in by the door, which then shuts behind it. */
   cameIn: boolean;
   onBack: () => void;
-  onOpen: (d: Decision) => void;
-  onMail: () => void;
 }) {
+  const { show, shows } = useTownShown();
   const [pane, [pw, ph]] = useSize();
   const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
   const drawn = useDrawn(house, cols);
@@ -78,8 +72,6 @@ export function Inside({
     if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z], out: true });
   });
   const cast = drawn?.cast;
-  // Whose window floats: an agent's key, 'mine' for the founder's desk, or none; set by a click, never by walking past.
-  const [shown, setShown] = useState<string | null>(null);
   // The front wall goes see-through while a person reaches into it.
   const seeThrough = useFounder(
     founder,
@@ -87,20 +79,18 @@ export function Inside({
   );
   // The people are in depth order: those up to `behind` stand behind the founder.
   const behind = useFounder(founder, (me) => (me && cast ? cast.figures.filter((f) => f.z <= me.at[1]).length : 0));
-  const person = shown && shown !== MINE ? (house.people.find((p) => p.key === shown) ?? null) : null;
   const font = 11 / scale; // names stay 11px on screen whatever the scale
   const decisions = house.decisions.length;
 
   useEffect(() => {
-    // Escape the chat took (to stop a turn, close a list) stays the chat's; else it closes the window, then leaves the office.
+    // Escape in a tab bar stays the tab's (to stop a turn, close a list); else it leaves the office.
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || (e.target instanceof Element && e.target.closest('[data-no-walk]'))) return;
-      if (shown) setShown(null);
-      else onBack();
+      onBack();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onBack, shown]);
+  }, [onBack]);
 
   const hit = (s: Spot, key: string) => (
     <rect
@@ -113,11 +103,11 @@ export function Inside({
       fill="transparent"
       stroke="transparent"
       strokeWidth={1 / scale}
-      // Whose window is open stays outlined, wherever the founder walks.
-      className={shown === s.person.key ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
+      // Whose chat a tab bar shows stays outlined, wherever the founder walks.
+      className={shows(`chat:${s.person.key}`) ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
       onClick={() => {
         founder.go(s.at);
-        setShown(s.person.key);
+        show(`chat:${s.person.key}`, s.person.name);
       }}
     >
       <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
@@ -137,7 +127,7 @@ export function Inside({
         <span className="flex-1" />
         <button
           type="button"
-          onClick={onMail}
+          onClick={() => show(DESK.opens, DESK.title)}
           className="flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-muted hover:bg-hover hover:text-fg"
         >
           Decisions
@@ -218,11 +208,11 @@ export function Inside({
                     fill="transparent"
                     stroke="transparent"
                     strokeWidth={1 / scale}
-                    className={shown === MINE ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
+                    className={shows(DESK.opens) ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
                     onClick={() => {
                       if (!drawn.cast.mine) return;
                       founder.go(drawn.cast.mine.at);
-                      setShown(MINE);
+                      show(DESK.opens, DESK.title);
                     }}
                   >
                     <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
@@ -234,25 +224,6 @@ export function Inside({
             </svg>
           )}
         </div>
-        <AnimatePresence>
-          {person && (
-            <Floater key="window" title={person.name} sub={person.doing ?? WORDS[person.activity]} onClose={() => setShown(null)}>
-              <Chat key={person.key} agent={person.key} />
-            </Floater>
-          )}
-          {shown === MINE && (
-            <Floater
-              key="window"
-              title="Your desk"
-              sub={`${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}
-              onClose={() => setShown(null)}
-            >
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <Decisions papers={house.decisions} onOpen={onOpen} />
-              </div>
-            </Floater>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );
