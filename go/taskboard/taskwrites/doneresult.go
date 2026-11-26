@@ -71,7 +71,7 @@ func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) 
 	return res, finalize, nil
 }
 
-// commitIn is the full sha that sha names in repo, and whether main reaches it; "" and why when it names no commit.
+// commitIn is the full sha that sha names in repo, and whether its default branch reaches it; "" and why when it names no commit.
 func commitIn(repo, sha string) (full string, onMain bool, why string) {
 	r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
 	if r.RC != 0 {
@@ -81,5 +81,6 @@ func commitIn(repo, sha string) (full string, onMain bool, why string) {
 		return "", false, "no such commit"
 	}
 	full = strings.TrimSpace(r.Stdout)
-	return full, gitrun.OnMain(repo, full).RC == 0, ""
+	onMain, _ = gitrun.BaseOf(repo).Reaches(repo, full)
+	return full, onMain, ""
 }

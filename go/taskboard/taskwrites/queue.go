@@ -272,7 +272,7 @@ func worksOn(tx *sql.Tx, agent string, tid int64) (bool, error) {
 }
 
 // workKept is the memo a draft leaves on tid when the agent working it has something to resume from: commits on its worktree's branch
-// that main lacks, made since the task landed, or uncommitted changes. "" when there is none, or no worktree to read.
+// that the repo's default branch lacks (gitrun.Base), made since the task landed, or uncommitted changes. "" when there is none, or no worktree to read.
 func workKept(q *sql.DB, tid int64) (string, error) {
 	var agent, recorded string
 	var landed int64
@@ -291,9 +291,10 @@ func workKept(q *sql.DB, tid int64) (string, error) {
 	}
 	branch := gitrun.Run(wt, "rev-parse", "--abbrev-ref", "HEAD")
 	head := gitrun.Run(wt, "rev-parse", "--short", "HEAD")
-	log := gitrun.Run(wt, "log", "--format=%ct", gitrun.MainRef(wt)+"..HEAD")
+	ahead, ok := gitrun.BaseOf(wt).NotIn("HEAD")
+	log := gitrun.Run(wt, append([]string{"log", "--format=%ct"}, ahead...)...)
 	dirty := gitrun.Run(wt, "status", "--porcelain")
-	if branch.RC != 0 || head.RC != 0 || log.RC != 0 || dirty.RC != 0 {
+	if !ok || branch.RC != 0 || head.RC != 0 || log.RC != 0 || dirty.RC != 0 {
 		return "", nil
 	}
 	commits := 0

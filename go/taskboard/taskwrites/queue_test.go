@@ -196,7 +196,7 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 			t.Fatalf("git %v: %s", args, r.Stderr)
 		}
 	}
-	git("init", "-q", "-b", "main")
+	git("init", "-q", "-b", "master") // the commits kept are those the repository's own default branch lacks, here not called main
 	git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", "base")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, timeout_at) VALUES(1, 'idle', 'w', 'boss', 1, 'boss', 5, 99), " +

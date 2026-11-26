@@ -114,7 +114,7 @@ func TestDoneRefusesACommitThatIsNotOneAndAShaThatNeverLanded(t *testing.T) {
 }
 
 // A push moves origin's main and not the clone's own: a sha pushed there is on main with the local main behind, and a refusal says
-// which main it checked.
+// which main it checked, then what to do when the merge was made on the remote (fetchHint), since the done fetches nothing.
 func TestADoneShaPushedToOriginsMainIsOnMainWithTheLocalMainBehind(t *testing.T) {
 	_, repo, _, offMain, done, _ := newResultRig(t)
 	git := gitIn(t, repo)
@@ -134,7 +134,7 @@ func TestADoneShaPushedToOriginsMainIsOnMainWithTheLocalMainBehind(t *testing.T)
 	}
 	git("commit", "-q", "--allow-empty", "-m", "not pushed")
 	unpushed := git("rev-parse", "HEAD")
-	if got := errText(done("w", "o2", 1, fmt.Sprintf(`,"evidence":%q,"repo":%q`, unpushed, repo))); got != unpushed+" is not an ancestor of main (checked origin/main, which a push there moves)" {
+	if got := errText(done("w", "o2", 1, fmt.Sprintf(`,"evidence":%q,"repo":%q`, unpushed, repo))); got != unpushed+" is not an ancestor of main (checked origin/main, which a push there moves)"+fetchHint {
 		t.Fatalf("%q", got)
 	}
 }

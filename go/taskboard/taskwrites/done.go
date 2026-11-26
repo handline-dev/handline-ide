@@ -21,7 +21,7 @@ import (
 
 var shaLike = regexp.MustCompile(`^[0-9a-fA-F]{4,40}$`)
 
-// doneMethod is task.done (actions.mark_task_done): the assignee's, the owner's (who it answers to, the opener unless named) or the founder's call, with exactly one of a merge sha on main, a
+// doneMethod is task.done (actions.mark_task_done): the assignee's, the owner's (who it answers to, the opener unless named) or the founder's call, with exactly one of a merge sha on the repo's default branch, a
 // request already answered, or a one-line fact. Done closes the task: a review is the task handed to its reviewer before the done.
 func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
@@ -130,13 +130,13 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 // proposal) runs. handled is false for any other task, which MarkDone then ends; then runs once the call has committed.
 type CardDecider func(tx *sql.Tx, tid int64, words string) (handled bool, said string, then func(), err error)
 
-// DoneIn is what MarkDone is given: exactly one of Sha (checked against Repo's main), Request (already answered) or Words.
+// DoneIn is what MarkDone is given: exactly one of Sha (checked against Repo's default branch), Request (already answered) or Words.
 type DoneIn struct {
 	Task       int64
 	Sha, Words string
 	Request    *int64
 	Repo       string
-	// Commit is the sha the work was done at (it need not be on main); Shots are absolute paths of PNG files. Both are optional.
+	// Commit is the sha the work was done at (it need not have landed); Shots are absolute paths of PNG files. Both are optional.
 	Commit string
 	Shots  []string
 	// TurnPassed is a review turn's pass closing the task (task.turn.pop): its turn's event says pass, not cleared.
@@ -194,12 +194,16 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	var mark, via string
 	switch {
 	case sha != "":
-		full, why := shaOnMain(repo, sha)
+		full, branch, why := shaOnBase(repo, sha)
 		if full == "" {
 			if why != "" {
 				why = " (" + why + ")"
 			}
-			return nil, refusal(fmt.Sprintf("%s is not an ancestor of main%s", sha, why))
+			if gitrun.HasOrigin(repo) {
+				// The check reads what the clone holds and fetches nothing: a merge made on the remote shows after the caller's own fetch.
+				why += "; if it was merged on origin, run `git fetch origin` and try again"
+			}
+			return nil, refusal(fmt.Sprintf("%s is not an ancestor of %s%s", sha, branch, why))
 		}
 		mark, via = full, "sha"
 	case request != nil:
@@ -310,32 +314,27 @@ func mayClose(tx *sql.Tx, by string, t *task) (bool, error) {
 	return false, nil
 }
 
-// shaOnMain is _sha_on_main: the full sha `sha` names in repo when main reaches it, else "" and why. A sha typed by hand that never
-// merged must not mark a task done, so this runs before anything is written, and what is stored is the full sha.
-func shaOnMain(repo, sha string) (full, why string) {
+// shaOnBase is the full sha `sha` names in repo when its default branch reaches it (origin's copy of it when the clone has one, else
+// the local one: gitrun.Base), else "" and why; branch is that branch's name either way. A sha typed by hand that never merged must not mark a task
+// done, so this runs before anything is written, and what is stored is the full sha. It asks only what the clone holds, and fetches
+// nothing: the repo is one the caller names, and a fetch there would run what that repo's config says.
+func shaOnBase(repo, sha string) (full, branch, why string) {
+	base := gitrun.BaseOf(repo)
 	r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
 	if r.RC < 0 {
-		return "", r.Stderr
+		return "", base.Branch, r.Stderr
 	}
 	if r.RC != 0 {
-		return "", "no such commit in this repo"
+		return "", base.Branch, "no such commit in this repo"
 	}
 	full = strings.TrimSpace(r.Stdout)
-	ref := gitrun.MainRef(repo)
-	r = gitrun.Run(repo, "merge-base", "--is-ancestor", full, ref)
-	switch {
-	case r.RC < 0:
-		return "", r.Stderr
-	case r.RC == 0:
-		return full, ""
-	case r.RC == 1 && strings.HasPrefix(ref, "refs/remotes/"):
-		return "", "checked " + strings.TrimPrefix(ref, "refs/remotes/") + ", which a push there moves"
+	if ok, why := base.Reaches(repo, full); !ok {
+		if ref := base.Ref(); why == "" && ref != base.Branch {
+			why = "checked " + ref + ", which a push there moves" // origin's copy, not the clone's own branch
+		}
+		return "", base.Branch, textsafe.Oneline(why)
 	}
-	msg := r.Stderr
-	if msg == "" {
-		msg = r.Stdout
-	}
-	return "", textsafe.Oneline(strings.TrimSpace(msg))
+	return full, base.Branch, ""
 }
 
 // openChildrenRefusal refuses a parent's done while children are open, naming each child (number, state, assignee, title) and the
