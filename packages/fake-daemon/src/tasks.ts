@@ -40,6 +40,16 @@ export class FakeTasks extends TaskReviews {
   /** Each agent's review level and record per kind of work it has done (the founder's first verdict on each task, newest last); a seed
    *  puts them here. */
   readonly reviews = new Map<string, Map<ReviewWork, Rung>>();
+  /** The exact commands the founder always allows each agent (access.list): the architect has two. */
+  readonly allowRules = new Map<string, { rule: string; at: string }[]>([
+    [
+      'handline.architect',
+      [
+        { rule: 'Bash(pnpm --dir apps/web test)', at: '2026-11-20T09:00:00Z' },
+        { rule: 'Bash(go test ./internal/reads/)', at: '2026-11-24T15:30:00Z' },
+      ],
+    ],
+  ]);
 
   /** agent.review: per kind of work, its level, the last ten of its record, and one step less looked at after ten first-look OKs in a row
    *  (never for contract). */
@@ -178,6 +188,8 @@ const BASIC = new Set([
   'warning.dismiss',
   'lessons.list',
   'lesson.remove',
+  'access.list',
+  'access.rule_remove',
   'agent.review',
   'agent.review_set',
   'task.history',

@@ -29,9 +29,11 @@ export function queuedBehind(a: AgentView): number | null {
 /** An option that saves a standing rule ("Yes, and don't ask again"). */
 export const isAlways = (o: PromptOption): boolean => /\balways\b|don.t ask again/i.test(o.label);
 
-/** Options a card offers: a permission prompt only ever offers yes and no, never "always". */
+/** Options a card offers: a permission prompt offers yes and no, and "always" only as the daemon's own rule for an exact command (`rule`). */
 export function offered(p: Prompt): PromptOption[] {
-  return p.kind === 'permission' ? p.options.filter((o) => (o.answer === 'yes' || o.answer === 'no') && !isAlways(o)) : p.options;
+  return p.kind === 'permission'
+    ? p.options.filter((o) => (o.answer === 'yes' || o.answer === 'no') && (!isAlways(o) || !!o.rule))
+    : p.options;
 }
 
 /** What the card offers: a permission only yes and no; a dialog its options, minus the "always" ones when no rule can be kept. */

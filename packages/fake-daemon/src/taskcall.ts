@@ -45,6 +45,15 @@ export function taskCall(
         if (!Number.isInteger(p.id)) throw invalidParams('id is a lesson number', 'id');
         if (!tasks.removeLesson(Number(p.id))) throw new Failure('not_found', `no lesson ${String(p.id)}`, { what: 'lesson' });
         return ok(`Lesson ${String(p.id)} removed`);
+      case 'access.list':
+        if (typeof p.agent !== 'string' || !p.agent) throw invalidParams("agent is an agent's key", 'agent');
+        return { grants: [], rules: tasks.allowRules.get(p.agent) ?? [] };
+      case 'access.rule_remove': {
+        if (typeof p.agent !== 'string' || typeof p.rule !== 'string') throw invalidParams('agent and rule are strings', 'rule');
+        const left = (tasks.allowRules.get(p.agent) ?? []).filter((r) => r.rule !== p.rule);
+        tasks.allowRules.set(p.agent, left);
+        return ok(`No longer always allowed: ${p.rule}`);
+      }
       case 'agent.review':
         if (typeof p.agent !== 'string' || !p.agent) throw invalidParams("agent is an agent's key", 'agent');
         return tasks.reviewOf(p.agent);

@@ -1,6 +1,7 @@
 import { CommandText } from '#src/ui/CommandText.tsx';
 import { checkedKeys } from '@handline/app-core';
-import { useAgentDetail, usePromptAnswer } from '@handline/app-data';
+import { useAgentDetail, useNameOf, usePromptAnswer } from '@handline/app-data';
+import { ruleText } from '#src/settings/AllowRules.tsx';
 import type { Prompt } from '@handline/client';
 import { MessageCircleQuestion, ShieldAlert } from 'lucide-react';
 import { Button } from '#src/ui/Button.tsx';
@@ -24,7 +25,16 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
   const a = usePromptAnswer(agent, p, undefined);
   const permission = p.kind === 'permission';
   const title = permission ? `Allow ${p.tool ?? 'this'}?` : a.question ? (questionText(p) ?? 'Question') : 'The agent asks';
-  const label = (o: (typeof a.opts)[number]) => (permission ? (o.key === 'yes' ? 'Allow' : o.key === 'no' ? 'Deny' : o.label) : o.label);
+  const nameOf = useNameOf();
+  // A repeat of a command asked before word for word may be allowed for good: the button names the agent and the exact command.
+  const always = permission && a.opts.some((o) => !!o.rule);
+  const label = (o: (typeof a.opts)[number]) => {
+    if (!permission) return o.label;
+    if (o.rule) return `Always allow ${nameOf(agent)} ${ruleText(o.rule)}`;
+    if (o.answer === 'yes') return always ? 'Allow once' : 'Allow';
+    if (o.answer === 'no') return 'Deny';
+    return o.label;
+  };
   return (
     <div
       className={`mt-2 flex max-w-150 flex-col gap-3 rounded-lg border border-border p-3 text-sm ${a.answering ? 'pointer-events-none opacity-60' : ''}`}
@@ -71,7 +81,7 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
           {a.opts.map((o) => (
             <Button
               key={o.key}
-              variant={o.answer === 'yes' || (!permission && o.highlighted) ? 'primary' : 'secondary'}
+              variant={(o.answer === 'yes' && !o.rule) || (!permission && o.highlighted) ? 'primary' : 'secondary'}
               onClick={() => a.send(o.key, o.key)}
             >
               {a.mark(o.key, label(o))}

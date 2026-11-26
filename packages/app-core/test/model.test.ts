@@ -58,6 +58,20 @@ test('a permission card offers only yes and no; other dialogs offer everything',
     ['1', '3'],
   );
   assert.equal(offered(p('trust')).length, 3);
+  // The daemon's own Always allow for an exact command carries its rule, and is offered; a screen's "always" without one is not.
+  const hook: Prompt = {
+    ...p('permission'),
+    options: [
+      { key: 'yes', label: 'Allow once', answer: 'yes' },
+      { key: 'always', label: 'Always allow lander Bash(npm test)', answer: 'yes', rule: 'Bash(npm test)' },
+      { key: 'yes2', label: 'Yes, always', answer: 'yes' },
+      { key: 'no', label: 'Deny', answer: 'no' },
+    ],
+  };
+  assert.deepEqual(
+    offered(hook).map((o) => o.key),
+    ['yes', 'always', 'no'],
+  );
 });
 
 const opt = (key: string, label: string, answer: 'yes' | 'no' | 'other' = 'other') => ({ key, label, answer, highlighted: false });

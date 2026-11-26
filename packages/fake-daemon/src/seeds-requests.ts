@@ -4,6 +4,32 @@ import type { FakeDaemon } from '#src/daemon.ts';
 type Seed = (d: FakeDaemon) => void;
 
 export const REQUEST_SEEDS: Record<string, Seed> = {
+  /** handline.term-build asks again for a command it was allowed before word for word: its card offers Always allow for it. */
+  'always-allow': (d) => {
+    const s = d.sessions.get('handline.term-build');
+    if (!s) return;
+    s.prompt = {
+      id: 'always-seed',
+      agent: 'handline.term-build',
+      kind: 'permission',
+      tool: 'Bash',
+      command: 'pnpm --dir apps/web test',
+      reason: null,
+      lines: [],
+      options: [
+        { key: 'yes', label: 'Allow once', answer: 'yes', highlighted: true },
+        {
+          key: 'always',
+          label: 'Always allow term-build Bash(pnpm --dir apps/web test)',
+          answer: 'yes',
+          rule: 'Bash(pnpm --dir apps/web test)',
+        },
+        { key: 'no', label: 'Deny', answer: 'no' },
+      ],
+      since: new Date().toISOString(),
+    };
+  },
+
   /** Three `@human` comments that ask nothing, on the founder's own tasks, one seen in its author's chat: Requests lists the other two as notes. */
   'founder-notes': (d) => {
     const titles = [

@@ -15,6 +15,7 @@ import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
 import { Memory, Role } from '#src/settings/AgentContext.tsx';
+import { AllowRules } from '#src/settings/AllowRules.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 
@@ -57,6 +58,7 @@ export function AgentPage({ agent }: { agent: string }) {
       <Role agent={agent} />
       <Memory agent={agent} />
       <Lessons agent={agent} />
+      <AllowRules agent={agent} />
       <Sandbox agent={agent} />
       <Review agent={agent} />
     </SettingsPage>
