@@ -15,6 +15,9 @@ import { ChevronDown, ChevronLeft, ChevronRight, ListChecks, Pin, Plus, PanelLef
 import { InCluster, spaceOf, splitSpace, useJoined, type Joined } from '#src/connection/clusters.tsx';
 import { ClusterWord } from '#src/connection/ClusterWord.tsx';
 import { useRef, useState, type ReactNode } from 'react';
+import { LayoutGroup, motion } from 'framer-motion';
+import { CircleHelp } from 'lucide-react';
+import { spring } from '#src/motion.ts';
 import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -90,60 +93,63 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
   return agents.map((agent) => {
     const opens = chatOf(agent.key);
     return (
-      <DropArea
-        key={agent.key}
-        className="relative flex flex-col"
-        onDragStart={(e) => {
-          e.stopPropagation();
-          dragged = { name: agent.key, group };
-        }}
-        onDragEnd={() => {
-          dragged = null;
-          setLine(null);
-        }}
-        accepts={() => dragged?.group === group}
-        onOver={(e) => {
-          e.stopPropagation();
-          const r = e.currentTarget.getBoundingClientRect();
-          setLine({ at: agent.key, after: e.clientY > r.top + Math.min(r.height, 32) / 2 });
-        }}
-        onLeave={() => setLine((l) => (l?.at === agent.key ? null : l))}
-        onDrop={(e) => {
-          e.stopPropagation();
-          drop(agent.key, line?.after ?? false);
-        }}
-      >
-        {line?.at === agent.key && (
-          <span className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`} />
-        )}
-        <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)}>
-          <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
-            <Row
-              opens={opens}
-              menu={false}
-              title={nameOf(agent.key)}
-              selected={pick.shown.includes(agent.key)}
-              onShow={() => pick.onSelect(agent.key)}
-              icon={<ActivityIcon act={activityOf(agent)} />}
-              // Its queued tasks, and when it last worked: now while running, else since it stopped (state_since).
-              trail={
-                <span className="flex items-center gap-1.5">
-                  {(queuedBehind(agent) ?? 0) > 0 && (
-                    <span className="flex items-center gap-0.5" title="tasks queued">
-                      <ListChecks size={12} />
-                      {queuedBehind(agent)}
-                    </span>
-                  )}
-                  {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
-                </span>
-              }
-              // A mark that is not plain says why first; else the unread message.
-              note={refs(holdLine(agent) ?? '') || unreadNote(agent)}
-              unread={agent.founder_unread ?? 0}
+      <motion.div key={agent.key} layout="position" layoutId={`agent-row-${agent.key}`} transition={spring}>
+        <DropArea
+          className="relative flex flex-col"
+          onDragStart={(e) => {
+            e.stopPropagation();
+            dragged = { name: agent.key, group };
+          }}
+          onDragEnd={() => {
+            dragged = null;
+            setLine(null);
+          }}
+          accepts={() => dragged?.group === group}
+          onOver={(e) => {
+            e.stopPropagation();
+            const r = e.currentTarget.getBoundingClientRect();
+            setLine({ at: agent.key, after: e.clientY > r.top + Math.min(r.height, 32) / 2 });
+          }}
+          onLeave={() => setLine((l) => (l?.at === agent.key ? null : l))}
+          onDrop={(e) => {
+            e.stopPropagation();
+            drop(agent.key, line?.after ?? false);
+          }}
+        >
+          {line?.at === agent.key && (
+            <span
+              className={`pointer-events-none absolute inset-x-1 h-0.5 rounded-full bg-accent ${line.after ? '-bottom-1' : '-top-1'}`}
             />
-          </AgentRowCard>
-        </AgentMenu>
-      </DropArea>
+          )}
+          <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)}>
+            <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
+              <Row
+                opens={opens}
+                menu={false}
+                title={nameOf(agent.key)}
+                selected={pick.shown.includes(agent.key)}
+                onShow={() => pick.onSelect(agent.key)}
+                icon={<ActivityIcon act={activityOf(agent)} />}
+                // Its queued tasks, and when it last worked: now while running, else since it stopped (state_since).
+                trail={
+                  <span className="flex items-center gap-1.5">
+                    {(queuedBehind(agent) ?? 0) > 0 && (
+                      <span className="flex items-center gap-0.5" title="tasks queued">
+                        <ListChecks size={12} />
+                        {queuedBehind(agent)}
+                      </span>
+                    )}
+                    {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
+                  </span>
+                }
+                // A mark that is not plain says why first; else the unread message.
+                note={refs(holdLine(agent) ?? '') || unreadNote(agent)}
+                unread={agent.founder_unread ?? 0}
+              />
+            </AgentRowCard>
+          </AgentMenu>
+        </DropArea>
+      </motion.div>
     );
   });
 }
@@ -232,12 +238,20 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
   // A section's new order goes first in nav.order; the rest of the order stays as it was.
   const reorder = (names: string[]) => change({ order: [...names, ...nav.order.filter((n) => !names.includes(n))] });
   const all = ordered(list.data?.agents ?? [], nav.order);
-  const { pinned, rest } = joined ? { pinned: [], rest: all } : splitPinned(all, nav.pins);
+  // An agent waiting on the person rises to Needs you at the top while it waits, and goes back to its place after.
+  const needs = joined ? [] : all.filter((a) => activityOf(a) === 'you');
+  const calm = all.filter((a) => !needs.includes(a));
+  const { pinned, rest } = joined ? { pinned: [], rest: calm } : splitPinned(calm, nav.pins);
   // A section per workspace. With none, one Agents section still holds New agent, the loading rows and a dropped pin.
   const groups = byWorkspace(useDirectory(), rest);
   const sections = groups.length || joined ? groups : [{ workspace: null, agents: [] }];
   return (
-    <>
+    <LayoutGroup>
+      {needs.length > 0 && (
+        <Section title="Needs you" icon={<CircleHelp size={12} />}>
+          <AgentRows agents={needs} pick={pick} onMove={() => {}} />
+        </Section>
+      )}
       {pinned.length > 0 && (
         <Section title="Pinned" icon={<Pin size={12} />} accepts={(name) => !nav.pins.includes(name)} onAgentDrop={togglePin}>
           <AgentRows
@@ -284,7 +298,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
           <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} />
         </Section>
       ))}
-    </>
+    </LayoutGroup>
   );
 }
 
