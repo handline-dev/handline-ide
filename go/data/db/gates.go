@@ -8,12 +8,19 @@ import (
 )
 
 // Watch is what a gate task watches: Target of Vendor (an outside tool, package watch), waiting for Until, said as Label ("PR #418 CI").
-// Result is what it opened with, "" while it watches: passed, failed or timed_out. Error is why its last read failed, "" when it did not.
+// Result is what it opened with, "" while it watches: passed, failed or timed_out. Error is why its last read failed, "" when it did not;
+// one that starts with PassHeld is no failed read (the watch passed, and the close that follows it waits). Closes is the task the gate
+// closes when it passes (task.wait then done), 0 for a gate that only gives the tasks it blocks back to their holders.
 type Watch struct {
 	Vendor, Target, Until, Label string
 	Result, Error                string
 	Since                        int64 // when the gate started watching: its creation
+	Closes                       int64
 }
+
+// PassHeld starts the Error of a gate whose watch has passed but which stays open: the task it closes cannot be closed yet, and the next
+// look at the gate tries again.
+const PassHeld = "passed, "
 
 // GateDeadlineS is a gate's time box when none is given (policy.GateDeadline).
 const GateDeadlineS = int64(policy.GateDeadline / time.Second)
@@ -27,9 +34,9 @@ func OpenGate(q Q, tid int64, by string, w Watch) error {
 			by, now, now, tid)
 		return err
 	}
-	_, err := q.Exec("UPDATE tasks SET watch_vendor = ?, watch_target = ?, watch_until = ?, watch_label = ?, queued_by = COALESCE(queued_by, ?), "+
-		"queued_at = COALESCE(queued_at, ?), sent_at = ?, timeout_at = ? + COALESCE(timeout_s, ?) WHERE id = ?",
-		w.Vendor, w.Target, w.Until, w.Label, by, now, now, now, GateDeadlineS, tid)
+	_, err := q.Exec("UPDATE tasks SET watch_vendor = ?, watch_target = ?, watch_until = ?, watch_label = ?, watch_closes = NULLIF(?, 0), "+
+		"queued_by = COALESCE(queued_by, ?), queued_at = COALESCE(queued_at, ?), sent_at = ?, timeout_at = ? + COALESCE(timeout_s, ?) WHERE id = ?",
+		w.Vendor, w.Target, w.Until, w.Label, w.Closes, by, now, now, now, GateDeadlineS, tid)
 	return err
 }
 
@@ -52,10 +59,11 @@ func OpenLeaseGates(q Q, before int64) ([]int64, error) {
 	return out, rows.Err()
 }
 
-const watchCols = "watch_vendor, watch_target, watch_until, watch_label, COALESCE(watch_result, ''), COALESCE(watch_error, ''), created_at"
+const watchCols = "watch_vendor, watch_target, watch_until, watch_label, COALESCE(watch_result, ''), COALESCE(watch_error, ''), created_at, " +
+	"COALESCE(watch_closes, 0)"
 
 func (w *Watch) dest() []any {
-	return []any{&w.Vendor, &w.Target, &w.Until, &w.Label, &w.Result, &w.Error, &w.Since}
+	return []any{&w.Vendor, &w.Target, &w.Until, &w.Label, &w.Result, &w.Error, &w.Since, &w.Closes}
 }
 
 // TaskWatch is what task tid watches, nil for a task that is no gate.

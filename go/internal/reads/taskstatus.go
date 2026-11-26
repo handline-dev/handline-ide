@@ -1,6 +1,8 @@
 package reads
 
 import (
+	"strings"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/internal/status"
@@ -38,7 +40,10 @@ func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64,
 			return at(status.Running, status.Watch, t.str("title"), t.i("sent_at")), nil
 		case owner == db.Gate:
 			text := "watching " + t.str("watch_label")
-			if why := t.str("watch_error"); why != "" {
+			switch why := t.str("watch_error"); {
+			case strings.HasPrefix(why, db.PassHeld): // no failed read: it passed, and the close it makes waits
+				text += " - " + why
+			case why != "":
 				text += " - last read failed: " + why
 			}
 			return at(status.Running, status.Watch, text, t.i("sent_at")), nil

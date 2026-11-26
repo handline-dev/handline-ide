@@ -285,6 +285,20 @@ func landedVerdict(p *Pull, since time.Time) (Verdict, string) {
 	return Waiting, ""
 }
 
+// Lands is whether watch w passes only on a merge, so that its pass can close a task with the commit that merge made (task.wait then
+// done): a pull request waited on until landed.
+func Lands(w db.Watch) bool { return w.Vendor == "github" && w.Until == "landed" }
+
+var mergedSha = regexp.MustCompile(`^merged ([0-9a-f]{7,64})$`)
+
+// MergedSha is the commit the evidence of a pass says the merge made ("merged <sha>"), "" when it names none.
+func MergedSha(evidence string) string {
+	if m := mergedSha.FindStringSubmatch(evidence); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
 // doneVerdict is an issue closed as completed (passed) or for any other reason, such as not planned (failed).
 func doneVerdict(out []byte) (Verdict, string, error) {
 	var is struct{ State, StateReason string }

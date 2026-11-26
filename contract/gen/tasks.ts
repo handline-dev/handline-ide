@@ -449,6 +449,8 @@ export type TaskPR = {
   head_sha: string | null;
   /** The commit its merge made; null until it is merged. */
   merge_sha: string | null;
+  /** Whether its merge closes the task: the task waits on an open gate asked to close it when the pull request lands (task.wait then done). Absent from a daemon that does not send it. */
+  closes_task?: boolean;
   /** Why it could not be read; null when it was. */
   unavailable: PullUnavailable | null;
 };
@@ -462,6 +464,8 @@ export type TaskWatch = {
   label: string;
   /** What it opened with; null while it watches. A target that reads as gone (deleted, or no longer visible) three times in a row is failed. */
   result: ("passed" | "failed" | "timed_out") | null;
+  /** The task it closes when it passes (task.wait then done); null for a gate that only gives the tasks it blocks back to their holders. Absent from a daemon that does not send it. */
+  closes?: number | null;
 };
 
 /** One reader of a founder's comment and where its tell stands. */
@@ -931,6 +935,8 @@ export interface TasksMethods {
   "task.wait": { params: {
   task: number;
   watch: Watch;
+  /** done (`--then done`): when the watch passes the daemon closes the task, in the name of the agent acting on it and with the merge commit as its evidence, in the write that opens the gate. Only with a pull request waited on until landed, whose pass names that commit; anything else is bad_request. Before it closes, the daemon fetches the default branch in the folder that agent works in and looks for the commit on it: while the fetch fails the gate stays open and tries again on its next look. The close is a done like any other (the workspace's review_required applies, the result says the commit is on the default branch); what that done refuses (an open sub-task, another blocker, a review still wanted), a merge into another branch, or a task that is a person's turn is not closed: the gate opens as passed with why in its evidence and in a comment on the task, and the task goes back to its holder. A gate that fails or times out gives the task back as any gate does. */
+  then?: "done";
   /** The gate's deadline, a span like 4h; default 24h. */
   time_box?: string;
   request_id: RequestId;

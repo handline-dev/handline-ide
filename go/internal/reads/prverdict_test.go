@@ -192,9 +192,23 @@ func TestATasksPullRequestIsReadAsGitHubHasItNow(t *testing.T) {
 	e.GitHub = gh.reader()
 	want := map[string]any{"number": int64(7), "repo": "acme/app", "url": "https://github.com/acme/app/pull/7", "state": "open", "draft": false,
 		"base": "main", "review": "changes_requested", "failing": []string{"build"}, "waiting": 1, "passing": 2,
-		"head_sha": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e", "merge_sha": nil, "unavailable": nil}
+		"head_sha": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e", "merge_sha": nil, "closes_task": false, "unavailable": nil}
 	if got := taskPRRead(t, e, 1); !reflect.DeepEqual(got, want) {
 		t.Fatalf("\n got %v\nwant %v", got, want)
+	}
+	// its merge closes the task while the task waits on an open gate asked to close it, and not after the gate opened or the wait was undone
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, watch_vendor, watch_target, watch_until, watch_label, "+
+		"watch_closes) VALUES(5, 'T1 waits on PR #7 to land, then is done', 'gate', 'bob', 1, 'bob', 2, 'github', 'acme/app#7', 'landed', 'PR #7 to land', 1)")
+	if taskPRRead(t, e, 1)["closes_task"] != false {
+		t.Fatal("a gate the task does not wait on closes nothing")
+	}
+	run(t, e, "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 5, 1)")
+	if taskPRRead(t, e, 1)["closes_task"] != true {
+		t.Fatal("the task waits on a gate that closes it")
+	}
+	run(t, e, "UPDATE tasks SET done_evidence = 'ci failed: build', done_at = 3, watch_result = 'failed' WHERE id = 5")
+	if taskPRRead(t, e, 1)["closes_task"] != false {
+		t.Fatal("a gate that opened closes nothing any more")
 	}
 	taskPRRead(t, e, 1)
 	if gh.asked["pr view"] != 1 {
@@ -208,7 +222,7 @@ func TestATasksPullRequestIsReadAsGitHubHasItNow(t *testing.T) {
 	if got, err := e.taskPR(nil, map[string]any{"task": json.Number("2")}); err != nil || got != nil {
 		t.Fatalf("a task with no pull request: %v %v", got, err)
 	}
-	if _, err := e.taskPR(nil, map[string]any{"task": json.Number("99")}); err == nil || !strings.Contains(err.Error(), "no task T99") {
+	if _, err := e.taskPR(nil, map[string]any{"task": json.Number("8")}); err == nil || !strings.Contains(err.Error(), "no task T8") {
 		t.Fatalf("%v", err)
 	}
 	if _, err := e.taskPR(nil, map[string]any{}); err == nil {

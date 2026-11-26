@@ -31,7 +31,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.merge` | agent | yes | `into`, `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: merge |
 | `task.release` | agent | yes | `task`, `to?`, `reason?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: release |
 | `task.request` | agent | yes | `request`, `title?`, `owner?`, `request_id` | `Accepted & {task, existing}` | `refused`, `not_found`, `bad_request` |  | decided: make a request |
-| `task.wait` | agent | yes | `task`, `watch`, `time_box?`, `request_id` | `Accepted & {gate}` | `refused`, `not_found`, `bad_request` |  | not from the app |
+| `task.wait` | agent | yes | `task`, `watch`, `then?`, `time_box?`, `request_id` | `Accepted & {gate}` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.discard` | agent | yes | `task?`, `tasks?`, `reason?`, `reasons?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: discard |
 | `task.board` | agent |  | `everyone?` | `{mine}` |  |  | `board`, fed by tasks |
 | `task.withdraw` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | authored: withdraw |
@@ -153,7 +153,7 @@ Make a founder's chat message a request: a task the founder opened (opened_by th
 
 ### `task.wait`
 
-Make a task wait on outside state: a gate on watch (as task.new with owner gate), the task blocked by it and, when doing, released, all in one write, so the task never waits on a gate that blocks nothing. The task comes back to its holder's queue when the gate opens. The wait blocks the task whoever acts on it: the slot freed is the acting agent's (Task.acting).
+Make a task wait on outside state: a gate on watch (as task.new with owner gate), the task blocked by it and, when doing, released, all in one write, so the task never waits on a gate that blocks nothing. The task comes back to its holder's queue when the gate opens. A watch on a pull request also names it as the task's (Task.pr, Task.pr_repo), in the same write. With then done the gate closes the task when it passes, in place of giving it back. The wait blocks the task whoever acts on it: the slot freed is the acting agent's (Task.acting).
 
 ### `task.discard`
 

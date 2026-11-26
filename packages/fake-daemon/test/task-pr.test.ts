@@ -34,15 +34,17 @@ test('pull-requests: an open pull request with failed checks, a merged one, one 
     [null, 'gh_logged_out', 'https://github.com/handline-dev/handline/pull/905'],
   );
   const task = await s.client.call('task.get', { task: 1688 });
-  assert.deepEqual([task.pr, task.pr_repo], [901, 'handline-dev/handline']);
+  assert.deepEqual([task.pr, task.pr_repo, open.closes_task, merged.closes_task], [901, 'handline-dev/handline', true, false]);
   assert.equal('pull' in task, false);
+  // each task's pull request shows on the branch of the agent that holds the task
+  const done = await s.client.call('task.get', { task: 1650 });
   const list = await s.client.call('worktrees.list', {});
   assert.equal(list.prs_unavailable, null);
   assert.deepEqual(
     list.worktrees.filter((w) => w.pr).map((w) => [w.owner, w.pr?.number, w.pr?.verdict, w.pr?.failing]),
     [
-      ['handline.term-build', 901, 'checks_failing', 2],
-      ['handline.architect', 880, 'merged', undefined],
+      [task.to, 901, 'checks_failing', 2],
+      [done.to, 880, 'merged', undefined],
     ],
   );
   s.client.close();

@@ -9,9 +9,10 @@ import (
 	"github.com/handline/handline/go/taskboard/watch"
 )
 
-// waitMethod is task.wait {task, watch, time_box?}: a gate on watch, the task blocked by it and, when doing, released, all in one
+// waitMethod is task.wait {task, watch, time_box?, then?}: a gate on watch, the task blocked by it and, when doing, released, all in one
 // transaction, so the task never waits on a gate that blocks nothing. It comes back to its holder's queue when the gate opens. A watch
-// on a pull request also names it as the task's (Task.pr, Task.pr_repo), in the same write.
+// on a pull request also names it as the task's (Task.pr, Task.pr_repo), in the same write. With then "done" the gate closes the task
+// when its watch passes (package gates), in place of giving it back.
 func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tid, err := taskID(p)
@@ -28,6 +29,16 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		w, err := parseWatch(p["watch"])
 		if err != nil {
 			return nil, err
+		}
+		title := fmt.Sprintf("T%d waits on %s", tid, w.Label)
+		if p["then"] != nil {
+			if then, _ := p["then"].(string); then != "done" {
+				return nil, badParam("then is done: the task is closed when the watch passes", "then")
+			}
+			if !watch.Lands(*w) {
+				return nil, badParam("then done goes with a pull request waited on until landed: only its merge names the commit the task is closed with", "then")
+			}
+			w.Closes, title = tid, title+", then is done"
 		}
 		if why, err := waitRefusal(c.Server().DB, tid); err != nil || why != "" {
 			if err == nil {
@@ -47,12 +58,14 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			r, freed = released{}, false
 			var err error
-			gate, _, err = OpenTask(tx, tell, me, NewIn{Owner: db.Gate, Title: fmt.Sprintf("T%d waits on %s", tid, w.Label), Secs: secs,
-				Prio: db.DefaultPriority, Expects: "report", Watch: w})
+			gate, _, err = OpenTask(tx, tell, me, NewIn{Owner: db.Gate, Title: title, Secs: secs, Prio: db.DefaultPriority, Expects: "report", Watch: w})
 			if err != nil {
 				return nil, err
 			}
 			said := fmt.Sprintf("T%d waits on gate T%d (watching %s)", tid, gate, w.Label)
+			if w.Closes != 0 {
+				said = fmt.Sprintf("T%d waits on gate T%d (watching %s; a merge closes T%d with its commit)", tid, gate, w.Label, tid)
+			}
 			t, err := getTask(tx, tid)
 			if err != nil {
 				return nil, err

@@ -1,5 +1,6 @@
-// A task's pull request, on the task page: where it stands on GitHub, the checks that failed by name, the review's decision, and a
-// link out. Nothing for a task that names none. What could not be read is said in a line, never left as an empty box.
+// A task's pull request, on the task page: where it stands on GitHub, the checks that failed by name, the review's decision, whether
+// its merge closes the task, and a link out. Nothing for a task that names none. What could not be read is said in a line, never left
+// as an empty box.
 import { pullChecks, pullReview, pullState, pullUnavailableText } from '@handline/app-core';
 import { useRead } from '@handline/app-data';
 import type { TaskDetail } from '@handline/client';
@@ -50,6 +51,7 @@ export function TaskPull({ t }: { t: TaskDetail }) {
             ))}
           </p>
         )}
+        {pr?.closes_task && <p className="text-muted">This task closes when it merges.</p>}
         {pr?.unavailable && <p className="text-muted">{pullUnavailableText(pr.unavailable)}</p>}
         {pr === undefined && <p className="text-muted">Reading it from GitHub…</p>}
       </div>

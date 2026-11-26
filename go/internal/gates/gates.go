@@ -1,6 +1,7 @@
 // Package gates opens the gate tasks: a task owned by db.Gate watches a vendor's target (package watch), and is marked done with the
 // vendor's evidence when the vendor answers passed or failed, or when its deadline passes. The tasks it blocks then come back to their
-// holders by the ordinary unblock; what follows is theirs to decide. No vendor code is here.
+// holders by the ordinary unblock; what follows is theirs to decide, unless the gate was asked to close its task when it passes
+// (land.go). No vendor code is here.
 package gates
 
 import (
@@ -27,7 +28,10 @@ type Sweep struct {
 	Log  func(format string, args ...any)
 	// Vendors read the targets; nil is watch.Vendors.
 	Vendors map[string]watch.Vendor
-	gone    map[int64]int // gone answers in a row, by gate
+	// Fetch brings origin's default branch of a roster folder up to date before a merge commit is looked for on it; nil is FetchBase.
+	Fetch    func(repo string) error
+	gone     map[int64]int // gone answers in a row, by gate
+	unlanded map[int64]int // looks in a row that fetched and did not find the merge commit, by gate
 }
 
 // Run passes every EveryS until stop closes; stop also cuts short a read in hand.
@@ -56,7 +60,8 @@ func (s *Sweep) Run(stop <-chan struct{}) {
 }
 
 // Pass opens every gate whose vendor answered passed or failed, that read gone watch.GoneReads times in a row, or whose deadline passed. A
-// read that fails keeps the gate watching, with the reason on it.
+// read that fails keeps the gate watching, with the reason on it. A gate that closes a task opens with that close, or stays open while
+// the close cannot be checked. Every open gate is looked at on every pass: what a pass could not finish, the next one does.
 func (s *Sweep) Pass(ctx context.Context, now int64) error {
 	ids, watches, deadlines, err := db.OpenGates(s.DB)
 	if err != nil {
@@ -67,7 +72,7 @@ func (s *Sweep) Pass(ctx context.Context, now int64) error {
 		vendors = watch.Vendors
 	}
 	if s.gone == nil {
-		s.gone = map[int64]int{}
+		s.gone, s.unlanded = map[int64]int{}, map[int64]int{}
 	}
 	for i, tid := range ids {
 		if ctx.Err() != nil {
@@ -75,11 +80,21 @@ func (s *Sweep) Pass(ctx context.Context, now int64) error {
 		}
 		w := watches[i]
 		var evidence, result string
+		var c closing // what a passed gate does about the task it closes; zero for a gate that closes none
 		if deadlines[i] != 0 && now >= deadlines[i] {
 			evidence, result = "timed out", "timed_out"
 		} else {
 			why := ""
 			evidence, result, why = s.read(ctx, vendors[w.Vendor], tid, w)
+			if result == string(watch.Passed) && w.Closes != 0 {
+				if c, err = s.closingOf(tid, w, evidence); err != nil {
+					s.logf("  T%d: %v", tid, err)
+					continue
+				}
+				if c.wait != "" { // passed, and the close cannot be checked yet: the gate stays open and is read again
+					result, why = "", c.wait
+				}
+			}
 			if why != w.Error {
 				if err := db.SetWatchError(s.DB, tid, why); err != nil {
 					s.logf("  T%d: %v", tid, err)
@@ -90,7 +105,13 @@ func (s *Sweep) Pass(ctx context.Context, now int64) error {
 			continue
 		}
 		delete(s.gone, tid)
-		if err := s.open(tid, evidence, result); err != nil {
+		delete(s.unlanded, tid)
+		if c.task != 0 {
+			err = s.openClosing(tid, evidence, c)
+		} else {
+			err = s.open(tid, evidence, result)
+		}
+		if err != nil {
 			s.logf("  T%d: the gate could not be opened: %v", tid, err)
 			continue
 		}

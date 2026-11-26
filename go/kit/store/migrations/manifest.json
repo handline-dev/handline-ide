@@ -208,5 +208,10 @@
   "version": 141,
   "name": "task_pr_repo",
   "additive": true
+ },
+ {
+  "version": 142,
+  "name": "watch_closes",
+  "additive": true
  }
 ]

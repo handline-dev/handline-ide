@@ -26,6 +26,7 @@ export function prOf(p: Record<string, unknown>, tasks: Tasks): TaskPR | null {
     passing: 0,
     head_sha: null,
     merge_sha: null,
+    closes_task: false,
     unavailable: { reason: 'gh_logged_out', text: 'gh is not logged in: run gh auth login' },
   };
 }

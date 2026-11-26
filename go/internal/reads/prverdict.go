@@ -120,8 +120,14 @@ func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 	if repo == "" { // a bare number is of the repository the task's holder works in
 		repo = originRepo(e.repoOf(t.str("acting")))
 	}
+	// an open gate the task still waits on, asked to close it when the pull request merges (task.wait then done)
+	closes, err := queryOne(e.DB, "SELECT g.id FROM tasks g JOIN task_blocks b ON b.blocks_on = g.id AND b.task_id = g.watch_closes AND b.dormant = 0 "+
+		"WHERE g.watch_closes = ? AND g.owner = ? AND g.done_evidence IS NULL AND g.discarded_by IS NULL LIMIT 1", *tid, db.Gate)
+	if err != nil {
+		return nil, err
+	}
 	out := map[string]any{"number": number, "repo": nil, "url": nil, "state": nil, "draft": false, "base": nil, "review": nil,
-		"failing": []string{}, "waiting": 0, "passing": 0, "head_sha": nil, "merge_sha": nil, "unavailable": nil}
+		"failing": []string{}, "waiting": 0, "passing": 0, "head_sha": nil, "merge_sha": nil, "closes_task": closes != nil, "unavailable": nil}
 	if repo == "" {
 		out["unavailable"] = unavailable("no_repo", fmt.Sprintf("The repository of this pull request is not known on this machine. "+
 			"Name it with: hl task edit T%d --pr %d --repo owner/name", *tid, number))

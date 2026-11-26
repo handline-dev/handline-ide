@@ -46,7 +46,7 @@ var usages = map[string][2]string{
 	"task start":       {`hl task start T<n>`, `hl task start T12`},
 	"task reopen":      {`hl task reopen T<n> "<why>"`, `hl task reopen T12 "the badge still overlaps on the phone"`},
 	"task release":     {`hl task release T<n> "<why>"`, `hl task release T12 "blocked on the founder"`},
-	"task wait":        {`hl task wait T<n> (--on <vendor>:<target> | --pr <n> [--repo owner/name]) [--until ci|closed|landed|done] [-t <span>]`, `hl task wait T12 --pr 412`},
+	"task wait":        {`hl task wait T<n> (--on <vendor>:<target> | --pr <n> [--repo owner/name]) [--until ci|closed|landed|done] [--then done] [-t <span>] (--until landed --then done: the merge closes the task with its commit)`, `hl task wait T12 --pr 412 --until landed --then done`}, // local-ref-ok
 	"task discard":     {`hl task discard T<n> "<why>"   |   hl task discard T<n> T<m> --why "<why>" [--why-each T<m>="<why>"]`, `hl task discard T12 "duplicate of T9"`},
 	"task request":     {`hl task request <msg> ["<title>"] [--owner <agent>]`, `hl task request msg_1a2b3c4 "Rework the sidebar"`},
 	"task note":        {`hl task note T<n> "<text>"`, `hl task note T12 "the phone needs it too"`},
