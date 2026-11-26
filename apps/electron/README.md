@@ -2,7 +2,7 @@
 
 The desktop shell: one window on the built `apps/web`, one instance, a dock badge from the inbox count, native notifications.
 
-    pnpm dev <team>
+    node tools/app.mjs start --fake
 
 The main process serves `apps/web/dist` on a loopback port and holds its own daemon connection (the Unix socket) for the badge and the notices. The web app is unchanged and reaches the daemon by its WebSocket.
 
@@ -25,7 +25,7 @@ commit. _Open at login_ (on by default) opens the app at login in the tray only,
 Instead of this Mac's daemon the app can use another device's, paired from the pairing screen (the `handline://` link `hl device pair`
 prints, or an address and a code); Settings > Connection goes back to this Mac's. That pairing and the settings are kept in
 `settings.json` in the app's data folder, mode 0600. `HANDLINE_ATTACH=1` makes a dev run attach to the daemon of its home and never start
-or stop one (`hl dev`, `tools/try-prototype.sh`).
+or stop one (`tools/try-prototype.sh`).
 
 ## On the real daemon
 
@@ -61,7 +61,7 @@ The app follows GitHub's main: it watches `origin/main` of the repo it was clone
 
 The window always reaches the daemon on its loopback door. Until the person chooses addresses (`network_addresses`, set from Connect a device), the daemon also listens on the Mac's Tailscale address when Tailscale is up (`HANDLINE_LISTEN` overrides) and advertises its `*.ts.net` name; without it, loopback only. Once addresses are chosen the app starts the daemon on loopback and the daemon opens a door on each chosen address, so the window keeps a plain loopback door. The app always passes `-web`: the daemon serves the page on every address it is reachable on, so a browser on the same network can open an invite. The shell still tells the page which address is this machine's own, so plain ws to it is allowed (no other tailnet address is). A running daemon whose loopback door does not answer is stopped and started again like one of another build; under `HANDLINE_ATTACH=1`, which never replaces a daemon, the app fails with that reason instead.
 
-An agent's run stays in the background: it has no dock or menu bar icon, no update dialog, never takes focus, keeps its window hidden, shows no native notices and does not bring the everyday app forward. An agent is known by `HANDLINE_AGENT` in its shell, and `pnpm dev <team>` passes the choice on. `HANDLINE_BACKGROUND=1` asks for it and `HANDLINE_BACKGROUND=0` turns it off. The hidden page keeps drawing, so screenshots go through the DevTools port (`Page.captureScreenshot`), never a screen capture.
+An agent's run stays in the background: it has no dock or menu bar icon, no update dialog, never takes focus, keeps its window hidden, shows no native notices and does not bring the everyday app forward. An agent is known by `HANDLINE_AGENT` in its shell. `HANDLINE_BACKGROUND=1` asks for it and `HANDLINE_BACKGROUND=0` turns it off. The hidden page keeps drawing, so screenshots go through the DevTools port (`Page.captureScreenshot`), never a screen capture.
 
 `HANDLINE_DEBUG_PORT=9333` opens the DevTools port on localhost for run checks. Any local process can then read the page, its device token included, so use it for checks only, never for the app you use every day.
 

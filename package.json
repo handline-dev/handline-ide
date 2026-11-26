@@ -8,7 +8,6 @@
   },
   "scripts": {
     "app": "node apps/electron/follow-start.ts",
-    "dev": "node apps/electron/dev.ts",
     "test": "turbo test",
     "typecheck": "turbo typecheck",
     "build": "turbo build",

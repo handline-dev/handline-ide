@@ -13,7 +13,7 @@ import { Clusters, engineEnv } from '#src/clusters.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
 import type { SettingsFile } from '#src/mode.ts';
 import { engineDaemon, readFounderKey, type LoginPath } from '#src/own.ts';
-import { freePort } from '#src/dev-team.ts';
+import { freePort } from '#src/free-port.ts';
 import { protectedDir } from '#src/pair.ts';
 import { joinedOf, ledOf, masterTransport } from '#src/joined.ts';
 
