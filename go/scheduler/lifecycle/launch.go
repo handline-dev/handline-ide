@@ -806,16 +806,11 @@ func (l *Launcher) git(worktree string, args ...string) string {
 	return strings.TrimSpace(r.Stdout)
 }
 
-// MainRefFiles are the files git rewrites to move the repository's default branch (gitrun.DefaultBranch: master in a repository whose
-// work merges into master), which a session may not write: its ref, the packed refs, and the lock files beside them. The sandbox lets
-// a session write the repository's .git for its own commits; this keeps the session from moving the branch work lands on.
-//
-// origin/HEAD and its lock are among them, since that ref is what says which branch the default is: a session that could point it at
-// another branch would, from the next launch on, leave the real one unguarded here, unseen by the land guard, and not the branch a
-// done or a prune measures against. A launch gives origin/HEAD its branch before the session starts (gitrun.NameOriginHead), so the
-// session has no need to write it. Its own fetch still tries to (git's remote.<name>.followRemoteHEAD, "create" when unset), says
-// that it could not lock the ref, and goes on to update every other ref and exit 0; with that setting "never" the fetch leaves the
-// ref alone and says nothing, so a launch puts it in the session's environment (leaveOriginHead).
+// MainRefFiles are the files git rewrites to move the repository's default branch (gitrun.DefaultBranch), which a session may not
+// write though the sandbox lets it write .git for its own commits: the branch's ref, the packed refs, origin/HEAD, and their locks.
+// origin/HEAD is among them because it says which branch the default is: a session that repointed it would leave the real branch
+// unguarded here and unseen by the land guard, a done and a prune. A launch names it first (gitrun.NameOriginHead), and puts
+// followRemoteHEAD=never in the session's environment (leaveOriginHead) so the session's fetch does not try to write it and complain.
 func (l *Launcher) MainRefFiles(worktree string) []string {
 	common := l.git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if common == "" {

@@ -2,10 +2,8 @@
 // when its branch is merged into the repository's default branch (gitrun.Base: origin's copy of it when the clone has one, since a
 // push moves that and not the clone's own branch, else the local one), it has no uncommitted or untracked file, and no agent works in
 // it. The default branch's own, a locked one and one on no branch stay. Removing one leaves its branch: `git branch -d` takes that.
-//
-// Origin's copy of the default branch is as the clone last heard it: a ref the agents' own fetch and push write, and behind the
-// remote's when that was rewound since the last fetch. A prune and a retire both take its word, since a push is how work lands and
-// nothing moves the clone's own branch: asking again at a retire would ask about every branch that landed by a push.
+// Origin's copy is as the clone last heard it (the agents' own fetch and push write it); a prune and a retire both take its word,
+// since a push is how work lands: asking again at a retire would ask about every branch that landed by a push.
 package worktreeprune
 
 import (
