@@ -66,6 +66,8 @@ export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.s
 
 /** A tab on one thing, opened from a link: a task (`task:8503`), a page (`web:<address>`), a repo file (`file:<path>`). */
 export const taskOf = (id: number) => `task:${id}`;
+/** A chat message with the lines around it, as search finds it (chat/Located): `msg:4521`. */
+export const messageOf = (id: number) => `msg:${id}`;
 /** A task's sub-tasks as a graph (tools/Story): `plan:8503`. */
 export const planOf = (id: number) => `plan:${id}`;
 /** A task's changes, whole and per commit (tools/TaskCode): `code:8503`. */
@@ -82,13 +84,16 @@ export const proposalOf = (id: number) => `proposal:${id}`;
 export const agentSettingsOf = (agent: string) => `agent:${agent}`;
 /** A workspace's page. */
 export const workspaceOf = (key: string) => `ws:${key}`;
-export const opened = (kind: string, prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws' | 'agent') =>
-  kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null;
+export const opened = (
+  kind: string,
+  prefix: 'task' | 'plan' | 'code' | 'web' | 'file' | 'text' | 'doc' | 'proposal' | 'ws' | 'agent' | 'msg',
+) => (kind.startsWith(`${prefix}:`) ? kind.slice(prefix.length + 1) : null);
 const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (shellHandle(kind)) return kinds.newshell;
   if (opened(kind, 'ws')) return kinds.workspace;
   const task = opened(kind, 'task');
   if (task) return { label: `T${task}`, icon: kinds.tasks.icon };
+  if (opened(kind, 'msg')) return { label: 'Message', icon: kinds.chat.icon };
   const plan = opened(kind, 'plan');
   if (plan) return { label: `Plan · T${plan}`, icon: kinds.plan.icon };
   const code = opened(kind, 'code');

@@ -22,6 +22,7 @@ import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentLis
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Row } from '#src/sidebar/Row.tsx';
+import { SearchRow } from '#src/palette/SearchRow.tsx';
 import { FoldMarks, UnreadButton, UnreadList } from '#src/sidebar/Unread.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -338,6 +339,7 @@ export function Sidebar({
   return (
     <aside style={{ width }} className="flex min-h-0 flex-1 flex-col gap-4 bg-surface px-2 pb-2">
       <nav className="flex flex-col gap-0.5">
+        <SearchRow />
         {pages.map((p) => (
           <Row
             key={p.kind}

@@ -140,6 +140,8 @@ export function useScreenLayout() {
   const shown = pane.tabs.find((t) => t.id === pane.active)?.opens;
   const agent = agentOf(shown);
   return {
+    /** What the focused tab shows (its `opens`), or undefined for an Empty tab. */
+    shown,
     /** The agent the focused tab shows, or null. */
     agent,
     /** The page (Tasks, Requests, Usage) the focused tab is, or null. */

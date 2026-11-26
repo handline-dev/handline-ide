@@ -1,6 +1,7 @@
 import { letterOf } from '@handline/app-core';
 import { MAC, primaryMod } from '#src/ui/keys.ts';
 import { Chat } from '#src/chat/Chat.tsx';
+import { LocatedTab } from '#src/chat/Located.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
@@ -250,6 +251,7 @@ function PaneView({
                 <WebTab key={current.id} tab={current.id} agent={who} start={current.opens.slice(4)} />
               )}
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
+              {current?.opens?.startsWith('msg:') && <LocatedTab key={current.opens} request={Number(current.opens.slice(4))} />}
               {current?.opens?.startsWith('plan:') && <PlanTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('code:') && <CodeTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {shown?.startsWith('file:') && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} start={shown.slice(5)} />}

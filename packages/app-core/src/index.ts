@@ -48,3 +48,4 @@ export * from '#src/proposal-words.ts';
 export * from '#src/chat-runs.ts';
 export * from '#src/plan-money.ts';
 export * from '#src/keys.ts';
+export * from '#src/palette.ts';

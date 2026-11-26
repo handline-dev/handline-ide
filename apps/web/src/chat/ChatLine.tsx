@@ -41,7 +41,8 @@ export function ChatLine({
   e: TimelineEntry;
   agent: string;
   me: string;
-  onReply: (r: Reply) => void;
+  /** Left out where there is no box to write in: the line then offers Copy alone. */
+  onReply?: (r: Reply) => void;
   /** The words of the message this one replies to, when it is loaded. */
   parentText?: string;
   /** What this ! line ran and printed, once the daemon has paired them. */
@@ -116,7 +117,7 @@ export function ChatLine({
   const mine = e.kind === 'message' && sideOf(e.message, agent, me) === 'person';
   const reply = (quote?: string) =>
     e.kind === 'item' || e.kind === 'message'
-      ? onReply({ kind: e.kind, id: e.kind === 'item' ? e.item.id : e.message.id, text, quote })
+      ? onReply?.({ kind: e.kind, id: e.kind === 'item' ? e.item.id : e.message.id, text, quote })
       : undefined;
   const m = e.kind === 'message' ? e.message : null;
   // Its command fences run in the agent's terminal: an agent's reply item, or a message in this chat.
@@ -133,7 +134,7 @@ export function ChatLine({
       {m?.parent != null && <Reference text={parentText} onClick={() => jumpTo(m.parent!)} />}
       {m?.parent_item && <Reference text={m.parent_item.text} />}
       {text && (
-        <Quotable text={text} on={!mine} onQuote={reply}>
+        <Quotable text={text} on={!mine && !!onReply} onQuote={reply}>
           {bash || (mine && text.startsWith('!')) ? (
             // A command the person ran in the agent's terminal (bash mode): the command as typed, not a message bubble.
             <CommandBox command={bash?.command ?? text.slice(1).trim()} bash={bash} className={images.length ? 'mt-2' : ''} />
@@ -161,11 +162,11 @@ export function ChatLine({
             <time dateTime={e.at} title={clock(e.at)}>
               <Ago at={e.at} />
             </time>
-            <Actions text={text} onQuote={() => reply()} />
+            {onReply ? <Actions text={text} onQuote={() => reply()} /> : <CopyButton text={text} />}
           </>
         ) : (
           <>
-            <Actions text={text} onQuote={() => reply()} />
+            {onReply ? <Actions text={text} onQuote={() => reply()} /> : <CopyButton text={text} />}
             <time dateTime={e.at} title={clock(e.at)}>
               <Ago at={e.at} />
             </time>

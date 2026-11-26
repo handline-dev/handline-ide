@@ -1,23 +1,12 @@
 import { Spinner } from '#src/ui/Loading.tsx';
-import { chatView, foldBash, foldTurns, knownUpTo, onePerTask, taskRuns, turnMinutes } from '@handline/app-core';
-import {
-  useAgents,
-  useChat,
-  useChatActions,
-  useChatReadMarks,
-  useChatServed,
-  useChatSuspense,
-  useNameOf,
-  useVerbRun,
-} from '@handline/app-data';
+import { knownUpTo, turnMinutes } from '@handline/app-core';
+import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { restartingLine, VERBS } from '@handline/app-core';
-import { useMe, useNearEnd } from '@handline/app-react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { spring } from '#src/motion.ts';
+import { useNearEnd } from '@handline/app-react';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
-import { moveNoteAfter, MoveSteps, PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
+import { MoveSteps, PendingMove, SwitchWait, useSwitchLock } from '#src/chat/agent/AccountSwitch.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { restarting } from '#src/layout/agentList.ts';
@@ -29,12 +18,12 @@ import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { ProposalCards } from '#src/chat/ProposalCard.tsx';
 import { takeToChat } from '#src/chat/toChat.ts';
-import { TaskActivity, useTaskActivity } from '#src/chat/TaskActivity.tsx';
+import { useTaskActivity } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
-import { ChatLine, endedWork, type Reply } from '#src/chat/ChatLine.tsx';
+import type { Reply } from '#src/chat/ChatLine.tsx';
+import { ChatRows, useChatRows } from '#src/chat/Rows.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
-import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
@@ -179,15 +168,14 @@ function Shell({ children }: { children: ReactNode }) {
 
 /** The chat's lines, oldest first. Suspends until the first pages are in; an older page is read near the top without suspending. */
 function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) => void; ref: Ref<{ sent: () => void }> }) {
-  const nameOf = useNameOf();
   // Every message the agent sent or received (the all scope), drawn by the chat's own rules (mine): app-core's all view leaves out
   // what the agent says to other agents, which this chat shows as quiet lines (ChatLine drops what others say to it).
   const chat = useChatSuspense(agent, 'all');
-  const me = useMe();
   // Opening the chat reads what the agent said: its newest message, and what it sent the Inbox about itself.
   useChatReadMarks(agent, chat);
-  const drawn = chatView(chat, 'mine', agent, me, [], true);
-  const { entries, bash } = foldBash(drawn.entries);
+  // Each task once, as a row where it first came up, changed in place by what comes later.
+  const lines = useChatRows(chat, agent, useTaskActivity(agent));
+  const { entries, rows } = lines;
   const view = useAgents().data?.agents.find((a) => a.key === agent);
   const doing = view?.doing?.text;
   const held = view?.task;
@@ -210,7 +198,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   useChatAim(
     agent,
     stream,
-    { floor: drawn.floor, hasOlder: chat.hasOlder, loadingOlder: chat.loadingOlder, loadOlder: chat.loadOlder },
+    { floor: lines.floor, hasOlder: chat.hasOlder, loadingOlder: chat.loadingOlder, loadOlder: chat.loadOlder },
     scroll.leave,
   );
   // Lines added at the end (not an older page landing at the top): counted from the last line known.
@@ -226,12 +214,6 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const endKey = end ? `${end.kind}:${end.id}` : null;
   const [tail, setTail] = useState({ end: endKey, before: endKey });
   if (tail.end !== endKey) setTail({ end: endKey, before: tail.end });
-  // The words of each loaded message, for the line above a reply.
-  const words = new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : [])));
-  const tasks = useTaskActivity(agent);
-  const ended = endedWork(entries);
-  // Each task once, as a row where it first came up, changed in place by what comes later.
-  const rows = onePerTask(taskRuns(foldTurns(entries), agent, me, nameOf, tasks));
   // Rows after the last one drawn before this render are new and fade in; an older page landing above just shows.
   const known = knownUpTo(rows, entries, tail.before);
   const top = useNearEnd<HTMLDivElement, HTMLDivElement>(stream, chat.loadOlder, chat.hasOlder && !chat.loadingOlder, {
@@ -262,39 +244,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
                 Loading earlier messages
               </div>
             )}
-            <AnimatePresence initial={false}>
-              {/* Task notices in a row are one card, as the live task card is (TaskActivity). Only lines after the last one known fade in:
-                an older page lands as one still block. */}
-              {rows.map((r, i, all) =>
-                'events' in r ? (
-                  <motion.div
-                    key={r.id}
-                    data-id={r.key}
-                    initial={i <= known ? false : { opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={spring}
-                    className="flex"
-                  >
-                    <TaskActivity events={r.events} />
-                  </motion.div>
-                ) : r.kind === 'record' ? (
-                  <TurnRecord key={`record:${r.id}`} r={r} fade={i > known} />
-                ) : (
-                  <ChatLine
-                    key={`${r.kind}:${r.id}`}
-                    e={r}
-                    agent={agent}
-                    me={me}
-                    onReply={onReply}
-                    parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
-                    bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
-                    moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
-                    workOver={r.kind === 'item' && !!r.item.concurrent_work && ended.has(r.item.concurrent_work.task_id)}
-                    fade={i > known}
-                  />
-                ),
-              )}
-            </AnimatePresence>
+            {/* Only lines after the last one known fade in: an older page lands as one still block. */}
+            <ChatRows lines={lines} agent={agent} known={known} onReply={onReply} />
             {/* The dots' row is always there, so turning them on or off does not move the chat. */}
             {/* A move kept for the turn's end takes the row, at its height: the move or the dots, never both. */}
             {view?.pending_move ? (

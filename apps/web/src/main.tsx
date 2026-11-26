@@ -25,6 +25,8 @@ import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
+import { PaletteHost } from '#src/palette/Palette.tsx';
+import { noteRecent } from '#src/palette/store.ts';
 import '#src/styles.css';
 import '#src/theme.ts';
 import { trackShellInsets } from '#src/shellInsets.ts';
@@ -39,7 +41,9 @@ function App() {
   const townOpen = useTownOpen();
   const [width, setWidth] = useState(sidebarWidth.initial);
   const [dragging, setDragging] = useState(false);
-  const { agent, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
+  const { shown, agent, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
+  // What the focused tab shows is what the palette offers again, newest first.
+  useEffect(() => noteRecent(shown), [shown]);
   const root = useRef<HTMLDivElement>(null);
   // Until the lists every name is read through arrive, bars stand where names will be: never a raw key.
   const ready = useDirectoryReady();
@@ -132,6 +136,7 @@ function App() {
       </div>
       <Settings />
       <TownMode />
+      <PaletteHost />
       {/* Fixed top-left; right of the Mac window buttons in the shell (shellInsets.ts). Last in the page: the shell
           takes the last region drawn where drag strips and this overlap. */}
       <div className="app-no-drag fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
