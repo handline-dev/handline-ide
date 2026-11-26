@@ -1,9 +1,6 @@
 // The verbs of the daemon's task plan (D3), served only when the fake is asked to.
-import { TaskComments } from '#src/taskcomments.ts';
+import { FOUNDER, TaskComments } from '#src/taskcomments.ts';
 import { TaskFailure } from '#src/taskstore.ts';
-
-/** The founder's person key: the live daemon holds a person's turn under it (people.list), not under 'human'. */
-export const FOUNDER = 'p1';
 
 export class TaskVerbs extends TaskComments {
   /** A done closes the task; a review is a task.handoff of the task itself. */

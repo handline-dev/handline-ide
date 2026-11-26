@@ -3,6 +3,9 @@ import type { Memo, MemoFile, MemoReader } from '@handline/contract';
 import { refs } from '#src/attachments.ts';
 import { TaskFailure, TaskStore, type Row } from '#src/taskstore.ts';
 
+/** The founder's person key: the live daemon holds a person's turn under it (people.list), not under 'human'. */
+export const FOUNDER = 'p1';
+
 /** Why task.comment.recipients names an agent. */
 type Why = 'asked' | 'assignee' | 'owner' | 'last_writer';
 
@@ -48,26 +51,34 @@ export class TaskComments extends TaskStore {
   private readonly dismissed = new Set<string>();
 
   /**
-   * task.comment.recipients: who the daemon tells of a comment, and why, by its one rule. An agent named with `@` is asked and the assignee (the
-   * holder) is always told; who the task answers to is told when it is sent now, or when the founder wrote it on a task no agent holds. The founder's
-   * comment naming no one on a task they hold goes to the last agent that commented there. Never the writer.
+   * task.comment.recipients, by the daemon's one rule: a comment naming agents with `@` is told to them only (asked). One naming no one goes
+   * to the holder (assignee), and to who the task answers to (owner) when sent now or written by the founder on a task no agent holds; the
+   * founder's on a task they hold goes to the last agent that commented. The founder's answer to their turn also reaches the holder below
+   * it, whomever it names. Never the writer.
    */
   recipients(p: Record<string, unknown>, person: string): { recipients: { agent: string; why: Why }[] } {
     const t = this.find(p.task);
-    const named = [...String(p.text).matchAll(NAMED)].map((m) => m[1]!.replace(/[.-]+$/, '')).filter((n) => this.isAgent(n));
-    const aimed = p.now === true || (!this.isAgent(person) && !this.isAgent(t.to));
+    const founder = !this.isAgent(person);
+    const top = t.turns?.at(-1);
+    const back = founder && top?.agent === FOUNDER;
+    const acting = back ? top.by : (t.acting ?? t.to);
+    const named = [...String(p.text).matchAll(NAMED)]
+      .map((m) => m[1]!.replace(/[.-]+$/, ''))
+      .filter((n) => this.isAgent(n) && n !== person);
     const last =
-      named.length === 0 && !this.isAgent(person) && t.to === person
+      named.length === 0 && founder && acting === person
         ? ([...(t.memos ?? [])].reverse().find((m) => m.author !== person && this.isAgent(m.author))?.author ?? '')
         : '';
-    const seen = new Set<string>(['', person, 'human']);
+    const listed = named.length === 0 ? [t.from, acting] : back ? [acting] : [];
+    const unheld = founder && !this.isAgent(acting);
+    const seen = new Set<string>(['', person, 'human', FOUNDER]);
     const recipients: { agent: string; why: Why }[] = [];
-    for (const agent of [t.from, t.to, ...named, last]) {
+    for (const agent of [...listed, ...named, last]) {
       if (seen.has(agent)) continue;
       seen.add(agent);
       const asked = named.includes(agent);
-      if (!asked && !aimed && agent !== t.to && agent !== last) continue;
-      recipients.push({ agent, why: asked ? 'asked' : agent === last ? 'last_writer' : agent === t.to ? 'assignee' : 'owner' });
+      if (!(p.now === true || asked || agent === acting || agent === last || unheld)) continue;
+      recipients.push({ agent, why: asked ? 'asked' : agent === last ? 'last_writer' : agent === acting ? 'assignee' : 'owner' });
     }
     return { recipients };
   }
