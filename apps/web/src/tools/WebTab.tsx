@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, Camera, ExternalLink, RotateCw } from 'lucide-react';
 import { toChat } from '#src/chat/toChat.ts';
+import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ImageViewer } from '#src/viewer/ImageViewer.tsx';
@@ -24,7 +25,12 @@ export function addressOf(typed: string): string | null {
 }
 
 /** A web page beside the chat, its address kept per tab: a <webview> in the shell (every site shows), an iframe in a browser. */
-export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string | null; start?: string }) {
+export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: string | null; start?: string }) {
+  // A Web tab names no agent: it is drawn for the one the focused tab shows, and is given none once it takes the focus itself. It
+  // keeps the last one it had, so its buttons are still there when one of them is clicked.
+  const [last, setLast] = useState(shown);
+  if (shown && shown !== last) setLast(shown);
+  const agent = shown ?? last;
   const [url, setUrl] = usePersisted(`tab/${tab}/url`, start);
   const [typed, setTyped] = useState(url);
   const page = webPage(tab);
@@ -104,7 +110,7 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
           canSend
           onMarked={(marked, send) => {
             // The chat is brought up first, so a chat it mounts is the one that takes the picture.
-            openTab('chat', 'here');
+            openTab(chatOf(agent), 'here');
             setTimeout(() => toChat(agent, marked, send));
           }}
         />
