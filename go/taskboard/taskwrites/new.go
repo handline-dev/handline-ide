@@ -284,8 +284,9 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			msg += "\nit is on the founder's screen (`hl`)"
 		}
 		if asked.After != nil {
-			// The telling can start a closed session and wait on it: the task is open, so the call returns.
-			go asked.After()
+			// The telling can start a closed session and wait on it: the task is open, so it runs off the call, one the daemon waits on.
+			after := asked.After
+			tell.Background("task.new", func() { after() })
 		}
 		out["said"] = fmt.Sprintf("task T%d opened for %s (P%d%s): %s", tid, addr.Ref(owner), prio, limit, msg)
 		return out, nil

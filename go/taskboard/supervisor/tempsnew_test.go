@@ -124,7 +124,7 @@ func TestATaskForABusyAgentOutOfReachIsRefusedNotHeld(t *testing.T) {
 	r.Temps = &fakeTemps{r: r}
 	r.beginCurrent("ops/bob", "human", "the screen")
 	r.must(db.SetAgentState(r.DB, bob, states.Running, 0, ""))
-	got := r.callAs("eng/alice",fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.new","params":{"owner":%q,"title":"the footer","request_id":"n1"}}`, bob))
+	got := r.callAs("eng/alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.new","params":{"owner":%q,"title":"the footer","request_id":"n1"}}`, bob))
 	if got["error"] == nil || !strings.Contains(fmt.Sprint(got["error"]), "another workspace") {
 		t.Fatalf("want refused: %v", got)
 	}

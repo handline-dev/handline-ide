@@ -40,6 +40,9 @@ func (e *Env) tell(rid int64, target string) {
 // RunInline makes the telling run before the verb returns, so a test sees its effect; the daemon never does.
 var RunInline = false
 
+// Background is background, for a write that leaves a telling to run off the caller.
+func (e *Env) Background(name string, fn func()) { e.background(name, fn) }
+
 func (e *Env) background(name string, fn func()) {
 	run := func() {
 		var out string
