@@ -44,6 +44,15 @@ export function pullState(pr: TaskPR): PullLine | null {
   }
 }
 
+/** GitHub is asked about an open pull request again this often while its card is on screen: the daemon keeps a read about that long. */
+export const PULL_AGAIN_MS = 60_000;
+
+/** When a task's pull request is asked about again: each minute while it can still change (open, or not read yet), and never once it
+ * is merged or closed, which nothing follows. */
+export function pullAgainMs(pr: Pick<TaskPR, 'state'> | undefined): number | false {
+  return pr?.state === 'merged' || pr?.state === 'closed' ? false : PULL_AGAIN_MS;
+}
+
 /** Its checks, as the parts of one line: the ones that failed by name, then how many still run and how many passed. Empty when it
  * has none. Only the failed part reads as something to fix; passed is good only when nothing else is said. */
 export function pullChecks(pr: TaskPR): PullLine[] {

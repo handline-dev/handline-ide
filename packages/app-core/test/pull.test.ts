@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { TaskPR } from '@handline/client';
-import { pullChecks, pullChip, pullReview, pullState, pullUnavailableText } from '#src/index.ts';
+import { pullAgainMs, pullChecks, pullChip, pullReview, pullState, pullUnavailableText } from '#src/index.ts';
 
 const pr = (over: Partial<TaskPR> = {}): TaskPR => ({
   number: 7,
@@ -38,6 +38,14 @@ test('where a pull request stands: a draft is said before open, and one not read
   assert.deepEqual(pullState(pr({ state: 'merged' })), { text: 'Merged', tone: 'good' });
   assert.deepEqual(pullState(pr({ state: 'closed' })), { text: 'Closed without merging', tone: 'bad' });
   assert.equal(pullState(pr({ state: null })), null);
+});
+
+test('a pull request is asked about again each minute while it can change, and never once it is merged or closed', () => {
+  assert.equal(pullAgainMs(undefined), 60_000);
+  assert.equal(pullAgainMs(pr()), 60_000);
+  assert.equal(pullAgainMs(pr({ state: null, unavailable: { reason: 'failed', text: 'gh pr: HTTP 502' } })), 60_000);
+  assert.equal(pullAgainMs(pr({ state: 'merged' })), false);
+  assert.equal(pullAgainMs(pr({ state: 'closed' })), false);
 });
 
 test('the checks line names the failed ones, then counts the running and the passed; only the failed part reads as bad', () => {

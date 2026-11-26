@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setup } from '@handline/fake-daemon/helpers';
 import { Store } from '@handline/app-core';
 import { RpcError } from '@handline/client';
-import { useAgentDetail, useAgents, useChat, useServes, useTasks } from '#src/index.ts';
+import { useAgentDetail, useAgents, useChat, useRead, useServes, useTasks } from '#src/index.ts';
 import { openStore, mount, probe, sleep, stubClient, unmount, until } from '#test/harness.tsx';
 
 afterEach(unmount);
@@ -50,6 +50,17 @@ describe('a read', () => {
     await until(() => stub.count('agents.list') === 2, 'the read after reconnect');
     stub.gap();
     await until(() => stub.count('agents.list') === 3, 'the read after a gap');
+  });
+
+  it('is read again on a clock while its last answer says so, and no more once that answer says stop', async () => {
+    let n = 0;
+    const stub = stubClient((m) => (m === 'task.pr' ? { state: ++n < 3 ? 'open' : 'merged' } : {}));
+    const p = probe(() => useRead('task.pr', { task: 1 }, { refetchMs: (last) => (last?.state === 'merged' ? false : 10) }));
+    await mount(openStore(stub), p.node);
+    await until(() => p.get().data?.state === 'merged', 'the merged answer');
+    expect(stub.count('task.pr')).toBe(3);
+    await sleep(80);
+    expect(stub.count('task.pr')).toBe(3);
   });
 
   it('after 5000 missed events reads each open screen once and applies none of them', async () => {
