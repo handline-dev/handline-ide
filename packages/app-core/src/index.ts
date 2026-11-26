@@ -52,3 +52,4 @@ export * from '#src/palette.ts';
 export * from '#src/diff-lines.ts';
 export * from '#src/line-comments.ts';
 export * from '#src/pull.ts';
+export * from '#src/alongside.ts';

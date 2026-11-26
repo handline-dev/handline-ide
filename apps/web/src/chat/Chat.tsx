@@ -25,6 +25,7 @@ import { ChatRows, useChatRows } from '#src/chat/Rows.tsx';
 import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
+import { AlongsideStrip, useAlongside } from '#src/chat/agent/AlongsideStrip.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
@@ -76,6 +77,7 @@ export function Chat({ agent }: { agent: string }) {
   useEffect(() => takeToChat(agent, (m, send) => marked.current.add(m, send)), [agent]);
   // The message the next one replies to, picked by Reference or Quote.
   const [reply, setReply] = useTabState<Reply | null>('reply', null);
+  const alongside = useAlongside(agent);
   // The stream's scroll hears of a send through this, once the stream is drawn.
   const stream = useRef<{ sent: () => void }>(null);
   const loading = (
@@ -128,14 +130,19 @@ export function Chat({ agent }: { agent: string }) {
           commands={commands}
           focusOn={reply}
           above={
-            reply ? (
-              <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                <CornerDownRight size={14} className="ml-1 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">Replying to: {(reply.quote ?? reply.text).replace(/\s+/g, ' ')}</span>
-                <IconButton className="size-6!" label="Drop the reply" onClick={() => setReply(null)}>
-                  <X size={14} />
-                </IconButton>
-              </div>
+            alongside.length || reply ? (
+              <>
+                {alongside.length > 0 && <AlongsideStrip running={alongside} />}
+                {reply && (
+                  <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                    <CornerDownRight size={14} className="ml-1 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">Replying to: {(reply.quote ?? reply.text).replace(/\s+/g, ' ')}</span>
+                    <IconButton className="size-6!" label="Drop the reply" onClick={() => setReply(null)}>
+                      <X size={14} />
+                    </IconButton>
+                  </div>
+                )}
+              </>
             ) : null
           }
           onSend={(body, attachments, task) => {

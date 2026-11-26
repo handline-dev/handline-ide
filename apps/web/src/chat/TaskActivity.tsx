@@ -3,11 +3,10 @@ import { useSyncExternalStore, type ReactNode } from 'react';
 import type { HistoryRow, Task } from '@handline/client';
 import { isPerson, plainLine, type TaskEvent } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
-import { Hooks, useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
+import { useFeed, useNameOf, useTaskChanges, useTasks } from '@handline/app-data';
 import { look } from '#src/ui/taskLook.tsx';
 import { spring } from '#src/motion.ts';
-import { ago, clock, useNow } from '#src/format/time.ts';
-import { count } from '#src/format/count.ts';
+import { clock } from '#src/format/time.ts';
 import { Ago } from '#src/ui/Ago.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -21,21 +20,6 @@ function holder(t: Task, me: string, nameOf: (key: string) => string): string {
   if (t.state === 'draft') return `Draft for ${to}`;
   if (word === 'Waiting') return 'Waiting for you';
   return t.state === 'doing' && word === 'Doing' ? `With ${to}` : `${word} · with ${to}`;
-}
-
-const ENDED: Record<string, string> = { done: 'Done alongside', handed_off: 'Handed off alongside', discarded: 'Discarded alongside' };
-
-/** For a task worked beside the agent's own (a seat of it): how that work stands, "Working alongside · 19m" until it ends, then how it
- * ended with its commits; null for any other task. */
-function useAlongside(t: Touched): string | null {
-  const side = t.events.filter((e) => e.kind === 'alongside');
-  const end = side.at(-1)?.detail;
-  const over = !!end && end !== 'started';
-  const commits = Hooks.useTaskChanges({ task: Number(t.id.slice(1)) }, { enabled: over }).data?.commits.length;
-  const now = useNow();
-  if (!side.length) return null;
-  if (!over) return `Working alongside · ${ago(side[0].at ?? '', now)}`;
-  return [ENDED[end] ?? ENDED.done, commits ? count(commits, 'commit') : ''].filter(Boolean).join(' · ');
 }
 
 /** One task the card touched, with its changes, oldest first. */
@@ -94,12 +78,9 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   // An edit heard live after a comment (the comment's own memo row) leaves the comment the newest thing said.
   const at = t.events.map((e) => e.kind).lastIndexOf('comment');
   const said = at >= 0 && t.events.slice(at + 1).every((e) => e.kind === 'edit') ? plainLine(t.events[at].detail) : undefined;
-  const alongside = useAlongside(t);
-  const line =
-    alongside ??
-    [task ? holder(task, me, nameOf) : said ? '' : last.detail, said ?? (t.events.length > 1 && `${t.events.length} changes`)]
-      .filter(Boolean)
-      .join(' · ');
+  const line = [task ? holder(task, me, nameOf) : said ? '' : last.detail, said ?? (t.events.length > 1 && `${t.events.length} changes`)]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <motion.div
       // A row that comes in opens from no height, so the card grows to it.

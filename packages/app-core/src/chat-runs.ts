@@ -5,7 +5,7 @@ import { isSystem } from '#src/task-people.ts';
 
 /** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line";
  * `alongside`: work on it beside the agent's own (a seat of it), its detail `started`, or how it ended (`done`, `handed_off`, `discarded`). */
-export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start' | 'comment' | 'alongside';
+export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start' | 'comment';
 export type TaskEvent = {
   key: string;
   kind: TaskEventKind;
@@ -38,7 +38,7 @@ export function drawsNothing(e: TimelineEntry, agent: string, me: string): boole
   if (e.kind === 'item')
     return (
       e.item.session?.cause === 'move' || // the move's own line says it
-      (!e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed && !e.item.concurrent_work)
+      (!e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed)
     );
   if (e.kind === 'proposal') return true;
   // A message typed on a schedule is a quiet line: it is why the agent took a turn nobody asked for, and the list of schedules opens on it.
@@ -116,16 +116,6 @@ export function taskRuns(
           },
         ],
         `tasks:c${e.id}`,
-      );
-      continue;
-    }
-    // Work beside the agent's own, at its start and its end: rows of that task's card, so the task shows once and its row changes.
-    const work = e.kind === 'item' ? e.item.concurrent_work : undefined;
-    if (work) {
-      const detail = work.phase === 'ended' ? (work.ended ?? 'done') : 'started';
-      add(
-        [{ key: `w${e.id}`, kind: 'alongside', id: `T${work.task_id}`, title: '', detail, at: e.at, line: `item:${e.id}` }],
-        `tasks:w${e.id}`,
       );
       continue;
     }
