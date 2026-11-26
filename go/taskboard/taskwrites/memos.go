@@ -28,7 +28,7 @@ type Teller interface {
 	Background(name string, fn func())
 	// MemoChanged tells whom a memo concerns (the agents it names with @, only those; naming no one, the task's holder and who it answers
 	// to) that it was added, edited or deleted (what), with the memo's text: at once when now, else a reader mid-turn hears at the end of its turn.
-	// skip leaves those agents out of the telling (a comment's skip); the memo stays on the task.
+	// skip leaves those agents out of the telling (one a delivery of its own tells); the memo stays on the task.
 	MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string)
 	// MemoRecipients is who MemoChanged would tell of a comment by `by` with this text, and why, without telling anyone. A missing task is nil, false.
 	MemoRecipients(tid int64, by, text string, now bool) ([]Recipient, bool)
@@ -200,10 +200,6 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 		if err != nil {
 			return nil, err
 		}
-		skip, err := optionalNames(p, "skip")
-		if err != nil {
-			return nil, err
-		}
 		reply, hasReply, err := optionalTask(p, "reply")
 		if err != nil {
 			return nil, err
@@ -327,6 +323,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			}
 			return accepted(said, map[string]any{"memo": mid}), nil
 		})
+		var skip []string // who a delivery of its own already tells of the comment
 		if err == nil && asked != nil && !asked.Reask && tell != nil {
 			pushed.After = asked.After
 			if tail := tell.HandedOver(pushed); tail != "" {
@@ -384,26 +381,6 @@ func turnParams(p map[string]any, home string) (to, evidence string, err error) 
 		return "", "", e
 	}
 	return to, evidence, nil
-}
-
-// optionalNames is a list of names (strings) in p[key], or none.
-func optionalNames(p map[string]any, key string) ([]string, error) {
-	if p[key] == nil {
-		return nil, nil
-	}
-	list, ok := p[key].([]any)
-	if !ok || len(list) > 20 {
-		return nil, badParam(key+" is at most 20 names", key)
-	}
-	out := make([]string, 0, len(list))
-	for _, v := range list {
-		name, ok := v.(string)
-		if !ok {
-			return nil, badParam(key+" is a list of names", key)
-		}
-		out = append(out, name)
-	}
-	return out, nil
 }
 
 // memoRecipients is task.comment.recipients: who task.comment.add would tell, by the same rule (Teller.MemoRecipients), nothing written.

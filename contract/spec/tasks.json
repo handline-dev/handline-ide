@@ -3862,7 +3862,7 @@
   },
   {
    "name": "task.comment.add",
-   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: one that names agents as @name is told to those only; one that names no one is told to the task's assignee (its holder) and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. The founder's comment that gives their turn back, or asks on a task Ready for them, always reaches the agent below their turn. It is never told to its writer. task.comment.recipients says who will be told before posting; skip leaves some of them out. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`).",
+   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: one that names agents as @name is told to those only; one that names no one is told to the task's assignee (its holder) and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. The founder's comment that gives their turn back, or asks on a task Ready for them, always reaches the agent below their turn. It is never told to its writer. task.comment.recipients says who will be told before posting. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`).",
    "description": "An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder adds any comment to that task, (2) the founder marks it read (inbox.mark_read naming its id), (3) its comment is deleted or edited so it no longer names `@human`, or (4) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.memo): by the agent acting on the task or the founder, refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment.",
    "paramStructure": "by-name",
    "params": [
@@ -3887,18 +3887,6 @@
      "schema": {
       "type": "boolean",
       "description": "Tell every reader at once, even mid-turn."
-     }
-    },
-    {
-     "name": "skip",
-     "required": false,
-     "schema": {
-      "type": "array",
-      "maxItems": 20,
-      "items": {
-       "$ref": "#/components/schemas/Who"
-      },
-      "description": "Agents not to tell of this comment, from the ones task.comment.recipients names. Skipping the assignee is allowed; the comment stays on the task either way. A name that would not have been told is ignored."
      }
     },
     {
@@ -3988,7 +3976,7 @@
   {
    "name": "task.comment.recipients",
    "summary": "Who a comment would be told to, before it is posted: the rule task.comment.add uses, computed without writing anything.",
-   "description": "Given the task, the comment text, and whether it would be sent now, returns one row per agent task.comment.add would tell, each with why: `asked` (the text names it as @name; a comment that names someone is told to those only), `assignee` (the task's holder, told of a comment that names no one, and of the founder's that gives their turn back or asks on a task Ready for them) or `owner` (who the task answers to, when the comment is sent now or is the founder's on a task no agent holds) or `last_writer` (the last agent that commented on the task, for the founder's comment naming no one on a task they hold). An agent that fits several is named once, by the first of asked, last_writer, assignee, owner. The caller is the writer and is never listed; one that names no one on a task an agent holds returns the holder only; the founder's on a task they hold returns the last_writer, or nothing when no agent wrote there. The founder's comment that passes their turn is told by who holds the task after it, and lists that holder whomever it names. Passing the rows' agents as skip to task.comment.add tells exactly the others.",
+   "description": "Given the task, the comment text, and whether it would be sent now, returns one row per agent task.comment.add would tell, each with why: `asked` (the text names it as @name; a comment that names someone is told to those only), `assignee` (the task's holder, told of a comment that names no one, and of the founder's that gives their turn back or asks on a task Ready for them) or `owner` (who the task answers to, when the comment is sent now or is the founder's on a task no agent holds) or `last_writer` (the last agent that commented on the task, for the founder's comment naming no one on a task they hold). An agent that fits several is named once, by the first of asked, last_writer, assignee, owner. The caller is the writer and is never listed; one that names no one on a task an agent holds returns the holder only; the founder's on a task they hold returns the last_writer, or nothing when no agent wrote there. The founder's comment that passes their turn is told by who holds the task after it, and lists that holder whomever it names.",
    "paramStructure": "by-name",
    "params": [
     {
