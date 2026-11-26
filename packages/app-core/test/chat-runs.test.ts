@@ -142,3 +142,24 @@ test('the rows known before a render are those up to the last line drawn; a line
   assert.equal(knownUpTo(rows, entries, 'message:4'), 1); // the second notice joined the first card
   assert.equal(knownUpTo(rows, entries, 'message:99'), Infinity);
 });
+
+const side = (id: number, task: number, phase: 'started' | 'ended', ended?: 'done' | 'handed_off' | 'discarded') =>
+  item(id, {
+    kind: 'concurrent_work',
+    text: '',
+    concurrent_work: { task_id: task, seat: 'a9', phase, ...(ended ? { ended } : {}) },
+  } as never);
+const sideCards = (rows: ReturnType<typeof taskRuns>) =>
+  onePerTask(rows).map((r) => ('events' in r ? (r as TaskCard).events.map((e) => `${e.id}:${e.detail}`) : 'line'));
+
+test('work beside the agent, started and ended, is one row of a task card, ending as it ended', () => {
+  const rows = taskRuns([side(1, 7, 'started'), side(2, 7, 'ended', 'handed_off')], A, 'human', (k) => k);
+  assert.deepEqual(sideCards(rows), [['T7:started', 'T7:handed_off']]);
+});
+
+test('two side tasks are one card, in the order they started; a line of talk between them splits the run', () => {
+  const together = taskRuns([side(1, 7, 'started'), side(2, 8, 'started'), side(3, 7, 'ended', 'done')], A, 'human', (k) => k);
+  assert.deepEqual(sideCards(together), [['T7:started', 'T8:started', 'T7:done']]);
+  const split = taskRuns([side(1, 7, 'started'), item(2, {}), side(3, 8, 'started')], A, 'human', (k) => k);
+  assert.deepEqual(sideCards(split), [['T7:started'], 'line', ['T8:started']]);
+});

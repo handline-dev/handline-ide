@@ -4,7 +4,7 @@ import { useNameOf } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { moveNoteAfter } from '#src/chat/agent/AccountSwitch.tsx';
-import { ChatLine, endedWork, type Reply } from '#src/chat/ChatLine.tsx';
+import { ChatLine, type Reply } from '#src/chat/ChatLine.tsx';
 import { TaskActivity } from '#src/chat/TaskActivity.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { spring } from '#src/motion.ts';
@@ -25,7 +25,6 @@ export function useChatRows(source: ChatSource, agent: string, live: TaskEvent[]
     rows: onePerTask(taskRuns(foldTurns(entries), agent, me, nameOf, live)),
     /** The words of each loaded message, for the line above a reply. */
     words: new Map(entries.flatMap((e) => (e.kind === 'message' ? [[e.message.id, e.message.body] as const] : []))),
-    ended: endedWork(entries),
     me,
   };
 }
@@ -43,7 +42,7 @@ export function ChatRows({
   known?: number;
   onReply?: (r: Reply) => void;
 }) {
-  const { rows, bash, words, ended, me } = lines;
+  const { rows, bash, words, me } = lines;
   return (
     <AnimatePresence initial={false}>
       {rows.map((r, i, all) =>
@@ -70,7 +69,6 @@ export function ChatRows({
             parentText={r.kind === 'message' && r.message.parent != null ? words.get(r.message.parent) : undefined}
             bash={r.kind === 'message' ? bash.get(r.message.id) : undefined}
             moveNote={r.kind === 'item' && r.item.account_moved ? moveNoteAfter(all, i) : undefined}
-            workOver={r.kind === 'item' && !!r.item.concurrent_work && ended.has(r.item.concurrent_work.task_id)}
             fade={i > known}
           />
         ),

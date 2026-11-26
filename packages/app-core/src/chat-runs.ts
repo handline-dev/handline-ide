@@ -3,8 +3,9 @@
 import { isPerson, unblockedStart, type TimelineEntry, type TurnRecord } from '#src/chat.ts';
 import { isSystem } from '#src/task-people.ts';
 
-/** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line". */
-export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start' | 'comment';
+/** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line";
+ * `alongside`: work on it beside the agent's own (a seat of it), its detail `started`, or how it ended (`done`, `handed_off`, `discarded`). */
+export type TaskEventKind = 'add' | 'edit' | 'done' | 'handoff' | 'discard' | 'start' | 'comment' | 'alongside';
 export type TaskEvent = {
   key: string;
   kind: TaskEventKind;
@@ -115,6 +116,16 @@ export function taskRuns(
           },
         ],
         `tasks:c${e.id}`,
+      );
+      continue;
+    }
+    // Work beside the agent's own, at its start and its end: rows of that task's card, so the task shows once and its row changes.
+    const work = e.kind === 'item' ? e.item.concurrent_work : undefined;
+    if (work) {
+      const detail = work.phase === 'ended' ? (work.ended ?? 'done') : 'started';
+      add(
+        [{ key: `w${e.id}`, kind: 'alongside', id: `T${work.task_id}`, title: '', detail, at: e.at, line: `item:${e.id}` }],
+        `tasks:w${e.id}`,
       );
       continue;
     }
