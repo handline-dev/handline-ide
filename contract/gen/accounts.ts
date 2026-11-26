@@ -264,6 +264,8 @@ export type Outlook = {
       left_usd: number | null;
       /** Whether its reading carries a 5-hour figure: an Ultra account has no 5-hour limit, so none. */
       five_hour: boolean;
+      /** Its extra usage; null when its last reading named none (unknown, never zero). */
+      extra: ExtraUsage | null;
     }[];
     /** The weekly budgets together, of the accounts with a fee and a reading. */
     week_usd: number;
@@ -273,6 +275,8 @@ export type Outlook = {
     left_usd: number;
     /** Percent of week_usd left: the accounts' weeks weighted by their budgets, not averaged. null when no account counts. */
     left_pct: number | null;
+    /** Extra usage spent this billing month by the accounts whose reading names an amount, per currency (USD: dollars). Never part of spent_usd. */
+    extra_spent: { [key: string]: number };
   };
 };
 
@@ -305,13 +309,27 @@ export type DayCosts = {
   agents: { [key: string]: number };
 }[];
 
-/** The plan money the agents used per local calendar day of the range, oldest first; a day nothing rose is absent. Absent from a daemon that does not send it. */
+/** The plan money the agents used per local calendar day of the range, oldest first; a day nothing rose and no extra usage was spent is absent. Absent from a daemon that does not send it. */
 export type PlanDayCosts = {
   /** Local calendar day, YYYY-MM-DD. */
   day: string;
   /** Plan money in US dollars of each agent that day: each account's week rises seen that day (dated by the reading that shows them) times its weekly budget, split by the agents' list-price cost on that account that day; money of a rise with no priced call is under (unattributed). */
   agents: { [key: string]: number };
+  /** Extra usage spent that day, per currency: the rise of each account's spent between its readings, dated by the later one; a drop is its billing month starting over, counted from 0. */
+  extra: { [key: string]: number };
 }[];
+
+/** An account's extra usage as its last reading named it: money paid on top of the plan in its billing month. It never enters the plan money. */
+export type ExtraUsage = {
+  /** Whether extra usage is turned on: the account may keep working past its limits, paid on top of its plan. */
+  on: boolean;
+  /** Its monthly cap, in major units of currency; null when none is named. */
+  cap: number | null;
+  /** What it spent this billing month, in major units of currency; null when none is named. */
+  spent: number | null;
+  /** The currency the amounts are in (USD); null when none is named. */
+  currency: string | null;
+};
 
 export interface AccountsMethods {
   "accounts.list": { params: {

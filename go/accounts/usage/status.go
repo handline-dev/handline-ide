@@ -86,6 +86,8 @@ type AccountStatus struct {
 	Transcript  string
 	ModelID     string
 	CollectedAt *int64
+	// Extra is the extra usage its last reading named; nil when unknown.
+	Extra *Extra
 	// AsOf is the moment ages are judged against; nil is the clock. A pure reader or a replay of a past tick sets it.
 	AsOf *float64
 	// Clock is the wall clock behind a nil AsOf, in unix seconds.

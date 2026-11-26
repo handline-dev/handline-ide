@@ -1124,6 +1124,17 @@
           "five_hour": {
            "type": "boolean",
            "description": "Whether its reading carries a 5-hour figure: an Ultra account has no 5-hour limit, so none."
+          },
+          "extra": {
+           "oneOf": [
+            {
+             "$ref": "#/components/schemas/ExtraUsage"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "Its extra usage; null when its last reading named none (unknown, never zero)."
           }
          },
          "required": [
@@ -1134,7 +1145,8 @@
           "used_pct",
           "spent_usd",
           "left_usd",
-          "five_hour"
+          "five_hour",
+          "extra"
          ]
         },
         "description": "Each metered account, by name."
@@ -1161,6 +1173,13 @@
          }
         ],
         "description": "Percent of week_usd left: the accounts' weeks weighted by their budgets, not averaged. null when no account counts."
+       },
+       "extra_spent": {
+        "type": "object",
+        "additionalProperties": {
+         "type": "number"
+        },
+        "description": "Extra usage spent this billing month by the accounts whose reading names an amount, per currency (USD: dollars). Never part of spent_usd."
        }
       },
       "required": [
@@ -1168,7 +1187,8 @@
        "week_usd",
        "spent_usd",
        "left_usd",
-       "left_pct"
+       "left_pct",
+       "extra_spent"
       ],
       "description": "The week in plan money: each account's monthly fee turned into a weekly budget, of which its week's percent used is spent. Absent from a daemon that does not send it."
      }
@@ -1286,14 +1306,72 @@
         "type": "number"
        },
        "description": "Plan money in US dollars of each agent that day: each account's week rises seen that day (dated by the reading that shows them) times its weekly budget, split by the agents' list-price cost on that account that day; money of a rise with no priced call is under (unattributed)."
+      },
+      "extra": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "number"
+       },
+       "description": "Extra usage spent that day, per currency: the rise of each account's spent between its readings, dated by the later one; a drop is its billing month starting over, counted from 0."
       }
      },
      "required": [
       "day",
-      "agents"
+      "agents",
+      "extra"
      ]
     },
-    "description": "The plan money the agents used per local calendar day of the range, oldest first; a day nothing rose is absent. Absent from a daemon that does not send it."
+    "description": "The plan money the agents used per local calendar day of the range, oldest first; a day nothing rose and no extra usage was spent is absent. Absent from a daemon that does not send it."
+   },
+   "ExtraUsage": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "on": {
+      "type": "boolean",
+      "description": "Whether extra usage is turned on: the account may keep working past its limits, paid on top of its plan."
+     },
+     "cap": {
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Its monthly cap, in major units of currency; null when none is named."
+     },
+     "spent": {
+      "oneOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "What it spent this billing month, in major units of currency; null when none is named."
+     },
+     "currency": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The currency the amounts are in (USD); null when none is named."
+     }
+    },
+    "required": [
+     "on",
+     "cap",
+     "spent",
+     "currency"
+    ],
+    "description": "An account's extra usage as its last reading named it: money paid on top of the plan in its billing month. It never enters the plan money."
    }
   }
  },

@@ -42,6 +42,8 @@ type AccountBudget struct {
 	UsedPct *float64
 	// FiveHour is whether its reading carries a 5-hour window: an Ultra account has none.
 	FiveHour bool
+	// Extra is its extra usage (extra.go), beside the plan money and never in it; nil when unknown.
+	Extra *Extra
 }
 
 // Spent is the plan money of the week used, at most the week; nil with no reading.
@@ -55,7 +57,7 @@ func (b AccountBudget) Spent() *float64 {
 
 // BudgetOf is the account's AccountBudget from its status at now, its plan and its fee.
 func BudgetOf(st *AccountStatus, plan string, fee float64, now int64) AccountBudget {
-	b := AccountBudget{Account: st.Account, Plan: plan, FeeUSD: fee, WeekUSD: WeekBudget(fee), FiveHour: st.Short.Pct != nil}
+	b := AccountBudget{Account: st.Account, Plan: plan, FeeUSD: fee, WeekUSD: WeekBudget(fee), FiveHour: st.Short.Pct != nil, Extra: st.CurrentExtra()}
 	if st.Long.Pct != nil {
 		used := float64(*st.Long.Pct)
 		if st.Long.Reset != 0 && st.Long.Reset <= now {

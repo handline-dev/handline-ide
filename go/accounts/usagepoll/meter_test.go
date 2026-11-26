@@ -3,6 +3,7 @@ package usagepoll
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -189,4 +190,36 @@ func liveMeter(t *testing.T, cfg string) *Meter {
 		t.Fatal(err)
 	}
 	return &Meter{Home: home, Claude: path}
+}
+
+// extra_usage as the live answer has it: every field present, the amounts in cents and null while it is off. Kept by allowlist, in
+// dollars; no object is unknown, never zero.
+func TestReadKeepsExtraUsageInMajorUnits(t *testing.T) {
+	extra := func(on bool, limit, used, places any) map[string]any {
+		return map[string]any{"is_enabled": on, "monthly_limit": limit, "used_credits": used, "utilization": nil, "currency": "USD",
+			"spend_limit_reached": false, "user_disabled": !on, "credits_ever_enabled": true, "decimal_places": places, "daily": nil, "weekly": nil}
+	}
+	for name, c := range map[string]struct {
+		extra any
+		want  string
+	}{
+		"off, as every live account was": {extra(false, nil, nil, nil), "map[cap:<nil> currency:USD on:false spent:<nil>]"},
+		"on with spend":                  {extra(true, 5000.0, 1450.0, 2.0), "map[cap:50 currency:USD on:true spent:14.5]"},
+		"on, no cap, three places":       {extra(true, nil, 1500.0, 3.0), "map[cap:<nil> currency:USD on:true spent:1.5]"},
+		"no extra_usage object":          {nil, "<nil>"},
+	} {
+		resp := answer(34.6, 39.0, "")
+		if c.extra != nil {
+			resp["rate_limits"].(map[string]any)["extra_usage"] = c.extra
+		}
+		f := &fakeCLI{resp: resp}
+		m, _ := meterWith(t, f, nil)
+		r, _ := m.Read(context.Background(), "a")
+		if r == nil {
+			t.Fatalf("%s: no reading", name)
+		}
+		if got := fmt.Sprint(r.Extra.Map()); got != c.want {
+			t.Errorf("%s: %s, want %s", name, got, c.want)
+		}
+	}
 }

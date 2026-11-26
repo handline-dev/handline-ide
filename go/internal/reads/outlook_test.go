@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -214,6 +215,10 @@ func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
 			`{"minutes": 10080, "used_percent": %d, "resets_at": %d}]}`, clock.Unix(), five, map[string]int{"a": 30, "b": 20}[acct], clock.Unix()+86400)), 0o644)
 	}
 	run(t, e, "UPDATE accounts SET plan_fee = 26 WHERE name = 'a'")
+	// a pays extra usage: its status names $3 spent this billing month, and its samples spent 40, 45.50, then 3 as the month began again.
+	addExtra(t, e, "a", `{"on": true, "cap": 50, "spent": 3, "currency": "USD"}`)
+	run(t, e, `UPDATE usage_samples SET extra = json_object('on', 1, 'cap', 50, 'currency', 'USD', 'spent',
+		CASE ts WHEN ? THEN 40 WHEN ? THEN 45.5 ELSE 3 END) WHERE account = 'a'`, clock.Unix()-5400, clock.Unix()-3600)
 	e.LoginState = func(string) (bool, bool) { return true, true }
 	got, err := e.outlookAt("24h", 24, clock, nil)
 	if err != nil {
@@ -222,13 +227,16 @@ func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
 	res := got.(map[string]any)
 	bud := res["budget"].(map[string]any)
 	accts := bud["accounts"].([]any)
-	want := "[map[account:a fee_usd:26 five_hour:false left_usd:4.2 plan:Pro spent_usd:1.8 used_pct:30 week_usd:6] " +
-		"map[account:b fee_usd:100 five_hour:true left_usd:18.46 plan:Max spent_usd:4.62 used_pct:20 week_usd:23.08]]"
+	want := "[map[account:a extra:map[cap:50 currency:USD on:true spent:3] fee_usd:26 five_hour:false left_usd:4.2 plan:Pro spent_usd:1.8 used_pct:30 week_usd:6] " +
+		"map[account:b extra:<nil> fee_usd:100 five_hour:true left_usd:18.46 plan:Max spent_usd:4.62 used_pct:20 week_usd:23.08]]"
 	if got := fmt.Sprint(accts); got != want {
 		t.Fatalf("each account's week in plan money: %s", got)
 	}
-	if bud["week_usd"] != 29.08 || bud["spent_usd"] != 6.42 || bud["left_pct"] != 77.94 {
-		t.Fatalf("weighted by budget: %v", bud)
+	if bud["week_usd"] != 29.08 || bud["spent_usd"] != 6.42 || bud["left_pct"] != 77.94 || fmt.Sprint(bud["extra_spent"]) != "map[USD:3]" {
+		t.Fatalf("weighted by budget, extra usage beside it: %v", bud)
+	}
+	if x := res["plan_cost_per_day"].([]any)[0].(map[string]any)["extra"]; fmt.Sprint(x) != "map[USD:8.5]" {
+		t.Fatalf("a's extra usage rose 5.50, then 3 from 0 in the new month: %v", x)
 	}
 	day := res["plan_cost_per_day"].([]any)[0].(map[string]any)["agents"].(map[string]any)
 	if day["grp.one"] != 3.2077 || day["grp.two"] != 0.3 {
@@ -244,6 +252,19 @@ func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
 	uses := res["agent_use"].([]any)
 	if uses[0].(map[string]any)["plan_cost"] != 3.2077 || uses[1].(map[string]any)["plan_cost"] != 0.3 {
 		t.Fatalf("%v", uses)
+	}
+}
+
+// addExtra puts an extra usage object in acct's status file.
+func addExtra(t *testing.T, e *Env, acct, extra string) {
+	t.Helper()
+	p := filepath.Join(paths.AccountDir(e.Home, teamtest.Account(t, e.Home, acct)), "status.json")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(strings.Replace(string(b), "{", `{"extra": `+extra+`, `, 1)), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

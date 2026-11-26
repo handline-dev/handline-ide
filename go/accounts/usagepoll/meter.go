@@ -216,7 +216,33 @@ func parseUsage(acct string, resp map[string]any, at int64) (*usage.Reading, err
 	if !any_ {
 		return nil, fmt.Errorf("the answer has no figure in either window")
 	}
+	r.Extra = extraOf(limits["extra_usage"])
 	return r, nil
+}
+
+// extraOf reads rate_limits.extra_usage by allowlist: on, the monthly cap, spent this billing month and the currency. Amounts come in
+// minor units of the currency (cents), decimal_places of them when named, else 2. No object is unknown (nil), never zero.
+func extraOf(v any) *usage.Extra {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	places := 2.0
+	if d, ok := m["decimal_places"].(float64); ok && d >= 0 && d <= 6 && d == math.Trunc(d) {
+		places = d
+	}
+	unit := math.Pow(10, places)
+	amount := func(key string) *float64 {
+		f, ok := m[key].(float64)
+		if !ok || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
+			return nil
+		}
+		f /= unit
+		return &f
+	}
+	on, _ := m["is_enabled"].(bool)
+	cur, _ := m["currency"].(string)
+	return &usage.Extra{On: on, Cap: amount("monthly_limit"), Spent: amount("used_credits"), Currency: cur}
 }
 
 // resetOf is a window's resets_at as a unix second. Absent is 0: a window nothing has been spent in names no reset. A value that is

@@ -172,6 +172,7 @@ func (e *Env) ReadFile(acct, path string) *AccountStatus {
 		st.CtxUsed = asInt64(raw["ctx_used"])
 	}
 	st.CollectedAt = asInt64(raw["collected_at"])
+	st.Extra = ExtraOf(raw["extra"])
 	st.SessionID, _ = raw["session_id"].(string)
 	st.Transcript, _ = raw["transcript_path"].(string)
 	st.ModelID, _ = raw["model_id"].(string)

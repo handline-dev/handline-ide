@@ -198,5 +198,10 @@
   "version": 139,
   "name": "agent_block_screen_capture",
   "additive": true
+ },
+ {
+  "version": 140,
+  "name": "usage_sample_extra",
+  "additive": true
  }
 ]

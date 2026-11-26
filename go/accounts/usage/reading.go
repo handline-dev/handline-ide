@@ -6,6 +6,8 @@ type Reading struct {
 	Account string
 	At      int64 // unix seconds
 	Windows []ReadingWindow
+	// Extra is the account's extra usage as the answer named it; nil when it named none (unknown, never zero).
+	Extra *Extra
 }
 
 // ReadingWindow is one window of a Reading.

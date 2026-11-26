@@ -126,8 +126,8 @@ func (e *Env) RecordSample(q db.Q, acct string, st *AccountStatus, ts int64, log
 	if st.CollectedAt != nil {
 		collected = *st.CollectedAt
 	}
-	_, err = q.Exec("INSERT INTO usage_samples(account, ts, exists_, error, collected_at, windows, logged_out) VALUES(?,?,?,?,?,?,?)",
-		acct, ts, st.Exists, errText, collected, string(b), loggedOut)
+	_, err = q.Exec("INSERT INTO usage_samples(account, ts, exists_, error, collected_at, windows, logged_out, extra) VALUES(?,?,?,?,?,?,?,?)",
+		acct, ts, st.Exists, errText, collected, string(b), loggedOut, extraJSON(st.Extra))
 	return err
 }
 

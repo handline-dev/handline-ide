@@ -141,11 +141,35 @@ func perDayOf(cost map[string]map[string]float64) []any {
 	sort.Strings(days)
 	out := []any{}
 	for _, d := range days {
-		agents := map[string]any{}
-		for a, c := range cost[d] {
-			agents[a] = round(c, 4)
+		out = append(out, map[string]any{"day": d, "agents": rounded(cost[d], 4)})
+	}
+	return out
+}
+
+// planPerDayOf is the spec's plan_cost_per_day: each day's plan money per agent and its extra usage per currency, oldest day first; a day
+// with neither is absent.
+func planPerDayOf(plan, extra map[string]map[string]float64) []any {
+	days := make([]string, 0, len(plan)+len(extra))
+	for d := range plan {
+		days = append(days, d)
+	}
+	for d := range extra {
+		if _, ok := plan[d]; !ok {
+			days = append(days, d)
 		}
-		out = append(out, map[string]any{"day": d, "agents": agents})
+	}
+	sort.Strings(days)
+	out := []any{}
+	for _, d := range days {
+		out = append(out, map[string]any{"day": d, "agents": rounded(plan[d], 4), "extra": rounded(extra[d], 2)})
+	}
+	return out
+}
+
+func rounded(m map[string]float64, places int) map[string]any {
+	out := map[string]any{}
+	for k, v := range m {
+		out[k] = round(v, places)
 	}
 	return out
 }
@@ -212,7 +236,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	}
 	res := map[string]any{"range": name, "now": ts(now), "accounts": out.Accounts, "past": points(out.Past), "future": points(future),
 		"runway": runway, "by_account": byAccount, "cost_per_day": perDayOf(c.Daily), "agent_use": agentUse,
-		"budget": budgetOf(budgets), "plan_cost_per_day": perDayOf(c.Plan.Daily)}
+		"budget": budgetOf(budgets), "plan_cost_per_day": planPerDayOf(c.Plan.Daily, usage.ExtraDaily(all, firstDay(clock, hours), now))}
 	if pick != nil {
 		res["overlay"] = overlayOf(rows, c.Uses, *pick, out.Past)
 	}
@@ -232,7 +256,7 @@ func budgetOf(bs []usage.AccountBudget) map[string]any {
 			plan = b.Plan
 		}
 		accts = append(accts, map[string]any{"account": b.Account, "plan": plan, "fee_usd": round(b.FeeUSD, 2), "week_usd": round(b.WeekUSD, 2),
-			"used_pct": used, "spent_usd": spent, "left_usd": left, "five_hour": b.FiveHour})
+			"used_pct": used, "spent_usd": spent, "left_usd": left, "five_hour": b.FiveHour, "extra": b.Extra.Map()})
 	}
 	t := usage.TotalOf(bs)
 	var leftPct any
@@ -240,7 +264,7 @@ func budgetOf(bs []usage.AccountBudget) map[string]any {
 		leftPct = round(*t.LeftPct, 2)
 	}
 	return map[string]any{"accounts": accts, "week_usd": round(t.WeekUSD, 2), "spent_usd": round(t.SpentUSD, 2),
-		"left_usd": round(t.WeekUSD-t.SpentUSD, 2), "left_pct": leftPct}
+		"left_usd": round(t.WeekUSD-t.SpentUSD, 2), "left_pct": leftPct, "extra_spent": rounded(usage.ExtraSpent(bs), 2)}
 }
 
 // outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged, each going as

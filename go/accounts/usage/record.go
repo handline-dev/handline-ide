@@ -91,6 +91,10 @@ func recordFile(path string, r Reading, onlyNewer bool) bool {
 			"carried": false, "lost": false})
 	}
 	snap["windows"] = out
+	// A runner's reading names no extra usage (its beat carries none): it keeps what the file held.
+	if r.Extra != nil || !onlyNewer {
+		snap["extra"] = r.Extra.Map()
+	}
 	// Without collected_at the account fails closed as stale before its figures are read.
 	snap["collected_at"] = r.At
 	snap["rl_source"] = "api"
