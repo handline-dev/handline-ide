@@ -30,7 +30,7 @@ export const REQUEST_SEEDS: Record<string, Seed> = {
     };
   },
 
-  /** Three `@human` comments that ask nothing, on the founder's own tasks, one seen in its author's chat: Requests lists the other two as notes. */
+  /** Three comments to the founder that ask nothing, on the founder's own tasks, one seen in its author's chat: Requests lists the other two as notes. */
   'founder-notes': (d) => {
     const titles = [
       'Story 4: several machines working as one',
@@ -40,7 +40,7 @@ export const REQUEST_SEEDS: Record<string, Seed> = {
     titles.forEach((title, i) => {
       const at = new Date(Date.now() - (60 + i) * 60_000).toISOString();
       const author = i ? 'handline.ui' : 'handline.lander';
-      const memos = [{ id: 5000 + i, task: 3890 + i, author, at, text: '@human Landed on main.' }];
+      const memos = [{ id: 5000 + i, task: 3890 + i, author, at, text: '<@human> Landed on main.' }];
       d.tasks.seed({ id: 3890 + i, from: 'human', to: 'human', title, state: 'queued', memos });
     });
     // The founder read the lander's chat after its note: that note is read; handline.ui's two are not.
