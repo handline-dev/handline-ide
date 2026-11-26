@@ -64,10 +64,10 @@ export class TaskVerbs extends TaskComments {
     const log = [...(t.turnLog ?? []), { at: this.now(), who: `human → ${top.by}`, text: '', turn: 'pop' as const }];
     this.change(t, { turns: t.turns!.slice(0, -1), acting: top.by, turnLog: log });
   }
-  reopen(p: Record<string, unknown>, person: string): void {
+  /** Anyone may reopen a done task, as the daemon lets them; a discarded one comes back as a draft. */
+  reopen(p: Record<string, unknown>): void {
     const t = this.find(p.task);
-    if ((t.state !== 'done' && t.state !== 'discarded') || t.from !== person)
-      throw new TaskFailure('refused', 'only a done or discarded task that you asked for can be reopened');
+    if (t.state !== 'done' && t.state !== 'discarded') throw new TaskFailure('refused', `task T${t.id} is not done - nothing to reopen`);
     this.change(t, { state: t.state === 'done' ? 'queued' : 'draft', done: null });
   }
   /** Queue or draft a list: the whole call is refused if any of them is in the wrong state. */

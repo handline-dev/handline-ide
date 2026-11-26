@@ -48,21 +48,24 @@ const CODE = [
 ];
 const PROSE = ['## Unread chats', 'A chat counts as unread until its newest message is seen.', 'The badge shows the count, up to 99.'];
 
-/** A unified diff for one changed file, made up from its counts: the fake has no repository to run git in. */
+/** A unified diff for one changed file, made up from its counts (at most six lines a side): the fake has no repository to run git in.
+ *  Its hunk header counts the lines it shows, as git's does, and only a changed file has a line that stayed. */
 const unified = (c: Worktree['changed'][number]): string => {
   const pool = /\.(tsx?|go|js)$/.test(c.path) ? CODE : PROSE;
   const add = Array.from({ length: Math.min(c.added, 6) }, (_, i) => `+${pool[i % pool.length]}`);
   const del = Array.from({ length: Math.min(c.deleted, 6) }, (_, i) => `-${pool[(i + 3) % pool.length]}`);
+  const kept = c.status === 'M' ? [` ${c.path.endsWith('.md') ? '# Notes' : "import { useMemo } from 'react';"}`] : [];
   const head = [
     `diff --git a/${c.path} b/${c.path}`,
     ...(c.status === 'A' ? ['new file mode 100644'] : c.status === 'D' ? ['deleted file mode 100644'] : []),
   ];
+  const side = (n: number) => (n ? `1,${n}` : '0,0');
   return [
     ...head,
     `--- ${c.status === 'A' ? '/dev/null' : `a/${c.path}`}`,
     `+++ ${c.status === 'D' ? '/dev/null' : `b/${c.path}`}`,
-    `@@ -1,${c.deleted} +1,${c.added} @@`,
-    ` ${c.path.endsWith('.md') ? '# Notes' : "import { useMemo } from 'react';"}`,
+    `@@ -${side(kept.length + del.length)} +${side(kept.length + add.length)} @@`,
+    ...kept,
     ...del,
     ...add,
     '',

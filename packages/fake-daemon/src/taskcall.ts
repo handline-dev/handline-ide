@@ -92,7 +92,7 @@ export function taskCall(
       case 'task.done':
         return ok(tasks.done(p));
       case 'task.reopen':
-        return (tasks.reopen(p, person), ok('Task reopened.'));
+        return (tasks.reopen(p), ok('Task reopened.'));
       case 'task.queue':
         return (tasks.move(p, ['draft'], 'queued'), ok('Queued.'));
       case 'task.draft':

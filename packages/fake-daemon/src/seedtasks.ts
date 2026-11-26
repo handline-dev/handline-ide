@@ -1,6 +1,6 @@
 // The task rows a fresh fake daemon starts with.
 import type { TaskStore } from '#src/taskstore.ts';
-import { termBuildCommits } from '#src/seedcommits.ts';
+import { fixtureCommits, termBuildCommits } from '#src/seedcommits.ts';
 
 /** A small tree of tasks: a parent with two children, one running, one blocked, and a done one. */
 export function seedTasks(tasks: TaskStore, at: string): void {
@@ -116,5 +116,6 @@ export function seedTasks(tasks: TaskStore, at: string): void {
     priority: 2,
     // A closed task keeps what it cost.
     spend: { usd: 1.12, minutes: 41, by_agent: { 'handline.architect': 1.12 }, by_model: { 'claude-opus-4-5': 1.12 } }, // local-ref-ok
+    commits: fixtureCommits(ago),
   });
 }
