@@ -815,7 +815,7 @@ func (l *Launcher) git(worktree string, args ...string) string {
 // done or a prune measures against. A launch gives origin/HEAD its branch before the session starts (gitrun.NameOriginHead), so the
 // session has no need to write it. Its own fetch still tries to (git's remote.<name>.followRemoteHEAD, "create" when unset), says
 // that it could not lock the ref, and goes on to update every other ref and exit 0; with that setting "never" the fetch leaves the
-// ref alone and says nothing.
+// ref alone and says nothing, so a launch puts it in the session's environment (leaveOriginHead).
 func (l *Launcher) MainRefFiles(worktree string) []string {
 	common := l.git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if common == "" {

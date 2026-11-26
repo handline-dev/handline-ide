@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/handline/handline/go/accounts/usage"
@@ -273,7 +274,32 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	for k, v := range drv.LaunchEnv(preamble, l.disallowed(agent), paths.AgentDir(l.Home, agent)) {
 		env[k] = v
 	}
+	if site.Node == "" && len(confined.NoWrite) > 0 {
+		leaveOriginHead(env) // only where origin/HEAD is among the files the session may not write (MainRefFiles)
+	}
 	return argv, env, nil
+}
+
+// leaveOriginHead tells the session's git, through its environment and never the repository's config, not to touch origin/HEAD when
+// it fetches (remote.origin.followRemoteHEAD never). A session may not write that ref (MainRefFiles); left to itself every fetch
+// still tries, and says "error: cannot lock ref" before going on to succeed, which reads as a failure. The setting is added after
+// those the environment already carries (GIT_CONFIG_COUNT), once; a count git itself would refuse is left as it is.
+func leaveOriginHead(env map[string]string) {
+	const key, value = "remote.origin.followRemoteHEAD", "never"
+	n := 0
+	if v, ok := env["GIT_CONFIG_COUNT"]; ok && v != "" {
+		var err error
+		if n, err = strconv.Atoi(v); err != nil || n < 0 {
+			return
+		}
+	}
+	for i := range n {
+		if env[fmt.Sprintf("GIT_CONFIG_KEY_%d", i)] == key && env[fmt.Sprintf("GIT_CONFIG_VALUE_%d", i)] == value {
+			return // inherited from a session launched the same way
+		}
+	}
+	env[fmt.Sprintf("GIT_CONFIG_KEY_%d", n)], env[fmt.Sprintf("GIT_CONFIG_VALUE_%d", n)] = key, value
+	env["GIT_CONFIG_COUNT"] = strconv.Itoa(n + 1)
 }
 
 // keepWhatItStartsWith keeps every session a launch starts (db.session_starts): why, whether it resumes the old conversation (then its
