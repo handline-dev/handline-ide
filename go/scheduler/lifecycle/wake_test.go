@@ -410,8 +410,8 @@ func TestAColdWakeUnderTheResumeLimitResumes(t *testing.T) {
 	}
 }
 
-// A cold wake takes its record before it asks for the note Handline writes into it, so the note is waited for, not raced.
-func TestAColdWakeTakesItsRecordThenWaitsForTheTranscriptNote(t *testing.T) {
+// A cold wake takes its record and starts fresh at once: it never waits for, nor asks for, a note.
+func TestAColdWakeTakesItsRecordAndStartsAtOnce(t *testing.T) {
 	m, d, tm := newManager(t)
 	d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, true
 	h := &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}}
@@ -419,29 +419,21 @@ func TestAColdWakeTakesItsRecordThenWaitsForTheTranscriptNote(t *testing.T) {
 	db.SetTerminal(m.Q, "a", "t1", "/wt")
 	db.SetClosed(m.Q, "a", "sess-1")
 	ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true})
-	if err != nil || ok || !strings.Contains(said, "waiting for the handoff note") || len(tm.relaunched) != 0 {
+	if err != nil || !ok || len(tm.relaunched) != 1 || strings.Contains(tm.relaunched[0], "--resume") {
 		t.Fatalf("%v %q %v %q", ok, said, err, tm.relaunched)
 	}
-	if strings.Join(h.calls, ",") != "record,note" {
-		t.Fatalf("the record was not taken before the note was asked: %q", h.calls)
+	if strings.Join(h.calls, ",") != "record" {
+		t.Fatalf("the record only: %q", h.calls)
 	}
 }
 
-// A record a cold wake took and then waited with is still that wake's: a launch that fails on a later tick clears it, as it would have.
-func TestARecordTakenBeforeTheWaitIsClearedWhenTheLaterLaunchFails(t *testing.T) {
+// A record a cold wake took is that wake's: a launch that fails clears it, so no later session is handed it as if it had been parked.
+func TestARecordAColdWakeTookIsClearedWhenItsLaunchFails(t *testing.T) {
 	m, d, tm := newManager(t)
-	d.waitingMsg, d.tookPrompt = "hi", true
-	h := &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}, q: m.Q}
-	m.Handoff = h
+	d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, false
+	m.Handoff = &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}, q: m.Q}
 	db.SetTerminal(m.Q, "a", "t1", "/wt")
 	db.SetClosed(m.Q, "a", "sess-1")
-	if ok, said, _ := m.WakeAgentLocked("a", WakeOpts{Force: true}); ok || !strings.Contains(said, "waiting for the handoff note") {
-		t.Fatalf("%v %q", ok, said)
-	}
-	if rec, _ := db.GetHandoff(m.Q, "a"); rec == "" {
-		t.Fatal("no record taken")
-	}
-	h.pending, tm.launchOK = false, false
 	if ok, _, _ := m.WakeAgentLocked("a", WakeOpts{Force: true}); ok {
 		t.Fatal("launched")
 	}
@@ -1114,24 +1106,21 @@ func TestAWakeAfterACloseOverTheContextLimitStartsFresh(t *testing.T) {
 	}
 }
 
-// A fresh start waits while Handline writes the note into the record it reads; a resume reads no record and does not wait.
-func TestAFreshWakeWaitsForTheNoteWrittenFromTheTranscript(t *testing.T) {
+// A start whose resume is dropped (a full context) goes at once, as a resume does; neither asks for a note.
+func TestAFreshWakeGoesAtOnceAndAsksForNoNote(t *testing.T) {
 	for _, full := range []bool{true, false} {
 		m, d, tm := newManager(t)
 		d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, true
-		m.Handoff = fakeHandoff{full: full, pending: true}
+		h := &recordingHandoff{fakeHandoff: fakeHandoff{full: full, pending: true}}
+		m.Handoff = h
 		db.SetTerminal(m.Q, "a", "t1", "/wt")
 		db.SetClosed(m.Q, "a", "sess-1")
 		ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true})
-		if err != nil || ok == full || full && !strings.Contains(said, "waiting for the handoff note Handline writes") {
+		if err != nil || !ok || len(tm.relaunched) != 1 || strings.Contains(tm.relaunched[0], "--resume") != !full {
 			t.Fatalf("full=%v: %v %q %v %q", full, ok, said, err, tm.relaunched)
 		}
-		if !full {
-			continue
-		}
-		m.Handoff = fakeHandoff{full: true}
-		if ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true}); err != nil || !ok || len(tm.relaunched) != 1 {
-			t.Fatalf("the note in, the wake did not go: %v %q %v", ok, said, err)
+		if asked := strings.Contains(strings.Join(h.calls, ","), "note"); asked {
+			t.Fatalf("full=%v: the note asked %v: %q", full, asked, h.calls)
 		}
 	}
 }

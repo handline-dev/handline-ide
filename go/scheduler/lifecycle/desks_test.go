@@ -61,25 +61,6 @@ func TestAWakeWithNoDeskToTakeSaysWhyAndLaunchesNothing(t *testing.T) {
 	}
 }
 
-// noteHandoff is recordingHandoff that moves a walled agent to dest when asked.
-type noteHandoff struct {
-	*recordingHandoff
-	dest string
-}
-
-func (h noteHandoff) MovePlan(db.Q, string, string, bool) (string, string) { return h.dest, "" }
-func (noteHandoff) BackingOff(db.Q, string) bool                           { return false }
-
-// wallWhileResumable: account "a" is at its wall for a session to resume; a fresh start goes where there is room, as WakeWait does.
-type wallWhileResumable struct{ wallLaunch }
-
-func (wallWhileResumable) WakeWait(_ db.Q, _ string, row *db.AgentState) *WakeWait {
-	if row.ResumeSession.String == "" {
-		return nil
-	}
-	return &WakeWait{Account: "a", Pct: 99, Window: "5h"}
-}
-
 func wakePromptText(t *testing.T, m *Manager) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(m.Home, "wake", "a.txt"))
@@ -89,42 +70,19 @@ func wakePromptText(t *testing.T, m *Manager) string {
 	return string(b)
 }
 
-// waitsThenStartsFresh wakes a twice: first while the transcript note is being written, which waits and launches nothing, then once
-// it is in, which starts fresh. It returns the second wake's prompt.
-func waitsThenStartsFresh(t *testing.T, m *Manager, tm *fakeTerm, h *recordingHandoff) string {
-	t.Helper()
-	before := len(tm.relaunched)
-	ok, said, err := m.WakeAgent("a", WakeOpts{Force: true})
-	if err != nil || ok || !strings.Contains(said, "waiting for the handoff note") {
-		t.Fatalf("did not wait for the note: %v %q %v", ok, said, err)
-	}
-	if n := len(tm.relaunched) - before; n > 1 || n == 1 && !strings.Contains(tm.relaunched[before], "--resume") {
-		t.Fatalf("a fresh start went before its note: %v", tm.relaunched)
-	}
-	if rec, _ := db.GetHandoff(m.Q, "a"); rec == "" {
-		t.Fatal("no record for the note to go into")
-	}
-	h.pending = false
-	before = len(tm.relaunched)
-	if ok, said, err := m.WakeAgent("a", WakeOpts{Force: true}); err != nil || !ok {
-		t.Fatalf("%v %q %v", ok, said, err)
-	}
-	if len(tm.relaunched) != before+1 || strings.Contains(tm.relaunched[before], "--resume") {
-		t.Fatalf("not one fresh start: %v", tm.relaunched)
-	}
-	return wakePromptText(t, m)
-}
-
-func TestAFailedResumeWaitsForTheTranscriptNoteBeforeItsFreshStart(t *testing.T) {
+// A failed resume takes the record and starts fresh at once: it never waits for, nor asks for, a note.
+func TestAFailedResumeStartsFreshAtOnce(t *testing.T) {
 	m, tm, _ := closedWithDesk(t, "/wt")
 	tm.failResume = true
 	h := &recordingHandoff{fakeHandoff: fakeHandoff{pending: true}, q: m.Q}
 	m.Handoff = h
-	got := waitsThenStartsFresh(t, m, tm, h)
-	if row, _ := db.GetAgentState(m.Q, "a"); row.ResumeSession.String != "" {
-		t.Fatalf("the resume that failed is tried again: %+v", row)
+	if ok, said, err := m.WakeAgent("a", WakeOpts{Force: true}); err != nil || !ok {
+		t.Fatalf("%v %q %v", ok, said, err)
 	}
-	if !strings.HasPrefix(got, "Your session could not be resumed, so this is a fresh one. Your handoff is in your system prompt above.") {
+	if n := len(tm.relaunched); n != 2 || strings.Contains(tm.relaunched[1], "--resume") || strings.Join(h.calls, ",") != "record" {
+		t.Fatalf("a resume then one fresh start: %v, %q", tm.relaunched, h.calls)
+	}
+	if got := wakePromptText(t, m); !strings.HasPrefix(got, "Your session could not be resumed, so this is a fresh one. Your handoff is in your system prompt above.") {
 		t.Fatalf("%q", got)
 	}
 }
@@ -138,6 +96,24 @@ func TestAMoveSaysWhyItMoved(t *testing.T) {
 	}
 }
 
-type heldTyping struct{ fakeTyping }
-
-func (heldTyping) TakeTerminal(string) (func(), bool) { return nil, false }
+// With the worktree deleted while it slept (the setting) and its pane closed, a closed agent is still woken, resuming: the wake makes
+// the folder again at its path. A recorded folder the pool does not hold for it is no worktree to wake in.
+func TestAClosedAgentWhoseWorktreeWasDeletedWhileItSleptIsWokenAndResumes(t *testing.T) {
+	m, _, desks := closedWithDesk(t, "/gone/a-1a2b3c")
+	m.Q.Exec("UPDATE agent_state SET terminal = NULL, worktree = '/gone/a-1a2b3c' WHERE agent = 'a'")
+	sp := m.Spawn.(*fakeSpawn)
+	sp.gone, sp.ok = map[string]bool{"/gone/a-1a2b3c": true}, true
+	row, _ := db.GetAgentState(m.Q, "a")
+	if m.ResumableWithoutTerminal(row) {
+		t.Fatal("a folder the pool does not hold for it")
+	}
+	m.Q.Exec("INSERT INTO worktree_folders(path, repo, holder, last_used) VALUES('/gone/a-1a2b3c', '/repo', 'a', 0)")
+	if !m.ResumableWithoutTerminal(row) {
+		t.Fatal("its own folder, deleted while it slept, is not woken")
+	}
+	ok, said, err := m.WakeAgent("a", WakeOpts{Force: true})
+	if err != nil || !ok || len(desks.asked) != 1 || len(sp.cmds) != 1 || !strings.Contains(sp.cmds[0], "--resume sess-1") ||
+		sp.startedIn[0] != "a@/gone/a-1a2b3c" {
+		t.Fatalf("%v %q %v; asked %v, started %v %v", ok, said, err, desks.asked, sp.startedIn, sp.cmds)
+	}
+}

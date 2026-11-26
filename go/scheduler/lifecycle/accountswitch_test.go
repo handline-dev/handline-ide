@@ -581,21 +581,3 @@ func TestASwitchNowThatStallsTheAgentLeavesTheStall(t *testing.T) {
 		t.Fatalf("the stall was overwritten: %+v", row)
 	}
 }
-
-// A person's choice past the room test that waits for the handoff note is still past it once the note is in (T9344).
-func TestSwitchNowPastTheFitWaitsForTheNoteAndStartsThere(t *testing.T) {
-	g := waitingRig(t)
-	db.ForgetResume(g.m.Q, "a")
-	g.m.Handoff = fakeHandoff{pending: true, ctx: ResumeMaxContext}
-	g.l.wait, g.l.roomOn = &WakeWait{Account: "acct", Window: "5h"}, "is not a place for it: full"
-	if ok, said, err := g.v.SwitchNow("a", "beta", "human"); !ok || err != nil || said != "a starts on beta once its handoff note is in (switched now by human)" {
-		t.Fatalf("%v %q %v", ok, said, err)
-	}
-	if s, _ := db.GetSwitch(g.m.Q, "a"); s == nil || s.Phase != db.SwitchNote || s.To != "beta" {
-		t.Fatalf("%+v", s)
-	}
-	g.m.Handoff = fakeHandoff{ctx: ResumeMaxContext}
-	if ok, said, err := g.m.WakeAgent("a", WakeOpts{}); !ok || err != nil || g.l.lastAccount != "beta" || g.row(t).Account.String != "beta" {
-		t.Fatalf("%v %q %v on %q", ok, said, err, g.l.lastAccount)
-	}
-}

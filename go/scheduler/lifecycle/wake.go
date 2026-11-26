@@ -353,7 +353,7 @@ func (m *Manager) wakeAgent(agent string, o WakeOpts) (bool, string) {
 	// A closed session's pane was closed with it; the wake opens a new terminal in the worktree the agent kept.
 	wt := ""
 	if row != nil {
-		wt = m.Spawn.WorktreePath(row.Worktree.String)
+		wt = m.keptWorktree(row)
 	}
 	if !m.Term.Available() || !(handle != "" || (closed && wt != "")) {
 		return false, "no terminal to wake"
@@ -417,7 +417,10 @@ func (m *Manager) takeDesk(agent string) (desk, why string) {
 	t, why, err := m.Desks.TakeFrom(agent, realpath(expandUser(repo)), "")
 	check(err)
 	if why != "" {
-		return "", fmt.Sprintf("%s: no worktree to start in - %s", addr.Ref(agent), why)
+		why = fmt.Sprintf("%s: no worktree to start in - %s", addr.Ref(agent), why)
+		must(db.AddEvent(m.Q, agent, db.NoWorktree, db.KV{K: "why", V: why}))
+		m.refreshView(agent)
+		return "", why
 	}
 	for _, s := range t.Said {
 		m.Log("  %s: %s", agent, s)
@@ -849,10 +852,6 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 			m.Log("  %s: cold wake handoff degraded (%s)", agent, w)
 		}
 	}
-	// A fresh start waits for the note Handline writes into a record with none. A move waits too, and keeps where it goes (waitForNote).
-	if (cold || session == "") && m.Handoff.NoteFromTranscript(agent) {
-		return false, m.waitForNote(agent, c.movedFrom != "", c.movedTo)
-	}
 	// A fresh start goes where there is room. With none, `hl launch` would refuse and the refusal would count against the agent's wake
 	// attempts, though it is the accounts that are full.
 	// The slot is held from the choice, under the one placement lock. A move moveElsewhere made holds it already.
@@ -912,13 +911,8 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 			return false, why
 		}
 		if !resume && len(attempts) > 1 {
-			// The resume did not take, so this start is fresh and waits for the note like any other; the next wake does not try the
-			// resume again.
+			// The resume did not take, so this start is fresh.
 			m.recordUnlessKept(agent, session, "handoff with gaps")
-			if m.Handoff.NoteFromTranscript(agent) {
-				check(db.ForgetResume(m.Q, agent))
-				return false, m.waitForNote(agent, true, c.movedTo)
-			}
 		}
 		restartNote := ""
 		if c.restartedBy != "" {
@@ -1036,25 +1030,6 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 func (m *Manager) wakeDropped(agent, why string) {
 	must(db.AddEvent(m.Q, agent, "wake_dropped", db.KV{K: "why", V: why}))
 	m.Log("  %s: wake dropped: %s", agent, why)
-}
-
-// waitForNote is what a start waiting for its transcript note says. held lets go of the slot it reserved, which the next wake holds again.
-// A move to movedTo keeps its switch, at SwitchNote, and the wake after the note goes on with it (noteMove).
-func (m *Manager) waitForNote(agent string, held bool, movedTo string) string {
-	why := "waiting for the handoff note Handline writes from its transcript"
-	if held {
-		must(db.AddEvent(m.Q, agent, usage.HoldDroppedKind, db.KV{K: "why", V: why}))
-	}
-	if movedTo != "" {
-		switch s := must(db.GetSwitch(m.Q, agent)); {
-		case s == nil || s.To != movedTo:
-			check(db.ClearSwitch(m.Q, agent))
-			m.refreshView(agent)
-		case s.Phase != db.SwitchNote:
-			m.noteSwitch(agent, s.Cause, s.From, s.To, db.SwitchNote)
-		}
-	}
-	return why
 }
 
 func coldTookKey(agent string) string { return "cold_took:" + agent }
