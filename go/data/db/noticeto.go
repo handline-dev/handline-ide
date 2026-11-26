@@ -138,8 +138,12 @@ func TaskMovedSince(q Q, tid, at int64) (bool, error) {
 	return moved, err
 }
 
+// StaleBgToldKey is the cursor holding when the founder was told an agent's background work went stale, cleared once it no longer is.
+func StaleBgToldKey(agent string) string { return "stale_bg_told:" + agent }
+
 // FounderNoticeOver is whether what n says is over: its task moved or ended; with no task, the agent's stall cleared (start_stall), its
-// repo fixed (bad_repo), or (any other) a message or comment of its own since.
+// repo fixed (bad_repo), its background work no longer stale (stale_background: it showed output or ended), or (any other) a message
+// or comment of its own since.
 func FounderNoticeOver(q Q, n FounderNotice) (bool, error) {
 	if n.Task != 0 {
 		t, err := GetTask(q, n.Task)
@@ -152,6 +156,9 @@ func FounderNoticeOver(q Q, n FounderNotice) (bool, error) {
 	case "start_stall":
 		row, err := GetAgentState(q, n.Agent)
 		return row == nil || row.State != rowstate.Stalled, err
+	case "stale_background":
+		told, err := Cursor(q, StaleBgToldKey(n.Agent))
+		return told == 0, err
 	case "bad_repo":
 		_, last, _, err := LastEvent(q, n.Agent, "bad_repo")
 		repo, _ := last["repo"].(string)

@@ -285,7 +285,7 @@ func shortTitle(title string) string {
 // stops the work - after the veto window. The mark is cleared when the work is no longer stale, so a later stretch is told again.
 func (b *Timebox) SweepStaleBackground(t *Tick, now int64) {
 	for _, agent := range t.Host.Agents() {
-		key := "stale_bg_told:" + agent
+		key := db.StaleBgToldKey(agent)
 		if !b.Ports.BgStale(t.Q, agent, now) || b.Ports.BgOwesNothing(t.Q, agent) || b.Ports.NeverCloses(agent) {
 			check(db.ClearCursor(t.Q, key))
 			continue

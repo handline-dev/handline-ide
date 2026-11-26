@@ -658,6 +658,7 @@ func (t *Tick) Run() (Result, error) {
 	}
 
 	t.closeForMemory(&actions)
+	t.guarded("no room", t.noRoomOver)
 	t.timed("blocked sweep", func() { t.Sweeps.BlockedSweep(q, now) })
 	for _, s := range t.Passes {
 		s := s

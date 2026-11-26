@@ -162,26 +162,69 @@ func (e *Env) reviewNotices() ([]founderWarning, error) {
 var levelWords = map[string]string{db.LevelEvery: "every one", db.LevelOneInTwo: "1 in 2", db.LevelOneInThree: "1 in 3",
 	db.LevelOneInFive: "1 in 5", db.LevelNever: "none"}
 
-// loginWarnings is each account the login watch says wants a login or stands stalled, from its rows alone: a read asks no keychain.
+// loginWarnings is one row per account the login watch says wants a login or stands stalled, or whose agents have no other account
+// to go to (db.NoRoom), from their rows alone: a read asks no keychain. Each leaves when the daemon clears its rows.
 func (e *Env) loginWarnings() ([]founderWarning, error) {
 	rows, err := query(e.DB, "SELECT name, value FROM meta WHERE name LIKE ? ORDER BY name", db.LoginNeedPrefix+"%")
 	if err != nil {
 		return nil, err
 	}
-	var out []founderWarning
+	rooms, err := db.NoRooms(e.DB)
+	if err != nil {
+		return nil, err
+	}
+	needs := map[string]db.LoginNeed{}
 	for _, r := range rows {
-		a := strings.TrimPrefix(r.str("name"), db.LoginNeedPrefix)
-		need, ok := db.ReadLoginNeed(r.str("value"))
-		if !ok {
-			continue
+		if need, ok := db.ReadLoginNeed(r.str("value")); ok {
+			needs[strings.TrimPrefix(r.str("name"), db.LoginNeedPrefix)] = need
 		}
-		title := fmt.Sprintf("Account %s needs a login.", a)
-		if need.Unusable != "" {
-			title = fmt.Sprintf("Account %s cannot be used: %s.", a, need.Unusable)
+	}
+	accts := make([]string, 0, len(needs)+len(rooms))
+	for a := range needs {
+		accts = append(accts, a)
+	}
+	for a := range rooms {
+		if _, ok := needs[a]; !ok {
+			accts = append(accts, a)
 		}
-		out = append(out, founderWarning{id: "login:" + a, title: title, since: ts(need.Since), worse: need.Unusable, view: map[string]any{"kind": "login", "account": a}})
+	}
+	sort.Strings(accts)
+	out := make([]founderWarning, 0, len(accts))
+	for _, a := range accts {
+		need, hasNeed := needs[a]
+		room, hasRoom := rooms[a]
+		title, since, worse := accountTrouble(a, need, hasNeed, room), need.Since, need.Unusable
+		if !hasNeed {
+			since = room.Since
+		}
+		if hasRoom {
+			worse = strings.TrimSpace(worse + " noroom:" + room.Kind)
+		}
+		out = append(out, founderWarning{id: "login:" + a, title: title, since: ts(since), worse: worse, view: map[string]any{"kind": "login", "account": a}})
 	}
 	return out, nil
+}
+
+// accountTrouble is the line for an account's warning: what is wrong with it, and where its agents stand when no other account has room.
+func accountTrouble(a string, need db.LoginNeed, hasNeed bool, room db.NoRoom) string {
+	title := fmt.Sprintf("Account %s cannot be used.", a)
+	switch {
+	case hasNeed && need.Unusable != "":
+		title = fmt.Sprintf("Account %s cannot be used: %s.", a, need.Unusable)
+	case hasNeed:
+		title = fmt.Sprintf("Account %s needs a login.", a)
+	case room.Kind == "ended":
+		title = fmt.Sprintf("Account %s's subscription has ended.", a)
+	case room.Kind == "paused":
+		title = fmt.Sprintf("Account %s is paused.", a)
+	}
+	switch room.Kind {
+	case "":
+		return title
+	case "login":
+		return fmt.Sprintf("%s Its agents are stopped: no other account has room (%s).", title, room.Room)
+	}
+	return fmt.Sprintf("%s Its agents stay on it: no other account has room (%s).", title, room.Room)
 }
 
 func (e *Env) undelivered(prefix string, each func(id int64, u db.Undelivered) error) error {
