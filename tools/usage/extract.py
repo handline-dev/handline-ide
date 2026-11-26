@@ -10,7 +10,7 @@ users=[]  # (session,ts,kind,size)
 def ts(s):
     return datetime.fromisoformat(s.replace("Z","+00:00")).timestamp()
 def account_names():
-    """Each account's folder (its key, c<id>) to its name, read from the home's database without writing to it."""
+    """Each account's folder (the one its row records, else its key c<id>) to its name, read from the home's database without writing to it."""
     db=os.path.expanduser("~/.handline/db.sqlite")
     c=sqlite3.connect(f"file:{db}?mode=ro",uri=True)
     try: return {f or f"c{i}":n for i,n,f in c.execute("SELECT id, name, folder FROM accounts")}

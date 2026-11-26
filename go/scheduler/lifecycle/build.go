@@ -90,7 +90,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		}
 		return nil, nil, refuse("agent '%s': %s", agent, l.noRoom(m, agent))
 	}
-	// Its config dir is by key: one not looked up would point the session at an empty folder that is no account.
+	// Its config dir is by its row: one with no row would point the session at an empty folder that is no account.
 	if key, err := paths.AccountKeyIn(l.Q, acct); err != nil {
 		return nil, nil, fmt.Errorf("account %s: %w", acct, err)
 	} else if key == "" {

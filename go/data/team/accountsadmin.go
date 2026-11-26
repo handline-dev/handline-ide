@@ -302,7 +302,7 @@ func (a Accounts) Remove(q *sql.DB, acct string, run func(argv []string, env map
 		}
 	}
 	os.Remove(marker)
-	dir := paths.AccountDir(a.Home, acct) // by its row's key, so before the row goes
+	dir := paths.AccountDir(a.Home, acct) // by its row, so before the row goes
 	// The rows first, in one transaction: a removal stopped halfway leaves no row a new account of the name would take over.
 	if err := inTx(q, func(tx db.Q) error {
 		// The name can be added again, and a poll remembered against the old account would hold the new one in its cooldown.
