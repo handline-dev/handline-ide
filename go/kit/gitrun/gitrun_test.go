@@ -249,7 +249,8 @@ func TestDefaultBranchIsReadFromTheRepository(t *testing.T) {
 }
 
 // Main is origin's main when there is one: a commit pushed there is on main while the clone's own main is behind, a commit only on a
-// branch is not; with no remote the local main decides.
+// branch is not; with no remote the local main decides. Asked of the repository's Base, which answers the same for a default branch
+// of any name.
 func TestOnMainReadsOriginsMainWhenThereIsOne(t *testing.T) {
 	git := func(dir string, args ...string) string {
 		t.Helper()
@@ -259,11 +260,19 @@ func TestOnMainReadsOriginsMainWhenThereIsOne(t *testing.T) {
 		}
 		return strings.TrimSpace(r.Stdout)
 	}
+	mainRef := func(dir string) string { return BaseOf(dir).Ref() }
+	onMain := func(dir, rev string) bool {
+		ok, why := BaseOf(dir).Reaches(dir, rev)
+		if !ok && why != "" {
+			t.Fatalf("git failed asking whether main reaches %s in %s: %s", rev, dir, why)
+		}
+		return ok
+	}
 	local := repo(t)
 	git(local, "checkout", "-q", "-b", "work")
 	git(local, "commit", "-q", "--allow-empty", "-m", "w")
 	work := git(local, "rev-parse", "HEAD")
-	if MainRef(local) != "refs/heads/main" || OnMain(local, work).RC != 1 || OnMain(local, "main").RC != 0 {
+	if mainRef(local) != "main" || onMain(local, work) || !onMain(local, "main") {
 		t.Fatalf("no remote: the local main decides")
 	}
 	bare := t.TempDir()
@@ -281,31 +290,31 @@ func TestOnMainReadsOriginsMainWhenThereIsOne(t *testing.T) {
 	if git(clone, "rev-parse", "main") == landed {
 		t.Fatal("the local main moved with the push")
 	}
-	if MainRef(clone) != "refs/remotes/origin/main" {
-		t.Fatalf("with an origin: %q", MainRef(clone))
+	if mainRef(clone) != "origin/main" {
+		t.Fatalf("with an origin: %q", mainRef(clone))
 	}
-	if r := OnMain(clone, landed); r.RC != 0 {
-		t.Fatalf("pushed to origin's main, local main behind: %+v", r)
+	if !onMain(clone, landed) {
+		t.Fatal("pushed to origin's main, local main behind: not on main")
 	}
-	if r := OnMain(clone, branchOnly); r.RC != 1 {
-		t.Fatalf("only on a branch: %+v", r)
+	if onMain(clone, branchOnly) {
+		t.Fatal("only on a branch: on main")
 	}
 	// on the clone's own main but never pushed: not on main
 	git(clone, "checkout", "-q", "main")
 	git(clone, "commit", "-q", "--allow-empty", "-m", "unpushed")
-	if r := OnMain(clone, "HEAD"); r.RC != 1 {
-		t.Fatalf("on the local main only: %+v", r)
+	if onMain(clone, "HEAD") {
+		t.Fatal("on the local main only: on main")
 	}
 	// asked from a linked worktree, the same
 	linked := filepath.Join(t.TempDir(), "wt")
 	git(clone, "worktree", "add", "-q", "-b", "other", linked, landed)
-	if r := OnMain(linked, landed); r.RC != 0 || MainRef(linked) != "refs/remotes/origin/main" {
-		t.Fatalf("from a linked worktree: %+v", r)
+	if !onMain(linked, landed) || mainRef(linked) != "origin/main" {
+		t.Fatalf("from a linked worktree: %q", mainRef(linked))
 	}
 	// an origin with no main: the local main decides
 	git(local, "remote", "add", "origin", bare)
-	if MainRef(local) != "refs/heads/main" {
-		t.Fatalf("an origin with no main fetched: %q", MainRef(local))
+	if mainRef(local) != "main" {
+		t.Fatalf("an origin with no main fetched: %q", mainRef(local))
 	}
 }
 

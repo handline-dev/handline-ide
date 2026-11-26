@@ -82,20 +82,6 @@ func DefaultBranch(repo string) string {
 	return IntegrationBranch
 }
 
-// MainRef is the ref that says what main holds in repo: origin's main when repo has one, since a push moves it and nothing but a
-// fetch into it moves the clone's own main; else the local main, as in a repo with no remote.
-func MainRef(repo string) string {
-	if origin := "refs/remotes/origin/" + IntegrationBranch; Run(repo, "rev-parse", "-q", "--verify", origin).RC == 0 {
-		return origin
-	}
-	return "refs/heads/" + IntegrationBranch
-}
-
-// OnMain is git merge-base --is-ancestor rev MainRef(repo): RC 0 when main reaches rev, 1 when it does not, else git's failure.
-func OnMain(repo, rev string) Result {
-	return Run(repo, "merge-base", "--is-ancestor", rev, MainRef(repo))
-}
-
 // originHead is the branch origin/HEAD names, "" when it names none, or one origin no longer has: the remote dropped or renamed it and a
 // prune took its ref, while git keeps the name.
 func originHead(repo string) string {
@@ -120,8 +106,7 @@ func NameOriginHead(cwd string) bool {
 // Base is where a repository's landed work is. Branch is its default branch, and Refs are the refs of it the repository has: origin's
 // copy first ("origin/<branch>"), then the local branch. What has landed is what the first of them reaches (Ref): origin's copy when
 // the clone has one, since a push moves it and nothing but a fetch into it moves the clone's own branch, so a commit on the local
-// branch alone has not landed; else the local branch, as in a repository with no remote. This is MainRef and OnMain for a default
-// branch of any name.
+// branch alone has not landed; else the local branch, as in a repository with no remote.
 type Base struct {
 	Branch string
 	Refs   []string

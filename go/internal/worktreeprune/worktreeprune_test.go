@@ -125,6 +125,75 @@ func TestUnsavedCountsAgainstTheRepositorysDefaultBranch(t *testing.T) {
 	}
 }
 
+// In a repository whose only branch beside the work is master, a worktree merged into master is let go and one ahead of it is kept,
+// named against master: nothing there is "not merged into main" for want of a main.
+func TestAMasterRepositorysWorktreesAreJudgedAgainstMaster(t *testing.T) {
+	main, wts := repoOn(t, "master")
+	got := map[string]Worktree{}
+	for _, wt := range List(main) {
+		got[filepath.Base(wt.Path)] = wt
+	}
+	for name, want := range map[string]string{
+		"main":      "master", // the default branch's own checkout stays, whatever the branch is called
+		"merged":    "",
+		"ahead":     "ahead is not merged into master",
+		"untracked": "uncommitted or untracked files",
+	} {
+		if why := WhyKept(got[name], nil, ""); why != want {
+			t.Errorf("%s: %q, want %q", name, why, want)
+		}
+	}
+	if !HoldsWork("ahead is not merged into master") || HoldsWork("master") {
+		t.Fatal("work is held by a branch not merged, whatever it is not merged into, and not by the default branch's checkout")
+	}
+	if merged, files, commits := Unsaved(wts["ahead"]); merged || files != 0 || commits != 1 {
+		t.Fatalf("ahead of master: merged, files, commits %v %d %d", merged, files, commits)
+	}
+	gitrun.Run(wts["ahead"], "checkout", "-q", "--detach")
+	if why := DetachedWork(wts["ahead"]); why != "HEAD is not merged into master" {
+		t.Fatalf("a detached HEAD ahead of master: %q", why)
+	}
+	gitrun.Run(wts["merged"], "checkout", "-q", "--detach")
+	if why := DetachedWork(wts["merged"]); why != "" {
+		t.Fatalf("a detached HEAD on master: %q", why)
+	}
+	if ok, why := Remove(wts["merged"]); !ok {
+		t.Fatal(why)
+	}
+	if DeleteMergedBranch(main, "master") || gitrun.Run(main, "rev-parse", "-q", "--verify", "refs/heads/master").RC != 0 {
+		t.Fatal("the default branch was deleted")
+	}
+	if !DeleteMergedBranch(main, "merged") {
+		t.Fatal("a branch merged into master was not deleted")
+	}
+}
+
+// A branch merged on the remote is on origin's copy of the default branch while the local branch stays behind, since nothing moves
+// it: that worktree is done with too, and counts no commit ahead.
+func TestAWorktreeMergedOnOriginIsDoneWithWhileTheLocalBranchIsBehind(t *testing.T) {
+	for _, branch := range []string{"main", "master"} {
+		main, wts := repoOn(t, branch)
+		gitrun.Run(main, "update-ref", "refs/remotes/origin/"+branch, "refs/heads/ahead")
+		if gitrun.Run(main, "merge-base", "--is-ancestor", "ahead", branch).RC == 0 {
+			t.Fatal("the local branch has the work: the test proves nothing")
+		}
+		wt, _ := Find(List(main), wts["ahead"])
+		if why := WhyKept(wt, nil, ""); why != "" {
+			t.Errorf("%s: merged on origin/%s, kept: %q", branch, branch, why)
+		}
+		if merged, files, commits := Unsaved(wts["ahead"]); !merged || files != 0 || commits != 0 {
+			t.Errorf("%s: merged, files, commits %v %d %d", branch, merged, files, commits)
+		}
+		// and a commit on the local branch alone, which no push has moved to origin's copy, is not merged yet
+		gitrun.Run(main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "not pushed")
+		gitrun.Run(wts["merged"], "merge", "-q", "--ff-only", branch)
+		merged, _ := Find(List(main), wts["merged"])
+		if why := WhyKept(merged, nil, ""); why != "merged is not merged into "+branch {
+			t.Errorf("%s: on the local %s only: %q", branch, branch, why)
+		}
+	}
+}
+
 // Size is bytes, at least what the files hold.
 func TestSizeIsTheBytesUnderThePath(t *testing.T) {
 	dir := t.TempDir()

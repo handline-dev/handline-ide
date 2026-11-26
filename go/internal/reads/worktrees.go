@@ -242,8 +242,9 @@ func (e *Env) facts(path string, files int) (map[string]any, error) {
 	} else if n, err := strconv.ParseInt(v, 10, 64); ok && err == nil {
 		size = n
 	}
-	_, ahead := worktreeprune.Ahead(path)
-	return map[string]any{"base": gitrun.DefaultBranch(path), "commits_ahead": ahead, "files_changed": files, "size_bytes": size, "pr": nil}, nil
+	base := gitrun.BaseOf(path)
+	_, ahead := worktreeprune.AheadOf(path, base)
+	return map[string]any{"base": base.Branch, "commits_ahead": ahead, "files_changed": files, "size_bytes": size, "pr": nil}, nil
 }
 
 func (e *Env) worktree(path, owner string, labels map[string]string) (map[string]any, error) {
@@ -442,14 +443,7 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 // baseMergeBase is the ref the branch is measured against (origin/<default branch> when that exists, else the local branch, so a
 // stale local main still shows what has not reached the remote) and its merge-base with tip; "" when there is none.
 func baseMergeBase(root, tip string) (ref, mergeBase string) {
-	def := gitrun.DefaultBranch(root)
-	if def == "" {
-		return "", ""
-	}
-	for _, r := range []string{"origin/" + def, def} {
-		if ok, _ := git(root, "rev-parse", "--verify", "--quiet", r+"^{commit}"); !ok {
-			continue
-		}
+	for _, r := range gitrun.BaseOf(root).Refs {
 		if ok, out := git(root, "merge-base", tip, r); ok && strings.TrimSpace(out) != "" {
 			return r, strings.TrimSpace(out)
 		}

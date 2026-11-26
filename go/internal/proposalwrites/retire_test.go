@@ -147,6 +147,12 @@ func TestARetireWhoseTurnOutlastsTheLimitIsRefusedAndDropped(t *testing.T) {
 // not on main) and shared (alice works in it too).
 func bobsWorktrees(t *testing.T, r *rig) (main string, wt map[string]string, git func(dir string, args ...string) bool) {
 	t.Helper()
+	return bobsWorktreesOn(t, r, "main")
+}
+
+// bobsWorktreesOn is bobsWorktrees in a repository whose default branch is branch.
+func bobsWorktreesOn(t *testing.T, r *rig, branch string) (main string, wt map[string]string, git func(dir string, args ...string) bool) {
+	t.Helper()
 	bob := r.who("bob")
 	root, _ := filepath.EvalSymlinks(t.TempDir())
 	main = filepath.Join(root, "main")
@@ -154,7 +160,7 @@ func bobsWorktrees(t *testing.T, r *rig) (main string, wt map[string]string, git
 		return gitrun.Run(dir, append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).RC == 0
 	}
 	os.MkdirAll(main, 0o755)
-	git(main, "init", "-q", "-b", "main")
+	git(main, "init", "-q", "-b", branch)
 	git(main, "commit", "-q", "--allow-empty", "-m", "start")
 	wt = map[string]string{}
 	for _, name := range []string{"done", "ahead", "shared"} {
@@ -191,6 +197,9 @@ func TestTheFoundersRetireIsRefusedWhileAWorktreeHoldsWorkWithNoAnswer(t *testin
 	}
 	if h := list[0].(map[string]any); h["path"] != wt["ahead"] || h["commits_ahead"] != float64(1) || h["files_changed"] != float64(0) {
 		t.Fatalf("%v", h)
+	}
+	if msg, _ := e["message"].(string); !strings.Contains(msg, wt["ahead"]+" (0 files changed, 1 commits not on main)") {
+		t.Fatalf("%q", msg)
 	}
 	if !slices.Contains(paths.ListAgents(r.home), bob) {
 		t.Fatal("bob was retired")
@@ -248,6 +257,35 @@ func TestTheFoundersAnswerIsCarriedOutForAWorktreeThatHoldsWork(t *testing.T) {
 		}
 		assertNotRetired(t, r, wt)
 	})
+}
+
+// In a repository whose default branch is master the retire judges the worktrees against master: only the one ahead of it holds work,
+// said as commits not on master, and with an answer the merged one goes with its branch while master stays.
+func TestARetireInAMasterRepositoryJudgesItsWorktreesAgainstMaster(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	main, wt, git := bobsWorktreesOn(t, r, "master")
+	m := r.call("agent.retire", `{"agent":"bob","request_id":"m0"}`)
+	e, _ := m["error"].(map[string]any)
+	d, _ := e["data"].(map[string]any)
+	if list, _ := d["worktrees"].([]any); len(list) != 1 || list[0].(map[string]any)["path"] != wt["ahead"] {
+		t.Fatalf("the worktrees that hold work: %v", m)
+	}
+	if msg, _ := e["message"].(string); !strings.Contains(msg, wt["ahead"]+" (0 files changed, 1 commits not on master)") {
+		t.Fatalf("%q", msg)
+	}
+	m = r.call("agent.retire", `{"agent":"bob","worktree":"keep","request_id":"m1"}`)
+	if e, _ := m["error"].(map[string]any); e == nil || !strings.Contains(e["message"].(string), "holds work (ahead is not merged into master)") {
+		t.Fatalf("%v", m)
+	}
+	m = r.call("agent.retire", `{"agent":"bob","worktree":"force","request_id":"m2"}`)
+	res, _ := m["result"].(map[string]any)
+	if said, _ := res["said"].(string); !strings.Contains(said, wt["done"]+" is removed with its branch done") {
+		t.Fatalf("%v", m)
+	}
+	if !git(main, "rev-parse", "--verify", "-q", "refs/heads/master") || git(main, "rev-parse", "--verify", "-q", "refs/heads/done") {
+		t.Fatal("master stays and the merged branch goes")
+	}
 }
 
 // assertNotRetired is bob still on the team with each of its worktrees where it was.

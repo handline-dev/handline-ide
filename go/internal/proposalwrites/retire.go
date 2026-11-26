@@ -109,7 +109,7 @@ func (e *Env) refuseHeldWork(agents ...string) error {
 		}
 		for _, h := range held {
 			list = append(list, map[string]any{"path": h.Path, "files_changed": h.Files, "commits_ahead": h.Commits})
-			said = append(said, fmt.Sprintf("%s (%d files changed, %d commits not on main)", h.Path, h.Files, h.Commits))
+			said = append(said, fmt.Sprintf("%s (%d files changed, %d commits not on %s)", h.Path, h.Files, h.Commits, h.Base))
 		}
 	}
 	if len(list) == 0 {

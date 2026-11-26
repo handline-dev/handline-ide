@@ -1,6 +1,7 @@
 // Package worktreeprune is the one rule for which worktrees are done with (tools/prune_worktrees.py runs it too): a worktree goes only
-// when its branch is merged into main, it has no uncommitted or untracked file, and no agent works in it. Main's, a locked one and one
-// on no branch stay. Removing one leaves its branch: `git branch -d` takes that.
+// when its branch is merged into the repository's default branch (gitrun.Base: origin's copy of it when the clone has one, since a
+// push moves that and not the clone's own branch, else the local one), it has no uncommitted or untracked file, and no agent works in it. The default branch's own, a locked one and one on no branch stay. Removing
+// one leaves its branch: `git branch -d` takes that.
 package worktreeprune
 
 import (
@@ -130,11 +131,13 @@ func WhyKept(wt Worktree, agents map[string]bool, here string) string {
 		return "locked"
 	case wt.Branch == "":
 		return OnNoBranch
-	case wt.Branch == "main":
-		return "main"
 	}
-	if gitrun.OnMain(wt.Path, wt.Branch).RC != 0 {
-		return wt.Branch + notMerged
+	base := gitrun.BaseOf(wt.Path)
+	if wt.Branch == base.Branch {
+		return base.Branch
+	}
+	if ok, _ := base.Reaches(wt.Path, "refs/heads/"+wt.Branch); !ok {
+		return wt.Branch + notMerged + base.Branch
 	}
 	if st := gitrun.Run(wt.Path, "status", "--porcelain"); st.RC != 0 || strings.TrimSpace(st.Stdout) != "" {
 		return uncommitted
@@ -155,10 +158,12 @@ const (
 // OnNoBranch is WhyKept's answer for a worktree with a detached HEAD.
 const OnNoBranch = "on no branch"
 
-// DetachedWork is WhyKept for a worktree on no branch, judged by its HEAD: "" when HEAD is on main and nothing is uncommitted.
+// DetachedWork is WhyKept for a worktree on no branch, judged by its HEAD: "" when the default branch has HEAD and nothing is
+// uncommitted.
 func DetachedWork(path string) string {
-	if gitrun.OnMain(path, "HEAD").RC != 0 {
-		return "HEAD" + notMerged
+	base := gitrun.BaseOf(path)
+	if ok, _ := base.Reaches(path, "HEAD"); !ok {
+		return "HEAD" + notMerged + base.Branch
 	}
 	if st := gitrun.Run(path, "status", "--porcelain"); st.RC != 0 || strings.TrimSpace(st.Stdout) != "" {
 		return uncommitted
@@ -167,12 +172,13 @@ func DetachedWork(path string) string {
 }
 
 const (
-	notMerged   = " is not merged into main"
+	notMerged   = " is not merged into " // the default branch's name follows; no branch name holds a space, so these words mark the reason
 	uncommitted = "uncommitted or untracked files"
 )
 
-// HoldsWork is whether why (WhyKept's) says the worktree holds work nobody else has: commits not on main, or files not committed.
-func HoldsWork(why string) bool { return why == uncommitted || strings.HasSuffix(why, notMerged) }
+// HoldsWork is whether why (WhyKept's) says the worktree holds work nobody else has: commits the default branch lacks, or files not
+// committed.
+func HoldsWork(why string) bool { return why == uncommitted || strings.Contains(why, notMerged) }
 
 // Rescue keeps what the worktree holds, then removes it: the files not committed go in one commit on a new branch rescue/<member>-<date>
 // (the branch the worktree was on stays as it is), so nothing is lost but what git ignores. It answers the branch.
@@ -248,14 +254,15 @@ func Unsaved(path string) (merged bool, files, commits int) {
 
 // Ahead is Unsaved without the files: whether the worktree's HEAD is merged into the default branch (origin's when there is one), and
 // its commits not on it.
-func Ahead(path string) (merged bool, commits int) {
-	base := gitrun.DefaultBranch(path)
-	if origin := "refs/remotes/origin/" + base; gitrun.Run(path, "rev-parse", "-q", "--verify", origin).RC == 0 {
-		base = origin // as WhyKept judges it: a push moves origin's branch, not the clone's own
-	}
-	merged = gitrun.Run(path, "merge-base", "--is-ancestor", "HEAD", base).RC == 0
-	if r := gitrun.Run(path, "rev-list", "--count", base+"..HEAD"); r.RC == 0 {
-		commits, _ = strconv.Atoi(strings.TrimSpace(r.Stdout))
+func Ahead(path string) (merged bool, commits int) { return AheadOf(path, gitrun.BaseOf(path)) }
+
+// AheadOf is Ahead against the base its caller has already read.
+func AheadOf(path string, base gitrun.Base) (merged bool, commits int) {
+	merged, _ = base.Reaches(path, "HEAD")
+	if revs, ok := base.NotIn("HEAD"); ok {
+		if r := gitrun.Run(path, append([]string{"rev-list", "--count"}, revs...)...); r.RC == 0 {
+			commits, _ = strconv.Atoi(strings.TrimSpace(r.Stdout))
+		}
 	}
 	return merged, commits
 }
@@ -280,15 +287,18 @@ func Size(path string) (int64, error) {
 	return kb * 1024, err
 }
 
-// DeleteMergedBranch deletes branch in repo with `git branch -d`, never -D: git keeps a branch not merged, and false says so.
+// DeleteMergedBranch deletes branch in repo with `git branch -d`, never -D: git keeps a branch not merged, and false says so. The
+// repo's default branch is never deleted.
 func DeleteMergedBranch(repo, branch string) bool {
-	return branch != "" && branch != "main" && gitrun.Run(repo, "branch", "-d", branch).RC == 0
+	return branch != "" && branch != gitrun.DefaultBranch(repo) && gitrun.Run(repo, "branch", "-d", branch).RC == 0
 }
 
-// Held is a worktree of an agent that holds work: its path, its changed or untracked files and its commits not on main.
+// Held is a worktree of an agent that holds work: its path, its changed or untracked files and its commits not on Base, its
+// repository's default branch.
 type Held struct {
 	Path           string
 	Files, Commits int
+	Base           string
 }
 
 // Holding are the worktrees agent records that hold work nobody else has (HoldsWork): what a retire must ask about before it goes.
@@ -308,7 +318,7 @@ func Holding(q db.Q, agent string) ([]Held, error) {
 			continue
 		}
 		_, files, commits := Unsaved(path)
-		out = append(out, Held{Path: path, Files: files, Commits: commits})
+		out = append(out, Held{Path: path, Files: files, Commits: commits, Base: gitrun.DefaultBranch(path)})
 	}
 	return out, nil
 }
