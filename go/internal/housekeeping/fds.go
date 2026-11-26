@@ -1,6 +1,7 @@
 package housekeeping
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -32,7 +33,12 @@ type FDs struct {
 	said      time.Time
 	listDir   string // where the descriptors are listed; /dev/fd
 	softLimit func() uint64
+	readNames func(dir string) ([]string, error) // nil reads the folder
 }
+
+// listTries is how often the listing is read before its error stands. macOS fails a read of /dev/fd with EINVAL now and then when
+// another thread makes a descriptor while the listing is read (a child process's pipes): the folder changed between its reads.
+const listTries = 3
 
 func (f *FDs) now() time.Time {
 	if f.Now != nil {
@@ -59,13 +65,27 @@ func (f *FDs) limit() uint64 {
 	return uint64(r.Cur)
 }
 
-func (f *FDs) listed() ([]int, error) {
-	d, err := os.Open(f.dir())
+func readNames(dir string) ([]string, error) {
+	d, err := os.Open(dir)
 	if err != nil {
 		return nil, err
 	}
 	defer d.Close()
-	names, err := d.Readdirnames(-1)
+	return d.Readdirnames(-1)
+}
+
+func (f *FDs) listed() ([]int, error) {
+	read := f.readNames
+	if read == nil {
+		read = readNames
+	}
+	var names []string
+	var err error
+	for try := 0; try < listTries; try++ {
+		if names, err = read(f.dir()); !errors.Is(err, syscall.EINVAL) {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +122,7 @@ func (f *FDs) Check() int {
 	defer f.mu.Unlock()
 	fds, err := f.listed()
 	if err != nil {
-		f.sayExhaustion(err, "counting descriptors")
+		f.sayUncounted(err)
 		return -1
 	}
 	n := len(fds) - 1 // the listing's own descriptor
@@ -136,6 +156,18 @@ func (f *FDs) Check() int {
 		f.Log("  fds: near the limit - " + strings.Join(parts, ", "))
 	}
 	return n
+}
+
+// sayUncounted says, at most once a minute, that the count could not be read: a shortage when the error is one, else the error itself.
+func (f *FDs) sayUncounted(err error) {
+	if errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE) {
+		f.sayExhaustion(err, "counting descriptors")
+		return
+	}
+	if now := f.now(); now.Sub(f.said) >= ExhaustionEvery {
+		f.said = now
+		f.Log(fmt.Sprintf("could not count descriptors: %v", err))
+	}
 }
 
 func (f *FDs) sayExhaustion(err error, doing string) {

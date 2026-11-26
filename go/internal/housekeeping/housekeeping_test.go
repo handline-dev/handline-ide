@@ -114,6 +114,33 @@ func TestTheDescriptorCountIsLoggedOnFirstReadAndOnBigMovesAndNamedNearTheLimit(
 	}
 }
 
+// A listing that changed while it was read (EINVAL from /dev/fd on macOS) is read again; any other error stands, and only a shortage
+// is called one.
+func TestAListingThatChangedWhileReadIsReadAgain(t *testing.T) {
+	var lines []string
+	fails := 2
+	f := &FDs{Log: func(s string) { lines = append(lines, s) }, softLimit: func() uint64 { return 100 },
+		readNames: func(string) ([]string, error) {
+			if fails > 0 {
+				fails--
+				return nil, &os.PathError{Op: "readdirent", Path: "/dev/fd", Err: syscall.EINVAL}
+			}
+			return []string{"0", "1", "2", "3"}, nil
+		}}
+	if n := f.Check(); n != 3 || len(lines) != 1 || lines[0] != "  fds: 3/100" {
+		t.Fatalf("%d %q", n, lines)
+	}
+	fails, lines = listTries, nil
+	if n := f.Check(); n != -1 || len(lines) != 1 || lines[0] != "could not count descriptors: readdirent /dev/fd: invalid argument" {
+		t.Fatalf("a listing that keeps failing is said as its error, not a shortage: %d %q", n, lines)
+	}
+	f.said, lines = time.Time{}, nil
+	f.readNames = func(string) ([]string, error) { return nil, syscall.EMFILE }
+	if f.Check(); len(lines) != 1 || !strings.HasPrefix(lines[0], "out of file descriptors while counting descriptors") {
+		t.Fatalf("%q", lines)
+	}
+}
+
 func TestExhaustionIsSaidAtMostOnceAMinute(t *testing.T) {
 	var lines []string
 	now := time.Unix(1000, 0)
