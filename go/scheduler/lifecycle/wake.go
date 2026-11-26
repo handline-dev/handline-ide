@@ -60,7 +60,6 @@ type WakePromptIn struct {
 	MovedTo     string
 	Cold        bool
 	MoveWhy     string // why it moved, as the sentence opens: "" is its account's usage limit
-	Desk        string // the desk it starts in, when its own folder went to another agent
 	ContextFull bool   // the last session ended with its context full
 	Waiting     string // what was waiting for a resume, "" for none
 	Stopped     string // the background work the close before this start stopped, "" for none
@@ -111,9 +110,6 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 			why = "Your account was at or near its usage limit"
 		}
 		line := fmt.Sprintf("%s, so this session was started on %s.", why, in.MovedTo)
-		if in.Desk != "" {
-			line = deskLine(in.Desk) + " " + line
-		}
 		parts = append(parts, line+" Your handoff is in your system prompt above; carry on from there.")
 		if stopped != "" {
 			parts = append(parts, stopped)
@@ -127,16 +123,10 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 		record = must(db.GetHandoff(m.Q, agent))
 		if record != "" && in.ContextFull {
 			parts = append(parts, "Your context was full, so this is a fresh session. Your handoff is in your system prompt above.")
-		} else if record != "" && in.Desk != "" {
-			parts = append(parts, deskLine(in.Desk)+" Your handoff is in your system prompt above.")
 		} else if record != "" {
 			parts = append(parts, "Your session could not be resumed, so this is a fresh one. Your handoff is in your system prompt above.")
 		} else {
-			lead := "Your session could not be resumed, so this is a fresh one."
-			if in.Desk != "" {
-				lead = deskLine(in.Desk)
-			}
-			parts = append(parts, lead+" There is no handoff.")
+			parts = append(parts, "Your session could not be resumed, so this is a fresh one. There is no handoff.")
 			if note := m.Handoff.MemoryLine(agent); note != "" {
 				parts = append(parts, note)
 			}
@@ -167,11 +157,6 @@ func (m *Manager) WakePrompt(agent string, resumed bool, in WakePromptIn) (text 
 		parts = append(parts, "This is what woke you; take it first:\n\n"+in.Waiting)
 	}
 	return strings.Join(parts, "\n\n"), nil
-}
-
-// deskLine says why a session starts fresh in another desk: Claude keeps a session under its folder, so it cannot be resumed elsewhere.
-func deskLine(desk string) string {
-	return fmt.Sprintf("Your folder went to another agent, so this is a fresh session in %s.", filepath.Base(desk))
 }
 
 // lookAtMax is how many of its open tasks a fresh session with no record is pointed at.
@@ -240,7 +225,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		check(db.ResetCounter(m.Q, agent, "wake_failures"))
 		check(db.BumpCounter(m.Q, agent, "wake_failures", states.MaxFailedAttempts-1))
 	}
-	// A desk from the pool, with its branch checked out (Desks). Without a pool: the worktree its row records while it is there, else
+	// Its own worktree, with its branch checked out (Desks). Without a pool: the worktree its row records while it is there, else
 	// a spawn, which says why it cannot start.
 	wt, gone := "", ""
 	if m.Desks != nil {
@@ -248,7 +233,9 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		if row != nil {
 			recorded = m.Spawn.WorktreePath(row.Worktree.String)
 		}
-		wt, _, gone = m.takeDesk(agent, recorded)
+		if wt, gone = m.takeDesk(agent); wt == "" && gone == "" {
+			wt = recorded
+		}
 	} else if row != nil {
 		wt = m.Spawn.WorktreePath(row.Worktree.String)
 	}
@@ -420,49 +407,22 @@ func (m *Manager) continuesWork(agent string, row *db.AgentState) bool {
 	return h != nil && h.Step == "released" && h.Updated+db.NoteWaitStaleS >= row.ClosedAt.Int64
 }
 
-// takeDesk is the desk agent starts in (Desks.Take over its workspace's folder), whether it is not the folder it was last in (was), and
-// why there is none.
-func (m *Manager) takeDesk(agent, was string) (desk string, moved bool, why string) {
+// takeDesk is agent's own worktree to start in (Desks.Take over its workspace's folder), and why there is none. "" with no why: it has
+// no workspace folder, and starts where its row says.
+func (m *Manager) takeDesk(agent string) (desk, why string) {
 	repo := m.Agents.RepoOf(agent)
 	if repo == "" {
-		return was, false, ""
+		return "", ""
 	}
 	t, why, err := m.Desks.TakeFrom(agent, realpath(expandUser(repo)), "")
 	check(err)
 	if why != "" {
-		return "", false, fmt.Sprintf("%s: no desk to start in - %s", addr.Ref(agent), why)
+		return "", fmt.Sprintf("%s: no worktree to start in - %s", addr.Ref(agent), why)
 	}
 	for _, s := range t.Said {
 		m.Log("  %s: %s", agent, s)
 	}
-	moved = was != "" && realpath(was) != realpath(t.Path)
-	if moved {
-		must(db.AddEvent(m.Q, agent, "desk_changed", db.KV{K: "from", V: was}, db.KV{K: "to", V: t.Path}))
-		m.Log("  %s: its desk %s went to another agent; starting in %s", agent, was, t.Path)
-	}
-	return t.Path, moved, ""
-}
-
-// LetGoOfResume has a closed agent's next wake start fresh, as its folder is about to move: the record of its session is taken unless
-// it has one, and its resume id goes. false, with nothing done, while a wake holds its terminal or it is not closed.
-func (m *Manager) LetGoOfResume(agent string) (ok bool, err error) {
-	defer catch(&err)
-	release, mine := m.Typing.TakeTerminal(agent)
-	if !mine {
-		return false, nil
-	}
-	defer release()
-	row := must(db.GetAgentState(m.Q, agent))
-	if row == nil || row.ResumeSession.String == "" {
-		return true, nil
-	}
-	if !isClosed(row) {
-		return false, nil
-	}
-	m.recordUnlessKept(agent, row.ResumeSession.String, "handoff with gaps")
-	check(db.ForgetResume(m.Q, agent))
-	m.Log("  %s: its folder moves, so its next wake starts fresh from its handoff", agent)
-	return true, nil
+	return t.Path, ""
 }
 
 // recordUnlessKept takes the handoff record of session unless agent has one; gapped opens the log line for a record with gaps.
@@ -692,23 +652,16 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			return false, msg
 		}
 	}
-	movedDesk := ""
 	if m.Desks != nil {
-		desk, moved, why := m.takeDesk(agent, wt)
+		desk, why := m.takeDesk(agent)
 		if why != "" {
 			return false, why
 		}
-		if moved && session != "" {
-			// Claude keeps a session under its working folder: in another desk it cannot be resumed, so it starts fresh from its handoff.
-			m.freshFrom(agent, session)
-			session, row = "", must(db.GetAgentState(m.Q, agent))
+		if desk != "" {
+			wt = desk
 		}
-		if moved || m.deskChangedTo(agent, row, desk) {
-			movedDesk = desk // also on the wake after one that waited for the note: the pool holds the new desk by then
-		}
-		wt = desk
 	}
-	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveReason, moveWhy, movedDesk, o.Stopped, o.Applying, held}
+	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveReason, moveWhy, o.Stopped, o.Applying, held}
 	return m.launchClosed(agent, row, wt, session, c)
 }
 
@@ -806,7 +759,6 @@ type closed2 struct {
 	movedFrom          string // set when moveElsewhere moved it: its moved_account is written at the launch
 	moveReason         string // that moved_account's reason
 	moveWhy            string // WakePromptIn.MoveWhy
-	desk               string // WakePromptIn.Desk
 	stopped            string // WakePromptIn.Stopped
 	applying           []string
 	noteMove           *db.AccountSwitch // the move that waited for the note (noteMove): its moved_account is written at the launch
@@ -976,7 +928,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 			}
 			restartNote = RestartNotice(c.restartedBy, resume, c.applying, changed)
 		}
-		text, err := m.WakePrompt(agent, resume, WakePromptIn{WasClosed: closed, MovedTo: c.movedTo, MoveWhy: c.moveWhy, Desk: c.desk, Cold: cold, ContextFull: why0 == "context_full", Waiting: waiting.text,
+		text, err := m.WakePrompt(agent, resume, WakePromptIn{WasClosed: closed, MovedTo: c.movedTo, MoveWhy: c.moveWhy, Cold: cold, ContextFull: why0 == "context_full", Waiting: waiting.text,
 			Stopped: c.stopped, WallCut: m.wallCut(agent, must(db.GetAgentState(m.Q, agent))),
 			RestartNote: restartNote})
 		check(err)
@@ -1103,16 +1055,6 @@ func (m *Manager) waitForNote(agent string, held bool, movedTo string) string {
 		}
 	}
 	return why
-}
-
-// deskChangedTo is whether agent was moved to desk since its session closed (takeDesk's desk_changed).
-func (m *Manager) deskChangedTo(agent string, row *db.AgentState, desk string) bool {
-	_, p, ok := must3(db.LastEvent(m.Q, agent, "desk_changed"))
-	if !ok || row == nil || !row.ClosedAt.Valid {
-		return false
-	}
-	at, _ := must2(db.LastEventTS(m.Q, agent, "desk_changed"))
-	return at >= row.ClosedAt.Int64 && p["to"] == desk
 }
 
 func coldTookKey(agent string) string { return "cold_took:" + agent }

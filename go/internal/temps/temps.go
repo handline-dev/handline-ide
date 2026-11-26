@@ -288,22 +288,11 @@ func (e *Env) giveIdle(seat, origin string) {
 	}
 }
 
-// leave gives seat's desk back and marks it idle, its hire for task tid over. A desk that holds work git cannot simply commit stays, kept
-// for the founder, and a memo on the task names it.
+// leave closes seat's hold of its worktree (GiveBack) and marks it idle, its hire for task tid over.
 func (e *Env) leave(seat, origin string, tid int64) error {
 	if e.Desks != nil {
-		g, err := e.Desks.GiveBack(seat, tid)
-		if err != nil {
+		if _, err := e.Desks.GiveBack(seat, tid); err != nil {
 			return err
-		}
-		if g.Desk != "" && !g.Freed {
-			if err := keepDesk(e.DB, g.Desk); err != nil {
-				return err
-			}
-			memo := fmt.Sprintf("%s left; its desk %s holds work git cannot simply commit, so it is kept for the founder (`hl desk unpin` lets it go).", seat, g.Desk)
-			if _, err := db.AddMemo(e.DB, tid, "daemon", memo); err != nil {
-				return err
-			}
 		}
 	}
 	ended, line, err := endedAs(e.DB, seat, tid)
@@ -345,13 +334,4 @@ func endedAs(q db.Q, seat string, tid int64) (string, string, error) {
 		return "handed_off", head + " left it.", nil
 	}
 	return "handed_off", fmt.Sprintf("%s handed it to %s: %s", head, addr.Ref(to), textsafe.Oneline(note)), err
-}
-
-// keepDesk lets nobody take desk but the founder, and frees it of the seat that held it.
-func keepDesk(q db.Q, desk string) error {
-	if err := worktreepool.Pin(q, desk, worktreepool.Founder); err != nil {
-		return err
-	}
-	_, err := q.Exec("UPDATE worktree_folders SET holder = NULL WHERE path = ?", desk)
-	return err
 }

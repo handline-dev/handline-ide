@@ -76,14 +76,14 @@ func TestThePruneRemovesTheOldestFreeDesksBeyondTheKeptNumber(t *testing.T) {
 		desks[a] = r.take(a).Path
 	}
 	for _, a := range []string{"ann", "bob", "cat", "dan", "eve"} { // given back in this order: ann's is the oldest
-		r.give(a)
+		r.free(a)
 	}
 	if err := Pin(r.db, desks["bob"], Founder); err != nil {
 		t.Fatal(err)
 	}
 	os.WriteFile(filepath.Join(desks["cat"], "loose.txt"), []byte("x\n"), 0o644) // untracked work in a free desk
 	cutoff := r.at                                                               // eve's desk is used after it
-	r.give("eve")
+	r.free("eve")
 	r.db.Exec("UPDATE worktree_folders SET last_used = ? WHERE path = ?", cutoff+100, desks["eve"])
 
 	// six desks, two kept: up to four go, but bob's is pinned, cat's holds work, eve's is too recent and fay holds hers
@@ -117,7 +117,7 @@ func TestRemoveKeepsADeskTakenOrPinnedSinceItWasListed(t *testing.T) {
 	if why, err := r.pool.Remove(d, math.MaxInt64); why == "" || err != nil {
 		t.Fatalf("a held desk: %q %v", why, err)
 	}
-	r.give("ann")
+	r.free("ann")
 	Pin(r.db, d, "a9")
 	if why, _ := r.pool.Remove(d, math.MaxInt64); why != "pinned" {
 		t.Fatalf("a pinned desk: %q", why)
@@ -151,9 +151,19 @@ func TestRemoveKeepsADeskTakenOrPinnedSinceItWasListed(t *testing.T) {
 func TestADeskBeingRemovedIsTakenByNobody(t *testing.T) {
 	r := newRig(t)
 	d := r.take("ann").Path
-	r.give("ann")
+	r.free("ann")
 	r.db.Exec("UPDATE worktree_folders SET pinned_to = ? WHERE path = ?", Removing, d)
 	if got := r.take("ann"); got.Path == d || got.How == "own" {
 		t.Fatalf("took the desk being removed: %+v", got)
 	}
+}
+
+// free is a desk let go as the shared pool did before each agent kept its own: detached, held by nobody, last used now.
+func (r *rig) free(agent string) {
+	r.t.Helper()
+	var d string
+	r.db.QueryRow("SELECT path FROM worktree_folders WHERE holder = ?", agent).Scan(&d)
+	r.git(d, "checkout", "-q", "--detach")
+	r.at++
+	r.db.Exec("UPDATE worktree_folders SET holder = NULL, last_agent = ?, last_used = ? WHERE path = ?", agent, r.at, d)
 }

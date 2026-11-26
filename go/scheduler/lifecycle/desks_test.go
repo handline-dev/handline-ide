@@ -50,34 +50,13 @@ func TestAWakeBackInItsOwnDeskResumesItsSession(t *testing.T) {
 	if len(desks.asked) != 1 || desks.asked[0] != "a@/repo" || len(tm.relaunched) != 1 || !strings.HasSuffix(tm.relaunched[0], "-- --resume sess-1") {
 		t.Fatalf("asked %v, relaunched %v", desks.asked, tm.relaunched)
 	}
-	if _, moved, _ := db.LastEventID(m.Q, "a", "desk_changed"); moved {
-		t.Fatal("its own desk is no change")
-	}
-}
-
-func TestAWakeWhoseDeskWentToAnotherStartsFreshInTheDeskItGets(t *testing.T) {
-	m, tm, _ := closedWithDesk(t, "/desk-2")
-	ok, said, err := m.WakeAgent("a", WakeOpts{Force: true})
-	if err != nil || !ok {
-		t.Fatalf("%v %q %v", ok, said, err)
-	}
-	if len(tm.relaunched) != 1 || strings.Contains(tm.relaunched[0], "--resume") {
-		t.Fatalf("a session kept under another folder cannot be resumed: %v", tm.relaunched)
-	}
-	if _, moved, _ := db.LastEventID(m.Q, "a", "desk_changed"); !moved {
-		t.Fatal("the change of desk is recorded")
-	}
-	row, _ := db.GetAgentState(m.Q, "a")
-	if row.ResumeSession.String != "" {
-		t.Fatalf("the resume id is forgotten: %+v", row)
-	}
 }
 
 func TestAWakeWithNoDeskToTakeSaysWhyAndLaunchesNothing(t *testing.T) {
 	m, tm, desks := closedWithDesk(t, "")
 	desks.why = "could not check out a-work"
 	ok, said, _ := m.WakeAgent("a", WakeOpts{Force: true})
-	if ok || !strings.Contains(said, "no desk to start in - could not check out a-work") || len(tm.relaunched) != 0 {
+	if ok || !strings.Contains(said, "no worktree to start in - could not check out a-work") || len(tm.relaunched) != 0 {
 		t.Fatalf("%v %q %v", ok, said, tm.relaunched)
 	}
 }
@@ -136,34 +115,6 @@ func waitsThenStartsFresh(t *testing.T, m *Manager, tm *fakeTerm, h *recordingHa
 	return wakePromptText(t, m)
 }
 
-func TestADeskMovedWakeWaitsForTheTranscriptNoteAndSaysTheFolderMoved(t *testing.T) {
-	m, tm, _ := closedWithDesk(t, "/desks/desk-2")
-	h := &recordingHandoff{fakeHandoff: fakeHandoff{pending: true}, q: m.Q}
-	m.Handoff = h
-	got := waitsThenStartsFresh(t, m, tm, h)
-	if !strings.HasPrefix(got, "Your folder went to another agent, so this is a fresh session in desk-2. Your handoff is in your system prompt above") {
-		t.Fatalf("the wake does not say the folder moved: %q", got)
-	}
-}
-
-// The move keeps where it goes through the note's wait: the slot is let go meanwhile, and the start after the note goes to b.
-func TestADeskMovedWakeThatMovesAccountWaitsForTheNoteAndLetsTheSlotGo(t *testing.T) {
-	m, tm, _ := closedWithDesk(t, "/desks/desk-2")
-	m.Launch = wallWhileResumable{}
-	h := &recordingHandoff{fakeHandoff: fakeHandoff{pending: true}, q: m.Q}
-	m.Handoff = noteHandoff{recordingHandoff: h, dest: "b"}
-	got := waitsThenStartsFresh(t, m, tm, h)
-	if _, dropped, _ := db.LastEventID(m.Q, "a", "hold_dropped"); !dropped {
-		t.Fatal("the slot the move reserved was kept through the wait")
-	}
-	if _, p, _, _ := db.LastEvent(m.Q, "a", "moved_account"); p["to"] != "b" || p["trigger"] != "usage" {
-		t.Fatalf("the start after the note is not the move to b: %v", p)
-	}
-	if !strings.Contains(got, "fresh session in desk-2") {
-		t.Fatalf("the wake does not say the folder moved: %q", got)
-	}
-}
-
 func TestAFailedResumeWaitsForTheTranscriptNoteBeforeItsFreshStart(t *testing.T) {
 	m, tm, _ := closedWithDesk(t, "/wt")
 	tm.failResume = true
@@ -180,8 +131,8 @@ func TestAFailedResumeWaitsForTheTranscriptNoteBeforeItsFreshStart(t *testing.T)
 
 func TestAMoveSaysWhyItMoved(t *testing.T) {
 	m, _, _ := newManager(t)
-	got, _ := m.WakePrompt("a", false, WakePromptIn{MovedTo: "beta", MoveWhy: "Your prompt cache had expired", Desk: "/d/desk-1"})
-	want := "Your folder went to another agent, so this is a fresh session in desk-1. Your prompt cache had expired, so this session was started on beta."
+	got, _ := m.WakePrompt("a", false, WakePromptIn{MovedTo: "beta", MoveWhy: "Your prompt cache had expired"})
+	want := "Your prompt cache had expired, so this session was started on beta."
 	if !strings.HasPrefix(got, want) {
 		t.Fatalf("%q", got)
 	}
@@ -190,38 +141,3 @@ func TestAMoveSaysWhyItMoved(t *testing.T) {
 type heldTyping struct{ fakeTyping }
 
 func (heldTyping) TakeTerminal(string) (func(), bool) { return nil, false }
-
-// A closed agent whose folder is about to move is let go of: its session's record is taken unless it has one, and its resume id goes;
-// one that is not closed, or whose terminal a wake holds, is not.
-func TestLetGoOfResumeTakesTheRecordAndForgetsTheSession(t *testing.T) {
-	m, _, _ := newManager(t)
-	h := &recordingHandoff{q: m.Q}
-	m.Handoff = h
-	db.SetTerminal(m.Q, "a", "t1", "/wt")
-	db.SetClosed(m.Q, "a", "sess-1")
-	m.Typing = heldTyping{}
-	if ok, err := m.LetGoOfResume("a"); err != nil || ok {
-		t.Fatalf("let go while a wake holds its terminal: %v %v", ok, err)
-	}
-	m.Typing = fakeTyping{}
-	if ok, err := m.LetGoOfResume("a"); err != nil || !ok {
-		t.Fatalf("%v %v", ok, err)
-	}
-	row, _ := db.GetAgentState(m.Q, "a")
-	if rec, _ := db.GetHandoff(m.Q, "a"); rec != "record of sess-1" || row.ResumeSession.String != "" {
-		t.Fatalf("record %q, resume %q", rec, row.ResumeSession.String)
-	}
-	db.SetClosed(m.Q, "a", "sess-2") // it has a record now: that one is kept
-	if ok, _ := m.LetGoOfResume("a"); !ok || len(h.calls) != 1 {
-		t.Fatalf("the record it had was taken again: %v", h.calls)
-	}
-	if ok, _ := m.LetGoOfResume("a"); !ok {
-		t.Fatal("an agent with no session to resume holds its folder")
-	}
-	if _, err := m.Q.Exec("INSERT INTO agent_state(agent, state, updated, resume_session) VALUES('b', 'IDLE', 1, 's')"); err != nil {
-		t.Fatal(err)
-	}
-	if ok, _ := m.LetGoOfResume("b"); ok {
-		t.Fatal("an agent that is not closed was let go of")
-	}
-}
