@@ -57,6 +57,10 @@ func TestSearchFindsTasksCommentsAndTheMessagesAChatDraws(t *testing.T) {
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence) VALUES(3, 'Third', '" + bob + "', 'p1', 300, 'abc1234 checkout landed')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, report) VALUES(4, 'Fourth', '" + bob + "', 'p1', 400, 'the checkout holds')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(5, 'Nothing here', '" + bob + "', 'p1', 500)",
+		// task 6 was opened by bob, and the first request linked to it is the person's: not its brief (supervisor.briefOf), so a message
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(6, 'Sixth', '" + bob + "', '" + bob + "', 600)",
+		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(19, 219, 'p1', '" + bob + "', 'checkout, asked with a task of yours', 'landed', 'say')",
+		"INSERT INTO task_requests(task_id, request_id) VALUES(6, 19)",
 		// task 2's brief, and a later delivery of the same task
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(10, 210, 'p1', '" + bob + "', 'Fix the\ncheckout flow', 'landed', 'task')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(24, 240, '" + bob + "', '" + cy + "', 'checkout again, to you', 'landed', 'task')",
@@ -84,6 +88,7 @@ func TestSearchFindsTasksCommentsAndTheMessagesAChatDraws(t *testing.T) {
 		"task 4 result", "task 3 result", "task 2 brief", "task 1 title",
 		"comment 5 on 1 by " + bob,
 		"message 24 in " + cy + " all task 2", "message 21 in " + cy + " all task 0", "message 20 in " + bob + " mine task 0",
+		"message 19 in " + bob + " mine task 6",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") || more {
 		t.Fatalf("more %v, hits:\n%s\nwant:\n%s", more, strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -105,7 +110,7 @@ func TestSearchFindsTasksCommentsAndTheMessagesAChatDraws(t *testing.T) {
 			t.Errorf("%s: snippet %q title %q at %s, want %q %q %s", line, h.Snippet, h.Title, h.At, w.Snippet, w.Title, w.At)
 		}
 	}
-	// What no chat draws does not count toward the limit: the three messages are all three of a limit of three.
+	// What no chat draws does not count toward the limit: the newest three messages are all three of a limit of three.
 	limited, _ := searchOf(t, e, map[string]any{"query": "checkout", "limit": json.Number("3")})
 	if n := len(limited); n != 7 || limited[6].Request != 20 {
 		t.Errorf("a limit of 3 gives %d hits, the last %v", n, limited[n-1])

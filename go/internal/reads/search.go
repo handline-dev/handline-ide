@@ -68,8 +68,14 @@ func snippetOf(text, query string) string {
 	return out
 }
 
+// briefSQL is whether request r, linked by l to task t, is that task's brief, by the rule the task board delivers one with
+// (supervisor.briefOf over db.TaskBrief): the first request linked to the task, and only when the task's opener wrote it. A first
+// message from anyone else is a message that came with the task, not its brief. briefOf also wants the body not blank; a blank one
+// holds no query, so that part needs no saying here.
+const briefSQL = "l.rowid = (SELECT MIN(f.rowid) FROM task_requests f WHERE f.task_id = l.task_id) AND r.requester = t.opened_by"
+
 const searchTasksSQL = "SELECT id, title, created_at, brief, done_evidence, report FROM (SELECT t.id, t.title, t.created_at, t.done_evidence, t.report, " +
-	"(SELECT r.body FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE l.task_id = t.id ORDER BY l.rowid LIMIT 1) AS brief FROM tasks t) " +
+	"(SELECT r.body FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE l.task_id = t.id AND " + briefSQL + ") AS brief FROM tasks t) " +
 	`WHERE title LIKE ? ESCAPE '\' OR brief LIKE ? ESCAPE '\' OR done_evidence LIKE ? ESCAPE '\' OR report LIKE ? ESCAPE '\' ORDER BY id DESC LIMIT ?`
 
 const searchCommentsSQL = "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id " +
@@ -77,7 +83,7 @@ const searchCommentsSQL = "SELECT m.id, m.task_id, m.author, m.body, m.created_a
 
 // searchMessagesSQL is the requests a chat draws that hold the text: not one taken back or never delivered, not a notice a digest
 // listed or a comment's forward (chatScope leaves both out), not the daemon's own notices (no screen shows them as talk), and not a
-// task's brief, which is that task's hit. A message between people is in no agent's chat. All of it is said here, before the limit, so
+// task's brief (briefSQL), which is that task's hit. A message between people is in no agent's chat. All of it is said here, before the limit, so
 // the limit counts hits.
 var searchMessagesSQL = "SELECT id, ts, requester, target, " +
 	"(SELECT MIN(task_id) FROM task_requests WHERE request_id = requests.id) AS task_id, " +
@@ -85,8 +91,8 @@ var searchMessagesSQL = "SELECT id, ts, requester, target, " +
 	"body FROM requests WHERE state NOT IN " + neverReached + ` AND body LIKE ? ESCAPE '\'` +
 	" AND requester != '" + actor.Sys + "' AND NOT (requester IN " + personKeys + " AND target IN " + personKeys + ")" +
 	" AND NOT " + db.Digested("") + " AND id NOT IN (" + db.ForwardedSQL + ")" +
-	" AND NOT EXISTS (SELECT 1 FROM task_requests l WHERE l.request_id = requests.id AND l.rowid = " +
-	"(SELECT MIN(f.rowid) FROM task_requests f WHERE f.task_id = l.task_id)) ORDER BY id DESC LIMIT ?"
+	" AND NOT EXISTS (SELECT 1 FROM task_requests l JOIN tasks t ON t.id = l.task_id JOIN requests r ON r.id = l.request_id " +
+	"WHERE l.request_id = requests.id AND " + briefSQL + ") ORDER BY id DESC LIMIT ?"
 
 func (e *Env) search(_ *rpc.Conn, params map[string]any) (any, error) {
 	text, ok := params["query"].(string)
