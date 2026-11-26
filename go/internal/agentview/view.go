@@ -376,6 +376,25 @@ func (e *Env) starting(agent string) bool {
 	return (began && begun >= kept && e.now()-begun < LaunchShellGraceS) || e.PaneRuns(agent)
 }
 
+// MakingGraceS is how long a worktree being made reads as making while no launch follows: the project's setup in it can take minutes.
+const MakingGraceS = 900
+
+// makingDetail is the detail of a starting agent whose worktree is being made.
+const makingDetail = "making its worktree"
+
+// making is whether agent's worktree is being made for its start (db.MakingWorktree), no launch nor session begun since, nor the start
+// over (a launch that ended, or no worktree to start in).
+func (e *Env) making(agent string) bool {
+	at, ok := must2(db.LastEventTS(e.Q, agent, db.MakingWorktree))
+	if !ok || e.now()-at >= MakingGraceS {
+		return false
+	}
+	kept, _ := must2(db.LastSessionStartTS(e.Q, agent))
+	begun, _ := must2(db.LastEventTS(e.Q, agent, "launching"))
+	over, _ := must2(db.LastEventOfTS(e.Q, agent, append([]string{db.NoWorktree}, db.LaunchOver...)))
+	return at >= max(kept, begun) && at > over
+}
+
 // Compute is the view of one agent.
 func (e *Env) Compute(agent string) (view map[string]any, err error) {
 	defer func() {
@@ -418,8 +437,13 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 	if h, ok := handoff.(map[string]any); ok && state == "parked" && h["phase"] == "starting" && h["cause"] != "move" {
 		state, detail = "queued", ""
 	}
-	if (state == "no_terminal" || state == "idle" || state == "queued") && e.starting(agent) {
-		state, detail = "starting", ""
+	if state == "no_terminal" || state == "idle" || state == "queued" {
+		switch {
+		case e.starting(agent):
+			state, detail = "starting", ""
+		case e.making(agent):
+			state, detail = "starting", makingDetail
+		}
 	}
 
 	var model, effort any

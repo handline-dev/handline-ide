@@ -273,3 +273,32 @@ func TestClipDropsARefCutInTwo(t *testing.T) {
 		}
 	}
 }
+
+// A closed agent with a message waiting reads as waking from the moment it is queued, with its step: starting in a moment, making its
+// worktree, then starting once its launch begins.
+func TestAClosedAgentWithAMessageWaitingShowsEachStepOfItsWake(t *testing.T) {
+	r := newRig(t, "town")
+	r.state(t, "town", states.Idle, "")
+	if _, err := r.env.Q.Exec("UPDATE agent_state SET closed_at = 4000 WHERE agent = 'town'"); err != nil {
+		t.Fatal(err)
+	}
+	r.wake.would["town"] = true
+	r.env.PaneRuns = func(string) bool { return false }
+	check := func(state, st, text string) {
+		t.Helper()
+		r.env.RefreshOne("town")
+		v := r.stored(t, "town")
+		s, _ := v["status"].(map[string]any)
+		if v["state"] != state || s["state"] != st || s["text"] != text {
+			t.Errorf("%v %v; want %s, %s %q", v["state"], s, state, st, text)
+		}
+	}
+	check("queued", "preparing", "Starting in a moment")
+	db.AddEvent(r.env.Q, "town", db.MakingWorktree)
+	check("starting", "starting", "Making its worktree")
+	db.AddEvent(r.env.Q, "town", db.NoWorktree)
+	check("queued", "preparing", "Starting in a moment")
+	r.env.Q.Exec("DELETE FROM events WHERE kind = ?", db.NoWorktree)
+	db.AddEvent(r.env.Q, "town", "launching")
+	check("starting", "starting", "Starting")
+}

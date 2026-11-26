@@ -55,6 +55,9 @@ func (e *Env) status(agent string, row *db.AgentState, state, detail string, han
 		}
 		return at(status.Running, status.Turn, "working")
 	case "starting":
+		if detail == makingDetail {
+			return at(status.Starting, status.Launch, "Making its worktree")
+		}
 		return at(status.Starting, status.Launch, "Starting")
 	case "waiting":
 		return at(status.Waiting, status.You, with("needs you", detail))

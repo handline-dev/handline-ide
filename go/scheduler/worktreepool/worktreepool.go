@@ -42,8 +42,10 @@ type Pool struct {
 	Branch func(agent string) string
 	// Name is the word a new folder of agent's starts with (its name when the folder is made); nil is its key.
 	Name func(agent string) string
-	// Remove is whether a closed agent's folder is deleted (the setting); nil is never.
+	// RemoveOnSleep is whether a closed agent's folder is deleted (the setting); nil is never.
 	RemoveOnSleep func() bool
+	// Making is told before a folder of agent's is made, new or again; nil tells nobody.
+	Making func(agent string)
 	// Setup runs the project's setup in a desk just made, and is what to tell of it ("" for nothing). nil runs none.
 	Setup func(agent, repo, desk string) string
 	// Running is whether a session still runs in desk (git's worktree lock, worktreelock.Held): no take or give back touches it then.
@@ -223,6 +225,9 @@ func (p *Pool) newPath(agent, repo string) (string, error) {
 // make adds a worktree at path, at agent's branch when it has one (git forgets a deleted folder first, so the branch is free), else at
 // the base ref, and runs the project's setup in it.
 func (p *Pool) make(agent, repo, base, branch, path string) (said []string, why string, err error) {
+	if p.Making != nil {
+		p.Making(agent)
+	}
 	// a lock a session that is gone left on the path keeps git's entry for it, and with it the branch, from the prune
 	if _, err := worktreelock.Release(repo, path, worktreelock.Running); err != nil {
 		return nil, "", err
