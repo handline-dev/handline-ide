@@ -33,10 +33,18 @@ type Env struct {
 	Reads *reads.Env
 	// Refresh is how often a waiting hook call marks its question seen and looks for its agent having moved on; zero is StaleS/3 seconds.
 	Refresh time.Duration
+	// Changed is told agent's name once one of its prompt rows has opened or gone, so its view follows the card at once. Nil tells nothing.
+	Changed func(agent string)
 	// Emit puts an event on a topic: access.changed once a rule is kept. Nil emits nothing.
 	Emit func(topic, typ string, data map[string]any) error
 
 	hooks hookWaits
+}
+
+func (e *Env) changed(agent string) {
+	if e.Changed != nil {
+		e.Changed(agent)
+	}
 }
 
 func (e *Env) now() time.Time {

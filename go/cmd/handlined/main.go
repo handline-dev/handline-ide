@@ -99,6 +99,7 @@ func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
 	cfg.Session = func() *sessionrpc.Env { return parts.SessionRPC(*ccfg) }
 	cfg.BeforeClose = parts.Wait
 	cfg.Context = parts.Context
+	cfg.PromptChanged = parts.RefreshView
 }
 
 // shareLoad has the daemon and the agent views read one process tracker: the daemon serves its load, the views carry its servers.

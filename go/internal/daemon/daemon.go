@@ -133,6 +133,8 @@ type Config struct {
 	// Session makes the env of the session methods (session.start, wake, stop, restart, park, interrupt) once the lifecycle is built; nil
 	// serves none of them.
 	Session func() *sessionrpc.Env
+	// PromptChanged is told an agent whose prompt row opened or went, so its stored view follows the card at once. Nil leaves it to the tick.
+	PromptChanged func(agent string)
 	// OnOpen is given the database once it is open, for the parts built before it was (the supervisor's ports, the tick), and the
 	// runners linked to this master.
 	OnOpen func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry)
@@ -381,6 +383,7 @@ func Start(cfg Config) (*Daemon, error) {
 	}
 	d.logins = newLogins(cfg)
 	d.prompts = prompts.New(db, cfg.Home, &reads.Env{DB: db, Home: cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion()})
+	d.prompts.Changed = cfg.PromptChanged
 	d.prompts.Emit = func(topic, typ string, data map[string]any) error {
 		_, err := d.hub.Append(stream.Entry{Topic: topic, Type: typ, Data: data})
 		return err

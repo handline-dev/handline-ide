@@ -165,9 +165,11 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 		offered, _ = detail["rule"].(string)
 	}
 	ch := e.hooks.add(id, offered)
+	e.changed(agent)
 	defer func() {
 		e.hooks.take(id)
 		e.closeRow(id, e.now().Unix())
+		e.changed(agent)
 	}()
 	every := e.Refresh
 	if every == 0 {
@@ -221,17 +223,19 @@ func (e *Env) answerHook(row *Block, c Choice) (bool, string) {
 	if ch == nil {
 		return e.record(row, false, row.Agent+": the question is no longer waiting - nothing sent")
 	}
+	said := row.Agent + ": denied"
+	switch {
+	case rule != "":
+		said = row.Agent + ": allowed always: " + rule
+	case c.Always:
+		said = row.Agent + ": allowed always, from its next session"
+	case c.Yes:
+		said = row.Agent + ": allowed"
+	}
+	// Recorded before the call is let go: the view it writes on closing reads the answer (answered_at) to end the waits it stood for.
+	ok, said := e.record(row, true, said)
 	ch <- Decision{Allow: c.Yes, Note: c.Note, Rule: rule}
-	if rule != "" {
-		return e.record(row, true, row.Agent+": allowed always: "+rule)
-	}
-	if c.Always {
-		return e.record(row, true, row.Agent+": allowed always, from its next session")
-	}
-	if c.Yes {
-		return e.record(row, true, row.Agent+": allowed")
-	}
-	return e.record(row, true, row.Agent+": denied")
+	return ok, said
 }
 
 // permissionAsk is permission.ask: the caller's own session asks, and the call returns the founder's decision, or no decision once the
@@ -303,6 +307,9 @@ func (e *Env) closeOrphans(agent string, now int64) error {
 		if err := e.closeRow(id, now); err != nil {
 			return err
 		}
+	}
+	if len(ids) > 0 {
+		e.changed(agent)
 	}
 	return nil
 }
