@@ -202,14 +202,18 @@ export class ScriptCore {
   readonly held = new Map<string, { path: string; files_changed: number; commits_ahead: number }[]>();
 
   /** agent.retire: refused while the session is open, or while a worktree holds work and no answer came with the call; otherwise the
-   * agent is gone. */
+   * agent and its seats are gone. */
   retire(s: Session, actor: Actor, worktree?: string) {
     const name = s.fx.name;
     if (s.open) throw refused('state', `${name} has a session running. Close it first: an agent is not retired under a running session.`);
     const held = this.held.get(name);
     if (held && !worktree) throw refused('dirty', `${name} has work in its worktree.`, undefined, { worktrees: held });
-    this.sessions.delete(name);
-    this.host.emit('agents', 'agent.removed', { agent: name, actor, data: { key: name } });
+    // Its seats (temps lent from it) go with it.
+    const seats = [...this.sessions].filter(([, t]) => t.fx.view?.hired_from === name).map(([k]) => k);
+    for (const key of [name, ...seats]) {
+      this.sessions.delete(key);
+      this.host.emit('agents', 'agent.removed', { agent: key, actor, data: { key } });
+    }
     return this.accepted(`${name} is retired.`);
   }
 

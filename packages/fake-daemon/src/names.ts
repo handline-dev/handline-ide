@@ -23,9 +23,12 @@ export function identOf(key: string): { key: string; name: string; workspace: st
   return { key, name: key === seg ? 'lead' : key.slice(seg.length + 1), workspace: workspaceKey(seg), owner: OWNER };
 }
 
-/** workspaces.list over the agents' keys; a workspace renamed or made at a folder has its name, folder or added folders by segment. */
+/** workspaces.list over the agents' keys, oldest first; a workspace renamed or made at a folder has its name, folder or added folders
+ * by segment. Its lead is the agent named by the segment; once that one is retired, its oldest other agent that is not a seat leads it,
+ * as the daemon hands a retired lead's workspace to next_lead. */
 export function workspacesOf(
   agents: readonly string[],
+  seats: ReadonlySet<string> = new Set(),
   names: ReadonlyMap<string, string> = new Map(),
   folders: ReadonlyMap<string, string> = new Map(),
   added: ReadonlyMap<string, readonly string[]> = new Map(),
@@ -34,6 +37,8 @@ export function workspacesOf(
   const segs = [...new Set(agents.map(segment))];
   return segs
     .map((seg) => {
+      const leads = agents.filter((a) => segment(a) === seg && !seats.has(a));
+      const lead = leads.includes(seg) ? seg : (leads[0] ?? null);
       const folder = folders.get(seg) ?? `/fake/${seg}`;
       const more = [...(added.get(seg) ?? [])];
       const all = [folder, ...more].filter((f) => f !== '');
@@ -43,8 +48,8 @@ export function workspacesOf(
         folder,
         added_folders: more,
         folders: all.map((path, i) => ({ path, name: path.split('/').pop()!, git: !plain(path), default: i === 0 })),
-        lead: agents.includes(seg) ? seg : null,
-        next_lead: agents.find((a) => a !== seg && segment(a) === seg) ?? null,
+        lead,
+        next_lead: leads.find((a) => a !== lead) ?? null,
       };
     })
     .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));

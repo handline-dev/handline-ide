@@ -44,7 +44,8 @@ export class FakeWorkspaces {
   owns = (method: string): boolean => METHODS.test(method);
 
   list(): Workspace[] {
-    return workspacesOf([...this.host.sessions.keys()], this.names, this.folderOf(), this.added, (f) => PLAIN_FOLDERS.includes(f));
+    const seats = new Set([...this.host.sessions].filter(([, s]) => s.fx.view?.hired_from).map(([k]) => k));
+    return workspacesOf([...this.host.sessions.keys()], seats, this.names, this.folderOf(), this.added, (f) => PLAIN_FOLDERS.includes(f));
   }
 
   /** The folder agent key works in: its own, else its workspace's default. */
