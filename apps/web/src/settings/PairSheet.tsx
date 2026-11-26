@@ -1,13 +1,13 @@
 import { countdown } from '#src/format/time.ts';
-// Connect a device: it asks nothing. Opening it makes a code; Handline picks the address (the Tailscale name, else the Wi-Fi address) and
-// the sheet shows the one link, its QR and the code with its expiry. A Wi-Fi link is for another Mac's app only, which pins its
+// Connect a device, in two steps: first the address the device reaches this Mac by (Tailscale first when it is here, else the Wi-Fi
+// address); Next makes a code for it, and the sheet shows the link, its QR and the code with its expiry. A Wi-Fi link is for another Mac's app only, which pins its
 // certificate, so it gets no QR: no phone can open it. The sheet closes with a notice when the device that used the code appears.
 import qrcode from 'qrcode-generator';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDevices } from '#src/settings/data/devices.ts';
 import { usePair, type Pairing } from '#src/settings/data/pair.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { Segmented } from '#src/ui/Segmented.tsx';
+import { ChoiceList } from '#src/ui/ChoiceList.tsx';
 import { Hooks } from '@handline/app-data';
 import { Secret } from '#src/ui/Secret.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
@@ -32,58 +32,63 @@ function Qr({ text }: { text: string }) {
   );
 }
 
-const hostOf = (link: string) => {
-  try {
-    return new URL(link).hostname.replace(/^\[|\]$/g, ''); // an IPv6 host without its brackets, as the addresses list it
-  } catch {
-    return '';
-  }
-};
-
 /** The Tailscale choice while this Mac has no Tailscale address: shown faded, a click opens how to set it up. */
 const TAILSCALE = 'Tailscale';
 
-/** The address the link names, as a small switch over the ones a door listens on: the one selected is Handline's pick until another is
- *  clicked, which makes a new code for another. Tailscale is always a choice: without it, faded, and a click shows how to set it up. */
-function Hosts({ current, onHost, busy }: { current: string; onHost: (host: string) => void; busy: boolean }) {
-  const [guide, setGuide] = useState(false);
+/** The addresses a door listens on, Tailscale's first. */
+function useHosts() {
   const all = (Hooks.useConnectionAddresses().data?.addresses ?? []).filter((a) => a.listening);
-  // Tailscale is one choice, named so: its name when MagicDNS gives one, else its address.
-  const ts = all.find((a) => a.kind === 'tailscale_name') ?? all.find((a) => a.kind === 'tailscale');
-  const hosts = all.filter((a) => a === ts || (a.kind !== 'tailscale' && a.kind !== 'tailscale_name')).map((a) => a.host);
-  // In the daemon's order, so the choices never move when one is picked.
-  const listed = hosts.includes(current) || !current ? hosts : [current, ...hosts];
-  const options = ts ? listed : [...listed, TAILSCALE];
-  const word = (h: string) => (h === ts?.host ? 'Tailscale' : h === TAILSCALE ? 'Tailscale (not set up)' : h);
-  if (options.length < 2) return null;
+  // Its IP, or its name when only the name is listening.
+  const ts = all.find((a) => a.kind === 'tailscale') ?? all.find((a) => a.kind === 'tailscale_name');
+  const rest = all.filter((a) => a.kind !== 'tailscale' && a.kind !== 'tailscale_name');
+  const listed = ts ? [ts, ...rest] : rest;
+  // The network port each is on (en0, utun3), for whoever needs to tell them apart.
+  const ports = new Map(listed.map((a) => [a.host, a.interface]));
+  return { ts: ts?.host, hosts: listed.map((a) => a.host), ports };
+}
+
+/** How to set up Tailscale, in a popup: the dimmed Tailscale row opens it while this Mac has none. */
+const openTailscaleGuide = () =>
+  void openModal<void>((close) => (
+    <ModalFrame title="Set up Tailscale" onClose={() => close()} footer={<Button onClick={() => close()}>Close</Button>}>
+      <ol className="list-decimal pl-5 text-sm">
+        <li>
+          Install{' '}
+          <a href="https://tailscale.com/download" target="_blank" rel="noreferrer" className="text-accent hover:underline">
+            Tailscale
+          </a>{' '}
+          on this Mac and on the device, and sign in to the same account on both.
+        </li>
+        <li>Open Connect a device again: its Tailscale address is then a choice.</li>
+      </ol>
+    </ModalFrame>
+  ));
+
+/** Step one: the address the device connects to, each by its IP; Tailscale's carries a badge. Without Tailscale its row is dimmed
+ *  and opens how to set it up. */
+function Hosts({ value, onPick }: { value: string; onPick: (host: string) => void }) {
+  const { ts, hosts, ports } = useHosts();
+  const options = ts ? hosts : [...hosts, TAILSCALE];
   return (
-    <>
-      <Segmented
-        label="Link address"
-        disabled={busy}
-        value={guide ? TAILSCALE : current}
-        options={options}
-        word={word}
-        dim={(h) => h === TAILSCALE}
-        onChange={(h) => (h === TAILSCALE ? setGuide(true) : (setGuide(false), h !== current && onHost(h)))}
+    <div className="flex min-h-40 flex-col gap-3">
+      <span className="text-sm">Which address should the device connect to?</span>
+      <ChoiceList
+        label="Address"
+        value={value}
+        rows={options.map((h) => ({
+          value: h,
+          label: h === TAILSCALE ? '–' : h,
+          badges: [ports.get(h), h === ts || h === TAILSCALE ? 'tailscale' : ''].filter((b): b is string => !!b),
+          aside: h === TAILSCALE ? 'not set up' : undefined,
+          dim: h === TAILSCALE,
+        }))}
+        onPick={(h) => (h === TAILSCALE ? openTailscaleGuide() : onPick(h))}
       />
-      {guide && (
-        <ol className="list-decimal pl-5 text-xs text-muted">
-          <li>
-            Install{' '}
-            <a href="https://tailscale.com/download" target="_blank" rel="noreferrer" className="text-accent hover:underline">
-              Tailscale
-            </a>{' '}
-            on this Mac and on the device, and sign in to the same account on both.
-          </li>
-          <li>Open Connect a device again: Tailscale is then a choice here.</li>
-        </ol>
-      )}
-    </>
+    </div>
   );
 }
 
-function Invite({ invite, left, onHost, busy }: { invite: Pairing; left: number; onHost: (host: string) => void; busy: boolean }) {
+function Invite({ invite, left }: { invite: Pairing; left: number }) {
   // A self-made certificate's fingerprint marks a Wi-Fi link: a Mac app pins it, a browser could not tell it from a fake.
   const wifi = invite.fingerprint !== '';
   return (
@@ -96,7 +101,6 @@ function Invite({ invite, left, onHost, busy }: { invite: Pairing; left: number;
           <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
         </Secret>
         <span className="text-xs text-muted">Link</span>
-        <Hosts current={hostOf(invite.link)} onHost={onHost} busy={busy} />
         <Secret value={invite.link} name="the link">
           <code className="text-xs [overflow-wrap:anywhere]">{invite.link}</code>
         </Secret>
@@ -124,13 +128,15 @@ function Sheet({ close }: { close: () => void }) {
       },
       () => undefined,
     );
-  // One code per opening: the guard keeps a remount in development from making a second.
-  const made = useRef(false);
-  useEffect(() => {
-    if (made.current) return;
-    made.current = true;
-    make();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once, as the sheet opens
+  // Step one picks the address; Next makes the code for it. Until a pick, Tailscale or else the first address.
+  const { hosts } = useHosts();
+  const [picked, setPicked] = useState<string | null>(null);
+  const host = picked ?? hosts[0] ?? '';
+  const [step, setStep] = useState<'address' | 'code'>('address');
+  const next = () => {
+    setStep('code');
+    make(host);
+  };
 
   useEffect(() => {
     if (!invite) return;
@@ -151,12 +157,26 @@ function Sheet({ close }: { close: () => void }) {
   const expired = invite !== null && left === 0;
   const footer = (
     <div className="flex w-full justify-end gap-2">
-      {live ? (
+      {step === 'code' && (
+        <Button
+          onClick={() => {
+            setStep('address');
+            setInvite(null);
+          }}
+        >
+          Back
+        </Button>
+      )}
+      {step === 'address' ? (
+        <Button variant="primary" onClick={next} disabled={!host}>
+          Next
+        </Button>
+      ) : live ? (
         <Button variant="primary" onClick={close}>
           Done
         </Button>
       ) : (
-        <Button variant="primary" onClick={() => make()} disabled={pair.pending || (!expired && !pair.error)}>
+        <Button variant="primary" onClick={() => make(host)} disabled={pair.pending || (!expired && !pair.error)}>
           New code
         </Button>
       )}
@@ -164,8 +184,10 @@ function Sheet({ close }: { close: () => void }) {
   );
   return (
     <ModalFrame title="Connect a device" size="lg" onClose={close} footer={footer}>
-      {live ? (
-        <Invite invite={invite} left={left} onHost={make} busy={pair.pending} />
+      {step === 'address' ? (
+        <Hosts value={host} onPick={setPicked} />
+      ) : live ? (
+        <Invite invite={invite} left={left} />
       ) : (
         <div className="flex min-h-40 flex-col justify-center gap-2 text-sm">
           {pair.error ? (
