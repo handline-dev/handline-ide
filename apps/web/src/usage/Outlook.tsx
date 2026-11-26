@@ -2,12 +2,14 @@ import { Segmented } from '#src/ui/Segmented.tsx';
 // The head of Usage, as the legacy page had it: "Week 43% left" and the accounts' week left together, recorded to now and guessed after
 // it (dashed), each account's weekly reset under the axis, and the part lost at the last reset as a bar. Moving over the plot reads a point.
 // Every number is the daemon's (stats.outlook); the drawing is the legacy one in this app's tokens.
-import { axisTicks, dateTime, guessLine, lostAtLastReset, runwayWords, weekResets } from '@handline/app-core';
+import { axisTicks, dateTime, guessLine, lostAtLastReset, weekResets } from '@handline/app-core';
 import type { Outlook as Data } from '@handline/client';
 import { useOutlook } from '@handline/app-data';
 import { RotateCcw } from 'lucide-react';
 import { useState, type PointerEvent } from 'react';
 import { usePersisted } from '#src/persist/kv.ts';
+import { Button } from '#src/ui/Button.tsx';
+import { UsedPlot } from '#src/usage/AccountHistory.tsx';
 
 type Range = Data['range'];
 const RANGES: Range[] = ['12h', '24h', '3d', '7d', '14d'];
@@ -25,44 +27,57 @@ function clipAtReset(o: Data): Data {
   return end ? { ...o, future: o.future.filter((p) => Date.parse(p.at) <= Date.parse(end.at)) } : o;
 }
 
-export function Outlook({ labels }: { labels: Labels }) {
+type Lost = { account: string; at: string; pct: number; usd?: number | null } | null;
+type Mine = NonNullable<Data['by_account']>[number];
+
+/** One account's week as the whole graph draws it: its week left recorded, its pace line after it, and its own guessed loss at its reset. */
+function focused(o: Data, mine: Mine): { o: Data; lost: Lost } {
+  const left = (p: Mine['past'][number]) => ({ at: p.at, left_pct: p.week_left });
+  const f = mine.forecast;
+  return {
+    o: { ...o, past: mine.past.map(left), future: mine.future.map((p) => ({ at: p.at, left_pct: p.line_left ?? p.week_left })), by_account: [mine] },
+    lost: f ? { account: mine.account, at: f.at, pct: f.unused_pct, usd: f.unused_usd } : null,
+  };
+}
+
+/** `focus`: the account a click on its row put alone on the graph; `onAll` goes back to all of them. */
+export function Outlook({ labels, focus, onAll }: { labels: Labels; focus?: string | null; onAll?: () => void }) {
   const [range, setRange] = usePersisted<Range>('usage:range', '7d');
   const q = useOutlook(range);
-  const o = q.data;
+  const mine = focus ? q.data?.by_account?.find((b) => b.account === focus) : undefined;
+  const view = q.data && (mine ? focused(q.data, mine) : { o: q.data, lost: lostAtLastReset(q.data) });
   return (
     <section aria-label="Week left" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-baseline gap-3">
-        <div className="min-w-0 flex-1">{o && <Readout o={o} labels={labels} />}</div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
+          {view && <Readout o={view.o} name={mine && named(labels, mine.account)} />}
+          {mine && (
+            <Button variant="ghost" onClick={onAll}>
+              All accounts
+            </Button>
+          )}
+        </div>
         <Segmented label="Range" value={range} options={RANGES} word={(r) => r} onChange={setRange} />
       </div>
       {q.isError && <p className="text-sm text-danger">The outlook did not load.</p>}
-      {!o && !q.isError && <div className="h-60 animate-pulse rounded-md bg-surface" />}
-      {o && <Plot o={o} labels={labels} />}
+      {!view && !q.isError && <div className="h-60 animate-pulse rounded-md bg-surface" />}
+      {view && <Plot o={view.o} lost={view.lost} labels={labels} five={mine?.five_hour ? mine : undefined} />}
     </section>
   );
 }
 
-/** "Week 43% left" and what the pace loses at the last reset, or when an account runs out. */
-function Readout({ o, labels }: { o: Data; labels: Labels }) {
+/** "Week 43% left", or "alpha · Week 43% left" for one account. */
+function Readout({ o, name }: { o: Data; name?: string }) {
   const left = o.past.filter((p) => p.left_pct !== null).at(-1)?.left_pct ?? null;
-  const lost = lostAtLastReset(o);
-  const soonest = o.runway.filter((r) => r.runs_out_in_seconds !== null).sort((a, b) => a.runs_out_in_seconds! - b.runs_out_in_seconds!)[0];
-  const pace = lost
-    ? `at this pace about ${Math.round(lost.pct)}% of ${named(labels, lost.account)}'s week goes unused`
-    : soonest
-      ? `at this pace ${named(labels, soonest.account)} ${runwayWords(soonest)}`
-      : '';
   return (
-    <p className="flex flex-wrap items-baseline gap-x-2">
-      <strong className="text-xl font-semibold text-fg tabular-nums">
-        {left === null ? 'Week: no reading' : `Week ${Math.round(left)}% left`}
-      </strong>
-      {pace && <span className="text-sm text-muted">· {pace}</span>}
-    </p>
+    <strong className="text-xl font-semibold text-fg tabular-nums">
+      {name && `${name} · `}
+      {left === null ? 'Week: no reading' : `Week ${Math.round(left)}% left`}
+    </strong>
   );
 }
 
-function Plot({ o: full, labels }: { o: Data; labels: Labels }) {
+function Plot({ o: full, lost, labels, five }: { o: Data; lost: Lost; labels: Labels; five?: Mine }) {
   const o = clipAtReset(full);
   const all = [...o.past, ...o.future].filter((p) => p.left_pct !== null);
   const t0 = Date.parse((all[0] ?? { at: o.now }).at);
@@ -77,7 +92,6 @@ function Plot({ o: full, labels }: { o: Data; labels: Labels }) {
   const near =
     cursor === null || !points.length ? null : points.reduce((b, p) => (Math.abs(x(p.at) - cursor) < Math.abs(x(b.at) - cursor) ? p : b));
   const resets = weekResets(o).filter((r) => Date.parse(r.at) >= t0 && Date.parse(r.at) <= t1);
-  const lost = lostAtLastReset(full);
   const path = (pts: Data['past']) =>
     pts
       .filter((p) => p.left_pct !== null)
@@ -98,7 +112,7 @@ function Plot({ o: full, labels }: { o: Data; labels: Labels }) {
           <svg
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
-            className="h-60 w-full overflow-visible"
+            className={`${five ? 'h-34' : 'h-60'} w-full overflow-visible`}
             role="img"
             aria-label="Week left, recorded and guessed"
           >
@@ -168,7 +182,7 @@ function Plot({ o: full, labels }: { o: Data; labels: Labels }) {
                 style={{ right: `${100 - pct(lost.at)}%`, bottom: `${lost.pct}%` }}
                 title={`${named(labels, lost.account)}: ${Math.round(lost.pct)}% of the week is lost at the reset ${dateTime(lost.at)} at this pace`}
               >
-                {Math.round(lost.pct)}% lost
+                {Math.round(lost.pct)}% unused{lost.usd != null && ` · $${lost.usd.toFixed(2)}`}
               </span>
             </>
           )}
@@ -182,6 +196,17 @@ function Plot({ o: full, labels }: { o: Data; labels: Labels }) {
           ))}
         </div>
       </div>
+      {five && (
+        <div className="mt-1 pl-10">
+          <UsedPlot
+            title={`5-hour${five.five_runs_out_at ? ` · runs out at ${resetAt(five.five_runs_out_at)} at this pace` : ''}`}
+            samples={five.past.map((p) => ({ at: p.at, left: p.five_left }))}
+            from={t0}
+            to={t1}
+            marks={[]}
+          />
+        </div>
+      )}
     </div>
   );
 }

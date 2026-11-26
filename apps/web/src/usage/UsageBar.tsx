@@ -26,8 +26,11 @@ export function UsageBar({
   age,
   stacked,
   none,
+  foot,
 }: {
   name: string;
+  /** Said under a stacked bar in place of when it resets (an account's guessed week loss names its reset itself). */
+  foot?: string | null;
   /** The account has no such window at all (an Ultra's 5-hour): said in words, with no bar. */
   none?: boolean;
   w: Window | null;
@@ -80,8 +83,8 @@ export function UsageBar({
         )}
       </div>
       {stacked && (
-        <span className={`min-h-4 text-xs ${high ? 'text-warning' : 'text-muted'}`}>
-          {pct != null && resets ? `resets in ${resets}` : ''}
+        <span className={`min-h-4 truncate text-xs ${high ? 'text-warning' : 'text-muted'}`} title={foot ?? undefined}>
+          {foot ?? (pct != null && resets ? `resets in ${resets}` : '')}
         </span>
       )}
     </div>

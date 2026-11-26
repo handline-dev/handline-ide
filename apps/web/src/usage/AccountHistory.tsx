@@ -8,7 +8,19 @@ const H = 80;
 
 type Sample = { at: string; left: number | null };
 
-function Plot({ title, samples, from, to, marks }: { title: string; samples: Sample[]; from: number; to: number; marks: string[] }) {
+export function UsedPlot({
+  title,
+  samples,
+  from,
+  to,
+  marks,
+}: {
+  title: string;
+  samples: Sample[];
+  from: number;
+  to: number;
+  marks: string[];
+}) {
   const x = (at: string) => ((Date.parse(at) - from) / Math.max(1, to - from)) * W;
   return (
     <figure className="flex min-w-0 flex-col gap-1">
@@ -18,7 +30,7 @@ function Plot({ title, samples, from, to, marks }: { title: string; samples: Sam
         preserveAspectRatio="none"
         className="h-20 w-full overflow-visible"
         role="img"
-        aria-label={`${title} usage, last 7 days`}
+        aria-label={`${title} usage`}
       >
         <line
           x1="0"
@@ -84,7 +96,7 @@ function History({
     .filter((r) => r.window === (field === 'five_left' ? '5h' : '7d') && Date.parse(r.at) >= from && Date.parse(r.at) <= to)
     .map((r) => r.at);
   return (
-    <Plot
+    <UsedPlot
       title={title}
       samples={mine.past.map((p) => ({ at: p.at, left: p[field] }))}
       from={from}

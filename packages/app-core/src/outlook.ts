@@ -46,6 +46,21 @@ export const lostAtLastReset = (o: Pick<Outlook, 'now' | 'by_account'>) =>
     .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
     .at(-1) ?? null;
 
+type Forecast = NonNullable<NonNullable<Outlook['by_account']>[number]['forecast']>;
+
+/** The least guessed loss an account row names: under it the row stays quiet. */
+export const UNUSED_SHOWN_PCT = 10;
+
+/** An account row's line under its Week bar, "71% · $3.28 unused" at its next reset (a click on the row puts the reset on the graph); null with no guess or one under UNUSED_SHOWN_PCT. */
+export function unusedLine(f: Forecast | null | undefined): string | null {
+  if (!f || f.unused_pct < UNUSED_SHOWN_PCT) return null;
+  const usd = f.unused_usd === null ? '' : ` · $${f.unused_usd.toFixed(2)}`;
+  return `${Math.round(f.unused_pct)}%${usd} unused`;
+}
+
+/** The account the graph is focused on after a click on `name`'s row: a second click on the same row goes back to all (null). */
+export const focusAfter = (focused: string | null, name: string): string | null => (focused === name ? null : name);
+
 /** The labels under the time axis: every 6 hours (clock) over a day and a half or less, else each local midnight (weekday), thinned to at most 8. */
 export function axisTicks(t0: number, t1: number): { at: number; label: string }[] {
   if (!(t1 > t0)) return [];

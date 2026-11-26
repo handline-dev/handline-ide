@@ -4,7 +4,8 @@ import { AccountFacts } from '#src/usage/AccountFacts.tsx';
 import { RowsLoading } from '#src/usage/UsageViews.tsx';
 import { useAccountUsage, useAccounts, useWrite } from '@handline/app-data';
 import { RefreshCw, Settings, TriangleAlert } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { focusAfter } from '@handline/app-core';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { InCluster, useCluster, useJoined } from '#src/connection/clusters.tsx';
 import { HereWord } from '#src/connection/ClusterWord.tsx';
 import { useFocused } from '#src/layout/focus.ts';
@@ -41,6 +42,8 @@ export function Usage() {
   const [view, setView] = usePersisted<View>('usage:view', 'accounts');
   const [win, setWin] = usePersisted<Win>('usage:window', '24h');
   const [range, setRange] = usePersisted<CostRange>('usage:cost-range', '7d');
+  // The account the graph is focused on; null: all of them.
+  const [focus, setFocus] = usePersisted<string | null>('usage:focus', null);
   const accounts = list.data?.accounts ?? [];
   const box = useRef<HTMLDivElement>(null);
   const [marked, setMarked] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function Usage() {
     <ScrollFade keep="usage" className="min-h-0 flex-1">
       <Page>
         <div ref={box} className="flex flex-col gap-3 py-4">
-          <Outlook labels={Object.fromEntries(accounts.map((a) => [a.name, a.label]))} />
+          <Outlook labels={Object.fromEntries(accounts.map((a) => [a.name, a.label]))} focus={focus} onAll={() => setFocus(null)} />
           {/* Under the graph, one view at a time. */}
           {/* The views' bar stays at the top while their list scrolls; the view's own range sits at its right. */}
           <div className="@container sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 bg-bg px-4 py-2">
@@ -71,7 +74,7 @@ export function Usage() {
           {view === 'accounts' && list.isPending && <RowsLoading rows={6} />}
           {view === 'accounts' && list.isError && <p className="text-sm text-danger">Accounts did not load.</p>}
           <div className={`@container flex flex-col ${view === 'accounts' ? '' : 'hidden'}`}>
-            <AccountRows marked={marked} />
+            <AccountRows marked={marked} focus={focus} onFocus={(n) => setFocus(focusAfter(focus, n))} />
             {joined.map((j) => (
               <InCluster key={j.id} id={j.id} dim>
                 <AccountRows marked={null} word={<HereWord />} />
@@ -91,7 +94,18 @@ export function Usage() {
 }
 
 /** Each account on one row, to read them all at once: its name, its two windows, and the agents on it; another cluster's with its name. */
-function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode }) {
+function AccountRows({
+  marked,
+  word,
+  focus,
+  onFocus,
+}: {
+  marked: string | null;
+  word?: ReactNode;
+  /** This cluster's rows only: a click on a row focuses the graph on it. */
+  focus?: string | null;
+  onFocus?: (name: string) => void;
+}) {
   const cluster = useCluster();
   const accounts = useAccounts().data?.accounts ?? [];
   // The plan (Ultra, Max, Pro) comes only with the usage read.
@@ -107,7 +121,17 @@ function AccountRows({ marked, word }: { marked: string | null; word?: ReactNode
         <div key={a.name} className="border-b border-border">
           <section
             data-account={a.name}
-            className={`relative flex scroll-mt-4 flex-col gap-2 @md:flex-row @md:items-center @md:gap-x-6 py-3 transition-colors ${marked === a.name ? 'bg-selected' : ''}`}
+            {...(onFocus && {
+              role: 'button',
+              tabIndex: 0,
+              'aria-pressed': focus === a.name,
+              'aria-label': `${focus === a.name ? 'Show all accounts in the graph' : `Show ${a.label} in the graph`}`,
+              // A button inside the row (rename, read again, settings, an agent) keeps its own click.
+              onClick: (e: MouseEvent) => !(e.target as Element).closest('button,a') && onFocus(a.name),
+              onKeyDown: (e: KeyboardEvent) =>
+                e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onFocus(a.name)),
+            })}
+            className={`relative flex scroll-mt-4 flex-col gap-2 @md:flex-row @md:items-center @md:gap-x-6 py-3 transition-colors ${onFocus ? 'cursor-pointer' : ''} ${marked === a.name || focus === a.name ? 'bg-selected' : ''}`}
           >
             <div className="@container min-w-0 flex-1 pr-16 @md:pr-0">
               <AccountFacts

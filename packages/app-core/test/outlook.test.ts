@@ -1,7 +1,27 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Outlook } from '@handline/client';
-import { axisTicks, costByAgent, guessLine, lostAtLastReset, lostByAccount, weekResets } from '#src/outlook.ts';
+import { axisTicks, costByAgent, focusAfter, guessLine, lostAtLastReset, lostByAccount, unusedLine, weekResets } from '#src/outlook.ts';
+
+describe('unusedLine', () => {
+  const at = '2026-11-30T09:00:00';
+  it('says the loss in percent and plan money at the reset from 10% up', () => {
+    assert.equal(unusedLine({ at, unused_pct: 71.4, unused_usd: 3.281 }), '71% · $3.28 unused');
+    assert.equal(unusedLine({ at, unused_pct: 10, unused_usd: null }), '10% unused');
+  });
+  it('is quiet under 10% and with no guess', () => {
+    assert.equal(unusedLine({ at, unused_pct: 9.9, unused_usd: 1 }), null);
+    assert.equal(unusedLine(null), null);
+  });
+});
+
+describe('focusAfter', () => {
+  it('focuses a clicked row, and a second click on it goes back to all', () => {
+    assert.equal(focusAfter(null, 'alpha'), 'alpha');
+    assert.equal(focusAfter('beta', 'alpha'), 'alpha');
+    assert.equal(focusAfter('alpha', 'alpha'), null);
+  });
+});
 
 const p = (at: string, left_pct: number | null) => ({ at, left_pct });
 
