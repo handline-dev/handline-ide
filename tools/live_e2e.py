@@ -368,7 +368,7 @@ def scratch(root: Path, account: dict) -> tuple[Path, str]:
     return home, key
 
 
-def seed(d: Daemon, home: Path, account: dict, work: Path) -> None:
+def seed(d: Daemon, home: Path, account: dict, work: Path) -> str:
     """The picked account (registered through account.add, with the reading the live daemon last took of it) and the agent: its
     workspace and agent rows, at haiku in permission mode `default`, and its folder. No RPC registers an agent without starting it,
     in the daemon's default mode, so these rows are inserted."""
@@ -386,10 +386,11 @@ def seed(d: Daemon, home: Path, account: dict, work: Path) -> None:
     con.execute("UPDATE workspaces SET lead = ? WHERE id = ?", (lead, ws))
     agent_id = con.execute("INSERT INTO agents(workspace, name, owner, model, effort, weight, mode, created_at) "
                       "VALUES(?, ?, ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, name, owner)).lastrowid
-    con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree) VALUES(?, 'IDLE', 0, ?)", (AGENT, str(work)))
+    con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, worktree) VALUES(?, 'IDLE', 0, ?)", (f"a{agent_id}", str(work)))
     con.commit()
     con.close()
     (home / "agents" / f"a{agent_id}").mkdir(parents=True)
+    return f"a{agent_id}"
 
 
 def start_daemon(binary: str, root: Path, home: Path, account: dict, tmux: str) -> int:
@@ -484,10 +485,10 @@ def main() -> int:
         home, key = scratch(root, account)
         daemon = start_daemon(binary, root, home, account, tmux)
         d = Daemon(home / "daemon.sock", key)
-        seed(d, home, account, root / "work")
+        agent = seed(d, home, account, root / "work")
         s = Stream(home / "daemon.sock", key)
-        r = Run(d, s, Answerer(home / "daemon.sock", key, s, AGENT), AGENT)
-        print(f"live-e2e: {AGENT} on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
+        r = Run(d, s, Answerer(home / "daemon.sock", key, s, agent), agent)
+        print(f"live-e2e: {AGENT} ({agent}) on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
         terminal_turns(r, tmux, account["config_dir"], root, daemon)
         print(f"live-e2e: {r.answerer.yeses} permission prompt(s) outside the steps answered yes", flush=True)
     except (Refused, OSError, subprocess.CalledProcessError, KeyboardInterrupt) as e:
