@@ -191,6 +191,8 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	if err != nil {
 		return nil, err
 	}
+	listed := paths.ListAccounts(e.Home)
+	all = usage.SamplesOf(all, listed) // the lines read the accounts the title and the rows show
 	rows := usage.SamplesFrom(all, now-span-usage.OutlookMaxAgeS)
 	ends, outSince := e.accountEnds(cfg, rows, clock)
 	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince)
@@ -200,7 +202,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	}
 	runway, budgets := []any{}, []usage.AccountBudget{}
 	weekUSD := map[string]float64{}
-	for _, a := range paths.ListAccounts(e.Home) {
+	for _, a := range listed {
 		st := ue.Read(a)
 		if !st.Unmetered {
 			sub, tier := team.Accounts{Home: e.Home}.RecordedPlan(a)

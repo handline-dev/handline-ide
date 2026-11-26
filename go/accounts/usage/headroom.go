@@ -80,7 +80,7 @@ func windowsOf(r sampleRow) (five, week windowPoint, hasFive, hasWeek bool) {
 		return
 	}
 	for _, e := range entries(r) {
-		if e["used_percent"] == nil || truthy(e["lost"]) {
+		if e["used_percent"] == nil || truthy(e["lost"]) || staleWindow(r, e) {
 			continue
 		}
 		if v, has := e["readable"]; has && !truthy(v) {

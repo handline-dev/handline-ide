@@ -78,11 +78,20 @@ func TestOutlookStatesTheRunwayTheCostAndKeepsTheFutureApart(t *testing.T) {
 	}
 }
 
+// listAccount makes name an account listed now: a row and its folder.
+func listAccount(t *testing.T, e *Env, name string) {
+	t.Helper()
+	if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // flatWeeks is stats.outlook 24h over a at 20 of its week used and b at 60, both flat for the last hour and a half.
 func flatWeeks(t *testing.T, e *Env, clock time.Time) []byte {
 	t.Helper()
 	now := clock.Unix()
 	for acct, used := range map[string]int{"a": 20, "b": 60} {
+		listAccount(t, e, acct)
 		for i := 0; i < 3; i++ {
 			ts := now - int64(3-i)*1800
 			w := fmt.Sprintf(`[{"minutes":300,"used_percent":5,"resets_at":%d},{"minutes":10080,"used_percent":%d,"resets_at":%d}]`, now+3600, used, now+3*86400)
@@ -184,6 +193,7 @@ func outlookWithUse(t *testing.T) (*Env, time.Time) {
 	clock := time.Date(2026, 10, 8, 15, 0, 0, 0, time.Local)
 	now := clock.Unix()
 	for acct, rise := range map[string]int{"a": 20, "b": 10} {
+		listAccount(t, e, acct)
 		for i := 0; i < 3; i++ {
 			ts := now - int64(3-i)*1800
 			w := fmt.Sprintf(`[{"minutes":10080,"used_percent":%d,"resets_at":%d}]`, 10+rise*i/2, now+86400)
@@ -398,6 +408,7 @@ func TestOutlookByAccountOfTwelveHoursReadsTheDayBefore(t *testing.T) {
 	clock := time.Date(2026, 10, 8, 15, 0, 0, 0, time.Local)
 	now := clock.Unix()
 	e.LoginState = func(string) (bool, bool) { return true, true }
+	listAccount(t, e, "a")
 	ts := now - 18*3600
 	w := fmt.Sprintf(`[{"minutes":300,"used_percent":5,"resets_at":%d},{"minutes":10080,"used_percent":30,"resets_at":%d}]`, ts+3600, now+3*86400)
 	if _, err := e.DB.Exec("INSERT INTO usage_samples(account, ts, exists_, windows) VALUES('a',?,1,?)", ts, w); err != nil {
@@ -412,5 +423,49 @@ func TestOutlookByAccountOfTwelveHoursReadsTheDayBefore(t *testing.T) {
 	json.Unmarshal(b, &out)
 	if len(out.By_account) != 1 || out.By_account[0].Account != "a" {
 		t.Fatalf("%s", b)
+	}
+}
+
+// The page reads only the accounts listed now. gone still has a row but no folder, old has samples only; both sat at the wall all
+// week. Neither moves a line, and the guess starts where a (20 used) and b (60 used) stand: 60 left.
+func TestOutlookDrawsOnlyTheAccountsListedNow(t *testing.T) {
+	t.Parallel()
+	clock := time.Date(2026, 10, 8, 15, 0, 0, 0, time.Local)
+	now := clock.Unix()
+	type line struct {
+		Past, Future []struct{ Left_pct *float64 }
+		By_account   []struct{ Account string }
+	}
+	read := func(stray bool) line {
+		e := testEnv(t)
+		e.LoginState = func(a string) (bool, bool) { return a == "a" || a == "b", true }
+		if stray {
+			teamtest.Account(t, e.Home, "gone")
+			for ts := now - 7*86400; ts < now; ts += 1800 {
+				w := fmt.Sprintf(`[{"minutes":10080,"used_percent":100,"resets_at":%d}]`, now+3*86400)
+				run(t, e, "INSERT INTO usage_samples(account, ts, exists_, windows) VALUES('gone',?,1,?), ('old',?,1,?)", ts, w, ts, w)
+			}
+		}
+		var out line
+		json.Unmarshal(flatWeeks(t, e, clock), &out)
+		return out
+	}
+	with, without := read(true), read(false)
+	if len(with.By_account) != 2 || with.By_account[0].Account != "a" || with.By_account[1].Account != "b" {
+		t.Fatalf("by_account holds an account not listed: %+v", with.By_account)
+	}
+	for name, pair := range map[string][2][]struct{ Left_pct *float64 }{"past": {with.Past, without.Past}, "future": {with.Future, without.Future}} {
+		if len(pair[0]) != len(pair[1]) {
+			t.Fatalf("%s: %d points, want %d", name, len(pair[0]), len(pair[1]))
+		}
+		for i := range pair[0] {
+			a, b := pair[0][i].Left_pct, pair[1][i].Left_pct
+			if (a == nil) != (b == nil) || a != nil && *a != *b {
+				t.Fatalf("%s point %d moved with an account not listed", name, i)
+			}
+		}
+	}
+	if f := with.Future[0].Left_pct; f == nil || math.Abs(*f-60) > 0.5 {
+		t.Fatalf("the guess starts at %v, want about 60, where the listed accounts stand", f)
 	}
 }

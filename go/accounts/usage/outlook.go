@@ -51,7 +51,7 @@ func weekOf(r sampleRow) (weekPoint, bool) {
 		if v, has := e["readable"]; has && !truthy(v) {
 			continue
 		}
-		if m, ok := isInt(e["minutes"]); !ok || m <= 300 || truthy(e["lost"]) {
+		if m, ok := isInt(e["minutes"]); !ok || m <= 300 || truthy(e["lost"]) || staleWindow(r, e) {
 			continue
 		}
 		got = e
@@ -65,6 +65,17 @@ func weekOf(r sampleRow) (weekPoint, bool) {
 		return weekPoint{}, false
 	}
 	return weekPoint{TS: int64(ts), Used: used, Reset: asInt(got["resets_at"]), Out: truthy(r["logged_out"])}, true
+}
+
+// staleWindow is a window read longer than OutlookMaxAgeS before its row was written: a reading carried for weeks under a fresh ts
+// says nothing about what the account held then. A logged-out row keeps its old reading and still says the account was out.
+func staleWindow(r sampleRow, e map[string]any) bool {
+	if truthy(r["logged_out"]) {
+		return false
+	}
+	at, hasAt := num(e["observed_at"])
+	ts, hasTS := num(r["ts"])
+	return hasAt && hasTS && ts-at > OutlookMaxAgeS
 }
 
 func sameResetPtr(a, b *int64) bool {
@@ -304,6 +315,21 @@ func loggedOut(r sampleRow, outSince map[string]float64) bool {
 	since, ok := outSince[a]
 	ts, _ := num(r["ts"])
 	return ok && ts >= since
+}
+
+// SamplesOf is the rows of the named accounts, in their order: a page that shows the accounts listed now draws only their samples.
+func SamplesOf(rows Samples, accounts []string) Samples {
+	keep := make(map[string]bool, len(accounts))
+	for _, a := range accounts {
+		keep[a] = true
+	}
+	out := make(Samples, 0, len(rows))
+	for _, r := range rows {
+		if a, _ := r["account"].(string); keep[a] {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // SampleAccounts are the accounts the rows name, sorted.

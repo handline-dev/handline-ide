@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -266,5 +267,61 @@ func TestHeadroomWithNoReadingHasNoAccountsAndEmptyPoints(t *testing.T) {
 	h := HeadroomOver(nil, 1_800_000_000, 1_800_000_000-3600, 1_800_000_000+3600, 900, nil, nil)
 	if len(h.Accounts) != 0 || len(h.Past) != 5 || len(h.Future) != 4 || h.Past[0].Left != nil {
 		t.Fatalf("%+v", h)
+	}
+}
+
+// A reading carried for a week under a fresh ts is stale: an account whose rows only carry one changes neither line.
+func TestAWindowObservedAWeekBeforeItsRowIsStale(t *testing.T) {
+	now := int64(1_800_000_000)
+	var fresh, all []sampleRow
+	for i := 0; i <= 12; i++ {
+		ts := now - 12*3600 + int64(i)*3600
+		r := headroomRow("fresh", ts, 10, ts+3600, 20, now+3*86400)
+		carried := headroomRow("carried", ts, 50, ts+3600, 90, now+3*86400)
+		carried["windows"] = strings.ReplaceAll(carried["windows"].(string), `"observed_at":`+itoa(int(ts)), `"observed_at":`+itoa(int(now-7*86400)))
+		fresh, all = append(fresh, r), append(all, r, carried)
+	}
+	if _, week, _, ok := windowsOf(all[len(all)-1]); ok {
+		t.Fatalf("a week-old reading under a fresh ts is still read: %+v", week)
+	}
+	if _, ok := weekOf(all[len(all)-1]); ok {
+		t.Fatal("the week line still reads a week-old reading")
+	}
+	same := func(name string, a, b []OutlookPoint) {
+		t.Helper()
+		if len(a) != len(b) {
+			t.Fatalf("%s: %d points, want %d", name, len(a), len(b))
+		}
+		for i := range a {
+			if (a[i].Left == nil) != (b[i].Left == nil) || a[i].Left != nil && *a[i].Left != *b[i].Left {
+				t.Fatalf("%s point %d moved with the carried account", name, i)
+			}
+		}
+	}
+	w, wf := WeeklyOutlook(all, now, 12, nil, nil), WeeklyOutlook(fresh, now, 12, nil, nil)
+	same("past", w.Past, wf.Past)
+	same("future", w.Future, wf.Future)
+	h, hf := HeadroomKeepStale(all, now, now-12*3600, now+12*3600, 900, nil, nil), HeadroomKeepStale(fresh, now, now-12*3600, now+12*3600, 900, nil, nil)
+	same("headroom past", h.Past, hf.Past)
+	same("headroom future", h.Future, hf.Future)
+}
+
+// A logged-out account keeps its old reading under fresh rows: it still counts as nothing left, however old the reading.
+func TestALoggedOutAccountWithAnOldReadingStillCountsAsNothingLeft(t *testing.T) {
+	now := int64(1_800_000_000)
+	var rows []sampleRow
+	for i := 0; i <= 12; i++ {
+		ts := now - 12*3600 + int64(i)*3600
+		out := headroomRow("out", ts, 10, ts+3600, 20, now+3*86400)
+		out["windows"] = strings.ReplaceAll(out["windows"].(string), `"observed_at":`+itoa(int(ts)), `"observed_at":`+itoa(int(now-7*86400)))
+		out["logged_out"] = json.Number("1")
+		rows = append(rows, headroomRow("in", ts, 10, ts+3600, 20, now+3*86400), out)
+	}
+	if p := WeeklyOutlook(rows, now, 12, nil, nil).Past; p[len(p)-1].Left == nil || *p[len(p)-1].Left != 40 {
+		t.Fatalf("the week line at now: %v, want 40 (in's 80 and out's nothing)", p[len(p)-1].Left)
+	}
+	h := HeadroomKeepStale(rows, now, now-12*3600, now+12*3600, 900, nil, nil)
+	if len(h.Accounts) != 2 {
+		t.Fatalf("the logged-out account left the headroom: %d accounts", len(h.Accounts))
 	}
 }
