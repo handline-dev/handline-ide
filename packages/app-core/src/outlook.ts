@@ -65,8 +65,13 @@ export const focusAfter = (focused: string | null, name: string): string | null 
 const STOP_SOON_MS = 15 * 60_000;
 const STOP_NEAR_PCT = 95;
 
-/** When an account's agents stop: its 5-hour window running out before it resets, at its use over the last day. */
-export type StopTime = { at: string; leftMs: number; tone: 'warn' | 'bad' };
+/** When an account's agents stop: its 5-hour window running out before it resets, at its use over the last day. `left` is how long
+ *  that is from now, in words. */
+export type StopTime = { at: string; leftMs: number; left: string; tone: 'warn' | 'bad' };
+
+/** How long until the stop, as the gauges word the time to a reset ("25m", "1h 52m"). The last minute is "under a minute": rounded to
+ *  minutes it would read "0m", or "1m" with seconds to go. */
+const stopLeft = (ms: number): string => (ms < 60_000 ? 'under a minute' : span(ms).replace(/ ([dhm])\b/g, '$1'));
 
 /** The stop time of `account` as the daemon guesses it (by_account's five_runs_out_at), with how long that is from `now`. A stop time is
  *  always a warning, since the window resets only after it; it is red under 15 minutes or from 95% of the window used (`usedPct`, null
@@ -81,8 +86,9 @@ export function stopTime(
   const at = o?.by_account?.find((a) => a.account === account)?.five_runs_out_at;
   if (!at) return null;
   const leftMs = Date.parse(at) - now;
+  // At the stop itself, and after it, there is nothing left to count down: no line, never "in 0m".
   if (!(leftMs > 0)) return null;
-  return { at, leftMs, tone: leftMs < STOP_SOON_MS || (usedPct ?? 0) >= STOP_NEAR_PCT ? 'bad' : 'warn' };
+  return { at, leftMs, left: stopLeft(leftMs), tone: leftMs < STOP_SOON_MS || (usedPct ?? 0) >= STOP_NEAR_PCT ? 'bad' : 'warn' };
 }
 
 /** The labels under the time axis: every 6 hours (clock) over a day and a half or less, else each local midnight (weekday), thinned to at most 8. */

@@ -107,7 +107,7 @@ describe('stopTime', () => {
   const at = (min: number) => new Date(now + min * 60_000).toISOString();
   const of = (runsOut: string | null) => ({ by_account: [{ ...by, five_runs_out_at: runsOut }] });
   it('is the time the daemon guesses, amber while it is 15 minutes or more away and under 95% used', () => {
-    assert.deepEqual(stopTime(of(at(112)), 'alpha', 62, now), { at: at(112), leftMs: 112 * 60_000, tone: 'warn' });
+    assert.deepEqual(stopTime(of(at(112)), 'alpha', 62, now), { at: at(112), leftMs: 112 * 60_000, left: '1h 52m', tone: 'warn' });
     assert.equal(stopTime(of(at(15)), 'alpha', 94, now)?.tone, 'warn');
     assert.equal(stopTime(of(at(15)), 'alpha', null, now)?.tone, 'warn');
   });
@@ -122,6 +122,16 @@ describe('stopTime', () => {
     assert.equal(stopTime(of(at(30)), 'beta', 50, now), null);
     assert.equal(stopTime({}, 'alpha', 50, now), null);
     assert.equal(stopTime(undefined, 'alpha', 50, now), null);
+  });
+  it('words the last minute as under a minute, never 0m, and says nothing at the stop or a second after it', () => {
+    const secs = (s: number) => stopTime(of(new Date(now + s * 1000).toISOString()), 'alpha', 50, now);
+    assert.equal(secs(25 * 60)?.left, '25m');
+    assert.equal(secs(60)?.left, '1m');
+    assert.equal(secs(59)?.left, 'under a minute');
+    assert.equal(secs(30)?.left, 'under a minute');
+    assert.equal(secs(1)?.left, 'under a minute');
+    assert.equal(secs(0), null);
+    assert.equal(secs(-1), null);
   });
 });
 describe('axisTicks', () => {
