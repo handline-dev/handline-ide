@@ -1,4 +1,4 @@
-import { useAgents, useNameOf } from '@handline/app-data';
+import { useAgents, useNameOf, useOutlook } from '@handline/app-data';
 import { activityOf } from '#src/layout/agentList.ts';
 import type { Account } from '@handline/client';
 import type { ReactNode } from 'react';
@@ -32,6 +32,7 @@ export function AccountFacts({
 }) {
   const out = a.login_state === 'needs_login';
   const ends = endsOn(a);
+  const noFive = useOutlook('24h').data?.by_account?.find((b) => b.account === a.name)?.five_hour === false;
   return (
     <div
       className={`group/account flex min-w-0 flex-1 flex-col gap-3 @md:flex-row @md:items-center @md:gap-6 ${a.paused ? 'opacity-60' : ''}`}
@@ -64,7 +65,7 @@ export function AccountFacts({
       {bars && !out && (
         <div className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-2">
           <div className="min-w-24 flex-1">
-            <UsageBar stacked name="5-hour" span={FIVE_HOURS} w={a.five_hour} age={a.age_s} />
+            <UsageBar stacked name="5-hour" span={FIVE_HOURS} w={a.five_hour} age={a.age_s} none={noFive} />
           </div>
           <div className="min-w-24 flex-1">
             <UsageBar stacked name="Week" span={WEEK} w={a.weekly} age={a.age_s} />

@@ -25,14 +25,18 @@ export function UsageBar({
   span,
   age,
   stacked,
+  none,
 }: {
   name: string;
+  /** The account has no such window at all (an Ultra's 5-hour): said in words, with no bar. */
+  none?: boolean;
   w: Window | null;
   span: number;
   age?: number | null;
   stacked?: boolean;
 }) {
   const clock = useNow();
+  if (none) return <NoWindow name={name} stacked={stacked} />;
   const read = windowRead(w, age, clock);
   // No window open since the last one ended: nothing used yet, a known 0%.
   const pct = read.kind === 'pct' ? read.pct : read.kind === 'not-open' ? 0 : null;
@@ -80,6 +84,19 @@ export function UsageBar({
           {pct != null && resets ? `resets in ${resets}` : ''}
         </span>
       )}
+    </div>
+  );
+}
+
+function NoWindow({ name, stacked }: { name: string; stacked?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between gap-6 text-xs">
+        <span className="text-muted">{name}</span>
+        <span className="whitespace-nowrap text-muted">No limit</span>
+      </div>
+      <div className="h-1.5" />
+      {stacked && <span className="min-h-4" />}
     </div>
   );
 }
