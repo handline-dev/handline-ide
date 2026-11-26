@@ -203,7 +203,7 @@ func (e *Env) bgMayStop(q db.Q, agent string, now int64) bool {
 		last, _ := ok2(db.LastActivity(q, agent))
 		return prompted != 0 && e.hasBackgroundWork(q, agent) && now-max(prompted, last) >= e.Idle.BgGraceS(agent)
 	}
-	told := must(db.Cursor(q, "stale_bg_told:"+agent))
+	told := must(db.Cursor(q, db.StaleBgToldKey(agent)))
 	return told != 0 && now-told >= StaleBgVetoS && e.bgStale(q, agent, now)
 }
 

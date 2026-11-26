@@ -44,24 +44,11 @@ func stalled(q db.Q, accounts team.Accounts, acct string) *team.Stall {
 	return e
 }
 
-// raiser opens a decision for the founder (founderAsker).
-type raiser interface {
-	RaiseDecision(q db.Q, agent, text, reason string) (int64, error)
-}
-
 // loginPorts is tick.Login over the account stalls, the month cycle's end and the events table.
-func loginPorts(accounts team.Accounts, ended, paused func(acct string) string, founder raiser) tick.Login {
+func loginPorts(accounts team.Accounts, ended, paused func(acct string) string) tick.Login {
 	return tick.Login{
 		Ended:  ended,
 		Paused: paused,
-		NoRoom: func(q db.Q, agent, acct, key, text string) {
-			if told, _, _ := db.Meta(q, db.NoRoomToldKey(acct)); told == key {
-				return
-			}
-			if _, err := founder.RaiseDecision(q, agent, "No account can take "+acct+"'s agents\n\n"+text, "no account has room"); err == nil {
-				_ = db.SetMeta(q, db.NoRoomToldKey(acct), key)
-			}
-		},
 		Stalled: func(q db.Q, acct string) (string, string, bool) {
 			e := stalled(q, accounts, acct)
 			if e == nil {

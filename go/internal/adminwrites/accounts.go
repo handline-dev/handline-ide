@@ -106,7 +106,6 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 		cfg.set("month_cycle_"+acct, cycleOn)
 		said = append(said, fmt.Sprintf("%s: month cycle %s", acct, map[bool]string{true: "on", false: "off"}[cycleOn]))
 	}
-	newPause := hasPaused && paused && cfg.get("paused_"+acct) != true
 	if hasPaused && paused != (cfg.get("paused_"+acct) == true) {
 		if paused {
 			cfg.set("paused_"+acct, true)
@@ -122,10 +121,6 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 		} else if err != nil {
 			return nil, refused(err.Error(), "")
 		}
-	}
-	if newPause {
-		// Each pause is news: the founder hears again if this one also leaves its agents nowhere to go.
-		_ = db.ClearMeta(e.DB, db.NoRoomToldKey(acct))
 	}
 	out := strings.Join(said, "; ")
 	if out == "" {

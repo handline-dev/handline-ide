@@ -205,6 +205,36 @@ func TestAnAccountThatNeedsALoginIsAWarningWhileTheWatchKeepsIt(t *testing.T) {
 	}
 }
 
+func TestAnAccountWhoseAgentsHaveNoRoomIsOneWarningThatLeavesWithItsRows(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	if err := db.SetLoginNeed(e.DB, "alpha", db.LoginNeed{Since: 100}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetNoRoom(e.DB, "alpha", db.NoRoom{Since: 120, Kind: "login", Room: "beta: 7d usage 100%"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetNoRoom(e.DB, "gamma", db.NoRoom{Since: 130, Kind: "paused", Room: "beta: 7d usage 100%"}); err != nil {
+		t.Fatal(err)
+	}
+	r := answerRow(t, e, "machine", "login:alpha")
+	if r == nil || r["title"] != "Account alpha needs a login. Its agents are stopped: no other account has room (beta: 7d usage 100%)." || r["last_at"] != ts(int64(100)) {
+		t.Fatalf("%v", pending(t, e)["answer"])
+	}
+	if r := answerRow(t, e, "machine", "login:gamma"); r == nil || r["title"] != "Account gamma is paused. Its agents stay on it: no other account has room (beta: 7d usage 100%)." {
+		t.Fatalf("%v", r)
+	}
+	if err := db.ClearMeta(e.DB, db.LoginNeedPrefix+"alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ClearNoRoom(e.DB, "alpha"); err != nil {
+		t.Fatal(err)
+	}
+	if r := answerRow(t, e, "machine", "login:alpha"); r != nil {
+		t.Fatalf("logged in, and it stayed: %v", r)
+	}
+}
+
 // The warnings stay out of daemon.status: a lost message or a login must not turn the health line held.
 func TestAWarningIsNotAMachineNeed(t *testing.T) {
 	t.Parallel()

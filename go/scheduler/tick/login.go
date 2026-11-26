@@ -37,9 +37,6 @@ type Login struct {
 	Ended func(acct string) string
 	// Paused is why the founder paused the account, "" while it is not: its agents leave it as they leave an ended one.
 	Paused func(acct string) string
-	// NoRoom puts text in front of the founder: no other account can take acct's agents. Once per account and key (the stall, the
-	// end or the pause), whatever the text: the reason no account has room changes as their windows move.
-	NoRoom func(q db.Q, agent, acct, key, text string)
 }
 
 // loginExpired is login_expired.check: an agent with a live session on a stalled, ended or paused account leaves it, level-triggered on the
@@ -90,15 +87,12 @@ func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actio
 	}
 	dest, noMove := t.Handoff.MovePlan(t.Q, agent, kind)
 	if dest == "" && paused != "" {
-		t.noRoom(agent, acct, why, fmt.Sprintf("%s is paused and no other account can take its agents (%s), so they stay on it for now; "+
-			"one that closes waits. Resume %s, free room on another account, or add one.", acct, noMove, acct))
+		t.noRoom(acct, "paused", noMove)
 		return false
 	}
 	if dest == "" && ended != "" {
 		// An ended account that still answers is better than none: the agent stays on it until another has room.
-		t.noRoom(agent, acct, why, fmt.Sprintf("%s's subscription has ended and no other account can take its agents (%s), so they stay on it "+
-			"while it still answers. Free room on another account, add one, or resubscribe and set %s's new end day in the app's settings.",
-			acct, noMove, acct))
+		t.noRoom(acct, "ended", noMove)
 		return false
 	}
 	if dest == "" {
@@ -106,8 +100,7 @@ func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actio
 		// reconciler's lift releases it once the account's stall ends.
 		detail := fmt.Sprintf("%s on %s and %s (%s) - log %s in, or wake it, in the app's Accounts page", word, acct, loginStallWords, noMove, acct)
 		check(db.SetStalled(t.Q, agent, string(verdict.StuckLogin), cut(detail, 300), nil))
-		t.noRoom(agent, acct, why, fmt.Sprintf("%s cannot be used (%s) and no other account can take its agents (%s), so they are STALLED. "+
-			"Log %s in, or wake it, in the app's Accounts page, or free room on another account.", acct, word, noMove, acct))
+		t.noRoom(acct, "login", noMove)
 		*actions = append(*actions, fmt.Sprintf("%s: STALLED, %s on %s", agent, word, acct))
 		t.logf("  %s: %s", agent, detail)
 		return true
@@ -121,10 +114,39 @@ func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actio
 	return true
 }
 
-func (t *Tick) noRoom(agent, acct, key, text string) {
-	if t.Login.NoRoom != nil {
-		t.Login.NoRoom(t.Q, agent, acct, key, text)
+// noRoom keeps, on acct's warning to the founder, that no other account can take its agents (kind: login, ended or paused) and why.
+func (t *Tick) noRoom(acct, kind, room string) {
+	check(db.SetNoRoom(t.Q, acct, db.NoRoom{Since: t.Now(), Kind: kind, Room: room}))
+}
+
+// noRoomOver clears each account's no-room row once it is over: the account is no longer stalled, ended or paused, or no open agent is on it.
+func (t *Tick) noRoomOver() error {
+	l := t.Login
+	if l.Stalled == nil {
+		return nil
 	}
+	rows, err := db.NoRooms(t.Q)
+	if err != nil {
+		return err
+	}
+	for acct := range rows {
+		_, _, stalled := l.Stalled(t.Q, acct)
+		held := stalled || (l.Ended != nil && l.Ended(acct) != "") || (l.Paused != nil && l.Paused(acct) != "")
+		if held {
+			// Only an agent still waiting to move counts: a closed one keeps its account and moves nowhere.
+			if err := t.Q.QueryRow("SELECT EXISTS(SELECT 1 FROM agent_state WHERE account = ? AND COALESCE(closed_at, 0) = 0 AND state IN (?, ?, ?, ?))",
+				acct, states.Running, states.Idle, states.Queued, states.Stalled).Scan(&held); err != nil {
+				return err
+			}
+		}
+		if !held {
+			if err := db.ClearNoRoom(t.Q, acct); err != nil {
+				return err
+			}
+			t.logf("  %s: its agents have room again", acct)
+		}
+	}
+	return nil
 }
 
 func cut(s string, n int) string {

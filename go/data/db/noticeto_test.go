@@ -105,7 +105,7 @@ func TestATaskMovesByAnEventOrACommentFromTheSecondAfterButNotByTheBoardTelling(
 
 func TestAnAgentNoticeIsOverWhenTheAgentActsNotWhenTheBoardWritesAboutIt(t *testing.T) {
 	q := open(t)
-	n := FounderNotice{Agent: "bob", Reason: "stale_background", Text: "stale", At: 1000}
+	n := FounderNotice{Agent: "bob", Reason: "background_prompted", Text: "prompted", At: 1000}
 	if err := NoteFounderNotice(q, n); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestAnAgentNoticeIsOverWhenTheAgentActsNotWhenTheBoardWritesAboutIt(t *test
 	if err := ClearOverFounderNotices(q); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := Meta(q, FounderNoticePrefix+"bob:stale_background"); !ok {
+	if _, ok, _ := Meta(q, FounderNoticePrefix+"bob:background_prompted"); !ok {
 		t.Fatal("a notice not over is kept")
 	}
 	if _, err := q.Exec("INSERT INTO requests(ts, requester, target, body, state) VALUES(1001, 'bob', 'amy', 'back', 'landed')"); err != nil {
@@ -143,7 +143,27 @@ func TestAnAgentNoticeIsOverWhenTheAgentActsNotWhenTheBoardWritesAboutIt(t *test
 	if err := ClearOverFounderNotices(q); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, _ := Meta(q, FounderNoticePrefix+"bob:stale_background"); ok {
+	if _, ok, _ := Meta(q, FounderNoticePrefix+"bob:background_prompted"); ok {
 		t.Fatal("a notice that is over is dropped, so it cannot come back")
+	}
+}
+
+func TestAStaleBackgroundNoticeIsOverOnceTheWorkIsNoLongerStale(t *testing.T) {
+	q := open(t)
+	n := FounderNotice{Agent: "bob", Reason: "stale_background", At: 100}
+	if err := SetCursor(q, StaleBgToldKey("bob"), 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.Exec("INSERT INTO requests(ts, requester, target, body, state, kind) VALUES(200, 'bob', 'amy', 'x', 'queued', 'say')"); err != nil {
+		t.Fatal(err)
+	}
+	if over, err := FounderNoticeOver(q, n); err != nil || over {
+		t.Fatalf("a message of its own does not end stale work: %v %v", over, err)
+	}
+	if err := ClearCursor(q, StaleBgToldKey("bob")); err != nil {
+		t.Fatal(err)
+	}
+	if over, err := FounderNoticeOver(q, n); err != nil || !over {
+		t.Fatalf("output shown or the session ended: %v %v", over, err)
 	}
 }

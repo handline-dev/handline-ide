@@ -325,20 +325,11 @@ func TestAccountSetPausesAndResumesAnAccount(t *testing.T) {
 	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p1"}`)); r.account("main")["paused"] != true {
 		t.Fatalf("%v %v", res, r.account("main"))
 	}
-	r.e.DB.Exec("INSERT INTO meta(name, value, updated) VALUES('noroom_told:main', 'paused', 0)")
-	var told int
 	if res := r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p2"}`)); res["said"] != "nothing changed" {
 		t.Fatalf("a second pause changes nothing: %v", res)
 	}
-	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'noroom_told:main'").Scan(&told); told != 1 {
-		t.Fatal("a pause that changed nothing forgot what the founder was told")
-	}
 	if r.result(r.one("account.set", `{"account":"main","paused":false,"request_id":"p3"}`)); r.account("main")["paused"] != nil {
 		t.Fatalf("a resume leaves %v", r.account("main"))
-	}
-	r.result(r.one("account.set", `{"account":"main","paused":true,"request_id":"p5"}`))
-	if r.e.DB.QueryRow("SELECT COUNT(*) FROM meta WHERE name = 'noroom_told:main'").Scan(&told); told != 0 {
-		t.Fatal("a new pause is news to the founder again")
 	}
 	if r.code(r.one("account.set", `{"account":"main","paused":"yes","request_id":"p4"}`)) != "bad_request" {
 		t.Fatal("paused is true or false")
