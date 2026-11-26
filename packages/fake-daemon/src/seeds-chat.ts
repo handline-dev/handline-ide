@@ -52,19 +52,25 @@ export const CHAT_SEEDS: Record<string, Seed> = {
     for (const [seat, id, title] of [
       ['a7', 9460, 'Tab bar dimming'],
       ['a8', 9458, 'Spinner sizes'],
+      ['a9', 9457, 'Toast spacing'],
     ] as const) {
       // A task that went to a seat is the seat's, as the daemon gives it.
-      task(d, id, { id, from: ME, to: seat, title, state: id === 9458 ? 'done' : 'doing' });
+      task(d, id, { id, from: ME, to: seat, title, state: id === 9460 ? 'doing' : 'done' });
       d.sessions.set(seat, newSession({ ...d.sessions.get(ARCH)!.fx, name: seat, view: { hired_from: ARCH } }, ago(10)));
     }
     d.chat.seedItem(ARCH, { kind: 'reply', text: 'Checking each settings page in dark…', at: ago(9) });
-    d.chat.seedItem(ARCH, { kind: 'concurrent_work', concurrent_work: { task_id: 9458, seat: 'a8', phase: 'started' }, at: ago(8) });
-    d.chat.seedItem(ARCH, { kind: 'concurrent_work', concurrent_work: { task_id: 9460, seat: 'a7', phase: 'started' }, at: ago(3) });
-    d.chat.seedItem(ARCH, {
-      kind: 'concurrent_work',
-      concurrent_work: { task_id: 9458, seat: 'a8', phase: 'ended', ended: 'done' },
-      at: ago(1),
-    });
+    // Each side task starts, and two of them are handed off: as the daemon writes it, a line at each start and each end.
+    const line = (task_id: number, seat: string, at: number, ended?: 'handed_off') =>
+      d.chat.seedItem(ARCH, {
+        kind: 'concurrent_work',
+        concurrent_work: { task_id, seat, phase: ended ? 'ended' : 'started', ...(ended ? { ended } : {}) },
+        at: ago(at),
+      });
+    line(9458, 'a8', 8);
+    line(9457, 'a9', 7);
+    line(9460, 'a7', 3);
+    line(9458, 'a8', 2, 'handed_off');
+    line(9457, 'a9', 1, 'handed_off');
     d.chat.seedItem('a7', { kind: 'tool', tool: 'Read', text: 'src/Workspace.tsx', at: ago(3) });
     d.chat.seedItem('a7', { kind: 'reply', text: 'The dimmed tab bar uses opacity; switching it to the unfocused colours.', at: ago(2) });
     d.chat.seedItem('a7', { kind: 'tool', tool: 'Edit', text: 'src/styles.css', at: ago(2) });
