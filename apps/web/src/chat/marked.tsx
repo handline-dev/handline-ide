@@ -1,14 +1,16 @@
 // Pictures marked up for the next message, kept as their marks until it goes: the chip shows the picture and a count, a click
 // reopens it to change the marks, and the send draws them in and writes their lines, numbered across the message's pictures
-// (app-core markedText). Held in memory per box, like a picture still going up.
+// (app-core markedText). A picture that came with a note (an element picked in a Web tab) shows that on its chip, and the note goes
+// after its lines. Held in memory per box, like a picture still going up.
 import { keptMarks, markStarts, markedText, type Mark } from '@handline/app-core';
 import { keptState, useUploadImage } from '@handline/app-data';
-import { X } from 'lucide-react';
+import { Code, X } from 'lucide-react';
 import { useEffect, useRef, type RefObject } from 'react';
 import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import { bake } from '#src/viewer/bake.ts';
 
-export type MarkedDraft = { key: number; name: string; source: Blob; url: string; marks: Mark[] };
+/** `note` is text the picture brings to the message, after its marks' lines (the element picked in a web page). */
+export type MarkedDraft = { key: number; name: string; source: Blob; url: string; marks: Mark[]; note?: string };
 
 let nextKey = 1;
 const useHeld = keptState<{ list: MarkedDraft[] }>(() => ({ list: [] }));
@@ -52,6 +54,7 @@ export function useMarked(box: string) {
             source: m.source,
             url: URL.createObjectURL(m.source),
             marks: m.marks,
+            note: m.note,
           })),
         ],
       }));
@@ -91,6 +94,7 @@ export function useBakeMarked() {
       text: markedText(
         draft,
         list.map((d) => d.marks),
+        list.map((d) => d.note),
       ),
       ids,
     };
@@ -123,6 +127,15 @@ export function MarkedChip({
           className="pointer-events-none absolute bottom-1 left-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-xs leading-none font-semibold text-accent-fg"
         >
           {numbers}
+        </span>
+      )}
+      {draft.note && (
+        <span
+          aria-label="Element details go with this picture"
+          title="Element details go with this picture"
+          className="absolute right-1 bottom-1 grid size-4 place-items-center rounded-full bg-fg text-bg"
+        >
+          <Code size={12} />
         </span>
       )}
       <button

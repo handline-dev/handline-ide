@@ -1,8 +1,9 @@
 // The web tab's pages: <webview> elements the app window draws among its own, so the app's menus and dialogs show over them.
 // The window decides what each one gets: no preload, a sandbox, its own session that grants no permission, http(s) only, no new windows.
-import { session, webContents, type BrowserWindow, type IpcMainInvokeEvent, type WebPreferences } from 'electron';
+import { ipcMain, session, webContents, type BrowserWindow, type IpcMainInvokeEvent, type WebPreferences } from 'electron';
 import type { Fail } from '@handline/app-core';
-import { fromWindow } from '#src/bridge.ts';
+import { CHANNELS, fromWindow } from '#src/bridge.ts';
+import { ElementPicker } from '#src/pick.ts';
 
 const PARTITION = 'preview';
 const bad = (message: string): Fail<'bad_request'> => ({ ok: false, code: 'bad_request', message });
@@ -62,4 +63,12 @@ export async function capturePage(
   return image.isEmpty()
     ? { ok: false, code: 'unavailable', message: 'The page is blank.' }
     : { ok: true, png: image.toPNG().toString('base64') };
+}
+
+/** The app window's calls on a web tab's page: its picture, and an element the person picks in it (pick.ts). */
+export function handlePreview(origin: string): void {
+  const picker = new ElementPicker(origin, { page: (id) => webContents.fromId(id) });
+  ipcMain.handle(CHANNELS.capturePreview, (e, id) => capturePage(e, origin, id));
+  ipcMain.handle(CHANNELS.pickElement, (e, id) => picker.pick(e, id));
+  ipcMain.handle(CHANNELS.cancelPick, (e, id) => picker.cancel(e, id));
 }

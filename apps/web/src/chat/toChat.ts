@@ -1,5 +1,5 @@
-// Marked pictures made outside a chat (a Web tab's screenshot) on their way into an agent's next message: the agent's chat takes
-// them when it is open, or as it opens.
+// Marked pictures made outside a chat (a Web tab's screenshot, or an element picked in its page, whose details ride on the picture
+// as its `note`) on their way into an agent's next message: the agent's chat takes them when it is open, or as it opens.
 import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 
 type Take = (marked: MarkedPicture[], send: boolean) => void;

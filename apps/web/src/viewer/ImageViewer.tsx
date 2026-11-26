@@ -26,8 +26,9 @@ import { Stage, type StageControls } from '#src/viewer/Stage.tsx';
 /** A picture to show: a daemon attachment by `id`, or any `url` (a blob, a capture). */
 export type Picture = { id?: string; url?: string; name: string };
 
-/** A picture as marked: which of the viewer's pictures (`index`), its marks with words, and the picture itself as a PNG. */
-export type MarkedPicture = { picture: Picture; index: number; marks: Mark[]; source: Blob };
+/** A picture as marked: which of the viewer's pictures (`index`), its marks with words, and the picture itself as a PNG. A caller
+ * may add a `note`: text that goes into the message with the picture, after its marks' lines. */
+export type MarkedPicture = { picture: Picture; index: number; marks: Mark[]; source: Blob; note?: string };
 
 export function ImageViewer({
   pictures,

@@ -60,6 +60,8 @@ export function makeApi(ipc: Ipc, zoom: () => number = () => 1): ShellApi {
     pickFolder: () => call(CHANNELS.pickFolder),
     webview: true,
     capturePreview: (id) => call(CHANNELS.capturePreview, id),
+    pickElement: (id) => call(CHANNELS.pickElement, id),
+    cancelPick: (id) => call(CHANNELS.cancelPick, id),
     deviceShot: (a) => call(CHANNELS.deviceShot, a),
     deviceTap: (a) => call(CHANNELS.deviceTap, a),
     deviceList: () => call(CHANNELS.deviceList),

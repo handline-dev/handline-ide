@@ -179,10 +179,11 @@ export const markStarts = (pictures: readonly (readonly Mark[])[]): number[] => 
   });
 };
 
-/** A message as it goes: the words written, then each marked picture's lines, numbered across them. */
-export const markedText = (draft: string, pictures: readonly (readonly Mark[])[]): string => {
+/** A message as it goes: the words written, then each marked picture's lines, numbered across them, each followed by the note its
+ * picture carries (`notes[i]`: an element picked in a web page, say). */
+export const markedText = (draft: string, pictures: readonly (readonly Mark[])[], notes: readonly (string | undefined)[] = []): string => {
   const starts = markStarts(pictures);
-  return [draft.trimEnd(), ...pictures.flatMap((m, i) => (keptMarks(m).length ? [markLines(m, starts[i])] : []))]
+  return [draft.trimEnd(), ...pictures.flatMap((m, i) => [keptMarks(m).length ? markLines(m, starts[i]) : '', notes[i]?.trim() ?? ''])]
     .filter(Boolean)
     .join('\n\n');
 };

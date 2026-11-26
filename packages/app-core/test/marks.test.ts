@@ -172,6 +172,14 @@ test('a message carries the words, then the lines of each marked picture in orde
   assert.equal(markedText('only words', []), 'only words');
 });
 
+test("a picture's note follows its lines, and goes with a picture that has no mark", () => {
+  const one = run(...gesture([10, 10], [10, 10]), { type: 'memo', id: 1, text: 'first' }).marks;
+  const text = markedText('Look', [one, [], one], ['note A\n', 'note B', undefined]);
+  assert.match(text, /^Look\n\n1\. first\n```marks\n[^\n]+\n```\n\nnote A\n\nnote B\n\n2\. first\n```marks\n[^\n]+\n```$/);
+  assert.equal(markedText('', [[]], ['only the note']), 'only the note');
+  assert.equal(markedText('words', [[]], ['  ']), 'words');
+});
+
 test('a note closed with no words removes its mark, and Undo brings it back', () => {
   let s = run(...gesture([10, 10], [10, 10]), { type: 'memo', id: 1, text: 'kept' }, ...gesture([50, 50], [50, 50]));
   s = marksReducer(s, { type: 'open', id: null });

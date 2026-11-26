@@ -1,12 +1,12 @@
-import { ArrowLeft, ArrowRight, Camera, ExternalLink, RotateCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Camera, ExternalLink, RotateCw, SquareDashedMousePointer } from 'lucide-react';
 import { toChat } from '#src/chat/toChat.ts';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
-import { toast } from '#src/ui/toast.tsx';
 import { ImageViewer } from '#src/viewer/ImageViewer.tsx';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { usePersisted } from '#src/persist/kv.ts';
 import { shell } from '#src/shell.ts';
+import { usePageShot } from '#src/tools/pageShot.ts';
 import { ServerPicker } from '#src/tools/ServerPicker.tsx';
 import { WebSlot, webPage } from '#src/tools/webPages.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -35,18 +35,11 @@ export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: 
   const [typed, setTyped] = useState(url);
   const page = webPage(tab);
   const canShoot = !!shell()?.capturePreview;
+  const canPick = !!shell()?.pickElement;
   // eslint-disable-next-line no-restricted-syntax -- sending a marked picture brings the chat up; no link is clicked
   const openTab = useOpenTab();
-  // The page as it is on screen, to mark up and send to the agent's chat (the shell's webview only: an iframe cannot be captured).
-  const [shot, setShot] = useState<string | null>(null);
-  const capture = async () => {
-    const id = page.id();
-    const r = id === null ? null : await shell()?.capturePreview?.(id);
-    if (!r?.ok) return toast(`No screenshot: ${r?.message ?? 'the page is not showing'}`, { tone: 'warning' });
-    setShot(URL.createObjectURL(new Blob([Uint8Array.from(atob(r.png), (c) => c.charCodeAt(0))], { type: 'image/png' })));
-  };
-  useEffect(() => () => void (shot && URL.revokeObjectURL(shot)), [shot]);
-  const closeShot = () => setShot(null);
+  // The page as it is on screen, or one element picked in it, to mark up and send to the agent's chat (the shell's webview only).
+  const { shot, picking, capture, pick, close: closeShot } = usePageShot(page);
   const open = (a: string) => {
     if (a === url) page.reload();
     setUrl(a);
@@ -86,6 +79,16 @@ export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: 
             <Camera size={14} />
           </IconButton>
         )}
+        {url && canPick && agent && (
+          <IconButton
+            label={picking ? 'Click an element in the page, or stop picking (Esc)' : 'Pick an element to send to the chat'}
+            aria-pressed={picking}
+            className="aria-pressed:bg-selected aria-pressed:text-accent"
+            onClick={() => void pick()}
+          >
+            <SquareDashedMousePointer size={14} />
+          </IconButton>
+        )}
         {url && (
           <a
             href={url}
@@ -102,7 +105,8 @@ export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: 
       {url ? <WebSlot tab={tab} url={url} /> : <p className="m-auto text-sm text-muted">Type an address to open a page.</p>}
       {shot && agent && (
         <ImageViewer
-          pictures={[{ url: shot, name: 'page.png' }]}
+          pictures={[{ url: shot.url, name: 'page.png' }]}
+          seed={shot.seed && [shot.seed]}
           onClose={closeShot}
           doneLabel="Send to chat"
           sendBare
@@ -111,7 +115,9 @@ export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: 
           onMarked={(marked, send) => {
             // The chat is brought up first, so a chat it mounts is the one that takes the picture.
             openTab(chatOf(agent), 'here');
-            setTimeout(() => toChat(agent, marked, send));
+            // A picked element's details ride on its picture.
+            const out = shot.note ? marked.map((m) => ({ ...m, note: shot.note })) : marked;
+            setTimeout(() => toChat(agent, out, send));
           }}
         />
       )}

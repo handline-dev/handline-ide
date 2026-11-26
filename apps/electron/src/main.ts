@@ -15,7 +15,7 @@ import { gitView, scratch } from '#src/git-view.ts';
 import { Opener } from '#src/open.ts';
 import { handleOpenIn } from '#src/open-in-serve.ts';
 import { Devices } from '#src/devices.ts';
-import { capturePage } from '#src/preview.ts';
+import { handlePreview } from '#src/preview.ts';
 import { followMain } from '#src/follow-app.ts';
 import { keepPlace, savedFrame, savedRoute } from '#src/window-place.ts';
 import { createWindow } from '#src/app-window.ts';
@@ -353,7 +353,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     handleCli(origin);
     ipcMain.handle(CHANNELS.screen, (e, arg) => page.screen(e, arg));
     ipcMain.handle(CHANNELS.unsent, (e, arg) => page.setUnsent(e, arg));
-    ipcMain.handle(CHANNELS.capturePreview, (e, id) => capturePage(e, origin, id));
+    handlePreview(origin);
     handleDevices(origin);
     handleFounderCalls(origin, client, app.getPath('temp'));
     const composer = new Composer(origin, { env: editorEnv, tmp: app.getPath('temp') });

@@ -2,6 +2,7 @@
 // Pure, no DOM: the shell's preload and the web app both import it.
 
 import type { Methods, SettingsChanges } from '@handline/client';
+import type { PickedElement } from '#src/element-pick.ts';
 
 /** The settings the Settings page and the status bar's resource area edit, the only keys the shell sets on its behalf (the other daemon settings are not the page's to change). */
 export const PAGE_SETTINGS = [
@@ -118,6 +119,16 @@ export interface ShellApi {
   webview?: boolean;
   /** A web tab's <webview> page as it is on screen, a PNG (base64), by its getWebContentsId(). */
   capturePreview?(id: number): Promise<{ ok: true; png: string } | Fail<'bad_request' | 'unavailable'>>;
+  /** One element of that page, picked by the person's next click in it: the page as drawn then (a PNG, base64) and the element, cut
+   * to size by the shell. `cancelled` when the person stops it, `timeout` when no click comes, `other_site` for a click inside a frame
+   * from another site (not picked yet), `busy` while that page is already being picked from. */
+  pickElement?(
+    id: number,
+  ): Promise<
+    ({ ok: true; png: string } & PickedElement) | Fail<'bad_request' | 'busy' | 'cancelled' | 'timeout' | 'other_site' | 'unavailable'>
+  >;
+  /** Stops the pick on that page: its pickElement answers `cancelled`. The app window's Esc does not reach the page. */
+  cancelPick?(id: number): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** The booted iOS simulators and the Android devices adb sees, and whether idb is installed (a simulator is driven through it). */
   deviceList?(): Promise<
     { ok: true; devices: { kind: 'android' | 'ios'; id: string; name: string }[]; idb: boolean } | Fail<'bad_request' | 'unavailable'>

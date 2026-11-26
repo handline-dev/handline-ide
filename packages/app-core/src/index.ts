@@ -34,6 +34,7 @@ export * from '#src/task-spend.ts';
 export * from '#src/open-in.ts';
 export * from '#src/task-activity.ts';
 export * from '#src/marks.ts';
+export * from '#src/element-pick.ts';
 export * from '#src/resources.ts';
 export * from '#src/status.ts';
 export * from '#src/outlook.ts';
