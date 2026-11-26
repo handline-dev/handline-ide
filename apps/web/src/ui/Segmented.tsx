@@ -10,6 +10,7 @@ export function Segmented<T extends string>({
   label,
   icon,
   disabled,
+  dim,
 }: {
   value: T;
   options: readonly T[];
@@ -17,6 +18,8 @@ export function Segmented<T extends string>({
   onChange: (t: T) => void;
   label: string;
   disabled?: boolean;
+  /** A choice that is there but not ready (still pressable, to say why): drawn faded. */
+  dim?: (t: T) => boolean;
   /** An icon before each choice's word. */
   icon?: (t: T) => ReactNode;
 }) {
@@ -28,10 +31,11 @@ export function Segmented<T extends string>({
           type="button"
           role="radio"
           aria-checked={o === value}
+          data-dim={dim?.(o) || undefined}
           disabled={disabled}
           onClick={() => onChange(o)}
           title={icon ? word(o) : undefined}
-          className="flex h-6 items-center justify-center gap-1.5 rounded-sm px-2 text-xs text-muted enabled:hover:text-fg disabled:opacity-50 aria-checked:bg-bg aria-checked:text-fg"
+          className="flex h-6 items-center justify-center gap-1.5 rounded-sm px-2 text-xs text-muted enabled:hover:text-fg disabled:opacity-50 aria-checked:bg-bg aria-checked:text-fg data-[dim]:opacity-50"
         >
           {icon?.(o)}
           {/* With an icon, a narrow bar (its parent an @container) shows the icon alone and the word on hover. */}

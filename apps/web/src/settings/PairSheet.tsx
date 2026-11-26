@@ -9,7 +9,7 @@ import { usePair, type Pairing } from '#src/settings/data/pair.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { Segmented } from '#src/ui/Segmented.tsx';
 import { Hooks } from '@handline/app-data';
-import { useCopy } from '#src/ui/copy.ts';
+import { Secret } from '#src/ui/Secret.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
@@ -40,51 +40,66 @@ const hostOf = (link: string) => {
   }
 };
 
-/** The address the link names, as a small switch over the ones a door listens on: the one selected is Handline's pick until another is clicked, which makes
- *  a new code for another. Nothing when there is only one. */
+/** The Tailscale choice while this Mac has no Tailscale address: shown faded, a click opens how to set it up. */
+const TAILSCALE = 'Tailscale';
+
+/** The address the link names, as a small switch over the ones a door listens on: the one selected is Handline's pick until another is
+ *  clicked, which makes a new code for another. Tailscale is always a choice: without it, faded, and a click shows how to set it up. */
 function Hosts({ current, onHost, busy }: { current: string; onHost: (host: string) => void; busy: boolean }) {
-  const hosts = (Hooks.useConnectionAddresses().data?.addresses ?? []).filter((a) => a.listening).map((a) => a.host);
+  const [guide, setGuide] = useState(false);
+  const all = (Hooks.useConnectionAddresses().data?.addresses ?? []).filter((a) => a.listening);
+  // Tailscale is one choice, named so: its name when MagicDNS gives one, else its address.
+  const ts = all.find((a) => a.kind === 'tailscale_name') ?? all.find((a) => a.kind === 'tailscale');
+  const hosts = all.filter((a) => a === ts || (a.kind !== 'tailscale' && a.kind !== 'tailscale_name')).map((a) => a.host);
   // In the daemon's order, so the choices never move when one is picked.
-  const options = hosts.includes(current) || !current ? hosts : [current, ...hosts];
+  const listed = hosts.includes(current) || !current ? hosts : [current, ...hosts];
+  const options = ts ? listed : [...listed, TAILSCALE];
+  const word = (h: string) => (h === ts?.host ? 'Tailscale' : h === TAILSCALE ? 'Tailscale (not set up)' : h);
   if (options.length < 2) return null;
   return (
-    <Segmented
-      label="Link address"
-      disabled={busy}
-      value={current}
-      options={options}
-      word={(h) => h}
-      onChange={(h) => h !== current && onHost(h)}
-    />
+    <>
+      <Segmented
+        label="Link address"
+        disabled={busy}
+        value={guide ? TAILSCALE : current}
+        options={options}
+        word={word}
+        dim={(h) => h === TAILSCALE}
+        onChange={(h) => (h === TAILSCALE ? setGuide(true) : (setGuide(false), h !== current && onHost(h)))}
+      />
+      {guide && (
+        <ol className="list-decimal pl-5 text-xs text-muted">
+          <li>
+            Install{' '}
+            <a href="https://tailscale.com/download" target="_blank" rel="noreferrer" className="text-accent hover:underline">
+              Tailscale
+            </a>{' '}
+            on this Mac and on the device, and sign in to the same account on both.
+          </li>
+          <li>Open Connect a device again: Tailscale is then a choice here.</li>
+        </ol>
+      )}
+    </>
   );
 }
 
 function Invite({ invite, left, onHost, busy }: { invite: Pairing; left: number; onHost: (host: string) => void; busy: boolean }) {
-  const { copied, copy } = useCopy();
   // A self-made certificate's fingerprint marks a Wi-Fi link: a Mac app pins it, a browser could not tell it from a fake.
   const wifi = invite.fingerprint !== '';
   return (
     <div className="flex flex-wrap items-start gap-5">
       {!wifi && <Qr text={invite.link} />}
       <div className="flex min-w-56 flex-1 flex-col gap-2">
+        {/* The code and the link, each in its own box: hidden until its eye, a click copies it. */}
         <span className="text-xs text-muted">Code</span>
-        <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
+        <Secret value={invite.code} name="the code">
+          <code className="text-2xl font-semibold tracking-widest tabular-nums">{invite.code}</code>
+        </Secret>
         <span className="text-xs text-muted">Link</span>
         <Hosts current={hostOf(invite.link)} onHost={onHost} busy={busy} />
-        <code className="rounded-md bg-surface px-3 py-2 text-xs [overflow-wrap:anywhere]">{invite.link}</code>
-        <Button className="w-fit" onClick={() => copy(invite.link, 'the link')}>
-          {copied ? 'Copied' : 'Copy link'}
-        </Button>
-        {/* Two lines, no more: what works without Tailscale, and what needs it. */}
-        <span className="text-xs text-muted">
-          On the same Wi-Fi, another Mac&apos;s Handline app connects without Tailscale.
-          <br />
-          Phones, browsers and anything away from home need{' '}
-          <a href="https://tailscale.com/download" target="_blank" rel="noreferrer" className="text-accent hover:underline">
-            Tailscale
-          </a>
-          .
-        </span>
+        <Secret value={invite.link} name="the link">
+          <code className="text-xs [overflow-wrap:anywhere]">{invite.link}</code>
+        </Secret>
         <span className="text-xs text-muted">
           Valid for <b className="tabular-nums text-fg">{countdown(left)}</b>
         </span>
