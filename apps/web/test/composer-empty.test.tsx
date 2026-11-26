@@ -8,6 +8,7 @@ vi.mock('@handline/app-data', async (real) => ({
   ...(await real<object>()),
   useAgents: () => ({ data: { agents: [] } }),
   useNameOf: () => (k: string) => k,
+  useUploadImage: () => async () => ({ id: 'x' }),
   useDirectory: () => ({ agents: [], people: [], workspaces: [] }),
 }));
 
@@ -24,7 +25,17 @@ afterEach(() => {
 });
 
 const attach = (over: Partial<Attachments> = {}) =>
-  ({ ids: [], sendable: true, uploads: [], folders: [], add() {}, clear() {}, remove() {}, ...over }) as unknown as Attachments;
+  ({
+    ids: [],
+    sendable: true,
+    uploads: [],
+    folders: [],
+    marked: { box: 'a', list: [], count: 0 },
+    add() {},
+    clear() {},
+    remove() {},
+    ...over,
+  }) as unknown as Attachments;
 
 function box(draft: string, over: { attach?: Attachments; locked?: boolean } = {}) {
   const on = { send: vi.fn(), empty: vi.fn() };

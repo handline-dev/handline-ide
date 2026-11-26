@@ -7,6 +7,7 @@ import { FileKindIcon, formatSize } from '#src/chat/MessageImages.tsx';
 import { Folder, RotateCw, X } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { dropAll, dropEntry, keepEntry, takeKept } from '#src/chat/keptFiles.ts';
+import { useMarked } from '#src/chat/marked.tsx';
 import type { Dropped } from '#src/ui/fileDrop.tsx';
 
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/;
@@ -29,6 +30,7 @@ const useHeld = keptState<{ folders: FolderDraft[] }>(() => ({ folders: [] }));
 /** An agent's attachments for its next message, kept while the founder looks elsewhere. */
 export function useAttachments(agent: string) {
   const uploads = useImageDrafts(MAX_PER_MESSAGE, agent, true);
+  const marked = useMarked(agent);
   const held = useHeld(agent);
   const { folders } = held.state;
   const takes = useServes('attachment.folder').served;
@@ -86,6 +88,8 @@ export function useAttachments(agent: string) {
   return {
     uploads: uploads.drafts,
     folders,
+    /** Pictures marked up, kept as their marks until the message goes (marked.tsx). */
+    marked,
     problem: uploads.problem,
     add,
     remove: (key: number) => {
@@ -105,6 +109,7 @@ export function useAttachments(agent: string) {
       kept.clear();
       void dropAll(agent);
       uploads.clear();
+      marked.clear();
       held.set({ folders: [] });
     },
     /** Uploaded in full: the ids to name in the text. */

@@ -1,4 +1,5 @@
 // The browser's xterm: the Terminal, its fit addon and web links, themed from the tokens. Everything else is in core.ts.
+import { letterOf } from '@handline/app-core';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -32,8 +33,8 @@ export function copyKey(
   term: { hasSelection(): boolean; getSelection(): string },
   write: (text: string) => unknown = (t) => navigator.clipboard.writeText(t),
 ) {
-  return (e: Pick<KeyboardEvent, 'type' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey' | 'key'>): boolean => {
-    const copy = e.type === 'keydown' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c';
+  return (e: Pick<KeyboardEvent, 'type' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey' | 'key'> & { code?: string }): boolean => {
+    const copy = e.type === 'keydown' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && letterOf(e) === 'c';
     if (!copy || !term.hasSelection()) return true;
     void Promise.resolve(write(term.getSelection())).catch(() => {}); // a refused clipboard write loses the copy, never the key
     return false;

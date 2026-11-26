@@ -1,3 +1,4 @@
+import { letterOf } from '@handline/app-core';
 import { primaryMod } from '#src/ui/keys.ts';
 import { setAgentGo, setPageGo } from '#src/layout/openTab.tsx';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -60,7 +61,7 @@ function App() {
   // Cmd+B (Ctrl+B off a Mac) toggles the sidebar; captured so a terminal does not take it, but left to the editor's bold.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== 'b' || e.altKey || e.shiftKey || !primaryMod(e)) return;
+      if (letterOf(e) !== 'b' || e.altKey || e.shiftKey || !primaryMod(e)) return;
       if (e.target instanceof Element && e.target.closest('.cm-editor')) return;
       e.preventDefault();
       setOpen((o) => !o);

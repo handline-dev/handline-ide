@@ -1,8 +1,11 @@
+import { markStarts } from '@handline/app-core';
 import { useSuggest, type Command } from '#src/chat/Suggest.tsx';
 import { DropHint, DropOver } from '#src/ui/fileDrop.tsx';
 import { ArrowUp, CornerDownLeft, Paperclip, Square, SquareTerminal } from 'lucide-react';
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ImageViewer, type MarkedPicture } from '#src/viewer/ImageViewer.tsx';
+import { MarkedChip, useBakeMarked, useSendOnAsk } from '#src/chat/marked.tsx';
+import { toast } from '#src/ui/toast.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
 import { readDropped } from '#src/ui/fileDrop.tsx';
 import { useNameOf } from '@handline/app-data';
@@ -23,7 +26,6 @@ export function Composer({
   running = false,
   onStop,
   locked,
-  onMarked,
   above,
   placeholder,
   commands = [],
@@ -45,8 +47,6 @@ export function Composer({
   /** Why the box takes no message now (a compaction under way), shown in its place; absent when it takes one. */
   /** Enter and the send button wait while it is set (a compaction or a move under way); the box stays open to write in. */
   locked?: boolean;
-  /** Takes the box's pictures marked up in the viewer; the marked copy replaces the picture. */
-  onMarked?: (marked: MarkedPicture[]) => void;
   /** A row at the top of the box (what the message replies to); the box takes focus when it comes. */
   above?: ReactNode;
   /** The box's hint when empty; `Message <agent>` by default. */
@@ -65,6 +65,10 @@ export function Composer({
   const dropOver = useContext(DropOver);
   const [viewing, setViewing] = useState<number | null>(null);
   const shown = attach.uploads.filter((d) => d.preview);
+  const marked = attach.marked.list;
+  const starts = markStarts(marked.map((d) => d.marks));
+  const bakeMarked = useBakeMarked();
+  const [baking, setBaking] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   // Height follows the text: read it at no height, so it can shrink as well as grow; the cap is max-h-60.
@@ -91,16 +95,47 @@ export function Composer({
   }, [bash]);
   const body = draft.trim();
   // A message goes once every image in it is up and nothing is held back; one with images may go without text. A command needs one.
-  const ready = !locked && (bash ? body.slice(1).trim() : body || attach.ids.length > 0) && attach.sendable;
-  const empty = !bash && !locked && !body && !attach.ids.length && attach.sendable ? onEmpty : undefined;
+  const ready = !locked && !baking && (bash ? body.slice(1).trim() : body || attach.ids.length > 0 || marked.length > 0) && attach.sendable;
+  const empty = !bash && !locked && !body && !attach.ids.length && !marked.length && attach.sendable ? onEmpty : undefined;
   const label = bash ? undefined : (empty?.label ?? sendLabel);
   const submit = () => {
     if (suggest.command(draft)) return;
     if (empty) return empty.run();
     if (!ready) return;
-    onSend(body, attach.ids);
-    setDraft('');
-    attach.clear();
+    if (!marked.length || bash) {
+      onSend(body, attach.ids);
+      setDraft('');
+      attach.clear();
+      return;
+    }
+    // The marked pictures are drawn in and go up now, numbered in chip order; the box stays as it is until they are up.
+    setBaking(true);
+    bakeMarked(body, marked).then(
+      ({ text, ids }) => {
+        setBaking(false);
+        onSend(text.trim(), [...ids, ...attach.ids]);
+        setDraft('');
+        attach.clear();
+      },
+      (e: unknown) => {
+        setBaking(false);
+        toast(`The marked pictures did not go: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
+      },
+    );
+  };
+  // Cmd+Enter in the viewer asks for a send once its marks are in the box.
+  useSendOnAsk(attach.marked.box, () =>
+    ready ? submit() : toast('The marks are in the message; send it once its files are up.', { tone: 'warning' }),
+  );
+  // The viewer's pictures in the order their numbers run: the marked ones with their marks to change, then those going up, which
+  // join the end once marked.
+  const viewed = [...marked.map((d) => ({ url: d.url, name: d.name })), ...shown.map((d) => ({ url: d.preview, name: d.name }))];
+  const takeViewed = (out: MarkedPicture[], send: boolean) => {
+    const changes = new Map(out.filter((m) => m.index < marked.length).map((m) => [marked[m.index].key, m.marks]));
+    const fresh = out.filter((m) => m.index >= marked.length && m.marks.length);
+    for (const m of fresh) attach.remove(shown[m.index - marked.length].key);
+    attach.marked.remark(changes, send && !fresh.length);
+    if (fresh.length) attach.marked.add(fresh, send);
   };
   return (
     <form
@@ -114,32 +149,35 @@ export function Composer({
       {!bash && suggest.menu}
       {/* Held to the box's width: a long line in it truncates instead of widening the page. */}
       {above && <div className="min-w-0 overflow-hidden">{above}</div>}
-      {attach.uploads.length + attach.folders.length > 0 && (
+      {attach.uploads.length + attach.folders.length + marked.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
+          {marked.map((d, i) => (
+            <MarkedChip
+              key={`m${d.key}`}
+              draft={d}
+              from={starts[i]}
+              onOpen={() => setViewing(i)}
+              onRemove={() => attach.marked.remove(d.key)}
+            />
+          ))}
           {attach.uploads.map((d) => (
             <UploadChip
               key={`u${d.key}`}
               draft={d}
-              onOpen={d.preview ? () => setViewing(shown.indexOf(d)) : undefined}
+              onOpen={d.preview ? () => setViewing(marked.length + shown.indexOf(d)) : undefined}
               onRemove={() => attach.remove(d.key)}
               onRetry={() => attach.retry(d.key)}
             />
           ))}
           {viewing !== null && (
             <ImageViewer
-              pictures={shown.map((d) => ({ url: d.preview, name: d.name }))}
+              pictures={viewed}
               start={viewing}
               onClose={() => setViewing(null)}
-              onMarked={
-                onMarked &&
-                ((marked) => {
-                  for (const m of marked) {
-                    const d = shown.find((x) => x.preview === m.picture.url);
-                    if (d) attach.remove(d.key);
-                  }
-                  onMarked(marked);
-                })
-              }
+              seed={marked.map((d) => d.marks)}
+              pen
+              canSend
+              onMarked={takeViewed}
             />
           )}
           {attach.folders.map((d) => (
@@ -152,6 +190,8 @@ export function Composer({
       <div className="flex items-start gap-2">
         {bash && <BashChip className="mt-0.5" />}
         <textarea
+          // Held while the marked pictures go up: what is typed then would be cleared with the sent message.
+          readOnly={baking}
           onPaste={(e) => {
             if (!e.clipboardData.files.length) return;
             e.preventDefault();

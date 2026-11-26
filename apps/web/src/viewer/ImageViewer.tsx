@@ -1,15 +1,13 @@
-import { count } from '#src/format/count.ts';
 // The one picture viewer of the web, for looking and for marking up: full screen on a dark scrim, zoom and pan (Stage.tsx), the
-// pictures stepped with the arrows. Where the caller takes comments (`onMarked`), Mark turns a drag into a numbered mark with a comment
-// at it; Done hands each marked picture back with the marks drawn in and their words, for the caller to send (a chat reply, a
-// capture from a simulator, a task's picture).
+// pictures stepped with the arrows. Where the caller takes comments (`onMarked`), the pen turns a drag into a numbered mark with a
+// comment at it; Done hands each marked picture back as its marks and the picture, for the caller to keep until its message goes
+// (chat/marked.tsx draws them in then). Cmd+Enter does the same and asks the caller to send at once.
 import {
-  exportAnnotated,
   initialMarks,
   keptMarks,
-  markData,
+  letterOf,
   marksReducer,
-  marksToShapes,
+  seedMarks,
   type Mark,
   type MarksAction,
   type MarksState,
@@ -18,37 +16,18 @@ import { useAttachmentUrl } from '@handline/app-data';
 import { ChevronLeft, ChevronRight, Copy, Download, Maximize, Minus, PenLine, Plus, Undo2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { count } from '#src/format/count.ts';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { copy } from '#src/ui/copy.ts';
 import { toast } from '#src/ui/toast.tsx';
+import { bake } from '#src/viewer/bake.ts';
 import { Stage, type StageControls } from '#src/viewer/Stage.tsx';
 
 /** A picture to show: a daemon attachment by `id`, or any `url` (a blob, a capture). */
 export type Picture = { id?: string; url?: string; name: string };
 
-/** A picture as marked: the marks with words, the picture with them drawn in, and the lines that say them (`1. words`, numbered
- * across the pictures of one Done) with a `marks` block of their rects for an agent that crops. */
-export type MarkedPicture = { picture: Picture; marks: Mark[]; image: Blob; text: string };
-
-/** The picture with the shapes drawn into its pixels, as a PNG. */
-async function drawn(img: HTMLImageElement, marks: Mark[], from: number): Promise<Blob | null> {
-  const c = document.createElement('canvas');
-  c.width = img.naturalWidth;
-  c.height = img.naturalHeight;
-  const g = c.getContext('2d');
-  if (!g) return null;
-  g.drawImage(img, 0, 0);
-  const src = g.getImageData(0, 0, c.width, c.height);
-  const shapes = marksToShapes(marks, Math.max(3, Math.round(c.width / 250)), false, from);
-  const out = exportAnnotated({ width: src.width, height: src.height, data: src.data }, shapes);
-  g.putImageData(new ImageData(out.data as Uint8ClampedArray<ArrayBuffer>, out.width, out.height), 0, 0);
-  return new Promise((ok) => c.toBlob(ok, 'image/png'));
-}
-
-const linesOf = (marks: Mark[], from: number) => {
-  const data = markData(marks, from);
-  return [data.map((d) => `${d.n}. ${d.text}`).join('\n'), '```marks', JSON.stringify(data), '```'].join('\n');
-};
+/** A picture as marked: which of the viewer's pictures (`index`), its marks with words, and the picture itself as a PNG. */
+export type MarkedPicture = { picture: Picture; index: number; marks: Mark[]; source: Blob };
 
 export function ImageViewer({
   pictures,
@@ -57,28 +36,43 @@ export function ImageViewer({
   onMarked,
   doneLabel = 'Add to message',
   sendBare = false,
+  seed,
+  from = 0,
+  pen: penAtOpen = false,
+  canSend = false,
 }: {
   pictures: Picture[];
   start?: number;
   onClose: () => void;
-  /** Takes the marked pictures on Done; without it the viewer only shows. */
-  onMarked?: (marked: MarkedPicture[]) => void;
+  /** Takes the marked pictures on Done (`send` on Cmd+Enter); without it the viewer only shows. */
+  onMarked?: (marked: MarkedPicture[], send: boolean) => void;
   doneLabel?: string;
   /** The done button shows with no mark too, and hands the pictures over as they are (a screenshot sent to the chat). */
   sendBare?: boolean;
+  /** Marks a picture already carries, to change: a seeded picture comes back on Done even with none left. */
+  seed?: (Mark[] | undefined)[];
+  /** Marks before these pictures in the message: the numbers continue from them. */
+  from?: number;
+  /** The pen is on as the viewer opens (a picture about to be sent). */
+  pen?: boolean;
+  /** Cmd+Enter sends the message; without it Cmd+Enter is Done. */
+  canSend?: boolean;
 }) {
   const [at, setAt] = useState(Math.min(start, pictures.length - 1));
   const pic = pictures[at];
   const full = useAttachmentUrl(pic.id ?? '', false);
   const url = pic.url ?? full.url;
   const canMark = !!onMarked;
-  const [pen, setMarking] = useState(false);
+  const [pen, setMarking] = useState(penAtOpen && canMark);
   // The pen waits for the picture: stepping to one still loading lays it down until it is here.
   const marking = pen && !!url;
   const [states, setStates] = useState<Record<number, MarksState>>({});
-  const marks = states[at] ?? initialMarks();
+  const stateOf = (all: Record<number, MarksState>, i: number) => all[i] ?? (seed?.[i] ? seedMarks(seed[i]) : initialMarks());
+  const marks = stateOf(states, at);
   const dispatch = useCallback(
-    (a: MarksAction) => setStates((all) => ({ ...all, [at]: marksReducer(all[at] ?? initialMarks(), a) })),
+    (a: MarksAction) => setStates((all) => ({ ...all, [at]: marksReducer(stateOf(all, at), a) })),
+    // stateOf reads only the seed, fixed while the viewer is open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [at],
   );
   const [zoom, setZoom] = useState(1);
@@ -86,44 +80,52 @@ export function ImageViewer({
   const images = useRef<Record<number, HTMLImageElement>>({});
   const controls = useRef<StageControls>(null);
   const root = useRef<HTMLDivElement>(null);
+  const keptAt = (i: number) => keptMarks(stateOf(states, i).marks).length;
   // Numbers run on across the pictures: this one's start after the kept marks of those before it.
-  const fromOf = (i: number) => pictures.slice(0, i).reduce((n, _, j) => n + keptMarks(states[j]?.marks ?? []).length, 0);
-  const kept = pictures.reduce((n, _, i) => n + keptMarks(states[i]?.marks ?? []).length, 0);
+  const fromOf = (i: number) => from + pictures.slice(0, i).reduce((n, _, j) => n + keptAt(j), 0);
+  const kept = pictures.reduce((n, _, i) => n + keptAt(i), 0);
 
   useEffect(() => {
     if (image.current) images.current[at] = image.current;
   });
 
-  const done = async () => {
+  const done = async (send: boolean) => {
     const out: MarkedPicture[] = [];
     for (const [i, p] of pictures.entries()) {
-      const m = keptMarks(states[i]?.marks ?? []);
+      const m = keptMarks(stateOf(states, i).marks);
       const img = images.current[i];
-      if (!m.length || !img) continue;
-      const blob = await drawn(img, states[i].marks, fromOf(i));
-      if (blob) out.push({ picture: p, marks: m, image: blob, text: linesOf(states[i].marks, fromOf(i)) });
+      // A seeded picture not opened is unchanged; one opened comes back even with its marks all gone.
+      if (!(m.length || (seed?.[i] && states[i])) || !img) continue;
+      const source = await bake(img, [], 0);
+      if (source) out.push({ picture: p, index: i, marks: m, source });
     }
     // Nothing marked: each picture as it is, for a caller that takes them so (sendBare).
     if (!out.length && sendBare)
       for (const [i, p] of pictures.entries()) {
         const img = images.current[i];
-        const blob = img && (await drawn(img, [], 0));
-        if (blob) out.push({ picture: p, marks: [], image: blob, text: '' });
+        const source = img && (await bake(img, [], 0));
+        if (source) out.push({ picture: p, index: i, marks: [], source });
       }
-    onMarked?.(out);
+    onMarked?.(out, send);
     onClose();
   };
 
   const step = (by: number) => setAt((a) => Math.min(pictures.length - 1, Math.max(0, a + by)));
-  const live = useRef({ step, onClose, dispatch, canMark, marks, url });
-  useEffect(() => void (live.current = { step, onClose, dispatch, canMark, marks, url }));
+  const live = useRef({ step, onClose, dispatch, canMark, marks, url, done, canSend });
+  useEffect(() => void (live.current = { step, onClose, dispatch, canMark, marks, url, done, canSend }));
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     root.current?.focus();
     const key = (e: KeyboardEvent) => {
-      const { step, onClose, dispatch, canMark, marks, url } = live.current;
+      const { step, onClose, dispatch, canMark, marks, url, done, canSend } = live.current;
+      // Cmd+Enter, in a note too: the marks go into the message, and it is sent where the caller can.
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && canMark && !e.isComposing) {
+        e.preventDefault();
+        return void done(canSend);
+      }
       if (e.target instanceof Element && e.target.closest('input, textarea')) return;
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+      // Letters by the key pressed (letterOf): with a Korean input on, M types another letter.
+      if ((e.metaKey || e.ctrlKey) && letterOf(e) === 'z') {
         e.preventDefault();
         dispatch({ type: 'undo' });
       } else if (e.key === 'Escape') {
@@ -131,7 +133,7 @@ export function ImageViewer({
         else onClose();
       } else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowRight') step(1);
-      else if (e.key === 'm' && canMark && url) setMarking((v) => !v);
+      else if (letterOf(e) === 'm' && !e.metaKey && !e.ctrlKey && canMark && url) setMarking((v) => !v);
       else if (!url) return;
       else if (e.key === '0') controls.current?.fit();
       else if (e.key === '=' || e.key === '+') controls.current?.zoomBy(1.25);
@@ -251,25 +253,18 @@ export function ImageViewer({
         {at < pictures.length - 1 && <Side side="right" onClick={() => step(1)} />}
       </div>
       <div className="flex h-14 flex-none items-center justify-center gap-3 px-4 text-sm text-muted">
-        {canMark && (kept > 0 || sendBare) ? (
+        {canMark && (kept > 0 || sendBare || (seed && Object.keys(states).length > 0)) && (
           <>
-            <span className="tabular-nums">{kept > 0 ? `${count(kept, 'comment')}` : 'M to mark, or send it as it is'}</span>
+            {kept > 0 && <span className="tabular-nums">{count(kept, 'comment')}</span>}
             <button
               type="button"
-              onClick={() => void done()}
+              title={canSend ? `${doneLabel} (⌘Enter sends)` : `${doneLabel} (⌘Enter)`}
+              onClick={() => void done(false)}
               className="h-8 rounded-md bg-accent px-3 text-sm text-accent-fg outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-fg"
             >
               {doneLabel}
             </button>
           </>
-        ) : canMark ? (
-          marking ? (
-            'Drag to mark an area · Click to pin'
-          ) : (
-            'Scroll to zoom · Double-click to zoom · Drag to pan · M to mark'
-          )
-        ) : (
-          'Scroll to zoom · Double-click to zoom · Drag to pan'
         )}
       </div>
     </div>,

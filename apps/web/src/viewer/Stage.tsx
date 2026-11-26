@@ -1,7 +1,7 @@
 // The picture on the viewer's scrim: fit to the room; the wheel, a trackpad pinch or two fingers zoom toward the pointer; a double
 // click goes between fit and twice fit; a drag pans once zoomed. While marking, a drag draws a numbered mark and a tap pins one
 // (app-core marks.ts); a drag with Space held, or with the middle button, still pans. Gestures come from @use-gesture.
-import { marksToShapes, shapesToSvg, type Mark, type MarksAction, type MarksState } from '@handline/app-core';
+import { marksReducer, marksToShapes, shapesToSvg, type Mark, type MarksAction, type MarksState } from '@handline/app-core';
 import { useGesture } from '@use-gesture/react';
 import { X } from 'lucide-react';
 import {
@@ -93,6 +93,8 @@ function NoteBox({ n, mark, dispatch, style }: { n: number; mark: Mark; dispatch
         value={mark.text}
         onChange={(e) => dispatch({ type: 'memo', id: mark.id, text: e.target.value })}
         onKeyDown={(e) => {
+          // Cmd+Enter goes on to the viewer, which adds the marks and sends.
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return;
           if ((e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) || e.key === 'Escape') {
             e.preventDefault();
             e.stopPropagation();
@@ -121,6 +123,9 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
   const [hover, setHover] = useState<number | null>(null); // the mark under the pointer, whose words show
   const space = useSpaceHeld();
   const drawing = useRef(false);
+  // A drag that starts inside a mark moves it: where it began, and how far it has gone, drawn as it goes and one Undo step at the end.
+  const moving = useRef<{ id: number; x: number; y: number } | null>(null);
+  const [shift, setShift] = useState<{ id: number; dx: number; dy: number } | null>(null);
 
   useLayoutEffect(() => {
     const el = stage.current;
@@ -158,6 +163,8 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
 
   const onPhoto = (t: EventTarget | null) => t instanceof Element && !!t.closest('[data-photo]');
   const onNote = (t: EventTarget | null) => t instanceof Element && !!t.closest('[data-note]');
+  const markAt = (p: { x: number; y: number }) =>
+    [...marks.marks].reverse().find(({ rect: r }) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
 
   const begin = (cx: number, cy: number) => {
     dispatch({ type: 'scale', slop: Math.max(4, 6 / at.s), radius: Math.max(12, 14 / at.s) });
@@ -167,26 +174,47 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
 
   useGesture(
     {
-      onDrag: ({ first, last, tap, delta: [dx, dy], xy: [cx, cy], event, cancel, pinching }) => {
+      onDrag: ({ first, last, tap, initial: [ix, iy], delta: [dx, dy], xy: [cx, cy], event, cancel, pinching }) => {
         if (pinching) return cancel();
         const e = event as PointerEvent;
+        // A tap ends the gesture: before any drag, use-gesture hands it with `last` unset, so a click on a picture just opened
+        // never pinned a mark.
+        const end = !!last || tap;
+        if (first && onNote(e.target)) return cancel();
+        // A press inside a mark, found where the pointer went down: a drag past the tap threshold starts later than that.
+        if ((first || tap) && !moving.current) {
+          const p = natural(ix, iy);
+          // No button test: the first drag event is a move, whose `button` is -1; the drag's own buttons filter has passed.
+          const under = marking && !space && onPhoto(e.target) ? markAt(p) : undefined;
+          if (under) moving.current = { id: under.id, ...p };
+        }
+        if (moving.current) {
+          const p = natural(cx, cy);
+          const by = { id: moving.current.id, dx: p.x - moving.current.x, dy: p.y - moving.current.y };
+          if (!end) return setShift(by);
+          moving.current = null;
+          setShift(null);
+          // A tap on a mark opens its note; a drag moves it.
+          if (tap || Math.hypot(by.dx, by.dy) < marks.slop) dispatch({ type: 'open', id: by.id });
+          else dispatch({ type: 'shift', ...by });
+          return;
+        }
         if (first) {
-          if (onNote(e.target)) return cancel();
           // A middle-button drag pans.
           drawing.current = marking && !space && !(e.buttons & 4) && onPhoto(e.target);
           if (drawing.current) begin(cx, cy);
         }
-        // A tap comes only as its last event, never as `first`: on the picture it pins a mark.
-        if (tap && last && marking && !space && e.button === 0 && onPhoto(e.target)) {
+        // A tap comes only as its end, never as `first`: on the picture it pins a mark.
+        if (tap && marking && !space && e.button === 0 && onPhoto(e.target)) {
           begin(cx, cy);
           drawing.current = true;
         }
         if (drawing.current) {
-          dispatch({ type: last ? 'up' : 'move', ...natural(cx, cy) });
-          if (last) drawing.current = false;
+          dispatch({ type: end ? 'up' : 'move', ...natural(cx, cy) });
+          if (end) drawing.current = false;
           return;
         }
-        if (last && tap && !onPhoto(e.target) && !onNote(e.target)) return onScrim();
+        if (tap && !onPhoto(e.target) && !onNote(e.target)) return onScrim();
         if (zoomed) setView(keep({ ...at, x: at.x + dx, y: at.y + dy }));
       },
       onPinch: ({ origin: [ox, oy], offset: [s], first, memo }) => {
@@ -215,7 +243,8 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
   );
 
   const line = Math.max(3, Math.round(nat.w / 250));
-  const draw = shapesToSvg(marksToShapes(marks.marks, line, true, from), nat.w || 1, nat.h || 1);
+  const shown = shift ? marksReducer(marks, { type: 'shift', ...shift }).marks : marks.marks;
+  const draw = shapesToSvg(marksToShapes(shown, line, true, from), nat.w || 1, nat.h || 1);
   const path = marks.draft?.map((p) => `${p.x},${p.y}`).join(' ');
   const screen = (x: number, y: number) => ({ left: at.x + x * at.s, top: at.y + y * at.s });
   const current = marks.marks.find((m) => m.id === marks.open);
@@ -235,9 +264,7 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
       ref={stage}
       className={`relative min-h-0 flex-1 touch-none overflow-hidden select-none ${cursor}`}
       onPointerMove={(e) => {
-        const p = natural(e.clientX, e.clientY);
-        const on = [...marks.marks].reverse().find(({ rect: r }) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h);
-        if (!onNote(e.target)) setHover(on?.id ?? null);
+        if (!onNote(e.target)) setHover(markAt(natural(e.clientX, e.clientY))?.id ?? null);
       }}
       onPointerLeave={() => setHover(null)}
       onDoubleClick={(e) => {
@@ -289,7 +316,7 @@ export function Stage({ url, name, marking, marks, from = 0, dispatch, image, on
           </svg>
         )}
       </div>
-      {marks.marks.map((m, i) => (
+      {shown.map((m, i) => (
         <button
           key={m.id}
           type="button"

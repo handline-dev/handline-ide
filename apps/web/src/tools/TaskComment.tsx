@@ -7,7 +7,6 @@ import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from '
 import { useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
-import type { MarkedPicture } from '#src/viewer/ImageViewer.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
 import { openAsks } from '#src/tools/TaskWaiting.tsx';
@@ -72,7 +71,6 @@ export function CommentBox({
   attach,
   draft,
   setDraft,
-  onMarked,
   onSent,
 }: {
   t: TaskDetail;
@@ -83,7 +81,6 @@ export function CommentBox({
   attach: Attachments;
   draft: string;
   setDraft: (next: string | ((d: string) => string)) => void;
-  onMarked: (marked: MarkedPicture[]) => void;
   onSent: () => void;
 }) {
   const me = useMe();
@@ -246,7 +243,6 @@ export function CommentBox({
         draft={draft}
         setDraft={setDraft}
         attach={attach}
-        onMarked={onMarked}
         leading={
           <AssignPicker
             t={t}

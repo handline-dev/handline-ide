@@ -41,10 +41,18 @@ export type MarksAction =
   | { type: 'memo'; id: number; text: string }
   | { type: 'open'; id: number | null }
   | { type: 'remove'; id: number }
+  /** Moves a mark by this many pixels; a step Undo takes back. */
+  | { type: 'shift'; id: number; dx: number; dy: number }
   /** The picture's size sets the sizes of a tap and a pin. */
   | { type: 'scale'; slop: number; radius: number };
 
 export const initialMarks = (): MarksState => ({ marks: [], past: [], draft: null, open: null, next: 1, slop: 8, radius: 16 });
+/** The state of a picture marked before, to change its marks: they come back with no undo steps. */
+export const seedMarks = (marks: readonly Mark[]): MarksState => ({
+  ...initialMarks(),
+  marks: [...marks],
+  next: marks.reduce((n, m) => Math.max(n, m.id + 1), 1),
+});
 
 const MAX_LOOP_POINTS = 64;
 
@@ -102,8 +110,31 @@ export function marksReducer(s: MarksState, a: MarksAction): MarksState {
       return { ...s, marks: [], past: [], draft: null, open: null };
     case 'memo':
       return { ...s, marks: s.marks.map((m) => (m.id === a.id ? { ...m, text: a.text } : m)) };
-    case 'open':
+    case 'open': {
+      // A note closed with no words takes its mark with it: what is on the picture is what goes out. Undo brings it back.
+      const left = s.marks.find((m) => m.id === s.open);
+      if (left && left.id !== a.id && !left.text.trim())
+        return commit(
+          s,
+          s.marks.filter((m) => m.id !== left.id),
+          a.id,
+        );
       return { ...s, open: a.id };
+    }
+    case 'shift': {
+      const move = (m: Mark): Mark => ({
+        ...m,
+        rect: { ...m.rect, x: Math.round(m.rect.x + a.dx), y: Math.round(m.rect.y + a.dy) },
+        ...(m.points ? { points: m.points.map((p) => ({ x: Math.round(p.x + a.dx), y: Math.round(p.y + a.dy) })) } : {}),
+      });
+      return s.marks.some((m) => m.id === a.id)
+        ? commit(
+            s,
+            s.marks.map((m) => (m.id === a.id ? move(m) : m)),
+            s.open,
+          )
+        : s;
+    }
     case 'remove':
       return s.marks.some((m) => m.id === a.id)
         ? commit(
@@ -131,6 +162,30 @@ export interface MarkData extends MarkRect {
 /** `from` is how many kept marks the pictures before this one carry: a message's numbers continue across its pictures. */
 export const markData = (marks: readonly Mark[], from = 0): MarkData[] =>
   keptMarks(marks).map((m, i) => ({ n: from + i + 1, shape: m.kind, ...m.rect, text: m.text.trim().replace(/\s*\n\s*/g, ' ') }));
+
+/** The lines a picture's marks add to a message: `1. words` each, then a `marks` block of their rects for an agent that crops. */
+export const markLines = (marks: readonly Mark[], from = 0): string => {
+  const data = markData(marks, from);
+  return [data.map((d) => `${d.n}. ${d.text}`).join('\n'), '```marks', JSON.stringify(data), '```'].join('\n');
+};
+
+/** Where each picture's numbers start: they run on across a message's pictures, in order. */
+export const markStarts = (pictures: readonly (readonly Mark[])[]): number[] => {
+  let n = 0;
+  return pictures.map((m) => {
+    const at = n;
+    n += keptMarks(m).length;
+    return at;
+  });
+};
+
+/** A message as it goes: the words written, then each marked picture's lines, numbered across them. */
+export const markedText = (draft: string, pictures: readonly (readonly Mark[])[]): string => {
+  const starts = markStarts(pictures);
+  return [draft.trimEnd(), ...pictures.flatMap((m, i) => (keptMarks(m).length ? [markLines(m, starts[i])] : []))]
+    .filter(Boolean)
+    .join('\n\n');
+};
 
 export const MARK_COLOR = '#e5322d';
 

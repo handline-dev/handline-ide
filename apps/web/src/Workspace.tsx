@@ -1,3 +1,4 @@
+import { letterOf } from '@handline/app-core';
 import { MAC, primaryMod } from '#src/ui/keys.ts';
 import { Chat } from '#src/chat/Chat.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
@@ -102,13 +103,13 @@ const BUILT = new Set(['newshell', 'diff', 'tasks', 'markdown', 'web']);
 
 /** Cmd+W on a Mac, Ctrl+W elsewhere; in a terminal there Ctrl+W deletes a word, so it is Ctrl+Shift+W. */
 function isCloseChord(e: KeyboardEvent): boolean {
-  if (e.key.toLowerCase() !== 'w' || e.altKey) return false;
+  if (letterOf(e) !== 'w' || e.altKey) return false;
   if (MAC) return e.metaKey && !e.ctrlKey && !e.shiftKey;
   const inTerminal = e.target instanceof HTMLElement && !!e.target.closest('.xterm');
   return e.ctrlKey && !e.metaKey && e.shiftKey === inTerminal;
 }
 /** Cmd+Shift+T on a Mac, Ctrl+Shift+T elsewhere: Reopen Closed Tab. */
-const isReopenChord = (e: KeyboardEvent) => e.key.toLowerCase() === 't' && e.shiftKey && !e.altKey && primaryMod(e);
+const isReopenChord = (e: KeyboardEvent) => letterOf(e) === 't' && e.shiftKey && !e.altKey && primaryMod(e);
 
 /** One pane: its tab bar (a drop there inserts at the line) and its body (a drop at an edge splits there,
  * in the middle merges). */

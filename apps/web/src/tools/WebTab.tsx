@@ -100,10 +100,12 @@ export function WebTab({ tab, agent, start = '' }: { tab: string; agent: string 
           onClose={closeShot}
           doneLabel="Send to chat"
           sendBare
-          onMarked={(marked) => {
+          pen
+          canSend
+          onMarked={(marked, send) => {
             // The chat is brought up first, so a chat it mounts is the one that takes the picture.
             openTab('chat', 'here');
-            setTimeout(() => toChat(agent, marked));
+            setTimeout(() => toChat(agent, marked, send));
           }}
         />
       )}

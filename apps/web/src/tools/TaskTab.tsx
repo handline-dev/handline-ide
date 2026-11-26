@@ -16,7 +16,7 @@ import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
-import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
+import { MarkReply } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { Fields } from '#src/tools/TaskFields.tsx';
 import { GO_TURN, goToTurn, openTurnRow, takeTyping, toBottom, type OpenTurn } from '#src/tools/TaskTurn.ts';
@@ -51,9 +51,7 @@ export function TaskTab({ id }: { id: number }) {
   const [replyTo, setReplyTo] = useTabState<Reply | null>('reply', null);
   // Files dropped anywhere on the task go with the next comment, as in the chat.
   const attach = useAttachments(`task:${id}`);
-  // The box's draft is held here so a picture marked up in the task's viewer lands in it.
   const [draft, setDraft] = useDraft(`task:${id}`);
-  const addMarked = markInto(attach, setDraft);
   // Opens at the founder's turn (a first open, or a request-list click's mark); a GO_TURN to an open tab goes there again.
   const loaded = !!q.data;
   const onTurn = !!q.data && !CLOSED.includes(q.data.state) && foundersTurn(q.data, me);
@@ -108,13 +106,12 @@ export function TaskTab({ id }: { id: number }) {
       attach={attach}
       draft={draft}
       setDraft={setDraft}
-      onMarked={addMarked}
       onSent={() => toBottom(id)}
     />
   );
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <MarkReply.Provider value={{ add: addMarked, label: 'Add to comment' }}>
+      <MarkReply.Provider value={{ marked: attach.marked, label: 'Add to comment' }}>
         {/* The title line above the scroll area, the comment box below it: the page scrolls between them. */}
         <Page className="flex shrink-0 items-start gap-3 pt-4 pb-2 text-base text-fg">
           <h1 className="min-w-0 flex-1 text-lg font-semibold">
@@ -225,7 +222,7 @@ export function TaskChat({ id }: { id: number }) {
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ReadyTurn.Provider value={!!t.review?.ready}>
-        <MarkReply.Provider value={{ add: markInto(attach, setDraft), label: 'Add to comment' }}>
+        <MarkReply.Provider value={{ marked: attach.marked, label: 'Add to comment' }}>
           {storyChat(
             !items.length ? (
               <p className="text-sm text-muted">No comments yet.</p>
@@ -246,7 +243,6 @@ export function TaskChat({ id }: { id: number }) {
               attach={attach}
               draft={draft}
               setDraft={setDraft}
-              onMarked={markInto(attach, setDraft)}
               onSent={() => toBottom(id)}
             />,
             id,

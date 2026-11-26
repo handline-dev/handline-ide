@@ -1,29 +1,15 @@
 import { useAttachmentUrl, useReadAttachment } from '@handline/app-data';
 import { File as FileIcon, FileArchive, FileAudio, FileCode, FileSpreadsheet, FileText, FileVideo, Play } from 'lucide-react';
 import { createContext, useContext, useState } from 'react';
-import type { Attachments } from '#src/chat/attachments.tsx';
+import type { Marked } from '#src/chat/marked.tsx';
 import { docOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { playVideo } from '#src/viewer/VideoPlayer.tsx';
-import { ImageViewer, type MarkedPicture, type Picture } from '#src/viewer/ImageViewer.tsx';
+import { ImageViewer, type Picture } from '#src/viewer/ImageViewer.tsx';
 
-/** Where a picture marked up from a chat or a task goes: the box below, its marked copy attached and its comments written in. */
-export const MarkReply = createContext<{ add: (marked: MarkedPicture[]) => void; label: string } | null>(null);
-
-/** Marked pictures into a box: each marked copy attached as `name-marked.png`, the comments after the draft. */
-export function markInto(attach: Attachments, setDraft: (f: (d: string) => string) => void) {
-  return (marked: MarkedPicture[]) => {
-    if (!marked.length) return;
-    attach.add(
-      marked.map((m) => {
-        const name = `${m.picture.name.replace(/\.[^.]+$/, '')}-marked.png`;
-        return { kind: 'file' as const, name, files: [{ path: name, file: new File([m.image], name, { type: 'image/png' }) }] };
-      }),
-    );
-    setDraft((d) => [d.trimEnd(), ...marked.map((m) => m.text)].filter(Boolean).join('\n\n'));
-  };
-}
+/** Where a picture marked up from a chat or a task goes: the box below, as a marked chip (chat/marked.tsx). */
+export const MarkReply = createContext<{ marked: Marked; label: string } | null>(null);
 
 /** One attachment: `mime` and `size` when the sender knows them; a reference in a text has neither, and the read answers them. */
 export type Shown = { id: string; name: string; mime?: string; size?: number; video?: { id: string; name: string } };
@@ -97,7 +83,15 @@ export function MessageImages({ images, small = false }: { images: Shown[]; smal
         )}
       </div>
       {start >= 0 && (
-        <ImageViewer pictures={pictures} start={start} onClose={() => setOpen(null)} onMarked={reply?.add} doneLabel={reply?.label} />
+        <ImageViewer
+          pictures={pictures}
+          start={start}
+          onClose={() => setOpen(null)}
+          onMarked={reply ? (marked, send) => reply.marked.add(marked, send) : undefined}
+          doneLabel={reply?.label}
+          from={reply?.marked.count}
+          canSend={!!reply}
+        />
       )}
     </div>
   );

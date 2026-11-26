@@ -1,3 +1,4 @@
+import { letterOf } from '@handline/app-core';
 import { useSize } from '#src/ui/useSize.ts';
 import { Ago } from '#src/ui/Ago.tsx';
 // Requests: what waits on the founder (their turn, notes, rows put off) and what they decided, newest first. Their requests in progress and
@@ -207,9 +208,9 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t?.closest('input, textarea, select') || t?.isContentEditable || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'j') stepRef.current(1);
-      else if (e.key === 'k') stepRef.current(-1);
+      if (t?.closest('input, textarea, select') || t?.isContentEditable || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (letterOf(e) === 'j') stepRef.current(1);
+      else if (letterOf(e) === 'k') stepRef.current(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

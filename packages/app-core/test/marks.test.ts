@@ -1,6 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyGesture, initialMarks, keptMarks, markData, marksReducer, marksToShapes, type MarksAction } from '#src/marks.ts';
+import {
+  classifyGesture,
+  initialMarks,
+  keptMarks,
+  markData,
+  markedText,
+  markStarts,
+  marksReducer,
+  marksToShapes,
+  seedMarks,
+  type MarksAction,
+} from '#src/marks.ts';
 import { exportAnnotated } from '#src/annotation-raster.ts';
 
 const run = (...actions: MarksAction[]) => actions.reduce(marksReducer, initialMarks());
@@ -146,4 +157,38 @@ test('the numbers of a second picture continue from the marks kept on the first'
   );
   const texts = marksToShapes(second, 2, false, 2).flatMap((s) => (s.kind === 'text' ? [s.text] : []));
   assert.deepEqual(texts, ['3']);
+});
+
+test('a message carries the words, then the lines of each marked picture in order, numbered across the pictures', () => {
+  const one = (text: string) => run(...gesture([10, 10], [10, 10]), { type: 'memo', id: 1, text }).marks;
+  const a = one('first'),
+    b = [...one('second'), ...one('third').map((m) => ({ ...m, id: 2 }))];
+  const text = markedText('Look  \n', [a, [], b]);
+  assert.match(text, /^Look\n\n1\. first\n```marks\n/);
+  assert.match(text, /\n\n2\. second\n3\. third\n```marks\n/);
+  assert.deepEqual(markStarts([a, [], b]), [0, 1, 1]);
+  // a picture taken out: the rest close up
+  assert.match(markedText('', [b]), /^1\. second\n2\. third/);
+  assert.equal(markedText('only words', []), 'only words');
+});
+
+test('a note closed with no words removes its mark, and Undo brings it back', () => {
+  let s = run(...gesture([10, 10], [10, 10]), { type: 'memo', id: 1, text: 'kept' }, ...gesture([50, 50], [50, 50]));
+  s = marksReducer(s, { type: 'open', id: null });
+  assert.deepEqual(
+    s.marks.map((m) => m.id),
+    [1],
+  );
+  assert.equal(marksReducer(s, { type: 'undo' }).marks.length, 2);
+  // a note with words stays when it closes
+  assert.equal(marksReducer(marksReducer(s, { type: 'open', id: 1 }), { type: 'open', id: null }).marks.length, 1);
+});
+
+test('a seeded picture keeps its marks and numbers on; shift moves a mark and Undo puts it back', () => {
+  const before = run(...gesture([10, 10], [40, 30]), { type: 'memo', id: 1, text: 'here' }).marks;
+  let s = seedMarks(before);
+  assert.deepEqual([s.marks, s.past.length, s.next], [before, 0, 2]);
+  s = marksReducer(s, { type: 'shift', id: 1, dx: 5, dy: -3 });
+  assert.deepEqual(s.marks[0]!.rect, { ...before[0]!.rect, x: before[0]!.rect.x + 5, y: before[0]!.rect.y - 3 });
+  assert.deepEqual(marksReducer(s, { type: 'undo' }).marks, before);
 });

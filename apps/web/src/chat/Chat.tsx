@@ -36,7 +36,7 @@ import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
-import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
+import { MarkReply } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { useChatScroll } from '#src/chat/useChatScroll.ts';
 import { JumpDown } from '#src/ui/JumpDown.tsx';
@@ -79,14 +79,12 @@ export function Chat({ agent }: { agent: string }) {
   ];
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);
-  // A picture marked up in the chat or the box goes with the next message.
-  const addMarked = markInto(attach, setDraft);
-  // A screenshot marked in a Web tab comes here too.
-  const marked = useRef(addMarked);
+  // A screenshot marked in a Web tab goes with the next message too.
+  const marked = useRef(attach.marked);
   useEffect(() => {
-    marked.current = addMarked;
+    marked.current = attach.marked;
   });
-  useEffect(() => takeToChat(agent, (m) => marked.current(m)), [agent]);
+  useEffect(() => takeToChat(agent, (m, send) => marked.current.add(m, send)), [agent]);
   // The message the next one replies to, picked by Reference or Quote.
   const [reply, setReply] = useTabState<Reply | null>('reply', null);
   // The stream's scroll hears of a send through this, once the stream is drawn.
@@ -112,7 +110,7 @@ export function Chat({ agent }: { agent: string }) {
             </Shell>
           )}
         >
-          <MarkReply.Provider value={{ add: addMarked, label: 'Add to reply' }}>
+          <MarkReply.Provider value={{ marked: attach.marked, label: 'Add to reply' }}>
             <Stream ref={stream} agent={agent} onReply={(r) => setReply(r)} />
           </MarkReply.Provider>
         </Boundary>
@@ -128,7 +126,6 @@ export function Chat({ agent }: { agent: string }) {
           draft={draft}
           setDraft={setDraft}
           attach={attach}
-          onMarked={addMarked}
           leading={
             <>
               <ModelChip agent={agent} />

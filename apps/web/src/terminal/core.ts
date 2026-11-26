@@ -1,5 +1,6 @@
 // What the pane does with xterm that does not need a DOM: the stream events, the safety handlers for foreign bytes, the size rules.
 // It works on the small surface `Terminal` and `@xterm/headless` share, so the same code runs in the browser and in Node tests.
+import { letterOf } from '@handline/app-core';
 import type { ByteEvent, ByteTerminalView, Notifications } from '@handline/client';
 
 export interface Disposable {
@@ -123,8 +124,8 @@ export function gridToSend(
 }
 
 /** The one key the app keeps while a terminal has focus: it hands the keyboard back to the app (Ctrl+Shift+E). */
-export const isEscapeChord = (e: Pick<KeyboardEvent, 'ctrlKey' | 'shiftKey' | 'metaKey' | 'altKey' | 'key'>): boolean =>
-  e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'e';
+export const isEscapeChord = (e: Pick<KeyboardEvent, 'ctrlKey' | 'shiftKey' | 'metaKey' | 'altKey' | 'key'> & { code?: string }): boolean =>
+  e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && letterOf(e) === 'e';
 
 /** The bytes xterm sends for a named key, so a key chip takes the path typing takes. */
 export const KEY_BYTES: Record<string, string> = {
