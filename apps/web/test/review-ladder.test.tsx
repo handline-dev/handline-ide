@@ -29,6 +29,7 @@ vi.mock('@handline/app-data', () => ({
   useAgentReview: () => ok({ agent: 'ui', ladder, lessons: 0 }),
   useAgentDetail: () => ok({ settings: { ...settings } }),
   useLessons: () => ok({ items: [] }),
+  useSettings: () => ({ isSuccess: false }),
   useNameOf: () => (k: string) => k,
   useProposals: () => ok({ proposals: [] }),
   useTask: () => ({}),

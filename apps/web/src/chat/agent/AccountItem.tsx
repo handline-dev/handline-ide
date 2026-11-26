@@ -2,7 +2,8 @@ import { Spinner } from '#src/ui/Loading.tsx';
 import { toneOf } from '#src/ui/Meter.tsx';
 import { since } from '#src/format/time.ts';
 import { useAccounts, useServes, useWrite, why } from '@handline/app-data';
-import { ArrowLeftRight, ChevronDown, ChevronRight, Gauge, TriangleAlert, UserRound } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronDown, ChevronRight, Gauge, Pin, TriangleAlert, UserRound } from 'lucide-react';
+import { useAccountPin } from '#src/chat/agent/accountPin.ts';
 import { useState } from 'react';
 import { CardAction, chip, MenuFact, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
 import { focusIn } from '#src/layout/focus.ts';
@@ -64,6 +65,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
         </>
       )}
       <MenuRule />
+      <PinItem agent={agent} />
       <MoveTo agent={agent} account={account} />
       <CardAction icon={<Gauge size={14} />} {...usage}>
         Open usage
@@ -117,5 +119,17 @@ function MoveTo({ agent, account }: { agent: string; account: string }) {
         ))}
       {open && !!moving.error && <p className="pl-8 text-xs text-danger">{why(moving.error)}</p>}
     </>
+  );
+}
+
+/** "Pin to this account": the agent stays on this account at a limit and waits for its reset, instead of moving. */
+function PinItem({ agent }: { agent: string }) {
+  const pin = useAccountPin(agent);
+  if (!pin.ready) return null;
+  return (
+    <CardAction icon={<Pin size={14} />} aria-pressed={pin.pinned} disabled={pin.saving} onClick={() => pin.set(!pin.pinned)}>
+      <span className="flex-1 text-left">Pin to this account</span>
+      {pin.pinned && <Check size={14} className="text-accent" aria-hidden />}
+    </CardAction>
   );
 }

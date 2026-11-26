@@ -17,6 +17,7 @@ import { Toggle } from '#src/ui/Toggle.tsx';
 import { Memory, Role } from '#src/settings/AgentContext.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
+import { useAccountPin } from '#src/chat/agent/accountPin.ts';
 
 type Rung = Methods['agent.review']['result']['ladder'][number];
 export type Level = Rung['level'];
@@ -57,6 +58,7 @@ export function AgentPage({ agent }: { agent: string }) {
       <Role agent={agent} />
       <Memory agent={agent} />
       <Lessons agent={agent} />
+      <AccountPin agent={agent} />
       <Sandbox agent={agent} />
       <Review agent={agent} />
     </SettingsPage>
@@ -121,6 +123,24 @@ const ALLOW: { word: string; title: string }[] = [
   { word: 'weaker-network', title: 'Allow Go module downloads' },
   { word: 'pnpm-install', title: 'Allow pnpm install' },
 ];
+
+/** Whether the daemon may move the agent to another account near a limit, or it stays on its own and waits for the reset. */
+function AccountPin({ agent }: { agent: string }) {
+  const pin = useAccountPin(agent);
+  if (!pin.ready) return null;
+  return (
+    <Block title="Account">
+      <Setting title="Pin to this account">
+        <Toggle label="Pin to this account" on={pin.pinned} disabled={pin.saving} onChange={pin.set} />
+      </Setting>
+      {!!pin.error && (
+        <p className="text-xs text-danger" role="alert">
+          {why(pin.error)}
+        </p>
+      )}
+    </Block>
+  );
+}
 
 /** Its sandbox and what the sandbox allows; each switch writes at once, the allowances greyed while the sandbox is off. */
 export function Sandbox({ agent }: { agent: string }) {
