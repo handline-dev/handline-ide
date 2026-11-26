@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boxIn, chainTo, locate, scaleOf, stylesOf, type DomNode } from '#src/pick-dom.ts';
+import { boxIn, locate, scaleOf, stylesOf, textOfHtml, Tree, type DomNode } from '#src/pick-dom.ts';
 
 let next = 1;
-/** A node as DOM.getDocument gives it; its backend id is its node id plus 100. */
+/** A node as the page describes it; its backend id is its node id plus 100. */
 const node = (nodeType: number, over: Partial<DomNode> = {}): DomNode => {
   const nodeId = next++;
   return { nodeId, backendNodeId: nodeId + 100, nodeType, ...over };
@@ -38,18 +38,100 @@ function page() {
   return { root, pay, keep, third, before, inner, deep, card, odd };
 }
 
-test('the chain to a node runs from the document down, through a frame and a shadow root', () => {
+/** The whole of a small page held at once: a node that comes with its children is held with them. */
+const held = (root: DomNode): Tree => {
+  const tree = new Tree(10_000);
+  tree.document(root);
+  return tree;
+};
+/** A node as the page sends it in a list of children: without its own. */
+const bare = (n: DomNode): DomNode => ({ ...n, children: undefined });
+
+test('the tree is built from the document and the children the page sends for each node on the way down, and no more', () => {
   const p = page();
-  const names = (n: DomNode) => chainTo(p.root, n.backendNodeId)!.map((c) => c.localName ?? `#${c.nodeType}`);
-  assert.deepEqual(names(p.pay), ['#9', 'html', 'body', 'div', 'button']);
+  const [, html] = p.root.children!;
+  const body = html!.children![1]!;
+  const tree = new Tree(10_000);
+  tree.children(html!.nodeId, [bare(body)]); // before any document: nothing to hang it on
+  tree.document(bare(p.root));
+  assert.equal(tree.chainTo(html!.nodeId), null);
+  tree.children(p.root.nodeId, p.root.children!.map(bare));
+  tree.children(html!.nodeId, html!.children!.map(bare));
+  tree.children(body.nodeId, body.children!.map(bare));
+  tree.children(p.card.nodeId, p.card.children!.map(bare));
+  const names = (id: number) => tree.chainTo(id)?.map((c) => c.localName ?? `#${c.nodeType}`);
+  assert.deepEqual(names(p.pay.nodeId), ['#9', 'html', 'body', 'div', 'button']);
+  // What was not sent is not held: the list's items, and nodes under the picked one.
+  assert.equal(tree.chainTo(p.third.nodeId), null);
+  assert.equal(tree.chainTo(p.pay.children![0]!.nodeId), null);
+  assert.equal(tree.chainTo(99_999), null);
+  // The path is counted among the siblings that came with it.
+  assert.equal(locate(tree.chainTo(p.keep.nodeId)!)!.path, 'div#cart > button:nth-of-type(2)');
+  // Children of a node that is not held are let go.
+  tree.children(99_999, [bare(p.third)]);
+  assert.equal(tree.chainTo(p.third.nodeId), null);
+  // A new document starts over.
+  tree.document(bare(p.root));
+  assert.equal(tree.chainTo(p.pay.nodeId), null);
+});
+
+test('a frame carries its document and a shadow host its roots, so the chain runs through them', () => {
+  const p = page();
+  const tree = held(p.root);
+  const names = (n: DomNode) => tree.chainTo(n.nodeId)!.map((c) => c.localName ?? `#${c.nodeType}`);
   assert.deepEqual(names(p.inner), ['#9', 'html', 'body', 'iframe', '#9', 'html', 'body', 'button']);
   assert.deepEqual(names(p.deep), ['#9', 'html', 'body', 'x-cart', '#11', 'div', 'b']);
-  assert.equal(chainTo(p.root, 99_999), null);
+});
+
+test('the tree holds no more nodes than its budget, says when it is full, and a loop in what it was sent ends', () => {
+  const root = doc();
+  const many = Array.from({ length: 50 }, () => el('span'));
+  const tree = new Tree(10);
+  tree.document(bare(root));
+  assert.equal(tree.full, false);
+  tree.children(root.nodeId, many);
+  assert.equal(tree.full, true);
+  // The document and nine of them make ten: the tenth child is the first not held.
+  assert.equal(tree.chainTo(many[8]!.nodeId)!.length, 2);
+  assert.equal(tree.chainTo(many[9]!.nodeId), null);
+  // Full: what comes after is not taken, nor kept hold of.
+  const late = el('b');
+  tree.children(many[0]!.nodeId, [late]);
+  assert.equal(tree.chainTo(late.nodeId), null);
+  assert.deepEqual(many[0]!.children, []);
+  tree.document(bare(root));
+  assert.equal(tree.full, false);
+  // Exactly its budget is not too many.
+  const exact = new Tree(3);
+  exact.document(bare(root));
+  exact.children(root.nodeId, many.slice(0, 2));
+  assert.deepEqual([exact.full, exact.chainTo(many[1]!.nodeId)?.length], [false, 2]);
+
+  // A page nested a hundred thousand deep is walked without a deeper stack.
+  const top = doc();
+  let last = top;
+  const deep = new Tree(200_000);
+  deep.document(top);
+  for (let i = 0; i < 100_000; i++) {
+    const next = el('div');
+    deep.children(last.nodeId, [next]);
+    last = next;
+  }
+  assert.equal(deep.chainTo(last.nodeId)!.length, 100_001);
+
+  // A node sent as its own ancestor: no chain, and no endless walk.
+  const a = el('div');
+  const loop = new Tree(100);
+  loop.document(bare(root));
+  loop.children(root.nodeId, [a]);
+  loop.children(a.nodeId, [bare(root)]);
+  assert.equal(loop.chainTo(a.nodeId), null);
 });
 
 test('a path starts at the nearest plain id, and counts an element among its siblings of the same tag only when there are several', () => {
   const p = page();
-  const at = (n: DomNode) => locate(chainTo(p.root, n.backendNodeId)!, 300)!;
+  const tree = held(p.root);
+  const at = (n: DomNode) => locate(tree.chainTo(n.nodeId)!)!;
   assert.equal(at(p.pay).path, 'button#pay');
   assert.equal(at(p.keep).path, 'div#cart > button:nth-of-type(2)');
   assert.equal(at(p.third).path, 'html > body > ul > li:nth-of-type(3) > span');
@@ -60,26 +142,50 @@ test('a path starts at the nearest plain id, and counts an element among its sib
 
 test('an element in a frame or a shadow root has its path in its own document, and what it is inside', () => {
   const p = page();
-  const inner = locate(chainTo(p.root, p.inner.backendNodeId)!, 300)!;
+  const tree = held(p.root);
+  const inner = locate(tree.chainTo(p.inner.nodeId)!)!;
   assert.deepEqual([inner.path, inner.within], ['button#inner-btn', ['iframe#same']]);
-  const deep = locate(chainTo(p.root, p.deep.backendNodeId)!, 300)!;
+  const deep = locate(tree.chainTo(p.deep.nodeId)!)!;
   assert.deepEqual([deep.path, deep.within], ['div > b', ['html > body > x-cart (shadow)']]);
 });
 
 test('a pseudo-element is its element, and a chain with no element is nothing', () => {
   const p = page();
-  const at = locate(chainTo(p.root, p.before.backendNodeId)!, 300)!;
+  const at = locate(held(p.root).chainTo(p.before.nodeId)!)!;
   assert.equal(at.node.localName, 'li');
   assert.equal(at.path, 'html > body > ul > li:nth-of-type(3)');
-  assert.equal(locate([p.root], 300), null);
+  assert.equal(locate([p.root]), null);
 });
 
-test('the text is what the element holds, without scripts and styles, spaces collapsed, read only as far as needed', () => {
-  const p = page();
-  const at = (n: DomNode, max = 300) => locate(chainTo(p.root, n.backendNodeId)!, max)!.text;
-  assert.equal(at(p.keep), 'Keep shopping');
-  assert.equal(at(p.card), 'Two items. Pay now Keep shopping');
-  assert.equal(at(p.card, 5), 'Two items.');
+test("the text is read from the element's HTML: what is between the tags, without scripts, styles and comments, spaces collapsed", () => {
+  assert.equal(textOfHtml('<button class="btn" id="pay">Pay now</button>', 300), 'Pay now');
+  assert.equal(textOfHtml('<button>Keep\n   shopping</button>', 300), 'Keep shopping');
+  const card =
+    '<div id="cart"><p class="line">Two items.<script>ignored("</p>")</script><STYLE>.x{}</STYLE><!-- not <b>this</b> --></p>' +
+    '<button>Pay now</button><template><i>nor this</i></template><noscript>or this</noscript><button>Keep shopping</button></div>';
+  assert.equal(textOfHtml(card, 300), 'Two items. Pay now Keep shopping');
+  // A tag's own quoted values may hold what looks like its end.
+  assert.equal(textOfHtml('<a title="a > b" data-x=\'c > "d"\'>link</a> after', 300), 'link after');
+  assert.equal(
+    textOfHtml('Tom &amp; Jerry &lt;3 &quot;x&quot; &#39;y&#x27; a&nbsp;b &copy; &#0; &#99999999;', 300),
+    'Tom & Jerry <3 "x" \'y\' a b &copy; &#0; &#99999999;',
+  );
+  assert.equal(textOfHtml('', 300), '');
+  assert.equal(textOfHtml('<script>only()</script>', 300), '');
+  assert.equal(textOfHtml('<p>never closed <b', 300), 'never closed');
+});
+
+test('the text is read from the front and only as far as needed, in one pass however deep or long the HTML is', () => {
+  const many = '<li>item</li>'.repeat(100_000);
+  assert.equal(textOfHtml(`<ul>${many}</ul>`, 10), 'item item item');
+  // A hundred thousand levels deep: no stack to run out of.
+  const deep = `${'<div>'.repeat(100_000)}bottom${'</div>'.repeat(100_000)}`;
+  assert.equal(textOfHtml(deep, 300), 'bottom');
+  // One long run of text is not taken whole.
+  assert.ok(textOfHtml(`<p>${'x'.repeat(5_000_000)}</p>`, 300).length <= 2400);
+  // Past the first million characters nothing is read: text there is not found, and a value that long is not walked.
+  assert.equal(textOfHtml(`<img src="${'A'.repeat(3_000_000)}"><p>late</p>`, 300), '');
+  assert.equal(textOfHtml(`<p>early</p>${'<i></i>'.repeat(200_000)}<p>late</p>`, 300), 'early');
 });
 
 test('the scale is device pixels per CSS pixel as the layout says it, else the picture over the viewport', () => {

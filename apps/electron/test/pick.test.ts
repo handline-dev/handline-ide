@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PICK_LIMITS, PICK_STYLES } from '@handline/app-core';
-import { ElementPicker, type Caller, type PickPage, type PickResult } from '#src/pick.ts';
+import { ElementPicker, NODE_CAP, type Caller, type PickPage, type PickResult } from '#src/pick.ts';
 
 const ORIGIN = 'http://127.0.0.1:5000';
 /** A PNG header that says 2078 x 1510, then nothing the tests read. */
@@ -10,27 +10,24 @@ png.writeUInt32BE(0x49484452, 12);
 png.writeUInt32BE(2078, 16);
 png.writeUInt32BE(1510, 20);
 
-const button = {
-  nodeId: 7,
-  backendNodeId: 17,
-  nodeType: 1,
-  localName: 'button',
-  attributes: ['class', 'btn primary', 'id', 'pay'],
-  children: [{ nodeId: 8, backendNodeId: 18, nodeType: 3, nodeValue: 'Pay now' }],
-};
-const body = { nodeId: 3, backendNodeId: 13, nodeType: 1, localName: 'body', attributes: [], children: [button] };
-const tree = {
-  root: {
-    nodeId: 1,
-    backendNodeId: 11,
-    nodeType: 9,
-    children: [{ nodeId: 2, backendNodeId: 12, nodeType: 1, localName: 'html', children: [body] }],
-  },
-};
+const button = { nodeId: 7, backendNodeId: 17, nodeType: 1, localName: 'button', attributes: ['class', 'btn primary', 'id', 'pay'] };
+const body = { nodeId: 3, backendNodeId: 13, nodeType: 1, localName: 'body', attributes: [] };
+const html = { nodeId: 2, backendNodeId: 12, nodeType: 1, localName: 'html' };
+const root = { nodeId: 1, backendNodeId: 11, nodeType: 9 };
+/** A parent's id and the children the page sends for it. */
+type Sent = [number, object[]];
+/** What the page sends when the way to the button is asked for: the children of the document, of html, of body. */
+const wayTo = (picked: object, ...beside: object[]): Sent[] => [
+  [1, [html]],
+  [2, [body]],
+  [3, [picked, ...beside]],
+];
 
-type Reply = unknown | Error;
-/** A web tab's page and its debugger, answering the protocol from `replies` and keeping what was asked of it, in order. */
-function fake(replies: Record<string, Reply> = {}, o: { type?: string; attachThrows?: boolean } = {}) {
+/** An answer to a command, an error to fail it with, or what makes the answer when the command comes. */
+type Reply = unknown | Error | (() => unknown);
+/** A web tab's page and its debugger, answering the protocol from `replies` and keeping what was asked of it, in order. Asked for the
+ * way to a node, it sends `way` as the page does: each list of children as an event of `from` (the page's own session, unless given). */
+function fake(replies: Record<string, Reply> = {}, o: { type?: string; attachThrows?: boolean; way?: Sent[]; from?: string } = {}) {
   const log: string[] = [];
   const sent: { method: string; params: object; session?: string }[] = [];
   const on = new Map<string, Set<(...args: never[]) => void>>();
@@ -39,7 +36,13 @@ function fake(replies: Record<string, Reply> = {}, o: { type?: string; attachThr
   const emit = (event: string, ...args: unknown[]) => [...(on.get(event) ?? [])].forEach((f) => (f as (...a: unknown[]) => void)(...args));
   const s = { attached: false, destroyed: false, attaches: 0, detaches: 0 };
   const answers: Record<string, Reply> = {
-    'DOM.getDocument': tree,
+    'Memory.getDOMCounters': { documents: 1, nodes: 1200, jsEventListeners: 0 },
+    'DOM.getDocument': () => ({ root: structuredClone(root) }),
+    'DOM.pushNodesByBackendIdsToFrontend': () => {
+      for (const [parentId, nodes] of structuredClone(o.way ?? wayTo(button)))
+        emit('message', {}, 'DOM.setChildNodes', { parentId, nodes }, o.from ?? '');
+      return { nodeIds: [7] };
+    },
     'CSS.getComputedStyleForNode': {
       computedStyle: [
         { name: 'color', value: 'rgb(255, 255, 255)' },
@@ -74,7 +77,7 @@ function fake(replies: Record<string, Reply> = {}, o: { type?: string; attachThr
         if (!s.attached) throw new Error('not attached');
         const r = answers[method];
         if (r instanceof Error) throw r;
-        return r ?? {};
+        return (typeof r === 'function' ? (r as () => unknown)() : r) ?? {};
       },
       on: listen,
       removeListener: unlisten,
@@ -95,7 +98,8 @@ function fake(replies: Record<string, Reply> = {}, o: { type?: string; attachThr
 }
 type Fake = ReturnType<typeof fake>;
 
-const picker = (f: Fake, limitMs = 5000) => new ElementPicker(ORIGIN, { page: (id) => (id === 2 ? f.page : null), limitMs, settleMs: 0 });
+const picker = (f: Fake, limitMs = 5000, nodeCap?: number) =>
+  new ElementPicker(ORIGIN, { page: (id) => (id === 2 ? f.page : null), limitMs, settleMs: 0, nodeCap });
 const turn = () => new Promise((resolve) => setImmediate(resolve));
 /** Waits until the page has been told to wait for a click. */
 async function armed(f: Fake) {
@@ -140,7 +144,9 @@ test('a click picks: a fixed run of commands, the highlight off before the pictu
   assert.deepEqual(f.log.slice(5), [
     'Overlay.setInspectMode',
     'Overlay.hideHighlight',
+    'Memory.getDOMCounters',
     'DOM.getDocument',
+    'DOM.pushNodesByBackendIdsToFrontend',
     'CSS.enable',
     'CSS.getComputedStyleForNode',
     'DOM.getOuterHTML',
@@ -150,6 +156,9 @@ test('a click picks: a fixed run of commands, the highlight off before the pictu
     'detach',
   ]);
   assert.deepEqual(f.sent[4]!.params, { mode: 'none', highlightConfig: {} });
+  // Of the page's tree, the document alone is asked for, then the way to the clicked node: never the page whole.
+  assert.deepEqual(f.sent.find((c) => c.method === 'DOM.getDocument')!.params, { depth: 0 });
+  assert.deepEqual(f.sent.find((c) => c.method === 'DOM.pushNodesByBackendIdsToFrontend')!.params, { backendNodeIds: [17] });
   assert.deepEqual(f.sent.find((c) => c.method === 'CSS.getComputedStyleForNode')!.params, { nodeId: 7 });
   assert.deepEqual(f.sent.find((c) => c.method === 'DOM.getOuterHTML')!.params, { backendNodeId: 17 });
   assert.deepEqual(r, {
@@ -171,21 +180,19 @@ test('a click picks: a fixed run of commands, the highlight off before the pictu
 
 test('what the page wrote comes back cut to size, with only the listed styles', async () => {
   const long = 'x'.repeat(50_000);
-  const big = {
-    ...button,
-    attributes: ['class', Array.from({ length: 40 }, (_, i) => `c${i}${long}`).join(' '), 'id', long],
-    children: [{ nodeId: 8, backendNodeId: 18, nodeType: 3, nodeValue: long }],
-  };
-  const f = fake({
-    'DOM.getDocument': { root: { ...tree.root, children: [{ ...tree.root.children[0]!, children: [{ ...body, children: [big] }] }] } },
-    'DOM.getOuterHTML': { outerHTML: long },
-    'CSS.getComputedStyleForNode': {
-      computedStyle: [
-        { name: 'font-family', value: long },
-        { name: 'background-image', value: 'url(x)' },
-      ],
+  const big = { ...button, attributes: ['class', Array.from({ length: 40 }, (_, i) => `c${i}${long}`).join(' '), 'id', long] };
+  const f = fake(
+    {
+      'DOM.getOuterHTML': { outerHTML: long },
+      'CSS.getComputedStyleForNode': {
+        computedStyle: [
+          { name: 'font-family', value: long },
+          { name: 'background-image', value: 'url(x)' },
+        ],
+      },
     },
-  });
+    { way: wayTo(big) },
+  );
   const going = picker(f).pick(f.caller, 2);
   await armed(f);
   click(f);
@@ -245,6 +252,85 @@ test('cancel stops a waiting pick only for the window the page is in, checked as
   assert.deepEqual(p.cancel(f.caller, 2), { ok: true });
   const windowPage = fake({}, { type: 'window' });
   assert.equal(picker(windowPage).cancel(windowPage.caller, 2).ok, false);
+});
+
+test('a page with more nodes than the cap is refused before anything of it is read', async () => {
+  const f = fake({ 'Memory.getDOMCounters': { nodes: 101 } });
+  const going = picker(f, 5000, 100).pick(f.caller, 2);
+  await armed(f);
+  click(f);
+  const r = await going;
+  assert.equal(failed(r), 'unavailable');
+  assert.match((r as { message: string }).message, /too large to pick from: it holds 101 nodes, and picking reads pages of up to 100\./);
+  // Counted, collected once in case a page left behind was counted too, counted again: nothing else.
+  assert.deepEqual(f.log.slice(7), ['Memory.getDOMCounters', 'HeapProfiler.collectGarbage', 'Memory.getDOMCounters', 'detach']);
+  released(f);
+
+  // At the cap it is read, and nothing is collected.
+  const at = fake({ 'Memory.getDOMCounters': { nodes: 100 } });
+  const fine = picker(at, 5000, 100).pick(at.caller, 2);
+  await armed(at);
+  click(at);
+  assert.equal(failed(await fine), 'ok');
+  assert.ok(!at.log.includes('HeapProfiler.collectGarbage'));
+
+  // The app's own cap, with a count in the millions.
+  const vast = fake({ 'Memory.getDOMCounters': { nodes: 3_000_000 } });
+  const no = picker(vast).pick(vast.caller, 2);
+  await armed(vast);
+  click(vast);
+  const most = NODE_CAP.toLocaleString('en-US');
+  assert.ok(((await no) as { message: string }).message.endsWith(`holds 3,000,000 nodes, and picking reads pages of up to ${most}.`));
+  assert.ok(!vast.log.includes('DOM.getDocument') && !vast.log.includes('DOM.getOuterHTML') && !vast.log.includes('capturePage'));
+});
+
+test('nodes of a page left behind stop counting once they are collected, and the pick goes on', async () => {
+  const counts = [500, 60];
+  const f = fake({ 'Memory.getDOMCounters': () => ({ nodes: counts.shift() }) });
+  const going = picker(f, 5000, 100).pick(f.caller, 2);
+  await armed(f);
+  click(f);
+  assert.equal(failed(await going), 'ok');
+  assert.deepEqual(f.log.slice(7, 11), [
+    'Memory.getDOMCounters',
+    'HeapProfiler.collectGarbage',
+    'Memory.getDOMCounters',
+    'DOM.getDocument',
+  ]);
+  released(f);
+});
+
+test('a page that does not say how large it is, or grows past the cap while it is read, is refused', async () => {
+  const silent = fake({ 'Memory.getDOMCounters': {} });
+  const s = picker(silent).pick(silent.caller, 2);
+  await armed(silent);
+  click(silent);
+  const quiet = await s;
+  assert.equal(failed(quiet), 'unavailable');
+  assert.match((quiet as { message: string }).message, /did not say how large/);
+  assert.ok(!silent.log.includes('DOM.getDocument') && !silent.log.includes('capturePage'));
+  released(silent);
+
+  // Counted small, then the way down brings more children than the cap: no more is taken, and no element comes of it.
+  const beside = Array.from({ length: 50 }, (_, i) => ({ nodeId: 100 + i, backendNodeId: 200 + i, nodeType: 1, localName: 'span' }));
+  const grown = fake({ 'Memory.getDOMCounters': { nodes: 5 } }, { way: wayTo(button, ...beside) });
+  const g = picker(grown, 5000, 10).pick(grown.caller, 2);
+  await armed(grown);
+  click(grown);
+  const r = await g;
+  assert.equal(failed(r), 'unavailable');
+  assert.match((r as { message: string }).message, /too large to pick from: picking reads pages of up to 10\./);
+  assert.ok(!grown.log.includes('DOM.getOuterHTML') && !grown.log.includes('capturePage'));
+  released(grown);
+});
+
+test("only the page's own session says where its nodes are", async () => {
+  const f = fake({}, { from: 'F' });
+  const going = picker(f).pick(f.caller, 2);
+  await armed(f);
+  click(f);
+  assert.match(((await going) as { message: string }).message, /no longer on the page/);
+  released(f);
 });
 
 test('a pick ends, and lets go of the page, when no click comes, the page moves on or closes, or the debugger is taken', async () => {
@@ -326,7 +412,7 @@ test('a debugger that cannot attach, or a command that fails, is an answer and n
   assert.match((b as { message: string }).message, /could not be read: Document is not available/);
   released(broken);
 
-  const gone = fake({ 'DOM.getDocument': { root: { nodeId: 1, backendNodeId: 11, nodeType: 9, children: [] } } });
+  const gone = fake({ 'DOM.pushNodesByBackendIdsToFrontend': { nodeIds: [0] } });
   const g = picker(gone).pick(gone.caller, 2);
   await armed(gone);
   click(gone);

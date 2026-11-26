@@ -1,8 +1,9 @@
-// What the shell reads of a picked element from the page's own description of itself (the DevTools protocol's DOM tree, box model,
-// layout metrics and computed style): where the element is, a CSS path to it, its text, its box in the picture. No Electron in it.
+// What the shell reads of a picked element from the page's own description of itself (the DevTools protocol's DOM nodes, outer HTML,
+// box model, layout metrics and computed style): where the element is, a CSS path to it, its text, its box in the picture. Of the
+// page's tree it holds the way down to the element and no more. No Electron in it.
 import { PICK_STYLES, type MarkRect } from '@handline/app-core';
 
-/** A node of DOM.getDocument's tree: the fields read here. */
+/** A node as the DevTools protocol's DOM domain describes it: the fields read here. */
 export interface DomNode {
   nodeId: number;
   backendNodeId: number;
@@ -19,25 +20,57 @@ export interface DomNode {
   pseudoElements?: DomNode[];
 }
 
-const kids = (n: DomNode): DomNode[] => [
-  ...(n.children ?? []),
-  ...(n.shadowRoots ?? []),
-  ...(n.pseudoElements ?? []),
-  ...(n.contentDocument ? [n.contentDocument] : []),
-];
-
-/** The nodes from the document down to the one with this backend id, through frames and shadow roots; null when the tree has none. */
-export function chainTo(root: DomNode, backendNodeId: number): DomNode[] | null {
-  // Its own stack: a page nests as deep as it likes.
-  const stack: { node: DomNode; next: number; kids: DomNode[] }[] = [{ node: root, next: 0, kids: kids(root) }];
-  while (stack.length) {
-    const top = stack.at(-1)!;
-    if (top.node.backendNodeId === backendNodeId) return stack.map((s) => s.node);
-    const child = top.kids[top.next++];
-    if (child) stack.push({ node: child, next: 0, kids: kids(child) });
-    else stack.pop();
+/** The part of a page's tree the shell holds for one pick: the document, and the children of each node on the way down to the
+ * picked one, as the page sends them (DOM.setChildNodes) when that node's path is asked for. Never the whole page, and never more
+ * than `max` nodes: past that it takes no more and says so (`full`). */
+export class Tree {
+  full = false;
+  private max: number;
+  private at = new Map<number, { node: DomNode; parent: number | null }>();
+  constructor(max: number) {
+    this.max = max;
   }
-  return null;
+
+  /** Starts over from this document. */
+  document(root: DomNode): void {
+    this.at.clear();
+    this.full = false;
+    this.add(root, null);
+  }
+
+  /** The children of the node with this id; those of a node not held are let go. */
+  children(parent: number, nodes: DomNode[]): void {
+    const p = this.at.get(parent);
+    if (!p || this.full) return;
+    p.node.children = nodes;
+    for (const n of nodes) this.add(n, parent);
+  }
+
+  /** The nodes from the document down to the one with this id, through frames and shadow roots; null when it is not held. */
+  chainTo(nodeId: number): DomNode[] | null {
+    const chain: DomNode[] = [];
+    let id: number | null = nodeId;
+    // No path is longer than the nodes held: a loop in what the page sent ends here.
+    for (let steps = 0; id !== null && steps <= this.at.size; steps++) {
+      const e = this.at.get(id);
+      if (!e) return null;
+      chain.push(e.node);
+      id = e.parent;
+    }
+    return id === null && chain.length ? chain.reverse() : null;
+  }
+
+  /** Holds a node and what it carries inside it (a frame's document, shadow roots, pseudo-elements, children already there). */
+  private add(node: DomNode, parent: number | null): void {
+    const todo: [DomNode, number | null][] = [[node, parent]];
+    while (todo.length) {
+      const [n, up] = todo.pop()!;
+      if (this.at.size >= this.max) return void (this.full = true);
+      this.at.set(n.nodeId, { node: n, parent: up });
+      for (const inner of [n.contentDocument, ...(n.shadowRoots ?? []), ...(n.pseudoElements ?? []), ...(n.children ?? [])])
+        if (inner) todo.push([inner, n.nodeId]);
+    }
+  }
 }
 
 const isElement = (n: DomNode): boolean => n.nodeType === 1 && !n.pseudoType;
@@ -72,20 +105,61 @@ function pathIn(chain: DomNode[]): string {
 
 const SKIP_TEXT = new Set(['script', 'style', 'noscript', 'template']);
 
-/** The text under an element as the page holds it, in document order, read until `max` characters are in hand. */
-function textOf(n: DomNode, max: number): string {
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+/** The most of an element's HTML read for its text. */
+const TEXT_SCAN = 1_000_000;
+
+/** Where the tag that opens at `from` ends: after its `>`, which a quoted attribute value may hold too. */
+function tagEnd(html: string, from: number, stop: number): number {
+  let quote = '';
+  for (let i = from + 1; i < stop; i++) {
+    const c = html[i]!;
+    if (quote) quote = c === quote ? '' : quote;
+    else if (c === '"' || c === "'") quote = c;
+    else if (c === '>') return i + 1;
+  }
+  return stop;
+}
+
+/** The text an element's HTML holds, spaces collapsed: what is between its tags, without comments, scripts and styles. Read from
+ * the front until `max` characters are in hand, in one pass over at most the first million characters, however deep the HTML nests. */
+export function textOfHtml(html: string, max: number): string {
+  const stop = Math.min(html.length, TEXT_SCAN);
   const parts: string[] = [];
   let have = 0;
-  const walk = (node: DomNode) => {
-    if (have >= max) return;
-    if (node.nodeType === 3) {
-      parts.push(node.nodeValue ?? '');
-      have += node.nodeValue?.length ?? 0;
-    } else if (!SKIP_TEXT.has(tagOf(node))) for (const c of node.children ?? []) walk(c);
-  };
-  walk(n);
-  return parts.join(' ').replace(/\s+/g, ' ').trim();
+  let i = 0;
+  while (i < stop && have < max) {
+    const lt = html.indexOf('<', i);
+    const end = lt < 0 || lt > stop ? stop : lt;
+    const piece = html.slice(i, Math.min(end, i + max * 8)).trim();
+    if (piece) {
+      parts.push(piece);
+      have += piece.length;
+    }
+    if (end === stop) break;
+    if (html.startsWith('<!--', lt)) {
+      const close = html.indexOf('-->', lt + 4);
+      i = close < 0 ? stop : close + 3;
+      continue;
+    }
+    const name = /^<([A-Za-z][^\s/>]*)/.exec(html.slice(lt, lt + 40))?.[1]?.toLowerCase();
+    i = tagEnd(html, lt, stop);
+    if (!name || !SKIP_TEXT.has(name)) continue;
+    // What such an element holds is not text to read: on to where it closes.
+    const closes = new RegExp(`</${name}`, 'gi');
+    closes.lastIndex = i;
+    i = closes.exec(html)?.index ?? stop;
+  }
+  return decode(parts.join(' ')).replace(/\s+/g, ' ').trim();
 }
+
+/** The few character references HTML text is written with, as their characters. */
+const decode = (text: string): string =>
+  text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]{2,6}));/gi, (all: string, dec?: string, hex?: string, named?: string) => {
+    if (named) return ENTITIES[named.toLowerCase()] ?? all;
+    const code = dec ? Number(dec) : parseInt(hex ?? '', 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : all;
+  });
 
 export interface Located {
   /** The element itself: what was clicked, or the element a clicked pseudo-element or text belongs to. */
@@ -95,12 +169,11 @@ export interface Located {
   classes: string[];
   path: string;
   within: string[];
-  text: string;
 }
 
-/** The element a chain of chainTo ends in, with its path in its own document and the frames and shadow hosts round it. Null when
- * the chain holds no element. */
-export function locate(chain: DomNode[], textMax: number): Located | null {
+/** The element a chain of Tree.chainTo ends in, with its path in its own document and the frames and shadow hosts round it. Null
+ * when the chain holds no element. */
+export function locate(chain: DomNode[]): Located | null {
   let end = chain.length - 1;
   while (end >= 0 && !isElement(chain[end]!)) end--;
   if (end < 0) return null;
@@ -120,7 +193,6 @@ export function locate(chain: DomNode[], textMax: number): Located | null {
     path: pathIn(own),
     // Each part above ends in the frame or the shadow host the next one is inside.
     within: parts.map((p, i) => `${pathIn(p)}${(parts[i + 1] ?? own)[0]!.nodeType === 11 ? ' (shadow)' : ''}`),
-    text: textOf(node, textMax),
   };
 }
 
