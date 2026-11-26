@@ -19,6 +19,7 @@ import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentLis
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Row } from '#src/sidebar/Row.tsx';
+import { NeedsYouBar } from '#src/sidebar/NeedsYouBar.tsx';
 import { FoldMarks, UnreadButton, UnreadList } from '#src/sidebar/Unread.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
@@ -73,7 +74,20 @@ type Pick = {
 let dragged: { name: string; group: string } | null = null;
 
 /** The rows of one section. `onMove(names)` hears the section's new order after a drag within it. */
-function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: Pick; onMove: (names: string[]) => void; here?: string }) {
+function AgentRows({
+  agents,
+  pick,
+  onMove,
+  here,
+  mark = false,
+}: {
+  agents: AgentView[];
+  pick: Pick;
+  onMove: (names: string[]) => void;
+  here?: string;
+  /** Rows that need the person, their chat not on screen, carry their key for the bar at the list's edge (NeedsYouBar). */
+  mark?: boolean;
+}) {
   const now = useNow();
   // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
   const nameOf = useNameOf(here);
@@ -92,6 +106,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
     return (
       <DropArea
         key={agent.key}
+        data-needs-you={mark && activityOf(agent) === 'you' && !pick.shown.includes(agent.key) ? agent.key : undefined}
         className="relative flex flex-col"
         onDragStart={(e) => {
           e.stopPropagation();
@@ -169,10 +184,13 @@ export function Section({
   opens,
   word,
   marks,
+  needs,
   children,
 }: {
   /** Drawn at the header's right while folded: what waits inside. */
   marks?: ReactNode;
+  /** While folded, the agents inside that need the person (NeedsYouBar reads them off the header). */
+  needs?: string[];
   title: string;
   /** Whose it is, after the title: another cluster's name. */
   word?: ReactNode;
@@ -198,7 +216,10 @@ export function Section({
       {...take.handlers}
     >
       {/* Its buttons show while the pointer is on the heading or one has focus; their room is kept, so nothing moves. */}
-      <div className="group @container flex h-7 items-center justify-between gap-2 pl-2">
+      <div
+        data-needs-you={folded && needs?.length ? needs.join(' ') : undefined}
+        className="group @container flex h-7 items-center justify-between gap-2 pl-2"
+      >
         <h2 className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted">
           {onFold && (
             <button
@@ -243,6 +264,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
           <AgentRows
             agents={pinned}
             pick={pick}
+            mark={!joined}
             onMove={(names) => change({ pins: [...names, ...nav.pins.filter((n) => !names.includes(n))] })}
           />
         </Section>
@@ -257,6 +279,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
           word={word}
           folded={!!workspace && nav.folded.includes(workspace.key)}
           marks={<FoldMarks agents={agents} />}
+          needs={joined ? [] : agents.filter((a) => activityOf(a) === 'you' && !pick.shown.includes(a.key)).map((a) => a.key)}
           onFold={workspace ? () => toggleFold(workspace.key) : undefined}
           opens={workspace ? workspaceOf(workspace.key) : undefined}
           action={
@@ -281,7 +304,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
             </div>
           )}
           {i === 0 && list.isError && <p className="px-2 text-sm text-danger">Agents did not load.</p>}
-          <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} />
+          <AgentRows agents={agents} pick={pick} onMove={reorder} here={workspace?.key} mark={!joined} />
         </Section>
       ))}
     </>
@@ -335,30 +358,33 @@ export function Sidebar({
           />
         ))}
       </nav>
-      <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
-        {unreadOnly ? (
-          <UnreadList shown={onScreen} onSelect={onSelectAgent} />
-        ) : (
-          <>
-            <Agents
-              pick={{ shown: onScreen, onSelect: onSelectAgent }}
-              onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
-            />
-            {joined.map((j) => (
-              <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent }} />
-            ))}
-          </>
-        )}
-        <div className="-mx-2 mt-1 border-t border-border">
-          <button
-            type="button"
-            onClick={newWorkspace}
-            className="flex h-9 w-full items-center gap-1.5 px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
-          >
-            <Plus size={14} />
-            Add workspace
-          </button>
+      <div className="relative -mx-2 flex min-h-0 flex-1 flex-col">
+        <div ref={scroller} style={fade} className="min-h-0 flex-1 overflow-y-auto px-2">
+          {unreadOnly ? (
+            <UnreadList shown={onScreen} onSelect={onSelectAgent} />
+          ) : (
+            <>
+              <Agents
+                pick={{ shown: onScreen, onSelect: onSelectAgent }}
+                onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
+              />
+              {joined.map((j) => (
+                <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent }} />
+              ))}
+            </>
+          )}
+          <div className="-mx-2 mt-1 border-t border-border">
+            <button
+              type="button"
+              onClick={newWorkspace}
+              className="flex h-9 w-full items-center gap-1.5 px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
+            >
+              <Plus size={14} />
+              Add workspace
+            </button>
+          </div>
         </div>
+        {!unreadOnly && <NeedsYouBar scroller={scroller} onSelect={onSelectAgent} />}
       </div>
       <SetupCard />
       <nav className="mt-auto flex gap-0.5 border-t border-border pt-2">
