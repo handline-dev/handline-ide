@@ -1,5 +1,16 @@
 import { PROTOCOL } from '@handline/contract';
-import type { AgentDetail, AgentView, InputHolder, MachineNeed, Methods, Notifications, Prompt, Row, Timestamp } from '@handline/contract';
+import type {
+  AgentDetail,
+  AgentView,
+  InputHolder,
+  MachineNeed,
+  Methods,
+  Notifications,
+  Prompt,
+  Row,
+  RunLoad,
+  Timestamp,
+} from '@handline/contract';
 import { BANNER, type AgentFixture } from '#src/fixtures.ts';
 import { identOf } from '#src/names.ts';
 import { Failure, badRequest, refused } from '#src/errors.ts';
@@ -183,6 +194,7 @@ export function statusReply(
   paused: object | null = null,
   missing: readonly { tool: string; fix: string }[] = [],
   vendors: readonly { vendor: string; binary: string; installed: boolean; fix: string }[] = [],
+  runLoad?: RunLoad,
 ) {
   const by_state: Record<string, number> = {};
   for (const s of sessions.values()) by_state[s.state] = (by_state[s.state] ?? 0) + 1;
@@ -199,6 +211,17 @@ export function statusReply(
     inbox: { unread },
     resources: fakeResources(sessions, startedAt),
     keep_awake: { mode: keepAwake, held, ...(held ? { since: startedAt } : {}) },
+    ...(runLoad ? { run_load: runLoad } : {}),
+    // The one cause the fake's health knows: a slow machine is near, as the daemon says it.
+    ...(runLoad?.slow
+      ? {
+          health: {
+            level: 'near' as const,
+            text: 'The Mac is slow: heavy runs are taking longer than usual.',
+            since: runLoad.since ?? startedAt,
+          },
+        }
+      : {}),
     ...(needs.length ? { needs_you: [...needs] } : {}),
     ...(paused ? { paused } : {}),
     ...(missing.length ? { missing_tools: [...missing] } : {}),

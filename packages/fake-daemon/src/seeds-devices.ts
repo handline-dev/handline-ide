@@ -8,6 +8,8 @@ const GB = 1024 ** 3;
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
 export const DEVICE_SEEDS: Record<string, Seed> = {
+  /** This Mac has become slow under the agents' runs: three of five are late, and one more waits when a policy holds runs. */
+  'slow-mac': (d) => void (d.admin.slowMac = true),
   devices: (d) => {
     d.admin.lend({
       id: 'd-studio',

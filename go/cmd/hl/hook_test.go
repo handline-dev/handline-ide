@@ -10,12 +10,14 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/scheduler/runload"
 )
 
 // hookRig is a rig with a migrated database, the Go hook switched on unless off, and the test process as the founder.
@@ -365,5 +367,80 @@ func TestOnlyADroppedConnectionAsksAgain(t *testing.T) {
 		if got := brokenOff(c.err); got != c.want {
 			t.Errorf("%v: %v, want %v", c.err, got, c.want)
 		}
+	}
+}
+
+// A heavy run waits while the daemon says no, asking again every few seconds, and goes on a yes; anything else lets it through at
+// once, and no wait outlasts its limit.
+func TestAHeavyRunWaitsForItsTurnAndNeverPastItsLimit(t *testing.T) {
+	no, yes := map[string]any{"go": false, "ahead": float64(1)}, map[string]any{"go": true}
+	var lost map[string]any // an ask the daemon did not answer
+	for _, c := range []struct {
+		name    string
+		answers []map[string]any
+		asks    int
+	}{
+		{"goes at once", []map[string]any{yes}, 1},
+		{"waits twice", []map[string]any{no, no, yes}, 3},
+		{"a daemon that knows no such question", []map[string]any{{}}, 1},
+		{"a daemon that does not answer the first ask", []map[string]any{lost}, 1},
+		{"one slow answer while held is not a yes", []map[string]any{no, lost, lost, no, lost, yes}, 6},
+		{"three in a row let it go", []map[string]any{no, lost, lost, lost}, 4},
+	} {
+		now, asks, slept := time.Unix(1_700_000_000, 0), 0, time.Duration(0)
+		waitTurn(func() (map[string]any, error) {
+			asks++
+			if a := c.answers[asks-1]; a != nil {
+				return a, nil
+			}
+			return nil, errors.New("no answer in time")
+		}, func(d time.Duration) { slept += d; now = now.Add(d) }, func() time.Time { return now })
+		if asks != c.asks || slept != time.Duration(c.asks-1)*runload.AskEvery {
+			t.Errorf("%s: %d asks, slept %s", c.name, asks, slept)
+		}
+	}
+	now, asks := time.Unix(1_700_000_000, 0), 0
+	waitTurn(func() (map[string]any, error) { asks++; return no, nil }, func(d time.Duration) { now = now.Add(d) }, func() time.Time { return now })
+	if waited := now.Sub(time.Unix(1_700_000_000, 0)); waited != turnWaitLimit {
+		t.Errorf("a daemon that always says no: waited %s over %d asks, want %s", waited, asks, turnWaitLimit)
+	}
+}
+
+// Only a Bash call with an id and a command of some shape asks for its turn: a wait, Handline's own command, another tool and a
+// push never do. The ask carries the shape, never the command, and a daemon that does not say no lets the call through.
+func TestOnlyABashCallOfSomeShapeAsksForItsTurn(t *testing.T) {
+	r := hookRig(t, true)
+	calls := r.daemon(nil)
+	pre := func(tool, id, command string) string {
+		b, _ := json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "session_id": "s", "tool_name": tool, "tool_use_id": id,
+			"tool_input": map[string]any{"command": command, "file_path": "/tmp/x", "content": "x"}})
+		return string(b)
+	}
+	admits := func() (out []map[string]any) {
+		for _, c := range calls() {
+			if c["method"] == "run.admit" {
+				p, _ := c["params"].(map[string]any)
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	for name, in := range map[string]string{
+		"a wait": pre("Bash", "toolu_1", "sleep 30"), "hl": pre("Bash", "toolu_1", "hl team"), "no id": pre("Bash", "", "tools/check.sh"),
+		"another tool": pre("Write", "toolu_1", "tools/check.sh"), "a push": pre("Bash", "toolu_1", "tools/check.sh && git push origin feature"),
+	} {
+		if out, _, _ := r.runIn(in, asAgent, "hook", "PreToolUse"); strings.TrimSpace(out) != "{}" {
+			t.Errorf("%s: %q", name, out)
+		}
+		if got := admits(); len(got) != 0 {
+			t.Fatalf("%s asks for a turn: %v", name, got)
+		}
+	}
+	if out, _, _ := r.runIn(pre("Bash", "toolu_9", "SECRET=x tools/check.sh origin/main"), asAgent, "hook", "PreToolUse"); strings.TrimSpace(out) != "{}" {
+		t.Fatalf("the check did not go: %q", out)
+	}
+	got := admits()
+	if len(got) != 1 || got[0]["id"] != "toolu_9" || got[0]["shape"] != "check.sh" || len(got[0]) != 3 {
+		t.Errorf("run.admit: %v", got)
 	}
 }

@@ -29,6 +29,8 @@ const KEYS = [
   'host_active_cap',
   'load_per_core_pct',
   'ram_free_min_pct',
+  'heavy_runs_policy',
+  'heavy_runs_at_once',
   'disk_free_min_gb',
   'disk_keep_free_gb',
   'agents_memory_max_gb',

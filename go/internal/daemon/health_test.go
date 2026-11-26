@@ -10,6 +10,7 @@ import (
 
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/pause"
+	"github.com/handline/handline/go/scheduler/runload"
 )
 
 // healthOfStatus is the health a status.changed carried.
@@ -129,5 +130,38 @@ func TestTheHealthCheckTellsAChangeOfKeepAwake(t *testing.T) {
 	}
 	if a := f.statusEvent(5 * time.Second)["keep_awake"].(map[string]any); a["mode"] != "working" {
 		t.Fatalf("%v", a)
+	}
+}
+
+// run_load on daemon.status appears once the runs were looked at, and the check tells a change of it once: here the policy.
+func TestTheHealthCheckTellsAChangeOfTheRunLoad(t *testing.T) {
+	cfg := tlsConfig(t, t.TempDir())
+	cfg.Auth, cfg.RunLoad = pidAuth{}, &runload.Watcher{Home: cfg.Home}
+	d, err := Start(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+	f := readAll(t, pipeTo(t, d, "k"), 2, 3)
+	r := f.ask(2, `{"jsonrpc":"2.0","id":2,"method":"daemon.status","params":{}}`)["result"].(map[string]any)
+	if _, ok := r["run_load"]; ok {
+		t.Fatalf("before the first look: %v", r["run_load"])
+	}
+	f.ask(3, `{"jsonrpc":"2.0","id":3,"method":"subscribe","params":{"topics":["status"]}}`)
+	cfg.RunLoad.Look()
+	if !d.checkHealth() || d.checkHealth() {
+		t.Fatal("the first look is told once")
+	}
+	if got := fmt.Sprint(f.statusEvent(5 * time.Second)["run_load"]); got != "map[cap:<nil> causes:[] heavy:0 policy:observe since:<nil> slow:false waiting:0]" {
+		t.Fatalf("%v", got)
+	}
+	if err := os.WriteFile(filepath.Join(d.cfg.Home, "config.yaml"), []byte("heavy_runs_policy: fixed\nheavy_runs_at_once: 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !d.checkHealth() || d.checkHealth() {
+		t.Fatal("a change of the policy is told once")
+	}
+	if got := f.statusEvent(5 * time.Second)["run_load"].(map[string]any); got["policy"] != "fixed" || fmt.Sprint(got["cap"]) != "3" {
+		t.Fatalf("%v", got)
 	}
 }

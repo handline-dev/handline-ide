@@ -62,6 +62,7 @@ import (
 	"github.com/handline/handline/go/scheduler/leasestore"
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/procload"
+	"github.com/handline/handline/go/scheduler/runload"
 	"github.com/handline/handline/go/scheduler/runs"
 	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
@@ -122,6 +123,9 @@ type Config struct {
 	HealthEvery time.Duration
 	// Resources, when set, is the sampler shared with the load gate, run whether or not Watch is; nil makes one for Watch.
 	Resources *sysres.Sampler
+	// RunLoad, when set, is the watcher of the agents' runs that the tick tells its own time to; the daemon gives it the database,
+	// the processes and the settings. Nil makes one.
+	RunLoad *runload.Watcher
 	// Load, when set, is the process tracker shared with the agent views (its servers); the daemon gives it the database and the panes. Nil makes one for Watch.
 	Load *procload.Tracker
 	// Context is the model id and context figures of an agent on an account (agent.strip). Nil leaves them null.
@@ -166,6 +170,7 @@ type Daemon struct {
 	res       *sysres.Sampler   // what the machine and each agent use; nil when the daemon does not watch
 	placer    *placement.Placer // the machine each session opens on
 	load      *procload.Tracker // every process and whose it is; nil when the daemon does not watch
+	runload   *runload.Watcher  // what the agents' commands cost the machine, and whether it has become slow
 	leases    *leases.Manager   // the port leases and the shared runs' turns
 	runs      *runs.Book        // the shared runs, as the leases and the hook read them
 	holds     *inputhold.Store  // who holds each terminal's input
@@ -467,6 +472,12 @@ func Start(cfg Config) (*Daemon, error) {
 	if d.logins != nil { // a login's state moving is an account.changed on the accounts topic
 		d.logins.Changed = d.accountChanged
 	}
+	d.runload = cfg.RunLoad
+	if d.runload == nil {
+		d.runload = &runload.Watcher{Home: cfg.Home, Log: cfg.Log}
+	}
+	d.runload.DB = db
+	d.runload.Config = func() runload.Config { return runload.ConfigOf(usage.LoadConfig(cfg.Home)) }
 	if cfg.Watch || cfg.Resources != nil { // made before the servers that read them; started below
 		d.res = cfg.Resources
 		if d.res == nil {
@@ -486,6 +497,11 @@ func Start(cfg Config) (*Daemon, error) {
 				}
 				return a
 			}
+		}
+		d.runload.Machine = d.res.LatestMachine
+		d.runload.Procs = func() ([]procload.Proc, bool) {
+			v, ok := d.load.View()
+			return v.Processes, ok
 		}
 	}
 	d.hclock = &reads.HealthClock{}
@@ -581,6 +597,11 @@ func Start(cfg Config) (*Daemon, error) {
 		go func() {
 			defer d.wg.Done()
 			d.load.Run(d.stop)
+		}()
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			d.runload.Run(d.stop)
 		}()
 	}
 	d.wg.Add(1)
@@ -856,6 +877,7 @@ func (d *Daemon) readsEnv() reads.Env {
 	if d.load != nil {
 		renv.Load, renv.LoadSeries = d.load.View, d.load.Series
 	}
+	renv.RunLoad = d.runload.View // says nothing until the runs were looked at once
 	if d.logins != nil {
 		renv.Login = d.logins.Of
 	}
@@ -904,6 +926,7 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	reads.Register(s, d.readsEnv())
 	leases.Register(s, d.leases)
 	runs.Register(s, d.runs, d.leases.View)
+	runload.Register(s, d.runload)
 	s.Register("connection.addresses", rpc.Method{Handler: d.connectionAddresses, Read: true})
 	stream.StampCursor(s, d.hub.Log)
 	return s

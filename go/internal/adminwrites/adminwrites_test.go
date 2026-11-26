@@ -173,6 +173,27 @@ func TestTheLoadLimitsAreWholeNumbersForTheWholeMachine(t *testing.T) {
 	}
 }
 
+// The heavy runs' policy is one of its four words, for the whole machine, and the count a whole number.
+func TestTheHeavyRunsPolicyIsOneOfItsWords(t *testing.T) {
+	r := newRig(t)
+	r.result(r.one("settings.set", `{"changes":{"heavy_runs_policy":"turns","heavy_runs_at_once":4},"request_id":"h1"}`))
+	if got := r.file("config.yaml"); !strings.Contains(got, "heavy_runs_policy: turns") || !strings.Contains(got, "heavy_runs_at_once: 4") {
+		t.Fatalf("%q", got)
+	}
+	for i, bad := range []string{`{"heavy_runs_policy":"kill"}`, `{"heavy_runs_policy":true}`, `{"heavy_runs_at_once":-1}`, `{"heavy_runs_at_once":"2"}`} {
+		if r.code(r.one("settings.set", `{"changes":`+bad+`,"request_id":"h`+strconv.Itoa(i+2)+`"}`)) != "bad_request" {
+			t.Fatalf("%s was taken", bad)
+		}
+	}
+	if r.code(r.one("settings.set", `{"changes":{"heavy_runs_policy":"fixed"},"agent":"alice","request_id":"h9"}`)) != "bad_request" {
+		t.Fatal("the policy has no per-agent value")
+	}
+	r.result(r.one("settings.set", `{"changes":{"heavy_runs_policy":null},"request_id":"h10"}`))
+	if got := r.file("config.yaml"); strings.Contains(got, "heavy_runs_policy") {
+		t.Fatalf("null did not remove it: %q", got)
+	}
+}
+
 // The old per-kind limits are unknown keys now: a shared run is what takes turns.
 func TestTheOldLeaseLimitsAreRefused(t *testing.T) {
 	r := newRig(t)

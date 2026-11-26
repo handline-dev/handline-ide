@@ -46,6 +46,9 @@ type Config struct {
 	DiskFree func(path string) (free, total int64, err error)
 	// Machine is the machine's latest measure for the load gate (sysres.Sampler.LatestMachine); nil checks only the agent cap.
 	Machine func() *sysres.Machine
+	// LoopBegan and LoopEnded are told at each tick's start and end, with how long it took (runload.Watcher); nil tells no one.
+	LoopBegan func()
+	LoopEnded func(took time.Duration)
 	// AgentsMemory is when the agents' memory was last read and each agent's resident bytes (sysres.Sampler.AgentsMemory), for the
 	// founder's cap on it (agents_memory_max_gb); nil leaves the cap unchecked.
 	AgentsMemory func() (at int64, rss map[string]int64)

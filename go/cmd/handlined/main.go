@@ -37,6 +37,7 @@ import (
 	"github.com/handline/handline/go/kit/version"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/procload"
+	"github.com/handline/handline/go/scheduler/runload"
 	"github.com/handline/handline/go/scheduler/sysres"
 	"github.com/handline/handline/go/taskboard/supervisor"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -198,6 +199,8 @@ func main() {
 		}
 		cfg.Resources = &sysres.Sampler{Home: homeDir, Log: func(s string) { log.Print(s) }}
 		ccfg.Machine, ccfg.AgentsMemory = cfg.Resources.LatestMachine, cfg.Resources.AgentsMemory
+		cfg.RunLoad = &runload.Watcher{Home: homeDir, Log: log.Printf}
+		ccfg.LoopBegan, ccfg.LoopEnded = cfg.RunLoad.LoopBegan, cfg.RunLoad.LoopEnded
 		shareLoad(&cfg, &ccfg)
 		parts := compose.New(ccfg)
 		fromParts(&cfg, parts, &ccfg)

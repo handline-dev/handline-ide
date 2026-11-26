@@ -12,6 +12,7 @@ import type { FakePairing } from '#src/pairing.ts';
 import { OWNER, PEOPLE } from '#src/names.ts';
 import { subscribeTopics } from '#src/resume.ts';
 import { detail, loadReply, newSession, statusReply, view, type Session, type TaskCounter } from '#src/session.ts';
+import { runAdmit, runLoadReply, runLoadStatus } from '#src/runload.ts';
 
 /** What these methods need of the daemon that hosts them. */
 export interface CoreHost {
@@ -101,9 +102,14 @@ export function coreCall(
         d.admin.paused,
         withInstall(d, missingTools(d)),
         withInstall(d, d.admin.vendors),
+        runLoadStatus(runLoadReply(d.sessions, d.iso(), d.admin.slowMac, d.admin.heavyRuns())),
       );
     case 'load.get':
       return loadReply(d.sessions, d.iso(), p);
+    case 'run.load':
+      return runLoadReply(d.sessions, d.iso(), d.admin.slowMac, d.admin.heavyRuns());
+    case 'run.admit':
+      return runAdmit(p);
     case 'agents.list':
       return {
         agents: [...d.sessions.values()]

@@ -95,6 +95,8 @@ agent" can also be set on one agent's row (the app's agent settings), which then
 | `pace_target_pct` | 98 | Where an account's weekly pace line ends: the share of the week (50 to 100) it may have spent when its week resets. |
 | `pace_burst_pct` | 10 | How many points ahead of that line still counts as on it (0 to 50). The pace line is shown; it holds no start. |
 | `host_active_cap`, `load_per_core_pct`, `ram_free_min_pct` | 0 (off) | Machine limits on a new session: agents mid-turn, 1-minute load per core, free memory. |
+| `heavy_runs_policy` | `observe` | What happens to heavy runs (test and build commands that usually take a minute or more) once the machine is slow: `observe` only says so, `priority` lowers their priority, `turns` also has new ones take turns under a limit that follows the machine, `fixed` has them take turns always. A run already going is never stopped. |
+| `heavy_runs_at_once` | 0 | Under `fixed`, how many heavy runs go at once; 0 is half the cores. |
 | `disk_free_min_gb` | 0 | Free disk under which the founder is warned; 0 warns at 10 GB. |
 | `review_flow` | off | A finished task that serves the founder is Ready for their look (see Review below). |
 | `disk_keep_free_gb`, `agents_memory_max_gb` | 0 (off) | Under this much free disk the free desks are removed, oldest first; over this much agent memory the longest-idle sessions close. |

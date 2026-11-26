@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/leases"
 	"github.com/handline/handline/go/scheduler/loadgate"
+	"github.com/handline/handline/go/scheduler/runload"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/handoff"
@@ -44,6 +45,7 @@ const (
 	ports  = "lo-hi"
 	model  = "model"
 	effort = "effort"
+	heavy  = "observe, priority, turns or fixed"
 )
 
 // HostsMax is how many hosts network_addresses may name.
@@ -64,6 +66,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	"push_only_away": flag_, "push_sound": flag_,
 	keepawake.Key: awake, housekeeping.OrphansKey: reaper,
 	loadgate.AgentCapKey: int0, loadgate.LoadPctKey: int0, loadgate.RAMFreePctKey: pct, loadgate.DiskFreeGBKey: int0,
+	runload.PolicyKey: heavy, runload.AtOnceKey: int0,
 	usage.PaceTargetKey: tgt, usage.PaceBurstKey: burst, usage.SubagentGuardKey: flag_, usage.MoveBeforeKey: pct, usage.SplitKey: split, placement.Key: place, temps.Key: split,
 	settings.ClearPastBackgroundKey: flag_, settings.TranscriptRowsKey: flag_, settings.RefsNeedGrantKey: flag_,
 	worktreepool.DiskKeepFreeKey: int0, worktreepool.AgentsMemoryMaxKey: int0,
@@ -137,6 +140,10 @@ func settingValue(key string, v any) (any, error) {
 		if m, ok := v.(string); ok && (m == housekeeping.OrphansDry || m == housekeeping.OrphansOn || m == housekeeping.OrphansOff) {
 			return m, nil
 		}
+	case heavy:
+		if m, ok := v.(string); ok && slices.Contains(runload.Policies, m) {
+			return m, nil
+		}
 	case hosts:
 		if l, ok := hostList(v); ok {
 			return l, nil
@@ -172,7 +179,7 @@ func settingValue(key string, v any) (any, error) {
 	}
 	what := map[string]string{int1: "a whole number, at least 1", int0: "a whole number, at least 0", pct: "a whole number from 0 to 100",
 		tgt: "a whole number from 50 to 100", burst: "a whole number from 0 to 50",
-		flag_: "true or false", awake: "off, on or working", reaper: "dry, on or off", place: "auto or manual",
+		flag_: "true or false", awake: "off, on or working", heavy: heavy, reaper: "dry, on or off", place: "auto or manual",
 		line:  fmt.Sprintf("one line of text, at most %d characters", LineMax),
 		cname: fmt.Sprintf("a name of 1 to %d characters on one line", ClusterNameMax),
 		hosts: fmt.Sprintf("a list of at most %d different hosts from connection.addresses", HostsMax),

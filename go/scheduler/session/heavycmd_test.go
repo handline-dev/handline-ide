@@ -22,6 +22,12 @@ func TestHeavyShape(t *testing.T) {
 		{"timeout 30 hl task wait T1", 5 * time.Minute, ""},
 		{"sleep 120", 2 * time.Minute, ""},
 		{"echo hi", 2 * time.Minute, ""},
+		{"go -C go vet ./...", 2 * time.Minute, "go vet"},
+		// A word after a flag may be that flag's value: it is never part of a shape.
+		{"curl -u name:password https://example.com/big", 2 * time.Minute, "curl"},
+		{"sshpass -p hunter2 ssh host make", 2 * time.Minute, "sshpass"},
+		{"zip -P hunter2 out.zip dir", 2 * time.Minute, "zip"},
+		{"git -c user.name=x status", 2 * time.Minute, "git"},
 	} {
 		if got := HeavyShape(c.cmd, c.ran); got != c.want {
 			t.Errorf("%q after %v: %q, want %q", c.cmd, c.ran, got, c.want)
@@ -59,5 +65,70 @@ func TestABashCallIsTimedFromItsPreToolUseToItsPostToolUse(t *testing.T) {
 	NoteBashStart(home, "w", bad, at)
 	if _, ok := BashRan(home, "w", bad, at); ok {
 		t.Error("an id that is not a file name")
+	}
+}
+
+// A call that names its own time limit and fails at it is one the limit stopped; a failure well short of the limit, a call that
+// names none, and a call that ended well are not.
+func TestACallThatFailsAtItsOwnTimeLimitIsToldAsTimedOut(t *testing.T) {
+	home := t.TempDir()
+	at := time.Unix(1_700_000_000, 0)
+	call := func(id string, limitMs any) map[string]any {
+		in := map[string]any{"command": "tools/check.sh origin/main"}
+		if limitMs != nil {
+			in["timeout"] = limitMs
+		}
+		return map[string]any{"tool_name": "Bash", "tool_use_id": id, "tool_input": in}
+	}
+	for _, c := range []struct {
+		name, event string
+		limitMs     any
+		ran         time.Duration
+		timedOut    bool
+	}{
+		{"at its limit", "PostToolUseFailure", 600000.0, 600 * time.Second, true},
+		{"just short of it, as the hook comes a moment late or early", "PostToolUseFailure", 600000.0, 599 * time.Second, true},
+		{"failed long before", "PostToolUseFailure", 600000.0, 200 * time.Second, false},
+		{"ended well at its limit", "PostToolUse", 600000.0, 600 * time.Second, false},
+		{"names no limit", "PostToolUseFailure", nil, 120 * time.Second, false},
+	} {
+		raw := call("toolu_"+c.event+c.ran.String(), c.limitMs)
+		NoteBashStart(home, "w", raw, at)
+		got := EndedCall(home, "w", c.event, raw, at.Add(c.ran))
+		if got.TimedOut != c.timedOut || !got.Timed || got.Ran != c.ran || got.Shape != "check.sh" || got.Would != "check.sh" {
+			t.Errorf("%s: %+v", c.name, got)
+		}
+	}
+	// A short call counts under the shape it would have, and as nothing in its agent's load.
+	raw := call("toolu_short", nil)
+	NoteBashStart(home, "w", raw, at)
+	if got := EndedCall(home, "w", "PostToolUse", raw, at.Add(3*time.Second)); got.Shape != "" || got.Would != "check.sh" || !got.Timed {
+		t.Errorf("a short call: %+v", got)
+	}
+	if got := EndedCall(home, "w", "PostToolUse", map[string]any{"tool_name": "Read"}, at); got != (Ended{}) {
+		t.Errorf("another tool: %+v", got)
+	}
+}
+
+// Every agent's open calls are read from their start notes, each with its shape and the limit it named, and no command's text.
+func TestOpenStartsReadsEveryAgentsStartNotes(t *testing.T) {
+	home := t.TempDir()
+	at := time.Unix(1_700_000_000, 0)
+	NoteBashStart(home, "a1", map[string]any{"tool_name": "Bash", "tool_use_id": "toolu_1",
+		"tool_input": map[string]any{"command": "cd go && TOKEN=secret tools/check.sh", "timeout": 600000.0}}, at)
+	NoteBashStart(home, "worker", map[string]any{"tool_name": "Bash", "tool_use_id": "toolu_2", "tool_input": map[string]any{"command": "sleep 30"}}, at.Add(time.Second))
+	got := OpenStarts(home)
+	if len(got) != 2 {
+		t.Fatalf("%+v", got)
+	}
+	by := map[string]OpenStart{}
+	for _, s := range got {
+		by[s.ID] = s
+	}
+	if s := by["toolu_1"]; s.Agent != "a1" || s.Shape != "check.sh" || s.Limit != 10*time.Minute || !s.At.Equal(at) {
+		t.Errorf("%+v", s)
+	}
+	if s := by["toolu_2"]; s.Agent != "worker" || s.Shape != "" || s.Limit != 0 {
+		t.Errorf("a wait has no shape and this one no limit: %+v", s)
 	}
 }

@@ -17,6 +17,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `lease.extend` | agent |  | `agent`, `kind?` | `{extended}` | `refused`, `bad_request` |  | not cached |
 | `lease.get` | agent |  | none | `{kinds}` |  |  | `leases`, snapshot |
 | `run.list` | agent |  | `agent?` | `{runs, presets}` |  |  | `runs`, snapshot |
+| `run.load` | agent |  | none | `{policy, slow, since, causes, cap, late, timed_out, loop_ms, host, runs, waiting} \| null` | `bad_request` |  | `run_load`, snapshot |
+| `run.admit` | agent (only agent) |  | `agent`, `id`, `shape` | `{go, ahead, cap, waited_s}` | `refused`, `bad_request` | not_self | not cached |
 | `run.set` | agent | yes | `name`, `scope`, `workspace?`, `cmds`, `at_once?`, `why?`, `request_id` | `Accepted` | `bad_request`, `refused` |  | decided: keep a shared run |
 | `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` |  | decided: remove a shared run |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
@@ -78,6 +80,14 @@ The leases: per kind and per shared run its limit, who holds each lease (since w
 ### `run.list`
 
 The shared runs: each a name, the commands it covers, how many may run at once, its scope (This Mac or a workspace), who set it and why, who holds a turn and who waits. A Bash call with a command a run covers, made outside hl use while the agent holds no turn at it, is refused by the agent's hook, naming the hl use line. With no runs, nothing waits.
+
+### `run.load`
+
+The commands the agents run on this machine now, each with how long it has run against what its shape usually takes and what its processes use, the heavy runs waiting for their turn, and whether the machine is slow (RunLoad). A run is a Bash call from its PreToolUse hook to its PostToolUse, or to its own time limit when no hook tells its end; a background shell of a heavy shape counts while its output is still written, for at most 30 minutes or four times its shape's usual time, whichever is longer. Its processes are the shell Claude Code started for it and everything under it, found from the process table; a run whose shell is not found, as when two calls of one agent start within 20 s of each other, has null figures. A call that waited on a permission prompt is not a run. A command run through hl use, a wait (sleep) and Handline's own commands are not runs. null from a daemon that does not watch the runs.
+
+### `run.admit`
+
+The PreToolUse guard asks before a Bash call whether its command may start now: a heavy run waits for its turn while a cap stands (RunLoad.cap). A call goes at once unless a cap stands and its shape is heavy from its start. Then it goes when fewer heavy runs than the cap are going and no earlier ask still waits, first come first served, or once it has waited 15 minutes, whatever the cap. While the answer is no the hook asks again every 3 s, and an ask not repeated for 15 s gives up its place. The time a hook waits is not part of the command's own time limit. A hook the daemon does not answer in time lets the call through.
 
 ### `run.set`
 

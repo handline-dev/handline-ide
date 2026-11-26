@@ -192,6 +192,8 @@ export type DaemonStatus = {
   keep_awake?: DaemonKeepAwake;
   /** The machine this daemon runs on. Absent on a daemon that does not serve it. */
   machine?: Machine;
+  /** Absent on a daemon that does not watch the runs. */
+  run_load?: RunLoad;
 };
 
 /** A pause of new work on one machine (daemon.pause). */
@@ -213,9 +215,27 @@ export type DaemonKeepAwake = {
   since?: Timestamp;
 };
 
-/** The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is full or wall, with the count in text. near, when nothing holds: the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text. */
+/** Whether the machine has become slow under the agents' heavy runs, and what is done about it (heavy_runs_policy). Runs are counted by the command, not by the agent: a heavy run is a Bash call of a shape that ran at least 3 times last week, at least half of them for a minute or more, or any foreground call that has run a minute. While nothing is slow nothing is done. status.changed is told within 10 s of a change; while the machine is calm, a change of heavy alone is not told. run.load lists the runs. */
+export type RunLoad = {
+  /** heavy_runs_policy as it is set (settings.get). */
+  policy: "observe" | "priority" | "turns" | "fixed";
+  /** Whether the machine is slow now: a cause showed on two looks in a row (the daemon looks every 15 s), and it stays slow until none has shown for 3 minutes. */
+  slow: boolean;
+  /** Since when it has been slow; null while it is not. */
+  since: Timestamp | null;
+  /** What says the machine is slow, or said so last while cap stands: runs, at least 2 runs of shapes that are heavy from their start have run past one and a half times the shape's usual time (a run that was going while the machine slept is never counted); timeouts, at least 2 heavy runs ended at their own time limit in the last 5 minutes; loop, the daemon's own loop took 30 s or more. Empty when it is neither slow nor under a cap. */
+  causes: ("runs" | "timeouts" | "loop")[];
+  /** The most heavy runs that go at once now; null when none is held. Under turns it is set when the machine turns slow (one under the heavy runs then going, never under a quarter of the cores or 2), lowered by a quarter each 3 minutes a cause still shows, and raised by one each calm 3 minutes until it passes the most runs seen, when it goes. Under fixed it is heavy_runs_at_once. Under observe and priority there is none. */
+  cap: number | null;
+  /** How many heavy runs are going. */
+  heavy: number;
+  /** How many heavy runs wait for their turn. */
+  waiting: number;
+};
+
+/** The machine's state in one line. held, the first that applies: the founder's pause (daemon.pause); the load holding starts (Resources.start_hold, by its own rules); any needs_you item; any agent whose status reason is full or wall, with the count in text. near, when nothing holds: the machine is slow (run_load.slow), with what says so in text; else the load per core at least its limit less 10 percentage points (load_per_core_pct), or free memory less than its limit plus 10 (ram_free_min_pct), when that limit is set; never before the first measure. host_active_cap is never near: at it, starts are held. status.changed is told within 10 s of a change of level or text. */
 export type DaemonHealth = {
-  /** held: something holds new work back now. near: nothing does, but a machine limit that is set is close. ok: neither. A client with no connection shows down itself; the daemon never says it. */
+  /** held: something holds new work back now. near: nothing does, but the machine is slow (RunLoad.slow) or a machine limit that is set is close. ok: neither. A client with no connection shows down itself; the daemon never says it. */
   level: "ok" | "near" | "held";
   /** One line for a person naming what set the level, for held and near; empty for ok. */
   text: string;
@@ -408,6 +428,10 @@ export type SettingsValues = {
   load_per_core_pct?: number;
   /** Least free memory, in percent of all; 0 is off, the default. Under it the daemon starts no new work. */
   ram_free_min_pct?: number;
+  /** What happens to heavy runs (a test or build command of a shape that usually runs a minute or more): observe, the default, only says when the machine is slow (DaemonStatus.run_load); priority also gives the processes of the heavy runs going while it is slow a lower priority (nice 10), which they keep to their end; turns also has new heavy runs take turns while it is slow, under a cap that follows the machine (RunLoad.cap); fixed has them take turns always, at most heavy_runs_at_once at once. A run already going is never stopped, and a run waits at most 15 minutes. */
+  heavy_runs_policy?: "observe" | "priority" | "turns" | "fixed";
+  /** Under heavy_runs_policy fixed, the most heavy runs that go at once on this machine; 0, the default, is half its cores (at least 2). Not read under another policy. */
+  heavy_runs_at_once?: number;
   /** Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. */
   disk_free_min_gb?: number;
   /** Where each account's pace line ends: its weekly usage, in percent, at the end of its week (its weekly reset, or its subscription end when that comes first). Under 100 because a reading lags by minutes. */
@@ -516,6 +540,10 @@ export type SettingsChanges = {
   load_per_core_pct?: number | null;
   /** Least free memory, in percent of all; 0 is off, the default. Under it the daemon starts no new work. null removes the key (back to the default). */
   ram_free_min_pct?: number | null;
+  /** What happens to heavy runs (a test or build command of a shape that usually runs a minute or more): observe, the default, only says when the machine is slow (DaemonStatus.run_load); priority also gives the processes of the heavy runs going while it is slow a lower priority (nice 10), which they keep to their end; turns also has new heavy runs take turns while it is slow, under a cap that follows the machine (RunLoad.cap); fixed has them take turns always, at most heavy_runs_at_once at once. A run already going is never stopped, and a run waits at most 15 minutes. null removes the key (back to the default). */
+  heavy_runs_policy?: ("observe" | "priority" | "turns" | "fixed") | null;
+  /** Under heavy_runs_policy fixed, the most heavy runs that go at once on this machine; 0, the default, is half its cores (at least 2). Not read under another policy. null removes the key (back to the default). */
+  heavy_runs_at_once?: number | null;
   /** Least free disk on the volume the daemon home is on, in GB; 0 is off, the default. The disk needs-you item uses it as its floor when it is set, else 10 GB. null removes the key (back to the default). */
   disk_free_min_gb?: number | null;
   /** Where each account's pace line ends: its weekly usage, in percent, at the end of its week (its weekly reset, or its subscription end when that comes first). Under 100 because a reading lags by minutes. null removes the key (back to the default). */
@@ -963,6 +991,76 @@ export interface CoreMethods {
     /** The patterns a run may cover that name what Handline already knows: @build-test (a test or build run), @simulator, @browser. */
     presets: string[];
   } };
+  "run.load": { params: { [key: string]: unknown }; result: {
+    /** heavy_runs_policy as it is set (settings.get). */
+    policy: "observe" | "priority" | "turns" | "fixed";
+    /** Whether the machine is slow now: a cause showed on two looks in a row (the daemon looks every 15 s), and it stays slow until none has shown for 3 minutes. */
+    slow: boolean;
+    /** Since when it has been slow; null while it is not. */
+    since: Timestamp | null;
+    /** What says the machine is slow, or said so last while cap stands: runs, at least 2 runs of shapes that are heavy from their start have run past one and a half times the shape's usual time (a run that was going while the machine slept is never counted); timeouts, at least 2 heavy runs ended at their own time limit in the last 5 minutes; loop, the daemon's own loop took 30 s or more. Empty when it is neither slow nor under a cap. */
+    causes: ("runs" | "timeouts" | "loop")[];
+    /** The most heavy runs that go at once now; null when none is held. Under turns it is set when the machine turns slow (one under the heavy runs then going, never under a quarter of the cores or 2), lowered by a quarter each 3 minutes a cause still shows, and raised by one each calm 3 minutes until it passes the most runs seen, when it goes. Under fixed it is heavy_runs_at_once. Under observe and priority there is none. */
+    cap: number | null;
+    /** How many heavy runs are late now. */
+    late: number;
+    /** How many heavy runs ended at their own time limit in the last 5 minutes. */
+    timed_out: number;
+    /** How long the daemon's own loop last took, or has taken so far when that is longer. */
+    loop_ms: number;
+    /** What the machine says of itself, to read beside the causes: none of it makes the machine slow by itself. */
+    host: {
+      /** The 1-minute load average divided by the cores. */
+      load_per_core: number;
+      /** The kernel's memory pressure level; null where it is not read. */
+      memory_pressure: ("normal" | "warn" | "critical") | null;
+      /** Memory pages the kernel compressed per second since the last look. */
+      compressed_pages_per_s: number;
+    };
+    /** The runs going, oldest first. */
+    runs: {
+      /** The agent whose command it is. */
+      agent: Who;
+      /** What kind of command it is, never its text: a preset (@build-test, @simulator, @browser), or its program and first word (check.sh, go vet). */
+      shape: string;
+      started: Timestamp;
+      /** The median time the shape's heavy runs took last week, in seconds; null when none is recorded. */
+      usual_s: number | null;
+      /** True for a shell started in the background. */
+      background: boolean;
+      /** Whether it counts as a heavy run now. */
+      heavy: boolean;
+      /** Whether it has run past one and a half times usual_s; only a run of a shape that is heavy from its start is ever late, and never one that was going while the machine slept. */
+      late: boolean;
+      /** Summed CPU of its processes, in percent of one core; null when its processes were not found. */
+      cpu_pct: number | null;
+      /** Summed resident memory of its processes; null when they were not found. */
+      rss_bytes: number | null;
+      /** How many processes it runs as; null when they were not found. */
+      processes: number | null;
+    }[];
+    /** The heavy runs held before their start, first in line first. */
+    waiting: {
+      agent: Who;
+      shape: string;
+      /** Since when it has waited. */
+      since: Timestamp;
+    }[];
+  } | null };
+  "run.admit": { params: {
+  agent: Who;
+  id: string;
+  shape: string;
+}; result: {
+    /** Whether the call may start now. */
+    go: boolean;
+    /** How many waiting runs are before this one; absent when go. */
+    ahead?: number;
+    /** How many heavy runs go at once; absent when go. */
+    cap?: number;
+    /** How long this call has waited. */
+    waited_s: number;
+  } };
   "run.set": { params: {
   name: string;
   scope: "mac" | "workspace";
@@ -1197,6 +1295,8 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "lease.extend": { role: "agent", callers: null, write: false, since: 1 },
   "lease.get": { role: "agent", callers: null, write: false, since: 1 },
   "run.list": { role: "agent", callers: null, write: false, since: 1 },
+  "run.load": { role: "agent", callers: null, write: false, since: 1 },
+  "run.admit": { role: "agent", callers: ["agent"], write: false, since: 1 },
   "run.set": { role: "agent", callers: null, write: true, since: 1 },
   "run.remove": { role: "agent", callers: null, write: true, since: 1 },
   "load.get": { role: "agent", callers: null, write: false, since: 1 },
@@ -1213,7 +1313,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "run.load" | "run.admit" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1224,6 +1324,8 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "lease.extend": false,
   "lease.get": {"resource": "leases", "feed": null},
   "run.list": {"resource": "runs", "feed": null},
+  "run.load": {"resource": "run_load", "feed": null},
+  "run.admit": false,
   "load.get": {"resource": "load", "feed": null},
   "events.feed": false,
   "operation.get": {"resource": "operation", "id": "operation", "feed": "operations"},

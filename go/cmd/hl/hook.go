@@ -20,6 +20,7 @@ import (
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/sessiontoken"
+	"github.com/handline/handline/go/scheduler/runload"
 	"github.com/handline/handline/go/scheduler/session"
 )
 
@@ -89,8 +90,18 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		case string:
 			env.ClearWaitFor(agent, name, input)
 		}
-		if shape, ran := session.HeavyCall(c.Home, agent, raw, time.Now()); shape != "" {
-			raw[hooks.Heavy] = map[string]any{"shape": shape, "seconds": int64(ran.Round(time.Second) / time.Second)}
+		if call := session.EndedCall(c.Home, agent, event, raw, time.Now()); call.Shape != "" || call.Timed {
+			secs := int64(call.Ran.Round(time.Second) / time.Second)
+			if call.Shape != "" {
+				heavy := map[string]any{"shape": call.Shape, "seconds": secs}
+				if call.TimedOut {
+					heavy["timed_out"] = true
+				}
+				raw[hooks.Heavy] = heavy
+			}
+			if call.Timed && call.Would != "" {
+				raw[hooks.Ran] = map[string]any{"shape": call.Would, "long": call.Ran >= session.HeavyAfter}
+			}
 		}
 		record(c, agent, event, raw)
 		if event == "PostToolUse" {
@@ -111,6 +122,9 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		why = subagentStart(c, agent, raw)
 	}
 	if why == "" {
+		if ask := turnAsk(c, agent, raw); ask != nil {
+			waitTurn(ask, time.Sleep, time.Now)
+		}
 		session.NoteBashStart(c.Home, agent, raw, time.Now())
 		fmt.Println("{}")
 		return 0, true
@@ -203,6 +217,59 @@ func subagentStart(c *hlclient.Client, agent string, raw map[string]any) string 
 	}
 	why, _ := res["deny"].(string)
 	return why
+}
+
+// turnAsk is the question a Bash call asks the daemon before it starts, whether its command may go now (run.admit), within 2s; nil
+// for a call that never waits: another tool's, one with no id, a command of no shape (a wait, Handline's own), and a push, whose
+// own check is the workspace's.
+func turnAsk(c *hlclient.Client, agent string, raw map[string]any) func() (map[string]any, error) {
+	in, _ := raw["tool_input"].(map[string]any)
+	id, _ := raw["tool_use_id"].(string)
+	command, _ := in["command"].(string)
+	if raw["tool_name"] != "Bash" || id == "" || command == "" || session.PushesToGit("Bash", raw["tool_input"]) {
+		return nil
+	}
+	shape := session.HeavyShape(command, session.HeavyAfter)
+	if shape == "" {
+		return nil
+	}
+	quick := &hlclient.Client{Home: c.Home, Dial: hlclient.Dialer(c.Home, 2*time.Second), As: "hook", Deadline: 2 * time.Second}
+	return func() (map[string]any, error) {
+		return quick.Call("run.admit", map[string]any{"agent": agent, "id": id, "shape": shape})
+	}
+}
+
+// turnWaitLimit is how long a call waits for its turn at most: the daemon lets it go at runload.MaxWait, and this is a little past
+// it, well inside the PreToolUse hook's own timeout (claudecode.longHooks).
+const turnWaitLimit = runload.MaxWait + 30*time.Second
+
+// turnAskTries is how many asks in a row may go unanswered, once the daemon has said no, before the call goes anyway: a daemon
+// that holds runs is a busy one, and one slow answer is not a yes.
+const turnAskTries = 3
+
+// waitTurn holds a heavy run before its start while the daemon says others go first, asking again every runload.AskEvery. It never
+// refuses the call: a daemon that does not answer the first ask or does not know the question lets it through at once, as does one
+// that stops answering turnAskTries times in a row, and turnWaitLimit. The time spent here is not part of the command's own time
+// limit, which starts when the hook returns.
+func waitTurn(ask func() (map[string]any, error), sleep func(time.Duration), now func() time.Time) {
+	end := now().Add(turnWaitLimit)
+	for held, unanswered := false, 0; ; {
+		got, err := ask()
+		switch {
+		case err != nil:
+			if unanswered++; !held || unanswered >= turnAskTries {
+				return
+			}
+		case got["go"] != false:
+			return
+		default:
+			held, unanswered = true, 0
+		}
+		if !now().Before(end) {
+			return
+		}
+		sleep(runload.AskEvery)
+	}
 }
 
 // sharedRuns are the shared runs agent takes turns at, asked within 2s for a Bash call only; a daemon that does not answer says none.

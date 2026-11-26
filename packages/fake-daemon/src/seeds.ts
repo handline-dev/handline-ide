@@ -444,8 +444,8 @@ function switching(
   s.fx.view = { ...s.fx.view, account_switch: { cause: 'usage', from: 'alpha', since, until: null, ...sw } };
 }
 
-/** Seeds `all` leaves out, asked for by name: another cluster, and a machine without git. */
-export const BY_NAME = ['second-cluster', 'no-git', 'installing-git', 'git-install-failed'];
+/** Seeds `all` leaves out, asked for by name: another cluster, a slow machine, and a machine without git. */
+export const BY_NAME = ['second-cluster', 'slow-mac', 'no-git', 'installing-git', 'git-install-failed'];
 export const ALL = Object.keys(SEEDS).filter((n) => !BY_NAME.includes(n));
 
 /** Switches the named seeds on: a comma-separated list, where `all` stands for ALL. An unknown name is an error, not a silent no-op. */

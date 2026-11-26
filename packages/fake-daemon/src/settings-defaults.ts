@@ -31,6 +31,8 @@ export const DEFAULTS: Settings['values'] = {
   host_active_cap: 0,
   load_per_core_pct: 0,
   ram_free_min_pct: 0,
+  heavy_runs_policy: 'observe',
+  heavy_runs_at_once: 0,
   disk_free_min_gb: 0,
   disk_keep_free_gb: 0,
   agents_memory_max_gb: 0,

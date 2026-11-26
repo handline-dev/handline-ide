@@ -14,10 +14,12 @@ import type {
 } from '@handline/contract';
 import { Failure, badRequest, refused } from '#src/errors.ts';
 import { retroOf } from '#src/retro.ts';
+import { heavyRunsOf, type HeavyRuns } from '#src/runload.ts';
+import { checkValue } from '#src/settings-check.ts';
 import { AGENTS, outlookOf, statsOf } from '#src/usage.ts';
 import { FakeWorktrees } from '#src/worktrees.ts';
 import { FakePrefs, type PrefsHost } from '#src/prefs.ts';
-import { BUILTIN_HANDOFF, DEFAULTS, EFFORTS } from '#src/settings-defaults.ts';
+import { BUILTIN_HANDOFF, DEFAULTS } from '#src/settings-defaults.ts';
 
 type Accepted = (said: string) => unknown;
 
@@ -78,6 +80,9 @@ export class FakeAdmin {
 
   /** The machine's own needs-you items in daemon.status (a full disk); `setMachineNeeds` of helpers.ts changes them. */
   machineNeeds: MachineNeed[] = [];
+  /** Whether the machine is slow under the agents' runs (DaemonStatus.run_load, run.load); the slow-mac seed sets it. */
+  slowMac = false;
+  heavyRuns = (): HeavyRuns => heavyRunsOf(this.values);
 
   /** DaemonStatus.missing_tools: the tools agents need that this machine lacks; the first-run seed sets them. */
   missingTools: { tool: string; fix: string }[] = [];
@@ -432,16 +437,7 @@ export class FakeAdmin {
         )
           throw badRequest('cluster_name is a name of 1 to 40 characters on one line', 'cluster_name');
       }
-      if (key === 'park_timeout_s' && value !== null && (!Number.isInteger(value) || (value as number) < 0))
-        throw badRequest('park_timeout_s is a whole number of seconds, 0 for never', 'park_timeout_s');
-      if (key === 'keep_awake' && value !== null && value !== 'off' && value !== 'on' && value !== 'working')
-        throw badRequest('keep_awake is off, on or working', 'keep_awake');
-      if (key === 'reap_orphans' && value !== null && value !== 'dry' && value !== 'on' && value !== 'off')
-        throw badRequest('reap_orphans is dry, on or off', 'reap_orphans');
-      if (key.startsWith('default_effort_') && value !== null && !EFFORTS.includes(value as string))
-        throw badRequest(`${key} is one of ${EFFORTS.join(', ')}`, key);
-      if (key.startsWith('default_model_') && value !== null && (typeof value !== 'string' || !/^(?!-)[^\s'"]{1,100}$/.test(value)))
-        throw badRequest(`${key} is a model name of at most 100 characters, no spaces, not starting with -`, key);
+      checkValue(key, value);
       const values = this.values as Record<string, unknown>;
       if (value === null) {
         values[key] = structuredClone(DEFAULTS[key as keyof typeof DEFAULTS]);
