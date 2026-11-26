@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/watch"
 )
@@ -59,6 +60,14 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			r, freed = released{}, false
 			var err error
+			if w.Closes != 0 {
+				if why, err := closeRefusal(tx, me, tid); err != nil || why != "" {
+					if err == nil {
+						err = refusal(why)
+					}
+					return nil, err
+				}
+			}
 			gate, _, err = OpenTask(tx, tell, me, NewIn{Owner: db.Gate, Title: title, Secs: secs, Prio: db.DefaultPriority, Expects: "report", Watch: w})
 			if err != nil {
 				return nil, err
@@ -100,6 +109,21 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		}
 		return out, err
 	}
+}
+
+// closeRefusal is why `by` may not have a merge close task tid, "" when it may: the gate closes the task in the name of the agent
+// acting on it, so asking for that is asking for a done, and only who may mark the task done (mayClose) may ask. Anyone may still make
+// a task wait; that only gives it back to its holder.
+func closeRefusal(tx *sql.Tx, by string, tid int64) (string, error) {
+	t, err := getTask(tx, tid)
+	if err != nil || t == nil {
+		return fmt.Sprintf("no task T%d", tid), err
+	}
+	if ok, err := mayClose(tx, by, t); err != nil || ok {
+		return "", err
+	}
+	return fmt.Sprintf("task T%d can be closed by its merge only on the word of who may mark it done: its assignee (%s), owner (%s), its parent's owner "+
+		"or the founder. Without --then done the wait only gives it back to its holder", tid, addr.Ref(t.Owner), addr.Ref(t.reporter())), nil
 }
 
 // gateDeadline is a gate's time box when none is given: a day, or for a pull request waited on until it lands the founder's

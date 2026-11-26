@@ -49,3 +49,34 @@ func TestTaskWaitThenDoneOpensAGateThatClosesTheTask(t *testing.T) {
 		t.Fatalf("%d gates", n)
 	}
 }
+
+// The gate closes the task in its holder's name, so asking for that is asking for a done: only who may mark the task done may ask
+// (its assignee, its owner, its parent's owner, the founder). Anyone else is refused with who may, and no gate is opened; the same
+// agent may still make the task wait, which only gives it back to its holder.
+func TestOnlyWhoMayCloseATaskMayHaveAMergeCloseIt(t *testing.T) {
+	loggedIn(t)
+	sdb, _, run := reportEnv(t,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(8, 'the story', 'lead', 'boss', 1, 'boss')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, parent_task) VALUES(9, 'ship', 'w', 'boss', 1, 'boss', 8)")
+	gates := func() int { return count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE owner = 'gate'") }
+	landed := `,"task":9,"watch":{"vendor":"github","target":"o/r#7","until":"landed"}`
+	e := errText(run("mgr", "task.wait", "m1", landed+`,"then":"done"`))
+	if !strings.Contains(e, "task T9 can be closed by its merge only on the word of who may mark it done: its assignee (") ||
+		!strings.Contains(e, "Without --then done the wait only gives it back to its holder") || gates() != 0 {
+		t.Fatalf("an agent that may not close it: %q, %d gates", e, gates())
+	}
+	if n := count(t, sdb, "SELECT COUNT(*) FROM task_blocks WHERE task_id = 9"); n != 0 {
+		t.Fatalf("a refused wait blocked the task: %d", n)
+	}
+	if r := run("mgr", "task.wait", "m2", landed); r["error"] != nil || gates() != 1 {
+		t.Fatalf("a plain wait is anyone's: %v, %d gates", r["error"], gates())
+	}
+	for i, who := range []string{"w", "boss", "lead"} { // its assignee, its owner, its parent's owner
+		if r := run(who, "task.wait", "ok-"+who, landed+`,"then":"done"`); r["error"] != nil || gates() != i+2 {
+			t.Fatalf("%s may close it, so may ask: %v, %d gates", who, r["error"], gates())
+		}
+	}
+	if n := count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE owner = 'gate' AND watch_closes = 9"); n != 3 {
+		t.Fatalf("%d gates close the task", n)
+	}
+}
