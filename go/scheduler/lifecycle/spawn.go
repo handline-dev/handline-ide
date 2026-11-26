@@ -85,6 +85,17 @@ func NoteLaunch(q db.Q, on func(agent string), agent string) error {
 	return nil
 }
 
+// NoteMaking records that agent's worktree is being made (db.MakingWorktree) and tells on, so the view shows it now.
+func NoteMaking(q db.Q, on func(agent string), agent string) error {
+	if _, err := db.AddEvent(q, agent, db.MakingWorktree); err != nil {
+		return err
+	}
+	if on != nil {
+		on(agent)
+	}
+	return nil
+}
+
 // took records that agent's launch went into terminal handle at dir and has begun; an unknown handle ("") records nothing.
 func (s *Spawns) took(agent, handle, dir string) error {
 	if handle == "" {
