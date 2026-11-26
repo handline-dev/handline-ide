@@ -291,7 +291,7 @@ func workKept(q *sql.DB, tid int64) (string, error) {
 	}
 	branch := gitrun.Run(wt, "rev-parse", "--abbrev-ref", "HEAD")
 	head := gitrun.Run(wt, "rev-parse", "--short", "HEAD")
-	log := gitrun.Run(wt, "log", "--format=%ct", gitrun.IntegrationBranch+"..HEAD")
+	log := gitrun.Run(wt, "log", "--format=%ct", gitrun.MainRef(wt)+"..HEAD")
 	dirty := gitrun.Run(wt, "status", "--porcelain")
 	if branch.RC != 0 || head.RC != 0 || log.RC != 0 || dirty.RC != 0 {
 		return "", nil

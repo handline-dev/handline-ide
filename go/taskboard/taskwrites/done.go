@@ -321,12 +321,15 @@ func shaOnMain(repo, sha string) (full, why string) {
 		return "", "no such commit in this repo"
 	}
 	full = strings.TrimSpace(r.Stdout)
-	r = gitrun.Run(repo, "merge-base", "--is-ancestor", full, gitrun.IntegrationBranch)
+	ref := gitrun.MainRef(repo)
+	r = gitrun.Run(repo, "merge-base", "--is-ancestor", full, ref)
 	switch {
 	case r.RC < 0:
 		return "", r.Stderr
 	case r.RC == 0:
 		return full, ""
+	case r.RC == 1 && strings.HasPrefix(ref, "refs/remotes/"):
+		return "", "checked " + strings.TrimPrefix(ref, "refs/remotes/") + ", which a push there moves"
 	}
 	msg := r.Stderr
 	if msg == "" {

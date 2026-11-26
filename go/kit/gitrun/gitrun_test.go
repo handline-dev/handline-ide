@@ -85,6 +85,67 @@ func TestDefaultBranchIsReadFromTheRepository(t *testing.T) {
 	}
 }
 
+// Main is origin's main when there is one: a commit pushed there is on main while the clone's own main is behind, a commit only on a
+// branch is not; with no remote the local main decides.
+func TestOnMainReadsOriginsMainWhenThereIsOne(t *testing.T) {
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		r := Run(dir, append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+		if r.RC != 0 {
+			t.Fatalf("%v: %+v", args, r)
+		}
+		return strings.TrimSpace(r.Stdout)
+	}
+	local := repo(t)
+	git(local, "checkout", "-q", "-b", "work")
+	git(local, "commit", "-q", "--allow-empty", "-m", "w")
+	work := git(local, "rev-parse", "HEAD")
+	if MainRef(local) != "refs/heads/main" || OnMain(local, work).RC != 1 || OnMain(local, "main").RC != 0 {
+		t.Fatalf("no remote: the local main decides")
+	}
+	bare := t.TempDir()
+	git(bare, "init", "-q", "--bare", "-b", "main")
+	clone := t.TempDir()
+	git(clone, "clone", "-q", bare, ".")
+	git(clone, "commit", "-q", "--allow-empty", "-m", "first")
+	git(clone, "push", "-q", "origin", "HEAD:main")
+	git(clone, "checkout", "-q", "-b", "landing")
+	git(clone, "commit", "-q", "--allow-empty", "-m", "landed")
+	landed := git(clone, "rev-parse", "HEAD")
+	git(clone, "push", "-q", "origin", "HEAD:main")
+	git(clone, "commit", "-q", "--allow-empty", "-m", "branch only")
+	branchOnly := git(clone, "rev-parse", "HEAD")
+	if git(clone, "rev-parse", "main") == landed {
+		t.Fatal("the local main moved with the push")
+	}
+	if MainRef(clone) != "refs/remotes/origin/main" {
+		t.Fatalf("with an origin: %q", MainRef(clone))
+	}
+	if r := OnMain(clone, landed); r.RC != 0 {
+		t.Fatalf("pushed to origin's main, local main behind: %+v", r)
+	}
+	if r := OnMain(clone, branchOnly); r.RC != 1 {
+		t.Fatalf("only on a branch: %+v", r)
+	}
+	// on the clone's own main but never pushed: not on main
+	git(clone, "checkout", "-q", "main")
+	git(clone, "commit", "-q", "--allow-empty", "-m", "unpushed")
+	if r := OnMain(clone, "HEAD"); r.RC != 1 {
+		t.Fatalf("on the local main only: %+v", r)
+	}
+	// asked from a linked worktree, the same
+	linked := filepath.Join(t.TempDir(), "wt")
+	git(clone, "worktree", "add", "-q", "-b", "other", linked, landed)
+	if r := OnMain(linked, landed); r.RC != 0 || MainRef(linked) != "refs/remotes/origin/main" {
+		t.Fatalf("from a linked worktree: %+v", r)
+	}
+	// an origin with no main: the local main decides
+	git(local, "remote", "add", "origin", bare)
+	if MainRef(local) != "refs/heads/main" {
+		t.Fatalf("an origin with no main fetched: %q", MainRef(local))
+	}
+}
+
 // A task's files are those of the commits naming it on any branch: a file deleted by each of them is deleted, one added again is not, and a
 // commit naming another task, or naming this one outside its last parenthesis, is left out.
 func TestTaskFilesAreThoseOfTheCommitsNamingTheTask(t *testing.T) {

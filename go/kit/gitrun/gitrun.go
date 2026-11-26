@@ -81,6 +81,20 @@ func DefaultBranch(repo string) string {
 	return IntegrationBranch
 }
 
+// MainRef is the ref that says what main holds in repo: origin's main when repo has one, since a push moves it and nothing but a
+// fetch into it moves the clone's own main; else the local main, as in a repo with no remote.
+func MainRef(repo string) string {
+	if origin := "refs/remotes/origin/" + IntegrationBranch; Run(repo, "rev-parse", "-q", "--verify", origin).RC == 0 {
+		return origin
+	}
+	return "refs/heads/" + IntegrationBranch
+}
+
+// OnMain is git merge-base --is-ancestor rev MainRef(repo): RC 0 when main reaches rev, 1 when it does not, else git's failure.
+func OnMain(repo, rev string) Result {
+	return Run(repo, "merge-base", "--is-ancestor", rev, MainRef(repo))
+}
+
 // PointOriginHeadAtMain makes origin/HEAD name origin/main. True when it was changed; false when it already did, or when
 // there is no origin/main to point at.
 func PointOriginHeadAtMain(cwd string) bool {

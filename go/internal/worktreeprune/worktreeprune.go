@@ -133,7 +133,7 @@ func WhyKept(wt Worktree, agents map[string]bool, here string) string {
 	case wt.Branch == "main":
 		return "main"
 	}
-	if gitrun.Run(wt.Path, "merge-base", "--is-ancestor", wt.Branch, "main").RC != 0 {
+	if gitrun.OnMain(wt.Path, wt.Branch).RC != 0 {
 		return wt.Branch + notMerged
 	}
 	if st := gitrun.Run(wt.Path, "status", "--porcelain"); st.RC != 0 || strings.TrimSpace(st.Stdout) != "" {
@@ -157,7 +157,7 @@ const OnNoBranch = "on no branch"
 
 // DetachedWork is WhyKept for a worktree on no branch, judged by its HEAD: "" when HEAD is on main and nothing is uncommitted.
 func DetachedWork(path string) string {
-	if gitrun.Run(path, "merge-base", "--is-ancestor", "HEAD", "main").RC != 0 {
+	if gitrun.OnMain(path, "HEAD").RC != 0 {
 		return "HEAD" + notMerged
 	}
 	if st := gitrun.Run(path, "status", "--porcelain"); st.RC != 0 || strings.TrimSpace(st.Stdout) != "" {
@@ -179,7 +179,7 @@ func HoldsWork(why string) bool { return why == uncommitted || strings.HasSuffix
 func Describe(wt Worktree) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Path: %s\nBranch: %s\n", wt.Path, wt.Branch)
-	if r := gitrun.Run(wt.Path, "log", "main..HEAD", "--format=%s"); r.RC == 0 {
+	if r := gitrun.Run(wt.Path, "log", gitrun.MainRef(wt.Path)+"..HEAD", "--format=%s"); r.RC == 0 {
 		b.WriteString(lines("Commits not on main", r.Stdout, 5))
 	}
 	if r := gitrun.Run(wt.Path, "status", "--porcelain"); r.RC == 0 {
@@ -276,9 +276,13 @@ func Unsaved(path string) (merged bool, files, commits int) {
 	return merged, files, commits
 }
 
-// Ahead is Unsaved without the files: whether the worktree's HEAD is merged into the default branch, and its commits not on it.
+// Ahead is Unsaved without the files: whether the worktree's HEAD is merged into the default branch (origin's when there is one), and
+// its commits not on it.
 func Ahead(path string) (merged bool, commits int) {
 	base := gitrun.DefaultBranch(path)
+	if origin := "refs/remotes/origin/" + base; gitrun.Run(path, "rev-parse", "-q", "--verify", origin).RC == 0 {
+		base = origin // as WhyKept judges it: a push moves origin's branch, not the clone's own
+	}
 	merged = gitrun.Run(path, "merge-base", "--is-ancestor", "HEAD", base).RC == 0
 	if r := gitrun.Run(path, "rev-list", "--count", base+"..HEAD"); r.RC == 0 {
 		commits, _ = strconv.Atoi(strings.TrimSpace(r.Stdout))

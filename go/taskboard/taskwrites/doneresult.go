@@ -81,5 +81,5 @@ func commitIn(repo, sha string) (full string, onMain bool, why string) {
 		return "", false, "no such commit"
 	}
 	full = strings.TrimSpace(r.Stdout)
-	return full, gitrun.Run(repo, "merge-base", "--is-ancestor", full, gitrun.IntegrationBranch).RC == 0, ""
+	return full, gitrun.OnMain(repo, full).RC == 0, ""
 }

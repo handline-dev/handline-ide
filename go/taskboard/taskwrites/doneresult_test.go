@@ -113,6 +113,32 @@ func TestDoneRefusesACommitThatIsNotOneAndAShaThatNeverLanded(t *testing.T) {
 	}
 }
 
+// A push moves origin's main and not the clone's own: a sha pushed there is on main with the local main behind, and a refusal says
+// which main it checked.
+func TestADoneShaPushedToOriginsMainIsOnMainWithTheLocalMainBehind(t *testing.T) {
+	_, repo, _, offMain, done, _ := newResultRig(t)
+	git := gitIn(t, repo)
+	bare := t.TempDir()
+	gitIn(t, bare)("init", "-q", "--bare", "-b", "main")
+	git("remote", "add", "origin", bare)
+	git("push", "-q", "origin", "main")
+	git("push", "-q", "origin", "HEAD:main")
+	if git("rev-parse", "main") == offMain {
+		t.Fatal("the local main moved with the push")
+	}
+	if r := done("w", "o1", 5, fmt.Sprintf(`,"evidence":%q,"repo":%q`, offMain, repo)); r["result"] == nil {
+		t.Fatalf("refused: %v", r)
+	}
+	if got := resultOf(5); got.Commit != offMain || !got.OnMain {
+		t.Fatalf("%+v", got)
+	}
+	git("commit", "-q", "--allow-empty", "-m", "not pushed")
+	unpushed := git("rev-parse", "HEAD")
+	if got := errText(done("w", "o2", 1, fmt.Sprintf(`,"evidence":%q,"repo":%q`, unpushed, repo))); got != unpushed+" is not an ancestor of main (checked origin/main, which a push there moves)" {
+		t.Fatalf("%q", got)
+	}
+}
+
 func TestAUITaskIsDoneWithOrWithoutAScreenshot(t *testing.T) {
 	home, _, _, _, done, ui := newResultRig(t)
 	ui(2)
