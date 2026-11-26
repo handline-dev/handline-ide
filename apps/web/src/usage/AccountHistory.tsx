@@ -1,5 +1,5 @@
 // An opened account's history: its 5-hour usage over the last day and its week usage over 7 days, two graphs side by side, the 100% limit dashed and each week
-// reset marked on the week graph, from the daemon's per-account samples (stats.outlook by_account).
+// reset marked on the week graph, from the daemon's per-account samples (stats.outlook by_account). An account with no 5-hour window says so instead of a graph.
 import { usedPath } from '@handline/app-core';
 import { useOutlook } from '@handline/app-data';
 
@@ -71,6 +71,13 @@ function History({
 }) {
   const mine = useOutlook(range).data?.by_account?.find((b) => b.account === account);
   if (!mine?.past.length) return <div />;
+  if (field === 'five_left' && !mine.five_hour)
+    return (
+      <figure className="flex min-w-0 flex-col gap-1">
+        <figcaption className="text-xs text-muted">{title}</figcaption>
+        <p className="flex h-20 items-center text-sm text-muted">This account has no 5-hour limit.</p>
+      </figure>
+    );
   const from = Date.parse(mine.past[0]!.at);
   const to = Date.parse(mine.past.at(-1)!.at);
   const resets = (mine.resets ?? [])

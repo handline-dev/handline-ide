@@ -31,7 +31,7 @@ function fiveResets(from: number, to: number): { at: Timestamp; window: '5h' }[]
   return out;
 }
 
-/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in two hours, as its runway says, and its week reset is not known. */
+/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in two hours, as its runway says, and its week reset is not known. kappa (the usage-stale seed's account with no 5h reading) is an Ultra: its week and no 5h window. */
 function byAccount(past: Outlook['past'], future: Outlook['future'], now: number, head: number): Outlook['by_account'] {
   const points = (pts: Outlook['past'], d: number, five?: [number, number]) =>
     pts.map((p) => ({
@@ -64,6 +64,15 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
       five_hour: true,
       forecast: null,
       five_runs_out_at: new Date(now + 2 * HOUR).toISOString(),
+    },
+    {
+      account: 'kappa',
+      past: points(past, 20),
+      future: points(future, 20),
+      resets: [],
+      five_hour: false,
+      forecast: null,
+      five_runs_out_at: null,
     },
   ];
 }

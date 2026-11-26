@@ -10,9 +10,15 @@ test("stats.outlook's by_account gives each account's 5h and week history, and i
   const accounts = out.by_account ?? [];
   assert.deepEqual(
     accounts.map((a) => a.account),
-    ['alpha', 'beta'],
+    ['alpha', 'beta', 'kappa'],
   );
-  for (const a of accounts) {
+  const kappa = accounts.find((a) => a.account === 'kappa')!;
+  assert.equal(kappa.five_hour, false);
+  assert.ok(
+    kappa.past.every((p) => p.five_left === null && p.week_left !== null),
+    'kappa: its week, no 5h window',
+  );
+  for (const a of accounts.filter((x) => x.five_hour)) {
     // At the daemon's step: 96 points over twice the 3 days, one every 1.5 hours.
     assert.equal(a.past.length, 3 * 16 + 1, `${a.account}: a point every 1.5 hours`);
     for (const p of a.past) {
