@@ -358,3 +358,57 @@ func TestATaskReopenedOnAnIdleSeatGoesToItsAgent(t *testing.T) {
 		t.Fatal("an idle seat went to work without a hire")
 	}
 }
+
+// An agent is busy while a seat of it at work holds an open task, not once that task is over, nor when temps are Manual; a seat is never busy.
+func TestAnAgentIsBusyWhileASeatOfItHoldsATask(t *testing.T) {
+	r := newRig(t)
+	ui := r.key("team.ui")
+	if r.env.Busy(ui) {
+		t.Fatal("busy with no seat")
+	}
+	seat, tid := r.hire(ui)
+	if !r.env.Busy(ui) || r.env.Busy(seat) {
+		t.Fatalf("busy: ui %v, its seat %v", r.env.Busy(ui), r.env.Busy(seat))
+	}
+	r.mode = Manual
+	if r.env.Busy(ui) {
+		t.Fatal("busy while temps are Manual")
+	}
+	r.mode, r.room = "", "the machine is loaded"
+	if r.env.Busy(ui) {
+		t.Fatal("busy while no further seat could start: its tasks would wait on a seat that cannot come")
+	}
+	r.room = ""
+	_, err := r.db.Exec("UPDATE tasks SET done_evidence = 'fixed', done_at = 1 WHERE id = ?", tid)
+	r.must(err)
+	if r.env.Busy(ui) {
+		t.Fatal("busy once the seat's task is over")
+	}
+}
+
+// When a seat leaves, what it did reaches its agent as a notice, waking nothing: the done's evidence, or the handoff's note.
+func TestASeatsResultReachesItsAgentAsANotice(t *testing.T) {
+	r := newRig(t)
+	ui := r.key("team.ui")
+	seat, tid := r.hire(ui)
+	r.present[seat] = true
+	r.over(seat, tid)
+	seat2, tid2 := r.hire(ui)
+	_, err := db.AddEvent(r.db, seat2, "task_handoff", db.KV{K: "task_id", V: tid2}, db.KV{K: "to", V: r.key("team.lander")}, db.KV{K: "note", V: "needs a review"})
+	r.must(err)
+	_, err = r.db.Exec("UPDATE tasks SET owner = ? WHERE id = ?", r.key("team.lander"), tid2)
+	r.must(err)
+	r.idle[seat2] = true
+	r.must(r.env.Sweep())
+	r.must(r.env.Sweep())
+	got, err := db.PendingNotices(r.db, ui)
+	r.must(err)
+	if len(got) != 2 || !strings.Contains(got[0].Body, "finished it: fixed") || !strings.Contains(got[1].Body, "handed it to") ||
+		!strings.Contains(got[1].Body, "needs a review") {
+		var bodies []string
+		for _, n := range got {
+			bodies = append(bodies, n.Body)
+		}
+		t.Fatalf("ui's notices: %q", bodies)
+	}
+}

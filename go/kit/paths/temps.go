@@ -32,6 +32,15 @@ func Reaches(q rowQ, key string) (string, error) {
 	return from, nil
 }
 
+// StandsInFor is the agent the seat key stands in for while it is at work (agents.hired_for set), "" for an idle seat or an agent of its own.
+func StandsInFor(q rowQ, key string) (string, error) {
+	from, at, err := seat(q, key)
+	if !at || err != nil {
+		return "", err
+	}
+	return from, nil
+}
+
 // seat is key's agents.hired_from, and whether it is at work (agents.hired_for set).
 func seat(q rowQ, key string) (from string, atWork bool, err error) {
 	k, id, ok := actor.Parse(key)

@@ -13,7 +13,7 @@ import (
 )
 
 // A seat starts with what the agent it is of knows: its role and its lessons in the prompt, and its memory folder as the
-// session's own, to read and write, which the hide list leaves open. Not its handoff.
+// session's own, to read and write, which the hide list leaves open; and its record (handoff and the daemon's), under its own heading.
 func TestATempKnowsWhatItsAgentKnows(t *testing.T) {
 	r := newLaunchRig(t)
 	teamtest.Set(t, r.l.Home, "bob", "vendor", "claude")
@@ -38,8 +38,8 @@ func TestATempKnowsWhatItsAgentKnows(t *testing.T) {
 	if !strings.Contains(text, "Builds the settings screens.") || !strings.Contains(text, "- show the screen in both themes") {
 		t.Fatalf("the temp's prompt lacks ann's role or lessons:\n%s", text)
 	}
-	if strings.Contains(text, "half way through") {
-		t.Fatalf("the temp's prompt carries ann's handoff:\n%s", text)
+	if _, record, ok := strings.Cut(text, "# Your agent's record\nYou are a temp of "); !ok || !strings.Contains(record, "half way through") {
+		t.Fatalf("the temp's prompt lacks ann's record:\n%s", text)
 	}
 	mine := filepath.Join(paths.AgentDir(r.l.Home, ann), "memory")
 	hidden, err := r.l.HiddenMemories(temp)

@@ -1042,6 +1042,13 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 		return "", err
 	}
 	parts = append(parts, where)
+	if k := paths.AgentKey(l.Home, knows); k != keys[0] {
+		record, err := l.recordOf(keys[0], k)
+		if err != nil {
+			return "", err
+		}
+		parts = append(parts, record)
+	}
 	var out []string
 	for _, p := range parts {
 		if p != "" {
@@ -1049,6 +1056,26 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 		}
 	}
 	return strings.Join(out, "\n\n"), nil
+}
+
+// recordOf is what the agent a temp was hired from gets at a fresh start (its handoff and the daemon's record under it), for the temp to
+// start knowing what its agent knows.
+func (l *Launcher) recordOf(temp, origin string) (string, error) {
+	text, err := db.GetHandoff(l.Q, origin)
+	if err != nil {
+		return "", err
+	}
+	where, err := l.where(origin, text)
+	if err != nil {
+		return "", err
+	}
+	head := fmt.Sprintf("# Your agent's record\nYou are a temp of %s. This is its own record as it gets it at a fresh start: \"you\" in it is %s.",
+		addr.Ref(origin), addr.Ref(origin))
+	parts := []string{addr.RenderFor(l.Q, temp, head)}
+	if text = strings.TrimSpace(text); text != "" {
+		parts = append(parts, text)
+	}
+	return strings.Join(append(parts, where), "\n\n"), nil
 }
 
 // where is the daemon's own record of where agent was (handoff.WhereText), for a session that starts with the handoff text.

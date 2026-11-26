@@ -175,8 +175,13 @@ func ReplaceTopTurn(q Q, tid int64, agent string) (bool, error) {
 	return n > 0, err
 }
 
-// RemoveTurn takes agent's turn out from under the top of task tid's stack, the ones above moving down one.
+// RemoveTurn takes agent's turn out from under the top of task tid's stack, the ones above moving down one, as a retired agent's leaves.
 func RemoveTurn(q Q, tid int64, agent string) error {
+	return DropTurn(q, tid, agent, TurnSendBack, "retired")
+}
+
+// DropTurn takes agent's turn out of task tid's stack with outcome and note, the ones above moving down one.
+func DropTurn(q Q, tid int64, agent, outcome, note string) error {
 	var pos int
 	if err := q.QueryRow("SELECT pos FROM task_turns WHERE task_id = ? AND agent = ?", tid, agent).Scan(&pos); err != nil {
 		return err
@@ -187,6 +192,6 @@ func RemoveTurn(q Q, tid int64, agent string) error {
 	if _, err := q.Exec("UPDATE task_turns SET pos = pos - 1 WHERE task_id = ? AND pos > ?", tid, pos); err != nil {
 		return err
 	}
-	_, err := AddEvent(q, agent, "task_turn_pop", KV{K: "task_id", V: tid}, KV{K: "agent", V: agent}, KV{K: "outcome", V: TurnSendBack}, KV{K: "note", V: "retired"})
+	_, err := AddEvent(q, agent, "task_turn_pop", KV{K: "task_id", V: tid}, KV{K: "agent", V: agent}, KV{K: "outcome", V: outcome}, KV{K: "note", V: note})
 	return err
 }

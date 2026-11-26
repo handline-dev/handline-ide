@@ -299,11 +299,20 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if evidence != "" {
 					onPass = db.TurnOnPassDone
 				}
-				if pushed, asked, err = pushTurn(tx, tell, tid, c.Caller.Actor(), to, body, mid, onPass, evidence); err != nil {
+				ask, drop := body, ""
+				if to, ask, drop, err = seatTurn(tx, tid, c.Caller.Actor(), to, body); err != nil {
+					return nil, err
+				}
+				if pushed, asked, err = pushTurn(tx, tell, tid, c.Caller.Actor(), to, ask, mid, onPass, evidence); err != nil {
 					return nil, err
 				}
 				if !asked.OK { // the comment and the denied ask roll back together: a refused comment is not left on the task
 					return nil, refusal(asked.Msg)
+				}
+				if drop != "" && !asked.Reask {
+					if err := dropRelay(tx, tid, drop, to); err != nil {
+						return nil, err
+					}
 				}
 				if asked.Reask {
 					said += ": " + asked.Msg

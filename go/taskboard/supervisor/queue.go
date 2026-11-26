@@ -52,6 +52,9 @@ func (e *Env) SweepTaskQueue(now int64) (err error) {
 		if len(must(db.WaitingTasks(q, agent))) == 0 {
 			continue
 		}
+		if e.seatsBusy(agent) {
+			e.hireTemps(q, agent, now)
+		}
 		key := "taskqueue:" + agent
 		if now-must(db.Cursor(q, key)) < QueueRetryS {
 			continue
@@ -103,14 +106,14 @@ func (e *Env) moveOffWaiting(q db.Q, agent string, now int64) {
 // HireRetryS is how long after a hire that did not happen the next is tried for the same agent.
 const HireRetryS = 60
 
-// hireTemps gives the first task waiting for agent while it is mid-turn on another to a seat of it (Ports.Temps), so neither waits for
-// the other and agent's turn is told nothing; the next waits until that seat's session is up, so each hire meets the limits on its own.
-// A task agent queued for itself, was already sent, or has a turn on it stays agent's.
+// hireTemps gives the first task waiting for agent while it is mid-turn on another, or while a seat of it still holds a task, to a seat
+// of it (Ports.Temps), so neither waits for the other and agent's turn is told nothing; the next waits until that seat's session is up, so
+// each hire meets the limits on its own. A task that stays agent's (ownTask) is not hired for.
 func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 	if e.Temps == nil {
 		return
 	}
-	if row := stateOf(q, agent); row == nil || row.State != states.Running {
+	if row := stateOf(q, agent); (row == nil || row.State != states.Running) && !e.Temps.Busy(agent) {
 		return
 	}
 	key := "temps:hire:" + agent
@@ -120,7 +123,7 @@ func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 	cur, _ := ok2(db.CurrentTask(q, agent))
 	for _, w := range must(db.WaitingTasks(q, agent)) {
 		t := w.Task
-		if t.ID == cur || t.Owner != agent || t.QueuedBy.String == agent || t.SentAt.Valid {
+		if t.ID == cur || ownTask(t, agent) {
 			continue
 		}
 		note := fmt.Sprintf("You are a temp of %s, given this while it is busy: you have its role, lessons and memory, not its conversation. You go idle once the task is over.", addr.Ref(agent))
@@ -129,7 +132,19 @@ func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 			check(db.SetCursor(q, key, now))
 			return
 		}
-		e.log("  %s: mid-turn, so T%d went to its seat %s", agent, t.ID, temp)
+		e.log("  %s: busy, so T%d went to its seat %s", agent, t.ID, temp)
 		return
 	}
+}
+
+// ownTask is whether task t, waiting for agent, stays agent's even while a seat of it works: one it queued for itself, was already sent, or
+// has a turn on (it acts on it but does not own it).
+func ownTask(t *db.Task, agent string) bool {
+	return t.Owner != agent || t.QueuedBy.String == agent || t.SentAt.Valid
+}
+
+// seatsBusy is whether a seat of agent holds an open task (Ports.Temps.Busy): then agent only coordinates, and takes no new task itself but
+// its own (ownTask).
+func (e *Env) seatsBusy(agent string) bool {
+	return e.Temps != nil && e.Temps.Busy(agent)
 }

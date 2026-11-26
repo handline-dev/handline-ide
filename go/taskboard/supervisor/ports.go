@@ -103,6 +103,8 @@ type Temps interface {
 	Hire(agent string, tid int64, note string) string
 	// Waiting is whether a seat of agent is at work with no session yet.
 	Waiting(agent string) bool
+	// Busy is whether a seat of agent holds an open task (temps Auto): agent then takes no new task itself but those that stay its own.
+	Busy(agent string) bool
 }
 
 // Agents is the session port the one send path delivers through (agent.Port; the peer inbox, go/internal/compose). A nil port means every

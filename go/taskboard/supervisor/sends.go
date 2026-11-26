@@ -4,6 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/textsafe"
+
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 )
@@ -98,6 +102,11 @@ func (e *Env) SayVerb(q *sql.Tx, in SayVerbIn) (out *SayVerbOut, err error) {
 		return fail(noWho)
 	}
 	me, target, body := in.Requester, in.Target, in.Body
+	if actor.IsPerson(target) && !actor.IsPerson(me) && !e.replyTo(q, in.Parent, target) {
+		if origin, tid := e.seatAt(q, me); origin != "" { // a seat at work asks its agent, not a person
+			target, body = origin, seatSayLine(tid, body)
+		}
+	}
 	if actor.IsPerson(target) && !actor.IsPerson(me) {
 		if named := db.MessageNamedIn(q, body); named != "" {
 			return fail(fmt.Sprintf("not sent: this names a message (%s), and the founder sees no message ids - say in words what that message was about", named))
@@ -199,4 +208,28 @@ func (e *Env) NotifyCancelledVerb(q db.Q, rid int64) (bool, string, error) {
 		return false, why, err
 	}
 	return true, e.NotifyCancelledAct(row), nil
+}
+
+// seatAt is the agent the seat me stands in for while at work, and the task it was hired for; "" for anyone else.
+func (e *Env) seatAt(q db.Q, me string) (string, int64) {
+	origin := must(paths.StandsInFor(q, me))
+	if origin == "" {
+		return "", 0
+	}
+	return origin, must(team.HiredFor(q, me))
+}
+
+// seatSayLine is what an agent is typed when its seat on task tid writes to a person: the words, and how to answer them.
+func seatSayLine(tid int64, words string) string {
+	return fmt.Sprintf("Your temp on T%d writes to the founder: %s\nAnswer it with a comment on T%d if it follows from the task or the founder's own words; "+
+		"else ask the founder yourself, with one question.", tid, textsafe.Oneline(words), tid)
+}
+
+// replyTo is whether request parent is person's own message: a reply to it goes to them, from a seat too.
+func (e *Env) replyTo(q db.Q, parent int64, person string) bool {
+	if parent == 0 {
+		return false
+	}
+	r := must(db.GetRequest(q, parent))
+	return r != nil && r.Requester == person
 }

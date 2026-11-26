@@ -118,7 +118,11 @@ func (e *Env) AdvanceCurrentTask(q db.Q, agent string) (changed bool, refused ma
 		return false, refused, nil
 	}
 	_, hadBefore := ok2(db.CurrentTask(q, agent))
+	busy := e.seatsBusy(agent) // a seat of it works: what a seat would take waits for one (hireTemps)
 	for _, w := range must(db.WaitingTasks(q, agent)) {
+		if busy && !ownTask(w.Task, agent) {
+			continue
+		}
 		if e.makeCurrent(q, agent, w, refused) {
 			return true, refused, nil
 		}
@@ -572,12 +576,13 @@ func toldBelow(q db.Q, row *db.Task, by string) error {
 // on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's. The founder's comment that
 // names no one on a task they hold is told to the last agent that commented there (last_writer): the one who spoke to them.
 func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
-	named := e.mentioned(by, text)
+	seat := e.seatFor(q, row, by)
+	named := mapOnce(e.mentioned(by, text), seat)
 	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
-	readers := e.memoReaders(row, by, named)
+	readers := mapOnce(e.memoReaders(row, by, named), seat)
 	last := ""
 	if len(named) == 0 && actor.IsPerson(by) && row.Acting == by {
-		if last = e.lastWriter(q, row.ID, by); last != "" && !slices.Contains(readers, last) {
+		if last = seat(e.lastWriter(q, row.ID, by)); last != "" && !slices.Contains(readers, last) {
 			readers = append(readers, last)
 		}
 	}
@@ -597,6 +602,32 @@ func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now bool
 			why = "assignee"
 		}
 		out = append(out, taskwrites.Recipient{Agent: a, Why: why})
+	}
+	return out
+}
+
+// seatFor is, for a person's (by) comment on row while a seat at work holds it, the seat in place of the agent it stands in for: the seat is
+// who answers, and the agent hears it only through the seat. Anyone else is themselves.
+func (e *Env) seatFor(q db.Q, row *db.Task, by string) func(string) string {
+	origin := ""
+	if actor.IsPerson(by) {
+		origin = must(paths.StandsInFor(q, row.Acting))
+	}
+	return func(a string) string {
+		if origin != "" && a == origin {
+			return row.Acting
+		}
+		return a
+	}
+}
+
+// mapOnce is keys through f, each once, in order.
+func mapOnce(keys []string, f func(string) string) []string {
+	var out []string
+	for _, k := range keys {
+		if k = f(k); !slices.Contains(out, k) {
+			out = append(out, k)
+		}
 	}
 	return out
 }

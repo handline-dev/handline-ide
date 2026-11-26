@@ -52,6 +52,25 @@ func (r *rig) seat(agent string, tid int64) string {
 
 func (f *fakeTemps) Waiting(string) bool { return false }
 
+// Busy is as go/internal/temps reads it: a seat of agent at work still holds an open task.
+func (f *fakeTemps) Busy(agent string) bool {
+	if f.manual {
+		return false
+	}
+	seats, err := team.TempsOf(f.r.DB, agent)
+	f.r.must(err)
+	for _, s := range seats {
+		at, err := team.HiredFor(f.r.DB, s)
+		f.r.must(err)
+		held, err := team.Holds(f.r.DB, s)
+		f.r.must(err)
+		if at != 0 && held {
+			return true
+		}
+	}
+	return false
+}
+
 // tempRig is alice mid-turn on T<first>, carol's, with T<second> from carol queued to her behind it.
 func tempRig(t *testing.T, manual bool) (r *rig, temps *fakeTemps, first, second int64) {
 	r = newRig(t)

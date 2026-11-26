@@ -7,6 +7,7 @@ package temps
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/scheduler/worktreepool"
 )
 
@@ -170,6 +172,35 @@ func (e *Env) Waiting(agent string) bool {
 	return false
 }
 
+// Busy is whether, with temps Auto, a seat of agent holds an open task: then the agent only coordinates, and a task waiting for it goes to
+// a seat. False for a seat itself, which takes what it is given, and while no further seat could start (Room), so no task waits on a seat
+// that cannot come.
+func (e *Env) Busy(agent string) bool {
+	if e.Mode != nil && e.Mode() == Manual {
+		return false
+	}
+	origin, err := paths.AgentKeyIn(e.DB, agent)
+	if err != nil || origin == "" {
+		return false
+	}
+	if from, err := paths.HiredFrom(e.DB, origin); err != nil || from != "" {
+		return false
+	}
+	seats, err := team.TempsOf(e.DB, origin)
+	if err != nil {
+		return false
+	}
+	for _, s := range seats {
+		if at, err := team.HiredFor(e.DB, s); err != nil || at == 0 {
+			continue
+		}
+		if held, err := team.Holds(e.DB, s); err == nil && held {
+			return e.Room(origin) == ""
+		}
+	}
+	return false
+}
+
 // Sweep lets each seat at work go whose task is over: one that holds no open task and is not mid-turn. A session at its prompt is closed
 // first; the seat leaves on a later sweep, once the session is gone.
 func (e *Env) Sweep() error {
@@ -273,12 +304,16 @@ func (e *Env) leave(seat, origin string, tid int64) error {
 			}
 		}
 	}
-	ended, err := endedAs(e.DB, tid)
+	ended, line, err := endedAs(e.DB, seat, tid)
 	if err != nil {
 		return err
 	}
 	if err := team.SetHiredFor(e.DB, seat, 0); err != nil {
 		return err
+	}
+	// what the seat did reaches its agent with the agent's next delivery, waking nothing: the asker had the done itself
+	if _, err := db.AddRequest(e.DB, db.NewRequest{Requester: db.NoticeRequester, Target: origin, Body: line, Kind: "say", Notice: true}); err != nil {
+		e.log("  %s: its result is not told to %s: %v", seat, origin, err)
 	}
 	if _, err := db.AddEvent(e.DB, origin, LeftEvent, db.KV{K: "seat", V: seat}, db.KV{K: "task_id", V: tid}, db.KV{K: "ended", V: ended}); err != nil {
 		e.log("  %s: its leave is not recorded: %v", seat, err)
@@ -287,19 +322,27 @@ func (e *Env) leave(seat, origin string, tid int64) error {
 	return nil
 }
 
-// endedAs is how a seat's task tid ended for it: done, discarded, or handed_off when it went on to another (or back to the agent).
-func endedAs(q db.Q, tid int64) (string, error) {
+// endedAs is how a seat's task tid ended for it: done, discarded, or handed_off when it went on to another (or back to the agent); and the
+// line its agent is told of it, with the done's evidence or the handoff's note.
+func endedAs(q db.Q, seat string, tid int64) (string, string, error) {
 	t, err := db.GetTask(q, tid)
 	if err != nil || t == nil {
-		return "discarded", err
+		return "discarded", fmt.Sprintf("Your temp %s's T%d is gone.", addr.Ref(seat), tid), err
 	}
+	head := fmt.Sprintf("Your temp %s on T%d (%s)", addr.Ref(seat), tid, textsafe.Oneline(t.Title))
 	switch {
 	case t.DiscardedBy.String != "":
-		return "discarded", nil
+		return "discarded", fmt.Sprintf("%s: discarded by %s: %s", head, addr.Ref(t.DiscardedBy.String), textsafe.Oneline(t.DiscardReason.String)), nil
 	case t.DoneEvidence.String != "":
-		return "done", nil
+		return "done", fmt.Sprintf("%s finished it: %s", head, textsafe.Oneline(t.DoneEvidence.String)), nil
 	}
-	return "handed_off", nil
+	var to, note string
+	err = q.QueryRow("SELECT COALESCE(json_extract(payload, '$.to'), ''), COALESCE(json_extract(payload, '$.note'), '') FROM events "+
+		"WHERE kind = 'task_handoff' AND agent = ? AND CAST(json_extract(payload, '$.task_id') AS INTEGER) = ? ORDER BY id DESC LIMIT 1", seat, tid).Scan(&to, &note)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "handed_off", head + " left it.", nil
+	}
+	return "handed_off", fmt.Sprintf("%s handed it to %s: %s", head, addr.Ref(to), textsafe.Oneline(note)), err
 }
 
 // keepDesk lets nobody take desk but the founder, and frees it of the seat that held it.
