@@ -69,12 +69,11 @@ test("lessons.list of human is the founder's preferences, measured under their o
   assert.ok(got.bytes > "# The founder's preferences".length);
 });
 
-test("the learning seed's founder rules carry their area, count and a quote that opens its comment", async () => {
+test("the learning seed's founder rules carry their count and a quote that opens its comment", async () => {
   const { daemon, client } = setup();
   await client.start();
   LEARNING_SEEDS.learning!(daemon);
   const items = (await client.call('lessons.list', { agent: 'human' })).items;
-  assert.deepEqual([...new Set(items.map((l) => l.area))].sort(), ['screen', 'work']);
   const quoted = items.find((l) => l.quote?.comment != null)!;
   assert.ok(quoted.count > 1);
   const memos = (await client.call('task.get', { task: quoted.quote!.task! })).timeline.filter((r) => r.kind === 'memo');

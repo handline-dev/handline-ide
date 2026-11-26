@@ -1368,9 +1368,8 @@ func TestEveryAgentsLaunchPromptCarriesItsFoundersPreferences(t *testing.T) {
 	}
 }
 
-// A person's work rules reach every agent; the screen rules only an agent most of whose tasks finished in the last 14 days were screen
-// work, read at its start, or one that finished none in that time, as nothing says what it does.
-func TestScreenRulesReachOnlyAnAgentDoingMostlyScreens(t *testing.T) {
+// Every agent reads all of a person's rules, as one list under one heading, whatever its work.
+func TestEveryAgentReadsAllOfAPersonsRules(t *testing.T) {
 	r := newLaunchRig(t)
 	teamtest.Set(t, r.l.Home, "bo", "vendor", "claude", "model", "m1", "effort", "high")
 	if _, err := r.l.Q.Exec("INSERT INTO people(display_name, role, created_at) SELECT 'Ron', 'owner', 0 WHERE NOT EXISTS (SELECT 1 FROM people WHERE role = 'owner')"); err != nil {
@@ -1380,40 +1379,24 @@ func TestScreenRulesReachOnlyAnAgentDoingMostlyScreens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, text := range []string{"Screen: no hints under titles", "Work: tests in the same commit"} {
+	for _, text := range []string{"no hints under titles (said 3 times)", "tests in the same commit"} {
 		if _, err := db.AddLesson(r.l.Q, founder, text, 0, "ann"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	task := 0
-	finished := func(agent, works string, daysAgo int) {
-		t.Helper()
-		task++
-		ts := r.l.now().Add(-time.Duration(daysAgo) * 24 * time.Hour).Unix()
-		if _, err := r.l.Q.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, ?, ?)", ts, paths.AgentKey(r.l.Home, agent),
-			db.ReadyKind, fmt.Sprintf(`{"task_id": %d, "works": %s}`, task, works)); err != nil {
+	if _, err := r.l.Q.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, ?, ?)", r.l.now().Unix(), paths.AgentKey(r.l.Home, "bo"),
+		db.ReadyKind, `{"task_id": 1, "works": ["daemon"]}`); err != nil {
+		t.Fatal(err)
+	}
+	for _, agent := range []string{"ann", "bo"} {
+		text, err := r.l.ContextFor(agent)
+		if err != nil {
 			t.Fatal(err)
 		}
-	}
-	shows := func(want map[string]bool) {
-		t.Helper()
-		for agent, screen := range want {
-			text, err := r.l.ContextFor(agent)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(text, "- tests in the same commit") || strings.Contains(text, "- no hints under titles") != screen {
-				t.Fatalf("%s (screen %v):\n%s", agent, screen, text)
-			}
+		if !strings.Contains(text, "Follow them on every task.\n- no hints under titles\n- tests in the same commit") || strings.Contains(text, "##") {
+			t.Fatalf("%s:\n%s", agent, text)
 		}
 	}
-	shows(map[string]bool{"ann": true, "bo": true}) // nothing finished: nothing says what they do
-	finished("ann", `["screen"]`, 1)
-	finished("ann", `["screen", "daemon"]`, 3)
-	finished("bo", `["daemon"]`, 1)
-	finished("bo", `["screen"]`, 20) // older than 14 days
-	finished("bo", `["screen"]`, 21)
-	shows(map[string]bool{"ann": true, "bo": false})
 }
 
 // A start names who changed each part: an agent's proposal the founder OK'd is one version with its diff, and the start says the part

@@ -27,7 +27,7 @@ func TestLiveFoldStep(t *testing.T) {
 	chat(t, d, "a2", person, "Merged; the bug is gone in my run.", 120)
 	chat(t, d, person, "a2", "근본 원인을 고쳤니? 직접 재현해서 확인하고 보고해.", 130)
 	chat(t, d, person, "a2", "좋아", 140)
-	res, err := Step(context.Background(), d, person, Claude(path, cfg, nil), func(int64) string { return db.AreaScreen }, true)
+	res, err := Step(context.Background(), d, person, Claude(path, cfg, nil), true)
 	if err != nil || !res.Written {
 		t.Fatal(res, err)
 	}

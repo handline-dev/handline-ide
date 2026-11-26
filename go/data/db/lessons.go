@@ -12,59 +12,21 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// LessonsCap is the most bytes a section of lessons takes in a launch prompt (Section): an agent's own, or each area of a person's (AreaCap);
-// an add past it is refused, and a merge brings them back under it.
+// LessonsCap is the most bytes an agent's own lessons take in a launch prompt (Section); an add past it is refused, and a merge brings
+// them back under it.
 const LessonsCap = 3072
 
-// The areas a person's rules fall in: how a screen looks and behaves, and every other kind of work. A rule's area is the start of its
-// text ("Screen: ..."); a rule without one is a work rule.
-const (
-	AreaScreen = "screen"
-	AreaWork   = "work"
-)
+// PersonCap is the most bytes a person's rules keep, counted as a section: room for more than a launch prompt shows (ShowCap), so a rule
+// said less often can still rise.
+const PersonCap = 24 << 10
 
-// screenPrefix starts the text of a person's screen rule.
-const (
-	screenPrefix = "Screen: "
-	workPrefix   = "Work: "
-)
-
-// AreaCap is the most bytes each area of a person's rules keeps, counted as a section of its own: room for more than a launch prompt
-// shows, so a rule said less often can still rise.
-var AreaCap = map[string]int{AreaScreen: 12 << 10, AreaWork: 12 << 10}
-
-// LessonArea is the area of a person's rule of text.
-func LessonArea(text string) string {
-	if strings.HasPrefix(text, screenPrefix) {
-		return AreaScreen
-	}
-	return AreaWork
-}
-
-// AreaText is a person's rule text in area, starting with the area's name.
-func AreaText(area, text string) string {
-	if area == AreaScreen {
-		return screenPrefix + text
-	}
-	return workPrefix + text
-}
-
-// Fits is whether lessons of agent's stay within the cap: an agent's section under LessonsCap, a person's each area under its AreaCap.
+// Fits is whether lessons of agent's stay within the cap: an agent's under LessonsCap, a person's under PersonCap.
 func Fits(agent string, lessons []Lesson) bool {
-	if !actor.IsPerson(agent) {
-		return len(Section(agent, lessons)) <= LessonsCap
+	limit := LessonsCap
+	if actor.IsPerson(agent) {
+		limit = PersonCap
 	}
-	by := map[string][]Lesson{}
-	for _, l := range lessons {
-		a := LessonArea(l.Text)
-		by[a] = append(by[a], l)
-	}
-	for a, ls := range by {
-		if len(Section(agent, ls)) > AreaCap[a] {
-			return false
-		}
-	}
-	return true
+	return len(Section(agent, lessons)) <= limit
 }
 
 // LessonKind is the task event a lesson's add writes, for the task's chat to show what was learned on it (the app's part comes later).
@@ -118,30 +80,8 @@ func Section(agent string, lessons []Lesson) string {
 	return LessonsSection(lessons)
 }
 
-// ShowCap is the most bytes of each area of a person's rules a launch prompt shows: the most said first, a rule without a count as said
-// once.
-var ShowCap = map[string]int{AreaScreen: 5 << 10, AreaWork: 6 << 10}
-
-// ScreenDays is how far back the tasks an agent finished are looked at to say whether its work is mostly screens (MostlyScreen).
-const ScreenDays = 14
-
-// MostlyScreen is whether most of the tasks agents finished since are screen work, by the kinds of work their commits were (the review
-// ladder's works on each finish, the newest finish of a task counting); agents are an agent and, for a temp, the agent it was hired from.
-// known is false when none finished one since: nothing says what the agent does, so it is shown every area.
-func MostlyScreen(q Q, agents []string, since int64) (screen, known bool, err error) {
-	if len(agents) == 0 {
-		return false, false, nil
-	}
-	args := []any{WorkScreen, ReadyKind, since}
-	for _, a := range agents {
-		args = append(args, a)
-	}
-	var all, scr int
-	err = q.QueryRow("SELECT COUNT(*), COALESCE(SUM(EXISTS (SELECT 1 FROM json_each(r.payload, '$.works') WHERE value = ?)), 0) FROM events r "+
-		"WHERE r.id IN (SELECT MAX(id) FROM events WHERE kind = ? AND ts >= ? AND agent IN (?"+strings.Repeat(", ?", len(agents)-1)+") "+
-		"GROUP BY json_extract(payload, '$.task_id'))", args...).Scan(&all, &scr)
-	return scr*2 > all, all > 0, err
-}
+// ShowCap is the most bytes of a person's rules a launch prompt shows: the most said first, a rule without a count as said once.
+const ShowCap = 11 << 10
 
 var (
 	saidTimes = regexp.MustCompile(` \(said (\d+) times`)
@@ -157,10 +97,10 @@ func saidCount(text string) int {
 	return 1
 }
 
-// PromptSection is the launch prompt's section of agent's lessons: all of an agent's own; of a person's, each area's most said rules up
-// to its ShowCap, in the order they were kept, each only its rule: how often it was said and where are for ranking, not for agents. The
-// screen rules are shown only with screen (an agent whose work is mostly screens, MostlyScreen); the work rules always.
-func PromptSection(agent string, lessons []Lesson, screen bool) string {
+// PromptSection is the launch prompt's section of agent's lessons: all of an agent's own; of a person's, the most said rules up to
+// ShowCap, in the order they were kept, each only its rule: how often it was said and where are for ranking, not for agents. Every agent
+// reads the same list.
+func PromptSection(agent string, lessons []Lesson) string {
 	if !actor.IsPerson(agent) {
 		return LessonsSection(lessons)
 	}
@@ -175,40 +115,23 @@ func PromptSection(agent string, lessons []Lesson, screen bool) string {
 		}
 		return saidCount(b.Text) - saidCount(a.Text)
 	})
-	used, shown := map[string]int{}, map[int64]bool{}
+	used, shown := 0, map[int64]bool{}
 	for _, l := range byCount {
-		a := LessonArea(l.Text)
-		if a == AreaScreen && !screen {
-			continue
-		}
 		n := len(section("", []Lesson{{Text: saidTail.ReplaceAllString(l.Text, "")}}))
-		if used[a]+n > ShowCap[a] {
+		if used+n > ShowCap {
 			continue
 		}
-		used[a] += n
+		used += n
 		shown[l.ID] = true
 	}
-	by := map[string][]Lesson{}
+	var rules []Lesson
 	for _, l := range lessons {
 		if shown[l.ID] {
-			a := LessonArea(l.Text)
-			text := saidTail.ReplaceAllString(l.Text, "")
-			text = strings.TrimPrefix(strings.TrimPrefix(text, screenPrefix), workPrefix)
-			by[a] = append(by[a], Lesson{Text: text})
+			rules = append(rules, Lesson{Text: saidTail.ReplaceAllString(l.Text, "")})
 		}
 	}
-	if len(by) == 0 {
-		return ""
-	}
-	s := founderHead
-	for _, a := range []string{AreaWork, AreaScreen} {
-		s += section("\n## "+areaName[a], by[a])
-	}
-	return s
+	return section(founderHead, rules)
 }
-
-// areaName is an area as a launch prompt heads its rules.
-var areaName = map[string]string{AreaWork: "Work", AreaScreen: "Screen"}
 
 func section(head string, lessons []Lesson) string {
 	if len(lessons) == 0 {

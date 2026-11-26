@@ -47,7 +47,7 @@ func lessonText(p map[string]any) (string, error) {
 func fullRefusal(founder bool) error {
 	whose, limit, merge, list := "your lessons are", db.LessonsCap, `hl lesson merge <ids> "<text>"`, "hl lesson list"
 	if founder {
-		whose, limit = "the founder's preferences of this area are", db.AreaCap[db.AreaWork]
+		whose, limit = "the founder's preferences are", db.PersonCap
 		merge, list = `hl lesson merge <ids> "<text>" --about founder --said <comment|msg>`, "hl lesson list founder"
 	}
 	return refusal(fmt.Sprintf("%s at their %d-byte limit: merge similar ones with `%s` (`%s` shows their ids), then add this one",
@@ -230,13 +230,17 @@ func lessonsList(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		items = append(items, it)
 	}
-	return map[string]any{"agent": agent, "items": items, "bytes": len(db.Section(agent, live)), "cap": db.LessonsCap}, nil
+	limit := db.LessonsCap
+	if actor.IsPerson(agent) {
+		limit = db.PersonCap
+	}
+	return map[string]any{"agent": agent, "items": items, "bytes": len(db.Section(agent, live)), "cap": limit}, nil
 }
 
-// ruleView puts a person's rule into its lesson's row: its area, the rule alone as text, how often it was said, and the one quote kept,
+// ruleView puts a person's rule into its lesson's row: the rule alone as text, how often it was said, and the one quote kept,
 // with the comment or chat message it was said in.
 func ruleView(it map[string]any, r rulesfold.Rule) {
-	it["area"], it["text"], it["count"] = r.Area, r.Text, r.Count
+	it["text"], it["count"] = r.Text, r.Count
 	if r.QuoteRef == "" {
 		return
 	}

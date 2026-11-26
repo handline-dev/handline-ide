@@ -78,27 +78,24 @@ func TestLessonsStopAtTheCapAndAMergeMakesRoom(t *testing.T) {
 	}
 }
 
-// A person's rules are capped per area, and a set of revisions is checked once, on what it leaves.
-func TestAPersonsRulesAreCappedPerAreaAndRevisedAtOnce(t *testing.T) {
+// A person's rules have one cap, and a set of revisions is checked once, on what it leaves.
+func TestAPersonsRulesAreCappedAndRevisedAtOnce(t *testing.T) {
 	q := open(t)
 	long := strings.Repeat("x", 5000)
-	for range 2 {
-		if _, err := AddLesson(q, "p1", "Screen: "+long, 0, "p1"); err != nil {
+	for range 4 {
+		if _, err := AddLesson(q, "p1", long, 0, "p1"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := AddLesson(q, "p1", "Work: "+long, 0, "p1"); err != nil {
-			t.Fatal("each area has a cap of its own", err)
-		}
 	}
-	if _, err := AddLesson(q, "p1", "Screen: "+long+long, 0, "p1"); !errors.Is(err, ErrLessonsFull) {
-		t.Fatal("past the screen cap must be refused", err)
+	if _, err := AddLesson(q, "p1", long+long, 0, "p1"); !errors.Is(err, ErrLessonsFull) {
+		t.Fatal("past the cap must be refused", err)
 	}
 	live, _ := LiveLessons(q, "p1")
-	// Replacing both screen rules with one longer one fits once the two go, whatever the order.
-	if err := ReviseLessons(q, "p1", []Revision{{Text: "Screen: " + long + long}, {IDs: []int64{live[0].ID, live[2].ID}, Text: "Screen: short", Task: 7}}, "f"); err != nil {
+	// Replacing two rules with one longer one fits once the two go, whatever the order.
+	if err := ReviseLessons(q, "p1", []Revision{{Text: long + long}, {IDs: []int64{live[0].ID, live[2].ID}, Text: "short", Task: 7}}, "f"); err != nil {
 		t.Fatal(err)
 	}
-	if err := ReviseLessons(q, "p1", []Revision{{Text: "Screen: " + long + long}}, "f"); !errors.Is(err, ErrLessonsFull) {
+	if err := ReviseLessons(q, "p1", []Revision{{Text: long + long}}, "f"); !errors.Is(err, ErrLessonsFull) {
 		t.Fatal(err)
 	}
 	if err := ReviseLessons(q, "p1", []Revision{{IDs: []int64{live[1].ID}, Text: "a"}, {IDs: []int64{live[1].ID}, Text: "b"}}, "f"); err == nil {
@@ -106,74 +103,27 @@ func TestAPersonsRulesAreCappedPerAreaAndRevisedAtOnce(t *testing.T) {
 	}
 }
 
-// A launch prompt shows each area of a person's rules up to its cap, the most said first, in the order they were kept.
-func TestALaunchShowsAPersonsMostSaidRulesPerArea(t *testing.T) {
+// A launch prompt shows a person's rules up to one cap, the most said first, in the order they were kept, as one list.
+func TestALaunchShowsAPersonsMostSaidRules(t *testing.T) {
 	q := open(t)
 	long := strings.Repeat("y", 150)
-	for i := range 60 {
-		_, _ = AddLesson(q, "p1", fmt.Sprintf("Work: %s%d (said %d times)", long, i, i+2), 0, "p1")
+	for i := range 90 {
+		_, _ = AddLesson(q, "p1", fmt.Sprintf("%s%d (said %d times)", long, i, i+2), 0, "p1")
 	}
-	_, _ = AddLesson(q, "p1", "Screen: no hints", 0, "p1")
-	_, _ = AddLesson(q, "p1", "Work: by hand", 0, "p1")
+	_, _ = AddLesson(q, "p1", "no hints", 0, "p1")
+	_, _ = AddLesson(q, "p1", "by hand", 0, "p1")
 	live, _ := LiveLessons(q, "p1")
-	s := PromptSection("p1", live, true)
-	if !strings.Contains(s, "- by hand\n") {
+	s := PromptSection("p1", live)
+	if !strings.HasSuffix(s, "- no hints\n- by hand") {
 		t.Fatal("a rule a person wrote by hand must show before the fold's most said:\n" + s)
 	}
-	if !strings.Contains(s, long+"59\n") || strings.Contains(s, long+"0\n") || !strings.Contains(s, "## Screen\n- no hints") || strings.Contains(s, "- Work: ") || strings.Contains(s, "(said") {
-		t.Fatal("the most said must show, only as its rule, and the least said fall past the cap:\n" + s)
+	if !strings.Contains(s, long+"89\n") || strings.Contains(s, long+"0\n") || strings.Contains(s, "##") || strings.Contains(s, "(said") {
+		t.Fatal("the most said must show, only as its rule, in one list, and the least said fall past the cap:\n" + s)
 	}
-	if len(s) > ShowCap[AreaWork]+ShowCap[AreaScreen]+200 {
+	if len(s) > ShowCap+200 {
 		t.Fatal(len(s))
 	}
-	if PromptSection("a1", []Lesson{{Text: "x"}}, false) != LessonsSection([]Lesson{{Text: "x"}}) {
+	if PromptSection("a1", []Lesson{{Text: "x"}}) != LessonsSection([]Lesson{{Text: "x"}}) {
 		t.Fatal("an agent's own lessons show whole")
 	}
-}
-
-// Without screen the screen rules are left out and the work rules shown as with it.
-func TestScreenRulesShowOnlyToAnAgentDoingScreens(t *testing.T) {
-	q := open(t)
-	_, _ = AddLesson(q, "p1", "Screen: no hints", 0, "p1")
-	_, _ = AddLesson(q, "p1", "Work: tests first", 0, "p1")
-	live, _ := LiveLessons(q, "p1")
-	if s := PromptSection("p1", live, false); strings.Contains(s, "no hints") || strings.Contains(s, "## Screen") || !strings.Contains(s, "## Work\n- tests first") {
-		t.Fatal(s)
-	}
-	if s := PromptSection("p1", live, true); !strings.Contains(s, "## Screen\n- no hints") || !strings.Contains(s, "- tests first") {
-		t.Fatal(s)
-	}
-}
-
-// An agent is mostly screens when more than half the tasks it finished since were screen work, each task by its newest finish; a mix
-// counts as screen when it has screen files. Nothing finished is not known, and a temp counts with the agent it was hired from.
-func TestMostlyScreenCountsTheKindsOfTheTasksAnAgentFinished(t *testing.T) {
-	q := open(t)
-	finish := func(agent string, task, ts int64, works string) {
-		t.Helper()
-		if _, err := q.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, ?, ?)", ts, agent, ReadyKind,
-			fmt.Sprintf(`{"task_id": %d, "works": %s}`, task, works)); err != nil {
-			t.Fatal(err)
-		}
-	}
-	check := func(agents []string, since int64, screen, known bool) {
-		t.Helper()
-		if s, k, err := MostlyScreen(q, agents, since); s != screen || k != known || err != nil {
-			t.Fatalf("%v since %d: screen %v known %v %v", agents, since, s, k, err)
-		}
-	}
-	check([]string{"a1"}, 0, false, false)
-	finish("a1", 1, 100, `["screen"]`)
-	finish("a1", 2, 100, `["contract", "screen"]`)
-	finish("a1", 3, 100, `["daemon"]`)
-	finish("a1", 4, 10, `["daemon"]`)
-	finish("a1", 5, 10, `["daemon"]`)
-	finish("a2", 6, 100, `["daemon"]`)
-	check([]string{"a1"}, 50, true, true)  // two of three since are screens
-	check([]string{"a1"}, 0, false, true)  // two of five are not most
-	check([]string{"a2"}, 0, false, true)  // a daemon agent
-	finish("a1", 3, 110, `["screen"]`)     // task 3 sent back and finished again as a screen: its newest finish counts, once
-	check([]string{"a1"}, 0, true, true)   // three of five
-	check([]string{"t9"}, 0, false, false) // a temp with nothing of its own
-	check([]string{"t9", "a2"}, 0, false, true)
 }

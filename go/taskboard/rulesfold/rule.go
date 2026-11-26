@@ -1,13 +1,13 @@
-// Package rulesfold turns what a person who reviews work writes (task comments and chat) into that person's standing rules, kept as
-// lessons about the person, in two areas: screen and work. It is a fold: a model reads the person's new comments past a cursor with the
-// rules kept so far and returns the whole rule set, which is written, and the cursor moved, only once it validates.
+// Package rulesfold turns what a person who reviews work writes (task comments and chat) into lessons: a standard any agent's work
+// should follow becomes one of the person's rules (lessons about the person, one list every agent reads), and a correction of one
+// agent's work a lesson of that agent's own. It is a fold: a model reads the person's new comments past a cursor with what is kept so far
+// and returns the whole rule set and the agents' new lessons, which are written, and the cursor moved, only once they validate.
 package rulesfold
 
 import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 )
@@ -15,7 +15,6 @@ import (
 // Rule is one of a person's standing rules: an instruction to agents, how many times the person said it, and the person's own words once.
 type Rule struct {
 	ID    int64  `json:"id"` // the lesson it is, 0 for a new rule
-	Area  string `json:"area"`
 	Text  string `json:"text"`
 	Count int    `json:"count"`
 	Quote string `json:"quote"`
@@ -27,8 +26,8 @@ type Rule struct {
 	stored string  // its lesson's text when it comes back as it was kept
 }
 
-// ruleLine is a rule's lesson text: `Screen: <text> (said 3 times; "<quote>", comment 9053)`, with no quote for a rule a person wrote.
-var ruleLine = regexp.MustCompile(`^(Screen|Work): (.+?) \(said (once|(\d+) times)(?:; "(.*)", ([^"]+))?\)$`)
+// ruleLine is a rule's lesson text: `<text> (said 3 times; "<quote>", comment 9053)`, with no quote for a rule a person wrote.
+var ruleLine = regexp.MustCompile(`^(.+?) \(said (once|(\d+) times)(?:; "(.*)", ([^"]+))?\)$`)
 
 // Line is the rule as its lesson's text: as stored when it came back unchanged.
 func (r Rule) Line() string {
@@ -40,26 +39,25 @@ func (r Rule) Line() string {
 		said = strconv.Itoa(r.Count) + " times"
 	}
 	if r.QuoteRef == "" {
-		return db.AreaText(r.Area, fmt.Sprintf("%s (said %s)", r.Text, said))
+		return fmt.Sprintf("%s (said %s)", r.Text, said)
 	}
-	return db.AreaText(r.Area, fmt.Sprintf("%s (said %s; %q, %s)", r.Text, said, r.Quote, r.QuoteRef))
+	return fmt.Sprintf("%s (said %s; %q, %s)", r.Text, said, r.Quote, r.QuoteRef)
 }
 
-// FromLesson is the rule a lesson keeps. A lesson written another way (by hand, or from a Redo note) is a work or screen rule, by its
-// start, said once, its whole text the rule's.
+// FromLesson is the rule a lesson keeps. A lesson written another way (by hand, or from a Redo note) is a rule said once, its whole text
+// the rule's.
 func FromLesson(l db.Lesson) Rule {
 	m := ruleLine.FindStringSubmatch(l.Text)
 	if m == nil {
-		text := strings.TrimPrefix(strings.TrimPrefix(l.Text, "Screen: "), "Work: ")
-		return Rule{ID: l.ID, Area: db.LessonArea(l.Text), Text: text, Count: 1, Task: l.Task}
+		return Rule{ID: l.ID, Text: l.Text, Count: 1, Task: l.Task}
 	}
 	n := 1
-	if m[4] != "" {
-		n, _ = strconv.Atoi(m[4])
+	if m[3] != "" {
+		n, _ = strconv.Atoi(m[3])
 	}
-	quote, err := strconv.Unquote(`"` + m[5] + `"`)
+	quote, err := strconv.Unquote(`"` + m[4] + `"`)
 	if err != nil {
-		quote = m[5]
+		quote = m[4]
 	}
-	return Rule{ID: l.ID, Area: strings.ToLower(m[1]), Text: m[2], Count: n, Quote: quote, QuoteRef: m[6], Task: l.Task}
+	return Rule{ID: l.ID, Text: m[1], Count: n, Quote: quote, QuoteRef: m[5], Task: l.Task}
 }

@@ -5,24 +5,30 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/paths"
 )
 
-// Item is one thing the person wrote, as the model reads it: what was said, the agent text it answered, and on a task, the task's title
-// and kind of work when it is known.
+// Item is one thing the person wrote, as the model reads it: what was said, the agent text it answered, on a task the task's title, and
+// the agents whose work it may be about.
 type Item struct {
-	Ref      string `json:"ref"`
-	Task     string `json:"task,omitempty"`
-	Kind     string `json:"kind,omitempty"` // an area, when the task's kind of work is known
-	Answered string `json:"answered,omitempty"`
-	Said     string `json:"said"`
+	Ref  string `json:"ref"`
+	Task string `json:"task,omitempty"`
+	// Agents are, on a task, the agents that held it up to when it was said, the last the one holding it then; in chat, the agent it was
+	// said to. Each is the agent whose lessons it keeps (a temp's are the agent's it was hired from).
+	Agents   []string `json:"agents,omitempty"`
+	Answered string   `json:"answered,omitempty"`
+	Said     string   `json:"said"`
 
 	source string
 	row    int64
 	at     int64
 	task   int64
+	target string // a chat message's target as stored
 }
 
 // The two sources a person's words come from, each with a cursor of its own.
@@ -107,9 +113,8 @@ type Batch struct {
 	Full bool
 }
 
-// ReadBatch is person's words after c, oldest first, up to budget bytes of items. kind is the area of a task's kind of work, "" when
-// unknown.
-func ReadBatch(q db.Q, person string, c Cursors, budget int, kind func(task int64) string) (Batch, error) {
+// ReadBatch is person's words after c, oldest first, up to budget bytes of items.
+func ReadBatch(q db.Q, person string, c Cursors, budget int) (Batch, error) {
 	comments, err := readComments(q, person, c.Comments)
 	if err != nil {
 		return Batch{}, err
@@ -122,7 +127,7 @@ func ReadBatch(q db.Q, person string, c Cursors, budget int, kind func(task int6
 	// Each source is in row order, so its cursor only moves forward; the two are merged by the time said, the one whose next row was said
 	// first going next. A source that filled its query may have rows said before the other's next one: once it runs out, stop.
 	b := Batch{Next: c}
-	size, areas := 0, map[int64]string{}
+	size := 0
 	for len(comments)+len(chat) > 0 {
 		var it Item
 		switch {
@@ -141,12 +146,6 @@ func ReadBatch(q db.Q, person string, c Cursors, budget int, kind func(task int6
 				return b, nil
 			}
 			size += n
-			if it.task != 0 && kind != nil {
-				if _, ok := areas[it.task]; !ok {
-					areas[it.task] = kind(it.task)
-				}
-				it.Kind = areas[it.task]
-			}
 			b.Items = append(b.Items, it)
 		}
 		if it.source == sourceComments {
@@ -157,6 +156,70 @@ func ReadBatch(q db.Q, person string, c Cursors, budget int, kind func(task int6
 	}
 	b.Full = fullComments || fullChat
 	return b, nil
+}
+
+// withAgents fills each item's Agents.
+func withAgents(q db.Q, items []Item) error {
+	for i := range items {
+		var err error
+		if items[i].Agents, err = agentsOf(q, items[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// agentsOf are the agents whose work it may be about (Item.Agents), each by the key its lessons are kept under, the last holder last.
+func agentsOf(q db.Q, it Item) ([]string, error) {
+	var who []string
+	if it.task != 0 {
+		var err error
+		// who held it: its first owner, each agent it was handed to or that began it, each owner an edit set
+		who, err = db.Collect[string](q.Query(`SELECT CASE kind WHEN 'task_new' THEN json_extract(payload, '$.owner')
+			WHEN 'task_handoff' THEN json_extract(payload, '$.to') WHEN 'task_begin' THEN agent ELSE json_extract(payload, '$.owner.new') END
+			FROM events WHERE kind IN ('task_new', 'task_handoff', 'task_begin', 'edit_task')
+			AND CASE WHEN json_valid(payload) THEN json_extract(payload, '$.task_id') END = ? AND ts <= ? ORDER BY ts, id`, it.task, it.at))(
+			func(rows *sql.Rows) (k string, err error) {
+				var v sql.NullString
+				err = rows.Scan(&v)
+				return v.String, err
+			})
+		if err != nil {
+			return nil, err
+		}
+		if len(who) == 0 { // a task older than its events: its assignee now
+			var owner string
+			if err := q.QueryRow("SELECT owner FROM tasks WHERE id = ?", it.task).Scan(&owner); err != nil && err != sql.ErrNoRows {
+				return nil, err
+			}
+			who = []string{owner}
+		}
+	} else if it.target != "" {
+		who = []string{it.target}
+	}
+	var out []string
+	for _, w := range who {
+		if w == "" || actor.IsPerson(w) {
+			continue
+		}
+		if actor.KindOf(w) != actor.Agent {
+			k, err := paths.AgentKeyIn(q, w) // a chat target kept by name
+			if err != nil {
+				return nil, err
+			}
+			if k == "" {
+				continue
+			}
+			w = k
+		}
+		k, err := paths.KnowsAs(q, w)
+		if err != nil {
+			return nil, err
+		}
+		out = slices.DeleteFunc(out, func(s string) bool { return s == k })
+		out = append(out, k)
+	}
+	return out, nil
 }
 
 // readComments are person's task comments after row, each with the agent comment it answered: the one it replies to, or else the newest
@@ -178,13 +241,13 @@ func readComments(q db.Q, person string, after int64) ([]Item, error) {
 // readChat are the chat messages person typed after row, each with the message it answered: its parent, or else the newest one its
 // target sent the person before it. A message longer than maxChat is pasted, and read as nothing.
 func readChat(q db.Q, person string, after int64) ([]Item, error) {
-	return db.Collect[Item](q.Query(`SELECT r.id, r.ts, COALESCE(r.ref, ''), r.body,
+	return db.Collect[Item](q.Query(`SELECT r.id, r.ts, COALESCE(r.ref, ''), r.target, r.body,
 		COALESCE((SELECT p.body FROM requests p WHERE p.id = r.parent_id),
 			(SELECT a.body FROM requests a WHERE a.requester = r.target AND a.target = r.requester AND a.id < r.id ORDER BY a.id DESC LIMIT 1), '')
 		FROM requests r WHERE r.requester = ? AND r.kind = 'say' AND r.id > ? ORDER BY r.id LIMIT ?`, person, after, rowsPerQuery))(
 		func(rows *sql.Rows) (it Item, err error) {
 			var ref, body, answered string
-			err = rows.Scan(&it.row, &it.at, &ref, &body, &answered)
+			err = rows.Scan(&it.row, &it.at, &ref, &it.target, &body, &answered)
 			it.source, it.Ref = sourceChat, db.MsgPrefix+ref
 			if body = clean(body); len(body) <= maxChat {
 				it.Said = cut(body, maxSaid)

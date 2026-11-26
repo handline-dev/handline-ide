@@ -10,7 +10,7 @@ var usages = map[string][2]string{
 	"load":     {`hl load [--agent <name>]`, `hl load`},
 	"desk":     {`hl desk list [<repo>]   |   hl desk pin <desk> <agent|founder>   |   hl desk unpin <desk>`, `hl desk pin desk-3 founder`},
 	"lesson":   {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
-	"prefs":    {`hl prefs [--area screen|work]`, `hl prefs --area screen`},
+	"prefs":    {`hl prefs [agent]`, `hl prefs ui`},
 	"team":     {`hl team [--agent <name>]`, `hl team`},
 	"browser": {`hl browser open <url> [--show]   |   read [--tree]   |   click <ref|selector>   |   type <ref|selector> "<text>" [--enter]   |   wait (<ref|selector> | --text "<text>") [--timeout <span>]   |   eval "<script>"   |   shot <file.png> [--full]   |   close`,
 		`hl browser click e12`},

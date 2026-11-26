@@ -8,43 +8,35 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// prefs prints the rules of the person the caller works for, in the order they were kept: `hl prefs [--area screen|work]`, for a
-// reviewer subagent to check work against. Without --area, both areas, each under its heading.
+// prefs prints the rules of the person the caller works for, in the order they were kept, and with an agent named, that agent's own
+// lessons: `hl prefs [agent]`, for a reviewer subagent to check an agent's work against.
 func prefs(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--area"}, nil, nil)
-	if !ok || len(p.pos) != 0 {
+	if len(args) > 1 || !plain(args) {
 		return 0, false
 	}
-	areas := []string{"work", "screen"}
-	if a, given := p.opt("--area"); given {
-		if a != "work" && a != "screen" {
-			return wrongArgs("--area is screen or work")
+	if len(args) == 1 && (args[0] == "founder" || args[0] == "human") {
+		return wrongArgs("hl prefs prints the founder's rules; name an agent to add its lessons")
+	}
+	lists := []struct{ agent, head, none string }{{"human", "# The founder's preferences", "no rules"}}
+	if len(args) == 1 {
+		lists = append(lists, struct{ agent, head, none string }{args[0], "# What " + args[0] + " learned", "no lessons"})
+	}
+	for _, l := range lists {
+		got, err := c.Call("lessons.list", map[string]any{"agent": l.agent})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "could not read the lessons: %v\n", err)
+			return 1, true
 		}
-		areas = []string{a}
-	}
-	got, err := c.Call("lessons.list", map[string]any{"agent": "human"})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not read the rules: %v\n", err)
-		return 1, true
-	}
-	items, _ := got["items"].([]any)
-	heads := map[string]string{"work": "# Work", "screen": "# Screen"}
-	for _, area := range areas {
-		var lines []string
+		items, _ := got["items"].([]any)
+		if len(lists) > 1 {
+			fmt.Println(l.head)
+		}
+		if len(items) == 0 {
+			fmt.Println(l.none)
+		}
 		for _, it := range items {
-			l, _ := it.(map[string]any)
-			if a, _ := l["area"].(string); a == area || a == "" && area == "work" {
-				lines = append(lines, "- "+textsafe.Text(fmt.Sprint(l["text"])))
-			}
-		}
-		if len(areas) > 1 {
-			fmt.Println(heads[area])
-		}
-		if len(lines) == 0 {
-			fmt.Println("no " + area + " rules")
-		}
-		for _, line := range lines {
-			fmt.Println(line)
+			m, _ := it.(map[string]any)
+			fmt.Println("- " + textsafe.Text(fmt.Sprint(m["text"])))
 		}
 	}
 	return 0, true

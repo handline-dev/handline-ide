@@ -10,11 +10,11 @@ import (
 )
 
 // check validates the model's rule set against the rules kept before and the items it read, and gives the rules to write and the kept
-// ones it drops. An id or merge that names no kept rule is left out: a new rule. Every kept rule must come back, by its id or merged
-// into another, unless the fold may drop it (one it wrote, said once). No count goes down, and none goes up by more than the items read
-// that say it. A quote names an item read or the quote it had. An item's kind of work is its quote's area. A rule that comes back as it
-// was kept is not checked again, so a person's long rule stands as they wrote it. When an area is past its cap, the fold's own rules
-// go, the least said first and new ones before kept ones, until it fits; a person's never go, and a set that cannot fit is refused.
+// ones it drops. An id or merge that names no kept rule is left out: a new rule. A kept rule the model does not return stays as it was:
+// a long list is not trusted to come back whole. A rule's count is the counts it had and one for each item read its refs name. A quote
+// names an item read or the quote it had. A rule that comes back as it was kept is not checked again, so a person's long rule stands as
+// they wrote it. Past the cap the fold's own rules go, the least said first and new ones before kept ones, until they fit; a person's
+// never go, and a set that cannot fit is refused.
 func check(person string, before []kept, out []outRule, items []Item) (rules, dropped []Rule, err error) {
 	old := map[int64]kept{}
 	for _, k := range before {
@@ -26,10 +26,14 @@ func check(person string, before []kept, out []outRule, items []Item) (rules, dr
 	}
 	claimed := map[int64]bool{}
 	keep := map[int]bool{} // index in rules: may not be dropped to fit
+	byText := map[string]int64{}
+	for _, k := range before {
+		byText[k.Rule.Text] = k.ID
+	}
 	for _, o := range out {
 		r := o.Rule
 		if _, ok := old[r.ID]; !ok {
-			r.ID = 0 // an id the model made up is a new rule: nothing kept can be lost by it
+			r.ID = byText[r.Text] // a kept rule's words without its id are that rule; else a new rule
 		}
 		var ids []int64
 		if r.ID != 0 {
@@ -58,31 +62,26 @@ func check(person string, before []kept, out []outRule, items []Item) (rules, dr
 				was = &k
 			}
 		}
-		read := 0
+		said := map[string]bool{}
 		for _, ref := range o.Refs {
 			if _, ok := byRef[ref]; ok {
-				read++
+				said[ref] = true
 			}
 		}
-		if r.Count < max(prior, 1) {
-			return nil, nil, fmt.Errorf("rule %q is said %d times, fewer than the %d it had", r.Text, r.Count, prior)
-		}
-		r.Count = min(r.Count, max(prior+read, 1)) // a count rises only by the items read that say it
+		r.Count = max(prior+len(said), 1) // what it had, and one for each item read that says it: no count of the model's
 		if was != nil && same(was.Rule, r) {
 			r.Task, r.stored = was.Task, was.Text
 		} else {
+			if r.QuoteRef == "" && was != nil { // a rule said again keeps the quote it had
+				r.Quote, r.QuoteRef = was.Quote, was.QuoteRef
+			}
 			// a person's own rule keeps its words however long; only the model's are held to the limits
-			if was == nil || !was.keep || r.Text != was.Rule.Text {
-				if err := checkText(r); err != nil {
-					return nil, nil, err
-				}
+			if err := checkText(r, was == nil || !was.keep || r.Text != was.Rule.Text); err != nil {
+				return nil, nil, err
 			}
 			if it, ok := byRef[r.QuoteRef]; ok {
 				r.Task = it.task
-				if it.Kind != "" {
-					r.Area = it.Kind
-				}
-			} else if !quotes[r.QuoteRef] {
+			} else if r.QuoteRef != "" && !quotes[r.QuoteRef] { // no quote is a rule kept without one
 				return nil, nil, fmt.Errorf("rule %q quotes %q, which is neither an item read nor its own quote", r.Text, r.QuoteRef)
 			}
 			if r.QuoteRef == "" {
@@ -99,21 +98,20 @@ func check(person string, before []kept, out []outRule, items []Item) (rules, dr
 		if claimed[k.ID] {
 			continue
 		}
-		if k.keep || k.Count > 1 {
-			return nil, nil, fmt.Errorf("kept rule %d (%q) is gone", k.ID, k.Text)
-		}
 		r := k.Rule
-		r.from = []int64{k.ID}
-		dropped = append(dropped, r)
+		r.stored, r.from = k.Text, []int64{k.ID}
+		if k.keep {
+			keep[len(rules)] = true
+		}
+		rules = append(rules, r)
 	}
 	return fit(person, rules, keep, dropped)
 }
 
-func checkText(r Rule) error {
+// checkText checks the quote of r, and its text when text.
+func checkText(r Rule, text bool) error {
 	switch {
-	case r.Area != db.AreaScreen && r.Area != db.AreaWork:
-		return fmt.Errorf("rule %q has area %q", r.Text, r.Area)
-	case r.Text == "" || utf8.RuneCountInString(r.Text) > maxText || strings.ContainsAny(r.Text, "\n\r"):
+	case text && (r.Text == "" || utf8.RuneCountInString(r.Text) > maxText || strings.ContainsAny(r.Text, "\n\r")):
 		return fmt.Errorf("rule text %q is empty, over %d characters or more than a line", r.Text, maxText)
 	case r.QuoteRef != "" && (r.Quote == "" || utf8.RuneCountInString(r.Quote) > maxQuote || strings.ContainsAny(r.Quote, "\n\r")):
 		return fmt.Errorf("rule %q has a quote that is empty, over %d characters or more than a line", r.Text, maxQuote)
@@ -121,8 +119,8 @@ func checkText(r Rule) error {
 	return nil
 }
 
-// fit drops the fold's own rules, the least said first and new ones before kept ones, until each area fits its cap. A dropped rule
-// that replaces kept ones takes them with it.
+// fit drops the fold's own rules, the least said first and new ones before kept ones, until they fit the cap and number at most
+// MaxRules. A dropped rule that replaces kept ones takes them with it.
 func fit(person string, rules []Rule, keep map[int]bool, dropped []Rule) ([]Rule, []Rule, error) {
 	lessons := func(rs []Rule) []db.Lesson {
 		out := make([]db.Lesson, 0, len(rs))
@@ -154,7 +152,7 @@ func fit(person string, rules []Rule, keep map[int]bool, dropped []Rule) ([]Rule
 		return rs
 	}
 	for _, i := range order {
-		if db.Fits(person, lessons(kept())) {
+		if rs := kept(); len(rs) <= MaxRules && db.Fits(person, lessons(rs)) {
 			break
 		}
 		gone[i] = true

@@ -51,9 +51,10 @@ func chat(t *testing.T, q db.Q, requester, target, body string, ts int64) int64 
 
 // answer is a fake Model that returns rules and records what it was asked.
 type answer struct {
-	rules  []map[string]any
-	asked  []string
-	during func()
+	rules   []map[string]any
+	lessons []map[string]any
+	asked   []string
+	during  func()
 }
 
 func (a *answer) model(_ context.Context, prompt, _ string) ([]byte, error) {
@@ -61,11 +62,11 @@ func (a *answer) model(_ context.Context, prompt, _ string) ([]byte, error) {
 	if a.during != nil {
 		a.during()
 	}
-	return json.Marshal(map[string]any{"rules": a.rules})
+	return json.Marshal(map[string]any{"rules": a.rules, "lessons": a.lessons})
 }
 
-func rule(id int64, area, text string, count int, quote, ref string, merges ...int64) map[string]any {
-	return map[string]any{"id": id, "area": area, "text": text, "count": count, "quote": quote, "quote_ref": ref, "refs": []string{ref},
+func rule(id int64, text string, count int, quote, ref string, merges ...int64) map[string]any {
+	return map[string]any{"id": id, "text": text, "count": count, "quote": quote, "quote_ref": ref, "refs": []string{ref},
 		"merges": merges}
 }
 

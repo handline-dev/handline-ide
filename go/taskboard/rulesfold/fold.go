@@ -8,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 )
@@ -18,8 +16,8 @@ import (
 const By = "rules_fold"
 
 const (
-	// MaxRules is how many rules of each area the model is asked to keep at most; the bytes each area may take are db.AreaCap.
-	MaxRules = 40
+	// MaxRules is the most rules a person keeps: past it the fold's least said go, as past the bytes of db.PersonCap.
+	MaxRules = 80
 	// Budget is the most bytes of items one step sends.
 	Budget   = 45000
 	maxText  = 120 // the prompt asks for 80
@@ -36,11 +34,14 @@ var (
 // Model answers prompt with JSON that matches schema.
 type Model func(ctx context.Context, prompt, schema string) ([]byte, error)
 
-// Result is what one step did: the items it read, the rule set after them, and whether it was written.
+// Result is what one step did: the items it read, the rule set after them, the agents' new lessons, and whether it was written.
 type Result struct {
 	Items   int
 	Rules   []Rule
 	Dropped []Rule
+	Lessons []Lesson
+	// Skipped are the agent lessons left out, each with why.
+	Skipped []Lesson
 	Next    Cursors
 	Written bool
 	// More is whether more was there to read than this step took.
@@ -60,19 +61,28 @@ type outRule struct {
 	Refs   []string `json:"refs"`
 }
 
-// Step folds person's next batch of words into their rules: it reads past the cursors, asks model, validates the answer and, when write,
-// writes the rules and moves the cursors in one transaction. A batch of only acks moves the cursors and asks nothing. When the rules or
-// cursors changed while the model answered (a Redo added a lesson), nothing is written: the next step reads the batch again.
-func Step(ctx context.Context, d *sql.DB, person string, model Model, kind func(task int64) string, write bool) (Result, error) {
+// Step folds person's next batch of words into their rules and the lessons of the agents whose work they corrected: it reads past the
+// cursors, asks model, validates the answer and, when write, writes the rules and lessons and moves the cursors in one transaction. A
+// batch of only acks moves the cursors and asks nothing. When the person's rules or the cursors changed while the model answered (a Redo
+// added a lesson), nothing is written: the next step reads the batch again. An agent lesson that does not validate, or no longer can be
+// written (past the agent's cap, or merging a lesson gone meanwhile), is left out and the rest written.
+func Step(ctx context.Context, d *sql.DB, person string, model Model, write bool) (Result, error) {
 	cur, err := ReadCursors(d, person)
 	if err != nil {
 		return Result{}, err
 	}
-	b, err := ReadBatch(d, person, cur, Budget, kind)
+	b, err := ReadBatch(d, person, cur, Budget)
 	if err != nil || b.Next == cur {
 		return Result{Next: cur}, err
 	}
 	before, err := keptRules(d, person)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := withAgents(d, b.Items); err != nil {
+		return Result{}, err
+	}
+	have, err := agentLessons(d, b.Items)
 	if err != nil {
 		return Result{}, err
 	}
@@ -84,12 +94,13 @@ func Step(ctx context.Context, d *sql.DB, person string, model Model, kind func(
 			res.Rules = append(res.Rules, r)
 		}
 	} else {
-		raw, err := model(ctx, Prompt(before, b.Items), Schema)
+		raw, err := model(ctx, Prompt(before, have, b.Items), Schema)
 		if err != nil {
 			return res, err
 		}
 		var out struct {
-			Rules []outRule `json:"rules"`
+			Rules   []outRule   `json:"rules"`
+			Lessons []outLesson `json:"lessons"`
 		}
 		if err := json.Unmarshal(raw, &out); err != nil {
 			return res, fmt.Errorf("the model's answer: %w", err)
@@ -97,6 +108,7 @@ func Step(ctx context.Context, d *sql.DB, person string, model Model, kind func(
 		if res.Rules, res.Dropped, err = check(person, before, out.Rules, b.Items); err != nil {
 			return res, err
 		}
+		res.Lessons, res.Skipped = checkLessons(out.Lessons, b.Items, have)
 	}
 	if !write {
 		return res, nil
@@ -116,6 +128,11 @@ func Step(ctx context.Context, d *sql.DB, person string, model Model, kind func(
 		if err := apply(tx, person, res); err != nil {
 			return err
 		}
+		var past []Lesson
+		if res.Lessons, past, err = applyLessons(tx, res.Lessons); err != nil {
+			return err
+		}
+		res.Skipped = append(res.Skipped, past...)
 		return writeCursors(tx, person, b.Next)
 	})
 	res.Written = err == nil
@@ -160,8 +177,8 @@ func sameRules(a, b []kept) bool {
 	return slices.EqualFunc(a, b, func(x, y kept) bool { return x.ID == y.ID && x.Text == y.Text })
 }
 
-// Prompt is the model's input: the instructions, the rules kept so far and the items.
-func Prompt(rules []kept, items []Item) string {
+// Prompt is the model's input: the instructions, the rules kept so far, the lessons of the agents the items name, and the items.
+func Prompt(rules []kept, have map[string][]db.Lesson, items []Item) string {
 	type shown struct {
 		Rule
 		Keep bool `json:"keep,omitempty"`
@@ -170,7 +187,20 @@ func Prompt(rules []kept, items []Item) string {
 	for _, k := range rules {
 		rs = append(rs, shown{k.Rule, k.keep})
 	}
+	type lesson struct {
+		ID   int64  `json:"id"`
+		Text string `json:"text"`
+	}
+	ls := map[string][]lesson{}
+	for a, have := range have {
+		ls[a] = []lesson{}
+		for _, l := range have {
+			ls[a] = append(ls[a], lesson{l.ID, l.Text})
+		}
+	}
 	r, _ := json.Marshal(rs)
+	l, _ := json.Marshal(ls)
 	it, _ := json.Marshal(items)
-	return strings.ReplaceAll(promptText, "MAXRULES", strconv.Itoa(MaxRules)) + "\nRULES:\n" + string(r) + "\n\nITEMS:\n" + string(it) + "\n"
+	return promptText + "\nRULES:\n" + string(r) + "\n\nLESSONS:\n" + string(l) +
+		"\n\nITEMS:\n" + string(it) + "\n"
 }

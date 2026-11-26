@@ -51,7 +51,7 @@ func TestAnAgentKeepsItsLessonsAndTheFounderRemovesOne(t *testing.T) {
 			}
 			break
 		}
-		if i > 40 {
+		if i > 60 {
 			t.Fatal("never full")
 		}
 	}
@@ -131,7 +131,7 @@ func TestALessonAboutTheFounderCitesTheirWordsAndHasItsOwnCap(t *testing.T) {
 			}
 			break
 		}
-		if i > 40 {
+		if i > 60 {
 			t.Fatal("never full")
 		}
 	}
@@ -153,9 +153,9 @@ func lessonCaller(t *testing.T, d *sql.DB) func(agent, method, params string) ma
 	}
 }
 
-// A person's rule lists as its area, the rule alone, how often it was said and the quote kept, with the comment or chat message it was
+// A person's rule lists as the rule alone, how often it was said and the quote kept, with the comment or chat message it was
 // said in; an agent's own lesson is said once and has neither.
-func TestAPersonsRuleListsItsAreaCountAndQuote(t *testing.T) {
+func TestAPersonsRuleListsItsCountAndQuote(t *testing.T) {
 	home := t.TempDir()
 	d := teamtest.Seed(t, home, "gp", "gp/worker")
 	worker := teamtest.Key(t, home, "gp/worker")
@@ -163,8 +163,8 @@ func TestAPersonsRuleListsItsAreaCountAndQuote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, text := range []string{`Screen: Use flat rows. (said 18 times; "No cards.", comment 7)`, `Work: Subtract. (said 3 times; "Keep it simple.", msg_abcdef1)`,
-		"Work: by hand"} {
+	for _, text := range []string{`Use flat rows. (said 18 times; "No cards.", comment 7)`, `Subtract. (said 3 times; "Keep it simple.", msg_abcdef1)`,
+		"by hand"} {
 		if _, err := db.AddLesson(d, founder, text, 4, "rules_fold"); err != nil {
 			t.Fatal(err)
 		}
@@ -178,9 +178,9 @@ func TestAPersonsRuleListsItsAreaCountAndQuote(t *testing.T) {
 		b, _ := json.Marshal(as(worker, "lessons.list", fmt.Sprintf(`"agent":%q,`, whose))["result"].(map[string]any)["items"])
 		return regexp.MustCompile(`"created_at":"[^"]*",`).ReplaceAllString(string(b), "")
 	}
-	want := `[{"agent":"` + founder + `","area":"screen","count":18,"created_by":"rules_fold","id":1,"quote":{"comment":7,"task":4,"text":"No cards."},"task":4,"text":"Use flat rows."},` +
-		`{"agent":"` + founder + `","area":"work","count":3,"created_by":"rules_fold","id":2,"quote":{"message":"msg_abcdef1","task":4,"text":"Keep it simple."},"task":4,"text":"Subtract."},` +
-		`{"agent":"` + founder + `","area":"work","count":1,"created_by":"rules_fold","id":3,"task":4,"text":"by hand"}]`
+	want := `[{"agent":"` + founder + `","count":18,"created_by":"rules_fold","id":1,"quote":{"comment":7,"task":4,"text":"No cards."},"task":4,"text":"Use flat rows."},` +
+		`{"agent":"` + founder + `","count":3,"created_by":"rules_fold","id":2,"quote":{"message":"msg_abcdef1","task":4,"text":"Keep it simple."},"task":4,"text":"Subtract."},` +
+		`{"agent":"` + founder + `","count":1,"created_by":"rules_fold","id":3,"task":4,"text":"by hand"}]`
 	if got := list(founder); got != want {
 		t.Errorf("the founder's rules:\n got %s\nwant %s", got, want)
 	}

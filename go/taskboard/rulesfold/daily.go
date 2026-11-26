@@ -23,8 +23,6 @@ type Daily struct {
 	DB *sql.DB
 	// Model is the model to ask now, false when no account may be spent.
 	Model func() (Model, bool)
-	// Kind is the area of a task's kind of work, "" when unknown.
-	Kind func(task int64) string
 	// On is whether the fold runs (the rules_fold setting).
 	On  func() bool
 	Log func(format string, args ...any)
@@ -69,7 +67,7 @@ func (d *Daily) run(ctx context.Context, person string) {
 		if !ok {
 			return
 		}
-		res, err := Step(ctx, d.DB, person, model, d.Kind, true)
+		res, err := Step(ctx, d.DB, person, model, true)
 		if err != nil {
 			d.Log("rules fold %s: %v", person, err)
 			if err := tried(d.DB, person, d.Now()); err != nil {
@@ -77,7 +75,8 @@ func (d *Daily) run(ctx context.Context, person string) {
 			}
 			return
 		}
-		d.Log("rules fold %s: %d items read, %d rules, %d dropped", person, res.Items, len(res.Rules), len(res.Dropped))
+		d.Log("rules fold %s: %d items read, %d rules, %d dropped, %d agent lessons, %d past an agent's cap", person, res.Items,
+			len(res.Rules), len(res.Dropped), len(res.Lessons), len(res.Skipped))
 		if !res.More {
 			return
 		}
@@ -100,7 +99,7 @@ func Due(q db.Q, person string, now time.Time) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	b, err := ReadBatch(q, person, cur, Budget, nil)
+	b, err := ReadBatch(q, person, cur, Budget)
 	if err != nil || b.Next == cur {
 		return false, err
 	}

@@ -106,16 +106,9 @@ func about(p parsed) (map[string]any, bool) {
 	return map[string]any{"about": who, "said": ref}, true
 }
 
-// lessonLine is one lesson as hl lesson list shows it. A person's rule leads with its area as it is written ("Screen: "), so a merge
-// that copies it keeps its area, and ends with how often it was said.
+// lessonLine is one lesson as hl lesson list shows it; a person's rule ends with how often it was said.
 func lessonLine(l map[string]any) string {
 	text := textsafe.Text(fmt.Sprint(l["text"]))
-	switch l["area"] {
-	case "screen":
-		text = "Screen: " + text
-	case "work":
-		text = "Work: " + text
-	}
 	line := fmt.Sprintf("%v  %s", l["id"], text)
 	if n := num(l, "count"); n > 1 {
 		line += fmt.Sprintf("  (said %d times)", n)

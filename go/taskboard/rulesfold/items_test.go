@@ -1,6 +1,7 @@
 package rulesfold
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -15,18 +16,21 @@ func TestABatchMergesBothSourcesInOrderUpToItsBudget(t *testing.T) {
 	m2 := chat(t, d, person, "a2", "use the same modal everywhere", 120)
 	c2 := comment(t, d, tid, person, "OK", 130)
 	comment(t, d, tid, "a1", "not the person's", 140)
-	b, err := ReadBatch(d, person, Cursors{}, Budget, func(int64) string { return "screen" })
+	b, err := ReadBatch(d, person, Cursors{}, Budget)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.Items) != 2 || b.Items[0].Said != "move it up [mark: this line] [picture]" || b.Items[0].Kind != "screen" ||
+	if err := withAgents(d, b.Items); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.Items) != 2 || !slices.Equal(b.Items[1].Agents, []string{"a2"}) || b.Items[0].Said != "move it up [mark: this line] [picture]" || !slices.Equal(b.Items[0].Agents, []string{"a1"}) ||
 		b.Items[0].Task != "Usage page" || b.Items[1].Ref != "msg_"+ref(t, d, m2) || b.Full {
 		t.Fatalf("%+v", b)
 	}
 	if b.Next != (Cursors{Comments: c2, Chat: m2}) || m1 >= m2 || c1 >= c2 {
 		t.Fatalf("next %+v", b.Next)
 	}
-	small, _ := ReadBatch(d, person, Cursors{}, 10, nil)
+	small, _ := ReadBatch(d, person, Cursors{}, 10)
 	if len(small.Items) != 1 || !small.Full || small.Next != (Cursors{Comments: c1, Chat: m1}) {
 		t.Fatalf("a batch past its budget: %+v", small)
 	}

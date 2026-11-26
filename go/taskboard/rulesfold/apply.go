@@ -30,5 +30,5 @@ func apply(q db.Q, person string, res Result) error {
 
 // same is whether a rule came back as it was kept: then its lesson is left as it is, in whatever form a person wrote it.
 func same(a, b Rule) bool {
-	return a.Area == b.Area && a.Text == b.Text && a.Count == b.Count && a.Quote == b.Quote && a.QuoteRef == b.QuoteRef
+	return a.Text == b.Text && a.Count == b.Count && a.Quote == b.Quote && a.QuoteRef == b.QuoteRef
 }

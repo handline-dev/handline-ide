@@ -530,8 +530,6 @@ export type Lesson = {
   created_at: Timestamp;
   /** Who wrote it: the agent, or the agent that merged it. */
   created_by: string;
-  /** A person's rule only: what kind of work it is about. text is then the rule alone, without its area or count. */
-  area?: "screen" | "work";
   /** How many times the person said it; 1 for an agent's own lesson and for a rule not counted. */
   count: number;
   /** A person's rule only, when one was kept: the person's own words it came from, once, and where they were said: a comment on task, or a chat message. */

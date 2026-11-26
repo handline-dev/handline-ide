@@ -1019,17 +1019,6 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// A person's screen rules reach an agent whose finished work of late is mostly screens, or whose work nothing says yet; the work rules
-	// reach every agent. A temp counts with the agent it was hired from.
-	keys := []string{paths.AgentKey(l.Home, agent)}
-	if k := paths.AgentKey(l.Home, knows); k != keys[0] {
-		keys = append(keys, k)
-	}
-	screen, known, err := db.MostlyScreen(l.Q, keys, l.now().Add(-db.ScreenDays*24*time.Hour).Unix())
-	if err != nil {
-		return "", err
-	}
-	screen = screen || !known
 	for _, whose := range []string{owner, knows} {
 		if whose == "" { // no owner yet
 			continue
@@ -1038,7 +1027,7 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		parts = append(parts, db.PromptSection(whose, lessons, screen))
+		parts = append(parts, db.PromptSection(whose, lessons))
 	}
 	text, err := db.GetHandoff(l.Q, agent)
 	if err != nil {
@@ -1052,8 +1041,8 @@ func (l *Launcher) ContextFor(agent string) (string, error) {
 		return "", err
 	}
 	parts = append(parts, where)
-	if k := paths.AgentKey(l.Home, knows); k != keys[0] {
-		record, err := l.recordOf(keys[0], k)
+	if self, k := paths.AgentKey(l.Home, agent), paths.AgentKey(l.Home, knows); k != self {
+		record, err := l.recordOf(self, k)
 		if err != nil {
 			return "", err
 		}

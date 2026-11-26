@@ -19,21 +19,15 @@ const LESSONS: [string, number][] = [
   ['Put every state in the pictures: empty, loading, error, many.', 9132],
 ];
 
-/** The founder's rules, which every agent reads: area, the rule, how often he said it, and the words kept once (a comment on the rules
- *  task, or a chat message by name). */
-const RULES: ['screen' | 'work', string, number, string, string | null][] = [
-  ['screen', 'Use flat full-width rows, not cards, and never cut off content.', 18, 'No cards. Flat rows, full width.', null],
-  ['screen', 'Keep layout steady: no shift on hover, no overflow.', 28, 'It jumps when I hover. Reserve the room.', null],
-  ['screen', 'All app screen text is English.', 3, 'The app itself stays in English.', 'msg_6cf61d6'],
-  [
-    'work',
-    'Subtract: remove features, settings and legacy code; keep it simple.',
-    103,
-    'Remove it. It adds complexity. Keep it simple.',
-    null,
-  ],
-  ['work', 'Find the root cause first and fix it durably, with no guesswork.', 31, 'Find the root cause, no patch fixes.', null],
-  ['work', 'Write to the reviewer only in Korean; use English for everything else.', 1, '', null],
+/** The founder's rules, which every agent reads: the rule, how often he said it, and the words kept once (a comment on the rules task,
+ *  or a chat message by name). */
+const RULES: [string, number, string, string | null][] = [
+  ['Use flat full-width rows, not cards, and never cut off content.', 18, 'No cards. Flat rows, full width.', null],
+  ['Keep layout steady: no shift on hover, no overflow.', 28, 'It jumps when I hover. Reserve the room.', null],
+  ['All app screen text is English.', 3, 'The app itself stays in English.', 'msg_6cf61d6'],
+  ['Subtract: remove features, settings and legacy code; keep it simple.', 103, 'Remove it. It adds complexity. Keep it simple.', null],
+  ['Find the root cause first and fix it durably, with no guesswork.', 31, 'Find the root cause, no patch fixes.', null],
+  ['Write to the reviewer only in Korean; use English for everything else.', 1, '', null],
 ];
 const RULES_TASK = 9204;
 
@@ -46,13 +40,13 @@ export const LEARNING_SEEDS: Record<string, Seed> = {
     d.tasks.seed({ id: RULES_TASK, from: ME, to: ARCH, title: "Agents' standing rules", state: 'doing' });
     d.tasks.lessons.set(
       FOUNDER,
-      RULES.map(([area, text, count, said, message], i) => {
+      RULES.map(([text, count, said, message], i) => {
         const quote = !said
           ? undefined
           : message
             ? { text: said, message }
             : { text: said, task: RULES_TASK, comment: d.tasks.memo({ task: RULES_TASK, text: said }, 'add', ME) };
-        return { id: 101 + i, agent: FOUNDER, text, area, count, quote, created_at: at(5 - i), created_by: 'rules_fold' };
+        return { id: 101 + i, agent: FOUNDER, text, count, quote, created_at: at(5 - i), created_by: 'rules_fold' };
       }),
     );
     const record = (from: number, oks: boolean[]) => oks.map((ok_first, i) => ({ task: from + i, ok_first, at: at(10 - i) }));

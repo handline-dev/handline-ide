@@ -2192,14 +2192,6 @@
       "type": "string",
       "description": "Who wrote it: the agent, or the agent that merged it."
      },
-     "area": {
-      "type": "string",
-      "enum": [
-       "screen",
-       "work"
-      ],
-      "description": "A person's rule only: what kind of work it is about. text is then the rule alone, without its area or count."
-     },
      "count": {
       "type": "integer",
       "minimum": 1,
