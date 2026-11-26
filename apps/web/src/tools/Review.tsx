@@ -105,14 +105,15 @@ export function VerdictButtons({ t }: { t: TaskDetail }) {
         <Button
           disabled={redo.isPending}
           onClick={() =>
-            void note({ title: redoLabel(n), hint: 'Anything to add (optional)', go: 'Send back', required: false }).then(
-              (lead) =>
-                lead !== undefined &&
-                redo.mutate(
-                  { task: t.id, note: lineCommentsText(drafts.list, { lead }) },
-                  { onError: sayRefusal, onSuccess: drafts.clear },
-                ),
-            )
+            void note({ title: redoLabel(n), hint: 'Anything to add (optional)', go: 'Send back', required: false }).then((lead) => {
+              if (lead === undefined) return;
+              const sent = drafts.now();
+              // The drafts are dropped on the call's own promise, not in a callback given with the call: a Redo that goes through
+              // takes these buttons off the screen, and such a callback is not run once they are gone.
+              void redo
+                .mutateAsync({ task: t.id, note: lineCommentsText(sent, { lead }) })
+                .then(() => drafts.drop(sent.map((c) => c.id)), sayRefusal);
+            })
           }
         >
           {redoLabel(n)}

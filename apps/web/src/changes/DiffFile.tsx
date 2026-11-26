@@ -25,6 +25,21 @@ function unnumbered(file: DiffFile): string {
   return 'The diff was cut off inside this file, so its lines are not numbered. A comment here is on the whole file.';
 }
 
+/** The place's drafts on files that are not among `paths`, the files drawn: another commit's, or a file that left the diff. Listed
+ *  with their path, so every draft the bar counts can be read, changed and removed. */
+export function Elsewhere({ commenting, paths }: { commenting: Commenting; paths: string[] }) {
+  const rest = commenting.drafts.list.filter((c) => !paths.includes(c.path));
+  if (!rest.length) return null;
+  return (
+    <section className="flex flex-col rounded-md border border-border py-1">
+      <h3 className="px-3 pt-1 text-xs text-muted">On files not shown here</h3>
+      {rest.map((c) => (
+        <Draft key={c.id} c={c} drafts={commenting.drafts} path />
+      ))}
+    </section>
+  );
+}
+
 export function File({
   file,
   added,
@@ -41,9 +56,9 @@ export function File({
   /** With it, the file's lines take comments; without, it is only read. */
   commenting?: Commenting;
 }) {
-  // The lines a box is open on and the words typed in it are kept with the tab, per diff shown: a row's place means another line in
-  // another of the place's diffs.
-  const at = `${commenting?.view ?? ''}:${file.path}`;
+  // The lines a box is open on and the words typed in it are kept with the tab, per place and per diff shown: one tab draws several
+  // tasks' code (a story's sub-tasks), and a row's place means another line in another of a place's diffs.
+  const at = `${commenting?.drafts.key ?? ''}:${commenting?.view ?? ''}:${file.path}`;
   const [picked, setPicked] = useTabState<Picked | null>(`comment-on:${at}`, null);
   const [text, setText] = useTabState(`comment-words:${at}`, '');
   const lines = lineNumbersHold(file);

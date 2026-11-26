@@ -1,7 +1,7 @@
 // The lines of one file's diff, each with its number, and the comments a person writes on them: a + at a line's left (always there on a
 // touch screen or a narrow window, on hover elsewhere) opens a one-line box under the line, Shift-click or a drag takes a range, and Enter
 // keeps the comment as a draft under its line. Nothing is sent from here.
-import { anchorOf, lineLabel, rowOf, rowRef, type DiffFile, type DiffRow, type LineComment } from '@handline/app-core';
+import { anchorOf, lineLabel, placedRow, rowRef, type DiffFile, type DiffRow, type LineComment } from '@handline/app-core';
 import { Plus, X } from 'lucide-react';
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import type { LineDrafts } from '#src/changes/lineDrafts.ts';
@@ -70,8 +70,9 @@ export function Box({
   );
 }
 
-/** A comment kept as a draft: its lines, its words (a click edits them), and a way to drop it. */
-export function Draft({ c, drafts }: { c: LineComment; drafts: LineDrafts }) {
+/** A comment kept as a draft: its lines, its words (a click edits them), and a way to drop it. `path` names its file where it is
+ *  not drawn in one. */
+export function Draft({ c, drafts, path }: { c: LineComment; drafts: LineDrafts; path?: boolean }) {
   const [edit, setEdit] = useState<string | null>(null);
   if (edit !== null)
     return (
@@ -89,7 +90,15 @@ export function Draft({ c, drafts }: { c: LineComment; drafts: LineDrafts }) {
   return (
     <div className={ACROSS} data-draft={c.id}>
       <div className="mx-3 my-1 flex items-start gap-2 rounded-md border border-accent/40 bg-bg px-2 py-1">
-        <span className="mt-0.5 shrink-0 rounded-sm bg-surface px-1 text-xs text-muted tabular-nums">{lineLabel(c)}</span>
+        <span
+          title={
+            c.moved ? 'Its line has moved or changed since: it is sent as a comment on the file, with the lines as they stood' : undefined
+          }
+          className="mt-0.5 max-w-full shrink-0 truncate rounded-sm bg-surface px-1 text-xs text-muted tabular-nums"
+        >
+          {path && `${c.path} · `}
+          {lineLabel(c)}
+        </span>
         <button type="button" title="Edit" onClick={() => setEdit(c.text)} className="min-w-0 flex-1 text-left break-words text-fg">
           {c.text}
         </button>
@@ -97,7 +106,7 @@ export function Draft({ c, drafts }: { c: LineComment; drafts: LineDrafts }) {
           type="button"
           aria-label="Remove comment"
           title="Remove comment"
-          onClick={() => drafts.remove(c.id)}
+          onClick={() => drafts.drop([c.id])}
           className="mt-0.5 shrink-0 rounded-sm text-muted hover:bg-hover hover:text-fg"
         >
           <X size={14} />
@@ -133,9 +142,9 @@ function Gutter({ row, at, onPick, onDown }: { row: DiffRow; at: number; onPick?
 type Down = (i: number, e: ReactPointerEvent) => void;
 
 /** The row a draft is drawn under in the diff shown; -1 when it is not on a line of this one (a comment on the file, one written on
- *  another of the place's diffs, a line that is gone), and it is listed above the rows. */
+ *  another of the place's diffs, one whose line moved or reads otherwise now), and it is listed above the rows. */
 export const rowUnder = (file: DiffFile, lines: boolean, view: string, c: LineComment): number =>
-  lines && c.path === file.path && c.view === view && c.at ? rowOf(file.rows, c.at) : -1;
+  lines && !c.moved && c.path === file.path && c.view === view && c.at ? placedRow(file.rows, c.at) : -1;
 
 /** The rows `a` to `b` are taken while the mouse, pressed on row `from`'s number, moves over other rows of `box`. `during` is told
  *  while it lasts: the box that opens under the last row waits for the release, or it would push the rows from under the mouse. */

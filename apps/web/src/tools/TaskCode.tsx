@@ -6,8 +6,8 @@ import { Hooks } from '@handline/app-data';
 import { useState } from 'react';
 import { diffFiles } from '@handline/app-core';
 import { TaskCommentBar } from '#src/changes/CommentBar.tsx';
-import { File, noted } from '#src/changes/DiffFile.tsx';
-import { taskPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
+import { Elsewhere, File, noted } from '#src/changes/DiffFile.tsx';
+import { taskPlace, useLineDrafts, useMovedMarked } from '#src/changes/lineDrafts.ts';
 import { codeOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Ago } from '#src/ui/Ago.tsx';
@@ -121,10 +121,13 @@ function Files({ task, changes }: { task: number; changes: Changes }) {
   // The commit the diff says it is of, not the one picked: while a pick loads, the diff before it is still the one on screen.
   const commenting = { drafts, view: changes.commit ?? 'all', commit: changes.commit ?? undefined };
   const diffs = new Map(diffFiles(changes.diff).map((f) => [f.path, f]));
+  // All of a task's changes grow with each commit: a draft whose line is not there as written any more is marked, and sent on its file.
+  useMovedMarked(drafts, commenting.view, [...diffs.values()]);
   const files = every ? changes.files : changes.files.slice(0, FIRST);
   return (
     <section className="flex flex-col gap-2">
       <h3 className="px-2 text-xs font-medium text-muted">Files</h3>
+      <Elsewhere commenting={commenting} paths={files.map((f) => f.path)} />
       {files.map((f) => (
         <File
           key={`${f.repo}/${f.path}`}

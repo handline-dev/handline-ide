@@ -8,8 +8,8 @@ import { useFocused } from '#src/layout/focus.ts';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 import { ChatCommentBar } from '#src/changes/CommentBar.tsx';
-import { File } from '#src/changes/DiffFile.tsx';
-import { agentPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
+import { Elsewhere, File } from '#src/changes/DiffFile.tsx';
+import { agentPlace, useLineDrafts, useMovedMarked } from '#src/changes/lineDrafts.ts';
 
 /** The agent's worktree changes against its base: the branch, each changed file with its lines added and removed, and the diff
  * under it, folded per file. A line or a file takes a comment; the comments wait as drafts and go to the agent's chat as one message. */
@@ -35,16 +35,19 @@ export function Changes({ agent }: { agent: string }) {
     el?.scrollIntoView({ block: 'start' });
   }, []);
   useFocused('diff', agent, !!diff.data, show);
-  if (!detail) return <p className="p-4 text-sm text-muted">Loading…</p>;
-  if (!detail.worktree) return <p className="p-4 text-sm text-muted">This agent has no worktree.</p>;
   const files = diff.data ? diffFiles(diff.data.diff, diff.data.truncated) : [];
   // The diff served says what it was taken against: with no base to measure from it is the uncommitted work.
   const commenting = { drafts, view: diff.data?.against ?? against };
+  // The worktree changes under the drafts: one whose line is not there as written any more is marked, and sent on its file.
+  useMovedMarked(drafts, commenting.view, diff.data ? files : null);
+  if (!detail) return <p className="p-4 text-sm text-muted">Loading…</p>;
+  if (!detail.worktree) return <p className="p-4 text-sm text-muted">This agent has no worktree.</p>;
   const counts = new Map(worktreeChanged.map((f) => [f.path, f]));
   return (
     <ScrollFade keep={`changes:${agent}`} fadeTop={!drafts.list.length} className="min-h-0 flex-1">
       <div ref={box} className="flex flex-col gap-3 p-4">
         <ChatCommentBar agent={agent} />
+        {diff.data && <Elsewhere commenting={commenting} paths={files.map((f) => f.path)} />}
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
           <GitBranch size={14} />
           <span className="text-fg">{detail.worktree.branch}</span>

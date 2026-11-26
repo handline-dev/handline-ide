@@ -42,17 +42,20 @@ export function TaskCommentBar({ task }: { task: number }) {
   const route = taskCommentRoute(t, me, n);
   const readWith = `hl task show T${task}`;
   const send = async () => {
+    // What is sent is what is dropped once it went: a draft written while the send is on its way stays for the next one.
+    const sent = drafts.now();
     setBusy(true);
     try {
-      await add.mutateAsync({ task, text: lineCommentsText(drafts.list, { readWith }) });
+      await add.mutateAsync({ task, text: lineCommentsText(sent, { readWith }) });
     } catch (e) {
       setBusy(false);
       return failed('The comments did not go')(e);
     }
-    const note = lineCommentsSummary(drafts.list, readWith);
-    drafts.clear();
-    if (route.via === 'reopen')
+    drafts.drop(sent.map((c) => c.id));
+    if (route.via === 'reopen') {
+      const note = lineCommentsSummary(sent, readWith);
       await reopen.mutateAsync({ task, note }).catch(failed('The comments are on the task, but it did not reopen'));
+    }
     setBusy(false);
   };
   const says = route.answers ? (
@@ -88,8 +91,9 @@ export function ChatCommentBar({ agent }: { agent: string }) {
       label="Send to chat"
       busy={false}
       onSend={() => {
-        chat.send(lineCommentsText(drafts.list));
-        drafts.clear();
+        const sent = drafts.now();
+        chat.send(lineCommentsText(sent));
+        drafts.drop(sent.map((c) => c.id));
       }}
     />
   );
