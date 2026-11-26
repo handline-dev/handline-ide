@@ -2,7 +2,7 @@
 import { classify, sentence, useProposals, useUnstall, useWrite, why } from '@handline/app-data';
 import type { PendingRequest } from '@handline/client';
 import { laterKey, tomorrowAt9, turnKey } from '@handline/app-core';
-import { X } from 'lucide-react';
+import { RotateCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { useRowActions } from '#src/requests/RowMenu.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
@@ -113,6 +113,7 @@ function TryAgain({ agent }: { agent: string }) {
   const run = useAction();
   return (
     <Button busy={run.busy} onClick={() => void run.go(() => unstall().catch((e: unknown) => toast(why(e), { tone: 'warning' })))}>
+      <RotateCw size={14} />
       Try again
     </Button>
   );

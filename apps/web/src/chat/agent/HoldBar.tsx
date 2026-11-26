@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { RotateCw } from 'lucide-react';
 import { useRefs } from '#src/ui/refs.tsx';
 import { useAccounts, useAgents, useUnstall, why } from '@handline/app-data';
 import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
@@ -106,6 +107,7 @@ export function HoldCard({ agent }: { agent: string }) {
         // A refused wake has cleared the stall all the same, so this card may be gone by the answer: the reason is a toast.
         onClick={() => void wake.go(() => unstall().catch((e: unknown) => toast(why(e), { tone: 'warning' })))}
       >
+        <RotateCw size={14} />
         Try again
       </Button>
     ) : needsLogin ? (
