@@ -1,5 +1,6 @@
-// Settings > This Mac. Write keys: 'disk_keep_free_gb', 'agents_memory_max_gb', 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct', 'stop:<name>'.
-import { DEFAULT_LIMITS, useRows, type Limits } from '@handline/app-core';
+// Settings > This Mac. Write keys: 'disk_keep_free_gb', 'agents_memory_max_gb', 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct',
+// 'heavy_runs_policy', 'heavy_runs_at_once', 'stop:<name>'.
+import { DEFAULT_LIMITS, useRows, type Limits, type RunPolicy } from '@handline/app-core';
 import type { SettingsChanges } from '@handline/client';
 import { Hooks } from '@handline/app-data';
 import { useKeyed } from '#src/settings/data/keyed.ts';
@@ -39,6 +40,11 @@ export function useMachine() {
     diskKeepFree: values?.disk_keep_free_gb ?? 0,
     agentsMemoryMax: values?.agents_memory_max_gb ?? 0,
     setTarget: (key: 'disk_keep_free_gb' | 'agents_memory_max_gb', n: number) => change(key, { [key]: n }),
+    /** What happens to heavy runs (heavy_runs_policy) and, when they always take turns, how many go at once; 0 is half the cores. */
+    runPolicy: (values?.heavy_runs_policy ?? 'observe') as RunPolicy,
+    runsAtOnce: values?.heavy_runs_at_once ?? 0,
+    setRunPolicy: (p: RunPolicy) => change('heavy_runs_policy', { heavy_runs_policy: p }),
+    setRunsAtOnce: (n: number) => change('heavy_runs_at_once', { heavy_runs_at_once: n }),
     stop: (name: string) => run(`stop:${name}`, () => stopAgent.mutateAsync({ agent: name, mode: 'close' })).then(() => {}),
     pending,
   };
