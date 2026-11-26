@@ -59,7 +59,10 @@ assignee, its owner, its parent's owner, the founder). Anyone may still make a t
    the evidence, as a review turn's pass closes a task. It is a done like any other: the workspace's `review_required`
    applies, and the task's result says the commit is on the default branch. The evidence is never words.
 
-One write means no daemon death leaves a gate that passed beside a task it did not close.
+One write means no daemon death leaves a gate that passed beside a task it did not close. The fetch in step 1 can take a
+minute, so the write reads the task again before it closes anything: when the task ended meanwhile, left the gate, or
+became someone else's turn (a person's, another agent's), nothing is written and the next pass decides again as the task
+then stands.
 
 - **The fetch fails** (network, credentials, a timeout): the clone is still looked at, and a clone that already holds the
   merge on the default branch closes the task. Otherwise nothing is closed: the gate stays open, its status says

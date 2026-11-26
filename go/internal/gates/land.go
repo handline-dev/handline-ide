@@ -241,13 +241,23 @@ func (s *Sweep) openClosing(gate int64, evidence string, c closing) error {
 	return s.giveBack(gate, evidence, c)
 }
 
-// closeBoth marks the gate and its task done together. A refusal of the task's done is answered, with nothing written.
+// errMoved is a task that changed while its merge was being checked, with no write open: it ended, left the gate, or is now another's to
+// act on (a person's turn, another agent's). Nothing is written, the gate stays open, and the next look decides again as it stands.
+var errMoved = errors.New("the task changed while its merge was checked; the next look decides again")
+
+// closeBoth marks the gate and its task done together. A refusal of the task's done is answered, with nothing written. What closingOf
+// decided was read before the fetch, which can take a minute, so the task is read again inside the write: errMoved when it changed.
 func (s *Sweep) closeBoth(gate int64, evidence string, c closing) (refusal string, err error) {
 	tx, err := s.DB.Begin()
 	if err != nil {
 		return "", err
 	}
 	defer tx.Rollback()
+	if t, err := closes(tx, gate, c.task); err != nil {
+		return "", err
+	} else if t == nil || t.Acting != c.by {
+		return "", errMoved
+	}
 	gateDone, err := taskwrites.MarkDone(tx, s.Home, db.Gate, taskwrites.DoneIn{Task: gate, Words: evidence})
 	if err != nil {
 		return "", err
