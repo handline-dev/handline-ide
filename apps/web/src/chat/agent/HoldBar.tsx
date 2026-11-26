@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { RotateCw } from 'lucide-react';
 import { useRefs } from '#src/ui/refs.tsx';
-import { useAccounts, useAgents, useUnstall, why } from '@handline/app-data';
+import { useAccounts, useAgentDetail, useAgents, useUnstall, why } from '@handline/app-data';
 import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -28,8 +28,9 @@ export function useHoldLine(agent: string) {
   const act = a ? activityOf(a) : null;
   const login = useNeedsLogin(a, act);
   const refs = useRefs();
+  const asked = !!useAgentDetail(agent).data?.prompt; // the prompt card says it
   const line = a && !restarting(a) && (holdLine(a) ?? jobsLine(a, act)); // a restart shows in the turn's row already
-  if (!a || !act || !line || login || a.needs_you?.source === 'daemon') return null;
+  if (!a || !act || !line || login || asked || a.needs_you?.source === 'daemon') return null;
   return { act, line: refs(line) };
 }
 

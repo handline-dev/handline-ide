@@ -12,13 +12,15 @@ import { Markdown } from '#src/ui/Markdown.tsx';
 
 /** A turn's tool calls and the agent's own text, folded into one muted line ("Read docs/plan.md ›", "Ran 3 steps ›"), as Claude Code
  *  folds them: no card; a click opens them in order under it. */
-export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
+export function TurnRecord({ r: all, fade }: { r: Turn; fade: boolean }) {
   const [open, setOpen] = useState(false);
-  const notes = r.items.filter((i) => i.kind === 'reply').length;
-  const steps = r.items.length - notes; // a permission ask is a step as a tool call is
-  // A permission ask still open says so on the folded line: it waits on the person, not on the agent.
-  const asks = r.items.some((i) => i.kind === 'prompt' && i.open);
-  const only = steps === 1 ? r.items.find((i) => i.kind !== 'reply') : undefined;
+  // A permission ask still open is the prompt card at the chat's foot; it joins the record once answered.
+  const items = all.items.filter((i) => !(i.kind === 'prompt' && i.open));
+  const r = { ...all, items };
+  const notes = items.filter((i) => i.kind === 'reply').length;
+  const steps = items.length - notes; // a permission ask is a step as a tool call is
+  const only = steps === 1 ? items.find((i) => i.kind !== 'reply') : undefined;
+  if (!items.length) return null;
   const what = only ? oneLine(only) : steps ? `Ran ${count(steps, 'step')}` : count(notes, 'note');
   return (
     <motion.div
@@ -35,7 +37,6 @@ export function TurnRecord({ r, fade }: { r: Turn; fade: boolean }) {
           onClick={() => setOpen(!open)}
           className="flex max-w-full items-center gap-1 py-0.5 text-left text-muted hover:text-fg"
         >
-          {asks && <span className="shrink-0 text-warning">Asks your permission ·</span>}
           <span className="min-w-0 truncate">{what}</span>
           <ChevronRight size={14} className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
         </button>
