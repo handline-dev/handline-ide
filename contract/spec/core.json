@@ -2928,6 +2928,17 @@
       ],
       "description": "The battery switch (SettingsValues.node_battery_switch). null removes the key (back to the default)."
      },
+     "worktree_remove_on_sleep": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "SettingsValues.worktree_remove_on_sleep. null removes the key (back to the default)."
+     },
      "node_reclaim_s": {
       "oneOf": [
        {

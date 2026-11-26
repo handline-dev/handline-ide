@@ -1,27 +1,23 @@
 import { count } from '#src/format/count.ts';
-// A project's worktree folders (desks): how many it keeps, Auto or Manual, and each folder, who uses it, its size and its pin.
+// A project's worktree folders: each folder, its agent, its size and its pin; and the switch that deletes an agent's folder when it sleeps.
 import { bytesText } from '@handline/app-core';
-import { useDesks, useNameOf, useWrite } from '@handline/app-data';
+import { useDesks, useNameOf, useSettings, useWrite, why } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Methods, Repo } from '@handline/client';
 import { Pin } from 'lucide-react';
 import { ago } from '#src/format/time.ts';
-import { Setting } from '#src/settings/Meter.tsx';
-import { NumberStepper } from '#src/ui/NumberStepper.tsx';
-import { Segmented } from '#src/ui/Segmented.tsx';
+import { Block, Setting } from '#src/settings/Meter.tsx';
+import { Toggle } from '#src/ui/Toggle.tsx';
 
 type Desk = Methods['desks.list']['result']['desks'][number];
-const MODES = ['auto', 'manual'] as const;
 const num = (d: Desk) => Number(/(\d+)$/.exec(d.name)?.[1] ?? Number.MAX_SAFE_INTEGER);
 
 export function ProjectWorktrees({ repo }: { repo: Repo }) {
   const read = useDesks(repo.path);
-  const keep = useWrite('desks.keep');
   const pin = useWrite('desk.pin');
   const me = useMe();
   const nameOf = useNameOf();
   const desks = [...(read.data?.desks ?? [])].sort((a, b) => num(a) - num(b) || a.name.localeCompare(b.name));
-  const kept = read.data?.kept ?? null;
   const total = desks.reduce((n, d) => n + (d.size_bytes ?? 0), 0);
   const who = (d: Desk) => {
     if (d.holder)
@@ -41,57 +37,13 @@ export function ProjectWorktrees({ repo }: { repo: Repo }) {
     const last = d.last_agent
       ? `last ${d.last_agent === 'founder' ? 'you' : nameOf(d.last_agent)}, ${ago(new Date(d.last_used * 1000).toISOString())} ago`
       : null;
-    return (
-      <span className="text-muted">
-        Free{last && ` · ${last}`}
-        {d.removed_tonight && kept?.value != null && ` · over ${kept.value}, removed tonight`}
-      </span>
-    );
+    return <span className="text-muted">Free{last && ` · ${last}`}</span>;
   };
   return (
     <section className="flex flex-col gap-3 border-t border-border pt-3 pb-1 pl-6" aria-label={`Worktrees of ${repo.name}`}>
       <div>
         <h3 className="text-sm font-medium text-fg">Worktrees</h3>
       </div>
-      {kept && (
-        <Setting
-          title="Folders kept"
-          note={
-            kept.mode === 'auto'
-              ? `Auto: the most agents working at once on a day, averaged over 7 days, plus one${kept.value == null ? ' (no week of work yet, so nothing is removed)' : ''}. Folders over this number are removed after 3 days unused, never a pinned one.`
-              : 'Folders over this number are removed after 3 days unused, never a pinned one.'
-          }
-        >
-          <div className={`flex items-center gap-2 ${keep.isPending ? 'opacity-50' : ''}`}>
-            <Segmented
-              label="Folders kept"
-              value={kept.mode}
-              options={MODES}
-              word={(m) => (m === 'auto' ? 'Auto' : 'Manual')}
-              onChange={(m) => {
-                if (m === kept.mode) return;
-                keep.mutate(
-                  m === 'auto'
-                    ? { repo: repo.path, mode: 'auto' }
-                    : { repo: repo.path, mode: 'manual', value: Math.max(1, kept.value ?? kept.auto_value ?? desks.length) },
-                );
-              }}
-            />
-            {kept.mode === 'manual' ? (
-              <NumberStepper
-                value={kept.value ?? 1}
-                min={1}
-                max={50}
-                label="Folders kept"
-                disabled={keep.isPending}
-                onCommit={(n) => keep.mutateAsync({ repo: repo.path, mode: 'manual', value: n })}
-              />
-            ) : (
-              <span className="w-10 text-right text-sm text-fg tabular-nums">{kept.value ?? '–'}</span>
-            )}
-          </div>
-        </Setting>
-      )}
       {read.isError && <p className="text-xs text-danger">Could not read the folders: {String(read.error)}</p>}
       {read.data && !desks.length && <p className="text-xs text-muted">No folders yet: the first agent to start work here makes one.</p>}
       {desks.length > 0 && (
@@ -129,5 +81,32 @@ export function ProjectWorktrees({ repo }: { repo: Repo }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** On, an agent's worktree folder is deleted when its session closes, and made again at its next wake. */
+export function WorktreeSleep() {
+  const values = useSettings().data?.values;
+  const save = useWrite('settings.set');
+  if (!values) return null;
+  return (
+    <Block title="Every project">
+      <Setting
+        title="Delete an agent's worktree when it sleeps"
+        note="Its changes are committed on its branch first. A folder with untracked files is kept. The next wake makes it again."
+      >
+        <Toggle
+          label="Delete an agent's worktree when it sleeps"
+          on={values.worktree_remove_on_sleep === true}
+          disabled={save.isPending}
+          onChange={(on) => save.mutate({ changes: { worktree_remove_on_sleep: on } })}
+        />
+      </Setting>
+      {!!save.error && (
+        <p className="text-xs text-danger" role="alert">
+          {why(save.error)}
+        </p>
+      )}
+    </Block>
   );
 }

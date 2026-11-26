@@ -568,6 +568,8 @@ export type SettingsChanges = {
   network_addresses?: string[] | null;
   /** The battery switch (SettingsValues.node_battery_switch). null removes the key (back to the default). */
   node_battery_switch?: boolean | null;
+  /** SettingsValues.worktree_remove_on_sleep. null removes the key (back to the default). */
+  worktree_remove_on_sleep?: boolean | null;
   /** Seconds a lent machine may be offline before its sessions are taken back (SettingsValues.node_reclaim_s). null removes the key (back to the default). */
   node_reclaim_s?: number | null;
   /** Auto or Manual for a lent machine on another build (SettingsValues.node_build_auto). null removes the key (back to the default). */

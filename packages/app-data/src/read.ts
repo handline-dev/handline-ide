@@ -193,7 +193,7 @@ export function useAgentMemory(agent: string) {
     enabled: served && open,
   });
 }
-/** A project's desks; no feed, so read each minute while open and again after desk.pin or desks.keep. */
+/** A project's desks; no feed, so read each minute while open and again after desk.pin. */
 export function useDesks(repo: string) {
   const store = useStore();
   const { daemon } = useData();

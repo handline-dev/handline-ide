@@ -6,7 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { NeedsGit, useMissing } from '#src/install/install.tsx';
 import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { Block } from '#src/settings/Meter.tsx';
-import { ProjectWorktrees } from '#src/settings/ProjectWorktrees.tsx';
+import { ProjectWorktrees, WorktreeSleep } from '#src/settings/ProjectWorktrees.tsx';
 import { ProjectSetup, setupSummary } from '#src/settings/ProjectSetup.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { shell } from '#src/shell.ts';
@@ -65,6 +65,7 @@ export function ProjectsTab() {
           </div>
         ))}
       </Block>
+      <WorktreeSleep />
       {found.length > 0 && !noGit && (
         <Block title="Found on this Mac" note="Git folders near your home. Add one to start an agent in it.">
           {found.map((f) => (

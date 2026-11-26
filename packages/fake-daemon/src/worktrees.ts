@@ -8,7 +8,7 @@ import { FakeDesks } from '#src/desks.ts';
 
 /** The methods this answers. */
 const WORKTREES =
-  /^(repos\.list|repos\.recent|repo\.facts|repo\.set|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write|desks\.list|desk\.pin|desks\.keep)$/;
+  /^(repos\.list|repos\.recent|repo\.facts|repo\.set|folder\.init|folder\.clone|worktrees\.list|worktree\.diff|worktree\.remove|files\.list|file\.read|file\.write|desks\.list|desk\.pin)$/;
 
 const REPOS: Repo[] = [
   {
@@ -227,7 +227,7 @@ export class FakeWorktrees {
   /** Why worktrees.list shows no pull request (a daemon whose gh cannot be used); null when it can. A test sets it. */
   prsUnavailable: PullUnavailable | null = null;
   repos: Repo[] = REPOS.map((r) => ({ ...r }));
-  /** The project's desks (desks.list, desk.pin, desks.keep). */
+  /** The project's desks (desks.list, desk.pin). */
   desks = new FakeDesks();
   recent: RecentFolder[] = RECENT.map((f) => ({ ...f }));
 
