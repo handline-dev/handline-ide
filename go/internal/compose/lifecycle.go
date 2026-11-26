@@ -218,8 +218,9 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 			}
 			return lifecycle.PickBase(repo, branch)
 		},
-		Branch: func(agent string) string { return paths.AgentHandle(home, agent) },
-		Name:   func(agent string) string { return filepath.Base(paths.AgentHandle(home, agent)) }}
+		Branch:        func(agent string) string { return paths.AgentHandle(home, agent) },
+		Name:          func(agent string) string { return filepath.Base(paths.AgentHandle(home, agent)) },
+		RemoveOnSleep: func() bool { return settings.Flag(worktreepool.RemoveOnSleepKey, false) }}
 	spawns.Desks = desks
 	hp := &handoffPort{env: ho, q: q, now: nowOf(cfg.Now)}
 	m := &lifecycle.Manager{Q: q, Home: home, Log: cfg.Log, Settings: settings,

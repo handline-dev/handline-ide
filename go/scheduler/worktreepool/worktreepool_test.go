@@ -405,3 +405,54 @@ func TestTheHashedBranchIsFoundAgainWithNoneOnRecord(t *testing.T) {
 		t.Fatalf("took %q, then %q", first.Branch, again.Branch)
 	}
 }
+
+// Its own folder in the middle of a rebase is taken as it is: no checkout moves its HEAD.
+func TestAHeldFolderMidRebaseIsTakenAsItIs(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	os.WriteFile(filepath.Join(d, "a.txt"), []byte("ann\n"), 0o644)
+	r.git(d, "commit", "-q", "-am", "ann's")
+	r.git(r.repo, "checkout", "-q", "-b", "other", "main")
+	os.WriteFile(filepath.Join(r.repo, "a.txt"), []byte("other\n"), 0o644)
+	r.git(r.repo, "commit", "-q", "-am", "other's")
+	r.git(r.repo, "checkout", "-q", "main")
+	if res := gitrun.Run(d, "rebase", "other"); res.RC == 0 {
+		t.Fatal("the rebase was meant to stop on a conflict")
+	}
+	got := r.take("ann")
+	if got.Path != d || got.How != "held" || got.Branch != "ann-work" || midOperation(d) == "" {
+		t.Fatalf("%+v, %q", got, midOperation(d))
+	}
+}
+
+// A new folder whose branch cannot be checked out (it is checked out in another folder) is taken away again, not left behind.
+func TestANewFolderWhoseBranchCannotBeCheckedOutIsTakenAway(t *testing.T) {
+	r := newRig(t)
+	r.git(r.repo, "branch", "ann-work")
+	elsewhere := filepath.Join(t.TempDir(), "elsewhere")
+	r.git(r.repo, "worktree", "add", "-q", elsewhere, "ann-work")
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated, branch) VALUES('ann','IDLE',1,'ann-work')")
+	if _, why, err := r.pool.Take("ann", r.repo); err != nil || why == "" {
+		t.Fatalf("taken: %v %q", err, why)
+	}
+	if all, _ := List(r.db, r.repo); len(all) != 0 {
+		t.Fatalf("left behind: %+v", all)
+	}
+	entries, _ := os.ReadDir(worktreepaths.Dir(r.repo))
+	if len(entries) != 0 {
+		t.Fatalf("folders left: %v", entries)
+	}
+}
+
+// Commits on a detached HEAD that no ref holds keep the folder: deleting it would lose them.
+func TestCommitsOnNoBranchKeepTheFolder(t *testing.T) {
+	r := newRig(t)
+	d := r.take("ann").Path
+	r.git(d, "checkout", "-q", "--detach")
+	os.WriteFile(filepath.Join(d, "a.txt"), []byte("loose\n"), 0o644)
+	r.git(d, "commit", "-q", "-am", "loose")
+	r.sleeping("ann")
+	if g := r.give("ann"); g.Removed || !exists(d) || len(g.Untracked) != 1 {
+		t.Fatalf("%+v", g)
+	}
+}

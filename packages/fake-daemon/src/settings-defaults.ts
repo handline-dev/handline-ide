@@ -36,6 +36,7 @@ export const DEFAULTS: Settings['values'] = {
   ram_free_min_pct: 0,
   disk_free_min_gb: 0,
   disk_keep_free_gb: 0,
+  worktree_remove_on_sleep: false,
   agents_memory_max_gb: 0,
   node_battery_switch: false,
   node_reclaim_s: 1800,

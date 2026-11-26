@@ -26,6 +26,9 @@ import (
 // Founder is the pin of a folder kept for the founder's own work beside an agent: no agent takes it.
 const Founder = "founder"
 
+// RemoveOnSleepKey is the setting that deletes a closed agent's worktree (Pool.RemoveOnSleep); off by default.
+const RemoveOnSleepKey = "worktree_remove_on_sleep"
+
 // gitLimit is how long one checkout or worktree add may take.
 const gitLimit = 120 * time.Second
 
@@ -68,8 +71,8 @@ type Folder struct {
 	LastUsed                                int64
 }
 
-// Taken is the folder a take gave: How is "held" (its own, there), "made again" (its own, deleted while it slept), "new", "own" for a
-// folder outside the pool the agent keeps, or "plain folder"; Said is what to tell.
+// Taken is the folder a take gave: How is "held" (its own, there), "last" (the shared pool's free desk it used last), "made again" (its
+// own, deleted while it slept), "new", "own" for a folder outside the pool the agent keeps, or "plain folder"; Said is what to tell.
 type Taken struct {
 	Path, Branch, How string
 	Said              []string
@@ -116,8 +119,10 @@ func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err erro
 		return Taken{Path: repo, How: "plain folder"}, "", nil
 	}
 	switch f := mine(folders, agent, last); {
-	case f != nil && exists(f.Path):
+	case f != nil && exists(f.Path) && f.Holder == agent:
 		t.Path, t.How = f.Path, "held"
+	case f != nil && exists(f.Path):
+		t.Path, t.How = f.Path, "last" // a free desk of the shared pool it used last: detached when let go
 	case f != nil:
 		said, why, err := p.make(agent, repo, base, branch, f.Path)
 		if err != nil || why != "" {
@@ -139,8 +144,15 @@ func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err erro
 		}
 		t.Path, t.How, t.Said = path, "new", said
 	}
-	if t.Branch = head(t.Path); t.Branch == "" {
+	switch t.Branch = head(t.Path); {
+	case t.Branch != "":
+	case t.How == "held":
+		// its own folder as it left it: a detached HEAD there (a rebase or a bisect under way) is the agent's, and its branch stays on
+		// record
+		t.Branch = branch
+	default:
 		if t.Branch, why = p.checkout(agent, repo, base, t.Path, branch); why != "" {
+			p.unmake(repo, t)
 			return Taken{}, why, nil
 		}
 	}
@@ -175,6 +187,18 @@ func mine(folders []Folder, agent, last string) *Folder {
 	return nil
 }
 
+// unmake takes away a folder t made whose branch could not be checked out, so the next take makes it again rather than leave it
+// behind: a new one leaves the pool too.
+func (p *Pool) unmake(repo string, t Taken) {
+	if t.How != "new" && t.How != "made again" {
+		return
+	}
+	gitrun.RunTimeout(repo, gitLimit, "worktree", "remove", "--force", t.Path)
+	if t.How == "new" {
+		p.DB.Exec("DELETE FROM worktree_folders WHERE path = ?", t.Path)
+	}
+}
+
 // newPath is a folder for agent no one has: <name>-<six hex digits> beside repo's other worktrees.
 func (p *Pool) newPath(agent, repo string) (string, error) {
 	name := agent
@@ -199,6 +223,10 @@ func (p *Pool) newPath(agent, repo string) (string, error) {
 // make adds a worktree at path, at agent's branch when it has one (git forgets a deleted folder first, so the branch is free), else at
 // the base ref, and runs the project's setup in it.
 func (p *Pool) make(agent, repo, base, branch, path string) (said []string, why string, err error) {
+	// a lock a session that is gone left on the path keeps git's entry for it, and with it the branch, from the prune
+	if _, err := worktreelock.Release(repo, path, worktreelock.Running); err != nil {
+		return nil, "", err
+	}
 	gitrun.Run(repo, "worktree", "prune")
 	ref, how := branch, "its branch"
 	if branch == "" || gitrun.Run(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch).RC != 0 {
@@ -309,6 +337,10 @@ func (p *Pool) giveBack(agent string, task int64, query string, args ...any) (g 
 		if g.Committed, err = p.wip(agent, path, task); err != nil {
 			return g, err
 		}
+	}
+	if head(path) == "" && strings.TrimSpace(gitrun.Run(path, "for-each-ref", "--count=1", "--contains", "HEAD").Stdout) == "" {
+		g.Untracked = []string{"commits on no branch"} // a detached HEAD no ref holds: the folder's reflog is the only trace of them
+		return g, nil
 	}
 	if b := head(path); b != "" {
 		if _, err := p.DB.Exec("UPDATE agent_state SET branch = ? WHERE agent = ?", b, agent); err != nil {
