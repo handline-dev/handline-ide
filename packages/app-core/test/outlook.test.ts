@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import type { Outlook } from '@handline/client';
-import { axisTicks, costByAgent, focusAfter, guessLine, lostAtLastReset, lostByAccount, unusedLine, weekResets } from '#src/outlook.ts';
+import {
+  axisTicks,
+  costByAgent,
+  focusAfter,
+  guessLine,
+  lostAtLastReset,
+  lostByAccount,
+  stopTime,
+  unusedLine,
+  weekResets,
+} from '#src/outlook.ts';
 
 describe('unusedLine', () => {
   const at = '2026-11-30T09:00:00';
@@ -90,6 +100,28 @@ describe('lostByAccount', () => {
   it('is nothing, and no throw, for an account the daemon sends without its guess line', () => {
     const { future: _gone, ...old } = by;
     assert.deepEqual(lostByAccount({ now: o.now, by_account: [old as typeof by] }), []);
+  });
+});
+describe('stopTime', () => {
+  const now = Date.parse('2026-10-26T11:00:00Z');
+  const at = (min: number) => new Date(now + min * 60_000).toISOString();
+  const of = (runsOut: string | null) => ({ by_account: [{ ...by, five_runs_out_at: runsOut }] });
+  it('is the time the daemon guesses, amber while it is 15 minutes or more away and under 95% used', () => {
+    assert.deepEqual(stopTime(of(at(112)), 'alpha', 62, now), { at: at(112), leftMs: 112 * 60_000, tone: 'warn' });
+    assert.equal(stopTime(of(at(15)), 'alpha', 94, now)?.tone, 'warn');
+    assert.equal(stopTime(of(at(15)), 'alpha', null, now)?.tone, 'warn');
+  });
+  it('is red under 15 minutes to go, or from 95% of the window used', () => {
+    assert.equal(stopTime(of(at(14)), 'alpha', 50, now)?.tone, 'bad');
+    assert.equal(stopTime(of(at(112)), 'alpha', 95, now)?.tone, 'bad');
+  });
+  it('is nothing when the daemon gives no time, the time has passed, the account is not listed, or the read is not in', () => {
+    assert.equal(stopTime(of(null), 'alpha', 99, now), null);
+    assert.equal(stopTime(of(at(0)), 'alpha', 100, now), null);
+    assert.equal(stopTime(of(at(-5)), 'alpha', 100, now), null);
+    assert.equal(stopTime(of(at(30)), 'beta', 50, now), null);
+    assert.equal(stopTime({}, 'alpha', 50, now), null);
+    assert.equal(stopTime(undefined, 'alpha', 50, now), null);
   });
 });
 describe('axisTicks', () => {

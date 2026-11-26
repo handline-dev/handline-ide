@@ -18,6 +18,8 @@ const OVERLAYS: Record<string, number[]> = {
 };
 
 const FIVE = 5 * HOUR;
+/** How long beta's 5h window lasts at its pace: less than the hour to its reset, so a page shows when its agents stop. */
+const BETA_RUNS_OUT_S = 25 * 60;
 
 /** What an account's 5h window had left at t: it fills from `low` toward `high` used through each 5h window, so a graph shows the sawtooth the real samples make. */
 function fiveLeft(t: number, low: number, high: number): number {
@@ -32,7 +34,7 @@ function fiveResets(from: number, to: number): { at: Timestamp; window: '5h' }[]
   return out;
 }
 
-/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in two hours, as its runway says, and its week reset is not known. kappa has no 5-hour window. */
+/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in 25 minutes, before the reset an hour away that its account row carries, as its runway says, and its week reset is not known. kappa (the usage-stale seed's account with no 5h reading) is an Ultra: its week and no 5h window. */
 function byAccount(past: Outlook['past'], future: Outlook['future'], now: number, head: number): Outlook['by_account'] {
   const points = (pts: Outlook['past'], d: number, five?: [number, number]) =>
     pts.map((p) => ({
@@ -64,7 +66,7 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
       resets: fiveResets(now - head, now),
       five_hour: true,
       forecast: null,
-      five_runs_out_at: new Date(now + 2 * HOUR).toISOString(),
+      five_runs_out_at: new Date(now + BETA_RUNS_OUT_S * 1000).toISOString(),
     },
     {
       account: 'kappa',
@@ -168,7 +170,7 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     future,
     runway: [
       { account: 'alpha', runs_out_in_seconds: null, week_resets_at: at(now + 70 * HOUR) },
-      { account: 'beta', runs_out_in_seconds: 2 * 3600, week_resets_at: null },
+      { account: 'beta', runs_out_in_seconds: BETA_RUNS_OUT_S, week_resets_at: null },
     ],
     cost_per_day,
     plan_cost_per_day: planCostPerDay(cost_per_day),

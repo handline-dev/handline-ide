@@ -8,6 +8,7 @@ import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
+import { StopTime } from '#src/usage/StopTime.tsx';
 import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 
 /** The day a subscription ends, as "Nov 30"; null when it does not end. */
@@ -69,6 +70,7 @@ export function AccountFacts({
         <div className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-2">
           <div className="min-w-24 flex-1">
             <UsageBar stacked name="5-hour" span={FIVE_HOURS} w={a.five_hour} age={a.age_s} none={noFive} />
+            {!noFive && <StopTime account={a} />}
           </div>
           <div className="min-w-24 flex-1">
             <UsageBar stacked name="Week" span={WEEK} w={a.weekly} age={a.age_s} foot={unused} />

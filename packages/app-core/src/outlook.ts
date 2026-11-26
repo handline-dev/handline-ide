@@ -61,6 +61,30 @@ export function unusedLine(f: Forecast | null | undefined): string | null {
 /** The account the graph is focused on after a click on `name`'s row: a second click on the same row goes back to all (null). */
 export const focusAfter = (focused: string | null, name: string): string | null => (focused === name ? null : name);
 
+/** Under this long to the stop, or from this much of the 5-hour window used, the stop time is red. */
+const STOP_SOON_MS = 15 * 60_000;
+const STOP_NEAR_PCT = 95;
+
+/** When an account's agents stop: its 5-hour window running out before it resets, at its use over the last day. */
+export type StopTime = { at: string; leftMs: number; tone: 'warn' | 'bad' };
+
+/** The stop time of `account` as the daemon guesses it (by_account's five_runs_out_at), with how long that is from `now`. A stop time is
+ *  always a warning, since the window resets only after it; it is red under 15 minutes or from 95% of the window used (`usedPct`, null
+ *  with no reading). Null when the daemon gives none (the window lasts to its reset, is not in use, its reading is stale, or there is no
+ *  5-hour window) and once the time has passed, when the gauge itself says what is left. */
+export function stopTime(
+  o: Pick<Outlook, 'by_account'> | undefined,
+  account: string,
+  usedPct: number | null,
+  now: number,
+): StopTime | null {
+  const at = o?.by_account?.find((a) => a.account === account)?.five_runs_out_at;
+  if (!at) return null;
+  const leftMs = Date.parse(at) - now;
+  if (!(leftMs > 0)) return null;
+  return { at, leftMs, tone: leftMs < STOP_SOON_MS || (usedPct ?? 0) >= STOP_NEAR_PCT ? 'bad' : 'warn' };
+}
+
 /** The labels under the time axis: every 6 hours (clock) over a day and a half or less, else each local midnight (weekday), thinned to at most 8. */
 export function axisTicks(t0: number, t1: number): { at: number; label: string }[] {
   if (!(t1 > t0)) return [];
