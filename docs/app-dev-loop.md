@@ -54,24 +54,12 @@ a second instance quits at once and focuses the running app instead.
 so the whole shell — tray, badge, notices — runs while the page hot-reloads.
 `HANDLINE_LISTEN` pins the listener address: the shell otherwise picks this
 machine's Tailscale address and advertises its `*.ts.net` name, which a phone's
-pairing link needs (`pnpm dev <team>` leaves it unset for that). A daemon
+pairing link needs. A daemon
 listening on loopback only is then unreachable and the page says so, retrying.
 
 **Common failure:** the window opens on the pairing screen — the instance
 could not pair through the daemon's socket; paste a `hl device pair`
 code into the page, as with a browser.
-
-To run the page and the shell against your team's own daemon and branch
-instead, use `pnpm dev <team>`: see [dev-instances](dev-instances.md).
-
-## One dev run per checkout
-
-`pnpm dev <team>` runs once per checkout: a second one says which pid already runs and stops. Ctrl-C or a TERM stops the vite server,
-the shell's watch and its Electron together, and the shell's watch also stops once `pnpm dev <team>` itself is gone. It is not a follow-main
-run, so it shows no update notice. A save under `go/` (not a `_test.go`) runs `hl dev rebuild <team>` and prints its line: a failed
-build prints its error and the old daemon keeps running, a good one restarts the daemon and the window reconnects by itself. Only when the
-instance is built from this checkout; otherwise the run says so once and does not watch `go/`. An agent's run stays
-in the background (apps/electron/README.md), with no menu bar icon and no update dialog either.
 
 ## Pairing and devices
 

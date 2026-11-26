@@ -72,7 +72,7 @@ var usages = map[string][2]string{
 	"workspace new":    {`hl workspace new <name> [--folder PATH] (default: this folder's git checkout)`, `hl workspace new shop --folder ~/code/shop`},
 	"workspace rename": {`hl workspace rename <workspace> --to <new name>`, `hl workspace rename shop --to store`},
 	"workspace delete": {`hl workspace delete <workspace> [--worktree save|force] (retires its agents, lead last; the project folder stays)`, `hl workspace delete shop --worktree save`},
-	"dev":              {`hl dev on|off|rebuild <team> [--worktree PATH] [--listen ADDR] [--fresh]`, `hl dev on shop`},
+	"dev":              {`hl dev cluster up|down|status [--runners N] [--worktree PATH]`, `hl dev cluster up --runners 2`},
 	"dev cluster":      {`hl dev cluster up|down|status [--runners N] [--worktree PATH]`, `hl dev cluster up --runners 2`},
 }
 
