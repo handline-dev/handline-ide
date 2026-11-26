@@ -8,7 +8,7 @@ import { holds, panes, type Pane } from '#src/layout/tree.ts';
 import type { Float } from '#src/town/windows.ts';
 
 export const FLOAT_W = 400;
-const FLOAT_H = 560;
+export const FLOAT_H = 560;
 /** As tall as it may be, and never past the town's bottom edge. */
 const HEIGHT = `min(${FLOAT_H}px, calc(100% - 24px))`;
 

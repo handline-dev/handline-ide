@@ -29,8 +29,9 @@ export type Moving = { from: string; tabs: string[]; shown: string } | { opens: 
 export type WindowAction =
   /** A tab bar's own change, made in the tree that holds the pane it names; a move into another tree goes across. */
   | { type: 'tree'; action: Action }
-  /** Brings up the tab that opens this wherever it is, else opens it in the dock (`pane`, when the dock holds it, else its first). */
-  | { type: 'show'; opens: string; title: string; pane?: string }
+  /** Brings up the tab that opens this wherever it is, else opens it in `pane` while a tab bar holds it, else in a new tab bar floating
+   *  at `at`, else in the dock. */
+  | { type: 'show'; opens: string; title: string; pane?: string; at?: { x: number; y: number } }
   | { type: 'dock'; what: Moving; side: Side }
   | { type: 'float'; what: Moving; x: number; y: number }
   | { type: 'stop'; stop: number }
@@ -114,9 +115,11 @@ function change(w: Windows, a: WindowAction): Windows {
     case 'show': {
       const at = trees(w).find((n) => panes(n).some((p) => p.tabs.some((t) => t.opens === a.opens)));
       if (at) return onTree(w, at.id, (n) => reduce(n, { type: 'show', opens: a.opens, title: a.title }));
+      if (a.pane && trees(w).some((n) => findPane(n, a.pane!)))
+        return onTree(w, a.pane, (n) => reduce(n, { type: 'open', opens: a.opens, title: a.title, to: { pane: a.pane! } }));
+      if (a.at) return { ...w, floats: [...w.floats, { id: newId(), root: initial(a.opens, a.title), ...a.at }] };
       if (!w.dock) return { ...w, dock: initial(a.opens, a.title) };
-      const pane = a.pane && findPane(w.dock, a.pane) ? a.pane : panes(w.dock)[0].id;
-      return { ...w, dock: reduce(w.dock, { type: 'open', opens: a.opens, title: a.title, to: { pane } }) };
+      return { ...w, dock: reduce(w.dock, { type: 'open', opens: a.opens, title: a.title, to: { pane: panes(w.dock)[0].id } }) };
     }
     case 'dock': {
       const got = take(w, a.what);

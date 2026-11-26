@@ -2,11 +2,11 @@
 // pane (its middle joins the tabs, an edge splits there) or onto a place that takes tab bars (the town's scene). Pointer-driven, so a
 // floating tab bar can follow the pointer itself; else its shown tab's title does.
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react';
-import { hideZone, showZone, zoneAt, type Zone } from '#src/ui/dnd.tsx';
+import { hideZone, showBox, showZone, sideAt, zoneAt, type Zone } from '#src/ui/dnd.tsx';
 
 /** On a pane's body: its id. */
 export const PANE_BODY = 'data-pane-body';
-/** On another place that takes a tab bar: its name. */
+/** On another place that takes a tab bar: its name. Its left or right edge band docks there; anywhere else on it is its middle. */
 export const PANE_PLACE = 'data-pane-place';
 
 export type PaneDrop = { pane: string; zone: Zone } | { place: string; zone: Zone };
@@ -16,9 +16,9 @@ export type At = { x: number; y: number };
 export function dropAt({ x, y }: At): { el: HTMLElement; drop: PaneDrop } | null {
   const el = document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${PANE_BODY}],[${PANE_PLACE}]`);
   if (!el) return null;
-  const zone = zoneAt({ clientX: x, clientY: y }, el);
   const pane = el.getAttribute(PANE_BODY);
-  return { el, drop: pane ? { pane, zone } : { place: el.getAttribute(PANE_PLACE) ?? '', zone } };
+  if (pane) return { el, drop: { pane, zone: zoneAt({ clientX: x, clientY: y }, el) } };
+  return { el, drop: { place: el.getAttribute(PANE_PLACE) ?? '', zone: sideAt({ clientX: x }, el) } };
 }
 
 /** How far the pointer goes before a press is a drag. */
@@ -34,6 +34,8 @@ export type GripProps = {
   onKey?: (key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp') => void;
   /** Said by the handle, for the keys it takes. */
   hint?: string;
+  /** Where on screen the bar would float, let go at a place's middle; outlined while it is carried there. */
+  floatBox?: (at: At) => { left: number; top: number; width: number; height: number };
 };
 
 /** The shown tab's title under the pointer while a docked tab bar is carried: a plain element, as the tab drag's own picture is. */
@@ -49,7 +51,7 @@ function chipAt(chip: HTMLElement | null, text: string, p: At): HTMLElement {
   return el;
 }
 
-export function PaneGrip({ label, onDrop, onMove, onKey, hint = 'Drag to move this tab bar' }: GripProps) {
+export function PaneGrip({ label, onDrop, onMove, onKey, hint = 'Drag to move this tab bar', floatBox }: GripProps) {
   const start = useRef<At | null>(null);
   const moved = useRef(false);
   const chip = useRef<HTMLElement | null>(null);
@@ -65,6 +67,8 @@ export function PaneGrip({ label, onDrop, onMove, onKey, hint = 'Drag to move th
   const over = (p: At) => {
     const hit = dropAt(p);
     if (hit && !(hit.drop.zone === 'center' && 'place' in hit.drop)) showZone(hit.el, hit.drop.zone);
+    // A bar that follows the pointer itself shows where it lands; one carried by its title gets the outline.
+    else if (hit && floatBox && !onMove) showBox(floatBox(p));
     else hideZone();
   };
   const end = (p: At | null) => {
