@@ -487,3 +487,39 @@ func TestRenameMakesAFreeOldFolderADeskAndLeavesTheOthers(t *testing.T) {
 		t.Fatalf("its agent records %q", wt)
 	}
 }
+
+func TestABranchNamedLikeTheWorkspaceGivesTheAgentANameGitCanMake(t *testing.T) {
+	r := newRig(t)
+	r.pool.Branch = func(agent string) string { return "team/" + agent }
+	r.git(r.repo, "branch", "team")
+	got := r.take("ann")
+	if !strings.HasPrefix(got.Branch, "team-ann-") || len(got.Branch) != len("team-ann-")+6 || head(got.Path) != got.Branch {
+		t.Fatalf("a branch named like the workspace is in the way: %+v", got)
+	}
+	var branch string
+	r.db.QueryRow("SELECT branch FROM agent_state WHERE agent = 'ann'").Scan(&branch)
+	if branch != got.Branch {
+		t.Fatalf("on record: %q, took %q", branch, got.Branch)
+	}
+	// a folder of refs at the name blocks it too; a free name stays as it is
+	r.git(r.repo, "branch", "team2/bob/old")
+	r.pool.Branch = func(agent string) string { return "team2/" + agent }
+	if b := r.take("bob"); !strings.HasPrefix(b.Branch, "team2-bob-") {
+		t.Fatalf("refs under the name: %+v", b)
+	}
+	if c := r.take("cat"); c.Branch != "team2/cat" {
+		t.Fatalf("a free name: %+v", c)
+	}
+}
+
+func TestTheHashedBranchIsFoundAgainWithNoneOnRecord(t *testing.T) {
+	r := newRig(t)
+	r.pool.Branch = func(agent string) string { return "team/" + agent }
+	r.git(r.repo, "branch", "team")
+	first := r.take("ann")
+	r.give("ann")
+	r.db.Exec("UPDATE agent_state SET branch = NULL WHERE agent = 'ann'")
+	if again := r.take("ann"); again.Branch != first.Branch {
+		t.Fatalf("took %q, then %q", first.Branch, again.Branch)
+	}
+}

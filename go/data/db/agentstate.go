@@ -121,6 +121,19 @@ func SetAgentState(q Q, agent, state string, wakeAt int64, detail string) error 
 func SetParked(q Q, agent, state string, wakeAt int64, reason, detail string) error {
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, wake_at, detail, updated, park_reason) VALUES(?,?,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET state=excluded.state, wake_at=excluded.wake_at, detail=excluded.detail, updated=excluded.updated, stall_kind=NULL, stall_args=NULL, park_reason=excluded.park_reason",
 		agent, state, nullInt(wakeAt, wakeAt != 0), nullStr(detail), Now(), nullStr(reason))
+	if err == nil && state == "STALLED" {
+		err = stallSeen(q, agent)
+	}
+	return err
+}
+
+// UnstallCursor names the cursor past which a person's request to agent clears its stall: what was written before the stall does not.
+func UnstallCursor(agent string) string { return "unstall_by:" + agent }
+
+// stallSeen moves agent's UnstallCursor to the newest request, as it stalls.
+func stallSeen(q Q, agent string) error {
+	_, err := q.Exec("INSERT INTO cursors(name, row_id, updated) SELECT ?, COALESCE(MAX(id), 0), ? FROM requests WHERE true "+
+		"ON CONFLICT(name) DO UPDATE SET row_id=excluded.row_id, updated=excluded.updated", UnstallCursor(agent), Now())
 	return err
 }
 
@@ -137,6 +150,9 @@ func SetStalled(q Q, agent, kind, detail string, args map[string]string) error {
 	}
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, wake_at, detail, updated, stall_kind, stall_args) VALUES(?,'STALLED',NULL,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET state=excluded.state, wake_at=NULL, detail=excluded.detail, updated=excluded.updated, stall_kind=excluded.stall_kind, stall_args=excluded.stall_args, park_reason=NULL",
 		agent, nullStr(detail), Now(), nullStr(kind), js)
+	if err == nil {
+		err = stallSeen(q, agent)
+	}
 	return err
 }
 

@@ -163,7 +163,8 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 		state = row.State
 	}
 	if state == states.Stalled {
-		return // 8.6: only a human clears this
+		t.personUnstalled(q, agent, actions) // only a person clears this; the next tick starts it
+		return
 	}
 	if !states.Evaluated[state] {
 		return

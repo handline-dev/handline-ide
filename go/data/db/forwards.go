@@ -29,3 +29,21 @@ var ForwardedSQL = "WITH RECURSIVE resend(src, id) AS MATERIALIZED (SELECT json_
 	"fwd(id) AS (SELECT t.request_id FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id JOIN requests r ON r.id = t.request_id WHERE r.kind = 'task' " +
 	"UNION SELECT " + eventRequest + " FROM events WHERE kind = 'task_turn_pop' AND " + eventRequest + " IS NOT NULL " +
 	"UNION SELECT resend.id FROM resend JOIN fwd ON resend.src = fwd.id) SELECT id FROM fwd"
+
+// CommentAuthors is the authors of the comments request rid forwards, in comment order; none for a request that forwards none.
+func CommentAuthors(q Q, rid int64) ([]string, error) {
+	rows, err := q.Query("SELECT m.author FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE t.request_id = ? ORDER BY m.id", rid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var a string
+		if err := rows.Scan(&a); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}

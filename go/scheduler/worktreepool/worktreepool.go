@@ -5,7 +5,9 @@
 package worktreepool
 
 import (
+	"crypto/sha1"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -205,7 +207,7 @@ func (p *Pool) checkout(agent, repo, base, desk, branch string) (string, string)
 	}
 	if branch == "" {
 		// none on record (before the pool, an agent's branch was named after its key): an existing one is its own, never left behind
-		for _, b := range []string{agent, agentBranch(p, agent)} {
+		for _, b := range []string{agent, agentBranch(p, agent), hashed(agentBranch(p, agent), agent)} {
 			if gitrun.Run(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+b).RC == 0 {
 				return p.checkout(agent, repo, base, desk, b)
 			}
@@ -222,6 +224,7 @@ func (p *Pool) checkout(agent, repo, base, desk, branch string) (string, string)
 		}
 		return "", fmt.Sprintf("no base for %s: %s", branch, how)
 	}
+	branch = freeName(repo, branch, agent)
 	if r := gitrun.RunTimeout(desk, gitLimit, "checkout", "-q", "-b", branch, ref); r.RC != 0 {
 		return "", fmt.Sprintf("could not start %s from %s in %s: %s", branch, ref, desk, strings.TrimSpace(r.Stderr))
 	}
@@ -313,6 +316,7 @@ func (p *Pool) wip(agent, desk string, task int64) (string, error) {
 		if branch == "" || gitrun.Run(desk, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch).RC == 0 {
 			branch = fmt.Sprintf("%s-wip-%d", agentBranch(p, agent), p.now()) // never moves a branch the detached HEAD is not on
 		}
+		branch = freeName(desk, branch, agent)
 		if r := gitrun.Run(desk, "checkout", "-q", "-b", branch); r.RC != 0 {
 			return "", fmt.Errorf("%s: no branch for the WIP commit: %s", desk, strings.TrimSpace(r.Stderr))
 		}
@@ -328,6 +332,31 @@ func (p *Pool) wip(agent, desk string, task int64) (string, error) {
 		return "", fmt.Errorf("%s: WIP commit: %s", desk, strings.TrimSpace(r.Stderr+r.Stdout))
 	}
 	return strings.TrimSpace(gitrun.Run(desk, "rev-parse", "--short", "HEAD").Stdout), nil
+}
+
+// freeName is branch when git can make it in repo, else one it can: a ref named like a folder of it (a branch "team" in the way of
+// "team/agent") or under it blocks the name, so the slashes become dashes and a short hash of agent keeps it the agent's own.
+func freeName(repo, branch, agent string) string {
+	if !blocked(repo, branch) {
+		return branch
+	}
+	return hashed(branch, agent)
+}
+
+// hashed is branch with its slashes as dashes and a short hash of agent after it.
+func hashed(branch, agent string) string {
+	sum := sha1.Sum([]byte(agent))
+	return strings.ReplaceAll(branch, "/", "-") + "-" + hex.EncodeToString(sum[:3])
+}
+
+// blocked is whether a ref in repo keeps git from making branch: one named like a folder above it, or a folder of refs at its name.
+func blocked(repo, branch string) bool {
+	for i, c := range branch {
+		if c == '/' && gitrun.Run(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch[:i]).RC == 0 {
+			return true
+		}
+	}
+	return strings.TrimSpace(gitrun.Run(repo, "for-each-ref", "--count=1", "--format=%(refname)", "refs/heads/"+branch+"/").Stdout) != ""
 }
 
 func agentBranch(p *Pool, agent string) string {
