@@ -250,7 +250,7 @@ export function CommentBox({
         leading={
           <AssignPicker
             t={t}
-            onPick={setTo}
+            onPick={(a) => setTo(a === t.to ? null : a)}
             trigger={
               <button
                 type="button"

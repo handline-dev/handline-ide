@@ -46,6 +46,7 @@ const LIKELY = 5;
 function Assignee({ t, open }: { t: TaskDetail; open: boolean }) {
   const edit = useWrite('task.edit');
   const choose = (to: string) =>
+    to !== t.to &&
     edit.mutate(
       { task: t.id, owner: to },
       { onError: (e) => toast(`Assignee did not change: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }) },
@@ -75,7 +76,7 @@ function Assignee({ t, open }: { t: TaskDetail; open: boolean }) {
 }
 
 /** Who to give the task to: a search over everyone, and before typing a short list of who is likely (who worked on it, in its
- * workspace, me, the owner now). A click or Enter picks; arrows move. Picking the owner now picks nothing. */
+ * workspace, me, the owner now). A click or Enter picks; arrows move. */
 export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: ReactElement; onPick: (to: string) => void }) {
   const me = useMe();
   const nameOf = useNameOf();
@@ -93,7 +94,7 @@ export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: R
   const pick = names[Math.min(at, names.length - 1)];
   const choose = (to = pick) => {
     setShown(false);
-    if (to && to !== t.to) onPick(to);
+    if (to) onPick(to);
   };
   return (
     <Popover
