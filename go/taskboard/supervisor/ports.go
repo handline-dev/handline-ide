@@ -9,6 +9,7 @@ package supervisor
 import (
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 )
 
 // Terminal is session/term.py as the telling layer uses it: the terminal host's screen reads. Nothing is typed at a terminal; a terminal
@@ -103,8 +104,8 @@ type Temps interface {
 	Hire(agent string, tid int64, note string) string
 	// Waiting is whether a seat of agent is at work with no session yet.
 	Waiting(agent string) bool
-	// Busy is whether a seat of agent holds an open task (temps Auto): agent then takes no new task itself but those that stay its own.
-	Busy(agent string) bool
+	// Placement is where a new task for agent can go now.
+	Placement(agent string) team.Placement
 }
 
 // Agents is the session port the one send path delivers through (agent.Port; the peer inbox, go/internal/compose). A nil port means every

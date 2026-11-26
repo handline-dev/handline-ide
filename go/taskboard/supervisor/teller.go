@@ -8,6 +8,8 @@ import (
 	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/taskboard/taskwrites"
@@ -339,4 +341,34 @@ func (e *Env) sendMovedTask(q db.Q, tid int64, old, by string) {
 	} else if changed {
 		e.Push(q, owner, 0)
 	}
+}
+
+// ForTemps is whether a task by opens now for agent waits, queued and unsent, for a temp of it, with temps Auto and the ask routed as any
+// would be: while a temp of agent holds a task and another can start, or while agent is mid-turn on a current task still asking. where says
+// whether a temp takes it or, with none able to start, it waits for agent.
+func (e *Env) ForTemps(q db.Q, by, agent string) (hold bool, where string) {
+	defer func() {
+		if r := recover(); r != nil {
+			hold, where = false, "" // a read that failed asks the agent at once, as before
+		}
+	}()
+	if e.Temps == nil || actor.IsPerson(agent) {
+		return false, ""
+	}
+	p := e.Temps.Placement(agent)
+	if !p.Auto {
+		return false, ""
+	}
+	if !(p.Seated && p.Room) {
+		if row := stateOf(q, agent); row == nil || row.State != states.Running || !must(db.CurrentTaskStillAsking(q, agent)) {
+			return false, ""
+		}
+	}
+	if t := must(team.LoadTeam(e.Home)); !t.Route(by, agent, 0).Allowed { // the ask that is not held says why it is refused
+		return false, ""
+	}
+	if p.Room {
+		return true, fmt.Sprintf("queued for %s; a temp of %s takes it", addr.Ref(agent), addr.Ref(agent))
+	}
+	return true, fmt.Sprintf("queued for %s; it waits for %s, as no temp of it can start now", addr.Ref(agent), addr.Ref(agent))
 }

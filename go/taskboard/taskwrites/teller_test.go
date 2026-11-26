@@ -211,3 +211,5 @@ func (f *fakeTeller) Edited(ed Edited) {
 	}
 	f.edited = append(f.edited, ed)
 }
+
+func (f *fakeTeller) ForTemps(db.Q, string, string) (bool, string) { return false, "" }

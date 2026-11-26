@@ -359,30 +359,34 @@ func TestATaskReopenedOnAnIdleSeatGoesToItsAgent(t *testing.T) {
 	}
 }
 
-// An agent is busy while a seat of it at work holds an open task, not once that task is over, nor when temps are Manual; a seat is never busy.
-func TestAnAgentIsBusyWhileASeatOfItHoldsATask(t *testing.T) {
+// An agent's tasks go to a seat while a seat of it at work holds an open task, not once that task is over, nor when temps are Manual; a seat
+// places nothing; Room says whether one more seat could start.
+func TestPlacementReadsTheSeatsAtWorkAndTheRoom(t *testing.T) {
 	r := newRig(t)
 	ui := r.key("team.ui")
-	if r.env.Busy(ui) {
-		t.Fatal("busy with no seat")
+	if p := r.env.Placement(ui); !p.Auto || p.Seated || !p.Room {
+		t.Fatalf("no seat: %+v", p)
 	}
 	seat, tid := r.hire(ui)
-	if !r.env.Busy(ui) || r.env.Busy(seat) {
-		t.Fatalf("busy: ui %v, its seat %v", r.env.Busy(ui), r.env.Busy(seat))
+	if p := r.env.Placement(ui); !p.Seated {
+		t.Fatalf("a seat at work: %+v", p)
 	}
-	r.mode = Manual
-	if r.env.Busy(ui) {
-		t.Fatal("busy while temps are Manual")
+	if p := r.env.Placement(seat); p.Auto || p.Seated {
+		t.Fatalf("for the seat itself: %+v", p)
 	}
-	r.mode, r.room = "", "the machine is loaded"
-	if r.env.Busy(ui) {
-		t.Fatal("busy while no further seat could start: its tasks would wait on a seat that cannot come")
+	r.room = "the machine is loaded"
+	if p := r.env.Placement(ui); !p.Seated || p.Room {
+		t.Fatalf("no room: %+v", p)
 	}
-	r.room = ""
+	r.room, r.mode = "", Manual
+	if p := r.env.Placement(ui); p.Auto || p.Seated {
+		t.Fatalf("Manual: %+v", p)
+	}
+	r.mode = ""
 	_, err := r.db.Exec("UPDATE tasks SET done_evidence = 'fixed', done_at = 1 WHERE id = ?", tid)
 	r.must(err)
-	if r.env.Busy(ui) {
-		t.Fatal("busy once the seat's task is over")
+	if p := r.env.Placement(ui); p.Seated {
+		t.Fatalf("the seat's task is over: %+v", p)
 	}
 }
 

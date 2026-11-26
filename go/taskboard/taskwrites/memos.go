@@ -62,6 +62,9 @@ type Teller interface {
 	Edited(ed Edited)
 	// Notified delivers the notices a write left for the people a task's change concerns (tellTask).
 	Notified(told []db.Notice)
+	// ForTemps is whether a task by opens for agent now waits, queued and unsent, for a temp of it (agent mid-turn, or a temp of it at work),
+	// and the words that say where it went; false when it is asked of agent at once.
+	ForTemps(q db.Q, by, agent string) (hold bool, where string)
 }
 
 // Recipient is an agent a comment is told to, and why: asked (named with @), last_writer, assignee or owner (Teller.MemoRecipients).

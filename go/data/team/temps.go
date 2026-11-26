@@ -175,3 +175,7 @@ func TempsOf(q db.Q, agent string) ([]string, error) {
 	}
 	return out, rows.Err()
 }
+
+// Placement is where a new task for an agent can go now: Auto, temps are on and the agent is no temp itself; Seated, a temp of it at work
+// holds a task; Room, one more temp of it could start.
+type Placement struct{ Auto, Seated, Room bool }

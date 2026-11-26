@@ -249,7 +249,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			}
 			tid, asked, err = OpenTask(tx, tell, me, NewIn{Owner: owner, Title: clean, Body: body, Secs: secs, Prio: prio, Estimate: points, Expects: expects,
 				Parent: parent, HasParent: hasParent, Blockers: blockers, Reporter: reporter, UI: ui, DuplicateOK: duplicateOK, Tags: tags,
-				Watch: watched, Request: req, Draft: draft})
+				Watch: watched, Request: req, Draft: draft, ForTemps: true})
 			if err != nil {
 				return nil, err
 			}
@@ -326,6 +326,7 @@ type NewIn struct {
 	Request            sql.NullInt64 // the founder request it serves, given (task.new request); else SetTaskRequest finds it
 	Watch              *db.Watch     // what a gate (Owner db.Gate) watches; nil for any other owner
 	Draft              bool          // opened as a draft: its brief is kept and nobody is asked until it is queued
+	ForTemps           bool          // task.new: held for a temp while the owner is busy (Teller.ForTemps); a message's task is asked at once
 }
 
 // watchParam is task.new's watch {vendor, target, until?}: required with owner gate, refused with any other.
@@ -413,6 +414,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 			}
 		}
 	}
+	unsent := false // queued for a temp: not the owner's current task
 	open := func(rid int64) error {
 		var err error
 		reporter := in.Reporter
@@ -444,7 +446,7 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 		}
 		if _, held, err := db.CurrentTask(tx, owner); err != nil {
 			return err
-		} else if !actor.IsPerson(owner) && owner != db.Gate && !held && !in.Draft {
+		} else if !actor.IsPerson(owner) && owner != db.Gate && !held && !in.Draft && !unsent {
 			if err := db.SetCurrentTask(tx, owner, tid, true); err != nil {
 				return err
 			}
@@ -520,6 +522,26 @@ func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *A
 	}
 	if tell == nil {
 		return 0, nil, fmt.Errorf("task.new needs the supervisor to route its ask")
+	}
+	if in.ForTemps && me != owner && len(in.Blockers) == 0 && !actor.IsPerson(owner) {
+		if hold, where := tell.ForTemps(tx, me, owner); hold {
+			// The brief is kept as a draft's is, and the task queued and unsent: a temp of the owner takes it (hireTemps), or the owner
+			// when it is free and none can start (AdvanceCurrentTask).
+			unsent = true
+			rid, err := db.AddRequest(tx, db.NewRequest{Requester: me, Target: owner, Body: body, Kind: "task", State: "withdrawn"})
+			if err != nil {
+				return 0, nil, err
+			}
+			if err := open(rid); err != nil {
+				return 0, nil, err
+			}
+			if me != actor.OwnerKey { // the founder's own task is queued by open
+				if _, err := db.SetTaskQueued(tx, tid, me); err != nil {
+					return 0, nil, err
+				}
+			}
+			return tid, &Asked{OK: true, Msg: where}, nil
+		}
 	}
 	asked, err = tell.TaskAsk(tx, AskReq{From: me, To: owner, Body: body, Kind: "task", NoCard: true, Notify: true, Within: open})
 	if err != nil {

@@ -172,33 +172,35 @@ func (e *Env) Waiting(agent string) bool {
 	return false
 }
 
-// Busy is whether, with temps Auto, a seat of agent holds an open task: then the agent only coordinates, and a task waiting for it goes to
-// a seat. False for a seat itself, which takes what it is given, and while no further seat could start (Room), so no task waits on a seat
-// that cannot come.
-func (e *Env) Busy(agent string) bool {
+// Placement is where a new task for agent can go now: Auto, temps are on and agent is no seat itself; Seated, a seat of agent at work holds
+// an open task (then the agent only coordinates); Room, one more seat could start (Env.Room).
+func (e *Env) Placement(agent string) team.Placement {
+	var p team.Placement
 	if e.Mode != nil && e.Mode() == Manual {
-		return false
+		return p
 	}
 	origin, err := paths.AgentKeyIn(e.DB, agent)
 	if err != nil || origin == "" {
-		return false
+		return p
 	}
 	if from, err := paths.HiredFrom(e.DB, origin); err != nil || from != "" {
-		return false
+		return p
 	}
+	p.Auto, p.Room = true, e.Room(origin) == ""
 	seats, err := team.TempsOf(e.DB, origin)
 	if err != nil {
-		return false
+		return p
 	}
 	for _, s := range seats {
 		if at, err := team.HiredFor(e.DB, s); err != nil || at == 0 {
 			continue
 		}
 		if held, err := team.Holds(e.DB, s); err == nil && held {
-			return e.Room(origin) == ""
+			p.Seated = true
+			break
 		}
 	}
-	return false
+	return p
 }
 
 // Sweep lets each seat at work go whose task is over: one that holds no open task and is not mid-turn. A session at its prompt is closed

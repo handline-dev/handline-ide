@@ -113,7 +113,7 @@ func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 	if e.Temps == nil {
 		return
 	}
-	if row := stateOf(q, agent); (row == nil || row.State != states.Running) && !e.Temps.Busy(agent) {
+	if row := stateOf(q, agent); (row == nil || row.State != states.Running) && !e.seatsBusy(agent) {
 		return
 	}
 	key := "temps:hire:" + agent
@@ -127,6 +127,9 @@ func (e *Env) hireTemps(q db.Q, agent string, now int64) {
 			continue
 		}
 		note := fmt.Sprintf("You are a temp of %s, given this while it is busy: you have its role, lessons and memory, not its conversation. You go idle once the task is over.", addr.Ref(agent))
+		if brief := briefOf(q, t); brief != t.Title {
+			note += "\n\n" + brief
+		}
 		temp := e.Temps.Hire(agent, t.ID, note)
 		if temp == "" {
 			check(db.SetCursor(q, key, now))
@@ -143,8 +146,12 @@ func ownTask(t *db.Task, agent string) bool {
 	return t.Owner != agent || t.QueuedBy.String == agent || t.SentAt.Valid
 }
 
-// seatsBusy is whether a seat of agent holds an open task (Ports.Temps.Busy): then agent only coordinates, and takes no new task itself but
-// its own (ownTask).
+// seatsBusy is whether a seat of agent holds an open task and another could start (Ports.Temps.Placement): then agent only coordinates, and
+// takes no new task itself but its own (ownTask).
 func (e *Env) seatsBusy(agent string) bool {
-	return e.Temps != nil && e.Temps.Busy(agent)
+	if e.Temps == nil {
+		return false
+	}
+	p := e.Temps.Placement(agent)
+	return p.Auto && p.Seated && p.Room
 }
