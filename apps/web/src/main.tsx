@@ -19,7 +19,7 @@ import { ToastHost } from '#src/ui/toast.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { useScreenLayout } from '#src/layout/screenLayout.ts';
 import { Workspace } from '#src/Workspace.tsx';
-import { openTown, TownMode } from '#src/town/mode.tsx';
+import { openTown, TownMode, useTownOpen } from '#src/town/mode.tsx';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
 import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
@@ -34,6 +34,8 @@ const clampWidth = (px: number) => Math.min(sidebarWidth.max, Math.max(sidebarWi
 
 function App() {
   const [open, setOpen] = useState(true);
+  // The town covers the app with tab bars of its own, which then take the keys.
+  const townOpen = useTownOpen();
   const [width, setWidth] = useState(sidebarWidth.initial);
   const [dragging, setDragging] = useState(false);
   const { agent, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
@@ -101,6 +103,7 @@ function App() {
                   onFocus={setFocus}
                   dispatch={dispatch}
                   reopenClosed={reopenClosed}
+                  quiet={townOpen}
                   lead={
                     <AnimatePresence initial={false}>
                       {!open && (

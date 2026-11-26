@@ -48,6 +48,19 @@ export const initial = (opens?: string, title = ''): Node => (opens ? pane([{ id
 const split = (axis: 'x' | 'y', a: Node, b: Node): Split => ({ kind: 'split', id: newId(), axis, ratio: 0.5, a, b });
 export const clampRatio = (r: number) => Math.min(0.85, Math.max(0.15, r));
 
+/** Where a divider rests once let go, as a tablet's split view: a third, a half or two thirds. */
+export const STOPS = [1 / 3, 1 / 2, 2 / 3] as const;
+export const snapRatio = (r: number) => STOPS.reduce((best, s) => (Math.abs(s - r) < Math.abs(best - r) ? s : best), STOPS[1]);
+/** The next stop from `r` toward `dir`, or the last one that way. */
+export function stepStop(r: number, dir: -1 | 1): number {
+  const next = dir > 0 ? STOPS.find((s) => s > r + 1e-6) : [...STOPS].reverse().find((s) => s < r - 1e-6);
+  return next ?? (dir > 0 ? STOPS[STOPS.length - 1] : STOPS[0]);
+}
+
+/** Whether node `id` (a pane or a split) is in `root`. */
+export const holds = (root: Node, id: string): boolean =>
+  root.id === id || (root.kind === 'split' && (holds(root.a, id) || holds(root.b, id)));
+
 export function panes(node: Node): Pane[] {
   return node.kind === 'pane' ? [node] : [...panes(node.a), ...panes(node.b)];
 }
@@ -197,8 +210,14 @@ function move(root: Node, from: string, ids: string[], shown: string, to: Target
   }
 
   // Into the target first (its id survives), then out of the source, which may then disappear.
-  const placed = onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane(group, active)) : insert(p, group, to.index, active)));
+  const placed = placeTabs(root, group, active, to);
   return group.reduce<Node>((n, t) => onPane(n, from, (p) => withoutTab(p, t.id)), placed);
+}
+
+/** `root` with `group` put at `to` (among a pane's tabs, or a new pane at its edge), `active` shown. */
+export function placeTabs(root: Node, group: Tab[], active: string, to: Target): Node {
+  const edge = to.edge ?? null;
+  return onPane(root, to.pane, (p) => (edge ? attach(p, edge, pane(group, active)) : insert(p, group, to.index, active)));
 }
 
 /** How many closes Cmd+Shift+T can bring back, per workspace. */

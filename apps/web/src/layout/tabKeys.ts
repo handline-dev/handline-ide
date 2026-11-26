@@ -34,8 +34,10 @@ function tabIndex(e: Key, count: number, at: number, mac: boolean): number | nul
 export function useTabKeys(
   getPane: () => { id: string; tabs: { id: string }[]; active: string },
   select: (pane: string, tab: string) => void,
+  on = true,
 ) {
   useEffect(() => {
+    if (!on) return;
     const step = (e: KeyboardEvent) => {
       const p = getPane();
       const tab = tabKeyTarget(e, p);

@@ -19,24 +19,26 @@ import { WebTab } from '#src/tools/WebTab.tsx';
 import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
 import { PageTab } from '#src/layout/pageTab.tsx';
 import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
-import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { useCallback, useContext, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { newTabKinds } from '#src/layout/newTabKinds.ts';
 import { agentKind, choices, iconOf, pages, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
-import { isOpen, panes, whereTo, type Action, type Edge, type Node, type Pane, type Split, type Target } from '#src/layout/tree.ts';
+import { isOpen, panes, whereTo, type Action, type Node, type Pane, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, showZone, showSlot, DROP_AREA } from '#src/ui/dnd.tsx';
-import { IconButton } from '#src/ui/IconButton.tsx';
-import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
-import { Splitter } from '#src/ui/Splitter.tsx';
+import { SplitButton, SplitView, gripIn } from '#src/layout/paneChrome.tsx';
 import { dotOf } from '#src/layout/TabDot.tsx';
 import { agentOf, carryIn } from '#src/layout/screenLayout.ts';
 import { TabBar } from '#src/ui/Tabs.tsx';
+import { PANE_BODY, PaneGrip, type GripProps } from '#src/layout/paneGrip.tsx';
 
 export type Dispatch = (a: Action) => void;
+/** What a tab bar's handle does, per pane; a place with its own (the town) gives it, else the whole tab bar moves within the layout. */
+export type Grip = (pane: Pane) => Omit<GripProps, 'label'>;
+/** A tab's icon in place of its kind's: the town shows a person's face on their chat. */
+export type IconFor = (opens: string | undefined) => ReactNode | undefined;
 
 /** Names as the agent's workspace reads them: its own agents by name alone (T9201). */
 const useNamesHere = (agent: string | null) => useNameOf(useAgents().data?.agents.find((a) => a.key === agent)?.workspace);
@@ -99,43 +101,6 @@ function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
 /** The kinds of tab that draw something yet; the others (terminal, phones) stay off the + menu until they do. */
 const BUILT = new Set(['newshell', 'diff', 'tasks', 'markdown', 'web']);
 
-const splits: { edge: Edge | 'four'; label: string; icon: ReactNode }[] = [
-  { edge: 'right', label: 'Split right', icon: <ArrowRightToLine size={14} /> },
-  { edge: 'left', label: 'Split left', icon: <ArrowLeftToLine size={14} /> },
-  { edge: 'down', label: 'Split down', icon: <ArrowDownToLine size={14} /> },
-  { edge: 'up', label: 'Split up', icon: <ArrowUpToLine size={14} /> },
-  { edge: 'four', label: 'Split in four', icon: <LayoutGrid size={14} /> },
-];
-
-/** Click splits the pane right; right-click picks where, or closes the pane. */
-function SplitButton({ onSplit, onClose }: { onSplit: (edge: Edge | 'four') => void; onClose?: () => void }) {
-  return (
-    <ContextMenu
-      items={
-        <>
-          {splits.map((s) => (
-            <MenuItem key={s.edge} icon={s.icon} onClick={() => onSplit(s.edge)}>
-              {s.label}
-            </MenuItem>
-          ))}
-          {onClose && (
-            <>
-              <MenuSeparator />
-              <MenuItem icon={<X size={14} />} onClick={onClose}>
-                Close pane
-              </MenuItem>
-            </>
-          )}
-        </>
-      }
-    >
-      <IconButton label="Split right (right-click for more)" onClick={() => onSplit('right')}>
-        <Columns2 size={16} />
-      </IconButton>
-    </ContextMenu>
-  );
-}
-
 /** Cmd+W on a Mac, Ctrl+W elsewhere; in a terminal there Ctrl+W deletes a word, so it is Ctrl+Shift+W. */
 function isCloseChord(e: KeyboardEvent): boolean {
   if (e.key.toLowerCase() !== 'w' || e.altKey) return false;
@@ -156,9 +121,13 @@ function PaneView({
   focused,
   onFocus,
   lead,
+  grip,
+  iconFor,
 }: {
   root: Node;
   pane: Pane;
+  grip: Grip;
+  iconFor?: IconFor;
   /** The agent the focused tab shows: the one a new tab's agent kind is for when this pane's own tab names none. */
   agent: string | null;
   dispatch: Dispatch;
@@ -237,14 +206,15 @@ function PaneView({
       onFocusCapture={() => onFocus(pane.id)}
       className={`flex min-h-0 min-w-0 flex-1 flex-col bg-bg text-fg ${focused || root.kind === 'pane' ? '' : 'unfocused'}`}
     >
-      <div className="app-drag flex items-center border-b border-border bg-surface pr-2">
+      <div className="app-drag relative flex items-center border-b border-border bg-surface pr-2">
+        <PaneGrip label={labelOf(current?.opens ?? '', nameOf) || 'Tab bar'} {...grip(pane)} />
         {lead}
         <div ref={bar} className="relative min-w-0 flex-1 [&>[role=tablist]]:border-b-0" {...onBar.handlers}>
           <TabBar
             tabs={pane.tabs.map((t) => ({
               ...t,
               title: t.opens ? labelOf(t.opens, nameOf) : t.title,
-              icon: iconOf(t.opens),
+              icon: iconFor?.(t.opens) ?? iconOf(t.opens),
               dot: t.id === pane.active ? null : dotOf(t.opens, who),
               // The screen's last Empty tab is what closing leaves: it has no close to offer.
               closable: !(root.kind === 'pane' && pane.tabs.length === 1 && !t.opens),
@@ -272,7 +242,7 @@ function PaneView({
           }
         />
       </div>
-      <div ref={body} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
+      <div ref={body} {...{ [PANE_BODY]: pane.id }} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
         <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
           <TabScope id={current?.id ?? null} cluster={there}>
             <PaneOpen.Provider
@@ -314,30 +284,6 @@ function PaneView({
   );
 }
 
-function SplitView({ node, dispatch, children }: { node: Split; dispatch: Dispatch; children: [ReactNode, ReactNode] }) {
-  const box = useRef<HTMLDivElement>(null);
-  const x = node.axis === 'x';
-  const resize = (ratio: number) => dispatch({ type: 'resize', split: node.id, ratio });
-  return (
-    <div ref={box} className={`flex min-h-0 min-w-0 flex-1 ${x ? 'flex-row' : 'flex-col'}`}>
-      <div className="flex min-h-0 min-w-0" style={{ flex: `${node.ratio} 1 0` }}>
-        {children[0]}
-      </div>
-      <Splitter
-        axis={node.axis}
-        container={box}
-        percent={node.ratio * 100}
-        onMove={(o, size) => resize(o / size)}
-        onStep={(d) => resize(node.ratio + d * 0.02)}
-        label={x ? 'Resize columns' : 'Resize rows'}
-      />
-      <div className="flex min-h-0 min-w-0" style={{ flex: `${1 - node.ratio} 1 0` }}>
-        {children[1]}
-      </div>
-    </div>
-  );
-}
-
 /** The view of the layout tree (src/layout/tree.ts); every change is an Action through its reducer.
  * `lead` goes at the start of the top-left pane's tab bar (the sidebar controls' room when it is closed). */
 export function Workspace({
@@ -348,6 +294,9 @@ export function Workspace({
   dispatch,
   reopenClosed,
   lead,
+  quiet = false,
+  grip,
+  iconFor,
 }: {
   root: Node;
   /** The agent the focused tab shows, or null. */
@@ -359,8 +308,13 @@ export function Workspace({
   /** Opens the last closed tab again; a tab whose pane is gone goes to this pane. */
   reopenClosed: (pane: string) => void;
   lead?: ReactNode;
+  /** Takes no keys and is not where the sidebar opens: another layout is on top (the town), or holds the focus. */
+  quiet?: boolean;
+  grip?: Grip;
+  iconFor?: IconFor;
 }) {
   const nameOf = useNamesHere(agent);
+  const gripOf = grip ?? gripIn(dispatch);
   const render = (node: Node, topLeft: boolean): ReactNode =>
     node.kind === 'pane' ? (
       <PaneView
@@ -372,6 +326,8 @@ export function Workspace({
         focused={node.id === focus}
         onFocus={onFocus}
         lead={topLeft ? lead : undefined}
+        grip={gripOf}
+        iconFor={iconFor}
       />
     ) : (
       <SplitView key={node.id} node={node} dispatch={dispatch}>
@@ -384,8 +340,10 @@ export function Workspace({
   useTabKeys(
     () => panes(root).find((x) => x.id === focus) ?? panes(root)[0],
     (pane, tab) => dispatch({ type: 'select', pane, tab }),
+    !quiet,
   );
   useEffect(() => {
+    if (quiet) return;
     const close = (e: KeyboardEvent) => {
       if (!isCloseChord(e) || document.querySelector('[role="dialog"], [role="alertdialog"]')) return; // nothing closes behind a modal
       const all = panes(root);
@@ -405,7 +363,7 @@ export function Workspace({
       removeEventListener('keydown', close);
       removeEventListener('keydown', reopen);
     };
-  }, [root, focus, dispatch, closeShells, reopenClosed]);
+  }, [root, focus, dispatch, closeShells, reopenClosed, quiet]);
   // A drag region takes no drop: while a tab is dragged it steps aside, so a drop on the tab bar's free space still lands.
   useEffect(() => {
     const on = () => (document.body.dataset.dragging = '');
@@ -422,9 +380,10 @@ export function Workspace({
   // Opened from outside a pane (the sidebar): from the focused pane.
   const workspaceCluster = useContext(SpaceCluster);
   const agentKey = agent && spaceOf(workspaceCluster, agent);
-  useEffect(() =>
-    setShownWorkspace((opens, how) => openFrom({ root, agent: agentKey, dispatch, nameOf, focus: onFocus }, focus, opens, how)),
-  );
+  useEffect(() => {
+    if (!quiet && !grip)
+      setShownWorkspace((opens, how) => openFrom({ root, agent: agentKey, dispatch, nameOf, focus: onFocus }, focus, opens, how));
+  });
   return (
     <div {...{ [DROP_AREA]: '' }} className="flex min-h-0 min-w-0 flex-1">
       {render(root, true)}

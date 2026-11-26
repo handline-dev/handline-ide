@@ -29,7 +29,7 @@ export function readTabDrag(e: DragEvent): TabDrag | null {
 export type Zone = 'center' | 'left' | 'right' | 'up' | 'down';
 
 /** The outer quarter of each side is that side's zone; the rest is the center. */
-export function zoneAt(e: DragEvent, el: HTMLElement): Zone {
+export function zoneAt(e: Pick<DragEvent, 'clientX' | 'clientY'>, el: HTMLElement): Zone {
   const r = el.getBoundingClientRect();
   const d = {
     left: (e.clientX - r.left) / r.width,
@@ -80,7 +80,8 @@ function place(box: Box) {
   dropBox = { box, on: true, glide: dropBox.on };
   dropMoved.emit();
 }
-function hide() {
+/** Takes the highlight away; a drag that is not the browser's (a tab bar's handle) calls it when let go. */
+export function hideZone() {
   if (!dropBox.on) return;
   dropBox = { ...dropBox, on: false };
   dropMoved.emit();
@@ -93,15 +94,15 @@ export function ZoneHighlight() {
   const { box, on, glide } = useSyncExternalStore(dropMoved.subscribe, () => dropBox);
   useEffect(() => {
     const over = (e: globalThis.DragEvent) => {
-      if (!(e.target instanceof Element && e.target.closest(`[${DROP_AREA}]`))) hide();
+      if (!(e.target instanceof Element && e.target.closest(`[${DROP_AREA}]`))) hideZone();
     };
     addEventListener('dragover', over);
-    addEventListener('dragend', hide);
-    addEventListener('drop', hide);
+    addEventListener('dragend', hideZone);
+    addEventListener('drop', hideZone);
     return () => {
       removeEventListener('dragover', over);
-      removeEventListener('dragend', hide);
-      removeEventListener('drop', hide);
+      removeEventListener('dragend', hideZone);
+      removeEventListener('drop', hideZone);
     };
   }, []);
   return (
