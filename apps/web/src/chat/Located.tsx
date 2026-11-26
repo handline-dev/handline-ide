@@ -27,7 +27,8 @@ export function LocatedTab({ request }: { request: number }) {
   const elsewhere = !!drawnIn && drawnIn !== first.data?.agent;
   const second = Hooks.useChatLocate({ request, agent: drawnIn ?? '', limit: WINDOW }, { enabled: elsewhere });
   const found = elsewhere ? second : first;
-  if (found.isError)
+  // A window already drawn stays when reading it again fails: only a first read that fails says so.
+  if (found.isError && !found.data)
     return (
       <Frame>
         <p className="text-sm text-muted">{why(found.error) || 'This message is not in a chat any more.'}</p>
@@ -58,7 +59,10 @@ function Window({ at, request }: { at: Located; request: number }) {
     at.agent,
   );
   const box = useRef<HTMLDivElement>(null);
-  // The message comes to the middle and is lit once, as a line that just changed is (styles.css just-changed).
+  const agent = at.agent;
+  // The message comes to the middle and is lit once, as a line that just changed is (styles.css just-changed): once for the message
+  // in this chat, as the window is first drawn. The window read again (a recent message's window grows) leaves the reader where they
+  // are, so the effect follows which message and whose chat, never the data it was drawn from.
   useEffect(() => {
     const el = box.current?.querySelector(`[data-id="message:${request}"]`);
     if (!el) return;
@@ -66,7 +70,7 @@ function Window({ at, request }: { at: Located; request: number }) {
     el.classList.add('rounded-md', 'just-changed');
     const t = setTimeout(() => el.classList.remove('rounded-md', 'just-changed'), 2500);
     return () => clearTimeout(t);
-  }, [request, at]);
+  }, [request, agent]);
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="border-b border-border py-2">
