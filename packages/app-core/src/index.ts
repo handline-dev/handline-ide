@@ -50,3 +50,4 @@ export * from '#src/plan-money.ts';
 export * from '#src/keys.ts';
 export * from '#src/palette.ts';
 export * from '#src/diff-lines.ts';
+export * from '#src/line-comments.ts';
