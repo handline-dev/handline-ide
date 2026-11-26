@@ -19,7 +19,7 @@ export const gitView: NonNullable<OpenDeps['git']> = {
     return false;
   },
   async show(cwd, ref, file) {
-    // A branch is tried as itself, then as origin's; the ref is one the caller named and `hasBranch` or 'main' has vouched for.
+    // A branch is tried as itself, then as origin's; the ref is one the caller named and `hasBranch` has vouched for, or the default branch.
     for (const r of [ref, `origin/${ref}`]) {
       const out = await run(cwd, ['show', `${r}:${file}`]);
       if (out) return out;
@@ -30,6 +30,16 @@ export const gitView: NonNullable<OpenDeps['git']> = {
     const out = await run(cwd, ['remote', 'get-url', 'origin']);
     const m = /github\.com[:/]([\w.-]+\/[\w.-]+?)(?:\.git)?\s*$/.exec(out?.toString() ?? '');
     return m ? m[1]! : null;
+  },
+  async defaultBranch(cwd) {
+    // As the daemon reads it: origin's HEAD when it names a branch origin has, else main or master when the repo has one.
+    const head = (await run(cwd, ['symbolic-ref', '-q', '--short', 'refs/remotes/origin/HEAD']))
+      ?.toString()
+      .trim()
+      .replace(/^origin\//, '');
+    if (head && (await run(cwd, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${head}`]))) return head;
+    for (const b of ['main', 'master']) if (await gitView.hasBranch(cwd, b)) return b;
+    return null;
   },
 };
 

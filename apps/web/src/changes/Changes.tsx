@@ -38,7 +38,10 @@ const AGAINST = ['head', 'base'] as const;
 export function Changes({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   const path = detail?.worktree?.path ?? '';
-  const worktreeChanged = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
+  const row = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path);
+  const worktreeChanged = row?.changed ?? [];
+  // The branch the worktree merges into, as its row names it: main in most repos, master or another where the repo says so.
+  const base = row?.base || 'main';
   const [against, setAgainst] = useTabState<'head' | 'base'>('against', 'base');
   // The files folded shut; the rest are open. A fold drops the paths no longer in the diff, so the list never outgrows it.
   const [shut, setShut] = useTabState<string[]>('shut', []);
@@ -68,7 +71,7 @@ export function Changes({ agent }: { agent: string }) {
             value={against}
             onChange={setAgainst}
             options={AGAINST}
-            word={(v) => (v === 'head' ? 'Uncommitted' : `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? 'main') : 'main'}`)}
+            word={(v) => (v === 'head' ? 'Uncommitted' : `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? base) : base}`)}
           />
         </div>
         {diff.isPending && <LinesLoading label="Loading the diff" />}

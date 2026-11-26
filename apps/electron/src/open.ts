@@ -35,6 +35,8 @@ export interface OpenDeps {
     show(cwd: string, ref: string, file: string): Promise<Buffer | null>;
     /** The GitHub `owner/repo` of origin, or null. */
     repoOf(cwd: string): Promise<string | null>;
+    /** The branch the repo's work merges into (origin's HEAD, else its main or master), or null when it cannot be told. */
+    defaultBranch?(cwd: string): Promise<string | null>;
   };
   openExternal?(url: string): Promise<void>;
   /** Where a git version is written to be opened: a fresh folder, the file read-only. */
@@ -74,7 +76,7 @@ export class Opener {
     const rel = /^(~|\/)/.test(raw) ? null : path.posix.normalize(raw.replace(/\\/g, '/'));
     const relOk = rel !== null && rel !== '.' && !rel.startsWith('../') && rel !== '..';
     const wt = relOk && agent ? await this.deps.worktreeOf(agent).catch(() => null) : null;
-    // A repo path: the version on a branch the message names, then the worktree's own file, then main, then GitHub.
+    // A repo path: the version on a branch the message names, then the worktree's own file, then the default branch's, then GitHub.
     if (relOk && wt && this.deps.git) {
       const viaBranch = await this.fromGit(wt, rel, branches);
       if (viaBranch) return viaBranch;
@@ -106,11 +108,14 @@ export class Opener {
     return err ? fail('unavailable', err) : { ok: true, how: 'opened' };
   }
 
-  /** The git versions of a repo path, read-only: the named branches, or (`last`) main, then the same on GitHub. Null when none has it. */
+  /** The git versions of a repo path, read-only: the named branches, or (`last`) the repo's default branch (how `main`, whatever the
+   * branch is called), then the same on GitHub. Null when none has it. */
   private async fromGit(wt: string, rel: string, branches: string[], last = false): Promise<OpenReply | null> {
     const git = this.deps.git!;
     const refs: { ref: string; how: 'branch' | 'main' }[] = [];
-    if (last) refs.push({ ref: 'main', how: 'main' });
+    const named = last ? await git.defaultBranch?.(wt).catch(() => null) : null;
+    const base = named && /^[\w][\w./-]*$/.test(named) ? named : 'main';
+    if (last) refs.push({ ref: base, how: 'main' });
     else
       for (const b of branches)
         if (/^[\w][\w./-]*$/.test(b) && (await git.hasBranch(wt, b).catch(() => false))) refs.push({ ref: b, how: 'branch' });
@@ -129,7 +134,7 @@ export class Opener {
     if (!last || !this.deps.openExternal) return null;
     const repo = await git.repoOf(wt).catch(() => null);
     if (!repo) return null;
-    const where = branches.find((b) => /^[\w][\w./-]*$/.test(b)) ?? 'main';
+    const where = branches.find((b) => /^[\w][\w./-]*$/.test(b)) ?? base;
     await this.deps.openExternal(`https://github.com/${repo}/blob/${where}/${rel.split('/').map(encodeURIComponent).join('/')}`);
     return { ok: true, how: 'github' };
   }

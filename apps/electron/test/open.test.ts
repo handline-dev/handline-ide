@@ -130,7 +130,12 @@ test('an opener that refuses is unavailable with its message', async () => {
   assert.deepEqual(r, { ok: false, code: 'unavailable', message: 'no opener' });
 });
 
-function withGit(files: Record<string, Record<string, string>>, branches: string[], repo: string | null = 'acme/app') {
+function withGit(
+  files: Record<string, Record<string, string>>,
+  branches: string[],
+  repo: string | null = 'acme/app',
+  def: string | null = null,
+) {
   const log: string[] = [];
   const o = new Opener(ORIGIN, {
     home,
@@ -141,6 +146,7 @@ function withGit(files: Record<string, Record<string, string>>, branches: string
       hasBranch: async (_c, n) => branches.includes(n),
       show: async (_c, ref, file) => (files[ref]?.[file] !== undefined ? Buffer.from(files[ref]![file]!) : null),
       repoOf: async () => repo,
+      defaultBranch: async () => def,
     },
     openExternal: async (u) => void log.push(`web ${u}`),
     scratch: async (name, bytes) => (log.push(`copy ${name} ${bytes}`), path.join(root, 'view', name)),
@@ -170,6 +176,24 @@ test("a file the worktree lacks opens main's version, else the file on GitHub on
   assert.deepEqual(web.log, ['web https://github.com/acme/app/blob/feat-y/docs/gone.md']);
   const none = withGit({}, [], null);
   assert.equal((await callB(none.o, 'docs/gone.md', [])).ok, false);
+});
+
+test('where the default branch is not main, the fallback is that branch, here and on GitHub', async () => {
+  const onMaster = withGit(
+    { master: { 'docs/gone.md': 'master has it' }, main: { 'docs/gone.md': 'a stale main' } },
+    [],
+    'acme/app',
+    'master',
+  );
+  assert.deepEqual(await callB(onMaster.o, 'docs/gone.md', []), { ok: true, how: 'main' });
+  assert.equal(onMaster.log[0], 'copy gone.md master has it');
+  const web = withGit({}, [], 'acme/app', 'master');
+  assert.deepEqual(await callB(web.o, 'docs/gone.md', []), { ok: true, how: 'github' });
+  assert.deepEqual(web.log, ['web https://github.com/acme/app/blob/master/docs/gone.md']);
+  // a name that could not be a branch's is put in no git argument and no link
+  const odd = withGit({}, [], 'acme/app', '--upload-pack=x');
+  assert.deepEqual(await callB(odd.o, 'docs/gone.md', []), { ok: true, how: 'github' });
+  assert.deepEqual(odd.log, ['web https://github.com/acme/app/blob/main/docs/gone.md']);
 });
 
 test('a path that climbs out is never given to git', async () => {
