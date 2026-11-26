@@ -15,6 +15,15 @@ export const BUBBLE = `${import.meta.env.BASE_URL}town/bubble.png`;
 export const BUBBLE_PX = 19;
 /** The sheet's cells, and each person's figure height per pose in sheet pixels (from the script that cut the sheet). */
 export const SHEET = { cell: [140, 232], size: [420, 1392], walk: 220 } as const;
+/** The walking sheet, public/town/people-walk.png: a row per person, in the order of the sitting sheet, and nine columns: down, up and
+ *  left, each standing, left foot, right foot (right is left mirrored). Every cell keeps one empty row under the feet. */
+export const WALK_SHEET = `${import.meta.env.BASE_URL}town/people-walk.png`;
+export const WALK = { cell: [156, 234], size: [1404, 1404] } as const;
+export type Facing = 'down' | 'up' | 'left' | 'right';
+const WALK_COL: Record<Facing, number> = { down: 0, up: 3, left: 6, right: 6 };
+const WALK_STEPS = [0, 1, 0, 2] as const;
+/** The column of the walking sheet for a facing and how far the person has walked, in strides: standing, left, standing, right. */
+export const walkColumn = (facing: Facing, strides: number): number => WALK_COL[facing] + WALK_STEPS[((Math.floor(strides) % 4) + 4) % 4];
 const POSES = ['sit_back', 'sit_mug', 'walk_down'] as const;
 const TALL: Record<Pose, number[]> = {
   sit_back: [195, 226, 194, 227, 195, 201],
