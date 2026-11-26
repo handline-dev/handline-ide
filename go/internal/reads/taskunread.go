@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
@@ -248,7 +247,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			continue
 		}
 		out := row(tid, m.str("title"), "note", []int64{}, all[tid], ts(m["created_at"]))
-		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(strings.TrimPrefix(strings.TrimSpace(m.str("body")), addr.Ref(whose))))
+		out["source"], out["id"], out["agent"], out["ask"] = "comment", strconv.FormatInt(m.i("id"), 10), m.str("author"), firstLine(withoutHumanTag(m.str("body")))
 		byTask[tid] = out
 		answer = append(answer, out)
 	}

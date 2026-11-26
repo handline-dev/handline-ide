@@ -3,7 +3,7 @@ import { Face, Name } from '#src/ui/Face.tsx';
 // An Activity line's parts: its round mark, its hover row, a comment (the founder's open turn among them), and a change in words.
 import type { ActivityItem } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { addressText, isPerson, noteText, toldOf } from '@handline/app-core';
+import { addressText, isPerson, toldOf } from '@handline/app-core';
 import { useMe } from '@handline/app-react';
 import { useNameOf, useWrite } from '@handline/app-data';
 import { Button } from '#src/ui/Button.tsx';
@@ -151,10 +151,10 @@ export function CommentRow({
   const ready = useContext(ReadyTurn);
   const word = ready ? 'Ready for you' : 'Waiting for you';
   const mine = isPerson(i.who, me);
-  const toYou = !mine && (i.toFounder || (!!i.turn && isPerson(i.turnTo ?? '', me)));
+  const toYou = !mine && ((!!i.to && isPerson(i.to, me)) || (!!i.turn && isPerson(i.turnTo ?? '', me)));
   // Whom the comment went to: whom the daemon told it to (its readers), never worked out here.
   const told = mine ? toldOf(i, me) : [];
-  const to = toYou ? ['you'] : told;
+  const to = toYou ? ['you'] : i.to && !mine ? [i.to] : told;
   const [editing, setEditing] = useState(false);
   const edit = useWrite('task.comment.edit');
   const del = useWrite('task.comment.delete');
@@ -214,8 +214,8 @@ export function CommentRow({
             <div className="min-w-0">
               <Markdown
                 text={
-                  i.toFounder
-                    ? noteText(i.note)
+                  i.to
+                    ? addressText(i.note, [i.to])
                     : told.length
                       ? addressText(
                           i.note,

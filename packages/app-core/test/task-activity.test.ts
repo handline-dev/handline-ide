@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activityOf, addressText, noteText, toldOf } from '#src/task-activity.ts';
+import { activityOf, addressText, toldOf } from '#src/task-activity.ts';
 
 const e = (kind: string, who: string, text: string, at: string, memo: number | null = null) =>
   ({ at, who, kind, text, memo, edited_at: null }) as Parameters<typeof activityOf>[1][number];
@@ -93,7 +93,6 @@ test('addressText drops a leading mention of whom the comment went to, by id or 
   assert.equal(addressText('see @architect', ['architect']), 'see @architect');
   assert.equal(addressText('<@architect> what is it?', ['a2', 'architect']), 'what is it?');
   assert.equal(addressText('<@lead> ask', ['a2', 'architect']), '<@lead> ask');
-  assert.equal(noteText('@human OK?'), 'OK?');
 });
 
 const told = (agent: string) => ({ agent, request: 1, state: 'sent' as const, at: '2026-11-21T00:00:00Z' });
@@ -102,4 +101,13 @@ test("the founder's own comment is addressed to whom the daemon told, never the 
   assert.deepEqual(toldOf({ readers: [told('ron')] }, 'ron'), []);
   assert.deepEqual(toldOf({}, 'ron'), []);
   assert.equal(addressText('@architect here', toldOf({ readers: [told('architect')] }, 'ron')), 'here');
+});
+
+test('whom a comment is written to comes from the daemon (Memo.to), never from its words', () => {
+  type M = Parameters<typeof activityOf>[0][number];
+  const to = { id: 1, author: 'a2', at: '2026-01-01T00:00:00Z', text: '<@p1> OK?', to: 'p1' } as unknown as M;
+  const plain = { id: 2, author: 'a2', at: '2026-01-01T00:00:01Z', text: '<@p1> OK?' } as unknown as M;
+  const [a, b] = activityOf([to, plain], [], 'p1');
+  assert.equal(a!.to, 'p1');
+  assert.equal(b!.to, undefined);
 });

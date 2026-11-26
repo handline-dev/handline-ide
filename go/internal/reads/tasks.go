@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
@@ -1031,6 +1032,21 @@ func (e *Env) taskResultOf(tid int64, task map[string]any) error {
 	return nil
 }
 
+// memoTo is the person a comment is written to: the one its leading mention names (addr.Lead), or, for the older word @human, the
+// person the task answers to; "" for a comment that opens with no person.
+func memoTo(q db.Q, body string, task int64) (string, error) {
+	if to := addr.Lead(body); to != "" {
+		if actor.IsPerson(to) {
+			return to, nil
+		}
+		return "", nil
+	}
+	if !strings.HasPrefix(strings.TrimSpace(body), "@human") {
+		return "", nil
+	}
+	return addr.TaskPerson(q, task)
+}
+
 func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store, withPath bool) (map[string]any, error) {
 	var edited any
 	if m.set("edited_at") {
@@ -1040,6 +1056,13 @@ func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store,
 		"at": ts(m["created_at"]), "text": m.str("body"), "edited_at": edited, "reply_to": nil}
 	if m.set("reply_to") {
 		memo["reply_to"] = m.i("reply_to")
+	}
+	to, err := memoTo(q, m.str("body"), m.i("task_id"))
+	if err != nil {
+		return nil, err
+	}
+	if to != "" {
+		memo["to"] = to
 	}
 	if p := parts(m.str("body")); p != nil {
 		memo["parts"] = p

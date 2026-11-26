@@ -1444,6 +1444,10 @@
      "text": {
       "type": "string"
      },
+     "to": {
+      "type": "string",
+      "description": "The person the comment is written to when it opens with a mention of them (the stored <@key>, or the older @human read as the task's person): a note to them that moves no turn. Absent otherwise. The app draws its chip from this and drops that leading mention from the text."
+     },
      "edited_at": {
       "oneOf": [
        {

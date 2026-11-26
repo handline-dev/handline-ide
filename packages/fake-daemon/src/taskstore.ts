@@ -267,7 +267,12 @@ export class TaskStore {
       const cut = parts(text);
       return cut ? { ...o, parts: cut } : o;
     };
-    const memos = (t.memos ?? []).map((m) => withParts(m, m.text));
+    // Whom a comment is written to, as the daemon reads it (addr.Lead): the person its leading mention names.
+    const lead = (text: string) => /^\s*<@(human|p\d+)>/.exec(text)?.[1];
+    const memos = (t.memos ?? []).map((m) => {
+      const to = lead(m.text);
+      return withParts(to ? { ...m, to } : m, m.text);
+    });
     const bodyParts = parts(t.body);
     return {
       ...this.view(t),

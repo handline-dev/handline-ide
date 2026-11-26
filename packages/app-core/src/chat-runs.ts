@@ -1,7 +1,6 @@
 // How the chat's lines become what is drawn: task notices, task comments and task changes heard live gathered into task cards, each task
 // in one card only; and which lines draw nothing at all.
 import { isPerson, unblockedStart, type TimelineEntry, type TurnRecord } from '#src/chat.ts';
-import { noteText } from '#src/task-activity.ts';
 import { isSystem } from '#src/task-people.ts';
 
 /** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line". */
@@ -53,11 +52,8 @@ const taskNotice = (e: TimelineEntry | TurnRecord, agent: string, me: string) =>
 /** Whether a notice says a task was handed on, or made and given. */
 const noticeKind = (body: string) => (/^T\d+\s+handed\b/i.test(body) ? 'handoff' : 'add');
 
-/** A comment's first line, without its leading address. */
-const firstLine = (body: string) =>
-  noteText(body)
-    .split('\n')
-    .find((l) => l.trim()) ?? '';
+/** A comment's first line; a mention in it reads as a name, or @You, where it is drawn. */
+const firstLine = (body: string) => body.split('\n').find((l) => l.trim()) ?? '';
 
 /** The entries, with each run of task notices gathered into one card's rows. */
 export function taskRuns(

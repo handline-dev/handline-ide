@@ -72,7 +72,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
           text: 'Each agent, but show me both first.',
           readers: [{ agent: ARCH, request: 1, state: 'read' as const, at: iso(29) }],
         },
-        { id: 14, at: iso(10), author: ARCH, text: '@human Both are drawn in the attached shots; picking one next.' },
+        { id: 14, at: iso(10), author: ARCH, text: `<@${ME}> Both are drawn in the attached shots; picking one next.` },
         { id: 15, at: iso(3), author: ARCH, text: again },
         { id: 16, at: iso(1), author: 'handline.ui', text: 'B is the one the bell mock-up uses.' },
       ].map((m) => ({ ...m, task: 8830 })),

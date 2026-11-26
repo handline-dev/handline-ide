@@ -7,6 +7,8 @@ export interface Directory {
   agents: readonly Pick<AgentView, 'key' | 'name' | 'workspace' | 'hired_from'>[];
   people: readonly Person[];
   workspaces: readonly Workspace[];
+  /** The person reading: a mention of them in a sentence reads @You. */
+  me?: string;
 }
 
 export const EMPTY_DIRECTORY: Directory = { agents: [], people: [], workspaces: [] };
@@ -52,7 +54,10 @@ const known = (d: Directory, k: string) => d.agents.some((a) => a.key === k) || 
 
 /** Text as the screens show it: each stored `<@key>` is `@` and its name, and a bare agent or person key the lists hold is its name. */
 export const renderRefs = (d: Directory, text: string): string =>
-  readable(d, text.includes('<@') ? text.replace(REF, (_, k: string) => `@${nameOf(d, k)}`) : text);
+  readable(
+    d,
+    text.includes('<@') ? text.replace(REF, (_, k: string) => `@${d.me && (k === d.me || k === 'human') ? 'You' : nameOf(d, k)}`) : text,
+  );
 
 /** Text as a plain sentence: each stored `<@key>` is the name alone, for lines that are not chat (a proposal's change lines). */
 export const plainRefs = (d: Directory, text: string): string =>

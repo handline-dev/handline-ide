@@ -12,6 +12,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 func forYouItem(kind, id string, agent any, title, asks string, since any) map[string]any {
@@ -183,8 +184,15 @@ func (e *Env) taskIsOpen(id int64) bool {
 	return err == nil && r != nil
 }
 
-// withoutHumanTag is a comment's ask without the mention of the founder that raised it.
-func withoutHumanTag(text string) string { return strings.ReplaceAll(text, "@human", "") }
+// withoutHumanTag is a comment's ask without the leading mention that addressed it (addr.Lead, as the daemon reads whom it is to),
+// and without the older word @human.
+func withoutHumanTag(text string) string {
+	t := strings.TrimSpace(text)
+	if lead := addr.Lead(t); lead != "" {
+		t = strings.TrimPrefix(t, addr.Ref(lead))
+	}
+	return strings.TrimSpace(strings.ReplaceAll(t, "@human", ""))
+}
 
 // personIsOwner is whether the person the reads are for is an owner: the prompts, proposals and machine needs are theirs.
 func (e *Env) personIsOwner() (bool, error) {

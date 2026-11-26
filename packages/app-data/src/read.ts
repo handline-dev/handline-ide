@@ -2,7 +2,7 @@
 import { useCallback, useMemo } from 'react';
 import { keepPreviousData, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { EMPTY_DIRECTORY, nameOf, type Directory } from '@handline/app-core';
-import { useStore } from '@handline/app-react';
+import { useMe, useStore } from '@handline/app-react';
 import type { CallParams, InboxItem, Methods, WorkspaceRule } from '@handline/client';
 import { useData, useFeed, useServes } from '#src/provider.ts';
 import { keyOf, qk, reads, type ReadMethod, type ReadSpec } from '#src/reads.ts';
@@ -48,13 +48,15 @@ export function useDirectory(): Directory {
   const agents = useRead('agents.list', {}).data?.agents; // seats too: nameOf writes a seat's key as its agent
   const people = useRead('people.list', {}).data?.people;
   const workspaces = useRead('workspaces.list', {}).data?.workspaces;
+  const me = useMe();
   return useMemo(
     () => ({
       agents: agents ?? EMPTY_DIRECTORY.agents,
       people: people ?? EMPTY_DIRECTORY.people,
       workspaces: workspaces ?? EMPTY_DIRECTORY.workspaces,
+      me: me ?? undefined,
     }),
-    [agents, people, workspaces],
+    [agents, people, workspaces, me],
   );
 }
 

@@ -25,8 +25,8 @@ export interface ActivityItem {
   /** For a turn passed: handed on (push) or given back (pop), and to whom; on a comment, the turn passed with it. */
   turn?: 'push' | 'pop';
   turnTo?: string;
-  /** A comment whose first word is @human: a word to the founder that passes them no turn. */
-  toFounder?: boolean;
+  /** For a comment that opens with a person: that person, as the daemon read it (Memo.to); a word to them that passes no turn. */
+  to?: string;
 }
 
 const STATE_WORD: Record<string, string> = {
@@ -71,10 +71,8 @@ function requestLine(e: Entry, nameOf: NameOf): string {
     .join(' → ')} sent a request`;
 }
 
-/** A comment to the founder that passes no turn: its first word is @human. */
-export const isNote = (text: string): boolean => /^\s*@human\b/.test(text);
 /** A comment's words without a leading @mention of any of `to` (id or name), which the app draws as a chip. */
-export const addressText = (text: string, to: readonly string[] = ['human']): string => {
+export const addressText = (text: string, to: readonly string[]): string => {
   // A picked mention is stored as <@key>, a typed one as @name.
   const m = /^\s*(?:<@([\w.-]+)>|@([\w.-]+))[:,]?\s*/.exec(text);
   const who = m?.[1] ?? m?.[2];
@@ -83,8 +81,6 @@ export const addressText = (text: string, to: readonly string[] = ['human']): st
 /** Whom the founder's own comment went to: the agents the daemon told it to (its readers), never the founder. */
 export const toldOf = (i: Pick<ActivityItem, 'readers'>, me: string): string[] =>
   (i.readers ?? []).map((r) => r.agent).filter((a) => !isPerson(a, me));
-/** A note's words without its leading @human. */
-export const noteText = (text: string): string => addressText(text);
 
 /** The memos as comments and the rest of the timeline as events in words, oldest first; `me` is the person, written "you", and every
  * other who in a line is written out by `nameOf`. */
@@ -118,7 +114,7 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
           return { id: f.id, name: f.name, mime: f.mime, size: f.bytes, ...(v ? { video: { id: v.id, name: v.name } } : {}) };
         }),
       edited: !!m.edited_at,
-      toFounder: isNote(m.text),
+      ...(m.to ? { to: m.to } : {}),
       ...passedWith(m.id),
     };
   });

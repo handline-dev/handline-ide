@@ -331,6 +331,8 @@ export type Memo = {
   author: string;
   at: Timestamp;
   text: string;
+  /** The person the comment is written to when it opens with a mention of them (the stored <@key>, or the older @human read as the task's person): a note to them that moves no turn. Absent otherwise. The app draws its chip from this and drops that leading mention from the text. */
+  to?: string;
   /** When the memo's text was last changed; null if never. */
   edited_at?: Timestamp | null;
   /** `text` cut at the images it names, as TaskDetail.body_parts; present only when it names one. */
