@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
-import { crowdOf, stepped, type Mover, type Stage } from '#src/town/crowd.ts';
+import { crowdOf, stepped, talking, type Mover, type Stage } from '#src/town/crowd.ts';
+import { givenWork } from '#src/town/errands.ts';
 import type { House, Person } from '#src/town/model.ts';
 import { changesOf, doorOf, routeOf, seatsOf, type Seat } from '#src/town/moves.ts';
 import { roomOf } from '#src/town/room.ts';
@@ -22,7 +23,18 @@ const laid = (people: Person[]) => {
   const floor = floorOf(room.w, room.d, solid);
   return { room, floor, seats: seatsOf(room, floor), door: doorOf(room) };
 };
-const stageOf = (l: ReturnType<typeof laid>): Stage => ({ ...l, people: l.room.people, layout: l.room.w });
+/** The stage of a laid room; one talks at each desk from right beside the front of its chair. */
+const stageOf = (l: ReturnType<typeof laid>): Stage => ({
+  ...l,
+  desks: new Map([...l.seats].map(([k, s]) => [k, [s.at[0] - 0.4, s.at[1]] as Spot])),
+  people: l.room.people,
+  layout: l.room.w,
+});
+/** A mover walked on in frames of `dt` until `done` says stop, at most a minute. */
+const walk = (m: Mover, done: (m: Mover) => boolean, dt = 1 / 30) => {
+  for (let i = 0; i < 1800 && !done(m); i++) m = stepped(m, dt);
+  return m;
+};
 /** Every step a walker takes along `turns`, a centimetre apart. */
 const steps = (turns: Spot[]) =>
   turns.slice(1).flatMap((to, i) => {
@@ -96,6 +108,56 @@ describe('a person whose place changes', () => {
     crowd.place(stageOf(laid([person('b', 'working')])));
     const a = crowd.get().get('a');
     expect(a && { name: a.name, leaving: a.leaving, end: a.path.at(-1) }).toEqual({ name: 'Ana', leaving: true, end: two.door.out });
+    crowd.place(null);
+  });
+});
+
+describe('one agent giving another work', () => {
+  it('counts a task just opened by one agent for another, not a draft, an old one or one of its own', () => {
+    const t = { from: 'a', to: 'b', state: 'queued', created: new Date(1_000_000).toISOString() };
+    expect(givenWork(t, 1_010_000)).toBe(true);
+    expect(givenWork({ ...t, state: 'draft' }, 1_010_000)).toBe(false);
+    expect(givenWork({ ...t, to: 'a' }, 1_010_000)).toBe(false);
+    expect(givenWork(t, 1_000_000 + 5 * 60_000)).toBe(false);
+    expect(givenWork({ ...t, state: 'done' }, 1_010_000)).toBe(false);
+    // Made before the screen opened: only changed now.
+    expect(givenWork(t, 1_010_000, 1_008_000)).toBe(false);
+    expect(givenWork(t, 1_010_000, 1_002_000)).toBe(true);
+  });
+
+  it('walks over to the other desk, talks there, and walks back to its seat', () => {
+    const l = laid([person('a', 'working'), person('b', 'working'), person('c', 'working')]);
+    const crowd = crowdOf();
+    crowd.place(stageOf(l));
+    crowd.errand('a', 'c');
+    let m = crowd.get().get('a')!;
+    expect(m.at).toEqual(l.seats.get('a')!.at);
+    m = walk(m, talking);
+    expect(m.at[0]).toBeCloseTo(l.seats.get('c')!.at[0] - 0.4, 1);
+    const talked = walk(m, (x) => !talking(x));
+    expect(talked.path.length).toBeGreaterThan(0);
+    const home = walk(talked, (x) => !x.path.length);
+    expect(home.at).toEqual(l.seats.get('a')!.at);
+    crowd.place(null);
+  });
+
+  it('goes on with its errand when something else in the office changes', () => {
+    const crowd = crowdOf();
+    crowd.place(stageOf(laid([person('a', 'working'), person('b', 'working'), person('c', 'working')])));
+    crowd.errand('a', 'c');
+    crowd.place(stageOf(laid([person('a', 'working'), person('b', 'resting'), person('c', 'working')])));
+    expect(crowd.get().get('a')?.errand).toBeDefined();
+    crowd.place(null);
+  });
+
+  it('goes home when the other leaves the office mid-errand', () => {
+    const crowd = crowdOf();
+    const three = laid([person('a', 'working'), person('b', 'working'), person('c', 'working')]);
+    crowd.place(stageOf(three));
+    crowd.errand('a', 'c');
+    crowd.place(stageOf(laid([person('a', 'working'), person('b', 'working')])));
+    const m = crowd.get().get('a');
+    expect(m && { errand: m.errand, end: m.path.at(-1) }).toEqual({ errand: undefined, end: three.seats.get('a')!.at });
     crowd.place(null);
   });
 });
