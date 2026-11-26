@@ -2,7 +2,9 @@ package reads
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/operations"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 func TestAWorktreeLabelStandsInForTheDaemonsWord(t *testing.T) {
@@ -201,15 +204,38 @@ func TestEveryWorktreeCarriesItsFactsAndItsPullRequest(t *testing.T) {
 	}
 }
 
-type check = struct{ Conclusion, State string }
+// recorded is one pull request as `gh pr list --json` printed it, with these checks (each a recorded statusCheckRollup entry).
+func recorded(t *testing.T, checks ...string) ghPull {
+	t.Helper()
+	var p ghPull
+	if err := json.Unmarshal([]byte(`{"number":7,"state":"OPEN","statusCheckRollup":[`+strings.Join(checks, ",")+`]}`), &p); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// checkRun is a check run of name that started at a time of day and concluded so ("" while it runs); commitStatus a commit status.
+func checkRun(name, conclusion, started string) string {
+	state := "COMPLETED"
+	if conclusion == "" {
+		state = "IN_PROGRESS"
+	}
+	return `{"__typename":"CheckRun","name":"` + name + `","workflowName":"ci","status":"` + state + `","conclusion":"` + conclusion +
+		`","startedAt":"2026-10-20T` + started + `Z"}`
+}
+
+func commitStatus(context, state string) string {
+	return `{"__typename":"StatusContext","context":"` + context + `","state":"` + state + `"}`
+}
 
 func TestAPullRequestsVerdictIsWhatHoldsIt(t *testing.T) {
 	t.Parallel()
-	failing := func(conclusions ...string) (out []check) {
-		for _, c := range conclusions {
-			out = append(out, check{Conclusion: c})
+	failing := func(conclusions ...string) watch.Rollup {
+		var checks []string
+		for i, c := range conclusions {
+			checks = append(checks, checkRun(fmt.Sprintf("check-%d", i), c, "11:00:00"))
 		}
-		return out
+		return recorded(t, checks...).Checks
 	}
 	for _, c := range []struct {
 		name string
@@ -299,9 +325,34 @@ func TestWorktreesWithNoPullRequestToAskAboutAreNeverAsked(t *testing.T) {
 
 func TestAStatusContextOrAStartupFailureCountsAsFailing(t *testing.T) {
 	t.Parallel()
-	pr := ghPull{State: "OPEN", Checks: []check{{State: "FAILURE"}, {State: "ERROR"}, {Conclusion: "STARTUP_FAILURE"}, {State: "SUCCESS"}, {Conclusion: "SUCCESS"}}}
+	pr := recorded(t, commitStatus("deploy", "FAILURE"), commitStatus("lint", "ERROR"), checkRun("build", "STARTUP_FAILURE", "11:00:00"), commitStatus("docs", "SUCCESS"),
+		checkRun("go", "SUCCESS", "11:00:00"))
 	if got := pullVerdict(pr); got["verdict"] != "checks_failing" || got["failing"] != 3 {
 		t.Fatalf("%v", got)
+	}
+}
+
+// A check that failed and was run again leaves its failed run in what gh prints. A branch's verdict counts each check by its latest
+// run, as a gate does: the passing rerun clears it, a rerun still going is not a failure yet, and a rerun that failed is one failure.
+func TestARunThatARerunReplacedDoesNotCountAsFailing(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name    string
+		checks  []string
+		verdict string
+		failing any
+	}{
+		{"failed, then passed on a rerun", []string{checkRun("build", "FAILURE", "11:50:00"), checkRun("build", "SUCCESS", "11:55:00"), checkRun("go", "SUCCESS", "11:50:00")}, "ready", nil},
+		{"whatever order gh lists them in", []string{checkRun("build", "SUCCESS", "11:55:00"), checkRun("build", "FAILURE", "11:50:00")}, "ready", nil},
+		{"the rerun is still going", []string{checkRun("build", "FAILURE", "11:50:00"), checkRun("build", "", "11:55:00")}, "ready", nil},
+		{"the rerun failed too", []string{checkRun("build", "FAILURE", "11:50:00"), checkRun("build", "FAILURE", "11:55:00")}, "checks_failing", 1},
+		{"a commit status set again", []string{commitStatus("deploy", "FAILURE"), commitStatus("deploy", "SUCCESS")}, "ready", nil},
+		{"cancelled and not run again", []string{checkRun("build", "CANCELLED", "11:50:00")}, "checks_failing", 1},
+	} {
+		got := pullVerdict(recorded(t, c.checks...))
+		if got["verdict"] != c.verdict || got["failing"] != c.failing {
+			t.Errorf("%s: %v, want %s %v", c.name, got, c.verdict, c.failing)
+		}
 	}
 }
 

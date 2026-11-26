@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"sync"
 	"time"
+
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 const (
@@ -49,21 +51,13 @@ type ghPull struct {
 	State          string
 	IsDraft        bool
 	ReviewDecision string
-	Checks         []struct {
-		Conclusion string
-		State      string
-	} `json:"statusCheckRollup"`
+	Checks         watch.Rollup `json:"statusCheckRollup"`
 }
 
-// pullVerdict is the worktrees.list `pr` of a pull request: its number, url and what holds it.
+// pullVerdict is the worktrees.list `pr` of a pull request: its number, url and what holds it. A check is failing the way a gate counts
+// it (watch.Rollup.Failed), by its latest run: a failed run that was run again and passed holds nothing.
 func pullVerdict(p ghPull) map[string]any {
-	failing := 0
-	for _, c := range p.Checks {
-		switch {
-		case c.Conclusion == "FAILURE", c.Conclusion == "TIMED_OUT", c.Conclusion == "STARTUP_FAILURE", c.State == "FAILURE", c.State == "ERROR":
-			failing++
-		}
-	}
+	failing := len(p.Checks.Failed())
 	out := map[string]any{"number": p.Number, "url": p.URL}
 	switch {
 	case p.State == "MERGED":

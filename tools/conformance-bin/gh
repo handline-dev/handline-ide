@@ -1,7 +1,11 @@
 #!/bin/sh
+# Prints what gh pr list prints for the branches the worktrees.list fixtures read. Each check is as gh lists it (a kind, a name, a
+# status, a start), since a check counts by its latest run: on facts/failing, build and lint stand failed, and go failed and then
+# passed on a rerun, which is not a failure.
 while [ $# -gt 0 ]; do [ "$1" = --head ] && head=$2; shift; done
+run() { printf '{"__typename":"CheckRun","name":"%s","workflowName":"ci","status":"COMPLETED","conclusion":"%s","startedAt":"2026-10-20T%sZ"}' "$1" "$2" "$3"; }
 case "$head" in
-facts/failing) echo '[{"number":901,"url":"https://github.com/conf/workroom/pull/901","state":"OPEN","isDraft":false,"reviewDecision":"","statusCheckRollup":[{"conclusion":"FAILURE"},{"conclusion":"TIMED_OUT"},{"conclusion":"SUCCESS"}]}]';;
-facts/ready) echo '[{"number":902,"url":"https://github.com/conf/workroom/pull/902","state":"OPEN","isDraft":false,"reviewDecision":"APPROVED","statusCheckRollup":[{"conclusion":"SUCCESS"}]}]';;
+facts/failing) echo '[{"number":901,"url":"https://github.com/conf/workroom/pull/901","state":"OPEN","isDraft":false,"reviewDecision":"","statusCheckRollup":['"$(run build FAILURE 11:50:00),$(run lint TIMED_OUT 11:50:00),$(run go FAILURE 11:50:00),$(run go SUCCESS 11:55:00)"']}]';;
+facts/ready) echo '[{"number":902,"url":"https://github.com/conf/workroom/pull/902","state":"OPEN","isDraft":false,"reviewDecision":"APPROVED","statusCheckRollup":['"$(run go SUCCESS 11:50:00)"']}]';;
 *) echo '[]';;
 esac

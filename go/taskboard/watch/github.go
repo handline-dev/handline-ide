@@ -107,9 +107,41 @@ func (c ghCheck) started() string {
 	return c.StartedAt
 }
 
+// name is what people call the check: a check run's name, a commit status's context.
+func (c ghCheck) name() string {
+	if c.Typename == "StatusContext" {
+		return c.Context
+	}
+	return c.Name
+}
+
+// ok is a finished check that holds nothing up: a check run that concluded SUCCESS, NEUTRAL or SKIPPED, a commit status SUCCESS.
+func (c ghCheck) ok() bool {
+	if c.Typename == "StatusContext" {
+		return c.State == "SUCCESS"
+	}
+	return c.Conclusion == "SUCCESS" || c.Conclusion == "NEUTRAL" || c.Conclusion == "SKIPPED"
+}
+
+// Rollup is a pull request's checks as gh gives them (statusCheckRollup): every run of every check, a rerun beside the run it replaced.
+type Rollup []ghCheck
+
+// Failed names the checks that stand failed, in the order they first appear: the latest run of each has finished and is not ok. A run
+// that a rerun replaced says nothing, and a check still waiting has not failed yet. Every reader of a pull request's checks counts
+// through this, so a gate and a branch's verdict cannot disagree.
+func (r Rollup) Failed() []string {
+	var failed []string
+	for _, c := range latest(r) {
+		if !c.waiting() && !c.ok() {
+			failed = append(failed, c.name())
+		}
+	}
+	return failed
+}
+
 // latest keeps one entry per check, the one that started last (a later entry on a tie), in the order the checks first appear. A check that was
 // cancelled or failed and run again leaves its old run in the rollup; only the newest says where the check stands.
-func latest(rollup []ghCheck) []ghCheck {
+func latest(rollup Rollup) []ghCheck {
 	var out []ghCheck
 	at := map[string]int{}
 	for _, c := range rollup {
@@ -133,7 +165,7 @@ func latest(rollup []ghCheck) []ghCheck {
 func ciVerdict(out []byte, since, now time.Time) (Verdict, string, error) {
 	var pr struct {
 		State   string
-		Rollup  []ghCheck `json:"statusCheckRollup"`
+		Rollup  Rollup `json:"statusCheckRollup"`
 		Commits []struct{ CommittedDate time.Time }
 	}
 	if err := json.Unmarshal(out, &pr); err != nil {
@@ -154,23 +186,15 @@ func ciVerdict(out []byte, since, now time.Time) (Verdict, string, error) {
 		}
 		return Waiting, "", nil
 	}
-	var failed []string
 	for _, c := range latest(pr.Rollup) {
-		ok, name := c.Conclusion == "SUCCESS" || c.Conclusion == "NEUTRAL" || c.Conclusion == "SKIPPED", c.Name
-		if c.Typename == "StatusContext" {
-			ok, name = c.State == "SUCCESS", c.Context
-		}
 		if c.waiting() {
 			if closed {
 				return Failed, "closed before CI", nil
 			}
 			return Waiting, "", nil
 		}
-		if !ok {
-			failed = append(failed, name)
-		}
 	}
-	if len(failed) > 0 {
+	if failed := pr.Rollup.Failed(); len(failed) > 0 {
 		return Failed, "ci failed: " + strings.Join(failed, ", "), nil
 	}
 	return Passed, "ci passed", nil
