@@ -1,10 +1,10 @@
 // The founder, from public/town/founder.png: standing, left foot and right foot, facing down, up and left (right is left mirrored). In the city and in
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
 // over it, as over the seated people. Its place lives outside React: only what draws it, or picks something by it, follows it.
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { depthByRow, frontPixels, type Box } from '#src/town/people.ts';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import type { Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
-import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
+import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
 import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
 
 export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
@@ -197,71 +197,26 @@ export function useFounder<T extends string | number | boolean | null>(f: Founde
 
 const useMe = (f: Founder) => useSyncExternalStore(f.subscribe, f.get);
 
-/** The founder's box with its feet at (fx, fy), at `scale` picture pixels per sheet pixel. */
-const boxAt = (fx: number, fy: number, scale: number): Box => {
-  const [w, h] = [CELL[0] * scale, CELL[1] * scale];
-  return { x: fx - w / 2, y: fy + scale - h, w, h };
-};
+const FOUNDER: Sheet = { url: FOUNDER_SHEET, cell: CELL, size: SIZE };
 
 /** The founder's box on the picture standing at (x, z) on `ground`. */
-export function founderBox(ground: Ground, [x, z]: Spot): Box {
-  const [fx, fy] = ground.toPixel(x, 0, z);
-  return boxAt(fx, fy, ground.sprite);
-}
+export const founderBox = (ground: Ground, at: Spot): Box => boxOn(ground, FOUNDER, at);
 
-/** The founder's figure in `box`, in the frame for its facing and stride. */
-function Sprite({ me, box, stride }: { me: Walker; box: Box; stride: number }) {
-  const col = COL[me.facing] + (me.moving ? WALK[Math.floor(me.walked / stride) % 4] : 0);
-  return (
-    <g transform={me.facing === 'right' ? `translate(${2 * box.x + box.w} 0) scale(-1 1)` : undefined} className="pointer-events-none">
-      <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * CELL[0]} 0 ${CELL[0]} ${CELL[1]}`}>
-        <image href={FOUNDER_SHEET} width={SIZE[0]} height={SIZE[1]} />
-      </svg>
-    </g>
-  );
-}
-
-/** The founder in an office or the city, with whatever stands nearer laid over it, drawn into one canvas as it walks. */
-/** `label` is drawn under the feet, as each agent's name is. */
+/** The founder in an office or the city, in the frame for its facing and stride, with whatever stands nearer laid over it. `label` is
+ *  drawn under the feet, as each agent's name is. */
 export function FounderDrawing({ founder, ground, label }: { founder: Founder; ground: Ground; label?: string }) {
   const me = useMe(founder);
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [x, z] = me?.at ?? ground.entry;
-  const [fx, fy] = ground.toPixel(x, 0, z);
-  const box = boxAt(fx, fy, ground.sprite);
-  // The overlay is whole picture pixels around the figure.
-  const [bx, by, bw, bh] = [Math.floor(box.x), Math.floor(box.y), Math.ceil(box.w) + 1, Math.ceil(box.h) + 1];
-  useEffect(() => {
-    const c = canvas.current;
-    if (!c) return;
-    const { pic, under } = ground;
-    [c.width, c.height] = [bw, bh];
-    const depth = depthByRow(ground.toPixel, ground.depthOf, x, z);
-    const front = frontPixels(pic, { x: bx, y: by, w: bw, h: bh }, (i) => !under[pic.id[i]] && pic.depth[i] < depth(Math.floor(i / pic.w)));
-    if (front) c.getContext('2d')?.putImageData(front.img, front.x - bx, front.y - by);
-  }, [ground, bx, by, bw, bh, x, z]);
   if (!me) return null;
+  const col = COL[me.facing] + (me.moving ? WALK[Math.floor(me.walked / ground.stride) % 4] : 0);
   return (
-    <g className="pointer-events-none">
-      <Sprite me={me} box={box} stride={ground.stride} />
-      <foreignObject x={bx} y={by} width={bw} height={bh}>
-        <canvas ref={canvas} style={{ display: 'block', width: '100%', height: '100%', imageRendering: 'pixelated' }} />
-      </foreignObject>
-      {label && (
-        <text
-          x={fx}
-          y={fy + 9}
-          textAnchor="middle"
-          fontSize={8}
-          fontWeight={700}
-          fill={NAME_INK}
-          stroke={NAME_HALO}
-          strokeWidth={2.5}
-          paintOrder="stroke"
-        >
-          {label}
-        </text>
-      )}
-    </g>
+    <WalkingFigure
+      ground={ground}
+      sheet={FOUNDER}
+      at={me.at}
+      col={col}
+      row={0}
+      flip={me.facing === 'right'}
+      label={label ? { text: label, size: 8, halo: 2.5 } : undefined}
+    />
   );
 }

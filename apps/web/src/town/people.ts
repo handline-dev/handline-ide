@@ -49,7 +49,7 @@ export type Figure = { person: Person; col: number; row: number; box: Box; z: nu
 /** `mine`: the founder's desk, with where its name goes. */
 export type Cast = {
   figures: Figure[];
-  bubbles: Box[];
+  bubbles: (Box & { key: string })[];
   spots: Spot[];
   desks: Spot[];
   names: Name[];
@@ -189,7 +189,7 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
         chair.y - 17 + tall,
         (i) => frame.meta[pic.id[i]]?.tag === tag || pic.depth[i] < near - 0.05,
       );
-      if (p.activity === 'you') cast.bubbles.push({ x: seen.x + seen.w - 8, y: seen.y - 6, w: BUBBLE_PX, h: BUBBLE_PX });
+      if (p.activity === 'you') cast.bubbles.push({ key: p.key, x: seen.x + seen.w - 8, y: seen.y - 6, w: BUBBLE_PX, h: BUBBLE_PX });
       cast.names.push({ person: p, x: chair.x + chair.w / 2, y: chair.y + chair.h + 1 });
       continue;
     }
