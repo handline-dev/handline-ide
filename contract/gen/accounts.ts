@@ -177,7 +177,7 @@ export type Outlook = {
     at: Timestamp;
     left_pct: number | null;
   }[];
-  /** A guess. Each account's week goes at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it. */
+  /** A guess. Each account's week goes at its pace since that week began. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it. */
   future: {
     at: Timestamp;
     left_pct: number | null;
@@ -216,7 +216,7 @@ export type Outlook = {
       week_left: number | null;
       line_left: number | null;
     }[];
-    /** The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day. */
+    /** The guess of `future` for this account, at the same points: the week at its pace since it began, the 5h window at its use over the last day, starting again from nothing at each reset, so its line is a saw. */
     future: {
       at: Timestamp;
       five_left: number | null;
@@ -230,6 +230,19 @@ export type Outlook = {
       /** Only on a weekly (7d) reset the samples recorded: the percent of that week left unused at the last sample before it. Absent for a 5h reset, a guessed one, or a week with no sample. */
       unused_pct?: number;
     }[];
+    /** Whether its readings carry a 5-hour figure. One with none (a verified Ultra has no 5-hour limit) has five_left null everywhere, no 5h resets and no five_runs_out_at. */
+    five_hour: boolean;
+    /** What its week is guessed to leave unused at its next reset (the one after, when the reset passed since its last reading); null when no reset is known, its last reading is older than two hours, it cannot be used now, or it ends before it. */
+    forecast: {
+      /** Its next weekly reset. */
+      at: Timestamp;
+      /** Percent of the week guessed left unused at `at`, going at its pace since the week began. */
+      unused_pct: number;
+      /** That share of its weekly plan budget (budget.accounts[].week_usd), US dollars; null for an account with no budget here (unmetered, or no longer listed). */
+      unused_usd: number | null;
+    } | null;
+    /** When its 5-hour window runs out at its use over the last day, counted on from its last reading; null when it lasts to its reset, is not in use, its reading is stale, or it has no 5-hour window. */
+    five_runs_out_at: Timestamp | null;
   }[];
   plan_cost_per_day?: PlanDayCosts;
   /** The week in plan money: each account's monthly fee turned into a weekly budget, of which its week's percent used is spent. Absent from a daemon that does not send it. */

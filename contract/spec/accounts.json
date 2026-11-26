@@ -743,7 +743,7 @@
         "left_pct"
        ]
       },
-      "description": "A guess. Each account's week goes at its use over the last day. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it."
+      "description": "A guess. Each account's week goes at its pace since that week began. A week that resets starts again from nothing used. An account whose last reading is stale or at a wall keeps that reading until its reset and is not left out. An account that cannot be used now (its login gone or expired) counts as 0 ahead. Kept apart from `past`, never joined to it."
      },
      "runway": {
       "type": "array",
@@ -957,7 +957,7 @@
            "line_left"
           ]
          },
-         "description": "The guess of `future` for this account, at the same points. The 5h window starts again from nothing at each reset, so its line is a saw; it goes at its use over the last day."
+         "description": "The guess of `future` for this account, at the same points: the week at its pace since it began, the 5h window at its use over the last day, starting again from nothing at each reset, so its line is a saw."
         },
         "resets": {
          "type": "array",
@@ -986,13 +986,69 @@
           ]
          },
          "description": "Resets in the span, oldest first: those samples recorded, then those guessed."
+        },
+        "five_hour": {
+         "type": "boolean",
+         "description": "Whether its readings carry a 5-hour figure. One with none (a verified Ultra has no 5-hour limit) has five_left null everywhere, no 5h resets and no five_runs_out_at."
+        },
+        "forecast": {
+         "oneOf": [
+          {
+           "type": "object",
+           "additionalProperties": false,
+           "properties": {
+            "at": {
+             "$ref": "#/components/schemas/Timestamp",
+             "description": "Its next weekly reset."
+            },
+            "unused_pct": {
+             "type": "number",
+             "description": "Percent of the week guessed left unused at `at`, going at its pace since the week began."
+            },
+            "unused_usd": {
+             "oneOf": [
+              {
+               "type": "number"
+              },
+              {
+               "type": "null"
+              }
+             ],
+             "description": "That share of its weekly plan budget (budget.accounts[].week_usd), US dollars; null for an account with no budget here (unmetered, or no longer listed)."
+            }
+           },
+           "required": [
+            "at",
+            "unused_pct",
+            "unused_usd"
+           ]
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "What its week is guessed to leave unused at its next reset (the one after, when the reset passed since its last reading); null when no reset is known, its last reading is older than two hours, it cannot be used now, or it ends before it."
+        },
+        "five_runs_out_at": {
+         "oneOf": [
+          {
+           "$ref": "#/components/schemas/Timestamp"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "When its 5-hour window runs out at its use over the last day, counted on from its last reading; null when it lasts to its reset, is not in use, its reading is stale, or it has no 5-hour window."
         }
        },
        "required": [
         "account",
         "past",
         "future",
-        "resets"
+        "resets",
+        "five_hour",
+        "forecast",
+        "five_runs_out_at"
        ]
       },
       "description": "Each account that has a reading in the span, by name: its windows and its pace line, for a chart per account. Absent from a daemon that does not send it."

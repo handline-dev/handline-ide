@@ -3,6 +3,7 @@ package usage
 import (
 	"encoding/json"
 	"math"
+	"strconv"
 	"testing"
 )
 
@@ -107,18 +108,94 @@ func TestThePaceCountsANewWindowFromNothingAndAResetIsListedOnce(t *testing.T) {
 	}
 }
 
-// fast spent 60 of its week in the last day, half way through it: guessed at its last day's use, it hits the wall in under a day.
-func TestTheGuessGoesAtTheLastDaysUse(t *testing.T) {
+// steady used 10 of its week in the first two and a half days and burst 30 more in the last one, half way through it. At the pace of the
+// last day it would hit the wall; at its pace since the week began it ends with about 20 unused, which the replay of past weeks favours.
+func TestABurstDayDoesNotSwingTheGuess(t *testing.T) {
 	now := int64(1_800_000_000)
 	reset := now + WeekS/2
 	var rows []sampleRow
 	for i := int64(0); i <= 24; i++ {
 		ts := now - 86400 + i*3600
-		rows = append(rows, headroomRow("fast", ts, float64(i)*2, now+2*3600, 20+float64(i)*2.5, reset))
+		rows = append(rows, headroomRow("burst", ts, 0, now+2*3600, 10+float64(i)*1.25, reset))
 	}
-	h := HeadroomKeepStale(rows, now, now-3600, reset+3600, 3600, nil, nil)
-	if p := pointAt(t, h.Accounts[0].Future, now+8*3600); !near(p.Week, 0) {
-		t.Errorf("at 2.5 an hour the week is gone in 8 hours: %v", p.Week)
+	a := HeadroomKeepStale(rows, now, now-3600, reset+3600, 3600, nil, nil).Accounts[0]
+	if f := a.Forecast; f == nil || f.At != reset || !near(&f.Unused, 20) {
+		t.Fatalf("forecast %+v", f)
+	}
+	if p := pointAt(t, a.Future, now+8*3600); !near(p.Week, 60-40.0/(WeekS/2)*8*3600) {
+		t.Errorf("eight hours on at 40 points a half week: %v", *p.Week)
+	}
+}
+
+// quiet used 10 of its week in six days: a day before its reset it is guessed to leave about 88 unused.
+func TestAWeekThatEndsUnusedReportsItsShare(t *testing.T) {
+	now := int64(1_800_000_000)
+	reset := now + 86400
+	rows := []sampleRow{headroomRow("quiet", now-3600, 0, 0, 9.9, reset), headroomRow("quiet", now, 0, 0, 10, reset)}
+	f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, nil, nil).Accounts[0].Forecast
+	if f == nil || !near(&f.Unused, 100-10-10.0/(6*86400)*86400) {
+		t.Fatalf("forecast %+v", f)
+	}
+	if f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, map[string]float64{"quiet": float64(now + 3600)}, nil).Accounts[0].Forecast; f != nil {
+		t.Errorf("an account that ends before its reset has no forecast at it: %+v", f)
+	}
+}
+
+// A reset that passed since the last reading gives the next one, a whole week at pace; a reading hours old gives none.
+func TestTheForecastIsAtTheNextResetAndNeedsAFreshReading(t *testing.T) {
+	now := int64(1_800_000_000)
+	passed := now - 600
+	rows := []sampleRow{headroomRow("p", now-3600, 0, 0, 89, passed), headroomRow("p", now-1800, 0, 0, 90, passed)}
+	f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, nil, nil).Accounts[0].Forecast
+	pace := 90.0 / float64(now-1800-(passed-WeekS))
+	if f == nil || f.At != passed+WeekS || !near(&f.Unused, 100-min(100, pace*WeekS)) {
+		t.Fatalf("forecast %+v", f)
+	}
+	stale := []sampleRow{headroomRow("s", now-5*3600, 0, 0, 30, now+86400)}
+	if f := HeadroomKeepStale(stale, now, now-3600, now+3600, 3600, nil, nil).Accounts[0].Forecast; f != nil {
+		t.Errorf("a reading five hours old has no forecast: %+v", f)
+	}
+}
+
+// ultraRow is a reading of an account with no 5-hour limit: its 5-hour window carries no figure.
+func ultraRow(a string, ts int64, week float64, weekReset int64) sampleRow {
+	return sampleRow{"account": a, "ts": json.Number(itoa(int(ts))), "windows": `[{"minutes": 300, "used_percent": null, "resets_at": null},` +
+		`{"minutes": 10080, "used_percent": ` + strconv.FormatFloat(week, 'f', -1, 64) + `, "resets_at": ` + itoa(int(weekReset)) + `}]`}
+}
+
+// An account with no 5-hour window has its week and its forecast, and no 5-hour figure anywhere; one with a window learns when it runs
+// out at its pace over the last day, or that it lasts to its reset.
+func TestTheFiveHourWindowRunsOutOrHasNoFigures(t *testing.T) {
+	now := int64(1_800_000_000)
+	reset := now + 3*86400
+	rows := []sampleRow{ultraRow("ultra", now-3600, 4, reset), ultraRow("ultra", now, 5, reset),
+		headroomRow("soon", now-2*3600, 30, now+6*3600, 10, reset), headroomRow("soon", now, 50, now+6*3600, 12, reset),
+		headroomRow("lasts", now-2*3600, 30, now+3*3600, 10, reset), headroomRow("lasts", now, 50, now+3*3600, 12, reset)}
+	h := HeadroomKeepStale(rows, now, now-3600, now+3600, 1800, nil, nil)
+	by := map[string]AccountHeadroom{}
+	for _, a := range h.Accounts {
+		by[a.Account] = a
+	}
+	u := by["ultra"]
+	if u.HasFive || u.FiveRunsOut != nil || u.Forecast == nil || len(u.Past) == 0 || len(u.Future) == 0 {
+		t.Fatalf("ultra: %+v", u)
+	}
+	for _, p := range append(u.Past, u.Future...) {
+		if p.Five != nil || (p.At <= now && p.At >= now-3600 && p.Week == nil) {
+			t.Fatalf("ultra at %d: five %v week %v", p.At, p.Five, p.Week)
+		}
+	}
+	for _, r := range u.Resets {
+		if r.Window == "5h" {
+			t.Fatalf("ultra has no 5-hour resets: %+v", u.Resets)
+		}
+	}
+	// 20 points in two hours: the other 50 take five more.
+	if s := by["soon"]; !s.HasFive || s.FiveRunsOut == nil || *s.FiveRunsOut != now+5*3600 {
+		t.Errorf("soon runs out in five hours: %v", s.FiveRunsOut)
+	}
+	if l := by["lasts"]; l.FiveRunsOut != nil {
+		t.Errorf("lasts resets first: %v", *l.FiveRunsOut)
 	}
 }
 

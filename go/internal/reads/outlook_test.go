@@ -107,6 +107,7 @@ func TestOutlookFutureIsTheAccountsWeekAveraged(t *testing.T) {
 	b := flatWeeks(t, e, clock)
 	var out struct {
 		Future []struct {
+			At       time.Time
 			Left_pct *float64
 		}
 		By_account []struct {
@@ -119,15 +120,23 @@ func TestOutlookFutureIsTheAccountsWeekAveraged(t *testing.T) {
 	if len(out.Future) == 0 || len(out.By_account) != 2 {
 		t.Fatalf("%s", b)
 	}
+	// Each week reset three days on, so it began four days back; its last reading, half an hour ago, sets its pace since then.
+	now := clock.Unix()
+	began := float64(now - 1800 - (now + 3*86400 - 7*86400))
+	dt := out.Future[0].At.Unix() - now
+	want := (100 - 20 - 20/began*float64(dt) + 100 - 60 - 60/began*float64(dt)) / 2
+	if math.Abs(*out.Future[0].Left_pct-want) > 0.01 {
+		t.Fatalf("the first guess is %v, want %v", *out.Future[0].Left_pct, want)
+	}
 	for i, p := range out.Future {
 		wa, wb := out.By_account[0].Future[i].Week_left, out.By_account[1].Future[i].Week_left
-		if p.Left_pct == nil || wa == nil || wb == nil || math.Abs(*p.Left_pct-(*wa+*wb)/2) > 0.01 || math.Abs(*p.Left_pct-60) > 0.01 {
+		if p.Left_pct == nil || wa == nil || wb == nil || math.Abs(*p.Left_pct-(*wa+*wb)/2) > 0.01 || *p.Left_pct > 60 {
 			t.Fatalf("point %d is not the accounts' week averaged: %s", i, b)
 		}
 	}
 }
 
-// An account that cannot be used now counts as nothing left ahead: a at 80 left and b out, 40, where both in are 60.
+// An account that cannot be used now counts as nothing left ahead: a's guess and b out average to half of a's.
 func TestOutlookCountsALoggedOutAccountAsNothingLeftAhead(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
@@ -138,13 +147,18 @@ func TestOutlookCountsALoggedOutAccountAsNothingLeftAhead(t *testing.T) {
 		Future []struct {
 			Left_pct *float64
 		}
+		By_account []struct {
+			Future []struct {
+				Week_left *float64
+			}
+		}
 	}
 	json.Unmarshal(b, &out)
 	if len(out.Future) == 0 {
 		t.Fatalf("%s", b)
 	}
 	for i, p := range out.Future {
-		if p.Left_pct == nil || math.Abs(*p.Left_pct-40) > 0.01 {
+		if wa := out.By_account[0].Future[i].Week_left; p.Left_pct == nil || wa == nil || math.Abs(*p.Left_pct-*wa/2) > 0.01 || *p.Left_pct > 40 {
 			t.Fatalf("point %d is not a's 80 and b's nothing averaged: %s", i, b)
 		}
 	}
@@ -200,6 +214,7 @@ func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
 			`{"minutes": 10080, "used_percent": %d, "resets_at": %d}]}`, clock.Unix(), five, map[string]int{"a": 30, "b": 20}[acct], clock.Unix()+86400)), 0o644)
 	}
 	run(t, e, "UPDATE accounts SET plan_fee = 26 WHERE name = 'a'")
+	e.LoginState = func(string) (bool, bool) { return true, true }
 	got, err := e.outlookAt("24h", 24, clock, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -218,6 +233,13 @@ func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
 	day := res["plan_cost_per_day"].([]any)[0].(map[string]any)["agents"].(map[string]any)
 	if day["grp.one"] != 3.2077 || day["grp.two"] != 0.3 {
 		t.Fatalf("a's 20 points are $1.20, b's 10 are $2.3077: %v", day)
+	}
+	// a's readings carry no 5-hour window: it has no 5-hour figures, and its forecast's unused share is priced at its $6 week.
+	ba := res["by_account"].([]any)[0].(map[string]any)
+	f, _ := ba["forecast"].(map[string]any)
+	if ba["account"] != "a" || ba["five_hour"] != false || ba["five_runs_out_at"] != nil || f == nil ||
+		math.Abs(f["unused_usd"].(float64)-f["unused_pct"].(float64)*0.06) > 0.01 || ba["future"].([]any)[0].(map[string]any)["five_left"] != nil {
+		t.Fatalf("a's forecast: %v", ba)
 	}
 	uses := res["agent_use"].([]any)
 	if uses[0].(map[string]any)["plan_cost"] != 3.2077 || uses[1].(map[string]any)["plan_cost"] != 0.3 {

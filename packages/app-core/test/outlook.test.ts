@@ -23,7 +23,9 @@ describe('guessLine', () => {
 });
 
 const w = (at: string, week_left: number | null) => ({ at, five_left: null, week_left, line_left: null });
+const fresh = { five_hour: true, forecast: null, five_runs_out_at: null };
 const by = {
+  ...fresh,
   account: 'alpha',
   past: [w('2026-10-26T10:00:00Z', 60), w('2026-10-26T11:00:00Z', 55)],
   future: [w('2026-10-26T12:00:00Z', 50), w('2026-10-26T14:00:00Z', 40), w('2026-10-26T16:00:00Z', 30)],
@@ -47,6 +49,7 @@ describe('weekResets', () => {
 describe('lostByAccount', () => {
   it("is each account's own guess just before its next weekly reset, and the last reset's account is the bar's", () => {
     const beta = {
+      ...fresh,
       account: 'beta',
       past: [],
       future: [w('2026-10-26T13:00:00Z', 70), w('2026-10-26T19:00:00Z', 65)],

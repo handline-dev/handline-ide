@@ -170,7 +170,6 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	rows := usage.SamplesFrom(all, now-span-usage.OutlookMaxAgeS)
 	ends, outSince := e.accountEnds(cfg, rows, clock)
 	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince)
-	byAccount, future := outlookByAccount(all, now, hours, ends, outSince)
 	loads, err := ue.ReadAll(e.DB, "")
 	if err != nil {
 		return nil, err
@@ -195,6 +194,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 		}
 		runway = append(runway, map[string]any{"account": a, "runs_out_in_seconds": runs, "week_resets_at": resets})
 	}
+	byAccount, future := outlookByAccount(all, now, hours, ends, outSince, weekUSD)
 	c, err := usage.CallCosts(e.DB, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), all, weekUSD)
 	if err != nil {
 		return nil, err
@@ -243,9 +243,9 @@ func budgetOf(bs []usage.AccountBudget) map[string]any {
 		"left_usd": round(t.WeekUSD-t.SpentUSD, 2), "left_pct": leftPct}
 }
 
-// outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged, each going as usage.Paced does.
-// rows are the samples from at least a day back.
-func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince map[string]float64) ([]any, []usage.OutlookPoint) {
+// outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged, each going as
+// usage.HeadroomKeepStale does. rows are the samples from at least a day back; weekUSD is each account's weekly plan budget.
+func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, weekUSD map[string]float64) ([]any, []usage.OutlookPoint) {
 	span := int64(hours) * 3600
 	h := usage.HeadroomKeepStale(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince)
 	byAccount := []any{}
@@ -255,8 +255,19 @@ func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince m
 		for _, r := range a.Resets {
 			resets = append(resets, map[string]any{"at": ts(r.At), "window": r.Window})
 		}
+		var forecast, runsOut any
+		if f := a.Forecast; f != nil {
+			var usd any
+			if week, ok := weekUSD[a.Account]; ok {
+				usd = round(f.Unused/100*week, 2)
+			}
+			forecast = map[string]any{"at": ts(f.At), "unused_pct": round(f.Unused, 2), "unused_usd": usd}
+		}
+		if a.FiveRunsOut != nil {
+			runsOut = ts(*a.FiveRunsOut)
+		}
 		byAccount = append(byAccount, map[string]any{"account": a.Account, "past": headroomWindows(a.Past, true), "future": headroomWindows(a.Future, true),
-			"resets": resets})
+			"resets": resets, "five_hour": a.HasFive, "forecast": forecast, "five_runs_out_at": runsOut})
 		for i, p := range a.Future {
 			if len(future) <= i {
 				future = append(future, usage.OutlookPoint{At: p.At})

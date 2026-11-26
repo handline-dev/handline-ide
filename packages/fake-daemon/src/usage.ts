@@ -31,7 +31,7 @@ function fiveResets(from: number, to: number): { at: Timestamp; window: '5h' }[]
   return out;
 }
 
-/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. */
+/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in two hours, as its runway says, and its week reset is not known. */
 function byAccount(past: Outlook['past'], future: Outlook['future'], now: number, head: number): Outlook['by_account'] {
   const points = (pts: Outlook['past'], d: number, five?: [number, number]) =>
     pts.map((p) => ({
@@ -47,13 +47,24 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
       account: 'alpha',
       past: points(past, 5, [10, 80]),
       future: points(future, 5),
+      five_hour: true,
+      forecast: { at: new Date(reset).toISOString(), unused_pct: 12, unused_usd: 5.54 },
+      five_runs_out_at: null,
       resets: [
         ...fiveResets(now - head, now),
         { at: new Date(now - head / 2).toISOString(), window: '7d' as const },
         ...(reset <= now + head ? [{ at: new Date(reset).toISOString(), window: '7d' as const }] : []),
       ].sort(byTime),
     },
-    { account: 'beta', past: points(past, -5, [0, 35]), future: points(future, -5), resets: fiveResets(now - head, now) },
+    {
+      account: 'beta',
+      past: points(past, -5, [0, 35]),
+      future: points(future, -5),
+      resets: fiveResets(now - head, now),
+      five_hour: true,
+      forecast: null,
+      five_runs_out_at: new Date(now + 2 * HOUR).toISOString(),
+    },
   ];
 }
 /** [agent, account, tokens, list-price cost]: the architect and auditor share alpha with the founder's own sessions (agent ''), the auditor also used beta, which the architect moved to. */
