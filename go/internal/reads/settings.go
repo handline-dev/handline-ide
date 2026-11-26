@@ -132,6 +132,7 @@ func (e *Env) settingsValues() map[string]any {
 		settings.BlockerAlarmHoldKey:   s.ConfigSeconds(settings.BlockerAlarmHoldKey, settings.BlockerAlarmHoldS),
 		settings.BlockerAlarmOpenerKey: s.ConfigSeconds(settings.BlockerAlarmOpenerKey, settings.BlockerAlarmOpenerS),
 		settings.ReviewFlowKey:         s.ReviewFlow(),
+		team.LandedDeadlineKey:         team.LandedDeadline(e.Home),
 		handoff.PromptKey:              handoffPrompt(s.TextSetting("", handoff.PromptKey)),
 		// Whether each notifications event raises a notice on the founder's devices; the event is on the topic either way.
 		"push_prompt_asked": s.Flag("push_prompt_asked", true), "push_task_done": s.Flag("push_task_done", true),

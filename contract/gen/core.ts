@@ -390,6 +390,8 @@ export type SettingsValues = {
   blocker_alarm_s?: number;
   /** Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved. */
   blocker_alarm_opener_s?: number;
+  /** Seconds a gate that waits for a pull request to land (watch until landed) watches when no time box is given, before it opens as timed out and its task goes back to its holder: a week, where any other gate's is a day, since a review can take days. */
+  landed_deadline_s?: number;
   /** How many times a task of a request may be sent back (reopened) before the request shows attention bounced. */
   attention_sent_back?: number;
   /** Seconds a request's open tree may go with no activity before it shows attention quiet. */
@@ -502,6 +504,8 @@ export type SettingsChanges = {
   blocker_alarm_s?: number | null;
   /** Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved. null removes the key (back to the default). */
   blocker_alarm_opener_s?: number | null;
+  /** Seconds a gate that waits for a pull request to land (watch until landed) watches when no time box is given, before it opens as timed out and its task goes back to its holder. null removes the key (back to the default, a week). */
+  landed_deadline_s?: number | null;
   /** How many times a task of a request may be sent back (reopened) before the request shows attention bounced. null removes the key (back to the default). */
   attention_sent_back?: number | null;
   /** Seconds a request's open tree may go with no activity before it shows attention quiet. null removes the key (back to the default). */

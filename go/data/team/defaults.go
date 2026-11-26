@@ -63,6 +63,29 @@ func ReviewFlow(home string) bool {
 	return on
 }
 
+// LandedDeadlineKey is how long, in seconds, a gate that waits for a pull request to land watches when no time box is given. A pull
+// request can wait days for a review, and a gate that timed out every day would bring its task back to its holder each time, to no
+// use; so its own default is a week, where any other gate's is a day.
+const (
+	LandedDeadlineKey = "landed_deadline_s"
+	LandedDeadlineS   = 7 * 24 * 3600
+)
+
+// LandedDeadline is home's landed_deadline_s: a whole number of seconds above zero, else LandedDeadlineS.
+func LandedDeadline(home string) int64 {
+	switch n := config(home)[LandedDeadlineKey].(type) {
+	case int64:
+		if n > 0 {
+			return n
+		}
+	case int:
+		if n > 0 {
+			return int64(n)
+		}
+	}
+	return LandedDeadlineS
+}
+
 // config is home's config.yaml, nil when it cannot be read.
 func config(home string) map[string]any {
 	b, err := os.ReadFile(paths.ConfigFile(home))

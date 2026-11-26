@@ -141,7 +141,7 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 			return nil, err
 		}
 		if watched != nil && secs == 0 {
-			secs = db.GateDeadlineS
+			secs = gateDeadline(home, watched)
 		}
 		reporter := ""
 		if p["reporter"] != nil {

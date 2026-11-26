@@ -162,6 +162,23 @@ func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {
 	if r.setting("alice", "account_split") != "" {
 		t.Fatal("null clears the agent's own")
 	}
+	// how long a gate waits for a pull request to land: a whole number of seconds, at least 1, for the whole home
+	r.result(r.one("settings.set", `{"changes":{"landed_deadline_s":172800},"request_id":"t10"}`))
+	if !strings.Contains(r.file("config.yaml"), "landed_deadline_s: 172800") || team.LandedDeadline(r.home) != 172800 {
+		t.Fatalf("landed_deadline_s: %q", r.file("config.yaml"))
+	}
+	for i, bad := range []string{`{"landed_deadline_s":0}`, `{"landed_deadline_s":"7d"}`} {
+		if r.code(r.one("settings.set", fmt.Sprintf(`{"changes":%s,"request_id":"t11-%d"}`, bad, i))) != "bad_request" {
+			t.Fatalf("%s was taken", bad)
+		}
+	}
+	if r.code(r.one("settings.set", `{"changes":{"landed_deadline_s":3600},"agent":"alice","request_id":"t12"}`)) != "bad_request" {
+		t.Fatal("landed_deadline_s has no per-agent value")
+	}
+	r.result(r.one("settings.set", `{"changes":{"landed_deadline_s":null},"request_id":"t13"}`))
+	if team.LandedDeadline(r.home) != team.LandedDeadlineS {
+		t.Fatal("null puts the week back")
+	}
 }
 
 func TestTheLoadLimitsAreWholeNumbersForTheWholeMachine(t *testing.T) {

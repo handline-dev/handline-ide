@@ -99,6 +99,7 @@ agent" can also be set on one agent's row (the app's agent settings), which then
 | `host_active_cap`, `load_per_core_pct`, `ram_free_min_pct` | 0 (off) | Machine limits on a new session: agents mid-turn, 1-minute load per core, free memory. |
 | `disk_free_min_gb` | 0 | Free disk under which the founder is warned; 0 warns at 10 GB. |
 | `review_flow` | off | A finished task that serves the founder is Ready for their look (see Review below). |
+| `landed_deadline_s` | 604800 | How long a gate that waits for a pull request to land (`hl task wait --until landed`) watches when no time box is given, before it times out and its task goes back to its holder. A week, where any other gate's is a day: a review can take days. Not in the Settings page: set it in `config.yaml` or with `settings.set`. |
 | `disk_keep_free_gb`, `agents_memory_max_gb` | 0 (off) | Under this much free disk the free desks are removed, oldest first; over this much agent memory the longest-idle sessions close. |
 | `port_range` | unset | Ports `hl use port` picks from, as `4000-4999` (1024 to 65535), given to the command as `$HL_PORT`; asks wait when all are held. Unset, any free port and none waits. |
 | `<kind>_max_hold_min` | 30 for a shared run, 0 otherwise | Minutes a lease of the kind may be held while the kind has a limit. At 80% the holder is told; past it, the lease is taken back once someone asks. `hl use --extend` adds a period. Set in `config.yaml` only. |

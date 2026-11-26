@@ -28,6 +28,7 @@ export const DEFAULTS: Settings['values'] = {
   screencapture_via_handline: false,
   agent_placement: 'auto',
   review_flow: false,
+  landed_deadline_s: 604800,
   pace_target_pct: 98,
   pace_burst_pct: 10,
   host_active_cap: 0,

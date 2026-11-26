@@ -26,6 +26,7 @@ const KEYS = [
   'screencapture_via_handline',
   'agent_placement',
   'review_flow',
+  'landed_deadline_s',
   'pace_target_pct',
   'pace_burst_pct',
   'host_active_cap',
@@ -63,6 +64,12 @@ test('settings.get serves every SettingsValues key, a load limit reads back, and
   assert.deepEqual([set.values.load_per_core_pct, set.values.push_stall], [200, false]);
   await client.call('settings.set', { changes: { load_per_core_pct: null }, request_id: 'l1-b' });
   assert.equal((await client.call('settings.get', {})).values.load_per_core_pct, 0);
+  // how long a gate waits for a pull request to land: a week, until it is set
+  assert.equal(first.values.landed_deadline_s, 604800);
+  await client.call('settings.set', { changes: { landed_deadline_s: 172800 }, request_id: 'l1-f' });
+  assert.equal((await client.call('settings.get', {})).values.landed_deadline_s, 172800);
+  await client.call('settings.set', { changes: { landed_deadline_s: null }, request_id: 'l1-g' });
+  assert.equal((await client.call('settings.get', {})).values.landed_deadline_s, 604800);
   assert.deepEqual([first.values.keep_awake], ['off']);
   await assert.rejects(
     client.call('settings.set', { changes: { keep_awake: 'always' as never }, request_id: 'l1-d' }),

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/watch"
 )
@@ -23,12 +24,12 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		if err != nil {
 			return nil, err
 		}
-		if secs == 0 {
-			secs = db.GateDeadlineS
-		}
 		w, err := parseWatch(p["watch"])
 		if err != nil {
 			return nil, err
+		}
+		if secs == 0 {
+			secs = gateDeadline(home, w)
 		}
 		title := fmt.Sprintf("T%d waits on %s", tid, w.Label)
 		if p["then"] != nil {
@@ -99,6 +100,16 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		}
 		return out, err
 	}
+}
+
+// gateDeadline is a gate's time box when none is given: a day, or for a pull request waited on until it lands the founder's
+// landed_deadline_s (a week unless set), since a review can take days and a gate that timed out daily would bring its task back each
+// time to no use.
+func gateDeadline(home string, w *db.Watch) int64 {
+	if watch.Lands(*w) {
+		return team.LandedDeadline(home)
+	}
+	return db.GateDeadlineS
 }
 
 // waitRefusal is why task tid cannot wait, "" when it can: it must be there and open.

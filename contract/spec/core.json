@@ -2134,6 +2134,12 @@
       "default": 14400,
       "description": "Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved."
      },
+     "landed_deadline_s": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 604800,
+      "description": "Seconds a gate that waits for a pull request to land (watch until landed) watches when no time box is given, before it opens as timed out and its task goes back to its holder: a week, where any other gate's is a day, since a review can take days."
+     },
      "attention_sent_back": {
       "type": "integer",
       "minimum": 1,
@@ -2566,6 +2572,18 @@
        }
       ],
       "description": "Seconds the first open task waiting on a queued task may wait before the queued task's opener is told (blocker_alarm); the founder hears when no agent opened it, or an hour later if it has not moved. null removes the key (back to the default)."
+     },
+     "landed_deadline_s": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Seconds a gate that waits for a pull request to land (watch until landed) watches when no time box is given, before it opens as timed out and its task goes back to its holder. null removes the key (back to the default, a week)."
      },
      "attention_sent_back": {
       "oneOf": [

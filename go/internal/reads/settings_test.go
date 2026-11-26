@@ -145,6 +145,27 @@ func TestNoticesPlayASoundAndShowInFrontByDefault(t *testing.T) {
 	}
 }
 
+// How long a gate waits for a pull request to land is shown as it stands: a week until config.yaml says otherwise.
+func TestTheLandedDeadlineIsShownAsAWeekUntilItIsSet(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	value := func() any {
+		t.Helper()
+		out, err := e.settingsGet(nil, map[string]any{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out.(map[string]any)["values"].(map[string]any)["landed_deadline_s"]
+	}
+	if value() != int64(604800) {
+		t.Fatalf("default: %v", value())
+	}
+	os.WriteFile(paths.ConfigFile(e.Home), []byte("landed_deadline_s: 172800\n"), 0o644)
+	if value() != int64(172800) {
+		t.Fatalf("set: %v", value())
+	}
+}
+
 func TestEveryNotificationKindPushesUntilTheFounderTurnsItOff(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
