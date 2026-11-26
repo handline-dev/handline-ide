@@ -1,4 +1,4 @@
-// pickFolder (docs/electron-bridge.md §4.8): the system's folder chooser, for the first-run step that picks the folder to work in.
+// pickFolder (docs/electron-bridge.md): the system's folder chooser, for the first-run step that picks the folder to work in.
 import type { BrowserWindow, Dialog } from 'electron';
 import type { Fail } from '@handline/app-core';
 import { CHANNELS, fromWindow, type Sender } from '#src/bridge.ts';

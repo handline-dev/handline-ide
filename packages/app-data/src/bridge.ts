@@ -1,4 +1,4 @@
-// The event bridge: what each pushed event does to the cache (docs/turborepo-layout.md §8.4). The daemon's event is the truth and
+// The event bridge: what each pushed event does to the cache. The daemon's event is the truth and
 // always wins over an optimistic value, so every rule here replaces by identity and never merges a guess.
 import type { QueryClient } from '@tanstack/react-query';
 import type {

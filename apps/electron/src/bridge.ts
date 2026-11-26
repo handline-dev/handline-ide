@@ -1,4 +1,4 @@
-// The shell's side of window.handline (docs/electron-bridge.md §2, §3): what the page last said, and the check each call passes.
+// The shell's side of window.handline (docs/electron-bridge.md): what the page last said, and the check each call passes.
 // Electron's own objects are injected, so this runs under node.
 import { PAGE_SETTINGS, type Fail, type ShellCluster, type ShellDaemon } from '@handline/app-core';
 import type { Methods } from '@handline/client';

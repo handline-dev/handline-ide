@@ -1,5 +1,5 @@
-// Package turns says whether a terminal agent is mid-turn from its session's hooks and transcript, not its screen
-// (docs/screen-reading-inventory.md §3 and §4). UserPromptSubmit opens a turn; Stop or StopFailure closes it. Esc fires no hook, so an
+// Package turns says whether a terminal agent is mid-turn from its session's hooks and transcript, not its screen.
+// UserPromptSubmit opens a turn; Stop or StopFailure closes it. Esc fires no hook, so an
 // open turn's transcript is watched for the entry Claude Code writes on an interrupt, and a CLI killed hard is seen by its process
 // exiting. Where no event has said, the turn is Unknown and the caller reads the screen: before a first prompt, after a daemon
 // restart until the next hook, and background work after an Esc until the next Stop.

@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { setup } from '#src/helpers.ts';
 
 const ARCH = 'handline.architect';
-const PATH = 'docs/pc-app-gaps.md';
+const PATH = 'docs/notes.md';
 
 test('file.read gives the text with an etag, and file.write takes it back and gives the next', async () => {
   const { client } = setup();
   await client.start();
   const r = await client.call('file.read', { agent: ARCH, path: PATH });
-  assert.match(r.text, /^# PC app gaps/);
+  assert.match(r.text, /^# Notes/);
   assert.equal(r.truncated, false);
   const w = await client.call('file.write', { agent: ARCH, path: PATH, text: 'new', etag: r.etag, request_id: 'op-w1' });
   assert.notEqual(w.etag, r.etag);

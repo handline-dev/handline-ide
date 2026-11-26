@@ -1,5 +1,4 @@
-// An agent's terminal on the `bytes` channel: xterm.js draws the host's own escape codes, colour and cursor included. Moved from the
-// legacy web (BytesTab); see docs/terminal-pane.md.
+// An agent's terminal on the `bytes` channel: xterm.js draws the host's own escape codes, colour and cursor included.
 import { useEffect, useRef, useState } from 'react';
 import { paneKey, type AgentDetail, type ByteListener, type ByteTerminalView, type ByteViewState } from '@handline/client';
 import { useStore } from '@handline/app-react';

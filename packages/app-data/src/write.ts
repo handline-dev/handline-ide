@@ -1,4 +1,4 @@
-// `useWrite`: the one door every UI write goes through (docs/turborepo-layout.md §8.5). An authored write edits the cache first and puts
+// `useWrite`: the one door every UI write goes through. An authored write edits the cache first and puts
 // it back if the daemon refuses; a decided write leaves the cache alone and is shown by its pending mark.
 import { useCallback, useRef } from 'react';
 import { useMutation, useMutationState, useQueryClient, type QueryClient } from '@tanstack/react-query';

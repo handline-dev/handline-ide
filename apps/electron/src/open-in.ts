@@ -1,4 +1,4 @@
-// openIn and openInApps (docs/electron-bridge.md §4.6): the agent's folder in VS Code or Terminal, or its Claude Code session in Terminal.
+// openIn and openInApps (docs/electron-bridge.md): the agent's folder in VS Code or Terminal, or its Claude Code session in Terminal.
 // The page names an app by key and an agent by name; the folder and the tmux command come from the daemon on the shell's own connection.
 // Only /usr/bin/open runs, with an argument array and no shell, so nothing the page or an agent writes is read as a command.
 import fs from 'node:fs/promises';

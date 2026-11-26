@@ -1,4 +1,4 @@
-// A daemon error, sorted once into what a view should do about it (docs/turborepo-layout.md §8.3).
+// A daemon error, sorted once into what a view should do about it.
 import { heldFromData, type HeldWorktree } from '@handline/app-core';
 import { RpcError } from '@handline/client';
 

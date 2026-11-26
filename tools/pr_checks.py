@@ -22,8 +22,8 @@ import localrefs  # noqa: E402
 
 MAX_COMMENT_LINES = 6
 MAX_BINARY_BYTES = 1 << 20
-# Screenshots the phone's e2e flows keep, the apps' own icons and fonts, and the TUI catalog's images. Images for a review go on the task.
-ASSET_PATHS = ("apps/mobile/shots/", "apps/mobile/assets/", "apps/web/public/", "apps/electron/assets/", "docs/tui-catalog/img/")
+# Screenshots the phone's e2e flows keep, the apps' own icons and fonts. Images for a review go on the task.
+ASSET_PATHS = ("apps/mobile/shots/", "apps/mobile/assets/", "apps/web/public/", "apps/electron/assets/")
 MEDIA = re.compile(r"\.(png|jpe?g|gif|webp|bmp|tiff?|heic|ico|icns|svg|mp4|mov|webm|ttf|otf|woff2?)$", re.I)
 SCRATCH = re.compile(r"(^|/)(scratch|tmp|\.claude)/|(^|/)\.DS_Store$|\.(orig|rej|bak|swp|log)$|~$")
 GENERATED = ("contract/protocol.ts", "contract/protocol.md", "contract/gen/")

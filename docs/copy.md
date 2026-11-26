@@ -21,7 +21,7 @@ daemon sends it for the app to show.
    | Word        | Means                                                                                           | Not                                      |
    | ----------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------- |
    | working     | the agent is mid-turn                                                                           | running, active, busy                    |
-   | needs you   | it waits for your answer; listed in **My turn**                                                 | waiting on you, needs, waiting for a yes |
+   | needs you   | it waits for your answer; listed in **Your turn**                                               | waiting on you, needs, waiting for a yes |
    | held        | Handline holds it back on purpose (machine load, another agent's turn) and lets it go by itself | paused                                   |
    | waiting     | it waits on another task or a time it will reach by itself                                      | parked, sleeping, queued                 |
    | blocked     | it cannot go on until someone fixes something                                                   | stuck, stalled, failed                   |

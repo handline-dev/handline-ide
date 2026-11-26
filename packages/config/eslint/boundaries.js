@@ -24,7 +24,7 @@ export const RELATIVE_CALL = {
   message: RELATIVE.message,
 };
 
-/** What the folder at `where` (relative to the repo root) may not import, from docs/turborepo-layout.md. */
+/** What the folder at `where` (relative to the repo root) may not import (packages/README.md). */
 function restrictions(where) {
   const [top, name] = where.split(path.sep);
   if (top === 'apps')

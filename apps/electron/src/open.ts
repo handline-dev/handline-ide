@@ -1,4 +1,4 @@
-// openPath (docs/electron-bridge.md §4.1): a path from a message opens in the default app, or is revealed when it is something that runs.
+// openPath (docs/electron-bridge.md): a path from a message opens in the default app, or is revealed when it is something that runs.
 // Electron's openers and the worktree lookup are injected, so this runs under node. Nothing here runs a shell.
 import fs from 'node:fs/promises';
 import os from 'node:os';

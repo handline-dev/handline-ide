@@ -1,4 +1,4 @@
-// compose (docs/electron-bridge.md §4.2): the text goes to a temp file, the person's editor opens it, the file is read back when the editor exits.
+// compose (docs/electron-bridge.md): the text goes to a temp file, the person's editor opens it, the file is read back when the editor exits.
 // The editor string is parsed here, never given to a shell; the child leads its own process group so a cancel or a quit kills all of it.
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs/promises';

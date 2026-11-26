@@ -19,7 +19,7 @@ export interface Patch {
 }
 
 /**
- * A write as the hooks use it: the spec's kind and label (x-app-write) and its patch (docs/turborepo-layout.md §8.5).
+ * A write as the hooks use it: the spec's kind and label (x-app-write) and its patch.
  * - authored: the person's own data. The cache is edited at once and put back if the daemon refuses.
  * - decided: state only the daemon decides. The cache is not touched; the view shows a pending mark.
  * - uncached: a stream write (terminal input); the stream is the answer.

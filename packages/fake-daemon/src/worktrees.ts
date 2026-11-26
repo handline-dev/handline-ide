@@ -109,7 +109,7 @@ const seed = (): Worktree[] => {
       file('apps/web/src/route.ts', 'M', 6, 1),
       file('docs/old.md', 'D', 0, 30),
     ],
-    'handline.architect': [file('docs/pc-app-gaps.md', 'M', 40, 12)],
+    'handline.architect': [file('docs/notes.md', 'M', 40, 12)],
     'handline.auditor': [],
   };
   const rows: Worktree[] = AGENTS.map((a) => ({
@@ -197,7 +197,7 @@ export class FakeWorktrees {
   /** The files file.read serves, by `agent:path`; file.write changes them. */
   files = new Map<string, { text: string; mtime: string }>([
     ['handline.architect:docs/big.md', { text: 'a'.repeat((1 << 20) + 10), mtime: '2026-10-17T09:00:00Z' }],
-    ['handline.architect:docs/pc-app-gaps.md', { text: '# PC app gaps\n\n- the File tab\n', mtime: '2026-10-17T09:00:00Z' }],
+    ['handline.architect:docs/notes.md', { text: '# Notes\n\n- the File tab\n', mtime: '2026-10-17T09:00:00Z' }],
   ]);
 
   /** What files.list sees of each agent's worktree: git's tracked and untracked files, the ignored ones already left out. */

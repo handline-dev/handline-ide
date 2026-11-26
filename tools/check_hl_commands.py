@@ -14,9 +14,9 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HISTORY = {
     "agent-state-elsewhere", "contract-requests", "daemon-plan", "direct-writers", "hook-probes", "improvement-round",
-    "lint-and-file-size", "memory-design", "pc-app-gaps", "phase0-findings",
-    "python-daemon-removal", "screen-reading-inventory", "structured-switch", "terminal-pane", "turborepo-layout",
-    "vendor-extension-decisions", "watch-vendors", "web-main-view", "web-ui-design",
+    "lint-and-file-size", "memory-design", "phase0-findings",
+    "python-daemon-removal", "structured-switch",
+    "vendor-extension-decisions", "watch-vendors",
 }  # plus every story*: research and design written before the command existed
 REF = re.compile(r"(?<![\w/.-])hl ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?")
 

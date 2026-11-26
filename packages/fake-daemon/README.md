@@ -12,31 +12,10 @@ The pairing is kept, so later launches need no link. Run Metro without `CI=1`, o
 
 ## Seeds
 
-The first-load fixtures leave out some states a UI check needs. Switch them on by name; `all` switches on every one.
-A name that does not exist is an error.
-
-| Seed | What it adds |
-|---|---|
-| `inbox-terminal` | An inbox card for `handline.auditor` with `fix: open_terminal`. |
-| `proposals` | Four proposals: add `handline.new-builder` (team `handline`, model `sonnet`), a setting change `model: sonnet -> opus`, a retire to reject, and a command to run (`run`). |
-| `tasks-200` | 200 tasks, T6000 to T6199, in every state. |
-| `agent-held` | `handline.architect` waits on the machine load (`status.reason` load): its chat shows the line and Start now, and `agent.force_start` ends it. |
-| `agent-blocked` | `handline.architect` waits on T1684 (`status.reason` task): its chat shows the blocked-by card with the task as a link. |
-| `background` | `handline.auditor` at its prompt with a shell, a monitor and two subagents running behind it, and two servers it listens on. |
-| `founder-turn` | What waits on the founder (a decision, a question, a daemon warning): Requests' first section and the bell. |
-| `paused` | This machine is paused and holds T8642 from `handline.auditor`: its chat ends in the pause card; `daemon.resume` and `task.send_now` are served. |
-| `starting` | `handline.auditor` is starting a session for its work: its chat foot says "Starting in a moment" with the waking mark. |
-| `alongside` | `handline.architect` with two tasks done beside its own by its seats `a7` (T9460, running) and `a8` (T9458, done): start and end lines in its chat; `a7` has its record of T9460. |
-| `pictures` | T9302 with a comment of five pasted pictures, on one line and on lines of their own: one row that wraps. |
-| `agent-usage` | `handline.architect` hit the session limit (`needs_you` kind usage): its chat shows the needs-you card. |
-| `proposal-apply-failed` | An approved proposal for `handline.architect` that did not apply, with the daemon's raw error: the chat card shows one line and the words behind Details. |
-| `proposal-followup` | Two approved proposals whose change is applied but whose agent did not start: `handline.architect` waits for the load (`follow_up.state` waiting), `handline.auditor` failed. `agent.force_start` ends the architect's. |
-| `chat-actions` | A message from `handline.architect` with OK / No actions on an open task the founder owns (T6902). |
-| `bash` | ! lines on `handline.architect`: with output, cut output, stderr, no output, lost, typed at the terminal, still running (T8684). |
-| `chat-long` | 120 messages with `handline.architect` (four pages), every seventh with a picture. |
-| `story` | T9400, a story the founder worked out with `handline.architect` in its comments, and five drafts under it (T9401-T9405), each waiting on the one it starts after: one plan OK, two to read (T9402 in its second version), one being written, one whose plan put a question to the founder. <!-- local-ref-ok --> |
-| `story-review` | T9410, a story whose sub-tasks were run: T9411 Ready for you (the founder's turn on its result comment, which carries before and after pictures and a playable video with its poster), and T9412 working again after one Redo. `task.ok` and `task.redo` answer a Ready one. <!-- local-ref-ok --> |
-| `account-stalled` | The account `beta` stalled (`billing_error`): the Usage list shows STALLED and its reason, and `account.wake` ends it. |
+The first-load fixtures leave out some states a UI check needs. Switch them on by name; `all` switches on every one except
+those in `BY_NAME`, which differ from the rest (another cluster, a Mac without git) and come only by name. A name that does
+not exist is an error. The names and what each adds are the commented entries of `SEEDS` in `src/seeds.ts` and the
+`src/seeds-*.ts` files it joins.
 
 Switch on:
 

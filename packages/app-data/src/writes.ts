@@ -1,4 +1,4 @@
-// Every write method of the contract, once, with its kind and what it does to the cache (docs/turborepo-layout.md §8.5).
+// Every write method of the contract, once, with its kind and what it does to the cache.
 // A method in none of the four lists fails the guard test, so a new write is decided by a person before it ships.
 import { navOf, taskAfter, type PageSettings, type TaskEdit, type TaskVerb } from '@handline/app-core';
 import type { Account, InboxItem, Memo, NavPrefsChanges, Prefs, Proposal, Settings, Task } from '@handline/client';
