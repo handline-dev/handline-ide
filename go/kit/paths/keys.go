@@ -204,15 +204,6 @@ func WorkspaceKeyIn(q rowQ, name string) (string, error) {
 	return keyIn(q, "SELECT id FROM workspaces WHERE name = ?", actor.Workspace, name)
 }
 
-// WorkspaceDir is the workspace's folder, workspaces/<key>; who is its key or its name. A name not
-// looked up gets workspaces/.unregistered/<name>.
-func WorkspaceDir(home, who string) string {
-	if k := WorkspaceKey(home, who); k != "" {
-		return filepath.Join(home, "workspaces", k)
-	}
-	return filepath.Join(home, "workspaces", Unregistered, who)
-}
-
 // WhoKey is the key a who param's word stands for: human is the owner, a key is itself, a word that names an agent its key. A word
 // none of these is, or a home whose database cannot be read, gives the word back.
 func WhoKey(home, word string) string {

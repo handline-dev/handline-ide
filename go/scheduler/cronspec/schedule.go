@@ -28,16 +28,6 @@ func SID(s Schedule) string {
 	return hex.EncodeToString(h[:])[:10]
 }
 
-// ID is the integer the spec gives a schedule: ten hex digits of sha1 over the agent and the schedule's sid.
-func ID(agent string, s Schedule) int64 {
-	h := sha1.Sum([]byte(agent + "\n" + SID(s)))
-	var n int64
-	for _, b := range h[:5] {
-		n = n<<8 | int64(b)
-	}
-	return n
-}
-
 // NextCronAfter is the first minute after ts the cron expression names, false when it names none within eight years or does not parse.
 func NextCronAfter(expr string, ts int64) (int64, bool) {
 	c, err := parseCron(expr)

@@ -39,7 +39,7 @@ func TestCronNextAfter(t *testing.T) {
 func TestScheduleID(t *testing.T) {
 	t.Parallel()
 	s := Schedule{"0 8 * * *", "hi"}
-	if len(SID(s)) != 10 || ID("a", s) == ID("b", s) {
-		t.Error("ids should be 10 hex digits and differ by agent")
+	if len(SID(s)) != 10 || SID(s) == SID(Schedule{"0 9 * * *", "hi"}) || SID(s) == SID(Schedule{"0 8 * * *", "ho"}) {
+		t.Error("an id should be 10 hex digits and change with the cron or the message")
 	}
 }

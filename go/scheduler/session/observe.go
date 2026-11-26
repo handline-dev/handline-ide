@@ -8,9 +8,3 @@ type Observed struct {
 	SessionPID    *int
 	SessionSeen   bool // whether the process table could be read
 }
-
-// Process is one row of the process table.
-type Process struct {
-	PID     int
-	Command string
-}

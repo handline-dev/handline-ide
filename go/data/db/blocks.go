@@ -74,33 +74,3 @@ func BlockClear(q Q, agent string) error {
 	_, err := q.Exec("DELETE FROM delivery_blocks WHERE agent = ?", agent)
 	return err
 }
-
-// PressAdd is db.press_add.
-func PressAdd(q Q, agent string, now int64, title, outcome, note string) error {
-	_, err := q.Exec("INSERT INTO dialog_presses(agent, at, title, outcome, note) VALUES(?,?,?,?,?)", agent, now, title, outcome, note)
-	return err
-}
-
-// Press is one dialog_presses row.
-type Press struct {
-	ID, At                      int64
-	Agent, Title, Outcome, Note string
-}
-
-// PressesSince is db.presses_since.
-func PressesSince(q Q, agent string, since int64) ([]*Press, error) {
-	rows, err := q.Query("SELECT id, agent, at, title, outcome, note FROM dialog_presses WHERE agent = ? AND at >= ? ORDER BY id", agent, since)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []*Press
-	for rows.Next() {
-		p := &Press{}
-		if err := rows.Scan(&p.ID, &p.Agent, &p.At, &p.Title, &p.Outcome, &p.Note); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
-}

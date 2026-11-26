@@ -6,7 +6,7 @@ When and whether agent sessions run: the session lifecycle, the tick, and the re
 
 | Package | What it is |
 |---|---|
-| `lifecycle` | Starting, closing, waking and moving sessions, and the single-instance hold |
+| `lifecycle` | Starting, closing, waking and moving sessions |
 | `session` | What is true of an agent's session right now |
 | `tick`, `dangling` | What one pass decides for each agent, and work left hanging |
 | `loadgate`, `procload`, `sysres`, `agentload`, `pause` | Whether the machine has room to start more, what each agent's processes hold, the founder's switch that holds new work |

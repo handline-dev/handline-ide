@@ -174,36 +174,6 @@ const (
 // HoldsWork is whether why (WhyKept's) says the worktree holds work nobody else has: commits not on main, or files not committed.
 func HoldsWork(why string) bool { return why == uncommitted || strings.HasSuffix(why, notMerged) }
 
-// Describe is what a person needs to judge a worktree that holds work: its branch's commits not on main (up to 5 subjects), its changed
-// and untracked files (up to 10) and when it last committed.
-func Describe(wt Worktree) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Path: %s\nBranch: %s\n", wt.Path, wt.Branch)
-	if r := gitrun.Run(wt.Path, "log", gitrun.MainRef(wt.Path)+"..HEAD", "--format=%s"); r.RC == 0 {
-		b.WriteString(lines("Commits not on main", r.Stdout, 5))
-	}
-	if r := gitrun.Run(wt.Path, "status", "--porcelain"); r.RC == 0 {
-		b.WriteString(lines("Changed or untracked files", r.Stdout, 10))
-	}
-	if r := gitrun.Run(wt.Path, "log", "-1", "--format=%cI"); r.RC == 0 {
-		fmt.Fprintf(&b, "Last commit: %s", strings.TrimSpace(r.Stdout))
-	}
-	return strings.TrimSpace(b.String())
-}
-
-func lines(title, out string, most int) string {
-	all := strings.Split(strings.TrimSpace(out), "\n")
-	if len(all) == 1 && all[0] == "" {
-		return ""
-	}
-	more := ""
-	if len(all) > most {
-		more = fmt.Sprintf("\n  ... and %d more", len(all)-most)
-		all = all[:most]
-	}
-	return fmt.Sprintf("%s:\n  %s%s\n", title, strings.Join(all, "\n  "), more)
-}
-
 // Rescue keeps what the worktree holds, then removes it: the files not committed go in one commit on a new branch rescue/<member>-<date>
 // (the branch the worktree was on stays as it is), so nothing is lost but what git ignores. It answers the branch.
 func Rescue(path, member string, now time.Time) (branch string, err error) {

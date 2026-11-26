@@ -4,7 +4,6 @@ import (
 	"github.com/handline/handline/go/kit/store"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -78,23 +77,6 @@ func TestHoldsWorkIsTheTwoReasonsAPersonMustJudge(t *testing.T) {
 			t.Errorf("%q: %v", why, !want)
 		}
 	}
-}
-
-func TestDescribeListsTheCommitsAndFilesThatWouldBeLost(t *testing.T) {
-	main, wts := repo(t)
-	for _, wt := range List(main) {
-		if filepath.Base(wt.Path) == "ahead" {
-			if d := Describe(wt); !strings.Contains(d, "Commits not on main:\n  unmerged work") || !strings.Contains(d, "Branch: ahead") {
-				t.Fatalf("%s", d)
-			}
-		}
-		if filepath.Base(wt.Path) == "untracked" {
-			if d := Describe(wt); !strings.Contains(d, "?? new.txt") {
-				t.Fatalf("%s", d)
-			}
-		}
-	}
-	_ = wts
 }
 
 func TestRescueCommitsWhatIsLeftOnABranchThenRemovesTheWorktree(t *testing.T) {

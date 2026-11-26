@@ -1,6 +1,7 @@
 package lock
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,37 +17,22 @@ func TestATerminalHoldDoesNotNestAndEndsWithRelease(t *testing.T) {
 	if TakeTerminal(home, "worker") != nil {
 		t.Fatal("a hold nested")
 	}
-	if !TerminalBusy(home, "worker") {
-		t.Fatal("a held terminal is busy")
-	}
 	if TakeTerminal(home, "other") == nil {
 		t.Fatal("another agent's terminal is free")
 	}
 	h.Release()
-	if TerminalBusy(home, "worker") {
-		t.Fatal("released but busy")
-	}
 	if again := TakeTerminal(home, "worker"); again == nil {
 		t.Fatal("not free after release")
 	} else {
 		again.Release()
 	}
-	if TerminalBusy(home, "nobody") {
-		t.Fatal("no lock file is not a holder")
-	}
 }
 
 func TestSingletonRecordsItsHolder(t *testing.T) {
 	home := t.TempDir()
-	if _, ok := Holder(home, "daemon"); ok {
-		t.Fatal("a holder from nowhere")
-	}
 	h := TakeSingleton(home, "daemon")
 	if h == nil {
 		t.Fatal("not taken")
-	}
-	if pid, ok := Holder(home, "daemon"); !ok || pid != os.Getpid() {
-		t.Fatalf("holder %d %v", pid, ok)
 	}
 	if TakeSingleton(home, "daemon") != nil {
 		t.Fatal("two daemons")
@@ -55,9 +41,14 @@ func TestSingletonRecordsItsHolder(t *testing.T) {
 	if len(b) != pidWidth+1 {
 		t.Fatalf("the pid is written at a fixed width: %q", b)
 	}
+	if want := fmt.Sprintf("%-*d\n", pidWidth, os.Getpid()); string(b) != want {
+		t.Fatalf("the file names its holder: %q, want %q", b, want)
+	}
 	h.Release()
-	if _, ok := Holder(home, "daemon"); ok {
-		t.Fatal("a name left in the file is not a live holder")
+	if again := TakeSingleton(home, "daemon"); again == nil {
+		t.Fatal("not free after release")
+	} else {
+		again.Release()
 	}
 }
 

@@ -171,13 +171,9 @@ func DecideCard(e *supervisor.Env, tell taskwrites.Teller) taskwrites.CardDecide
 	}
 }
 
-// SayWrite is askmod.say as requester: the message is routed and written (a denied one is kept as a row); parent, when set, links it into
-// that message's thread. within is more to write in the same transaction, given the message and the new request's id.
-func SayWrite(e *supervisor.Env, q db.Q, requester, target, body string, parent int64, within func(q db.Q, note string, rid int64) error) (*Result, error) {
-	return sayWrite(e, q, requester, target, body, parent, within, nil)
-}
-
-// sayWrite is SayWrite with act, if set, doing what follows the commit in place of the usual push to the target.
+// sayWrite is askmod.say as requester: the message is routed and written (a denied one is kept as a row); parent, when set, links it into
+// that message's thread. within is more to write in the same transaction, given the message and the new request's id. act, if set, does
+// what follows the commit in place of the usual push to the target.
 func sayWrite(e *supervisor.Env, q db.Q, requester, target, body string, parent int64, within func(q db.Q, note string, rid int64) error, act func(rid int64)) (*Result, error) {
 	var note string
 	target, err := paths.Reaches(q, target) // the push below goes to whom the say reaches

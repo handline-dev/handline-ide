@@ -26,10 +26,6 @@ func TestEveryRowReaderScansItsColumnsAgainstTheSchema(t *testing.T) {
 	if rows, err := Blocks(q); err != nil || len(rows) != 1 || rows[0].Title != "t" {
 		t.Fatal(rows, err)
 	}
-	PressAdd(q, "a", 11, "title", "pressed", "n")
-	if rows, err := PressesSince(q, "a", 0); err != nil || len(rows) != 1 || rows[0].Outcome != "pressed" || rows[0].Note != "n" {
-		t.Fatal(rows, err)
-	}
 
 	parent := seedTask(t, q, "b", "a")
 	blocker := seedTask(t, q, "c", "a")

@@ -18,7 +18,4 @@ func TestThePolicyValuesArePinned(t *testing.T) {
 			t.Errorf("%s is %v, was pinned at %v", name, c[0], c[1])
 		}
 	}
-	if Seconds(StreamKeep) != 604800 {
-		t.Error("a week is 604800 s")
-	}
 }

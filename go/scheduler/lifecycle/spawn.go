@@ -231,9 +231,6 @@ func (s *Spawns) Trust(agent, folder string) {
 // path finds nothing, so an agent that still had its worktree was given a second one beside it.
 func (s *Spawns) WorktreePath(recorded string) string { return worktreepaths.WorktreePath(recorded) }
 
-// WorktreesDir is where repo's desks are (worktreepaths.Dir).
-func WorktreesDir(repo string) string { return worktreepaths.Dir(repo) }
-
 // Prepare runs repo's worktree setup (worktreesetup) in wt, a worktree just made for agent, and is what to tell of it: "" when the repo
 // asks for nothing. A failed setup is told and recorded, never fatal: the agent starts in the worktree and can finish the setup itself.
 func (s *Spawns) Prepare(agent, repo, wt string) string {

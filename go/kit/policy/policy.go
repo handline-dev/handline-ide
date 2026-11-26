@@ -30,9 +30,6 @@ const (
 	ImageKept = 30 * 24 * time.Hour
 )
 
-// Seconds is d in whole seconds, for the stores that count in them.
-func Seconds(d time.Duration) int64 { return int64(d / time.Second) }
-
 const (
 	// MsgPrefix begins every message id an agent sees: msg_ and a prefix of the request's ref.
 	MsgPrefix = "msg_"
