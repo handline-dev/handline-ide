@@ -140,7 +140,7 @@ function walkerOf() {
     const entry = ground.entry.join(',');
     const k = kept.get(where);
     let me = k?.entry === entry ? (was && s.me ? s.me : k.me) : standing(ground.entry);
-    // The room laid out again (another bench width) may have put furniture where the founder stood.
+    // The room laid out again (another team size) may have put furniture where the founder stood.
     if (!freeAt(ground.floor, me.at)) me = { ...me, at: nearestFree(ground.floor, me.at) ?? ground.entry };
     s.me = me;
     kept.set(where, { entry, me });

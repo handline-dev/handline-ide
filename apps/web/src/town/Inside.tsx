@@ -1,39 +1,26 @@
 // A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
-// scene3d.ts and shade.ts draw it, people.ts seats the people), its benches as wide as fill the pane best and the picture filling it.
+// scene3d.ts and shade.ts draw it, people.ts seats the people), the same room whatever the pane's size, drawn to fill it.
 // The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and brings up that
-// agent's chat in the town's windows (Windows.tsx), one on the founder's own desk the decisions; whose chat a tab bar shows stays
-// outlined. The door the founder came in by shuts behind it, and opens when it walks up into it to go back out. A person whose place
-// changes walks to the new one (crowd.ts, Cast.tsx).
-import { useEffect, useMemo, useRef, useState } from 'react';
+// agent's chat in the town's windows (Windows.tsx), one on the papers on its desk its tasks, one on the founder's own desk the
+// decisions; what a tab bar shows stays outlined. The door the founder came in by shuts behind it, and opens when it walks up into it or
+// the door is clicked, to go back out; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
+import { useEffect, useRef, useState } from 'react';
 import { WORDS, type House, type Person } from '#src/town/model.ts';
 import { useTownShown } from '#src/town/Windows.tsx';
 import type { Spot } from '#src/town/people.ts';
-import { COLS, roomOf } from '#src/town/room.ts';
-import { viewOf } from '#src/town/view.ts';
 import { THROUGH } from '#src/town/palette.ts';
 import { DoorSwing, type Way } from '#src/town/door.tsx';
 import { useWalker } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
 import { useCrowd } from '#src/town/crowd.ts';
-import { Bubbles, Label, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
+import { Bubbles, Label, nameSize, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 /** What the founder's own desk opens: the decisions waiting for them. */
 const DESK = { opens: 'requests', title: 'Requests' };
 /** How much of the front wall shows while a person reaches into it. */
 const SEE_THROUGH = 0.4;
-
-/** The bench width whose room fills a pane of (w, h) the most. */
-function colsFor(house: House, w: number, h: number): number {
-  let best = { cols: COLS[0], fit: 0 };
-  for (let cols = COLS[0]; cols <= COLS[1]; cols++) {
-    const v = viewOf(roomOf(house, cols));
-    const fit = Math.min(w / v.w, h / v.h);
-    if (fit > best.fit * 1.02) best = { cols, fit };
-  }
-  return best.cols;
-}
 
 /** The pane's size, kept as it resizes. */
 function useSize(): [React.RefObject<HTMLDivElement | null>, [number, number]] {
@@ -63,8 +50,8 @@ export function Inside({
 }) {
   const { show, shows } = useTownShown();
   const [pane, [pw, ph]] = useSize();
-  const cols = useMemo(() => (pw > 0 && ph > 0 ? colsFor(house, pw, ph) : null), [house, pw, ph]);
-  const drawn = useDrawn(house, cols);
+  // The same room whatever the space: a smaller pane shows it smaller.
+  const drawn = useDrawn(house);
   const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
   // The door, pushed open into the room as the founder comes in, shuts behind it; walking down into it pushes it open out, toward the
   // viewer, and then goes back out to the city. One of the people (`crowd`) coming or going holds it open while in the doorway.
@@ -80,22 +67,24 @@ export function Inside({
   const seeThrough = useSeeThrough(drawn, founder, crowd);
   // The door opens for whoever comes near it once it is free, and shuts when nobody is near.
   const through = useThroughDoor(crowd, drawn?.stage.door);
-  if (through && (!swing || (swing.crowd && swing.way === 'shut'))) setSwing({ way: 'open', out: through === 'out', crowd: true });
+  // Where the founder stands to go out once the door is free, after a click on it.
+  const [leaving, setLeaving] = useState<FloorSpot | null>(null);
+  if (leaving && (!swing || (swing.crowd && swing.way === 'shut'))) {
+    setLeaving(null);
+    setSwing({ way: 'open', from: leaving, out: true });
+  } else if (through && (!swing || (swing.crowd && swing.way === 'shut'))) setSwing({ way: 'open', out: through === 'out', crowd: true });
   else if (!through && swing?.crowd && swing.way === 'open') setSwing({ way: 'shut', out: swing.out, crowd: true });
-  const font = 11 / scale; // names stay 11px on screen whatever the scale
+  const font = nameSize(scale);
   const decisions = house.decisions.length;
 
-  useEffect(() => {
-    // Escape in a tab bar stays the tab's (to stop a turn, close a list); else it leaves the office.
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || (e.target instanceof Element && e.target.closest('[data-no-walk]'))) return;
-      onBack();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onBack]);
+  /** Walks out of the door: up to it, then, once nobody else swings it, it opens and the founder goes back to the city. */
+  const goOut = () => {
+    const entry = drawn?.ground.entry;
+    if (entry) founder.go(entry, () => setLeaving(founder.get()?.at ?? entry));
+  };
 
-  const hit = (s: Spot, key: string) => (
+  /** A click target over `s` that walks up to it and brings up `opens` in the town's windows. */
+  const hit = (s: Spot, key: string, opens: string, title: string, tip: string) => (
     <rect
       key={key}
       x={s.x - 1}
@@ -106,16 +95,18 @@ export function Inside({
       fill="transparent"
       stroke="transparent"
       strokeWidth={1 / scale}
-      // Whose chat a tab bar shows stays outlined, wherever the founder walks.
-      className={shows(`chat:${s.person.key}`) ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
+      // What a tab bar shows stays outlined, wherever the founder walks.
+      className={shows(opens) ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
       onClick={() => {
         founder.go(s.at);
-        show(`chat:${s.person.key}`, s.person.name);
+        show(opens, title);
       }}
     >
-      <title>{tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person)}</title>
+      <title>{tip}</title>
     </rect>
   );
+  const chatAt = (s: Spot, key: string) =>
+    hit(s, key, `chat:${s.person.key}`, s.person.name, tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person));
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -182,7 +173,7 @@ export function Inside({
               <Bubbles drawn={drawn} crowd={crowd} />
               {drawn.cast.mine && (
                 <>
-                  <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} scale={scale} text="You" />
+                  <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} text="You" />
                   <rect
                     x={drawn.cast.mine.x - 1}
                     y={drawn.cast.mine.y - 1}
@@ -203,8 +194,24 @@ export function Inside({
                   </rect>
                 </>
               )}
-              {drawn.cast.desks.map((d) => hit(d, `desk-${d.person.key}`))}
-              {drawn.cast.spots.map((s) => hit(s, `at-${s.person.key}`))}
+              {drawn.cast.desks.map((d) => chatAt(d, `desk-${d.person.key}`))}
+              {drawn.cast.papers.map((p) =>
+                hit(p, `papers-${p.person.key}`, `tasks|${p.person.key}`, `Tasks · ${p.person.name}`, `${p.person.name}'s tasks`),
+              )}
+              {drawn.cast.spots.map((s) => chatAt(s, `at-${s.person.key}`))}
+              {drawn.front.door && (
+                <rect
+                  x={drawn.front.door.x}
+                  y={drawn.front.door.y}
+                  width={drawn.front.door.w}
+                  height={drawn.front.door.h}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onClick={goOut}
+                >
+                  <title>Go out</title>
+                </rect>
+              )}
             </svg>
           )}
         </div>

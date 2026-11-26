@@ -267,7 +267,7 @@ function PaneView({
               <PageTab opens={current?.opens} />
               {opened(current?.opens ?? '', 'agent') && <AgentPage key={current!.opens} agent={opened(current!.opens!, 'agent')!} />}
               {opened(current?.opens ?? '', 'ws') && <WorkspacePage key={current!.opens} ws={opened(current!.opens!, 'ws')!} />}
-              {current?.opens === 'tasks' && <TasksTab agent={who ?? null} />}
+              {shown === 'tasks' && <TasksTab key={own ? who : undefined} agent={who ?? null} named={!!own} />}
             </PaneOpen.Provider>
           </TabScope>
         </Boundary>

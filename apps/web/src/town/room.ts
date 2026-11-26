@@ -94,6 +94,8 @@ const SHEET_T = 0.022; // one paper of a stack
 const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
 /** The founder's desk's tag; it holds the founder's decisions. */
 export const MY_DESK = 'desk:you';
+/** The tag of the stack of papers on a desk (by the desk's tag): its queued tasks, or the founder's decisions. */
+export const papersOf = (desk: string) => `papers:${desk.slice('desk:'.length)}`;
 /** The tag of the door the founder comes in and goes out by; a building's in the city is `door:<its key>`. */
 export const DOOR = 'door';
 const FRONT_PART = 'wall:front';
@@ -103,13 +105,11 @@ export const inFront = (b: Block) => b.part === FRONT_PART || b.tag === DOOR;
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
 
-/** How many desks a bench may have: COLS[0] to COLS[1]. */
-export const COLS = [2, 6] as const;
-
-/** The room for a house: benches of `cols` desks (by default as many as keep the desks about square) on the left, the founder's desk
+/** The room for a house: benches of `cols` desks (by default as many as keep the desks about square, from the team's size alone, so the
+ *  room is the same whatever space it is shown in) on the left, the founder's desk
  *  beside the door right of them, and a rest room behind a wall on the right, as deep as its sitters need. The HQ has no benches: its
  *  people (the pinned agents) stand together, `cols` to a row, wherever their desks are. */
-export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.ceil(Math.sqrt(house.people.length))))): Room {
+export function roomOf(house: House, cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(house.people.length))))): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
   const rows = Math.max(1, Math.ceil(people.length / cols));
   const hq = house.hq === true;
@@ -134,7 +134,7 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(COLS[0], Math.c
     for (let k = 0; k < Math.min(n, MOST_SHEETS); k++) {
       const [dx, dz] = [((k * 37) % 5) * 0.006, ((k * 23) % 3) * 0.006];
       const y = F.DESK_TOP + k * SHEET_T;
-      put([x + 0.57 + dx, y, z - 0.37 + dz], [x + 0.7 + dx, y + SHEET_T, z - 0.2 + dz], 'paper', { tag });
+      put([x + 0.57 + dx, y, z - 0.37 + dz], [x + 0.7 + dx, y + SHEET_T, z - 0.2 + dz], 'paper', { tag: papersOf(tag) });
     }
   };
 

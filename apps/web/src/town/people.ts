@@ -4,7 +4,7 @@
 // a sofa with a mug; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
 // a sofa's arm) is laid back over it. Each person is one of the sheet's people, teammates different ones while there are enough.
 import type { Person } from '#src/town/model.ts';
-import { MY_DESK, type Room } from '#src/town/room.ts';
+import { MY_DESK, papersOf, type Room } from '#src/town/room.ts';
 import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { Vector3 } from 'three';
@@ -52,6 +52,8 @@ export type Cast = {
   bubbles: (Box & { key: string })[];
   spots: Spot[];
   desks: Spot[];
+  /** The stacks of papers on agents' desks: their queued tasks. */
+  papers: Spot[];
   names: Name[];
   mine?: Box & { name: [number, number]; at: [number, number] };
 };
@@ -143,7 +145,7 @@ function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean): Figure
 
 /** Where every placed person is drawn, back to front, and where each is for clicks and names; door shadows go into the picture. */
 export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
-  const cast: Cast = { figures: [], bubbles: [], spots: [], desks: [], names: [] };
+  const cast: Cast = { figures: [], bubbles: [], spots: [], desks: [], papers: [], names: [] };
   const rows = figuresOf(room.people);
   const depthAt = (x: number, z: number) => {
     const [px, py] = frame.toPixel(x, 0.5, z).map(Math.round);
@@ -218,10 +220,20 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
   for (const person of room.people) {
     const desk = boxOf(pic, frame, `desk:${person.key}`);
     if (desk) cast.desks.push({ ...desk, person, at: beside(`desk:${person.key}`) });
+    const papers = boxOf(pic, frame, papersOf(`desk:${person.key}`));
+    if (papers) cast.papers.push({ ...papers, person, at: beside(`desk:${person.key}`) });
   }
-  const mine = boxOf(pic, frame, MY_DESK);
+  // The founder's desk opens their decisions whether its papers or the desk itself is clicked.
+  const mine = union(boxOf(pic, frame, MY_DESK), boxOf(pic, frame, papersOf(MY_DESK)));
   if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: beside(MY_DESK) };
   return cast;
+}
+
+/** The box round two boxes, either of them missing. */
+function union(a: Box | null, b: Box | null): Box | null {
+  if (!a || !b) return a ?? b;
+  const [x, y] = [Math.min(a.x, b.x), Math.min(a.y, b.y)];
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 }
 
 /** A soft dark oval on the floor under a standing person. */

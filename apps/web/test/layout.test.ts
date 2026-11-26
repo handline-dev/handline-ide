@@ -323,6 +323,9 @@ describe("an agent's own tab", () => {
     expect(ownedBy('file:node_modules/@types/x.md')).toBeNull();
     expect(carry('file:node_modules/@types/x.md', 'a5')).toBe('file:node_modules/@types/x.md|a5');
     expect(labelOf('shell|a5', () => 'town')).toBe('Agent terminal · town');
+    // Tasks never carries one, but a desk's papers in the town open one agent's.
+    expect(ownedBy('tasks|a5')).toEqual({ kind: 'tasks', agent: 'a5' });
+    expect(labelOf('tasks|a5', () => 'town')).toBe('Tasks · town');
   });
 
   it('is opened naming the agent it was asked from, so focusing it never leaves it with no agent to draw', async () => {

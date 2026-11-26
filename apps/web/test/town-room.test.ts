@@ -14,7 +14,7 @@ describe('roomOf', () => {
     const h = house([{ ...person('a', 'working'), queue: 3 }, { ...person('b', 'resting'), queue: 52 }, person('c', 'asleep')]);
     const r = roomOf({ ...h, decisions: [{ id: '1', task: 1, title: 't', agent: 'a', house: 'w' }] });
     const count = (tag: string) => r.blocks.filter((b) => b.kind === 'paper' && b.tag === tag).length;
-    expect([count('desk:a'), count('desk:b'), count('desk:c'), count('desk:you')]).toEqual([3, 14, 0, 1]);
+    expect([count('papers:a'), count('papers:b'), count('papers:c'), count('papers:you')]).toEqual([3, 14, 0, 1]);
   });
 
   it('gives every agent a desk and puts each where its state says', () => {
