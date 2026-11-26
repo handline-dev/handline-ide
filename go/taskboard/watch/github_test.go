@@ -150,7 +150,7 @@ func TestAWatchIsParsedWithoutReadingAndReadyAsksTheVendor(t *testing.T) {
 	Vendors["github"] = g
 	for _, c := range []struct{ vendor, target, until, err string }{
 		{"gitlab", "g/p!1", "", `no vendor "gitlab"`},
-		{"github", "o/r#7", "merged", `github waits for ci, closed, done, not "merged"`},
+		{"github", "o/r#7", "merged", `github waits for ci, closed, landed, done, not "merged"`},
 		{"github", "o/r", "", "owner/name#N"},
 	} {
 		if _, err := Parse(c.vendor, c.target, c.until); err == nil || !strings.Contains(err.Error(), c.err) {

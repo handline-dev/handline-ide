@@ -49,7 +49,7 @@ func TestTaskNewOpensAGateThatWatchesAVendorsTarget(t *testing.T) {
 	for _, c := range []struct{ params, why string }{
 		{`,"owner":"gate","title":"x"`, "a gate watches something"},
 		{`,"owner":"w","title":"x","watch":{"vendor":"github","target":"o/r#7"}`, "watch goes with owner gate"},
-		{`,"owner":"gate","title":"x","watch":{"vendor":"github","target":"o/r#7","until":"merged"}`, `github waits for ci, closed, done, not "merged"`},
+		{`,"owner":"gate","title":"x","watch":{"vendor":"github","target":"o/r#7","until":"merged"}`, `github waits for ci, closed, landed, done, not "merged"`},
 		{`,"owner":"gate","title":"x","watch":{"vendor":"github","target":"nope"}`, "a github target is owner/name#N"},
 		{`,"owner":"gate","title":"x","watch":{"vendor":"jira","target":"ENG-7"}`, `no vendor "jira"`},
 	} {

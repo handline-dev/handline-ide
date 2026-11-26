@@ -45,8 +45,9 @@ type Pull struct {
 	HeadSha, MergeSha string
 	Review            string  // ReviewApproved, ReviewChanges or ReviewRequired; "" when no review is asked for
 	Checks            []Check // in the order the checks first appear
-	// HeadAt is when its newest commit was made; zero when the read did not ask (a branch's lookup does not).
-	HeadAt time.Time
+	// HeadAt is when its newest commit was made, and ChangesAt when a reviewer last asked for changes (zero when none stands); both
+	// are zero when the read did not ask (a branch's lookup does not).
+	HeadAt, ChangesAt time.Time
 }
 
 // Failed names the checks that stand failed: the latest run of each has finished and is not ok.
@@ -71,10 +72,10 @@ func (p *Pull) Count(state string) int {
 	return n
 }
 
-// The fields a read asks gh for. A branch's lookup lists up to ten pull requests, so it leaves out their commits.
+// The fields a read asks gh for. A branch's lookup lists up to ten pull requests, so it leaves out their commits and reviews.
 const (
 	branchPullFields = "number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup"
-	pullFields       = branchPullFields + ",commits"
+	pullFields       = branchPullFields + ",commits,latestReviews"
 )
 
 // ghPull is one pull request as `gh pr view --json` and `gh pr list --json` print it.
@@ -89,6 +90,11 @@ type ghPull struct {
 	ReviewDecision string
 	Rollup         Rollup `json:"statusCheckRollup"`
 	Commits        []struct{ CommittedDate time.Time }
+	// Each reviewer's latest review: only what it decided and when is taken, never who wrote it.
+	LatestReviews []struct {
+		State       string
+		SubmittedAt time.Time
+	}
 }
 
 func (g ghPull) pull(repo string) *Pull {
@@ -113,6 +119,11 @@ func (g ghPull) pull(repo string) *Pull {
 	}
 	if n := len(g.Commits); n > 0 {
 		p.HeadAt = g.Commits[n-1].CommittedDate
+	}
+	for _, r := range g.LatestReviews {
+		if r.State == "CHANGES_REQUESTED" && r.SubmittedAt.After(p.ChangesAt) {
+			p.ChangesAt = r.SubmittedAt
+		}
 	}
 	return p
 }

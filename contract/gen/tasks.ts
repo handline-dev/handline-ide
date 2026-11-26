@@ -415,14 +415,14 @@ export type TimeSegment = {
   seconds: number;
 };
 
-/** What a gate watches: target of vendor, until what it waits for. The vendor answers waiting, passed or failed with a line of evidence. Vendors: github (target owner/name#N; until ci: a pull request's checks have all finished, or none started 10 minutes after its head commit; closed: the pull request merged (passed) or closed unmerged (failed); done: the issue closed as completed (passed) or for another reason (failed)). The github vendor reads through the gh CLI's own login. docs/watch-vendors.md has each vendor. */
+/** What a gate watches: target of vendor, until what it waits for. The vendor answers waiting, passed or failed with a line of evidence. Vendors: github (target owner/name#N; until ci: a pull request's checks have all finished, or none started 10 minutes after its head commit; closed: the pull request merged (passed) or closed unmerged (failed), whatever its checks say; landed: the pull request merged (passed, the evidence naming the merge commit), or it needs its holder (failed): closed unmerged, a check standing failed by its latest run (the evidence names them), or a reviewer asking for changes after the watch started; done: the issue closed as completed (passed) or for another reason (failed)). The github vendor reads through the gh CLI's own login on the daemon's machine. docs/watch-vendors.md has each vendor. */
 export type Watch = {
   /** The outside tool: github. */
   vendor: string;
   /** The thing, written the way the vendor writes it: owner/name#N for github. */
   target: string;
   /** What is waited for; each vendor takes some. Absent: the vendor's first (github: ci). */
-  until?: "ci" | "closed" | "done";
+  until?: "ci" | "closed" | "landed" | "done";
 };
 
 /** A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty. */
@@ -457,7 +457,7 @@ export type TaskPR = {
 export type TaskWatch = {
   vendor: string;
   target: string;
-  until: "ci" | "closed" | "done";
+  until: "ci" | "closed" | "landed" | "done";
   /** The watch in words ("PR #418 CI"). */
   label: string;
   /** What it opened with; null while it watches. A target that reads as gone (deleted, or no longer visible) three times in a row is failed. */

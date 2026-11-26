@@ -1788,7 +1788,7 @@
    },
    "Watch": {
     "type": "object",
-    "description": "What a gate watches: target of vendor, until what it waits for. The vendor answers waiting, passed or failed with a line of evidence. Vendors: github (target owner/name#N; until ci: a pull request's checks have all finished, or none started 10 minutes after its head commit; closed: the pull request merged (passed) or closed unmerged (failed); done: the issue closed as completed (passed) or for another reason (failed)). The github vendor reads through the gh CLI's own login. docs/watch-vendors.md has each vendor.",
+    "description": "What a gate watches: target of vendor, until what it waits for. The vendor answers waiting, passed or failed with a line of evidence. Vendors: github (target owner/name#N; until ci: a pull request's checks have all finished, or none started 10 minutes after its head commit; closed: the pull request merged (passed) or closed unmerged (failed), whatever its checks say; landed: the pull request merged (passed, the evidence naming the merge commit), or it needs its holder (failed): closed unmerged, a check standing failed by its latest run (the evidence names them), or a reviewer asking for changes after the watch started; done: the issue closed as completed (passed) or for another reason (failed)). The github vendor reads through the gh CLI's own login on the daemon's machine. docs/watch-vendors.md has each vendor.",
     "properties": {
      "vendor": {
       "type": "string",
@@ -1803,6 +1803,7 @@
       "enum": [
        "ci",
        "closed",
+       "landed",
        "done"
       ],
       "description": "What is waited for; each vendor takes some. Absent: the vendor's first (github: ci)."
@@ -1968,6 +1969,7 @@
       "enum": [
        "ci",
        "closed",
+       "landed",
        "done"
       ]
      },

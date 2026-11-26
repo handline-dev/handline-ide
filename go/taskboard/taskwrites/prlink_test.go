@@ -30,8 +30,9 @@ func TestTaskWaitOnAPullRequestNamesItAsTheTasks(t *testing.T) {
 	if r := run("w", "task.wait", "w3", `,"task":9,"watch":{"vendor":"github","target":"o/r#7","until":"closed"}`); r["error"] != nil {
 		t.Fatalf("%v", r["error"])
 	}
-	if r := run("w", "task.wait", "w4", `,"task":9,"watch":{"vendor":"github","target":"other/fork#8"}`); r["error"] != nil || prLink(t, sdb) != "other/fork#8" {
-		t.Fatalf("%v %q", r["error"], prLink(t, sdb))
+	r := run("w", "task.wait", "w4", `,"task":9,"watch":{"vendor":"github","target":"other/fork#8","until":"landed"}`)
+	if r["error"] != nil || prLink(t, sdb) != "other/fork#8" || !strings.Contains(said(t, r), "watching PR #8 to land") {
+		t.Fatalf("%v %q", r, prLink(t, sdb))
 	}
 	rows, err := sdb.Query("SELECT json_extract(payload, '$.pr.old'), json_extract(payload, '$.pr.new') FROM events WHERE kind = 'edit_task' AND " +
 		"json_extract(payload, '$.task_id') = 9 ORDER BY id")

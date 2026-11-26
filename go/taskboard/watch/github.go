@@ -19,9 +19,9 @@ import (
 // is taken to have no CI.
 const NoCIWait = 10 * time.Minute
 
-// GitHub watches a pull request's CI (ci) or its close (closed), or an issue being finished (done), through the gh CLI's own login: handline
-// never sees a token. A target is owner/name#N. It is also the one reader of a pull request (ReadPull, Pull, BranchPull), for whoever
-// shows one.
+// GitHub watches a pull request's CI (ci), its close (closed) or its landing (landed), or an issue being finished (done), through the gh
+// CLI's own login: handline never sees a token. A target is owner/name#N. It is also the one reader of a pull request (ReadPull, Pull,
+// BranchPull), for whoever shows one.
 type GitHub struct {
 	// Run runs gh with args and answers its standard output; nil runs the gh CLI. Now is the clock; nil is time.Now.
 	Run func(ctx context.Context, args ...string) ([]byte, error)
@@ -33,7 +33,7 @@ type GitHub struct {
 
 var githubTarget = regexp.MustCompile(`^([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#([1-9][0-9]*)$`)
 
-func (*GitHub) Untils() []string { return []string{"ci", "closed", "done"} }
+func (*GitHub) Untils() []string { return []string{"ci", "closed", "landed", "done"} }
 
 // PullOf is the pull request watch w is about, as its host names it: the repository (owner/name) and the number. ok is false for a watch
 // on anything else: an issue, or another vendor's target.
@@ -81,8 +81,8 @@ func (g *GitHub) Unready(ctx context.Context) (reason, why string) {
 	return GhLoggedOut, "gh is not logged in: run gh auth login"
 }
 
-// Parse takes ci and closed to be about a pull request and done about an issue; GitHub numbers them together, so which one #N is shows
-// only when it is read, and a number of the other kind reads as gone.
+// Parse takes ci, closed and landed to be about a pull request and done about an issue; GitHub numbers them together, so which one #N
+// is shows only when it is read, and a number of the other kind reads as gone.
 func (*GitHub) Parse(target, until string) (string, string, error) {
 	m := githubTarget.FindStringSubmatch(target)
 	if m == nil {
@@ -93,6 +93,8 @@ func (*GitHub) Parse(target, until string) (string, string, error) {
 		return target, "PR #" + m[2] + " CI", nil
 	case "closed":
 		return target, "PR #" + m[2] + " to close", nil
+	case "landed":
+		return target, "PR #" + m[2] + " to land", nil
 	}
 	return target, "issue #" + m[2] + " done", nil
 }
@@ -122,6 +124,9 @@ func (g *GitHub) Check(ctx context.Context, target, until string, since time.Tim
 		return "", "", err
 	case until == "ci":
 		v, evidence := ciVerdict(p, since, g.now())
+		return v, evidence, nil
+	case until == "landed":
+		v, evidence := landedVerdict(p, since)
 		return v, evidence, nil
 	}
 	v, evidence := closedVerdict(p)
@@ -258,6 +263,24 @@ func closedVerdict(p *Pull) (Verdict, string) {
 		return Passed, merged(p)
 	case PullClosed:
 		return Failed, "closed unmerged"
+	}
+	return Waiting, ""
+}
+
+// landedVerdict is a pull request landing, or needing its holder before it can. Merged is passed, with the commit the merge made;
+// closed unmerged is failed. While it is open, a check that stands failed by its latest run is failed, the checks named, and so is a
+// reviewer asking for changes after the watch started: each is work for whoever holds the task, so the task goes back to them. A
+// request for changes made before the watch started is not news to them (they waited knowing it, and GitHub keeps that decision until
+// the reviewer looks again), so it waits like a review not yet given, a check still running or a draft.
+func landedVerdict(p *Pull, since time.Time) (Verdict, string) {
+	if v, evidence := closedVerdict(p); v != Waiting {
+		return v, evidence
+	}
+	if failed := p.Failed(); len(failed) > 0 {
+		return Failed, "ci failed: " + strings.Join(failed, ", ")
+	}
+	if p.Review == ReviewChanges && p.ChangesAt.After(since) {
+		return Failed, "changes requested"
 	}
 	return Waiting, ""
 }

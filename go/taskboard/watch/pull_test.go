@@ -20,6 +20,11 @@ const viewed = `{
   ],
   "headRefOid": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e",
   "isDraft": false,
+  "latestReviews": [
+    {"author": {"login": "one"}, "authorAssociation": "MEMBER", "body": "", "state": "APPROVED", "submittedAt": "2026-10-20T11:59:00Z"},
+    {"author": {"login": "two"}, "authorAssociation": "MEMBER", "body": "The badge covers the name.", "state": "CHANGES_REQUESTED", "submittedAt": "2026-10-20T11:57:00Z"},
+    {"author": {"login": "three"}, "authorAssociation": "MEMBER", "body": "", "state": "CHANGES_REQUESTED", "submittedAt": "2026-10-20T11:45:00Z"}
+  ],
   "mergeCommit": null,
   "number": 418,
   "reviewDecision": "CHANGES_REQUESTED",
@@ -54,7 +59,7 @@ func (c *counting) reader() *GitHub {
 }
 
 // One read takes a pull request's facts from what gh prints, and only those: where it stands, the branch it merges into, its commits,
-// the review's decision and each check by its latest run.
+// the review's decision, when a reviewer last asked for changes (never who) and each check by its latest run.
 func TestAPullRequestIsReadFromWhatGhPrints(t *testing.T) {
 	c := &counting{answer: func(args []string) (string, error) { return viewed, nil }}
 	g := c.reader()
@@ -70,11 +75,12 @@ func TestAPullRequestIsReadFromWhatGhPrints(t *testing.T) {
 	}
 	want := &Pull{Repo: "acme/app", Number: 418, URL: "https://github.com/acme/app/pull/418", State: PullOpen, Base: "main",
 		HeadSha: "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e", Review: ReviewChanges, HeadAt: time.Date(2026, 10, 20, 11, 41, 0, 0, time.UTC),
-		Checks: []Check{{"build", CheckFailed}, {"lint", CheckPassed}, {"docs", CheckPassed}, {"deploy/preview", CheckWaiting}}}
+		ChangesAt: time.Date(2026, 10, 20, 11, 57, 0, 0, time.UTC),
+		Checks:    []Check{{"build", CheckFailed}, {"lint", CheckPassed}, {"docs", CheckPassed}, {"deploy/preview", CheckWaiting}}}
 	if !reflect.DeepEqual(p, want) {
 		t.Fatalf("\n got %+v\nwant %+v", p, want)
 	}
-	if got := strings.Join(ran, " "); got != "pr view 418 -R acme/app --json number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup,commits" {
+	if got := strings.Join(ran, " "); got != "pr view 418 -R acme/app --json number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup,commits,latestReviews" {
 		t.Fatalf("ran gh %s", got)
 	}
 	if !reflect.DeepEqual(p.Failed(), []string{"build"}) || p.Count(CheckWaiting) != 1 || p.Count(CheckPassed) != 2 {
