@@ -9,6 +9,7 @@ export function Row({
   icon,
   selected = false,
   trail,
+  tag,
   note,
   unread = 0,
   menu = true,
@@ -20,6 +21,8 @@ export function Row({
   selected?: boolean;
   /** Drawn at the right end, muted (a time). */
   trail?: ReactNode;
+  /** A muted word right after the title (a workspace's lead whose name does not say it). */
+  tag?: string;
   /** A second line under the title, one line long (an unread message). */
   note?: string;
   /** How many messages the note stands for, shown beside it when more than none. */
@@ -41,7 +44,13 @@ export function Row({
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
         <span className="grid size-4 shrink-0 place-items-center text-muted">{icon}</span>
-        <span className="flex-1 truncate">{title}</span>
+        <span className="min-w-0 truncate">{title}</span>
+        {tag && (
+          <span title={`Workspace ${tag}`} className="shrink-0 text-xs font-normal text-muted">
+            {tag}
+          </span>
+        )}
+        <span className="flex-1" />
         {trail && <span className="shrink-0 text-xs text-muted tabular-nums">{trail}</span>}
       </span>
       {/* Under the title, from the name's left edge. */}

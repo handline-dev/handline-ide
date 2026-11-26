@@ -1,6 +1,6 @@
 import { byWorkspace, dotOf, queuedBehind } from '@handline/app-core';
 import { useRefs } from '#src/ui/refs.tsx';
-import { useAgents, useDirectory, useNameOf, useNav } from '@handline/app-data';
+import { useAgents, useDirectory, useNameOf, useNav, useRead } from '@handline/app-data';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
 import { newWorkspace } from '#src/NewWorkspace.tsx';
@@ -77,6 +77,8 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
   const now = useNow();
   // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
   const nameOf = useNameOf(here);
+  // Each workspace's lead: one whose name does not say so carries the word.
+  const leads = new Set((useRead('workspaces.list', {}).data?.workspaces ?? []).map((w) => w.lead));
   const refs = useRefs();
   const names = agents.map((a) => a.key);
   const group = names.join('|');
@@ -122,6 +124,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
               opens={opens}
               menu={false}
               title={nameOf(agent.key)}
+              tag={leads.has(agent.key) && nameOf(agent.key).split('/').pop() !== 'lead' ? 'lead' : undefined}
               selected={pick.shown.includes(agent.key)}
               onShow={() => pick.onSelect(agent.key)}
               icon={<ActivityIcon act={activityOf(agent)} />}
