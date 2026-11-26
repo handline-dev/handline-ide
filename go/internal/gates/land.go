@@ -1,6 +1,7 @@
 package gates
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
@@ -57,17 +59,27 @@ func (e transportError) Is(t error) bool { return t == ErrTransport }
 // FetchBase fetches origin's copy of the default branch of the repository at repo, with no one at it (nothing prompts) and for at most
 // FetchWait; also over the further transports named. It is run only in a folder the roster keeps for an agent. An origin whose
 // transport is not allowed is ErrTransport.
-func FetchBase(repo string, also ...string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), FetchWait)
+func FetchBase(repo string, also ...string) error { return fetchBase(repo, FetchWait, also...) }
+
+// fetchBase is FetchBase with its limit given. git runs in its own process group, and the whole group is killed at the limit: git
+// starts helpers (ssh, git-remote-https, an upload-pack) that outlive it and hold its output open, and a kill of git alone would wait
+// for them. A helper that left the group is waited for one second more, then left behind.
+func fetchBase(repo string, limit time.Duration, also ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", "fetch", "--quiet", "--no-tags", "origin", gitrun.DefaultBranch(repo))
 	cmd.Dir = repo
 	cmd.Env = append(os.Environ(), append(gitrun.NoPrompts(append(append([]string{}, fetchProtocols...), also...)), "LC_ALL=C")...)
-	out, err := cmd.CombinedOutput()
-	said := oneLine(strings.TrimSpace(string(out)), "")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = time.Second
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	err := cmd.Run()
+	said := oneLine(strings.TrimSpace(out.String()), "")
 	switch {
 	case ctx.Err() != nil:
-		return fmt.Errorf("git fetch timed out after %s", FetchWait)
+		return fmt.Errorf("git fetch timed out after %s", limit)
 	case err != nil && transportRefused.MatchString(said):
 		return transportError{transportRefused.FindString(said)}
 	case err != nil && said == "":

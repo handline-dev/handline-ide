@@ -51,8 +51,9 @@ assignee, its owner, its parent's owner, the founder). Anyone may still make a t
 1. Outside any write, the daemon fetches origin's default branch in the folder the roster keeps for the agent acting on the
    task (`git fetch origin <default branch>`, nothing prompting, 60 s at most, over https, ssh or git only), and looks
    for the merge commit on that branch: origin's copy of it when the clone has one, else the local branch. It fetches
-   nowhere a caller names: a fetch honours a repository's config. Every git question the done needs is asked here, so no
-   git runs while the write holds the database.
+   nowhere a caller names: a fetch honours a repository's config. The fetch runs in a process group of its own, killed
+   whole at the 60 s: a helper git started (ssh, an https helper) cannot hold the pass past it. Every git question the
+   done needs is asked here, so no git runs while the write holds the database.
 2. In one write it marks the gate done (`merged <sha>`) and the task done, in that agent's name, with the merge commit as
    the evidence, as a review turn's pass closes a task. It is a done like any other: the workspace's `review_required`
    applies, and the task's result says the commit is on the default branch. The evidence is never words.
