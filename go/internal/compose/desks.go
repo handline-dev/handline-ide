@@ -1,17 +1,13 @@
 package compose
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 )
 
-// deskSweep is the worktree pool's pass: each workspace folder's worktrees already there become desks as they are (worktreepool.Adopt),
-// retried until that worked, and renamed desk-<n> once free (worktreepool.Rename); then each closed agent's desk is given back once its
-// session has let go of it.
+// deskSweep is the worktree pass: each workspace folder's worktrees already there join the pool as they are (worktreepool.Adopt),
+// retried until that worked; then, with the setting on, each closed agent's worktree is deleted once its session has let go of it.
 type deskSweep struct {
 	lc      *Lifecycle
 	home    string
@@ -42,20 +38,5 @@ func (d *deskSweep) Run(now int64) error {
 			d.log("  desks: %d folder(s) of %s joined the pool as they are", n, repo)
 		}
 	}
-	for repo := range d.adopted {
-		moved, err := d.lc.Desks.Rename(repo, d.lc.Manager.LetGoOfResume)
-		for _, m := range moved {
-			d.log("  desks: %s is now %s", m[0], m[1])
-		}
-		if err != nil {
-			d.log("  desks: %s: %v", repo, err)
-		}
-	}
-	var errs []error
-	tell := func(agent, text string) {
-		if _, err := d.lc.Env.Notice(d.lc.Env.DB, agent, text, "desk_untracked"); err != nil {
-			errs = append(errs, fmt.Errorf("%s: not told of its untracked files: %w", agent, err))
-		}
-	}
-	return errors.Join(d.lc.Desks.Sweep(now, tell), errors.Join(errs...))
+	return d.lc.Desks.Sweep(now)
 }

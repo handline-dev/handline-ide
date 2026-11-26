@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -156,13 +157,13 @@ func TestATerminalAgentIsStartedInADeskFromThePoolAndItsHandleKept(t *testing.T)
 		t.Fatalf("a session runs in it: %v %q", ok, said)
 	}
 	if len(ft.opened) != 1 || !strings.HasSuffix(ft.opened[0], "|"+bob+"|"+lifecycle.CommandFor("", "", "", bob)) ||
-		!strings.HasPrefix(ft.opened[0], repo+".worktrees.noindex/desk-1|") {
+		!regexp.MustCompile(`^`+regexp.QuoteMeta(repo)+`\.worktrees\.noindex/lead-[0-9a-f]{6}\|`).MatchString(ft.opened[0]) {
 		t.Fatalf("%v %q opened %q", ok, said, ft.opened)
 	}
 	if h, _ := dbpkg.Terminal(d, bob); h != "%1" {
 		t.Fatalf("the handle of the terminal is kept: %q", h)
 	}
-	if _, err := os.Stat(repo + ".worktrees.noindex/desk-1"); err != nil {
+	if _, err := os.Stat(strings.SplitN(ft.opened[0], "|", 2)[0]); err != nil {
 		t.Fatal("the desk was made beside the repo")
 	}
 }

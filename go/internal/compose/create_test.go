@@ -65,7 +65,7 @@ func TestAnAgentOfAWorkspacesSecondRepoGetsItsDeskThere(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, opened := createdThroughTheRealStart(t, p, ft, map[string]any{"workspace": ws, "name": "server", "folder": api}, "alice/server")
-	if !strings.HasPrefix(opened, api+".worktrees.noindex/desk-1|") {
+	if !strings.HasPrefix(opened, api+".worktrees.noindex/server-") {
 		t.Fatalf("a desk of its own repo: %q", opened)
 	}
 }

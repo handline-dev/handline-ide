@@ -198,7 +198,7 @@ func TestSpawnTakesADeskFromThePoolAndOpensItsTerminal(t *testing.T) {
 	s, h, repo := spawnRig(t)
 	ok, said, _ := s.Spawn("a", repo)
 	wt := deskOf(t, s, "a")
-	if !ok || filepath.Base(wt) != "desk-1" || !strings.Contains(said, "a: desk "+wt+" (new, branch a)") ||
+	if !ok || !strings.HasPrefix(filepath.Base(wt), "a-") || !strings.Contains(said, "a: desk "+wt+" (new, branch a)") ||
 		!strings.Contains(said, "from origin/main (fetched)") || !strings.Contains(said, "terminal t7") {
 		t.Fatalf("%v %q", ok, said)
 	}

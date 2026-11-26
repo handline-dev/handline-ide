@@ -45,7 +45,9 @@ func deskRig(t *testing.T) (*deskPrune, string, []string, *[]string) {
 	}
 	for i := 1; i <= 4; i++ {
 		at = at.Add(time.Hour)
-		if _, err := pool.GiveBack(fmt.Sprintf("a%d", i), 0); err != nil {
+		// let go as the shared pool did: the prune is for desks from then
+		gitrun.Run(desks[i-1], "checkout", "-q", "--detach")
+		if _, err := d.Exec("UPDATE worktree_folders SET holder = NULL, last_agent = ?, last_used = ? WHERE path = ?", fmt.Sprintf("a%d", i), at.Unix(), desks[i-1]); err != nil {
 			t.Fatal(err)
 		}
 	}
