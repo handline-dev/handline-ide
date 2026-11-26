@@ -292,6 +292,15 @@ func throughALink(root, file string) bool {
 	return real != root && !strings.HasPrefix(real, root+"/")
 }
 
+// plainPaths is the git setting that writes a path with bytes above ASCII as it is, not in quotes with octal escapes: the app reads a
+// file's path from the diff's own lines.
+const plainPaths = "core.quotePath=false"
+
+// untrackedDiff is the git run that shows file, which git does not track, as a new file.
+func untrackedDiff(file string) []string {
+	return []string{"-c", plainPaths, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", os.DevNull, file}
+}
+
 // untrackedDiffs are the new-file diffs of the files git does not track and does not ignore, as the per-file diff shows one.
 func untrackedDiffs(root string) string {
 	ok, list := git(root, "ls-files", "--others", "--exclude-standard", "-z")
@@ -311,7 +320,7 @@ func untrackedDiffs(root string) string {
 			fmt.Fprintf(&out, "diff --git a/%[1]s b/%[1]s\nnew file mode 100644\n(new file, %d bytes: not shown)\n", file, st.Size())
 			continue
 		}
-		_, d := git(root, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", os.DevNull, file)
+		_, d := git(root, untrackedDiff(file)...)
 		out.WriteString(d)
 	}
 	return out.String()
@@ -403,7 +412,7 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		return nil, badParam("file goes through a link: only what lies inside the worktree is read", "file")
 	}
 	from, baseRef := "HEAD", any(nil)
-	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color"}
+	args := []string{"-c", plainPaths, "diff", "--no-ext-diff", "--no-textconv", "--no-color"}
 	if against == "base" {
 		if ref, mb := baseMergeBase(root, "HEAD"); mb != "" {
 			from, baseRef = mb, ref
@@ -420,7 +429,7 @@ func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {
 		full := filepath.Join(root, file)
 		if st, err := os.Lstat(full); err == nil && st.Mode().IsRegular() {
 			if tracked, _ := git(root, "ls-files", "--error-unmatch", "--", file); !tracked {
-				_, out = git(root, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", os.DevNull, file)
+				_, out = git(root, untrackedDiff(file)...)
 			}
 		}
 	}

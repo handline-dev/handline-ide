@@ -203,6 +203,25 @@ func TestARunOfCommitsIsOneRangeAndTheDiffIsCappedByWholeFiles(t *testing.T) {
 	}
 }
 
+// A path with letters above ASCII reads the same in the files and in the diff's own lines, which name it without quotes.
+func TestATasksDiffWritesANonASCIIPathAsItIs(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	r := newChangesRepo(t, e)
+	addTask(t, e, "9", teamtest.Key(t, e.Home, "wb"))
+	sha := r.commit(r.wt, "Menu (T9)", "café.txt", "one\n")
+	for _, params := range []string{`{"task": 9}`, `{"task": 9, "commit": "` + sha + `"}`} {
+		got := changesOf(t, e, params)
+		files := got["files"].([]any)
+		if len(files) != 1 || files[0].(map[string]any)["path"] != "café.txt" {
+			t.Fatalf("%s: the file by its name: %v", params, files)
+		}
+		if diff := got["diff"].(string); !strings.Contains(diff, "diff --git a/café.txt b/café.txt\n") || !strings.Contains(diff, "+++ b/café.txt\n") {
+			t.Fatalf("%s: the diff names it without quotes:\n%s", params, diff)
+		}
+	}
+}
+
 func TestTheTaskInASubjectIsItsLastParenthesisToken(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct {

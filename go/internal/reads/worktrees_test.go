@@ -106,6 +106,42 @@ func TestTheDiffOfAWholeWorktreeIncludesUntrackedFilesButNotIgnoredOnes(t *testi
 	}
 }
 
+// A path with letters above ASCII is written as it is in the diff's own lines, tracked or not: git's default puts it in quotes with
+// octal escapes, and a reader of the headers then misses the file.
+func TestTheDiffWritesANonASCIIPathAsItIs(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	prAgent(t, e, "wq", "")
+	dir, git := agentGit(t, e, "wq")
+	write := func(name, text string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("café.txt", "one\n")
+	git("add", ".")
+	git("commit", "-q", "-m", "first")
+	write("café.txt", "two\n")
+	write("naïve file.txt", "new\n")
+	for _, file := range []any{nil, "café.txt", "naïve file.txt"} {
+		got, err := e.worktreeDiff(nil, map[string]any{"path": dir, "file": file})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d := got.(map[string]any)["diff"].(string)
+		if strings.Contains(d, "\\3") || strings.Contains(d, `"a/`) {
+			t.Fatalf("file %v: a path is quoted:\n%s", file, d)
+		}
+		if file != "naïve file.txt" && !strings.Contains(d, "diff --git a/café.txt b/café.txt\n") {
+			t.Fatalf("file %v: the tracked file's header:\n%s", file, d)
+		}
+		if file != "café.txt" && !strings.Contains(d, "+++ b/naïve file.txt") {
+			t.Fatalf("file %v: the untracked file's header:\n%s", file, d)
+		}
+	}
+}
+
 // Every worktree, an agent's too, carries its base, commits not on it, changed files, measured size and the pull request of its branch;
 // a gh that cannot answer gives pr null, and the answer is kept a minute.
 func TestEveryWorktreeCarriesItsFactsAndItsPullRequest(t *testing.T) {
