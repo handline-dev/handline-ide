@@ -433,6 +433,9 @@ func LaunchSession(q Q, agent string) (string, error) {
 	return id.String, err
 }
 
+// NoWorktree is the event of a start that found no worktree to start in (its make or checkout failed): making it is over.
+const NoWorktree = "no_worktree"
+
 // LaunchOver are the events that say a launch is no longer starting: a hook of its session (it is up), its end, or the wake that failed.
 var LaunchOver = []string{"SessionStart", "UserPromptSubmit", "Stop", "StopFailure", "PostCompact", "SessionEnd", "wake_failed"}
 
