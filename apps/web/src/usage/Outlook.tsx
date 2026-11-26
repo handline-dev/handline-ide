@@ -2,7 +2,7 @@ import { Segmented } from '#src/ui/Segmented.tsx';
 // The head of Usage, as the legacy page had it: "Week 43% left" and the accounts' week left together, recorded to now and guessed after
 // it (dashed), each account's weekly reset under the axis, and the part lost at the last reset as a bar. Moving over the plot reads a point.
 // Every number is the daemon's (stats.outlook); the drawing is the legacy one in this app's tokens.
-import { axisTicks, dateTime, guessLine, lostAtLastReset, weekResets } from '@handline/app-core';
+import { axisTicks, budgetLeftWords, dateTime, guessLine, lostAtLastReset, weekResets } from '@handline/app-core';
 import type { Outlook as Data } from '@handline/client';
 import { useOutlook } from '@handline/app-data';
 import { RotateCcw } from 'lucide-react';
@@ -35,7 +35,12 @@ function focused(o: Data, mine: Mine): { o: Data; lost: Lost } {
   const left = (p: Mine['past'][number]) => ({ at: p.at, left_pct: p.week_left });
   const f = mine.forecast;
   return {
-    o: { ...o, past: mine.past.map(left), future: mine.future.map((p) => ({ at: p.at, left_pct: p.line_left ?? p.week_left })), by_account: [mine] },
+    o: {
+      ...o,
+      past: mine.past.map(left),
+      future: mine.future.map((p) => ({ at: p.at, left_pct: p.line_left ?? p.week_left })),
+      by_account: [mine],
+    },
     lost: f ? { account: mine.account, at: f.at, pct: f.unused_pct, usd: f.unused_usd } : null,
   };
 }
@@ -68,12 +73,19 @@ export function Outlook({ labels, focus, onAll }: { labels: Labels; focus?: stri
 
 /** "Week 43% left", or "alpha · Week 43% left" for one account. */
 function Readout({ o, name }: { o: Data; name?: string }) {
-  const left = o.past.filter((p) => p.left_pct !== null).at(-1)?.left_pct ?? null;
+  // The week left weighted by each account's budget, and that in plan money; one account's own when focused.
+  const mine = name !== undefined ? o.budget?.accounts.find((b) => o.by_account?.[0]?.account === b.account) : undefined;
+  const recorded = o.past.filter((p) => p.left_pct !== null).at(-1)?.left_pct ?? null;
+  const left = mine ? (mine.used_pct === null ? null : 100 - mine.used_pct) : (o.budget?.left_pct ?? recorded);
+  const money = budgetLeftWords(mine ?? o.budget);
   return (
-    <strong className="text-xl font-semibold text-fg tabular-nums">
-      {name && `${name} · `}
-      {left === null ? 'Week: no reading' : `Week ${Math.round(left)}% left`}
-    </strong>
+    <span className="flex flex-wrap items-baseline gap-x-2">
+      <strong className="text-xl font-semibold text-fg tabular-nums">
+        {name && `${name} · `}
+        {left === null ? 'Week: no reading' : `Week ${Math.round(left)}% left`}
+      </strong>
+      {money && <span className="text-sm text-muted tabular-nums">{money}</span>}
+    </span>
   );
 }
 

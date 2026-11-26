@@ -1,6 +1,7 @@
 // The fake daemon's usage numbers: stats.get and stats.outlook, made from the clock it is given.
 import type { Outlook, Stats, Timestamp } from '@handline/contract';
 import { badRequest } from '#src/errors.ts';
+import { budget, planCostPerDay } from '#src/usage-budget.ts';
 
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
@@ -31,7 +32,7 @@ function fiveResets(from: number, to: number): { at: Timestamp; window: '5h' }[]
   return out;
 }
 
-/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in two hours, as its runway says, and its week reset is not known. kappa (the usage-stale seed's account with no 5h reading) is an Ultra: its week and no 5h window. */
+/** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in two hours, as its runway says, and its week reset is not known. kappa has no 5-hour window. */
 function byAccount(past: Outlook['past'], future: Outlook['future'], now: number, head: number): Outlook['by_account'] {
   const points = (pts: Outlook['past'], d: number, five?: [number, number]) =>
     pts.map((p) => ({
@@ -67,8 +68,8 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
     },
     {
       account: 'kappa',
-      past: points(past, 20),
-      future: points(future, 20),
+      past: points(past, 0),
+      future: points(future, 0),
       resets: [],
       five_hour: false,
       forecast: null,
@@ -170,6 +171,8 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
       { account: 'beta', runs_out_in_seconds: 2 * 3600, week_resets_at: null },
     ],
     cost_per_day,
+    plan_cost_per_day: planCostPerDay(cost_per_day),
+    budget: budget(),
     agent_use: AGENT_USE.map((u) => ({ ...u, fracs: { ...u.fracs } })),
     // An account's history at the daemon's step (its OutlookPoints, 96 over twice the range, never under 15 minutes): 30 minutes for 24h.
     by_account: byAccount(

@@ -2,7 +2,7 @@ import { Bar } from '#src/ui/Meter.tsx';
 import { pct } from '#src/format/count.ts';
 // Under the Usage graph, one of four views at a time: the accounts, who used it (by agent), which models used it (each agent's use under
 // the model it runs on now), and the cost per day stacked by agent. The figures are the daemon's (stats.get, stats.outlook).
-import { costByAgent, nameOf, spentText } from '@handline/app-core';
+import { costByAgent, nameOf, planUsd, spentText, weekBudgets } from '@handline/app-core';
 import type { Stats } from '@handline/client';
 import { useAgents, useDirectory, useOutlook, useStats } from '@handline/app-data';
 import { Bot, ChartColumn, ChevronRight, Cpu, Info, UserRound } from 'lucide-react';
@@ -89,7 +89,10 @@ export function ByAgent({ win }: { win: Win }) {
   const dir = useDirectory();
   type Agent = Use & { name: string; accounts: { account: string; use: Use }[] };
   const agents = new Map<string, Agent>();
-  for (const u of s?.use ?? []) {
+  // Plan money: each line's week share of its account's weekly budget, not the calls' list price.
+  const budgets = weekBudgets(useOutlook('7d').data?.budget);
+  for (const line of s?.use ?? []) {
+    const u = { ...line, cost: planUsd(line.week_pct, budgets.get(line.account)) };
     const name = u.agent || NO_AGENT;
     const a = agents.get(name) ?? { name, cost: 0, week: null, accounts: [] };
     Object.assign(a, add(a, u));
@@ -247,11 +250,14 @@ export function CostPerDay({ range }: { range: CostRange }) {
         <RowsLoading rows={4} />
       </div>
     );
-  const { agents, sums, all } = costByAgent(o);
+  // Plan money, from the daemon's plan reading; an older daemon's list prices otherwise.
+  const days = o.plan_cost_per_day ?? o.cost_per_day;
+  const { agents, sums, all } = costByAgent({ ...o, cost_per_day: days });
   const order = agents.map((a, i) => ({ a, sum: sums[i] })).sort((x, y) => y.sum - x.sum);
   const tone = new Map(order.map((x, i) => [x.a, SERIES[i % SERIES.length]]));
-  const dayTotal = (d: (typeof o.cost_per_day)[number]) => agents.reduce((n, a) => n + (d.agents[a] ?? 0), 0);
-  const top = Math.max(1, ...o.cost_per_day.map(dayTotal));
+  const dayTotal = (d: (typeof days)[number]) => agents.reduce((n, a) => n + (d.agents[a] ?? 0), 0);
+  // Plan money per day is cents, so the scale has no dollar floor.
+  const top = Math.max(0.01, ...days.map(dayTotal));
   return (
     <div className="flex flex-col gap-3">
       {/* Hovering a piece reads it beside the pointer: whose, how much, and the day's total; the other agents dim. */}
@@ -261,7 +267,7 @@ export function CostPerDay({ range }: { range: CostRange }) {
         aria-label="Cost per day, by agent"
         onMouseLeave={() => setHover(null)}
       >
-        {o.cost_per_day.map((d, i) => (
+        {days.map((d, i) => (
           <div key={d.day} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-1">
             <div className="flex flex-col-reverse overflow-hidden rounded-sm" style={{ height: `${(dayTotal(d) / top) * 100}%` }}>
               {order.map(({ a }) => (
@@ -278,8 +284,8 @@ export function CostPerDay({ range }: { range: CostRange }) {
         ))}
         {hover &&
           (() => {
-            const d = o.cost_per_day[hover.day];
-            const at = ((hover.day + 0.5) / o.cost_per_day.length) * 100;
+            const d = days[hover.day];
+            const at = ((hover.day + 0.5) / days.length) * 100;
             return (
               <div
                 className="pointer-events-none absolute top-0 z-10 flex flex-col rounded-md border border-border bg-bg px-2 py-1 text-xs whitespace-nowrap shadow-popover"
