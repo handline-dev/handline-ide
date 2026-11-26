@@ -82,7 +82,7 @@ describe('the sandbox block', () => {
   const list = '2026-11-20 host pypi.org\n2026-11-21 cert\n2026-11-22 command pnpm install';
   it('turns the sandbox on with agent.set, and lists nothing allowed until there is an entry', async () => {
     await mount(<AgentPage agent="ui" />);
-    expect(document.body.textContent).not.toContain('Allowed');
+    expect(document.querySelector('[aria-label^="Stop allowing"]')).toBeNull();
     await act(async () => sw('Run in a sandbox').click());
     expect(calls).toEqual([{ method: 'agent.set', params: { agent: 'ui', values: { sandbox: 'on' } } }]);
   });
@@ -93,9 +93,9 @@ describe('the sandbox block', () => {
       .filter((li) => li.querySelector('[aria-label^="Stop allowing"]'))
       .map((li) => li.textContent);
     expect(entries).toEqual([
-      expect.stringMatching(/^Reachpypi\.org/),
-      expect.stringMatching(/^Certificate checkThe certificate check Go tools need/),
-      expect.stringMatching(/^Run outsidepnpm install/),
+      expect.stringMatching(/^pypi\.orgMay reachallowed /),
+      expect.stringMatching(/^Go tools may use the macOS certificate checkallowed /),
+      expect.stringMatching(/^pnpm installRuns outside the sandboxallowed /),
     ]);
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Stop allowing pypi.org"]')!.click());
     expect(calls.map((c) => (c.params as { values: object }).values)).toEqual([
