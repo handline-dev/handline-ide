@@ -273,7 +273,7 @@ export type TaskDetail = Task & {
   /** The ask for a plan that the plan has not answered yet (plan_state asked or writing); null otherwise. */
   plan_ask: {
     at: Timestamp;
-    /** Who asked: the founder's key, or `sys` for the plans setting's own ask. */
+    /** Who asked: the founder's key; `sys` on an old ask the daemon made by itself, which it no longer does. */
     by: string;
     /** The agent asked: the task's assignee when it was asked. */
     to: string;
@@ -283,7 +283,7 @@ export type TaskDetail = Task & {
   /** The newest ask for the task's core logic (task.core_ask); null when none was made. Once it is sent, the assignee commits the code on a branch of the task's own: task.changes shows it. */
   core_ask: {
     at: Timestamp;
-    /** Who asked: the founder's key, or `sys` for the plans setting's own ask. */
+    /** Who asked: the founder's key; `sys` on an old ask the daemon made by itself, which it no longer does. */
     by: string;
     /** The agent asked: the task's assignee when it was asked. */
     to: string;
@@ -717,7 +717,7 @@ export interface TasksMethods {
   expects?: Expects;
   /** The task shows something on a screen. A label only: task.done takes a screenshot (shots) but never requires one. */
   ui?: boolean;
-  /** Open the task as a draft (state draft) for an agent: its brief is kept, nobody is told or asked, and it does not become its assignee's current task. task.queue runs it. With the plans setting auto, its assignee is asked for a plan (TaskDetail.plan) once it is free, and again when its brief or assignee changes; a plan ask still waiting is dropped once the task is queued. Refused (`refused`) for a task owned by the founder or a gate. A founder's draft stays a draft too. */
+  /** Open the task as a draft (state draft) for an agent: its brief is kept, nobody is told or asked, and it does not become its assignee's current task. task.queue runs it. Its assignee is asked for a plan (TaskDetail.plan) only by task.plan_ask; a plan ask still waiting is dropped once the task is queued. Refused (`refused`) for a task owned by the founder or a gate. A founder's draft stays a draft too. */
   draft?: boolean;
   request_id: RequestId;
 }; result: Accepted & {

@@ -184,7 +184,7 @@ The founder marks the task's plan as it stands OK, or with ok false takes that b
 
 ### `task.plan_ask`
 
-Ask the task's assignee for its plan (the button of the plans setting manual, or a plan asked again). The ask waits until the agent is no longer doing the task it was doing, then is typed to it (TaskDetail.plan_ask): it reads and changes nothing, and keeps the plan with task.plan. Refused (`refused`): a task that has ended or that no agent works, and one whose plan ask has not been sent yet (plan_state asked); a sent one (writing) may be asked again. With the plans setting auto the daemon asks on its own for every task opened as a draft (task.new draft) that an agent works and that has no plan written since its brief or its assignee last changed. An agent with a plan ask sent in the last hour and unanswered gets no other ask until it answers.
+Ask the task's assignee for its plan (Ask for a plan, or a plan asked again); no plan is asked without it. The ask waits until the agent is no longer doing the task it was doing, then is typed to it (TaskDetail.plan_ask): it reads and changes nothing, and keeps the plan with task.plan. Refused (`refused`): a task that has ended or that no agent works, and one whose plan ask has not been sent yet (plan_state asked); a sent one (writing) may be asked again. An agent with a plan ask sent in the last hour and unanswered gets no other ask until it answers.
 
 ### `task.core_ask`
 

@@ -1188,7 +1188,7 @@
            },
            "by": {
             "type": "string",
-            "description": "Who asked: the founder's key, or `sys` for the plans setting's own ask."
+            "description": "Who asked: the founder's key; `sys` on an old ask the daemon made by itself, which it no longer does."
            },
            "to": {
             "type": "string",
@@ -1229,7 +1229,7 @@
            },
            "by": {
             "type": "string",
-            "description": "Who asked: the founder's key, or `sys` for the plans setting's own ask."
+            "description": "Who asked: the founder's key; `sys` on an old ask the daemon made by itself, which it no longer does."
            },
            "to": {
             "type": "string",
@@ -3156,7 +3156,7 @@
      "required": false,
      "schema": {
       "type": "boolean",
-      "description": "Open the task as a draft (state draft) for an agent: its brief is kept, nobody is told or asked, and it does not become its assignee's current task. task.queue runs it. With the plans setting auto, its assignee is asked for a plan (TaskDetail.plan) once it is free, and again when its brief or assignee changes; a plan ask still waiting is dropped once the task is queued. Refused (`refused`) for a task owned by the founder or a gate. A founder's draft stays a draft too."
+      "description": "Open the task as a draft (state draft) for an agent: its brief is kept, nobody is told or asked, and it does not become its assignee's current task. task.queue runs it. Its assignee is asked for a plan (TaskDetail.plan) only by task.plan_ask; a plan ask still waiting is dropped once the task is queued. Refused (`refused`) for a task owned by the founder or a gate. A founder's draft stays a draft too."
      }
     },
     {
@@ -5174,7 +5174,7 @@
   },
   {
    "name": "task.plan_ask",
-   "summary": "Ask the task's assignee for its plan (the button of the plans setting manual, or a plan asked again). The ask waits until the agent is no longer doing the task it was doing, then is typed to it (TaskDetail.plan_ask): it reads and changes nothing, and keeps the plan with task.plan.",
+   "summary": "Ask the task's assignee for its plan (Ask for a plan, or a plan asked again); no plan is asked without it. The ask waits until the agent is no longer doing the task it was doing, then is typed to it (TaskDetail.plan_ask): it reads and changes nothing, and keeps the plan with task.plan.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -5216,7 +5216,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Refused (`refused`): a task that has ended or that no agent works, and one whose plan ask has not been sent yet (plan_state asked); a sent one (writing) may be asked again. With the plans setting auto the daemon asks on its own for every task opened as a draft (task.new draft) that an agent works and that has no plan written since its brief or its assignee last changed. An agent with a plan ask sent in the last hour and unanswered gets no other ask until it answers."
+   "description": "Refused (`refused`): a task that has ended or that no agent works, and one whose plan ask has not been sent yet (plan_state asked); a sent one (writing) may be asked again. An agent with a plan ask sent in the last hour and unanswered gets no other ask until it answers."
   },
   {
    "name": "task.core_ask",
