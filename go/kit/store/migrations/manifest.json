@@ -183,5 +183,10 @@
   "version": 136,
   "name": "account_folder",
   "additive": true
+ },
+ {
+  "version": 137,
+  "name": "drop_sandbox_domains",
+  "additive": false
  }
 ]

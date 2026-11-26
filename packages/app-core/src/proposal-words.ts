@@ -10,6 +10,7 @@ const PHRASE: Record<string, (who: string) => string> = {
   settings: (who) => `Change ${who}'s settings`,
   context: (who) => `Change ${who}'s prompt`,
   schedule: (who) => `Change ${who}'s schedule`,
+  sandbox: (who) => `Widen ${who}'s sandbox`,
   run: () => 'Run a command',
 };
 
@@ -35,6 +36,8 @@ export function proposalTitle(p: P, nameOf: (key: string) => string): string {
     const n = p.diff.split('\n').filter((l) => l.trim()).length;
     return `${n} ${n === 1 ? 'change' : 'changes'}`;
   }
+  // A sandbox ask's one line is what it lets the agent do: "Let web reach pypi.org".
+  if (p.kind === 'sandbox' && p.diff.trim()) return `Let ${nameOf(p.agent)} ${p.diff.trim()}`;
   const phrase = p.kind ? PHRASE[p.kind] : undefined;
   return phrase ? phrase(nameOf(p.agent)) : p.title;
 }

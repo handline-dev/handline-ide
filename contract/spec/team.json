@@ -236,7 +236,7 @@
      },
      "kind": {
       "type": "string",
-      "description": "What the proposal does: add, retire, rename, team, settings, context, schedule, run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text."
+      "description": "What the proposal does: add, retire, rename, team, settings, context, schedule, sandbox (one entry for the agent's sandbox_allow; diff says it in plain words, `reach pypi.org`), run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text."
      },
      "run": {
       "type": "object",
@@ -343,7 +343,7 @@
       "additionalProperties": {
        "type": "string"
       },
-      "description": "settings: agent setting keys as AgentSettingValues names them. context: whole new file texts keyed `ROLE.md` or `base.md`; empty text or control characters other than tab and newline is bad_request."
+      "description": "settings: agent setting keys as AgentSettingValues names them. context: whole new file texts keyed `ROLE.md` or `base.md`; empty text or control characters other than tab and newline is bad_request. sandbox: `kind` (host, command, write or cert) and `value` (empty for cert), checked as agent.set checks an entry of sandbox_allow; one the agent has already is bad_request."
      },
      "changes": {
       "type": "array",
@@ -573,7 +573,7 @@
  "methods": [
   {
    "name": "proposal.propose",
-   "summary": "Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, run (a shell command the founder's approve runs in a terminal window; at most 5 open per agent, the sixth refused), and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).",
+   "summary": "Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, sandbox (one entry the founder's approve adds to the agent's sandbox_allow, keeping the rest; never in a bundle), run (a shell command the founder's approve runs in a terminal window; at most 5 open per agent, the sixth refused), and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).",
    "paramStructure": "by-name",
    "params": [
     {
@@ -590,6 +590,7 @@
        "context",
        "schedule",
        "run",
+       "sandbox",
        "bundle"
       ]
      }

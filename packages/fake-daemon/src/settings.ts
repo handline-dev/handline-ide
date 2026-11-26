@@ -29,8 +29,11 @@ const ONE_OF: Record<string, string[]> = {
   mode: ['default', 'auto', 'acceptEdits', 'plan'],
 };
 const WHOLE = new Set(['context_k', 'idle_close']);
-/** sandbox_allow's allowance words. */
-const ALLOW = new Set(['weaker-network', 'pnpm-install']);
+/** One line of sandbox_allow: `<day> <kind> <value>`, as the daemon checks it (go/data/team/sandbox.go). */
+const LABEL = '[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?';
+const ENTRY = new RegExp(
+  `^\\d{4}-\\d{2}-\\d{2} (host (\\*\\.)?(${LABEL}\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?|command [^*\\s][^\\n]{0,299}|write (/|~/)[^\\n]+|cert)$`,
+);
 
 function check(key: string, v: unknown): string {
   if (typeof v !== 'string') throw badRequest(`${key} takes a string`, key);
@@ -39,8 +42,8 @@ function check(key: string, v: unknown): string {
   if (WHOLE.has(key) && !/^[0-9]*$/.test(v)) throw badRequest(`${key} is a whole number`, key);
   if (key === 'context_k' && !v) throw badRequest('context_k is a whole number', key);
   if (key === 'model' && !v.trim()) throw badRequest('model is not empty', key);
-  if (key === 'sandbox_allow' && v.split(/\s+/).some((w) => w && !ALLOW.has(w)))
-    throw badRequest(`sandbox_allow takes ${[...ALLOW].join(', ')}`, key);
+  if (key === 'sandbox_allow' && v.split('\n').some((l) => l.trim() && !ENTRY.test(l.trim())))
+    throw badRequest('sandbox_allow is one entry per line: <day> <host|command|write|cert> <value>', key);
   return v;
 }
 

@@ -7,7 +7,7 @@ const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
 
 export const PROPOSAL_SEEDS: Record<string, Seed> = {
-  /** Four proposals: a new agent (team, model), a setting change old -> new, one to reject, and a command to run. */
+  /** Five proposals: a new agent (team, model), a setting change old -> new, one to reject, a command to run, and a sandbox ask. */
   proposals: (d) => {
     const book = d.script.proposals;
     book.raise({
@@ -49,6 +49,15 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
         risks: ['privilege', 'network'],
       },
       reason: 'The push needs the keychain, which only you can unlock.',
+    });
+    book.raise({
+      id: 909,
+      kind: 'sandbox',
+      agent: AUD,
+      title: `sandbox ${AUD}`,
+      diff: 'reach pypi.org',
+      asked: { sets: { kind: 'host', value: 'pypi.org' } },
+      reason: 'The audit tests install their Python linters from PyPI.',
     });
   },
 

@@ -272,58 +272,6 @@ func (r *Roster) SandboxOn(agent string, cfg Config) bool {
 	return strings.TrimSpace(v) == "on"
 }
 
-// SandboxDomains are the hosts a sandboxed session may reach: the package registries every repo builds from, and those its row
-// adds under sandbox_domains, comma separated.
-func SandboxDomains(cfg Config) []string {
-	out := []string{"registry.npmjs.org", "proxy.golang.org", "sum.golang.org"}
-	extra, _ := cfg["sandbox_domains"].(string)
-	for _, d := range strings.Split(extra, ",") {
-		if d = strings.TrimSpace(d); d != "" {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
-// SandboxAllowances are what a sandboxed session may do beyond the sandbox, because the founder allowed it for the agent
-// (sandbox_allow).
-type SandboxAllowances struct {
-	// WeakerNetwork lets the session reach trustd, which Go on macOS verifies TLS through: without it no Go module downloads.
-	WeakerNetwork bool
-	// Excluded are the commands that run outside the sandbox.
-	Excluded []string
-}
-
-// SandboxAllowanceNames are the allowances sandbox_allow may name, each as it changes the session's sandbox.
-var SandboxAllowanceNames = map[string]func(*SandboxAllowances){
-	"weaker-network": func(a *SandboxAllowances) { a.WeakerNetwork = true },
-	"pnpm-install": func(a *SandboxAllowances) {
-		a.Excluded = append(a.Excluded, "pnpm install", "pnpm install --frozen-lockfile")
-	},
-}
-
-// SandboxAllowWords is sandbox_allow as written: its allowance words, each once, in the order given; a word that names no
-// allowance is kept out.
-func SandboxAllowWords(cfg Config) []string {
-	v, _ := cfg["sandbox_allow"].(string)
-	var out []string
-	for _, w := range strings.Fields(v) {
-		if SandboxAllowanceNames[w] != nil && !contains(out, w) {
-			out = append(out, w)
-		}
-	}
-	return out
-}
-
-// SandboxAllowancesOf are the allowances the agent's row gives its sandboxed sessions; none until the founder sets sandbox_allow.
-func SandboxAllowancesOf(cfg Config) SandboxAllowances {
-	var out SandboxAllowances
-	for _, w := range SandboxAllowWords(cfg) {
-		SandboxAllowanceNames[w](&out)
-	}
-	return out
-}
-
 func pairsGet(p []yamlcompat.Pair, k string) (any, bool) {
 	for _, x := range p {
 		if x.Key == k {

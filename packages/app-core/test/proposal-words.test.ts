@@ -6,6 +6,11 @@ const nameOf = (k: string) => ({ a10: 'ui' })[k] ?? k;
 
 test('an HR proposal is called by what it does, with the name', () => {
   assert.equal(proposalTitle({ kind: 'context', agent: 'a10', title: 'context a10', diff: '' }, nameOf), "Change ui's prompt");
+  assert.equal(
+    proposalTitle({ kind: 'sandbox', agent: 'a10', title: 'sandbox a10', diff: 'run pnpm install outside the sandbox' }, nameOf),
+    'Let ui run pnpm install outside the sandbox',
+  );
+  assert.equal(proposalTitle({ kind: 'sandbox', agent: 'a10', title: 'sandbox a10', diff: '' }, nameOf), "Widen ui's sandbox");
   assert.equal(proposalTitle({ kind: 'bundle', agent: '3 changes', title: 'bundle 3 changes', diff: 'a\nb\nc' }, nameOf), '3 changes');
   assert.equal(proposalTitle({ kind: 'mystery', agent: 'a10', title: 'mystery a10', diff: '' }, nameOf), 'mystery a10');
 });

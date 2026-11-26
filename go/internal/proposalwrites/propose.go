@@ -19,8 +19,9 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// proposable are the kinds `hl propose` raises from a session: the roster changes, an agent's settings and schedule, and a command.
-var proposable = []string{"add", "retire", "rename", "team", "context", "settings", "schedule", "run"}
+// proposable are the kinds `hl propose` raises from a session: the roster changes, an agent's settings, schedule and sandbox list,
+// and a command.
+var proposable = []string{"add", "retire", "rename", "team", "context", "settings", "schedule", "run", "sandbox"}
 
 // maxSteps bounds a team diff (MAX_STEPS in handline/team/proposals.py).
 const maxSteps = 40
@@ -218,6 +219,17 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 			for _, c := range changes {
 				was[c.Field] = c.Old
 			}
+		}
+	}
+	if kind == "settings" && sets["sandbox_allow"] != "" {
+		return nil, "an agent asks for one sandbox entry at a time: hl propose sandbox <kind> [<value>] --why \"...\""
+	}
+	if kind == "sandbox" {
+		if paths.WhoKey(e.Home, actor) != name {
+			return nil, "an agent asks for its own sandbox only"
+		}
+		if why := e.sandboxAskProblem(name, sets); why != "" {
+			return nil, why
 		}
 	}
 	if kind == "context" {
@@ -429,11 +441,11 @@ func (e *Env) proposeBundle(c *rpc.Conn, raw []any, why string) (any, error) {
 		if kind == "" || argStr(ch, "name") == "" {
 			return refuse("change %d needs a kind and a name", i+1)
 		}
-		if kind == "run" {
-			return refuse("change %d: a run is proposed alone (hl propose run), never in a bundle", i+1)
+		if kind == "run" || kind == "sandbox" {
+			return refuse("change %d: a %s is proposed alone (hl propose %s), never in a bundle", i+1, kind, kind)
 		}
 		if !slices.Contains(itemKinds, kind) {
-			return refuse("change %d: kind must be one of %s", i+1, strings.Join(slices.DeleteFunc(slices.Clone(itemKinds), func(k string) bool { return k == "run" }), ", "))
+			return refuse("change %d: kind must be one of %s", i+1, strings.Join(slices.DeleteFunc(slices.Clone(itemKinds), func(k string) bool { return k == "run" || k == "sandbox" }), ", "))
 		}
 		var extra []string
 		for k := range ch {

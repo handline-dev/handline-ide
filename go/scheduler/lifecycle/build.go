@@ -220,8 +220,9 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	var cacheDir string
 	var allowed team.SandboxAllowances
 	if sandboxed {
-		allowWrite, allowDomains, cacheDir = l.SandboxAllowWrite(agent), team.SandboxDomains(cfg), l.SandboxCacheDir(agent)
 		allowed = team.SandboxAllowancesOf(cfg)
+		allowWrite = append(l.SandboxAllowWrite(agent), allowed.Writes...)
+		allowDomains, cacheDir = team.SandboxDomains(cfg), l.SandboxCacheDir(agent)
 	}
 	var trusted []string
 	if len(mode) > 0 && chosen == team.DefaultMode {
@@ -238,7 +239,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		AlwaysAllow: rules,
 		LandPush:    l.held(agent).LandBy == agent,
 		AllowWrite:  allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.Roster.OtherFolders(agent),
-		WeakerNetwork: allowed.WeakerNetwork, Excluded: allowed.Excluded,
+		WeakerNetwork: allowed.Cert, Excluded: allowed.Commands,
 	})
 	// The pair goes whole or not at all: a caller's own mode wins, and a lone value left behind would be read as the opening prompt.
 	if len(mode) > 0 {

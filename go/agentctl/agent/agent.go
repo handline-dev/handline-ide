@@ -53,7 +53,8 @@ type LaunchArgs struct {
 	CacheDir string
 	// AddDirs are the other folders of the agent's workspace, which the session gets beside its own (--add-dir), to read and write.
 	AddDirs []string
-	// WeakerNetwork and Excluded are what the founder allowed the agent's sandboxed sessions (team.SandboxAllowances).
+	// WeakerNetwork (the macOS certificate check) and Excluded (commands run outside the sandbox) are what the founder allowed the
+	// agent's sandboxed sessions (team.SandboxAllowances).
 	WeakerNetwork bool
 	Excluded      []string
 }

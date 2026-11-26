@@ -39,7 +39,7 @@ func newRig(t *testing.T) *rig {
 	t.Helper()
 	home := t.TempDir()
 	d := teamtest.Seed(t, home, "team", "team/ui", "team/lander")
-	teamtest.Set(t, home, "team/ui", "model", "opus", "effort", "high", "sandbox_allow", "pnpm-install")
+	teamtest.Set(t, home, "team/ui", "model", "opus", "effort", "high", "sandbox_allow", "2026-11-26 cert")
 	r := &rig{t: t, home: home, db: d, present: map[string]bool{}, idle: map[string]bool{}}
 	clock := time.Unix(1_000_000, 0)
 	r.env = &Env{DB: d, Home: home, Now: func() time.Time { return clock },
@@ -144,7 +144,7 @@ func TestAHireTakesASeatWithTheAgentsSettings(t *testing.T) {
 	}
 	cfg, err := team.NewRoster(r.home).Read(seat)
 	r.must(err)
-	if cfg["model"] != "opus" || cfg["effort"] != "high" || cfg["sandbox_allow"] != "pnpm-install" {
+	if cfg["model"] != "opus" || cfg["effort"] != "high" || cfg["sandbox_allow"] != "2026-11-26 cert" {
 		t.Fatalf("settings %v", cfg)
 	}
 	if got := r.events(ui, HiredEvent); len(got) != 1 || got[0] != `{"seat":"`+seat+`","task_id":`+itoa(tid)+`}` {

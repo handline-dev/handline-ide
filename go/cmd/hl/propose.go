@@ -25,6 +25,8 @@ func propose(c *hlclient.Client, args []string) (int, bool) {
 		return proposalPropose(c, sub, rest)
 	case "settings":
 		return proposalSettings(c, rest)
+	case "sandbox":
+		return proposalSandbox(c, rest)
 	case "schedule":
 		return proposalSchedule(c, rest)
 	case "bundle":
@@ -166,6 +168,31 @@ func proposalSettings(c *hlclient.Client, args []string) (int, bool) {
 	}
 	c.NoteVerbChain([]string{"propose", "settings"})
 	return said(c.Write("proposal.propose", map[string]any{"kind": "settings", "why": why, "args": map[string]any{"name": p.pos[0], "sets": sets}})), true
+}
+
+// proposalSandbox asks the founder for one entry of the asking agent's sandbox list: `hl propose sandbox <host|command|write|cert> [<value>]
+// --why "..."`. The founder's OK adds it and keeps the rest.
+func proposalSandbox(c *hlclient.Client, args []string) (int, bool) {
+	p, ok := parse(args, []string{"--why"}, nil, nil)
+	if !ok || len(p.pos) < 1 || !slices.Contains(team.SandboxKinds, p.pos[0]) || (p.pos[0] == team.SandboxCert) != (len(p.pos) == 1) {
+		return 0, false
+	}
+	why, problem := proposalWhy(p)
+	if problem != "" {
+		return wrongArgs("%s", problem)
+	}
+	kind, value := p.pos[0], strings.Join(p.pos[1:], " ")
+	if why := team.SandboxEntryProblem(kind, value); why != "" {
+		return wrongArgs("%s", why)
+	}
+	me := c.AskingAgent()
+	if me == "" {
+		fmt.Println(hlclient.WhoRefusal("propos"))
+		return 1, true
+	}
+	c.NoteVerbChain([]string{"propose", "sandbox"})
+	return said(c.Write("proposal.propose", map[string]any{"kind": "sandbox", "why": why,
+		"args": map[string]any{"name": me, "sets": map[string]any{"kind": kind, "value": value}}})), true
 }
 
 // proposalSchedule raises a recurring message for an agent for the founder to decide: a new schedule, an edit of one (--was names it) or its removal.

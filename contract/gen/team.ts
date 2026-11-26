@@ -79,7 +79,7 @@ export type Proposal = {
     /** Context only: the whole text approving sets, trimmed as it is kept. Text from an agent: draw as plain text. */
     after?: string;
   }[];
-  /** What the proposal does: add, retire, rename, team, settings, context, schedule, run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
+  /** What the proposal does: add, retire, rename, team, settings, context, schedule, sandbox (one entry for the agent's sandbox_allow; diff says it in plain words, `reach pypi.org`), run (a shell command the founder runs with the approve) or bundle (several changes decided once). An open set: a client draws a word it does not know as text. */
   kind?: string;
   /** Kind run only: the command and, once the approve started it, its run. The run's output goes to the proposing agent: a card says so before the press. */
   run?: {
@@ -115,7 +115,7 @@ export type ProposalArgs = {
   members?: string[];
   /** team: repo by member. */
   repos?: { [key: string]: string };
-  /** settings: agent setting keys as AgentSettingValues names them. context: whole new file texts keyed `ROLE.md` or `base.md`; empty text or control characters other than tab and newline is bad_request. */
+  /** settings: agent setting keys as AgentSettingValues names them. context: whole new file texts keyed `ROLE.md` or `base.md`; empty text or control characters other than tab and newline is bad_request. sandbox: `kind` (host, command, write or cert) and `value` (empty for cert), checked as agent.set checks an entry of sandbox_allow; one the agent has already is bad_request. */
   sets?: { [key: string]: string };
   /** bundle: the steps, at most 40, each judged against the roster the earlier ones leave. name is then ignored (send the count, `3 changes`). */
   changes?: { [key: string]: unknown }[];
@@ -192,7 +192,7 @@ export type WorkspaceFolder = {
 
 export interface TeamMethods {
   "proposal.propose": { params: {
-  kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "run" | "bundle";
+  kind: "add" | "retire" | "rename" | "team" | "settings" | "context" | "schedule" | "run" | "sandbox" | "bundle";
   args: ProposalArgs;
   why?: string;
   request_id: RequestId;

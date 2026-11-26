@@ -1,10 +1,6 @@
 package team
 
-import (
-	"slices"
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestTheFoundersSwitchTurnsTheSandboxOnWhereTheAgentSaysNothing(t *testing.T) {
 	t.Setenv("HANDLINE_AGENT", "")
@@ -25,31 +21,6 @@ func TestTheFoundersSwitchTurnsTheSandboxOnWhereTheAgentSaysNothing(t *testing.T
 	}
 	if r.SandboxOn("worker", Config{}) {
 		t.Fatal("the switch off leaves the old default")
-	}
-	got := SandboxDomains(Config{"sandbox_domains": " expo.dev,, "})
-	if strings.Join(got, ",") != "registry.npmjs.org,proxy.golang.org,sum.golang.org,expo.dev" {
-		t.Fatalf("the registries and the hosts its row adds: %v", got)
-	}
-}
-
-func TestAnAgentHasOnlyTheSandboxAllowancesItsRowNames(t *testing.T) {
-	if got := SandboxAllowancesOf(Config{}); got.WeakerNetwork || got.Excluded != nil {
-		t.Fatalf("an agent has none until the founder gives them: %+v", got)
-	}
-	cfg := Config{"sandbox_allow": "weaker-network pnpm-install rm-rf pnpm-install"}
-	if got := SandboxAllowWords(cfg); !slices.Equal(got, []string{"weaker-network", "pnpm-install"}) {
-		t.Fatalf("each known word once, in order: %v", got)
-	}
-	got := SandboxAllowancesOf(cfg)
-	if !got.WeakerNetwork || !slices.Equal(got.Excluded, []string{"pnpm install", "pnpm install --frozen-lockfile"}) {
-		t.Fatalf("a word that names no allowance grants nothing: %+v", got)
-	}
-	// The CLI takes a pattern as the whole command, or as its start when it ends in " *": an add of a package stays in the sandbox.
-	for _, pattern := range got.Excluded {
-		start, prefix := strings.CutSuffix(pattern, " *")
-		if cmd := "pnpm install left-pad"; cmd == pattern || prefix && strings.HasPrefix(cmd, start+" ") {
-			t.Fatalf("%q runs %q outside the sandbox", pattern, cmd)
-		}
 	}
 }
 

@@ -242,14 +242,14 @@ func TestProposeRunSendsTheCommandForTheAskingAgentAndListShowsItsRun(t *testing
 func TestProposeSettingsAsksTheFounderForAnAgentsSettings(t *testing.T) {
 	r := newRig(t)
 	calls := r.daemon(map[string]string{"proposal.propose": `{"accepted":true,"proposal":5,"said":"proposal 00000005 raised."}`})
-	if out, errs, code := r.run(asAgent, "propose", "settings", "web", "sandbox_allow=pnpm-install weaker-network", "--why", "the build installs"); code != 0 || errs != "" || out == "" {
+	if out, errs, code := r.run(asAgent, "propose", "settings", "web", "effort=high", "--why", "the build installs"); code != 0 || errs != "" || out == "" {
 		t.Fatalf("%d %q %q", code, out, errs)
 	}
 	for _, c := range []struct {
 		args []string
 		errs string
 	}{
-		{[]string{"propose", "settings", "web", "sandbox_allow=pnpm-install"}, "--why"},
+		{[]string{"propose", "settings", "web", "effort=high"}, "--why"},
 		{[]string{"propose", "settings", "web", "--why", "w"}, "arguments not understood"},
 		{[]string{"propose", "settings", "web", "nope=1", "--why", "w"}, "nope is not a setting"},
 		{[]string{"propose", "settings", "web", "sandbox", "--why", "w"}, "is not key=value"},
@@ -258,8 +258,36 @@ func TestProposeSettingsAsksTheFounderForAnAgentsSettings(t *testing.T) {
 			t.Errorf("%v: %d %q", c.args, code, errs)
 		}
 	}
-	want := []string{`proposal.propose {"args":{"name":"web","sets":{"sandbox_allow":"pnpm-install weaker-network"}},"kind":"settings","why":"the build installs"}`}
+	want := []string{`proposal.propose {"args":{"name":"web","sets":{"effort":"high"}},"kind":"settings","why":"the build installs"}`}
 	if got := sent(calls()); !reflect.DeepEqual(got, want) {
 		t.Errorf("calls\n got  %v\n want %v", got, want)
+	}
+}
+
+func TestProposeSandboxAsksForOneEntryOfTheAgentsOwnList(t *testing.T) {
+	r := newRig(t)
+	calls := r.daemon(map[string]string{"proposal.propose": `{"accepted":true,"proposal":6,"said":"proposal 00000006 raised."}`})
+	for _, args := range [][]string{{"host", "pypi.org"}, {"command", "pnpm", "install"}, {"write", "~/.cargo"}, {"cert"}} {
+		if out, errs, code := r.run(asAgent, append(append([]string{"propose", "sandbox"}, args...), "--why", "w")...); code != 0 || errs != "" || out == "" {
+			t.Fatalf("%v: %d %q %q", args, code, out, errs)
+		}
+	}
+	for _, c := range []struct {
+		args []string
+		errs string
+	}{
+		{[]string{"propose", "sandbox", "host", "pypi.org"}, "--why"},
+		{[]string{"propose", "sandbox", "host", "--why", "w"}, "arguments not understood"},
+		{[]string{"propose", "sandbox", "cert", "x", "--why", "w"}, "arguments not understood"},
+		{[]string{"propose", "sandbox", "root", "x", "--why", "w"}, "arguments not understood"},
+		{[]string{"propose", "sandbox", "host", "*", "--why", "w"}, "is not a host"},
+	} {
+		if _, errs, code := r.run(asAgent, c.args...); code != 2 || !strings.Contains(errs, c.errs) {
+			t.Errorf("%v: %d %q", c.args, code, errs)
+		}
+	}
+	got := sent(calls())
+	if len(got) != 4 || got[1] != `proposal.propose {"args":{"name":"a.one","sets":{"kind":"command","value":"pnpm install"}},"kind":"sandbox","why":"w"}` {
+		t.Errorf("calls %v", got)
 	}
 }

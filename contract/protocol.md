@@ -142,6 +142,7 @@ Every `hl` command an agent runs today and the method that serves it.
 | `hl propose diff` | `proposal.propose` |
 | `hl propose run` | `proposal.propose` |
 | `hl propose settings` | `proposal.propose` |
+| `hl propose sandbox` | `proposal.propose` |
 | `hl propose withdraw` | `proposal.withdraw` |
 | `hl propose list` | `proposal.list` |
 | `hl team` | `team.get` |

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/cmdruns"
@@ -218,32 +219,53 @@ func TestASecondApproveThatRacedTheFirstLeavesItApplied(t *testing.T) {
 	}
 }
 
-// `hl propose settings` raises a settings proposal for a setting the agent may not change itself; approved, it is written.
-func TestAnAgentAsksForASandboxAllowanceAndTheFounderApprovesIt(t *testing.T) {
+// `hl propose sandbox` raises an ask for one entry of the agent's sandbox list; approved, it is added and the rest kept.
+func TestAnAgentAsksForOneSandboxEntryAndTheFounderApprovesIt(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"sandbox_allow":"pnpm-install"},"request_id":"own"}`); res["error"] == nil {
+	if res := r.callAs("alice", "agent.set", `{"agent":"alice","values":{"sandbox_allow":"2026-11-26 cert"},"request_id":"own"}`); res["error"] == nil {
 		t.Fatalf("an agent gave itself an allowance: %v", res)
 	}
-	bad := r.callAs("alice", "proposal.propose", `{"kind":"settings","args":{"name":"alice","sets":{"sandbox_allow":"root"}},"why":"x","request_id":"ps-0"}`)
-	if bad["error"] == nil {
-		t.Fatalf("an allowance no word names was raised: %v", bad)
+	if res := r.call("agent.set", `{"agent":"alice","values":{"sandbox_allow":"2026-11-01 cert"},"request_id":"first"}`); res["result"] == nil {
+		t.Fatalf("%v", res)
 	}
-	m := r.callAs("alice", "proposal.propose", `{"kind":"settings","args":{"name":"alice","sets":{"sandbox_allow":"pnpm-install"}},"why":"the build installs","request_id":"ps-1"}`)
+	for name, sets := range map[string]string{"a bad host": `{"kind":"host","value":"*"}`, "an unknown kind": `{"kind":"root","value":""}`,
+		"one it has": `{"kind":"cert","value":""}`, "a stray key": `{"kind":"host","value":"pypi.org","day":"x"}`} {
+		bad := r.callAs("alice", "proposal.propose", `{"kind":"sandbox","args":{"name":"alice","sets":`+sets+`},"why":"x","request_id":"ps-`+name+`"}`)
+		if bad["error"] == nil {
+			t.Errorf("%s was raised: %v", name, bad)
+		}
+	}
+	for name, params := range map[string]string{
+		"another's list": `{"kind":"sandbox","args":{"name":"bob","sets":{"kind":"host","value":"pypi.org"}},"why":"x","request_id":"ps-bob"}`,
+		"the whole list": `{"kind":"settings","args":{"name":"alice","sets":{"sandbox_allow":"2026-11-26 host pypi.org"}},"why":"x","request_id":"ps-all"}`,
+	} {
+		if bad := r.callAs("alice", "proposal.propose", params); bad["error"] == nil {
+			t.Errorf("%s was raised: %v", name, bad)
+		}
+	}
+	m := r.callAs("alice", "proposal.propose", `{"kind":"sandbox","args":{"name":"alice","sets":{"kind":"command","value":"pnpm install"}},"why":"the build installs","request_id":"ps-1"}`)
 	res, _ := m["result"].(map[string]any)
 	if res == nil {
 		t.Fatalf("not raised: %v", m)
 	}
 	n, _ := res["proposal"].(float64)
 	v := r.e.ProposalView(fmt.Sprintf("%08x", int64(n)))
-	if v["kind"] != "settings" || v["state"] != "open" {
+	if v["kind"] != "sandbox" || v["state"] != "open" || v["diff"] != "run pnpm install outside the sandbox" || v["reason"] != "the build installs" {
 		t.Fatalf("%v", v)
 	}
-	if strings.Contains(r.settingsText("alice"), "sandbox_allow") {
+	if strings.Contains(r.settingsText("alice"), "pnpm install") {
 		t.Fatal("written before the founder decided")
 	}
-	if d := r.decide(int64(n), "approve", fmt.Sprint(v["subject"]), "ps-d"); d["result"] == nil || !strings.Contains(r.settingsText("alice"), "sandbox_allow: pnpm-install") {
-		t.Fatalf("%v\n%s", d, r.settingsText("alice"))
+	if d := r.decide(int64(n), "approve", fmt.Sprint(v["subject"]), "ps-d"); d["result"] == nil {
+		t.Fatalf("%v", d)
+	}
+	cfg, err := team.NewRoster(r.e.Home).Read("alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := team.SandboxAllowText(team.SandboxEntries(cfg)); got != "2026-11-01 cert\n"+time.Now().Format(time.DateOnly)+" command pnpm install" {
+		t.Fatalf("the ask added one and kept the rest: %q", got)
 	}
 }
 
