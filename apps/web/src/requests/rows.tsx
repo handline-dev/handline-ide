@@ -13,6 +13,7 @@ import {
   MailWarning,
   MessageCircleQuestion,
   MessageSquare,
+  Play,
   ShieldQuestion,
   Signpost,
   SquareArrowOutUpRight,
@@ -46,6 +47,7 @@ const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {
   warning: MailWarning,
   comment: MessageSquare,
   note: MessageSquare,
+  run: Play,
 };
 
 /** What kind of thing waits on the founder, at a glance; the word in the grey line says it too. */
@@ -73,6 +75,7 @@ const ASK: Record<PendingRequest['kind'], string> = {
   warning: 'Warning',
   comment: 'New comments',
   note: 'Note',
+  run: 'Run',
 };
 
 // The box sits at the row's left: over the icon on hover, and while rows are picked in a gap that opens beside it.

@@ -3545,9 +3545,10 @@
        "allow",
        "decide",
        "review",
-       "do"
+       "do",
+       "run"
       ],
-      "description": "What the item wants of the founder. A task or comment: `review` when the task is tagged review, else `decide`. A prompt: `allow` for a permission, else `decide`. An proposal: `allow`. The machine: `do`."
+      "description": "What the item wants of the founder. A task or comment: `review` when the task is tagged review, else `decide`. A draft queued work waits on, or one its agent left behind: `run`, since the first task began to wait or the agent moved on. A prompt: `allow` for a permission, else `decide`. An proposal: `allow`. The machine: `do`."
      },
      "since": {
       "$ref": "#/components/schemas/Timestamp",

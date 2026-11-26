@@ -59,6 +59,7 @@ type board struct {
 	paused   bool       // the founder's pause of new work is in force
 	team     *team.Team // read on first use, once per board
 	teamRead bool
+	graph    *waitGraph // read on first use, once per board
 }
 
 // teamOf is the team file, read once per board.
@@ -517,7 +518,7 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	st, err := e.statusOf(t, state, waiting, waitSince)
+	st, err := e.statusOf(t, state, waiting, waitSince, b)
 	if err != nil {
 		return nil, err
 	}

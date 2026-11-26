@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { second, setup } from '#src/helpers.ts';
+import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
 
 const ARCH = 'handline.architect'; // local-ref-ok: a fixture agent name
 
@@ -86,4 +87,23 @@ test('a finished request stays unseen until task.seen, in the list and in the co
   await s.client.call('task.seen', { task, request_id: 'r2' });
   assert.equal((await s.client.call('requests.pending', {})).counts.unseen_results, 0);
   assert.deepEqual((await s.client.call('requests.list', { unseen: true })).items, []);
+});
+
+test('requests.pending puts the rows that hold work up first, the longest wait first, and lists a draft left behind as run', async () => {
+  const s = setup({ client: 'boss' });
+  REQUEST_SEEDS['draft-runs']!(s.daemon);
+  await s.client.start();
+  const pending = await s.client.call('requests.pending', {});
+  const row = (task: number) => pending.answer.find((r) => r.task === task);
+  assert.deepEqual(
+    pending.answer.slice(0, 2).map((r) => [r.task, r.kind, r.holds]),
+    [
+      [3950, 'run', [3951, 3952]],
+      [3954, 'decide', [3955]],
+    ],
+  );
+  assert.deepEqual([row(3953)?.kind, row(3953)?.holds], ['run', []]);
+  assert.ok(pending.answer.every((r) => Array.isArray(r.holds)));
+  assert.equal(pending.counts.answer, pending.answer.length - pending.counts.notes);
+  s.client.close();
 });

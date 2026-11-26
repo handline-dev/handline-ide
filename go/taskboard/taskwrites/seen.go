@@ -56,7 +56,11 @@ func MarkSeen(tx db.Q, person string, tid, upto int64) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	moved := upto > cur
+	_, marked, err := db.CursorUpdated(tx, db.SeenKey(person, tid))
+	if err != nil {
+		return false, err
+	}
+	moved := upto > cur || !marked // a task with no comments is seen too: a left-behind draft leaves the founder's turn by it
 	if moved {
 		if err := db.SetCursor(tx, db.SeenKey(person, tid), upto); err != nil {
 			return false, err

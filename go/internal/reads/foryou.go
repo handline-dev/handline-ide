@@ -97,11 +97,22 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		add(forYouItem("task", strconv.FormatInt(t.i("id"), 10), from, t.str("title"), ask, ts(t["turn_since"])))
 	}
 
-	// The prompts agents wait on, while the screen watch still sees them; an owner answers them, as an owner types into terminals.
+	// Drafts only the founder can run: queued work waits on them, or their agent left them behind.
 	owner, err := e.personIsOwner()
 	if err != nil {
 		return nil, 0, err
 	}
+	if owner {
+		runs, err := e.runItems(b)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, it := range runs {
+			add(it)
+		}
+	}
+
+	// The prompts agents wait on, while the screen watch still sees them; an owner answers them, as an owner types into terminals.
 	var prompts []row
 	if owner {
 		if prompts, err = query(e.DB, "SELECT * FROM prompt_blocks WHERE gone_at IS NULL AND last_seen >= ? ORDER BY id", time.Now().Unix()-promptStaleS); err != nil {

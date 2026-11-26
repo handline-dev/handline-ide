@@ -8,7 +8,7 @@ import (
 )
 
 // statusOf is the spec's Task.status: its state on the board, and for an open task the cause waitingOf found.
-func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64) (status.Status, error) {
+func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64, b *board) (status.Status, error) {
 	owner := t.str("owner")
 	at := func(st, reason, text string, since int64) status.Status {
 		return status.Status{State: st, Reason: reason, Text: text, Since: since}
@@ -19,6 +19,17 @@ func (e *Env) statusOf(t row, state string, waiting map[string]any, since int64)
 	case "discarded":
 		return at(status.Done, status.Discarded, "discarded: "+t.str("discard_reason"), t.i("discarded_at")), nil
 	case "draft":
+		if owner, err := e.personIsOwner(); err != nil {
+			return status.Status{}, err
+		} else if owner && b != nil { // only the founder runs it, so only their read says it waits on them
+			c, ok, err := e.draftCallOf(t, b)
+			if err != nil {
+				return status.Status{}, err
+			}
+			if ok {
+				return at(status.Waiting, status.You, c.text(), c.since), nil
+			}
+		}
 		return at(status.Waiting, status.Opener, "draft: "+t.str("opened_by")+" has not queued it", t.i("created_at")), nil
 	}
 	if waiting == nil {
