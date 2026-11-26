@@ -11,6 +11,7 @@ import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
 import { STORY_SEEDS } from '#src/seeds-story.ts';
 import { TURN_SEEDS } from '#src/seeds-turns.ts';
 import { TOWN_SEEDS } from '#src/seeds-town.ts';
+import { stallNotice } from '#src/seeds-stall.ts';
 
 const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
@@ -318,13 +319,15 @@ export const SEEDS: Record<string, Seed> = {
   },
 
   /** The architect stalled by the daemon: start_failed (long reason), no_session, trust. */
-  'stall-start': (d) =>
+  'stall-start': (d) => {
     stall(
       d,
       'start_failed',
       "Won't start",
       'The last 3 starts failed: the claude binary exited with status 1 before it printed its prompt, after the vendor folder-trust screen timed out while the account was switching to beta, and the retry found the worktree locked by another process.',
-    ),
+    );
+    stallNotice(d, ARCH);
+  },
   /** stall-wake whose Wake it is held unanswered: the button's running state stays to be seen. */
   'stall-wake-held': (d) => {
     SEEDS['stall-wake'](d);

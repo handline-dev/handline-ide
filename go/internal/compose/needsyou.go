@@ -62,15 +62,19 @@ func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 	home, q, notified := p.home, p.db, p.notified
 	return func(agent string) *agentview.NeedsYou {
 		row, err := db.GetAgentState(q, agent)
-		if err != nil || row == nil || (row.ClosedAt.Valid && row.ClosedAt.Int64 != 0) {
+		if err != nil || row == nil {
 			return nil
 		}
 		// The daemon's own record of an agent waiting on a person: a start-up dialog it will not answer, a dialog it cannot get past, an
-		// agent it could not heal. One card for the event, and it goes when the dialog closes or the trouble does.
+		// agent it could not heal. One card for the event, and it goes when the dialog closes or the trouble does. A closed agent has it
+		// too: its starts for waiting work are what failed.
 		if row.State == states.Stalled {
 			if n := stallNeed(row); n != nil {
 				return n
 			}
+		}
+		if row.ClosedAt.Valid && row.ClosedAt.Int64 != 0 {
+			return nil
 		}
 		if since, up := heal.CardUp(q, agent); up {
 			return &agentview.NeedsYou{Kind: "stuck", Source: "daemon", Since: since, Title: "Stuck after restarts",

@@ -1,11 +1,11 @@
 // A Requests row's answers: a proposal's Allow or Deny, a step-down offer's Yes or Not now, a warning's dismiss, or Later.
-import { classify, sentence, useProposals, useWrite, why } from '@handline/app-data';
+import { classify, sentence, useProposals, useUnstall, useWrite, why } from '@handline/app-data';
 import type { PendingRequest } from '@handline/client';
 import { laterKey, tomorrowAt9, turnKey } from '@handline/app-core';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useRowActions } from '#src/requests/RowMenu.tsx';
-import { Button } from '#src/ui/Button.tsx';
+import { Button, useAction } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
@@ -52,23 +52,26 @@ export function TurnQuick({ p }: { p: PendingRequest }) {
   if (p.source === 'machine' && p.id) {
     const id = p.id;
     return (
-      <IconButton
-        label="Dismiss"
-        disabled={dismiss.isPending}
-        onClick={() =>
-          dismiss.mutate(
-            { id },
-            {
-              onError: (e) => {
-                const s = why(e);
-                if (s) toast(`Did not dismiss: ${s}`, { tone: 'warning' });
+      <>
+        {p.warning?.stall && p.warning.agent && <TryAgain agent={p.warning.agent} />}
+        <IconButton
+          label="Dismiss"
+          disabled={dismiss.isPending}
+          onClick={() =>
+            dismiss.mutate(
+              { id },
+              {
+                onError: (e) => {
+                  const s = why(e);
+                  if (s) toast(`Did not dismiss: ${s}`, { tone: 'warning' });
+                },
               },
-            },
-          )
-        }
-      >
-        <X size={14} />
-      </IconButton>
+            )
+          }
+        >
+          <X size={14} />
+        </IconButton>
+      </>
     );
   }
   const later = laterKey(p);
@@ -101,5 +104,16 @@ function ReviewOffer({ id, warning: w }: { id: string; warning: NonNullable<Pend
         Yes
       </Button>
     </>
+  );
+}
+
+/** A stalled agent's one action: clear the stall so the daemon starts it again; a refusal is a toast, since the row may be gone by then. */
+function TryAgain({ agent }: { agent: string }) {
+  const unstall = useUnstall(agent);
+  const run = useAction();
+  return (
+    <Button busy={run.busy} onClick={() => void run.go(() => unstall().catch((e: unknown) => toast(why(e), { tone: 'warning' })))}>
+      Try again
+    </Button>
   );
 }

@@ -2160,6 +2160,10 @@
        "docs"
       ],
       "description": "review: the kind of work the offer is about."
+     },
+     "stall": {
+      "type": "boolean",
+      "description": "notice: the agent is stalled because its starts failed; agent.unstall on agent tries again. Absent otherwise."
      }
     },
     "required": [

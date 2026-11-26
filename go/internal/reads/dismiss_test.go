@@ -78,3 +78,39 @@ func TestADismissedLoginWarningComesBackWhenTheAccountCannotBeUsed(t *testing.T)
 		t.Fatal("the worse warning stayed hidden")
 	}
 }
+
+// A dismissed stall notice stays gone when the daemon's start retry clears the stall and a failed retry raises it again; it shows again
+// only once the agent has started a session since.
+func TestADismissedStallStaysGoneOverARetryUntilTheAgentRuns(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	stall := func(at int64) {
+		t.Helper()
+		run(t, e, "INSERT OR REPLACE INTO agent_state(agent, state, updated) VALUES('bob', 'STALLED', 1)")
+		if err := db.NoteFounderNotice(e.DB, db.FounderNotice{Agent: "bob", Reason: "start_stall", Text: "bob is STALLED", At: at}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const id = "notice:bob:start_stall"
+	stall(200)
+	if err := dismiss(t, e, id); err != nil {
+		t.Fatal(err)
+	}
+	if r := answerRow(t, e, "machine", id); r != nil {
+		t.Fatalf("dismissed: %v", r)
+	}
+	run(t, e, "UPDATE agent_state SET state = 'IDLE' WHERE agent = 'bob'") // the retry at the daemon's start
+	stall(300)
+	if r := answerRow(t, e, "machine", id); r != nil {
+		t.Fatalf("a failed retry brought it back: %v", r)
+	}
+	run(t, e, "INSERT INTO events(ts, agent, kind) VALUES(400, 'bob', 'SessionStart')")
+	stall(500)
+	r := answerRow(t, e, "machine", id)
+	if r == nil {
+		t.Fatal("a stall after the agent ran again is a new one")
+	}
+	if w, _ := r["warning"].(map[string]any); w["stall"] != true || w["agent"] != "bob" {
+		t.Errorf("the row does not offer Try again on bob: %v", r["warning"])
+	}
+}

@@ -25,6 +25,8 @@ type founderWarning struct {
 	level  int64
 	model  string
 	looks  int
+	// dismissKey, when set, is what a dismissal keeps in place of the since (see sinceKey)
+	dismissKey string
 }
 
 // founderWarnings is PendingWarning's rows, less those the founder dismissed (warning.dismiss).
@@ -66,6 +68,9 @@ func (e *Env) dismissed() (map[string]string, error) {
 
 // sinceKey is what a dismissal keeps of the warning it hides: its since, and how bad it is; for a review notice, its level and looks.
 func sinceKey(w founderWarning) string {
+	if w.dismissKey != "" {
+		return w.dismissKey
+	}
 	if w.review {
 		return fmt.Sprintf("review %d %d %s", w.level, w.looks, w.model)
 	}
@@ -319,7 +324,18 @@ func (e *Env) founderNotices() ([]founderWarning, error) {
 			continue
 		}
 		view := map[string]any{"kind": "notice", "agent": n.Agent}
-		out = append(out, founderWarning{id: strings.TrimPrefix(name, "founder_"), task: n.Task, since: ts(n.At), view: view, title: n.Text})
+		w := founderWarning{id: strings.TrimPrefix(name, "founder_"), task: n.Task, since: ts(n.At), view: view, title: n.Text}
+		if n.Task == 0 && n.Reason == "start_stall" {
+			// The daemon's retry at its start clears the stall and a failed retry raises a new notice: a dismissal holds until the agent
+			// has really started a session since.
+			run, _, err := db.LastEventID(e.DB, n.Agent, "SessionStart")
+			if err != nil {
+				return nil, err
+			}
+			w.dismissKey = fmt.Sprint("start_stall after session ", run)
+			view["stall"] = true
+		}
+		out = append(out, w)
 	}
 	return out, nil
 }

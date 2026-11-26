@@ -253,7 +253,7 @@ function turnOpens(p: PendingRequest, asker?: string | null): string | null {
 }
 
 /** In Requests' own list, a proposal's and a step-down offer's answers always show; the others' on hover. */
-const answersShown = (p: PendingRequest) => p.source === 'proposal' || p.warning?.kind === 'review';
+const answersShown = (p: PendingRequest) => p.source === 'proposal' || p.warning?.kind === 'review' || !!p.warning?.stall;
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
 export function TurnLine({
@@ -283,7 +283,8 @@ export function TurnLine({
   const login = p.warning?.kind === 'login' ? p.warning.account : undefined;
   // A notice asks nothing: opening it is reading it, so it goes, as a note does once read.
   const dismiss = useWrite('warning.dismiss');
-  const notice = p.warning?.kind === 'notice' && p.id ? p.id : null;
+  // A stall is not read away: it waits for Try again, or its X.
+  const notice = p.warning?.kind === 'notice' && !p.warning.stall && p.id ? p.id : null;
   return (
     <Line
       mark
