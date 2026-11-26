@@ -195,20 +195,68 @@ func TestWhyGhCannotBeUsedIsAskedOnceAMinute(t *testing.T) {
 	var fail error
 	c := &counting{answer: func([]string) (string, error) { return "", fail }}
 	g := c.reader()
-	ctx := context.Background()
-	if reason, why := g.Unready(ctx); reason != "" || why != "" {
+	if reason, why := g.Unready(); reason != "" || why != "" {
 		t.Fatal(reason, why)
 	}
 	fail = exec.ErrNotFound
-	if reason, _ := g.Unready(ctx); reason != "" || c.asked["auth status"] != 1 {
+	if reason, _ := g.Unready(); reason != "" || c.asked["auth status"] != 1 {
 		t.Fatalf("kept a minute: %q, asked %d", reason, c.asked["auth status"])
 	}
 	c.now = c.now.Add(PullTTL + time.Second)
-	if reason, why := g.Unready(ctx); reason != GhMissing || why != "the gh CLI is not installed" {
+	if reason, why := g.Unready(); reason != GhMissing || why != "the gh CLI is not installed" {
 		t.Fatal(reason, why)
 	}
 	c.now, fail = c.now.Add(PullTTL+time.Second), errors.New("gh auth: You are not logged into any GitHub hosts.")
-	if reason, why := g.Unready(ctx); reason != GhLoggedOut || why != "gh is not logged in: run gh auth login" || c.asked["auth status"] != 3 {
+	if reason, why := g.Unready(); reason != GhLoggedOut || why != "gh is not logged in: run gh auth login" || c.asked["auth status"] != 3 {
 		t.Fatal(reason, why, c.asked)
+	}
+	if reason, _ := g.Unready(); reason != GhLoggedOut || c.asked["auth status"] != 3 {
+		t.Fatalf("logged out is kept a minute: %q, asked %d", reason, c.asked["auth status"])
+	}
+}
+
+// A gh that does not answer says nothing of the login. `gh auth status` that runs out of its own short wait, or fails for any reason
+// that is not "no login" (GitHub down, the network), tells nobody to log in, and is not kept: the next ask asks again. The wait is
+// Unready's own, so a caller whose time is already spent still gets an answer.
+func TestAGhThatDoesNotAnswerIsNotSaidToBeLoggedOut(t *testing.T) {
+	hangs := true
+	var fail error
+	asked := 0
+	g := &GitHub{AuthWait: 30 * time.Millisecond, Run: func(ctx context.Context, args ...string) ([]byte, error) {
+		asked++
+		if hangs {
+			<-ctx.Done() // as a gh that waits on a GitHub that does not answer
+			return nil, ctx.Err()
+		}
+		return nil, fail
+	}}
+	start := time.Now()
+	if reason, why := g.Unready(); reason != "" || why != "" {
+		t.Fatalf("timed out: %q %q", reason, why)
+	}
+	if took := time.Since(start); took > 3*time.Second {
+		t.Fatalf("Unready waited %s on a gh that hangs", took)
+	}
+	hangs = false
+	for _, said := range []string{"gh auth: HTTP 502: Bad Gateway (https://api.github.com/)", "gh auth: dial tcp: lookup api.github.com: no such host", "signal: killed"} {
+		fail = errors.New(said)
+		if reason, why := g.Unready(); reason != "" || why != "" {
+			t.Errorf("%s: %q %q", said, reason, why)
+		}
+	}
+	if asked != 4 {
+		t.Fatalf("an answer that says nothing is not kept: asked %d times", asked)
+	}
+	// Ready, which a new watch asks before it is taken, refuses in the same words: not known, never "not logged in".
+	if ok, why := g.Ready(context.Background()); ok || !strings.Contains(why, "whether gh is logged in is not known: signal: killed") {
+		t.Fatalf("%v %q", ok, why)
+	}
+	fail = errors.New("gh auth: X Failed to log in to github.com account dev (keyring)\n- The token in keyring is invalid.\n- To re-authenticate, run: gh auth login -h github.com")
+	if reason, _ := g.Unready(); reason != GhLoggedOut {
+		t.Fatalf("a login that no longer works: %q", reason)
+	}
+	fail = nil
+	if reason, _ := g.Unready(); reason != GhLoggedOut || asked != 6 {
+		t.Fatalf("an answer that says something is kept: %q, asked %d", reason, asked)
 	}
 }

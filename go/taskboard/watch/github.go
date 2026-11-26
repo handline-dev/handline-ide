@@ -26,6 +26,8 @@ type GitHub struct {
 	// Run runs gh with args and answers its standard output; nil runs the gh CLI. Now is the clock; nil is time.Now.
 	Run func(ctx context.Context, args ...string) ([]byte, error)
 	Now func() time.Time
+	// AuthWait is how long Unready lets `gh auth status` take; 0 is the package's AuthWait.
+	AuthWait time.Duration
 
 	mu   sync.Mutex
 	kept map[string]kept // what was last read, by pull request, by branch and for Unready
@@ -52,33 +54,67 @@ const (
 	GhLoggedOut = "gh_logged_out"
 )
 
+// AuthWait is how long `gh auth status` may take when a screen asks why gh could not be used (GitHub.AuthWait, when it is not set).
+const AuthWait = 5 * time.Second
+
+// loggedOut is gh saying it has no usable login: "You are not logged into any GitHub hosts", or the hint to run gh auth login that
+// it prints for a login that no longer works.
+var loggedOut = regexp.MustCompile(`(?i)not logged in|gh auth login`)
+
+// authReason reads what `gh auth status` came to: "" when it worked, GhMissing when there is no gh, GhLoggedOut when gh said it has
+// no login. Any other failure (the wait ran out, the network, a GitHub that is down) says nothing of the login: ok is false, and
+// nobody is told to log in for it.
+func authReason(ctx context.Context, err error) (reason string, ok bool) {
+	switch {
+	case err == nil:
+		return "", true
+	case errors.Is(err, exec.ErrNotFound):
+		return GhMissing, true
+	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):
+		return "", false
+	case loggedOut.MatchString(err.Error()):
+		return GhLoggedOut, true
+	}
+	return "", false
+}
+
+// authWords is a reason of authReason in words.
+var authWords = map[string]string{GhMissing: "the gh CLI is not installed", GhLoggedOut: "gh is not logged in: run gh auth login"}
+
 func (g *GitHub) Ready(ctx context.Context) (bool, string) {
-	if _, err := g.gh(ctx, "auth", "status"); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return false, "the gh CLI is not installed"
-		}
-		return false, "gh is not logged in: run gh auth login"
+	_, err := g.gh(ctx, "auth", "status")
+	switch reason, ok := authReason(ctx, err); {
+	case !ok:
+		return false, "gh auth status did not answer, so whether gh is logged in is not known: " + strings.Join(strings.Fields(err.Error()), " ")
+	case reason != "":
+		return false, authWords[reason]
 	}
 	return true, ""
 }
 
-// Unready is why gh cannot be used on this machine, as a reason (GhMissing or GhLoggedOut) and Ready's words; both "" when it can. The
-// answer is kept for PullTTL, so a screen that shows many pull requests asks once.
-func (g *GitHub) Unready(ctx context.Context) (reason, why string) {
+// Unready is why gh cannot be used on this machine, as a reason (GhMissing or GhLoggedOut) and Ready's words; both "" when it can, and
+// when `gh auth status` could not say (it timed out, GitHub is slow or down), which is no reason to tell anyone to log in. It asks with
+// a short wait of its own, since it is asked after a read that may have used up its caller's. An answer that says something is kept
+// for PullTTL, so a screen that shows many pull requests asks once; one that says nothing is not kept.
+func (g *GitHub) Unready() (reason, why string) {
 	const key = "\x00ready"
-	k, ok := g.held(key)
+	if k, held := g.held(key); held {
+		reason, _ = authReason(context.Background(), k.err)
+		return reason, authWords[reason]
+	}
+	wait := g.AuthWait
+	if wait == 0 {
+		wait = AuthWait
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	defer cancel()
+	_, err := g.gh(ctx, "auth", "status")
+	reason, ok := authReason(ctx, err)
 	if !ok {
-		_, err := g.gh(ctx, "auth", "status")
-		g.keep(key, nil, err)
-		k.err = err
-	}
-	switch {
-	case k.err == nil:
 		return "", ""
-	case errors.Is(k.err, exec.ErrNotFound):
-		return GhMissing, "the gh CLI is not installed"
 	}
-	return GhLoggedOut, "gh is not logged in: run gh auth login"
+	g.keep(key, nil, err)
+	return reason, authWords[reason]
 }
 
 // Parse takes ci, closed and landed to be about a pull request and done about an issue; GitHub numbers them together, so which one #N
@@ -324,7 +360,12 @@ func (g *GitHub) gh(ctx context.Context, args ...string) ([]byte, error) {
 	if g.Run != nil {
 		return g.Run(ctx, args...)
 	}
-	out, err := exec.CommandContext(ctx, "gh", args...).Output()
+	cmd := exec.CommandContext(ctx, "gh", args...)
+	cmd.WaitDelay = time.Second // a helper gh started must not hold the read open past its end
+	out, err := cmd.Output()
+	if err != nil && ctx.Err() != nil { // stopped at its time limit: said as that, not as the signal that ended it
+		return nil, fmt.Errorf("gh %s: %w", args[0], ctx.Err())
+	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && len(exit.Stderr) > 0 {
 		return nil, fmt.Errorf("gh %s: %s", args[0], strings.TrimSpace(string(exit.Stderr)))

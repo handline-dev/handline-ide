@@ -82,7 +82,7 @@ func (e *Env) attachPRs(rows []map[string]any) (reason, why string) {
 			}
 			pr, err := gh.BranchPull(ctx, repo, branch)
 			if err != nil {
-				failed.Do(func() { reason, why = gh.Unready(ctx) })
+				failed.Do(func() { reason, why = gh.Unready() })
 				return
 			}
 			if pr != nil { // a nil map in the row would not be a JSON null to every encoder
@@ -143,7 +143,7 @@ func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 	defer cancel()
 	p, err := gh.Pull(ctx, repo, number)
 	if err != nil {
-		out["unavailable"] = e.unreadPull(ctx, gh, err)
+		out["unavailable"] = unreadPull(gh, err)
 		return out, nil
 	}
 	out["url"], out["state"], out["draft"], out["failing"] = p.URL, p.State, p.Draft, append([]string{}, p.Failed()...)
@@ -157,13 +157,17 @@ func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 }
 
 // unreadPull is why a read of a pull request failed, for the card: gh missing or logged out on this machine first, since that is what a
-// person can fix; then a pull request this login cannot see; then whatever gh said.
-func (e *Env) unreadPull(ctx context.Context, gh *watch.GitHub, err error) map[string]any {
-	if reason, why := gh.Unready(ctx); reason != "" {
+// person can fix; then a pull request this login cannot see; then a read that ran out of time; then whatever gh said. A gh that is only
+// slow, or a GitHub that is down, is never said to be logged out: Unready answers nothing for those.
+func unreadPull(gh *watch.GitHub, err error) map[string]any {
+	if reason, why := gh.Unready(); reason != "" {
 		return unavailable(reason, why)
 	}
 	if errors.Is(err, watch.ErrGone) {
 		return unavailable("gone", "GitHub has no such pull request, or this machine's gh login cannot see it.")
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return unavailable("failed", fmt.Sprintf("GitHub did not answer within %s.", branchPRWait))
 	}
 	said := []rune(strings.Join(strings.Fields(textsafe.Oneline(err.Error())), " "))
 	if len(said) > unreadMax {
