@@ -605,7 +605,7 @@ func TestAgentSetTakesEveryFieldOfTheContractForTheFounder(t *testing.T) {
 		{"handoff_note", "off", "handoff_note"},
 		{"sandbox", "on", "sandbox"},
 		{"mode", "plan", "plan"},
-		{"sandbox_allow", "pnpm-install weaker-network pnpm-install", "sandbox_allow: pnpm-install weaker-network"},
+		{"sandbox_allow", "2026-11-26 cert\n2026-11-26 host pypi.org\n2026-11-27 host pypi.org", "2026-11-26 host pypi.org"},
 	} {
 		res := r.call("agent.set", fmt.Sprintf(`{"agent":"alice","values":{%q:%q},"request_id":"as-%s"}`, c.key, c.val, c.key))
 		if got, _ := res["result"].(map[string]any); got["accepted"] != true {
@@ -631,7 +631,8 @@ func TestAgentSetRefusesWhatCannotBeSaved(t *testing.T) {
 		"a bad value":          `{"agent":"alice","values":{"effort":"extreme"},"request_id":"b1"}`,
 		"an unknown key":       `{"agent":"alice","values":{"nope":"x"},"request_id":"b2"}`,
 		"skip prompts":         `{"agent":"alice","values":{"skip_permissions":"on"},"request_id":"b4"}`,
-		"an unknown allowance": `{"agent":"alice","values":{"sandbox_allow":"root"},"request_id":"b7"}`,
+		"an unknown allowance": `{"agent":"alice","values":{"sandbox_allow":"weaker-network"},"request_id":"b7"}`,
+		"a bad host":           `{"agent":"alice","values":{"sandbox_allow":"2026-11-26 host *"},"request_id":"b8"}`,
 		"no agent":             `{"agent":"ghost","values":{"effort":"high"},"request_id":"b3"}`,
 	} {
 		if res := r.call("agent.set", params); res["error"] == nil {

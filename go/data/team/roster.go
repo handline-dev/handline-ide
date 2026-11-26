@@ -44,7 +44,7 @@ func NewRoster(home string) *Roster {
 // settingKinds are the agent settings, each a column of the agents table under the same name: s text, i integer, b true or false.
 var settingKinds = map[string]byte{
 	"vendor": 's', "model": 's', "effort": 's', "weight": 's', "mode": 's', "enabled": 'b', "context_tokens": 'i',
-	"handoff_note": 'b', "park_timeout_s": 'i', "sandbox": 'b', "sandbox_allow": 's', "device": 's', "sandbox_domains": 's', "chrome": 'b',
+	"handoff_note": 'b', "park_timeout_s": 'i', "sandbox": 'b', "sandbox_allow": 's', "device": 's', "chrome": 'b',
 	"mcp_config": 's', "schedules": 's', "peer_inbox": 'b', "account": 's', "ignore_cache_expiry": 'b', "bg_notice_s": 'i',
 	"bg_grace_s": 'i', "bg_check_s": 'i', "notice_digest_s": 'i', "handoff_prompt": 's', "cache_renewal": 'b', "idle_fold": 'b',
 	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b', "account_split": 's',
@@ -307,7 +307,7 @@ type RegisterOpts struct {
 	Account         *string
 	ContextTokens   *int64
 	Chrome, Sandbox *bool
-	// SandboxAllow is sandbox_allow's allowance words, space separated; "" clears it.
+	// SandboxAllow is sandbox_allow's entries, one per line; "" clears it.
 	SandboxAllow *string
 	// Device pins the agent to a device (a node id) for Manual placement; "" clears it.
 	Device *string

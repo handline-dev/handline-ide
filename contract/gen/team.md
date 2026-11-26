@@ -25,7 +25,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 
 ### `proposal.propose`
 
-Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, run (a shell command the founder's approve runs in a terminal window; at most 5 open per agent, the sixth refused), and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).
+Propose a roster change; the founder decides (hl propose add, retire, rename, team, settings, context, schedule, sandbox (one entry the founder's approve adds to the agent's sandbox_allow, keeping the rest; never in a bundle), run (a shell command the founder's approve runs in a terminal window; at most 5 open per agent, the sixth refused), and diff, which is kind bundle: args.changes lists several changes decided once and applied together or not at all).
 
 ### `proposal.withdraw`
 

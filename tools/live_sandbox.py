@@ -19,7 +19,7 @@ model is asked to do any of it (a model rightly declines to read a key, and an a
 through the sandbox, so it cannot read what it is told). Each step's output is in <root>/<repo>-<step>.out.
 srt is not the CLI's own sandbox: it has no enableWeakerNetworkIsolation, so the work that needs it (a Go module download)
 runs in the CLI's own sandbox instead, through `claude -p` with the session's --settings: SESSION below. The founder's
-allowances are each agent's sandbox_allow setting (ALLOWED), and each session must carry its own and no other.
+allowances are each agent's sandbox_allow list (ALLOWED), and each session must carry its own and no other.
 """
 from __future__ import annotations
 
@@ -54,8 +54,8 @@ REPOS = {
 }
 # name -> work that must pass in the CLI's own sandbox, each one Bash command the model runs as given, before the steps above.
 SESSION = {"handline": [("go module download", "cd go && go mod download -x"), ("pnpm install", "pnpm install --frozen-lockfile")]}
-# name -> the allowances the founder gives its repo, and what the session's sandbox must then say.
-ALLOWED = {"handline": ["weaker-network", "pnpm-install"]}
+# name -> the entries of the agent's sandbox_allow list, and what the session's sandbox must then say.
+ALLOWED = {"handline": ["2026-11-26 cert", "2026-11-26 command pnpm install", "2026-11-26 command pnpm install --frozen-lockfile"]}
 WANTED = {"handline": {"enableWeakerNetworkIsolation": True, "excludedCommands": ["pnpm install", "pnpm install --frozen-lockfile"]}}
 STEP_S = 1800      # how long one step may run
 SRT = "0.0.79"     # the sandbox runtime
@@ -97,7 +97,7 @@ def setup(root: Path, account: dict, names: list[str]) -> tuple[Path, str, Path]
     (home / "team.yaml").write_text(team + 'edges:\n  - { from: "human", to: "*", relation: supervisor, response: fire_and_forget }\n')
     for n in names:
         (home / "agents" / f"sbx.{n}").mkdir(parents=True)
-        allow = f"sandbox_allow: {' '.join(ALLOWED[n])}\n" if n in ALLOWED else ""
+        allow = f"sandbox_allow: {json.dumps(chr(10).join(ALLOWED[n]))}\n" if n in ALLOWED else ""
         (home / "agents" / f"sbx.{n}" / "agent.yaml").write_text(f"model: haiku\nmode: default\nrepo: {REPOS[n][0]}\n{allow}")
     return home, key, store / "founder-keys" / "key"
 

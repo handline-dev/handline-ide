@@ -13,7 +13,7 @@ description: The hl commands an agent runs in Handline: chat, tasks, progress, p
 - `hl task show|list|board|new|comment|done|handoff|pass|back|edit|discard` tasks. A task you hold ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"`.
 - `hl task comment T<n> add "<text>" --turn human` puts a decision on the founder; `"@human ..."` first is news that moves no turn.
 - `hl progress --done N --of M "<what you are doing now>"` reports work in steps on the task.
-- `hl propose run "<command>" --cwd <dir> --why "<why>"` for a command you cannot run yourself; other `hl propose` forms change agents, teams, rules, settings and schedules.
+- `hl propose run "<command>" --cwd <dir> --why "<why>"` for a command you cannot run yourself; other `hl propose` forms change agents, teams, rules, settings and schedules; when your sandbox blocks a host, command or folder your work needs, `hl propose sandbox <host <name>|command <command>|write <folder>|cert> --why "<one line>"` (cert: the macOS certificate check go, gh and terraform need).
 - `hl lesson add "<text>" --task T<n>` records a correction.
 - `hl use <run|port> -- <command>` takes a shared resource (a port, the simulator, a browser) for one command.
 - `hl browser ...` drives your own browser (the handline-browser skill).

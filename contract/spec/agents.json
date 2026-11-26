@@ -1105,7 +1105,7 @@
      },
      "sandbox_allow": {
       "type": "string",
-      "description": "What the agent's sandboxed sessions may do beyond the sandbox, the founder's: allowance words separated by spaces, of weaker-network (Go module downloads on macOS reach trustd) and pnpm-install (pnpm install runs outside the sandbox); \"\" allows nothing more. A word that names no allowance is bad_request. Read only while its sandbox is on; a session takes it at its next launch. An agent asks for it with `hl propose settings <agent> sandbox_allow=<words> --why \"...\"`."
+      "description": "What the agent's sandboxed sessions may do beyond the sandbox and the package registries every sandboxed session reaches, the founder's: one entry per line, `<day> <kind> <value>`, the day it was allowed (YYYY-MM-DD) and one of the kinds host (a host it may reach, `pypi.org` or `*.example.com`), command (a command that runs outside the sandbox, `pnpm install`, in Bash permission-rule syntax), write (a folder it may write, from / or ~/, `~/.cargo`) and cert (the macOS certificate check Go-built tools need, no value); \"\" allows nothing more. A line that is not an entry is bad_request; an entry given twice is kept once. Read only while its sandbox is on; a session takes it at its next launch. An agent asks for one entry with `hl propose sandbox <kind> [<value>] --why \"...\"`, which adds it and keeps the rest."
      },
      "device": {
       "type": "string",

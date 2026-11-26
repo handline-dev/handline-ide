@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
 
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -319,6 +320,9 @@ func changeLines(it flat) []string {
 		return []string{fmt.Sprintf("rename %s to %s", addr.Ref(agent), to)}
 	case "retire":
 		return []string{"retire " + addr.Ref(agent)}
+	case "sandbox":
+		_, v := it.sets()
+		return []string{team.SandboxEntry{Kind: v["kind"], Value: v["value"]}.Phrase()}
 	case "run":
 		command, cwd := it.runCommand()
 		return []string{fmt.Sprintf("run in %s, with its output told to %s: %s", cwd, addr.Ref(agent), command)}

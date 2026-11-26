@@ -229,7 +229,7 @@ func (e *Env) doer(kind string) func(*Env, step) (bool, string, error) {
 	return map[string]func(*Env, step) (bool, string, error){
 		"add": (*Env).doAdd, "settings": (*Env).doSettings, "context": (*Env).doContext, "retire": (*Env).doRetire,
 		"rename": (*Env).doRename, "team": (*Env).doTeam,
-		"schedule": (*Env).doSchedule, "global": (*Env).doGlobal,
+		"schedule": (*Env).doSchedule, "global": (*Env).doGlobal, "sandbox": (*Env).doSandbox,
 	}[kind]
 }
 

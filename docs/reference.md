@@ -26,14 +26,15 @@ closing and restarting agents, settings, cancelling a queued message, HR decisio
 
 ## Team
 
-|                                                             |                                                                                                 |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `hl team`                                                   | Who you may reach, and what each is doing.                                                      |
-| `hl propose add` / `retire` / `rename` / `team` / `context` | Propose a roster change; the founder decides it in the app.                                     |
-| `hl propose schedule` / `bundle`                            | Propose a recurring message for an agent, or several changes decided as one.                    |
-| `hl propose run "<command>" --cwd <dir> --why "..."`        | Ask the founder to run a command you cannot run yourself; you are told how it ended.            |
-| `hl propose settings <agent> <key>=<value> ... --why "..."` | Ask the founder for an agent's setting it may not change itself (`sandbox_allow`, `repo`, ...). |
-| `hl propose list` / `withdraw <id>`                         | See proposals; take back one of yours.                                                          |
+|                                                             |                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hl team`                                                   | Who you may reach, and what each is doing.                                                                                                                                                                                                                                                                  |
+| `hl propose add` / `retire` / `rename` / `team` / `context` | Propose a roster change; the founder decides it in the app.                                                                                                                                                                                                                                                 |
+| `hl propose schedule` / `bundle`                            | Propose a recurring message for an agent, or several changes decided as one.                                                                                                                                                                                                                                |
+| `hl propose run "<command>" --cwd <dir> --why "..."`        | Ask the founder to run a command you cannot run yourself; you are told how it ended.                                                                                                                                                                                                                        |
+| `hl propose settings <agent> <key>=<value> ... --why "..."` | Ask the founder for an agent's setting it may not change itself (`repo`, `sandbox`, ...).                                                                                                                                                                                                                   |
+| `hl propose sandbox <kind> [<value>] --why "..."`           | When your sandbox blocks what your work needs, ask for one entry: `host pypi.org`, `command pnpm install` (runs outside the sandbox), `write ~/.cargo`, or `cert` (the macOS certificate check go, gh and terraform need). The founder's OK adds it and keeps the rest; package registries are always open. |
+| `hl propose list` / `withdraw <id>`                         | See proposals; take back one of yours.                                                                                                                                                                                                                                                                      |
 
 ## Install and the daemon's own
 

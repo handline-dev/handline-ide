@@ -34,16 +34,6 @@ var (
 // Nothing is said when a change is already so.
 const Nothing = "nothing to change"
 
-// sandboxAllowanceList is the allowance words sandbox_allow takes, sorted.
-func sandboxAllowanceList() []string {
-	out := make([]string, 0, len(SandboxAllowanceNames))
-	for w := range SandboxAllowanceNames {
-		out = append(out, w)
-	}
-	sortStrings(out)
-	return out
-}
-
 // Privileged is whether a field raises what the agent may do.
 func Privileged(field string) bool { return !Ordinary[field] }
 
@@ -83,7 +73,7 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 	return Settings{"model_id": modelID, "session_account": account,
 		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
-		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": strings.Join(SandboxAllowWords(cfg), " "),
+		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": SandboxAllowText(SandboxEntries(cfg)),
 		"device": orDefault(cfg, "device", ""), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg),
 		"context_k": strconv.FormatInt(ContextTokensOf(cfg)/1000, 10), "handoff_note": note, "idle_close": idle}, nil
 }
@@ -109,10 +99,8 @@ func SettingsProblem(form map[string]string) string {
 		return "sandbox must be on or off"
 	}
 	if v, has := form["sandbox_allow"]; has {
-		for _, w := range strings.Fields(v) {
-			if SandboxAllowanceNames[w] == nil {
-				return fmt.Sprintf("sandbox_allow is allowance words separated by spaces, of %s; %s is none", strings.Join(sandboxAllowanceList(), ", "), pyQuote(w))
-			}
+		if why := SandboxAllowProblem(v); why != "" {
+			return why
 		}
 	}
 	if v, has := form["device"]; has && v != "" && !deviceID.MatchString(v) {
@@ -167,8 +155,8 @@ func SettingsChanges(current Settings, form map[string]string) ([]Change, error)
 		if key == "repo" && next == "" {
 			continue
 		}
-		if key == "sandbox_allow" { // each word once, in order, so the same allowances are no change
-			next = strings.Join(SandboxAllowWords(Config{"sandbox_allow": next}), " ")
+		if key == "sandbox_allow" { // each entry once, in order, so the same list is no change
+			next = NormalSandboxAllow(next)
 		}
 		if next != current[key] {
 			out = append(out, Change{key, current[key], next})

@@ -692,7 +692,8 @@ type argsVendors struct {
 
 func (v argsVendors) ForAgent(string) (cli.Agent, error) { return v.d, nil }
 
-// A launch hands the driver the agent's own sandbox_allow, and only while its sandbox is on.
+// A launch hands the driver the agent's own sandbox_allow, each kind where Claude Code takes it, and only while its sandbox is on;
+// the package registries are open with no setting.
 func TestBuildHandsTheDriverTheAgentsSandboxAllowancesOnlyWhenSandboxed(t *testing.T) {
 	r := newLaunchRig(t)
 	var got cli.LaunchArgs
@@ -700,8 +701,20 @@ func TestBuildHandsTheDriverTheAgentsSandboxAllowancesOnlyWhenSandboxed(t *testi
 	for _, c := range []struct {
 		sandbox bool
 		allow   any
-		want    bool
-	}{{true, "weaker-network pnpm-install", true}, {true, nil, false}, {false, "weaker-network pnpm-install", false}, {false, nil, false}} {
+		check   func() bool
+	}{
+		{true, nil, func() bool {
+			return !got.WeakerNetwork && got.Excluded == nil && slices.Equal(got.AllowDomains, team.SandboxRegistries) && !slices.Contains(got.AllowWrite, "/opt/cache")
+		}},
+		{true, "2026-11-26 host expo.dev", func() bool { return got.AllowDomains[len(got.AllowDomains)-1] == "expo.dev" }},
+		{true, "2026-11-26 command pnpm install", func() bool { return slices.Equal(got.Excluded, []string{"pnpm install"}) }},
+		{true, "2026-11-26 write /opt/cache", func() bool { return slices.Contains(got.AllowWrite, "/opt/cache") }},
+		{true, "2026-11-26 cert", func() bool { return got.WeakerNetwork && got.Excluded == nil }},
+		{false, "2026-11-26 cert\n2026-11-26 command pnpm install\n2026-11-26 host expo.dev\n2026-11-26 write /opt/cache", func() bool {
+			return !got.WeakerNetwork && got.Excluded == nil && got.AllowDomains == nil && got.AllowWrite == nil
+		}},
+		{false, nil, func() bool { return got.AllowDomains == nil }},
+	} {
 		if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "sandbox", Val: c.sandbox}, {Key: "sandbox_allow", Val: c.allow}}); err != nil {
 			t.Fatal(err)
 		}
@@ -709,8 +722,8 @@ func TestBuildHandsTheDriverTheAgentsSandboxAllowancesOnlyWhenSandboxed(t *testi
 		if _, _, err := r.build("ann", nil, false, "main"); err != nil {
 			t.Fatal(err)
 		}
-		if got.WeakerNetwork != c.want || (len(got.Excluded) > 0) != c.want || got.SandboxOff == c.sandbox {
-			t.Errorf("sandbox %v, allow %v: weaker %v, excluded %v, sandbox off %v", c.sandbox, c.allow, got.WeakerNetwork, got.Excluded, got.SandboxOff)
+		if !c.check() || got.SandboxOff == c.sandbox {
+			t.Errorf("sandbox %v, allow %v: %+v", c.sandbox, c.allow, got)
 		}
 	}
 }
