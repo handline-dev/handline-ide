@@ -26,7 +26,33 @@ const PLAIN_FOLDERS = [`${HOME}/Documents/recipe-site`];
 const SEEDED_ADDED: [string, string[]][] = [['handline', ['/work/docs-site', PLAIN_FOLDERS[0]!]]];
 
 /** The names a new agent gets when none is typed, as the daemon's names.Plain. */
-export const PLAIN_NAMES = ['ada', 'bea', 'cal', 'dot', 'eli', 'fay', 'gus', 'ivy', 'jo', 'kit', 'lou', 'mia', 'ned', 'ola', 'pip'];
+export const PLAIN_NAMES = [
+  'ada',
+  'bea',
+  'cal',
+  'dot',
+  'eli',
+  'fay',
+  'gus',
+  'ivy',
+  'jo',
+  'kit',
+  'lou',
+  'mia',
+  'ned',
+  'ola',
+  'pip',
+  'quin',
+  'rex',
+  'sam',
+  'tess',
+  'uma',
+  'val',
+  'wes',
+  'xia',
+  'yan',
+  'zoe',
+];
 
 /** A folder's name as a workspace name: lowercase, other runs as -, starting with a letter, at most 32. */
 const nameFrom = (w: string) =>
@@ -68,10 +94,13 @@ export class FakeWorkspaces {
     return this.works.get(key) ?? ws?.folder ?? null;
   }
 
-  /** The name agent.create gives an agent of workspace (key or name) when none is typed: the first plain name free there. */
+  /** The name agent.create gives an agent of workspace (key or name) when none is typed: the first plain name free there, else ada-2, ada-3 and so on. */
   defaultName(workspace: unknown): string {
     const { seg } = this.find(workspace);
-    return PLAIN_NAMES.find((n) => !this.host.sessions.has(`${seg}.${n}`)) ?? `${PLAIN_NAMES[0]}-${this.agentsOf(seg).length + 1}`;
+    const free = (n: string) => !this.host.sessions.has(`${seg}.${n}`);
+    const named = PLAIN_NAMES.find(free);
+    if (named) return named;
+    for (let i = 2; ; i++) if (free(`${PLAIN_NAMES[0]}-${i}`)) return `${PLAIN_NAMES[0]}-${i}`; // as names.Free: the first free with a number
   }
 
   /** agent.create's workspace and folder: the dotted name it registers, and the folder of it (its default if none) as a repo. */

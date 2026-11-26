@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { type Event, type RpcError } from '@handline/client';
 import { setup, until } from '#src/helpers.ts';
+import { PLAIN_NAMES } from '#src/workspaces.ts';
 
 const make = (name: string, more: Record<string, unknown> = {}) => ({
   name,
@@ -104,6 +105,21 @@ test('agent.create with no name and no role makes the default name with the plai
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'done'), 'done');
   assert.equal(daemon.sessions.get('handline.ada')?.fx.role, 'Helps with anything in this workspace.');
   assert.equal((await client.call('agent.options', {})).default_names.w1, 'bea');
+  client.close();
+});
+
+test('the default name runs through every plain name, then ada-2, ada-3, as the daemon does', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  const any = daemon.sessions.get('handline.architect')!;
+  const fill = (names: string[]) => names.forEach((n) => daemon.sessions.set(`handline.${n}`, any));
+  const next = async () => (await client.call('agent.options', {})).default_names.w1;
+  fill(PLAIN_NAMES.slice(0, 15));
+  assert.equal(await next(), 'quin');
+  fill(PLAIN_NAMES);
+  assert.equal(await next(), 'ada-2');
+  fill(['ada-2']);
+  assert.equal(await next(), 'ada-3');
   client.close();
 });
 
