@@ -1,4 +1,4 @@
-// contract/fixtures/chat.json against the fake over a Unix socket, through the conformance harness every daemon runs.
+// contract/fixtures/chat.json and search.json against the fake over a Unix socket, through the conformance harness every daemon runs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -11,7 +11,7 @@ import { serveSocket } from '#src/serve.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..', '..');
 
-test('every case of chat.json passes on the fake', async () => {
+test('every case of chat.json and search.json passes on the fake', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'fk-'));
   const sock = join(dir, 's');
   const daemon = new FakeDaemon();
@@ -33,6 +33,7 @@ test('every case of chat.json passes on the fake', async () => {
         '--var',
         'ask_agent=handline.auditor',
         join(ROOT, 'contract/fixtures/chat.json'),
+        join(ROOT, 'contract/fixtures/search.json'),
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );

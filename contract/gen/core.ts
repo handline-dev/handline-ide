@@ -805,6 +805,32 @@ export type ToolInstall = {
   ended: boolean;
 };
 
+/** One thing search found, with what opens it: a task by its number, a comment by its task and its id, a message by its number and the chat that shows it. */
+export type SearchHit = {
+  /** task: a task, found by its title, its brief or what its end kept; comment: a comment on a task; message: a chat message. */
+  kind: "task" | "comment" | "message";
+  /** When the task was opened, or the comment or message written. */
+  at: Timestamp;
+  /** One line of the text around the first match, at most 160 characters, with … where it was cut. A mention is as stored (<@key>). */
+  snippet: string;
+  /** Only a task: where the text was found, the first of these that holds it. result is its done evidence or its report. */
+  field?: "title" | "brief" | "result";
+  /** A task: its number. A comment: the task it is on. A message: the first task it delivers, when it delivers one. */
+  task?: number;
+  /** The title of `task`. */
+  title?: string;
+  /** Only a comment: its id (Memo.id). */
+  memo?: number;
+  /** Only a message: its number; chat.locate gives the page around it. */
+  request?: number;
+  /** Only a message: the agent whose chat shows it. */
+  agent?: Who;
+  /** Only a message: which of that agent's chats shows it (as in chat.locate). */
+  scope?: "mine" | "all";
+  /** A comment: its author. A message: who sent it. */
+  from?: Who;
+};
+
 export interface CoreMethods {
   "hello": { params: {
   /** name/version of the caller. */
@@ -1144,6 +1170,17 @@ export interface CoreMethods {
     /** True when `since` is older than retention; refetch snapshots. */
     gap: boolean;
   } };
+  "search": { params: {
+  /** The text to find, 1 to 200 characters once trimmed. Letters match whatever their case (ASCII); % and _ are plain characters. */
+  query: string;
+  /** The most hits of each kind, default 10, at most 50. */
+  limit?: number;
+}; result: {
+    /** The tasks, then the comments, then the messages; each kind newest first. */
+    hits: SearchHit[];
+    /** A kind had more hits than `limit`. */
+    more: boolean;
+  } };
   "operation.get": { params: {
   operation: string;
 }; result: Operation & ReadCursor };
@@ -1235,6 +1272,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "run.remove": { role: "agent", callers: null, write: true, since: 1 },
   "load.get": { role: "agent", callers: null, write: false, since: 1 },
   "events.feed": { role: "agent", callers: null, write: false, since: 1 },
+  "search": { role: "member", callers: null, write: false, since: 1 },
   "operation.get": { role: "member", callers: null, write: false, since: 1 },
   "prefs.get": { role: "member", callers: ["member", "owner"], write: false, since: 1 },
   "prefs.set": { role: "member", callers: ["member", "owner"], write: true, since: 1 },
@@ -1250,7 +1288,7 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get" | "screen.list" | "screen.shot" | "screen.policy"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "search" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get" | "screen.list" | "screen.shot" | "screen.policy"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1263,6 +1301,7 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "run.list": {"resource": "runs", "feed": null},
   "load.get": {"resource": "load", "feed": null},
   "events.feed": false,
+  "search": {"resource": "search", "feed": null},
   "operation.get": {"resource": "operation", "id": "operation", "feed": "operations"},
   "prefs.get": {"resource": "prefs", "feed": "prefs"},
   "connection.addresses": {"resource": "addresses", "feed": null},

@@ -7,6 +7,7 @@ export const reads = {
   "lease.get": { resource: "leases" },
   "run.list": { resource: "runs" },
   "load.get": { resource: "load" },
+  "search": { resource: "search" },
   "operation.get": { resource: "operation", id: "operation", feed: "operations" },
   "prefs.get": { resource: "prefs", feed: "prefs" },
   "connection.addresses": { resource: "addresses" },

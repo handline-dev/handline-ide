@@ -1,0 +1,263 @@
+{
+ "fixtures": [
+  {
+   "name": "search.shape",
+   "spec": "search",
+   "about": "Hits that hold the text, possibly none, and whether a kind had more.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "search",
+      "params": {
+       "query": "zzz-nothing-says-this-zzz"
+      }
+     },
+     "result": {
+      "hits": [],
+      "more": false
+     }
+    }
+   ]
+  },
+  {
+   "name": "search.finds_a_message_with_its_chat",
+   "spec": "search",
+   "about": "A message just sent is a message hit: one line of it, its number and the chat that shows it; letters match whatever their case, and _ is a plain character. Needs --var ask_agent=NAME (any agent).",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "chat.send",
+      "params": {
+       "agent": "{{ask_agent}}",
+       "body": "search-probe\nsays 100% this",
+       "request_id": "conf-search-1"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "search",
+      "params": {
+       "query": "PROBE"
+      }
+     },
+     "result": {
+      "more": false,
+      "hits": {
+       "$contains": {
+        "kind": "message",
+        "snippet": "search-probe says 100% this",
+        "request": {
+         "$type": "integer"
+        },
+        "agent": {
+         "$type": "string"
+        },
+        "scope": "mine",
+        "at": {
+         "$type": "timestamp"
+        }
+       },
+       "$each": {
+        "kind": "message"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "search",
+      "params": {
+       "query": "says 100% th"
+      }
+     },
+     "result": {
+      "hits": {
+       "$contains": {
+        "kind": "message"
+       }
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "search",
+      "params": {
+       "query": "says 100_ this"
+      }
+     },
+     "result": {
+      "hits": []
+     }
+    }
+   ]
+  },
+  {
+   "name": "search.query_and_limit_are_bounded",
+   "spec": "search",
+   "about": "A query of nothing or of more than 200 characters, and a limit outside 1 to 50, are bad_request naming the field.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "search",
+      "params": {
+       "query": " "
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "query"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "search",
+      "params": {
+       "query": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "query"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "search",
+      "params": {
+       "query": "x",
+       "limit": 0
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "limit"
+      }
+     }
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "search",
+      "params": {
+       "query": "x",
+       "limit": 51
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "limit"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "search.an_agent_may_not_call_it",
+   "spec": "search",
+   "about": "search is a person's read: an agent is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "search",
+      "params": {
+       "query": "a"
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

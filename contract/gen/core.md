@@ -21,6 +21,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `run.remove` | agent | yes | `name`, `scope`, `workspace?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` |  | decided: remove a shared run |
 | `load.get` | agent |  | `minutes?`, `agent?` | `{at, every_s, machine, total, agents, unowned, processes, sampling, series} \| null` | `bad_request` |  | `load`, snapshot |
 | `events.feed` | agent |  | `since?`, `topics?`, `limit?` | `{events, cursor, gap}` | `bad_request` |  | not cached |
+| `search` | member |  | `query`, `limit?` | `{hits, more}` | `bad_request` |  | `search`, snapshot |
 | `operation.get` | member |  | `operation` | `Operation & ReadCursor` | `not_found` |  | `operation` by operation, fed by operations |
 | `prefs.get` | member (only member, owner) |  | none | `Prefs & ReadCursor` | `refused` |  | `prefs`, fed by prefs |
 | `prefs.set` | member (only member, owner) | yes | `changes`, `request_id` | `Accepted` | `bad_request`, `refused` |  | authored: save view preferences |
@@ -97,6 +98,10 @@ What every process on this machine uses and whose it is: per agent (CPU, memory,
 ### `events.feed`
 
 Resumable feed of events with their deep-link targets; the polling twin of subscribe. topics defaults to [notifications]; limit defaults to 50, at most 200. Without `since`: the newest events, oldest first. With `since`: the events after it; if `since` is older than retention the feed starts at the oldest kept event and `gap` is true. cursor is the newest cursor in the reply, or the current newest when there are no events.
+
+### `search`
+
+Find tasks, comments and chat messages by text: each hit carries one line around the match and what opens it. A person's read: it finds what the person may open, which is every task, every comment and every message a chat draws (as chat.search with no agent). A task is found by its title, its brief (the body it was opened with) or what its end kept (done evidence, report), and is one hit whichever of them hold the text. A message that is a task's brief is that task's hit and not a message hit; a message no chat draws (taken back, never reached its target, a comment's notice, the daemon's own notices) is not found. An empty query, one over 200 characters, or a limit outside 1 to 50 is bad_request naming the field.
 
 ### `operation.get`
 

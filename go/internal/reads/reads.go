@@ -153,6 +153,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("chat.transcript", rpc.Method{Verbatim: true, Handler: e.chatTranscript, Read: true})
 	s.Register("chat.locate", rpc.Method{Handler: e.chatLocate, Read: true})
 	s.Register("chat.search", rpc.Method{Handler: e.chatSearch, Read: true})
+	s.Register("search", rpc.Method{Handler: e.search, Read: true})
 	s.Register("proposal.list", rpc.Method{Handler: e.proposalList, Read: true})
 	s.Register("repos.list", rpc.Method{Handler: e.reposList, Read: true})
 	s.Register("repos.recent", rpc.Method{Handler: e.reposRecent, Read: true})

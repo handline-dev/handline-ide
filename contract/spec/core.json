@@ -3684,6 +3684,76 @@
      "ended"
     ],
     "additionalProperties": false
+   },
+   "SearchHit": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "kind",
+     "at",
+     "snippet"
+    ],
+    "description": "One thing search found, with what opens it: a task by its number, a comment by its task and its id, a message by its number and the chat that shows it.",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "task",
+       "comment",
+       "message"
+      ],
+      "description": "task: a task, found by its title, its brief or what its end kept; comment: a comment on a task; message: a chat message."
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp",
+      "description": "When the task was opened, or the comment or message written."
+     },
+     "snippet": {
+      "type": "string",
+      "description": "One line of the text around the first match, at most 160 characters, with … where it was cut. A mention is as stored (<@key>)."
+     },
+     "field": {
+      "type": "string",
+      "enum": [
+       "title",
+       "brief",
+       "result"
+      ],
+      "description": "Only a task: where the text was found, the first of these that holds it. result is its done evidence or its report."
+     },
+     "task": {
+      "type": "integer",
+      "description": "A task: its number. A comment: the task it is on. A message: the first task it delivers, when it delivers one."
+     },
+     "title": {
+      "type": "string",
+      "description": "The title of `task`."
+     },
+     "memo": {
+      "type": "integer",
+      "description": "Only a comment: its id (Memo.id)."
+     },
+     "request": {
+      "type": "integer",
+      "description": "Only a message: its number; chat.locate gives the page around it."
+     },
+     "agent": {
+      "$ref": "#/components/schemas/Who",
+      "description": "Only a message: the agent whose chat shows it."
+     },
+     "scope": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "all"
+      ],
+      "description": "Only a message: which of that agent's chats shows it (as in chat.locate)."
+     },
+     "from": {
+      "$ref": "#/components/schemas/Who",
+      "description": "A comment: its author. A message: who sent it."
+     }
+    }
    }
   },
   "errors": {
@@ -5371,6 +5441,66 @@
      "$ref": "#/components/errors/bad_request"
     }
    ]
+  },
+  {
+   "name": "search",
+   "summary": "Find tasks, comments and chat messages by text: each hit carries one line around the match and what opens it.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "query",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "description": "The text to find, 1 to 200 characters once trimmed. Letters match whatever their case (ASCII); % and _ are plain characters."
+     }
+    },
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "The most hits of each kind, default 10, at most 50."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "hits",
+      "more"
+     ],
+     "properties": {
+      "hits": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/SearchHit"
+       },
+       "description": "The tasks, then the comments, then the messages; each kind newest first."
+      },
+      "more": {
+       "type": "boolean",
+       "description": "A kind had more hits than `limit`."
+      }
+     }
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "search",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "A person's read: it finds what the person may open, which is every task, every comment and every message a chat draws (as chat.search with no agent). A task is found by its title, its brief (the body it was opened with) or what its end kept (done evidence, report), and is one hit whichever of them hold the text. A message that is a task's brief is that task's hit and not a message hit; a message no chat draws (taken back, never reached its target, a comment's notice, the daemon's own notices) is not found. An empty query, one over 200 characters, or a limit outside 1 to 50 is bad_request naming the field."
   },
   {
    "name": "operation.get",

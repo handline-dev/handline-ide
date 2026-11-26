@@ -19,6 +19,7 @@ import { FakeTasks } from '#src/tasks.ts';
 import { FakeAttachments } from '#src/attachments.ts';
 import { FakeChat } from '#src/chat.ts';
 import { chatMethod } from '#src/chatcall.ts';
+import { search } from '#src/search.ts';
 import { HANDLERS } from '#src/handlers.ts';
 import { Script } from '#src/script.ts';
 import { scriptHost } from '#src/scripthost.ts';
@@ -288,6 +289,7 @@ export class FakeDaemon {
       const s = agent();
       if (!s.open) this.script.startSession(s, false, actor);
     }
+    if (method === 'search') return search([...this.tasks.all()], this.chat.drawn(), p);
     if (method.startsWith('chat.')) return chatMethod(this.chat, method, p, c.caller.name, agent, ok, this.uploads);
     const owned = moduleCall(this, c, method, p, ok);
     if (owned) return owned.value;

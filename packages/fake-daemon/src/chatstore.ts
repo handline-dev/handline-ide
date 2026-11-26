@@ -213,6 +213,12 @@ export class ChatStore {
     const hits = searchHits(this.messages, p, (m) => this.shownInMine(m));
     return { messages: hits.map((m) => ({ ...this.view(m), agent: m.agent, scope: this.shownInMine(m) ? 'mine' : 'all' })) };
   }
+  /** Every message a chat draws, with the chat that shows it, for a read across chats (search). */
+  drawn() {
+    return this.messages
+      .filter((m) => !(m.receipt && m.landing === 'withdrawn'))
+      .map((m) => ({ ...m, scope: this.shownInMine(m) ? ('mine' as const) : ('all' as const), task: m.tasks?.[0]?.id }));
+  }
   protected shownInMine(m: ChatMessage & { agent: string }): boolean {
     return !this.sessions.has(m.from) || !this.sessions.has(m.to);
   }

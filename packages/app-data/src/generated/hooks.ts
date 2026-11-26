@@ -10,6 +10,7 @@ export const useDaemonStatus = (params: CallParams<"daemon.status"> = {}, opts?:
 export const useLeaseGet = (params: CallParams<"lease.get"> = {}, opts?: ReadOpts) => useRead("lease.get", params, opts);
 export const useRunList = (params: CallParams<"run.list"> = {}, opts?: ReadOpts) => useRead("run.list", params, opts);
 export const useLoadGet = (params: CallParams<"load.get"> = {}, opts?: ReadOpts) => useRead("load.get", params, opts);
+export const useSearch = (params: CallParams<"search">, opts?: ReadOpts) => useRead("search", params, opts);
 export const useOperationGet = (params: CallParams<"operation.get">, opts?: ReadOpts) => useRead("operation.get", params, opts);
 export const usePrefsGet = (params: CallParams<"prefs.get"> = {}, opts?: ReadOpts) => useRead("prefs.get", params, opts);
 export const useConnectionAddresses = (params: CallParams<"connection.addresses"> = {}, opts?: ReadOpts) => useRead("connection.addresses", params, opts);

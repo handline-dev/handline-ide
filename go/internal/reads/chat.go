@@ -777,7 +777,7 @@ func (e *Env) chatSearch(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	like := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(strings.TrimSpace(query_)) + "%"
+	like := likeOf(strings.TrimSpace(query_))
 	where, scopeArgs := "1 = 1", []any{}
 	if agent != "" {
 		where, scopeArgs = chatScope(agent, everyone)

@@ -82,6 +82,11 @@ export class TaskStore {
     return this.held;
   }
 
+  /** Every row, for a read across tasks (search). */
+  all(): readonly Row[] {
+    return this.rows;
+  }
+
   protected isAgent(name: string): boolean {
     return this.host.sessions.has(name);
   }
