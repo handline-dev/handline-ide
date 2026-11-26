@@ -47,15 +47,15 @@ func resultParams(p map[string]any) (commit string, shots []string, err error) {
 
 // doneResult is what the end of task t keeps beyond its evidence: the commit (checked to exist in the repo, and whether main reaches it),
 // and the screenshots, copied into the daemon's folder. Neither is required. Nothing is written but the screenshots' copies; the caller
-// records the result.
+// records the result. What git says of the commit is in's own (DoneIn.look): asked before the write when the caller did so.
 func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) (res taskresult.Result, finalize func() error, err error) {
 	switch {
 	case in.Commit != "":
-		full, onMain, why := commitIn(in.Repo, in.Commit)
-		if full == "" {
-			return res, nil, refusal(fmt.Sprintf("%s is not a commit in this repo (%s)", in.Commit, why))
+		lk := in.look()
+		if lk.commitFull == "" {
+			return res, nil, refusal(fmt.Sprintf("%s is not a commit in this repo (%s)", in.Commit, lk.commitWhy))
 		}
-		res.Commit, res.OnMain = full, onMain
+		res.Commit, res.OnMain = lk.commitFull, lk.commitOnBase
 	case via == "sha":
 		res.Commit, res.OnMain = mark, true
 	}
@@ -71,8 +71,8 @@ func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) 
 	return res, finalize, nil
 }
 
-// commitIn is the full sha that sha names in repo, and whether its default branch reaches it; "" and why when it names no commit.
-func commitIn(repo, sha string) (full string, onMain bool, why string) {
+// commitIn is the full sha that sha names in repo, and whether base, its default branch, reaches it; "" and why when it names no commit.
+func commitIn(repo, sha string, base gitrun.Base) (full string, onMain bool, why string) {
 	r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
 	if r.RC != 0 {
 		if r.RC < 0 {
@@ -81,6 +81,6 @@ func commitIn(repo, sha string) (full string, onMain bool, why string) {
 		return "", false, "no such commit"
 	}
 	full = strings.TrimSpace(r.Stdout)
-	onMain, _ = gitrun.BaseOf(repo).Reaches(repo, full)
+	onMain, _ = base.Reaches(repo, full)
 	return full, onMain, ""
 }

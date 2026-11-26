@@ -289,12 +289,15 @@ func workKept(q *sql.DB, tid int64) (string, error) {
 	if wt == "" {
 		return "", nil
 	}
+	ahead, ok := gitrun.BaseOf(wt).NotIn("HEAD")
+	if !ok {
+		return "", nil // no default branch to measure against: with no revisions to leave out, the log would walk the whole history
+	}
 	branch := gitrun.Run(wt, "rev-parse", "--abbrev-ref", "HEAD")
 	head := gitrun.Run(wt, "rev-parse", "--short", "HEAD")
-	ahead, ok := gitrun.BaseOf(wt).NotIn("HEAD")
 	log := gitrun.Run(wt, append([]string{"log", "--format=%ct"}, ahead...)...)
 	dirty := gitrun.Run(wt, "status", "--porcelain")
-	if !ok || branch.RC != 0 || head.RC != 0 || log.RC != 0 || dirty.RC != 0 {
+	if branch.RC != 0 || head.RC != 0 || log.RC != 0 || dirty.RC != 0 {
 		return "", nil
 	}
 	commits := 0

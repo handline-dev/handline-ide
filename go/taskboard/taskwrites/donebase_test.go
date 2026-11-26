@@ -2,7 +2,9 @@ package taskwrites
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
@@ -13,6 +15,13 @@ import (
 // baseRig is a home whose agent w holds tasks 1 to 6, each expecting a sha: done marks one done as w with evidence in repo, and
 // result is what that done kept.
 func baseRig(t *testing.T) (done func(task int, evidence, repo, more string) map[string]any, result func(task int) taskresult.Result) {
+	t.Helper()
+	done, result, _ = baseRigDirect(t)
+	return done, result
+}
+
+// baseRigDirect is baseRig with direct, which hands in to MarkDone as w in a transaction of its own, as a caller other than task.done does.
+func baseRigDirect(t *testing.T) (done func(task int, evidence, repo, more string) map[string]any, result func(task int) taskresult.Result, direct func(in DoneIn) error) {
 	t.Helper()
 	d, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
@@ -38,7 +47,19 @@ func baseRig(t *testing.T) (done func(task int, evidence, repo, more string) map
 		}
 		return r
 	}
-	return done, result
+	direct = func(in DoneIn) error {
+		t.Helper()
+		tx, err := d.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := MarkDone(tx, home, "w", in); err != nil {
+			tx.Rollback()
+			return err
+		}
+		return tx.Commit()
+	}
+	return done, result, direct
 }
 
 // originAndClone is a bare repository whose default branch is def, holding one commit on it and on each of beside, and a clone of it.
@@ -180,5 +201,58 @@ func TestDoneTakesAShaOnOriginsCopyAsTheCloneKnowsItAndFetchesNothing(t *testing
 	third := work("third")
 	if got := errText(done(3, third, clone, "")); got != third+checkedMaster {
 		t.Fatalf("never merged: %q", got)
+	}
+}
+
+// What git says of a done's sha and commit is asked before the write and carried into it (DoneIn.Looked): the transaction runs no git,
+// shown here by a repository that is gone by the time of the write. A caller that did not ask first has MarkDone ask, as it always
+// did, and an answer is never used for a sha it was not asked about.
+func TestADonesShasAreLookedUpBeforeTheWriteAndCarriedIntoIt(t *testing.T) {
+	t.Parallel()
+	_, result, direct := baseRigDirect(t)
+	repo := filepath.Join(t.TempDir(), "repo")
+	if err := os.Mkdir(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git := gitIn(t, repo)
+	git("init", "-q", "-b", "master")
+	git("commit", "-q", "--allow-empty", "-m", "on master")
+	on := git("rev-parse", "HEAD")
+	git("checkout", "-q", "-b", "side")
+	git("commit", "-q", "--allow-empty", "-m", "off master")
+	off := git("rev-parse", "HEAD")
+	refused := func(why string, err error, want string) {
+		t.Helper()
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%s: %v, want %q", why, err, want)
+		}
+	}
+
+	// not looked up first: MarkDone asks git itself, with the same answers
+	refused("a sha off master, not looked up first", direct(DoneIn{Task: 1, Sha: off, Repo: repo}), off+" is not an ancestor of master")
+	if err := direct(DoneIn{Task: 1, Sha: on[:12], Repo: repo}); err != nil || result(1).Commit != on || !result(1).OnMain {
+		t.Fatalf("a sha on master, not looked up first: %v %+v", err, result(1))
+	}
+
+	// looked up first: the write needs no repository
+	sha := DoneIn{Task: 2, Sha: on[:12], Repo: repo}.Looked()
+	commit := DoneIn{Task: 3, Words: "built", Commit: off[:12], Repo: repo}.Looked()
+	late := DoneIn{Task: 4, Sha: off, Repo: repo}.Looked()
+	other := DoneIn{Task: 5, Sha: on, Repo: repo}.Looked()
+	if err := os.Rename(repo, repo+".gone"); err != nil {
+		t.Fatal(err)
+	}
+	if err := direct(sha); err != nil || result(2).Commit != on || !result(2).OnMain {
+		t.Fatalf("a sha looked up before the write: %v %+v", err, result(2))
+	}
+	if err := direct(commit); err != nil || result(3).Commit != off || result(3).OnMain {
+		t.Fatalf("a commit looked up before the write: %v %+v", err, result(3))
+	}
+	refused("a refusal looked up before the write", direct(late), off+" is not an ancestor of master")
+	// the answer was for another sha: it is asked again, of a repository that is no longer there and so names no branch but the guess
+	other.Sha = off
+	refused("an answer for another sha", direct(other), off+" is not an ancestor of main (")
+	if result(5).Commit != "" {
+		t.Fatal("a sha was taken on the answer to another")
 	}
 }

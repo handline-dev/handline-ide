@@ -80,6 +80,9 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 		if (sha != "" || in.Commit != "") && repo == "" {
 			return nil, badParam("a sha is checked against a repo: name one", "repo")
 		}
+		// git is asked about the sha and the commit here, before the write: the transaction below holds no git process.
+		in.Sha, in.Words, in.Request, in.Repo = sha, words, request, repo
+		in = in.Looked()
 		var done *DoneResult
 		var decided func()
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
@@ -93,7 +96,6 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 					return nil, err
 				}
 			}
-			in.Sha, in.Words, in.Request, in.Repo = sha, words, request, repo
 			if decide != nil && by == actor.OwnerKey && words != "" && in.Commit == "" && len(in.Shots) == 0 {
 				handled, said, then, err := decide(tx, tid, words)
 				if err != nil {
@@ -141,6 +143,59 @@ type DoneIn struct {
 	Shots  []string
 	// TurnPassed is a review turn's pass closing the task (task.turn.pop): its turn's event says pass, not cleared.
 	TurnPassed bool
+	// looked is what git said of Sha and Commit in Repo, when the caller asked before its transaction (Looked); nil has MarkDone ask.
+	looked *shaLook
+}
+
+// shaLook is what git says of a done's Sha and Commit in its Repo: what the refusals and the kept result are made of. Asking takes
+// several git processes, each with its own time limit, in a repo the caller names, so it is done with no transaction open.
+type shaLook struct {
+	sha, commit, repo string // what was asked: an answer is used only for the same question
+	// full is the whole sha Sha names when the repo's default branch reaches it; else refusal says why not, as the caller is told.
+	full, refusal string
+	// commitFull is the whole sha Commit names, "" with commitWhy when it names none, and commitOnBase whether the default branch reaches it.
+	commitFull, commitWhy string
+	commitOnBase          bool
+}
+
+// Looked is in with its Sha and Commit looked up in Repo now. A caller runs it before it opens the transaction it hands MarkDone, which
+// then runs no git while the database is held; for an in that was not looked up, MarkDone asks git itself, in the transaction.
+func (in DoneIn) Looked() DoneIn {
+	in.looked = lookUp(in)
+	return in
+}
+
+// look is git's answers for in: the ones it carries when they answer the shas and the repo it has now, else asked here.
+func (in DoneIn) look() *shaLook {
+	if lk := in.looked; lk != nil && lk.sha == in.Sha && lk.commit == in.Commit && lk.repo == in.Repo {
+		return lk
+	}
+	return lookUp(in)
+}
+
+func lookUp(in DoneIn) *shaLook {
+	lk := &shaLook{sha: in.Sha, commit: in.Commit, repo: in.Repo}
+	if in.Sha == "" && in.Commit == "" {
+		return lk
+	}
+	base := gitrun.BaseOf(in.Repo)
+	if in.Sha != "" {
+		var why string
+		if lk.full, why = shaOnBase(in.Repo, in.Sha, base); lk.full == "" {
+			if why != "" {
+				why = " (" + why + ")"
+			}
+			if gitrun.HasOrigin(in.Repo) {
+				// The check reads what the clone holds and fetches nothing: a merge made on the remote shows after the caller's own fetch.
+				why += "; if it was merged on origin, run `git fetch origin` and try again"
+			}
+			lk.refusal = fmt.Sprintf("%s is not an ancestor of %s%s", in.Sha, base.Branch, why)
+		}
+	}
+	if in.Commit != "" {
+		lk.commitFull, lk.commitOnBase, lk.commitWhy = commitIn(in.Repo, in.Commit, base)
+	}
+	return lk
 }
 
 // DoneResult is what a MarkDone leaves for the telling that follows the commit. Finished is false when only a leftover request of an
@@ -157,7 +212,7 @@ type DoneResult struct {
 // MarkDone is actions.mark_task_done in the caller's transaction: a refusal is the error, nothing is written then. The caller hands the
 // result to Teller.Done once it has committed.
 func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
-	tid, sha, words, request, repo := in.Task, in.Sha, in.Words, in.Request, in.Repo
+	tid, sha, words, request := in.Task, in.Sha, in.Words, in.Request
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return nil, err
@@ -191,21 +246,14 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	} else if !ok {
 		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner or the founder", tid, addr.Ref(t.Owner), addr.Ref(t.reporter())))
 	}
+	in.looked = in.look() // already asked by a caller that used Looked; else git is asked here, as it always was
 	var mark, via string
 	switch {
 	case sha != "":
-		full, branch, why := shaOnBase(repo, sha)
-		if full == "" {
-			if why != "" {
-				why = " (" + why + ")"
-			}
-			if gitrun.HasOrigin(repo) {
-				// The check reads what the clone holds and fetches nothing: a merge made on the remote shows after the caller's own fetch.
-				why += "; if it was merged on origin, run `git fetch origin` and try again"
-			}
-			return nil, refusal(fmt.Sprintf("%s is not an ancestor of %s%s", sha, branch, why))
+		if in.looked.full == "" {
+			return nil, refusal(in.looked.refusal)
 		}
-		mark, via = full, "sha"
+		mark, via = in.looked.full, "sha"
 	case request != nil:
 		var state string
 		switch err := tx.QueryRow("SELECT state FROM requests WHERE id = ?", *request).Scan(&state); {
@@ -314,27 +362,26 @@ func mayClose(tx *sql.Tx, by string, t *task) (bool, error) {
 	return false, nil
 }
 
-// shaOnBase is the full sha `sha` names in repo when its default branch reaches it (origin's copy of it when the clone has one, else
-// the local one: gitrun.Base), else "" and why; branch is that branch's name either way. A sha typed by hand that never merged must not mark a task
-// done, so this runs before anything is written, and what is stored is the full sha. It asks only what the clone holds, and fetches
-// nothing: the repo is one the caller names, and a fetch there would run what that repo's config says.
-func shaOnBase(repo, sha string) (full, branch, why string) {
-	base := gitrun.BaseOf(repo)
+// shaOnBase is the full sha `sha` names in repo when base, its default branch, reaches it (origin's copy of it when the clone has one,
+// else the local one), else "" and why. A sha typed by hand that never merged must not mark a task done, so this is asked before
+// anything is written, and what is stored is the full sha. It asks only what the clone holds, and fetches nothing: the repo is one the
+// caller names, and a fetch there would run what that repo's config says.
+func shaOnBase(repo, sha string, base gitrun.Base) (full, why string) {
 	r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
 	if r.RC < 0 {
-		return "", base.Branch, r.Stderr
+		return "", r.Stderr
 	}
 	if r.RC != 0 {
-		return "", base.Branch, "no such commit in this repo"
+		return "", "no such commit in this repo"
 	}
 	full = strings.TrimSpace(r.Stdout)
 	if ok, why := base.Reaches(repo, full); !ok {
 		if ref := base.Ref(); why == "" && ref != base.Branch {
 			why = "checked " + ref + ", which a push there moves" // origin's copy, not the clone's own branch
 		}
-		return "", base.Branch, textsafe.Oneline(why)
+		return "", textsafe.Oneline(why)
 	}
-	return full, base.Branch, ""
+	return full, ""
 }
 
 // openChildrenRefusal refuses a parent's done while children are open, naming each child (number, state, assignee, title) and the
