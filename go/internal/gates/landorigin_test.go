@@ -21,7 +21,7 @@ func TestAnOriginTheDaemonMayNotFetchGivesTheTaskBackAfterItsLooks(t *testing.T)
 		if e, _, _, b := r.task(2); e != "" || b != 1 {
 			t.Fatalf("look %d: T2 %q, %d blockers", i+1, e, b)
 		}
-		if e, _, _, _ := r.task(1); e != "" || r.watchError() != "passed, not closing T2 yet: "+sha[:7]+" is not on origin/main here" {
+		if e, _, _, _ := r.task(1); e != "" || r.watchError() != "passed, merged "+sha+"; not closing T2 yet: "+sha[:7]+" is not on origin/main here" {
 			t.Fatalf("look %d: the gate %q saying %q", i+1, e, r.watchError())
 		}
 	}

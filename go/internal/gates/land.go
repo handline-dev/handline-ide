@@ -109,22 +109,57 @@ type closing struct {
 	wait      string
 }
 
+// held is what a gate says while its watch has passed with evidence and the close of task waits on why. heldPass reads it back: the
+// evidence is kept in it, so a gate that runs out of time while held still opens with the merge it saw, and never as plain timed out.
+func held(evidence string, task int64, why string) string {
+	return fmt.Sprintf("%s%s; not closing T%d yet: %s", db.PassHeld, evidence, task, why)
+}
+
+func heldPass(w db.Watch) (evidence, why string, ok bool) {
+	rest, isHeld := strings.CutPrefix(w.Error, db.PassHeld)
+	if !isHeld || w.Closes == 0 {
+		return "", "", false
+	}
+	return strings.Cut(rest, fmt.Sprintf("; not closing T%d yet: ", w.Closes))
+}
+
+// pastDeadline is what a gate past its deadline opens with. One that was held as passed opens as passed, with the evidence it held, and
+// gives its task back saying why it was not closed in time; any other is timed out.
+func (s *Sweep) pastDeadline(gate int64, w db.Watch) (evidence, result string, c closing) {
+	seen, why, ok := heldPass(w)
+	if !ok {
+		return "timed out", "timed_out", closing{}
+	}
+	if t, err := closes(s.DB, gate, w.Closes); err == nil && t != nil {
+		c = closing{task: t.ID, by: t.Acting, back: why + " (tried until the gate's deadline)"}
+	}
+	return seen, string(watch.Passed), c
+}
+
+// closes is the task a gate still has to close: open, and still waiting on the gate. One taken off the gate by hand is its holder's
+// again, and no longer the gate's to close: nil.
+func closes(q db.Q, gate, task int64) (*db.Task, error) {
+	t, err := db.GetTask(q, task)
+	if err != nil || t == nil || t.Ended() {
+		return nil, err
+	}
+	blockers, err := db.TaskBlockers(q, t.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range blockers {
+		if b.ID == gate {
+			return t, nil
+		}
+	}
+	return nil, nil
+}
+
 // closingOf decides, outside any write, what gate does about the task its watch says to close, now that the watch passed with evidence.
 func (s *Sweep) closingOf(gate int64, w db.Watch, evidence string) (closing, error) {
-	t, err := db.GetTask(s.DB, w.Closes)
-	if err != nil || t == nil || t.Ended() {
+	t, err := closes(s.DB, gate, w.Closes)
+	if err != nil || t == nil {
 		return closing{}, err
-	}
-	blockers, err := db.TaskBlockers(s.DB, t.ID)
-	if err != nil {
-		return closing{}, err
-	}
-	waits := false
-	for _, b := range blockers {
-		waits = waits || b.ID == gate
-	}
-	if !waits { // taken off the gate by hand: its holder has it again, and the gate is no longer its to close
-		return closing{}, nil
 	}
 	c := closing{task: t.ID, by: t.Acting}
 	sha := watch.MergedSha(evidence)
@@ -144,15 +179,15 @@ func (s *Sweep) closingOf(gate int64, w db.Watch, evidence string) (closing, err
 	if fetch == nil {
 		fetch = func(repo string) error { return FetchBase(repo) }
 	}
-	unfetched := "" // why the fetch was refused for good: the clone is then checked as it stands, and never fetched again to no use
+	// unfetched is why the fetch was refused for good: the clone is then checked as it stands, and never fetched again to no use.
+	// failed is a fetch that may go better next time: the clone is still looked at, since it may hold the commit already.
+	unfetched, failed := "", error(nil)
 	if gitrun.HasOrigin(c.repo) {
 		switch err := fetch(c.repo); {
 		case errors.Is(err, ErrTransport):
 			unfetched = err.Error()
 		case err != nil:
-			delete(s.unlanded, gate)
-			c.wait = fmt.Sprintf("%snot closing T%d yet: %s", db.PassHeld, t.ID, err)
-			return c, nil
+			failed = err
 		}
 	}
 	base := gitrun.BaseOf(c.repo)
@@ -162,12 +197,17 @@ func (s *Sweep) closingOf(gate int64, w db.Watch, evidence string) (closing, err
 		c.sha, c.done = sha, taskwrites.DoneIn{Task: t.ID, Sha: sha, Repo: c.repo}.Looked()
 		return c, nil
 	}
+	if failed != nil {
+		delete(s.unlanded, gate)
+		c.wait = held(evidence, t.ID, failed.Error())
+		return c, nil
+	}
 	where := "the " + base.Branch + " branch"
 	if ref := base.Ref(); ref != "" {
 		where = ref
 	}
 	if s.unlanded[gate]++; s.unlanded[gate] < UnlandedReads {
-		c.wait = fmt.Sprintf("%snot closing T%d yet: %s is not on %s here", db.PassHeld, t.ID, short(sha), where)
+		c.wait = held(evidence, t.ID, fmt.Sprintf("%s is not on %s here", short(sha), where))
 		return c, nil
 	}
 	delete(s.unlanded, gate)

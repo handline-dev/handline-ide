@@ -48,12 +48,12 @@ func TestAGateThatClosesATaskNamesItAndSaysWhenTheCloseWaits(t *testing.T) {
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(9, 'ship', 'bob', 'p1', 1, 'p1')")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, sent_at, watch_vendor, watch_target, watch_until, watch_label, "+
 		"watch_closes, watch_error) VALUES(10, 'T9 waits on PR #412 to land, then is done', 'gate', 'bob', 1, 'bob', 2, 'github', 'o/r#412', 'landed', "+
-		"'PR #412 to land', 9, 'passed, not closing T9 yet: git fetch timed out after 1m0s')")
+		"'PR #412 to land', 9, 'passed, merged 0a1b2c3; not closing T9 yet: git fetch timed out after 1m0s')")
 	task := taskRead(t, e, 10)
 	w, _ := task["watch"].(map[string]any)
 	st, _ := task["status"].(map[string]any)
 	if w["until"] != "landed" || w["closes"] != float64(9) || w["result"] != nil ||
-		st["text"] != "watching PR #412 to land - passed, not closing T9 yet: git fetch timed out after 1m0s" {
+		st["text"] != "watching PR #412 to land - passed, merged 0a1b2c3; not closing T9 yet: git fetch timed out after 1m0s" {
 		t.Fatalf("%v", task)
 	}
 }

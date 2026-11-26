@@ -7,6 +7,7 @@ package gates
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
@@ -82,7 +83,7 @@ func (s *Sweep) Pass(ctx context.Context, now int64) error {
 		var evidence, result string
 		var c closing // what a passed gate does about the task it closes; zero for a gate that closes none
 		if deadlines[i] != 0 && now >= deadlines[i] {
-			evidence, result = "timed out", "timed_out"
+			evidence, result, c = s.pastDeadline(tid, w)
 		} else {
 			why := ""
 			evidence, result, why = s.read(ctx, vendors[w.Vendor], tid, w)
@@ -94,6 +95,10 @@ func (s *Sweep) Pass(ctx context.Context, now int64) error {
 				if c.wait != "" { // passed, and the close cannot be checked yet: the gate stays open and is read again
 					result, why = "", c.wait
 				}
+			}
+			// A read that fails after the merge was seen does not forget it: the gate still opens with it at its deadline.
+			if _, _, isHeld := heldPass(w); isHeld && result == "" && !strings.HasPrefix(why, db.PassHeld) {
+				why = w.Error
 			}
 			if why != w.Error {
 				if err := db.SetWatchError(s.DB, tid, why); err != nil {

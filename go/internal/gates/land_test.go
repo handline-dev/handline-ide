@@ -290,7 +290,7 @@ func TestAMergeThatCannotBeCheckedYetIsTriedAgainNotClosedInWords(t *testing.T) 
 			t.Fatalf("at %d: the gate opened: %q", now, e)
 		}
 	}
-	if why := r.watchError(); why != "passed, not closing T2 yet: git fetch: fatal: unable to access the remote: Could not resolve host" {
+	if why := r.watchError(); why != "passed, merged "+sha+"; not closing T2 yet: git fetch: fatal: unable to access the remote: Could not resolve host" {
 		t.Fatalf("the gate says %q", why)
 	}
 	if len(r.tell.done) != 0 || r.memos() != "" {
@@ -314,7 +314,7 @@ func TestAMergeIntoAnotherBranchGivesTheTaskBack(t *testing.T) {
 	sha := r.merge("release")
 	for i := range UnlandedReads - 1 {
 		r.pass(int64(1000 + 60*i))
-		if e, _, _, _ := r.task(1); e != "" || !strings.HasPrefix(r.watchError(), "passed, not closing T2 yet: "+sha[:7]+" is not on origin/main here") {
+		if e, _, _, _ := r.task(1); e != "" || r.watchError() != "passed, merged "+sha+"; not closing T2 yet: "+sha[:7]+" is not on origin/main here" {
 			t.Fatalf("look %d: the gate %q saying %q", i+1, e, r.watchError())
 		}
 	}

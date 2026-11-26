@@ -28,7 +28,8 @@ Every 60 s the daemon reads each open gate, one at a time, on a clock of its own
   `gone: <why>`. Any other answer starts the count again.
 - **A read that fails** (network, rate limit, logged out): the gate keeps watching, and its status says
   `watching <label> - last read failed: <why>` until a read works again.
-- **Past the deadline** (its time box): the gate is `timed out`, and its target is not read. With no time box given the
+- **Past the deadline** (its time box): the gate is `timed out`, and its target is not read (a gate that had passed and
+  was held for the close it makes opens with what it saw: see below). With no time box given the
   deadline is 24 h, or for `landed` the setting `landed_deadline_s` (a week): a review can take days, and a gate that timed
   out daily would bring its task back to its holder each time, to no use. A time box an agent gives is at most a task's
   longest (4 h).
@@ -60,8 +61,12 @@ assignee, its owner, its parent's owner, the founder). Anyone may still make a t
 
 One write means no daemon death leaves a gate that passed beside a task it did not close.
 
-- **The fetch fails** (network, credentials, a timeout): nothing is closed. The gate stays open, its status says
-  `watching <label> - passed, not closing T<n> yet: <why>`, and the next pass tries again, until the gate's deadline.
+- **The fetch fails** (network, credentials, a timeout): the clone is still looked at, and a clone that already holds the
+  merge on the default branch closes the task. Otherwise nothing is closed: the gate stays open, its status says
+  `watching <label> - passed, merged <sha>; not closing T<n> yet: <why>`, and the next pass tries again, until the gate's
+  deadline. A read of GitHub that fails meanwhile does not put its reason over that status. A gate still held so at its deadline does not end as `timed out`: it opens as passed with
+  `merged <sha>; T<n> not closed: <why> (tried until the gate's deadline)`, the same is left on the task as a comment, and
+  the task goes back to its holder, who has the commit to close it with.
 - **The origin cannot be fetched at all:** an origin that is a local path, or any transport other than https, ssh and git,
   is refused by the daemon's fetch (`transport 'file' not allowed`), and no later fetch goes better. The gate does not wait
   out its deadline on it: it checks the clone as it stands. A clone that already holds the merge on origin's copy of the
