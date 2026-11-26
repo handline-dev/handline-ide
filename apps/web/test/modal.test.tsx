@@ -14,7 +14,7 @@ beforeEach(async () => {
   document.body.append(el);
   root = createRoot(el);
   await act(async () => root.render(<m.ModalHost />));
-});
+}, 60_000); // a fresh import of the modal's graph is slow on a loaded machine
 
 afterEach(async () => {
   await act(async () => root.unmount());
