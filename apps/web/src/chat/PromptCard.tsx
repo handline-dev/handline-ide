@@ -10,6 +10,7 @@ import { spring } from '#src/motion.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
 import { Refs } from '#src/ui/refs.tsx';
+import { PermissionChoices } from '#src/chat/PermissionChoices.tsx';
 
 /** At the end of a chat whose agent waits on a prompt: answer it here, Allow or Deny, or a question's choices. */
 export function PromptCard({ agent }: { agent: string }) {
@@ -42,9 +43,16 @@ const questionText = (p: Prompt) => {
 function Card({ agent, p }: { agent: string; p: Prompt }) {
   const a = usePromptAnswer(agent, p, undefined);
   const permission = p.kind === 'permission';
-  const title = permission ? `Allow ${p.tool ?? 'this'}?` : a.question ? (questionText(p) ?? 'Question') : 'The agent asks';
+  const title = permission
+    ? p.tool === 'Bash'
+      ? 'Bash command'
+      : (p.tool ?? 'Permission')
+    : a.question
+      ? (questionText(p) ?? 'Question')
+      : 'The agent asks';
   const nameOf = useNameOf();
   const [whole, setWhole] = useState(false);
+  const long = !!p.command && (p.command.split('\n').length > 3 || p.command.length > 240);
   // The clicked button spins while the write runs and a few seconds after, the time the prompt takes to leave; a prompt still there
   // after that is answerable again.
   const [sent, setSent] = useState<string | null>(null);
@@ -59,41 +67,48 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
     setSent(mark);
     a.send(choice, mark);
   };
-  // A repeat of a command asked before word for word may be allowed for good: the button names the agent and the exact command.
-  const always = permission && a.opts.some((o) => !!o.rule);
+  // The terminal's own answers: Yes, Yes and not again for what the rule names, No.
   const label = (o: (typeof a.opts)[number]) => {
     if (!permission) return o.label;
-    if (o.rule) return `Always allow ${nameOf(agent)} ${ruleText(o.rule)}`;
-    if (o.answer === 'yes') return always ? 'Allow once' : 'Allow';
-    if (o.answer === 'no') return 'Deny';
+    if (o.rule) return `Yes, and don't ask ${nameOf(agent)} again for ${ruleText(o.rule)}`;
+    if (o.answer === 'yes') return 'Yes';
+    if (o.answer === 'no') return 'No';
     return o.label;
   };
   return (
-    <div className={`mt-2 flex max-w-150 flex-col gap-3 rounded-lg border border-border p-3 text-sm `}>
+    <div className="mt-2 flex flex-col gap-3 rounded-lg border border-border p-3 text-sm">
       <div className="flex gap-2.5">
         {permission ? (
           <ShieldAlert size={16} className="mt-0.5 shrink-0 text-warning" />
         ) : (
           <MessageCircleQuestion size={16} className="mt-0.5 shrink-0 text-warning" />
         )}
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <p className="text-fg">{title}</p>
-          {p.command && (
-            // Cut to one line; a click shows it whole, wrapped, and folds it again.
-            <button
-              type="button"
-              aria-expanded={whole}
-              title={whole ? undefined : 'Show the whole command'}
-              onClick={() => setWhole(!whole)}
-              className={`block rounded bg-surface px-1.5 py-0.5 text-left font-mono text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent ${whole ? 'break-all whitespace-pre-wrap' : 'truncate'}`}
-            >
-              {p.command}
-            </button>
-          )}
           {p.reason && (
             <p className="text-muted">
               <Refs text={p.reason} />
             </p>
+          )}
+          {p.command && (
+            <div className="mt-1 flex flex-col items-start gap-1">
+              {/* Up to three lines; Show all opens it whole. */}
+              <pre
+                className={`w-full rounded-md border border-border bg-surface px-2.5 py-2 font-mono text-xs break-all whitespace-pre-wrap text-fg ${whole ? '' : 'line-clamp-3'}`}
+              >
+                {p.command}
+              </pre>
+              {long && (
+                <button
+                  type="button"
+                  aria-expanded={whole}
+                  onClick={() => setWhole(!whole)}
+                  className="text-xs text-accent hover:underline"
+                >
+                  {whole ? 'Show less' : 'Show all'}
+                </button>
+              )}
+            </div>
           )}
           {a.changed && <p className="text-xs text-danger">The prompt changed, so nothing was sent.</p>}
         </div>
@@ -127,6 +142,13 @@ function Card({ agent, p }: { agent: string; p: Prompt }) {
             )}
           </div>
         </div>
+      ) : permission ? (
+        <PermissionChoices
+          choices={a.opts.map((o) => ({ key: o.key, label: label(o) }))}
+          busy={busy}
+          locked={locked}
+          pick={(k) => send(k, k)}
+        />
       ) : (
         <div className="flex flex-wrap gap-2 pl-6">
           {a.opts.map((o) => (
