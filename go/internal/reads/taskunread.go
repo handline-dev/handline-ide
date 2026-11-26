@@ -107,7 +107,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	}
 	row := func(task any, title, kind string, items []int64, u unread, at any) map[string]any {
 		out := map[string]any{"task": task, "title": title, "kind": kind, "items": items, "unread": u.n, "first_unread": nil, "last_at": at,
-			"source": "", "id": "", "agent": nil, "ask": nil, "warning": nil}
+			"source": "", "id": "", "agent": nil, "ask": nil, "warning": nil, "holds": []int64{}}
 		if u.n > 0 {
 			out["first_unread"] = u.first
 		}
@@ -125,14 +125,14 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	for _, w := range warnings {
 		warningOf[w.id] = w
 	}
-	rank := map[string]int{"note": -1, "comment": 0, "warning": 1, "ask": 2, "decide": 3, "allow": 4}
+	rank := map[string]int{"note": -1, "comment": 0, "run": 0, "warning": 1, "ask": 2, "decide": 3, "allow": 4}
 	answer, byTask := []map[string]any{}, map[int64]map[string]any{}
 	for _, it := range forYou {
 		if _, deferred := it["later"]; deferred {
 			continue
 		}
 		kind, id := it["kind"].(string), it["id"].(string)
-		ask := map[string]string{"allow": "allow", "decide": "decide", "review": "decide"}[it["asks"].(string)]
+		ask := map[string]string{"allow": "allow", "decide": "decide", "review": "decide", "run": "run"}[it["asks"].(string)]
 		var line, agent any
 		agent = it["agent"]
 		var warning map[string]any
@@ -177,8 +177,13 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			}
 			onTop := turn != nil && actor.IsPerson(turn.str("agent"))
 			// a task the founder owns with no turn and no request open on it is the Tasks page's Needs you, not their turn
-			if len(items) == 0 && kind == "task" && !onTop {
+			if len(items) == 0 && kind == "task" && !onTop && ask != "run" {
 				continue
+			}
+			if ask == "run" && !onTop {
+				if line, err = e.askOfDraft(tid); err != nil {
+					return nil, err
+				}
 			}
 			if onTop && kind == "task" {
 				agent = turn.str("pushed_by")
@@ -251,7 +256,39 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			noted++
 		}
 	}
-	sort.SliceStable(answer, func(i, j int) bool { return answer[i]["last_at"].(string) > answer[j]["last_at"].(string) })
+	b, err := e.loadBoard()
+	if err != nil {
+		return nil, err
+	}
+	heldSince := map[int64]int64{} // by row task: when the first task behind it began to wait
+	for _, r := range answer {
+		tid, ok := r["task"].(int64)
+		if !ok {
+			continue
+		}
+		holds, since, err := e.holdsOf(tid, r["kind"] == "run", b)
+		if err != nil {
+			return nil, err
+		}
+		r["holds"] = holds
+		if len(holds) > 0 {
+			heldSince[tid] = since
+		}
+	}
+	// What holds other work up comes first, the longest wait first; then the rest, newest first.
+	sort.SliceStable(answer, func(i, j int) bool {
+		ti, _ := answer[i]["task"].(int64)
+		tj, _ := answer[j]["task"].(int64)
+		si, hi := heldSince[ti]
+		sj, hj := heldSince[tj]
+		if hi != hj {
+			return hi
+		}
+		if hi && si != sj {
+			return si < sj
+		}
+		return answer[i]["last_at"].(string) > answer[j]["last_at"].(string)
+	})
 
 	// Tasks the founder answers for that have comments they have not read, and are not already a question above.
 	comments := []map[string]any{}
@@ -290,6 +327,21 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 	}
 	return map[string]any{"answer": answer, "comments": comments,
 		"counts": map[string]any{"answer": len(answer) - noted, "notes": noted, "comments": len(comments), "needs_you": needs, "drafts": drafts, "unseen_results": results}}, nil
+}
+
+// askOfDraft is a run row's ask: the first line of the newest comment that opens with the founder on the task, else on its parent; nil when none.
+func (e *Env) askOfDraft(tid int64) (any, error) {
+	memos, err := query(e.DB, "SELECT m.body FROM task_memos m WHERE m.task_id = ?1 OR m.task_id = (SELECT parent_task FROM tasks WHERE id = ?1) "+
+		"ORDER BY m.task_id = ?1 DESC, m.id DESC", tid)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range memos {
+		if actor.IsPerson(addr.Lead(m.str("body"))) {
+			return firstLine(withoutLead(m.str("body"))), nil
+		}
+	}
+	return nil, nil
 }
 
 // needsYouAndDrafts counts the open tasks the founder owns or that wait on them (Task.waiting.on is founder), and the open drafts.

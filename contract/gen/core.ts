@@ -754,8 +754,8 @@ export type ForYouItem = {
   agent: Who | null;
   /** One line: a task's title, a comment's first line, a prompt's command or tool, a proposal's title, the warning in plain words. */
   title: string;
-  /** What the item wants of the founder. A task or comment: `review` when the task is tagged review, else `decide`. A prompt: `allow` for a permission, else `decide`. An proposal: `allow`. The machine: `do`. */
-  asks: "allow" | "decide" | "review" | "do";
+  /** What the item wants of the founder. A task or comment: `review` when the task is tagged review, else `decide`. A draft queued work waits on, or one its agent left behind: `run`, since the first task began to wait or the agent moved on. A prompt: `allow` for a permission, else `decide`. An proposal: `allow`. The machine: `do`. */
+  asks: "allow" | "decide" | "review" | "do" | "run";
   /** When it began to wait. */
   since: Timestamp;
   /** Only while the founder has the item deferred and the deferral is not over (NavPrefs.later). */

@@ -1918,9 +1918,10 @@
        "ask",
        "warning",
        "comment",
-       "note"
+       "note",
+       "run"
       ],
-      "description": "The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). note: an `@human` comment the founder has not read, on a task no other row stands for (news, no turn): source comment, id the comment, ask its first line, agent its author; it leaves when the founder reads the task (task.seen)."
+      "description": "The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). run: a draft only the founder can run, because queued work waits on it (holds) or the agent that made it moved on without bringing it to them; on a task whose drafts share it as parent, the row stands for them all. Its ask is the first line of the newest comment on it (or its parent) that opens with `@human`. It leaves when the draft is queued or discarded, the work behind it closes, or, for a draft left behind, the founder sees it (task.seen) and nothing waits on it. A turn on the same task outranks it. note: an `@human` comment the founder has not read, on a task no other row stands for (news, no turn): source comment, id the comment, ask its first line, agent its author; it leaves when the founder reads the task (task.seen)."
      },
      "items": {
       "type": "array",
@@ -1983,6 +1984,13 @@
        }
       ],
       "description": "What is asked, one line: the turn's ask or the first line of the comment asking them; null when there is nothing beyond the title. Absent from a daemon that does not send it."
+     },
+     "holds": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      },
+      "description": "The open tasks, not drafts, that wait on this row's task, through blocks, a parent waiting on its child, and chains of those, sorted; empty when none or for a row with no task. Rows that hold work up come first, the longest wait first."
      },
      "warning": {
       "oneOf": [

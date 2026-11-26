@@ -15,7 +15,7 @@ const NAMED = /(?:^|[^A-Za-z0-9._@-])@([A-Za-z0-9][A-Za-z0-9._-]*)/g;
 export interface Pending {
   task: number | null;
   title: string;
-  kind: 'allow' | 'decide' | 'ask' | 'warning' | 'comment' | 'note';
+  kind: 'allow' | 'decide' | 'ask' | 'warning' | 'comment' | 'note' | 'run';
   source?: 'task' | 'comment' | 'prompt' | 'proposal' | 'machine';
   id?: string;
   agent?: string | null;
@@ -30,6 +30,8 @@ export interface Pending {
     stall?: boolean;
   } | null;
   items: number[];
+  /** The open tasks that wait on this row's task. */
+  holds?: number[];
   unread: number;
   first_unread: number | null;
   last_at: string;
@@ -38,6 +40,10 @@ export interface Pending {
 export class TaskComments extends TaskStore {
   /** The daemon's own warnings in requests.pending (a login gone, weekly use about to be lost); a seed puts them in. */
   readonly warnings: Pending[] = [];
+  /** Drafts only the founder can run (queued work waits on them, or their agent left them); a seed puts them in. */
+  readonly runs: Pending[] = [];
+  /** What waits on a task, by task: a seed puts it in, and a founder's turn row on that task carries it. */
+  readonly holds = new Map<number, number[]>();
   /** The warnings the founder dismissed, by id. */
   private readonly dismissed = new Set<string>();
 
@@ -93,7 +99,7 @@ export class TaskComments extends TaskStore {
     comments: Pending[];
     counts: { answer: number; notes: number; comments: number; needs_you: number; drafts: number; unseen_results: number };
   } {
-    const strength = { note: 0, comment: 0, warning: 1, ask: 2, decide: 3, allow: 4 };
+    const strength = { note: 0, comment: 0, run: 0, warning: 1, ask: 2, decide: 3, allow: 4 };
     const answer = new Map<string, Pending>();
     for (const i of this.host.inbox.list({ unread: true, limit: 500 }).items) {
       const kind = i.kind === 'ask' ? 'ask' : i.kind === 'decision' ? 'decide' : i.kind === 'prompt' ? 'allow' : null;
@@ -153,6 +159,7 @@ export class TaskComments extends TaskStore {
           id: String(t.id),
           agent: top.by,
           ask: top.ask.split('\n')[0] ?? null,
+          holds: this.holds.get(t.id) ?? [],
           warning: null,
           items: [],
           unread: v.unread ?? 0,
@@ -179,13 +186,21 @@ export class TaskComments extends TaskStore {
         });
     }
     const newest = (a: Pending, b: Pending) => b.last_at.localeCompare(a.last_at);
+    // What holds work up comes first, the longest wait first, as the daemon orders it.
+    const holdsFirst = (a: Pending, b: Pending) => {
+      const ha = (a.holds ?? []).length > 0;
+      const hb = (b.holds ?? []).length > 0;
+      if (ha !== hb) return ha ? -1 : 1;
+      return ha ? a.last_at.localeCompare(b.last_at) : newest(a, b);
+    };
+    const runs = this.runs.filter((r) => r.task === null || !answer.has(`task:${r.task}`));
     const shown = this.warnings.filter((w) => !this.dismissed.has(w.id!));
     const open = this.rows.filter((r) => r.state !== 'done' && r.state !== 'discarded');
     return {
-      answer: [...answer.values(), ...shown, ...notes].sort(newest),
+      answer: [...answer.values(), ...runs, ...shown, ...notes].map((r) => ({ ...r, holds: r.holds ?? [] })).sort(holdsFirst),
       comments: comments.sort(newest),
       counts: {
-        answer: answer.size + shown.length,
+        answer: answer.size + runs.length + shown.length,
         notes: notes.length,
         comments: comments.length,
         needs_you: open.filter((r) => r.state !== 'draft' && (r.to === 'human' || this.waiting(r)?.on === 'founder')).length,

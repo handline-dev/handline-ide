@@ -452,8 +452,8 @@ export type PendingRequest = {
   task: number | null;
   /** The task's title; for an item with no task, its own line (a prompt's command or tool, a proposal's title, a warning in plain words). */
   title: string;
-  /** The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). note: an `@human` comment the founder has not read, on a task no other row stands for (news, no turn): source comment, id the comment, ask its first line, agent its author; it leaves when the founder reads the task (task.seen). */
-  kind: "allow" | "decide" | "ask" | "warning" | "comment" | "note";
+  /** The strongest item the row holds: allow (a permission request), decide (a decision, or a turn on the task), ask (a question to the founder), warning (the daemon needs the founder to act: see warning), or comment (unread comments only). run: a draft only the founder can run, because queued work waits on it (holds) or the agent that made it moved on without bringing it to them; on a task whose drafts share it as parent, the row stands for them all. Its ask is the first line of the newest comment on it (or its parent) that opens with `@human`. It leaves when the draft is queued or discarded, the work behind it closes, or, for a draft left behind, the founder sees it (task.seen) and nothing waits on it. A turn on the same task outranks it. note: an `@human` comment the founder has not read, on a task no other row stands for (news, no turn): source comment, id the comment, ask its first line, agent its author; it leaves when the founder reads the task (task.seen). */
+  kind: "allow" | "decide" | "ask" | "warning" | "comment" | "note" | "run";
   /** The inbox ids of the answer-needed items; empty for a comment row. */
   items: number[];
   /** The task's unread comments (Task.unread); 0 for a row without a task. */
@@ -469,6 +469,8 @@ export type PendingRequest = {
   agent?: Who | null;
   /** What is asked, one line: the turn's ask or the first line of the comment asking them; null when there is nothing beyond the title. Absent from a daemon that does not send it. */
   ask?: string | null;
+  /** The open tasks, not drafts, that wait on this row's task, through blocks, a parent waiting on its child, and chains of those, sorted; empty when none or for a row with no task. Rows that hold work up come first, the longest wait first. */
+  holds?: number[];
   /** The daemon's warning on the row: set on a warning row, and on a task row where a stronger item (an ask, a decision, a permission) outranks a warning the task also has; null otherwise. Absent from a daemon that does not send it. */
   warning?: PendingWarning | null;
 };

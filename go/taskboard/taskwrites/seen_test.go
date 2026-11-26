@@ -44,6 +44,17 @@ func TestSeenMovesTheMarkerForwardOnlyAndReadsAwayNeitherASayNorAQuestion(t *tes
 	}
 }
 
+// A task with no comments is marked seen too, so a draft its agent left behind can leave the founder's turn.
+func TestSeenMarksATaskWithNoComments(t *testing.T) {
+	t.Parallel()
+	d, mk := discardEnv(t)
+	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'worker', 'manager', 1)")
+	seenCall(t, mk, `"task":1,`, "s1")
+	if _, marked, _ := db.CursorUpdated(d, db.SeenKey("p1", 1)); !marked {
+		t.Fatal("no mark on a task with no comments")
+	}
+}
+
 func TestTheSeenFloorIsSetOnceToTheNewestCommentAndNotMovedAfter(t *testing.T) {
 	t.Parallel()
 	d, _ := discardEnv(t)
