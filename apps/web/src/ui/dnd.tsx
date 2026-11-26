@@ -41,6 +41,15 @@ export function zoneAt(e: Pick<DragEvent, 'clientX' | 'clientY'>, el: HTMLElemen
   return dist < 0.25 ? (side as Zone) : 'center';
 }
 
+/** How close to a place's left or right edge a drop docks there; anywhere else on it is open space. */
+export const EDGE = 48;
+/** A place that takes whole tab bars (the town's picture): its left or right edge band, else its middle. */
+export function sideAt(e: Pick<DragEvent, 'clientX'>, el: HTMLElement): 'left' | 'right' | 'center' {
+  const r = el.getBoundingClientRect();
+  const band = Math.min(EDGE, r.width / 4);
+  return e.clientX - r.left < band ? 'left' : r.right - e.clientX < band ? 'right' : 'center';
+}
+
 /** The index a drop at the pointer takes among the tabs in `bar` ([role=tab] children), and the x of the insert line within the bar. */
 export function slotAt(e: DragEvent, bar: HTMLElement): { index: number; x: number } {
   const from = bar.getBoundingClientRect().left;
@@ -75,6 +84,8 @@ export function showSlot(bar: HTMLElement, x: number) {
   const r = bar.getBoundingClientRect();
   place({ left: r.left + x - 1, top: r.top + 8, width: 3, height: r.height - 16 });
 }
+/** Shows a box on screen where something dropped would appear (a new floating tab bar). */
+export const showBox = (box: Box) => place(box);
 function place(box: Box) {
   // Shown again, it appears where it is; only a move while shown glides.
   dropBox = { box, on: true, glide: dropBox.on };

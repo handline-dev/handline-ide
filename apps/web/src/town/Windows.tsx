@@ -1,7 +1,8 @@
-// The town's windows around its picture (windows.ts holds them as data): tab bars docked down one side at a third, a half or two
-// thirds of the width, the picture shrinking beside them so nothing hides behind, and tab bars floating over it. Each tab bar is the
-// app's own (Workspace.tsx), so tabs, links and splits work in it as on the main screen; its handle (layout/paneGrip.tsx) carries the
-// whole bar: let go on the picture's left or right edge it docks there, elsewhere on the picture it floats, on another bar it joins it.
+// The town's windows around its picture (windows.ts holds them as data): tab bars floating over it, as many as are wanted, and tab
+// bars docked down one side at a third, a half or two thirds of the width, the picture shrinking beside them. What is opened floats
+// (on a phone's width it goes in the dock, a sheet under the picture). Each tab bar is the app's own (Workspace.tsx), so tabs, links and
+// splits work in it as on the main screen. A tab, a link or a whole bar (its handle, layout/paneGrip.tsx) let go on open space of the
+// picture becomes a new floating tab bar there; on the picture's left or right edge it docks there; on another bar it joins it.
 import { AnimatePresence, motion } from 'framer-motion';
 import { createContext, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode, type RefObject } from 'react';
 import { Workspace, type Grip, type IconFor } from '#src/Workspace.tsx';
@@ -11,10 +12,10 @@ import { PANE_PLACE, type At, type PaneDrop } from '#src/layout/paneGrip.tsx';
 import { STOPS, holds, snapRatio, stepStop, type Action, type Pane } from '#src/layout/tree.ts';
 import { spring } from '#src/motion.ts';
 import { usePersisted } from '#src/persist/kv.ts';
-import { isTabDrag, readTabDrag, showZone, zoneAt } from '#src/ui/dnd.tsx';
+import { DROP_AREA, isTabDrag, readTabDrag, showBox, showZone, sideAt } from '#src/ui/dnd.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
-import { FloatWindow, FLOAT_W } from '#src/town/FloatWindow.tsx';
+import { FloatWindow, FLOAT_H, FLOAT_W } from '#src/town/FloatWindow.tsx';
 import { NONE, focusIn, paneShowing, reduceWindows, type Moving, type Side, type WindowAction, type Windows } from '#src/town/windows.ts';
 
 /** Below this share the dock is let go of and closes, as a split view's side pushed off the screen. */
@@ -64,15 +65,35 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
     if (asked.type === 'show' || asked.type === 'open') setWant(asked.opens);
     if (asked.type === 'select') setFocus(asked.pane);
   };
-  // What opens from outside a tab bar while the town is up (the status row's bell) opens here, not behind it.
-  useOpensOver((opens) => act({ type: 'show', opens, title: labelOf(opens) }));
   const rect = () => area.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 1, 1);
-  /** A float's top left for a tab bar let go at `at`, its handle under the pointer. */
+  /** Where a new floating tab bar opens: in the middle near the top, each one more a little down and right so none hides another. */
+  const spot = () => {
+    const step = 0.03 * (w.floats.length % 6);
+    return { x: Math.max(0, 0.5 - FLOAT_W / 2 / rect().width) + step, y: 0.06 + step };
+  };
+  /** Opens a tab: in the tab bar with the keys, else in a new floating one (on a phone's width, the dock). */
+  const open = (opens: string, title: string) =>
+    narrow
+      ? act({ type: 'show', opens, title, pane: w.dock && holds(w.dock, focus) ? focus : undefined })
+      : act({ type: 'show', opens, title, pane: focus, at: spot() });
+  // What opens from outside a tab bar while the town is up (the status row's bell) opens here, not behind it.
+  useOpensOver((opens) => open(opens, labelOf(opens)));
+  /** The box on screen of a float let go at `at`, its handle under the pointer, kept inside the town as FloatWindow keeps it. */
+  const floatBox = (at: At) => {
+    const r = rect();
+    const width = Math.min(FLOAT_W, r.width);
+    const height = Math.min(FLOAT_H, r.height - 24);
+    const left = Math.min(r.right - width, Math.max(r.left, at.x - FLOAT_W / 2));
+    const top = Math.min(r.bottom - height, Math.max(r.top, at.y - 8));
+    return { left, top, width, height };
+  };
+  /** A float's top left, as a share of the town, for a tab bar let go at `at`. */
   const floatAt = (at: At) => {
     const r = rect();
-    return { x: (at.x - r.left - FLOAT_W / 2) / r.width, y: (at.y - r.top - 8) / r.height };
+    const b = floatBox(at);
+    return { x: (b.left - r.left) / r.width, y: (b.top - r.top) / r.height };
   };
-  /** Where `what` goes, let go on the picture: its outer quarter on a side docks it there, anywhere else floats it at the pointer. */
+  /** Where `what` goes, let go on the picture: its left or right edge docks it there, anywhere else floats it at the pointer. */
   const onScene = (what: Moving, zone: PaneDrop['zone'], at: At) =>
     act(zone === 'left' || zone === 'right' ? { type: 'dock', what, side: zone } : { type: 'float', what, ...floatAt(at) });
   /** The handle of tab bar `pane` let go: `moved` is a float's own move, kept when it lands on nothing that takes it. */
@@ -84,16 +105,17 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
   };
   const keyed = (pane: Pane) => (k: string) => {
     if (k === 'ArrowLeft' || k === 'ArrowRight') act({ type: 'dock', what: all(pane), side: k === 'ArrowLeft' ? 'left' : 'right' });
-    if (k === 'ArrowUp') act({ type: 'float', what: all(pane), x: 0.3, y: 0.1 });
+    if (k === 'ArrowUp') act({ type: 'float', what: all(pane), ...spot() });
   };
-  const dockGrip: Grip = (pane) => ({ onDrop: (drop, at) => placed(pane, drop, at), onKey: keyed(pane), hint: HINT });
+  const dockGrip: Grip = (pane) => ({ onDrop: (drop, at) => placed(pane, drop, at), onKey: keyed(pane), hint: HINT, floatBox });
   const tree = (a: Action) => act({ type: 'tree', action: a });
-  // A tab or a link dragged onto the picture: docked on the side it is let go at, else floated there.
+  // A tab or a link dragged onto the picture: docked on the edge it is let go at, else a new tab bar floating there, outlined while held.
   const sceneDrop = useDropTarget({
     accepts: isTabDrag,
     onOver: (e) => {
-      const z = zoneAt(e, e.currentTarget as HTMLElement);
-      if (z === 'left' || z === 'right') showZone(e.currentTarget as HTMLElement, z);
+      const z = sideAt(e, e.currentTarget as HTMLElement);
+      if (z === 'center') showBox(floatBox({ x: e.clientX, y: e.clientY }));
+      else showZone(e.currentTarget as HTMLElement, z);
     },
     onDrop: (e: DragEvent) => {
       const d = readTabDrag(e);
@@ -102,7 +124,7 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
         'move' in d
           ? { from: d.move.pane, tabs: d.move.tabs ?? [d.move.tab], shown: d.move.tab }
           : { opens: d.open.opens, title: labelOf(d.open.opens) };
-      onScene(what, zoneAt(e, e.currentTarget as HTMLElement), { x: e.clientX, y: e.clientY });
+      onScene(what, sideAt(e, e.currentTarget as HTMLElement), { x: e.clientX, y: e.clientY });
     },
   });
   // On a phone's width the dock is a sheet under the picture, as tall as its stop and never under half the height.
@@ -148,12 +170,12 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
     />
   );
   const shown: Shown = {
-    show: (opens, title) => act({ type: 'show', opens, title, pane: focus }),
+    show: open,
     shows: (opens) => !!paneShowing(w, opens),
   };
   return (
     <TownShown.Provider value={shown}>
-      <div ref={area} className={`relative flex min-h-0 min-w-0 flex-1 ${at === 'bottom' ? 'flex-col' : ''}`}>
+      <div ref={area} {...{ [DROP_AREA]: '' }} className={`relative flex min-h-0 min-w-0 flex-1 ${at === 'bottom' ? 'flex-col' : ''}`}>
         <AnimatePresence initial={false}>{at === 'left' && dock}</AnimatePresence>
         {at === 'left' && divider}
         <div {...{ [PANE_PLACE]: SCENE }} className="relative flex min-h-0 min-w-0 flex-1" {...sceneDrop.handlers}>
@@ -184,7 +206,7 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
               }}
               dispatch={tree}
               iconFor={iconFor}
-              grip={(pane, moved) => ({ onDrop: (drop, at) => placed(pane, drop, at, moved), onKey: keyed(pane), hint: HINT })}
+              grip={(pane, moved) => ({ onDrop: (drop, at) => placed(pane, drop, at, moved), onKey: keyed(pane), hint: HINT, floatBox })}
               onMoved={(x, y) => act({ type: 'moveFloat', float: f.id, x, y })}
             />
           ))}

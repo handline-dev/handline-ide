@@ -82,6 +82,22 @@ describe('town windows', () => {
     expect(chatsShown(shown)).toEqual(new Set(['api', 'web']));
   });
 
+  it('opens a click in a new floating tab bar, then in the tab bar it is given, and a tab dropped on open space makes another', () => {
+    const at = { x: 0.3, y: 0.1 };
+    const w = run(NONE, { type: 'show', opens: 'chat:api', title: 'api', at });
+    expect(w.dock).toBeNull();
+    expect(w.floats).toHaveLength(1);
+    expect(w.floats[0]).toMatchObject(at);
+    const f = first(w.floats[0].root);
+    const two = run(w, { type: 'show', opens: 'task:7', title: 'T7', pane: f.id, at });
+    expect(two.floats.map((x) => opens(x.root))).toEqual([[['chat:api', 'task:7']]]);
+    const t = first(two.floats[0].root).tabs[1];
+    const apart = run(two, { type: 'float', what: { from: f.id, tabs: [t.id], shown: t.id }, x: 0.6, y: 0.4 });
+    expect(apart.floats.map((x) => opens(x.root))).toEqual([[['chat:api']], [['task:7']]]);
+    const gone = run(w, { type: 'show', opens: 'task:7', title: 'T7', pane: 'gone', at });
+    expect(gone.floats).toHaveLength(2);
+  });
+
   it('a move onto a tab bar that is gone keeps the tabs where they were', () => {
     const w = run(NONE, { type: 'float', what: { opens: 'task:1', title: 'T1' }, x: 0, y: 0 });
     const f = first(w.floats[0].root);
