@@ -1,4 +1,4 @@
-// The founder, from public/town/founder.png: standing and walking, facing down, up and left (right is left mirrored). In the city and in
+// The founder, from public/town/founder.png: standing, left foot and right foot, facing down, up and left (right is left mirrored). In the city and in
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
 // over it, as over the seated people. Its place lives outside React: only what draws it, or picks something by it, follows it.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -8,11 +8,13 @@ import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
 
 export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
-const CELL = [136, 226] as const;
-const SIZE = [816, 226] as const;
+const CELL = [144, 228] as const;
+const SIZE = [1296, 228] as const;
 
 type Facing = 'down' | 'up' | 'left' | 'right';
-const COL: Record<Facing, number> = { down: 0, up: 2, left: 4, right: 4 };
+const COL: Record<Facing, number> = { down: 0, up: 3, left: 6, right: 6 };
+/** The walk: standing, left foot, standing, right foot; each facing has those three frames in a row. */
+const WALK = [0, 1, 0, 2] as const;
 /** By physical key, so Shift or Caps Lock never strands one held. */
 const KEYS: Record<string, Spot> = {
   ArrowUp: [0, -1],
@@ -209,7 +211,7 @@ export function founderBox(ground: Ground, [x, z]: Spot): Box {
 
 /** The founder's figure in `box`, in the frame for its facing and stride. */
 function Sprite({ me, box, stride }: { me: Walker; box: Box; stride: number }) {
-  const col = COL[me.facing] + (me.moving && Math.floor(me.walked / stride) % 2 === 1 ? 1 : 0);
+  const col = COL[me.facing] + (me.moving ? WALK[Math.floor(me.walked / stride) % 4] : 0);
   return (
     <g transform={me.facing === 'right' ? `translate(${2 * box.x + box.w} 0) scale(-1 1)` : undefined} className="pointer-events-none">
       <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * CELL[0]} 0 ${CELL[0]} ${CELL[1]}`}>
