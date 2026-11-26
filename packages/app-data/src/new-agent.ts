@@ -38,11 +38,14 @@ export interface NewAgentFields {
 }
 export const EMPTY_AGENT_FIELDS: NewAgentFields = { name: '', role: '', folder: '' };
 
-/** The params of agent.create for a new agent in workspace: its plain name, the folder only when it is not the default. */
+/** The params of agent.create for a new agent in workspace: only what was typed, the daemon picks a name and role left empty; the folder only
+ * when it is not the default. */
 export function createParams(f: NewAgentFields, workspace: string) {
+  const name = f.name.trim();
+  const role = f.role.trim();
   return {
-    name: f.name.trim(),
-    role: f.role.trim(),
+    ...(name ? { name } : {}),
+    ...(role ? { role } : {}),
     workspace,
     ...(f.folder ? { folder: f.folder } : {}),
   };
@@ -53,12 +56,13 @@ export function useNewAgentForm(workspace: string, onCreated: (operation: string
   const create = useWrite('agent.create');
   const [f, setF] = useState<NewAgentFields>(EMPTY_AGENT_FIELDS);
   const set = (k: keyof NewAgentFields, v: string) => setF((was) => ({ ...was, [k]: v }));
-  const ready = !!f.name.trim() && !!f.role.trim();
+  // Nothing must be typed: the daemon fills an empty name and role.
+  const ready = true;
   const send = () => {
-    if (!ready || create.isPending) return;
+    if (create.isPending) return;
     const params = createParams(f, workspace);
     create.mutate(params, {
-      onSuccess: (r) => onCreated((r as { operation: string }).operation, params.name),
+      onSuccess: (r) => onCreated((r as { operation: string }).operation, params.name ?? ''),
     });
   };
   return { create, f, set, ready, send };

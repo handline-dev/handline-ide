@@ -32,4 +32,7 @@ describe('agent.create for a workspace', () => {
     expect(createParams(f, 'w1')).toEqual({ name: 'town', role: 'builder', workspace: 'w1' });
     expect(createParams({ ...f, folder: '/work/site' }, 'w1')).toMatchObject({ folder: '/work/site' });
   });
+  it('leaves out a name or role left empty, for the daemon to pick', () => {
+    expect(createParams({ ...EMPTY_AGENT_FIELDS, name: '  ' }, 'w1')).toEqual({ workspace: 'w1' });
+  });
 });

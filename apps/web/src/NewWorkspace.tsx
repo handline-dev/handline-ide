@@ -9,6 +9,7 @@ import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { shell } from '#src/shell.ts';
 import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { NeedsGit } from '#src/install/install.tsx';
+import { Expert } from '#src/ui/Expert.tsx';
 
 /** A folder's workspace name, from its last part, as onboarding names it. */
 export const nameOf = (folder: string) => workspaceNameOf(baseName(folder));
@@ -138,10 +139,48 @@ function Start({ close }: { close: Close<string> }) {
         )
       : setStep('type');
   return (
-    <div className="grid grid-cols-2 gap-3 pb-4">
-      <Choice icon={<FolderOpen size={28} />} word="Open a folder" onClick={open} />
-      <Choice icon={<GitBranch size={28} />} word="Clone a repository" onClick={() => setStep('clone')} />
-    </div>
+    <Plain close={close}>
+      {/* A folder of one's own: under Expert, since with none the daemon makes one. */}
+      <Expert>
+        <div className="grid grid-cols-2 gap-3">
+          <Choice icon={<FolderOpen size={28} />} word="Open a folder" onClick={open} />
+          <Choice icon={<GitBranch size={28} />} word="Clone a repository" onClick={() => setStep('clone')} />
+        </div>
+      </Expert>
+    </Plain>
+  );
+}
+
+/** A workspace with nothing to answer: a name if one is typed, and the daemon makes its folder under the Handline folder. */
+function Plain({ close, children }: { close: Close<string>; children: ReactNode }) {
+  const create = useWrite('workspace.create');
+  const [name, setName] = useState('');
+  const [started, setStarted] = useState<string | null>(null);
+  if (started)
+    return (
+      <OperationProgress operation={started} failed="The workspace was not made." onDone={() => close(started)} close={() => close()} />
+    );
+  return (
+    <form
+      className="flex flex-col gap-3 pb-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!create.isPending)
+          create.mutate(name.trim() ? { name: name.trim() } : {}, { onSuccess: (r) => setStarted((r as { operation: string }).operation) });
+      }}
+    >
+      <Field label="Name">
+        <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="workspace" />
+      </Field>
+      {!!create.error && <p className="text-sm text-danger">{why(create.error)}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button onClick={() => close()}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={create.isPending}>
+          {create.isPending ? 'Creating…' : 'Create'}
+        </Button>
+      </div>
+      {children}
+    </form>
   );
 }
 

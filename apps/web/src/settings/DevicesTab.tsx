@@ -13,7 +13,6 @@ import {
   Loader,
   Plus,
   RefreshCw,
-  SlidersHorizontal,
   Timer,
   TriangleAlert,
   Zap,
@@ -47,6 +46,7 @@ import {
   type Mode,
 } from '#src/settings/data/devices.ts';
 import { Block, Setting } from '#src/settings/Meter.tsx';
+import { Expert } from '#src/ui/Expert.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
@@ -249,7 +249,6 @@ function Row({
 
 /** What holds for every lent device: the battery switch, Auto or Manual for the master's build, and under Expert the reclaim time. */
 function AllDevices({ q }: { q: Devices }) {
-  const [expert, setExpert] = useState(false);
   return (
     <Block title="Every lent device" icon={<Zap size={16} />}>
       <Setting title="Turn off on battery" icon={<BatteryCharging size={14} />} note="Back to Run when plugged in again.">
@@ -269,17 +268,7 @@ function AllDevices({ q }: { q: Devices }) {
           onChange={(m) => q.pending === null && (m === 'auto') !== q.buildAuto && void q.setBuildAuto(m === 'auto').catch(refused)}
         />
       </Setting>
-      <button
-        type="button"
-        aria-expanded={expert}
-        onClick={() => setExpert((v) => !v)}
-        className="flex w-full items-center gap-2 border-t border-border pt-3 text-sm text-muted hover:text-fg"
-      >
-        <ChevronRight size={14} className={expert ? 'rotate-90' : ''} />
-        <SlidersHorizontal size={14} />
-        Expert
-      </button>
-      {expert && (
+      <Expert>
         <Setting title="Hand work over after offline for" icon={<Timer size={14} />}>
           <span className="flex items-center gap-2 text-sm">
             <NumberStepper
@@ -293,7 +282,7 @@ function AllDevices({ q }: { q: Devices }) {
             min
           </span>
         </Setting>
-      )}
+      </Expert>
     </Block>
   );
 }

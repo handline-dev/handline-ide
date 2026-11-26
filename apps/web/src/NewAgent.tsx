@@ -1,4 +1,4 @@
-import { Hooks, useDirectory, useNewAgentForm, useOperation, why } from '@handline/app-data';
+import { Hooks, useAgentOptions, useDirectory, useNewAgentForm, useOperation, why } from '@handline/app-data';
 import type { Workspace } from '@handline/client';
 import { Check, Eye } from 'lucide-react';
 import { useState } from 'react';
@@ -60,6 +60,7 @@ function Folders({ wsKey, picked, pick }: { wsKey: string; picked: string; pick:
 function Form({ ws, close }: { ws: Workspace; close: Close<string> }) {
   const [started, setStarted] = useState<{ operation: string; name: string } | null>(null);
   const { f, set, ready, send, create } = useNewAgentForm(ws.key, (operation, name) => setStarted({ operation, name }));
+  const defaultName = useAgentOptions().data?.default_names?.[ws.key] ?? '';
   if (started) return <Progress {...started} workspace={ws.key} close={close} />;
   const error = create.error ? why(create.error) : null;
   return (
@@ -70,11 +71,12 @@ function Form({ ws, close }: { ws: Workspace; close: Close<string> }) {
         send();
       }}
     >
+      {/* Each empty field gets the daemon's pick, shown as its placeholder. */}
       <Field label="Name">
-        <Input autoFocus value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="reviewer" />
+        <Input autoFocus value={f.name} onChange={(e) => set('name', e.target.value)} placeholder={defaultName} />
       </Field>
       <Field label="Role">
-        <Input value={f.role} onChange={(e) => set('role', e.target.value)} placeholder="What it does" />
+        <Input value={f.role} onChange={(e) => set('role', e.target.value)} placeholder="Helps with anything in this workspace." />
       </Field>
       <Field label="Folder">
         <Folders wsKey={ws.key} picked={f.folder} pick={(p) => set('folder', p)} />
