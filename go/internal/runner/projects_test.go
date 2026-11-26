@@ -190,3 +190,32 @@ func (r *Runner) pushing(folder string) bool {
 	defer r.mu.Unlock()
 	return r.pushers[folder] != nil
 }
+
+// A worktree made with no base named starts from the remote's own default branch, whatever it is called: a remote whose work
+// merges into master has no main to start from.
+func TestAWorktreeWithNoBaseNamedStartsFromTheRemotesDefaultBranch(t *testing.T) {
+	isolate(t)
+	home := t.TempDir()
+	r, err := Start(Config{Home: home, Term: &fakeTerm{}, Tokens: &fakeTokens{kept: map[string]int{}}, Auth: fakeAuth{}, HL: filepath.Join(home, "hl"),
+		Log: func(string, ...any) {}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	dir := t.TempDir()
+	bare, src := filepath.Join(dir, "o.git"), filepath.Join(dir, "src")
+	gitT(t, "init", "-q", "--bare", "-b", "master", bare)
+	gitT(t, "init", "-q", "-b", "master", src)
+	gitT(t, "-C", src, "commit", "-q", "--allow-empty", "-m", "first")
+	gitT(t, "-C", src, "push", "-q", bare, "master")
+	wt := filepath.Join(home, "wt")
+	if _, err := r.serve("runner.worktree.make", map[string]any{"remote": bare, "path": wt, "branch": "bob"}); err != nil {
+		t.Fatalf("no base named, in a master repository: %v", err)
+	}
+	if got, want := gitT(t, "-C", wt, "rev-parse", "HEAD"), gitT(t, "-C", src, "rev-parse", "HEAD"); got != want {
+		t.Fatalf("the worktree is at %s, the remote's master at %s", got, want)
+	}
+	if _, err := r.serve("runner.worktree.make", map[string]any{"remote": bare, "path": filepath.Join(home, "wt2"), "branch": "eve", "base": "-x"}); err == nil {
+		t.Fatal("a base that is an option was taken")
+	}
+}

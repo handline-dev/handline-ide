@@ -6,6 +6,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -43,6 +45,10 @@ const PlanWaitS = 3600
 
 // sendAsk writes the ask's say, with the notices waiting for its agent, and marks the ask sent in one transaction, then types it.
 func (e *Env) sendAsk(a *db.TaskAsk, t *db.Task) {
+	base := ""
+	if a.Kind != db.PlanAskKind {
+		base = e.landsOn(e.DB, a.To) // asked of git before the write, not in it
+	}
 	tx, err := e.DB.Begin()
 	check(err)
 	var rid int64
@@ -53,7 +59,7 @@ func (e *Env) sendAsk(a *db.TaskAsk, t *db.Task) {
 				panic(r)
 			}
 		}()
-		body := askText(a, t, must(db.StoryBranch(tx, t.ID)))
+		body := askText(a, t, must(db.StoryBranch(tx, t.ID)), base)
 		if rows := must(db.PendingNotices(tx, a.To)); len(rows) > 0 {
 			body += "\n\n" + DigestText(tx, rows)
 			check(db.MarkNoticesDigested(tx, requestIDs(rows)))
@@ -79,8 +85,17 @@ func shortTitle(title string) string {
 	return title
 }
 
-// askText is what the agent is typed for an ask.
-func askText(a *db.TaskAsk, t *db.Task, branch string) string {
+// landsOn is the default branch of the repository agent works in, which a branch for its work is made from; gitrun's guess when it
+// has no repository on record.
+func (e *Env) landsOn(q db.Q, agent string) string {
+	if repo := team.NewRosterOn(q, e.Home).RepoOf(agent); repo != "" {
+		return gitrun.DefaultBranch(repo)
+	}
+	return gitrun.IntegrationBranch
+}
+
+// askText is what the agent is typed for an ask. base is the default branch of its repository (landsOn), which a core ask names.
+func askText(a *db.TaskAsk, t *db.Task, branch, base string) string {
 	n, title := t.ID, shortTitle(t.Title)
 	if a.Kind == db.PlanAskKind {
 		return fmt.Sprintf("Write the plan for T%d (%s). Read its brief (`hl task show T%d`) and the code it touches, and change nothing: no edits, "+
@@ -91,9 +106,9 @@ func askText(a *db.TaskAsk, t *db.Task, branch string) string {
 			"A question only the founder can answer goes on the task: `hl task comment T%d add \"<question>\" --turn human`. "+
 			"Then go back to what you were doing; T%d itself comes to you when it is run.", n, title, n, n, n, n)
 	}
-	where := fmt.Sprintf("Commit them on a branch of T%d's own, made from origin/main", n) // a task that is not a story's sub-task
+	where := fmt.Sprintf("Commit them on a branch of T%d's own, made from origin/%s", n, base) // a task that is not a story's sub-task
 	if branch != "" {
-		where = branchLine(branch)
+		where = branchLine(branch, base)
 	}
 	note := ""
 	if a.Note != "" {
@@ -104,7 +119,7 @@ func askText(a *db.TaskAsk, t *db.Task, branch string) string {
 		"When T%d is run, carry on from that branch.", n, title, note, n, where, n, n)
 }
 
-// branchLine is how a story's sub-task's agent is told where to commit it.
-func branchLine(branch string) string {
-	return fmt.Sprintf("Commit on branch %s (made from origin/main; if it exists, carry on from it)", branch)
+// branchLine is how a story's sub-task's agent is told where to commit it: on branch, made from base, its repository's default branch.
+func branchLine(branch, base string) string {
+	return fmt.Sprintf("Commit on branch %s (made from origin/%s; if it exists, carry on from it)", branch, base)
 }

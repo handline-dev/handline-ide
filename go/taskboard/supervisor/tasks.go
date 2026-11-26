@@ -83,22 +83,24 @@ func (e *Env) selfDelivery(q db.Q, agent string, task *db.Task) int64 {
 
 // queuedBody is what a queued task's delivery says: its title, or for a story's sub-task the branch it is committed on, after its brief and
 // plan when it has one (marked OK or not, with its version, which plan answers; 0 for none), so the agent works to the plan the founder read.
-func queuedBody(q db.Q, t *db.Task) (body string, plan int) {
+// base is asked for the default branch of the agent's repository (landsOn), only when a branch is named.
+func queuedBody(q db.Q, t *db.Task, base func() string) (body string, plan int) {
 	brief := briefOf(q, t)
 	branch := must(db.StoryBranch(q, t.ID))
 	if branch == "" {
 		return brief, 0
 	}
+	where := branchLine(branch, base())
 	p := must(db.TaskPlan(q, t.ID))
 	if p == nil {
-		return brief + "\n\n" + branchLine(branch) + ".", 0
+		return brief + "\n\n" + where + ".", 0
 	}
 	mark := "not yet OK by the founder"
 	if p.OK != nil {
 		mark = "OK by the founder"
 	}
 	return fmt.Sprintf("%s\n\nPlan, version %d (%s):\n%s\n\n%s. In your result, say what you changed from the plan.", strings.TrimSpace(brief),
-		len(p.Versions), mark, strings.TrimSpace(p.Current().Text), branchLine(branch)), len(p.Versions)
+		len(p.Versions), mark, strings.TrimSpace(p.Current().Text), where), len(p.Versions)
 }
 
 // briefOf is what task t asks: the brief its opener wrote (a draft's, or one held for a temp), else its title.
@@ -151,7 +153,7 @@ func (e *Env) makeCurrent(q db.Q, agent string, w db.WaitingTask, refused map[in
 		e.Push(q, agent, rid)
 		return true
 	}
-	body, plan := queuedBody(q, w.Task)
+	body, plan := queuedBody(q, w.Task, func() string { return e.landsOn(q, agent) })
 	out, aerr := e.Ask(q, AskIn{Target: agent, Body: body, Requester: w.Task.QueuedBy.String, Kind: "task", OnBehalfOf: true, Notify: true,
 		Forward: Forward{Task: w.Task.ID, Carries: db.ForwardQueue}})
 	check(aerr)

@@ -130,22 +130,27 @@ func (r *Runner) repoLock(repo string) func() {
 	return l.Unlock
 }
 
-// makeWorktree makes a worktree of remote at path on branch, from base when the remote has no such branch, with the runner's hooks:
-// each commit there is pushed. The clone is held for all of it, as two makes at once would race on its config and index.
+// makeWorktree makes a worktree of remote at path on branch, from base when the remote has no such branch (no base named is the
+// remote's default branch), with the runner's hooks: each commit there is pushed. The clone is held for all of it, as two makes at
+// once would race on its config and index.
 func (r *Runner) makeWorktree(remote, path, branch, base string) (any, error) {
-	if base == "" {
-		base = "main"
-	}
 	if remote == "" {
 		return nil, rpc.BadRequestError("remote is a string", "remote", rpc.InvalidParams)
 	}
-	if err := plain(remote, path, branch, base); err != nil {
+	named := []string{remote, path, branch}
+	if base != "" {
+		named = append(named, base)
+	}
+	if err := plain(named...); err != nil {
 		return nil, err
 	}
 	repo := repoDir(r.cfg.Home, remote)
 	defer r.repoLock(repo)()
 	if err := r.cloneOrFetch(remote, repo); err != nil {
 		return nil, err
+	}
+	if base == "" {
+		base = gitrun.DefaultBranch(repo)
 	}
 	from := "origin/" + branch
 	if r.git("-C", repo, "rev-parse", "--verify", "--quiet", "--end-of-options", from) != nil {
