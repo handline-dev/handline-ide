@@ -217,19 +217,34 @@ test('one pick at a time on a page, and the next one can start when it ends', as
   assert.deepEqual([f.s.attached, f.s.attaches, f.s.detaches, f.listeners()], [false, 2, 2, 0]);
 });
 
-test('cancel stops a waiting pick, from the app window only', async () => {
+test('cancel stops a waiting pick only for the window the page is in, checked as the pick was', async () => {
   const f = fake();
   const p = picker(f);
   const going = p.pick(f.caller, 2);
   await armed(f);
-  assert.equal(p.cancel({ senderFrame: { url: 'http://evil.example/', parent: null } }, 2).ok, false);
-  assert.equal(p.cancel(f.caller, 'x').ok, false);
-  assert.deepEqual(p.cancel(f.caller, 9), { ok: true }); // no pick on that page: nothing to stop
+  const refused = (e: Caller, id: unknown, message: RegExp) => {
+    const got = p.cancel(e, id);
+    assert.equal(got.ok, false);
+    assert.match((got as { message: string }).message, message);
+  };
+  refused({ ...f.caller, senderFrame: { url: 'http://evil.example/', parent: null } }, 2, /not from the app window/);
+  refused({ ...f.caller, senderFrame: { url: `${ORIGIN}/`, parent: {} } }, 2, /not from the app window/);
+  refused(f.caller, 'x', /id is a number/);
+  refused(f.caller, 2.5, /id is a number/);
+  refused(f.caller, 9, /not a page of this window/);
+  // Another window of the app, on the same origin: the page is not one of its own.
+  refused({ ...f.caller, sender: {} }, 2, /not a page of this window/);
+  // None of them stopped it.
+  assert.equal(await Promise.race([going.then(() => 'ended'), turn().then(() => 'waiting')]), 'waiting');
   assert.equal(f.s.attached, true);
   assert.deepEqual(p.cancel(f.caller, 2), { ok: true });
   assert.equal(failed(await going), 'cancelled');
   assert.ok(!f.log.includes('capturePage'));
   released(f);
+  // With no pick waiting there is nothing to stop.
+  assert.deepEqual(p.cancel(f.caller, 2), { ok: true });
+  const windowPage = fake({}, { type: 'window' });
+  assert.equal(picker(windowPage).cancel(windowPage.caller, 2).ok, false);
 });
 
 test('a pick ends, and lets go of the page, when no click comes, the page moves on or closes, or the debugger is taken', async () => {

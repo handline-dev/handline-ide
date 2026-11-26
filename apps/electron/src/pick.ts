@@ -86,21 +86,28 @@ export class ElementPicker {
 
   /** Waits for the person's click in that page and answers with the element under it and the page as drawn then. */
   async pick(e: Caller, id: unknown): Promise<PickResult> {
+    const own = this.own(e, id);
+    if ('ok' in own) return own;
+    if (this.picking.has(own.id)) return fail('busy', 'An element is already being picked on this page.');
+    return this.run(own.id, own.page);
+  }
+
+  /** Stops the pick on that page, if one is waiting: asked by the window the page is in, as the pick was. */
+  cancel(e: Caller, id: unknown): { ok: true } | Fail<'bad_request'> {
+    const own = this.own(e, id);
+    if ('ok' in own) return own;
+    this.picking.get(own.id)?.('cancelled');
+    return { ok: true };
+  }
+
+  /** The web tab page a call is about: named by the app window's top frame, by its id, and one of that window's own pages. */
+  private own(e: Caller, id: unknown): { id: number; page: PickPage } | Fail<'bad_request'> {
     if (!fromWindow(e, this.origin)) return fail('bad_request', 'not from the app window');
     if (typeof id !== 'number' || !Number.isInteger(id)) return fail('bad_request', 'id is a number');
     const page = this.d.page(id);
     if (!page || !page.hostWebContents || page.hostWebContents !== e.sender) return fail('bad_request', 'not a page of this window');
     if (page.getType() !== 'webview') return fail('bad_request', 'not a web tab page');
-    if (this.picking.has(id)) return fail('busy', 'An element is already being picked on this page.');
-    return this.run(id, page);
-  }
-
-  /** Stops the pick on that page, if one is waiting. */
-  cancel(e: Sender, id: unknown): { ok: true } | Fail<'bad_request'> {
-    if (!fromWindow(e, this.origin)) return fail('bad_request', 'not from the app window');
-    if (typeof id !== 'number') return fail('bad_request', 'id is a number');
-    this.picking.get(id)?.('cancelled');
-    return { ok: true };
+    return { id, page };
   }
 
   private async run(id: number, page: PickPage): Promise<PickResult> {
