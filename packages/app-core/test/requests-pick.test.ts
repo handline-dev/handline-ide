@@ -119,6 +119,7 @@ test('proposals are picked apart from the rest and answered together', () => {
 test('a note and a daemon notice are news; a login warning and a question wait on the person', () => {
   assert.equal(isNews(turn({ kind: 'note' })), true);
   assert.equal(isNews(turn({ kind: 'warning', warning: { kind: 'notice' } as PendingRequest['warning'] })), true);
+  assert.equal(isNews(turn({ kind: 'warning', warning: { kind: 'notice', stall: true } as PendingRequest['warning'] })), false);
   assert.equal(isNews(turn({ kind: 'warning', warning: { kind: 'login' } as PendingRequest['warning'] })), false);
   assert.equal(isNews(turn({ kind: 'ask' })), false);
 });

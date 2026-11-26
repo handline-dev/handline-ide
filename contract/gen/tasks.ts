@@ -516,6 +516,8 @@ export type PendingWarning = {
   level?: "one_in_two" | "one_in_three" | "one_in_five" | "never";
   /** review: the kind of work the offer is about. */
   work?: "contract" | "screen" | "daemon" | "docs";
+  /** notice: the agent is stalled because its starts failed; agent.unstall on agent tries again. Absent otherwise. */
+  stall?: boolean;
 };
 
 /** One thing an agent learned, carried in its launch prompt. Kept with who and when; a removed or merged one is no longer listed. */

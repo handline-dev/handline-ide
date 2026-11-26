@@ -126,6 +126,11 @@ func TestAWaitFileDoesNotOutliveItsSession(t *testing.T) {
 	if needs("worker") == nil {
 		t.Fatal("a running row at its prompt")
 	}
+	d.Exec("DELETE FROM agent_state")
+	d.Exec("INSERT INTO agent_state(agent, state, updated, closed_at, stall_kind) VALUES('worker', 'STALLED', 1, 2000, 'start')")
+	if n := needs("worker"); n == nil || n.Kind != "start_failed" {
+		t.Fatalf("a closed agent whose starts for waiting work failed has the stall card: %+v", n)
+	}
 }
 
 // A prompt the person answered stays in the wait file while its tool runs; the session says busy, and that ends the need.
