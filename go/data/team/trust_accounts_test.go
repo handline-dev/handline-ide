@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -387,18 +389,36 @@ func TestSaveSettingsWritesThroughRegisterAndTheRest(t *testing.T) {
 	}
 }
 
-// An account's folder is named by its row's key: a name shaped like a key is refused, and an add that fails takes its row away.
+// A new account's folder is a random hex name its row records, found from its key and its name; a folder named by its key, as an
+// account made before it has, is found as before. A name shaped like a key is refused, and an add that fails takes its row away.
 func TestAddMakesTheRowFirstAndAFailedAddLeavesNone(t *testing.T) {
 	home := newHome(t)
 	a := Accounts{Home: home}
 	if _, err := a.Add("c4", ""); !errors.Is(err, ErrBadAccountName) {
 		t.Fatalf("a key-shaped name: %v", err)
 	}
-	if _, err := a.Add("main", ""); err != nil {
+	cdir, err := a.Add("main", "")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if paths.AccountDir(home, "main") != filepath.Join(home, "accounts", paths.AccountKey(home, "main")) || paths.AccountKey(home, "main") == "" {
-		t.Fatal("the folder by key")
+	key, folder := paths.AccountKey(home, "main"), paths.AccountFolder(home, "main")
+	if !regexp.MustCompile(`^[0-9a-f]{6}$`).MatchString(folder) || folder == key {
+		t.Fatalf("a hex folder, not the key: %q (key %q)", folder, key)
+	}
+	for _, who := range []string{"main", key} {
+		if got, err := AccountConfigDir(home, who); err != nil || got != cdir || got != filepath.Join(home, "accounts", folder, ".claude") {
+			t.Fatalf("the config dir by %s: %s %v", who, got, err)
+		}
+	}
+	if a.AccountNamedBy(cdir) != "main" || !slices.Contains(paths.ListAccounts(home), "main") {
+		t.Fatal("the account its folder names, and listed")
+	}
+	old := accountDir(t, home, "older")
+	if err := os.MkdirAll(old, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if old != filepath.Join(home, "accounts", paths.AccountKey(home, "older")) || a.AccountNamedBy(filepath.Join(old, ".claude")) != "older" {
+		t.Fatalf("a folder named by its key still resolves: %s", old)
 	}
 	os.Chmod(paths.AccountsDir(home), 0o555)
 	defer os.Chmod(paths.AccountsDir(home), 0o755)
@@ -480,6 +500,7 @@ func TestByEmailFindsTheAccountOfAnEmailOrMakesOne(t *testing.T) {
 		{"c@example.com", "alpha", "alpha-2"}, // another email in a folder of the same name is another account
 		{"b@example.com", "beta", "alpha"},
 		{"d.e@example.com", "c4", "d-e"}, // a key-shaped folder name is no account's name
+		{"f@example.com", "9f3e0b", "f"}, // nor is a hex folder name
 	} {
 		got, err := a.ByEmail(c.email, c.name)
 		if err != nil || got != c.want {

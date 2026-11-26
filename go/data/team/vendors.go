@@ -99,11 +99,11 @@ func AccountConfigDir(home, acct string) (string, error) {
 		return "", err
 	}
 	if real, ok := paths.Getenv(LiveAccounts); ok && real != "" && inTestRoot() {
-		key, err := paths.AccountKeyReadOnly(real, acct) // the real home is read, never opened for writing
-		if err != nil || key == "" {
+		folder, err := paths.AccountFolderReadOnly(real, acct) // the real home is read, never opened for writing
+		if err != nil || folder == "" {
 			return "", fmt.Errorf("live account %s: not in %s (%v)", acct, real, err)
 		}
-		return filepath.Join(paths.AccountsDir(real), key, ConfigDirName(v)), nil
+		return filepath.Join(paths.AccountsDir(real), folder, ConfigDirName(v)), nil
 	}
 	return filepath.Join(paths.AccountDir(home, acct), ConfigDirName(v)), nil
 }

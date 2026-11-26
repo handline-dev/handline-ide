@@ -55,7 +55,9 @@ process lineage, the owner by the founder key on this Mac, a device by its pairi
 ## Disk
 
 Folders under the home are named by key, so Claude's project history, keyed by working directory, survives a rename:
-`agents/<a-key>/`, `accounts/<c-key>/` (that account's Claude config dir), `workspaces/<w-key>/`, `caches/<a-key>/`. An agent works in
+`agents/<a-key>/`, `workspaces/<w-key>/`, `caches/<a-key>/`. An account's folder, `accounts/<folder>/` (its Claude config dir), is a
+random hex name its row records (`accounts.folder`); an account whose row records none has its key, `accounts/<c-key>/`. The folder
+never moves: the Keychain keeps a login under its path. An agent works in
 a desk (worktree) of its workspace's project folder. `HANDLINE_AGENT` carries the key.
 
 ## Contract

@@ -13,7 +13,7 @@ def account_names():
     """Each account's folder (its key, c<id>) to its name, read from the home's database without writing to it."""
     db=os.path.expanduser("~/.handline/db.sqlite")
     c=sqlite3.connect(f"file:{db}?mode=ro",uri=True)
-    try: return {f"c{i}":n for i,n in c.execute("SELECT id, name FROM accounts")}
+    try: return {f or f"c{i}":n for i,n,f in c.execute("SELECT id, name, folder FROM accounts")}
     finally: c.close()
 names=account_names()
 files=glob.glob(os.path.expanduser("~/.handline/accounts/*/.claude/projects/*/**/*.jsonl"),recursive=True)

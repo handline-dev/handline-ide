@@ -282,7 +282,7 @@ func (r *Runner) snapshot(folder string) (string, error) {
 }
 
 // accounts is this machine's Claude account folders with the email each is logged in as, its config dir and its reading: a runner keeps no
-// accounts table, so a folder under accounts/ (a key) or accounts/.unregistered/ (a name) is an account when its .claude.json names one.
+// accounts table, so a folder under accounts/ or accounts/.unregistered/ (a name) is an account when its .claude.json names one.
 func (r *Runner) accounts() []BeatAccount {
 	out := loggedInAccounts(r.cfg.Home)
 	for i := range out {

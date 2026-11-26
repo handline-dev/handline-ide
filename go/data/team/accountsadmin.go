@@ -1,7 +1,9 @@
 package team
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -49,7 +51,7 @@ func (a Accounts) Add(acct, vendor string, extra ...Link) (string, error) {
 	if slices.Contains(paths.ListAccounts(a.Home), acct) {
 		return "", fmt.Errorf("%w: account '%s' already exists", ErrAccountExists, acct)
 	}
-	// Its row first: the folder is named by the row's key.
+	// Its row first: it records the folder, which AccountDir then reads.
 	d, err := store.SharedIfThere(paths.DBFile(a.Home))
 	if err != nil {
 		return "", err
@@ -61,7 +63,12 @@ func (a Accounts) Add(acct, vendor string, extra ...Link) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("account %s: %w", acct, err)
 	}
-	res, err := d.Exec("INSERT INTO accounts(name, owner, created_at) VALUES(?, ?, ?) ON CONFLICT(name) DO NOTHING", acct, owner, time.Now().Unix())
+	folder, err := newAccountFolder(d, a.Home)
+	if err != nil {
+		return "", fmt.Errorf("account %s: %w", acct, err)
+	}
+	res, err := d.Exec("INSERT INTO accounts(name, owner, created_at, folder) VALUES(?, ?, ?, ?) ON CONFLICT(name) DO NOTHING", acct, owner,
+		time.Now().Unix(), folder)
 	if err != nil {
 		return "", fmt.Errorf("account %s: %w", acct, err)
 	}
@@ -118,6 +125,33 @@ func (a Accounts) Add(acct, vendor string, extra ...Link) (string, error) {
 	return cdir, nil
 }
 
+// newAccountFolder is a free random name for a new account's folder (FolderName): hex, so it says nothing of the order accounts were
+// added in, and never one that reads as a key (a key no row has is its own folder).
+func newAccountFolder(q actor.Q, home string) (string, error) {
+	b := make([]byte, 3)
+	for range 100 {
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		f := hex.EncodeToString(b)
+		var taken int
+		if err := q.QueryRow("SELECT COUNT(*) FROM accounts WHERE folder = ?", f).Scan(&taken); err != nil {
+			return "", err
+		}
+		_, err := os.Lstat(filepath.Join(paths.AccountsDir(home), f))
+		if err != nil && !os.IsNotExist(err) {
+			return "", err
+		}
+		if taken == 0 && actor.KindOf(f) == actor.None && err != nil {
+			return f, nil
+		}
+	}
+	return "", errors.New("no free folder name found")
+}
+
+// FolderName is a name shaped as newAccountFolder makes one: a lent machine's account folder named so is no name for an account.
+var FolderName = regexp.MustCompile(`^[0-9a-f]{6}$`)
+
 // byEmail makes ByEmail's find and add one step: two machines naming one new email at once make one account.
 var byEmail sync.Mutex
 
@@ -148,6 +182,9 @@ func (a Accounts) ByEmail(email, name string) (string, error) {
 	}
 	local, _, _ := strings.Cut(strings.ToLower(email), "@")
 	local = strings.Trim(nonName.ReplaceAllString(local, "-"), "-")
+	if FolderName.MatchString(name) {
+		name = ""
+	}
 next:
 	for _, base := range []string{name, local} {
 		for n := 1; n <= 20 && base != ""; n++ {

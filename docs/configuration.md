@@ -8,8 +8,8 @@ All state is under `~/.handline` (or `$HANDLINE_HOME`).
   logs/                       daemon logs
   shared/.claude/             settings, CLAUDE.md, skills, agents, commands, plugins
   shared/mcp.json             optional MCP servers for every launch
-  accounts/<key>/.claude/     one Claude config directory per account (keyed c<n>); credentials stay here
-  accounts/<key>/status.json
+  accounts/<folder>/.claude/  one Claude config directory per account; credentials stay here
+  accounts/<folder>/status.json
   agents/<key>/               inbox/  memory/  memory-use.json
 ```
 

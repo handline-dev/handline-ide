@@ -115,7 +115,7 @@ func childEnv(vendor, configDir string) []string {
 
 // Start begins a login on the account and answers it once the child has printed its URL.
 func (m *Manager) Start(account string) (Login, error) {
-	if paths.AccountKey(m.Home, account) == "" { // its folder is by key: a login cannot make one
+	if paths.AccountKey(m.Home, account) == "" { // its folder is its row's: a login cannot make one
 		return Login{}, &Refusal{"no account " + account + ": add it first"}
 	}
 	vendor := team.AccountVendor(m.Home, account)

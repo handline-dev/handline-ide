@@ -10,7 +10,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/store"
 )
 
@@ -117,19 +116,19 @@ func ListAccounts(home string) []string {
 	if d == nil || err != nil {
 		return []string{}
 	}
-	rows, err := d.Query("SELECT name, id FROM accounts ORDER BY name")
+	rows, err := d.Query("SELECT name, id, folder FROM accounts ORDER BY name")
 	if err != nil {
 		return []string{}
 	}
 	defer rows.Close()
 	out := []string{}
 	for rows.Next() {
-		var name string
+		var name, folder string
 		var id int64
-		if rows.Scan(&name, &id) != nil {
+		if rows.Scan(&name, &id, &folder) != nil {
 			return []string{}
 		}
-		if st, err := os.Stat(filepath.Join(home, "accounts", actor.Key(actor.Account, id))); err == nil && st.IsDir() {
+		if isDir(filepath.Join(home, "accounts", FolderOf(id, folder))) {
 			out = append(out, name)
 		}
 	}

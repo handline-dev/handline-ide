@@ -424,7 +424,7 @@ func (a Accounts) AccountNamedBy(value string) string {
 		return ""
 	}
 	first, _, _ := strings.Cut(strings.TrimPrefix(v, root+"/"), "/")
-	return paths.AccountName(a.Home, first) // the folder is the account's key
+	return paths.AccountOfFolder(a.Home, first)
 }
 
 // underAccounts is whether a config-dir variable's value points into this home's accounts folder, an account's or not.

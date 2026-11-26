@@ -3,7 +3,9 @@ package paths
 import (
 	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
@@ -100,38 +102,97 @@ func keyIn(q rowQ, query string, kind actor.Kind, name string) (string, error) {
 	return actor.Key(kind, id), nil
 }
 
-// AccountName is the name of the account whose key is key, "" when none is.
-func AccountName(home, key string) string {
-	_, id, ok := actor.Parse(key)
+// AccountOfFolder is the name of the account whose folder under accounts/ is folder, "" when none is.
+func AccountOfFolder(home, folder string) string {
 	d, err := store.SharedIfThere(DBFile(home))
-	if !ok || actor.KindOf(key) != actor.Account || d == nil || err != nil {
+	if folder == "" || d == nil || err != nil {
 		return ""
 	}
+	var id int64
+	if k, kid, ok := actor.Parse(folder); ok && k == actor.Account {
+		id = kid
+	}
 	var name string
-	if d.QueryRow("SELECT name FROM accounts WHERE id = ?", id).Scan(&name) != nil {
+	if d.QueryRow("SELECT name FROM accounts WHERE folder = ? OR (folder = '' AND id = ?)", folder, id).Scan(&name) != nil {
 		return ""
 	}
 	return name
 }
 
-// AccountDir is the account's folder, accounts/<key>; who is its key or its name. A name not looked up gets
-// accounts/.unregistered/<name>.
+// AccountFolder is the name of the account's folder under accounts/: the one its row records, its key when the row records none (an
+// account made before folders were recorded). who is its key or its name. A key no row has is its own folder: a lent machine keeps no
+// accounts table. "" for a name no row has.
+func AccountFolder(home, who string) string {
+	f, _ := accountFolder(home, who)
+	return f
+}
+
+// accountFolder is AccountFolder, and whether home's accounts table was read.
+func accountFolder(home, who string) (f string, read bool) {
+	if d, err := store.SharedIfThere(DBFile(home)); d != nil && err == nil {
+		f, err = AccountFolderIn(d, who)
+		read = err == nil
+	}
+	if f == "" && actor.KindOf(who) == actor.Account {
+		return who, read
+	}
+	return f, read
+}
+
+// AccountFolderIn is AccountFolder read through q: "" and no error when no row is who.
+func AccountFolderIn(q rowQ, who string) (string, error) {
+	query := "SELECT id, folder FROM accounts WHERE name = ?"
+	var arg any = who
+	if k, id, ok := actor.Parse(who); ok && k == actor.Account {
+		query, arg = "SELECT id, folder FROM accounts WHERE id = ?", id
+	}
+	var id int64
+	var folder string
+	err := q.QueryRow(query, arg).Scan(&id, &folder)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return FolderOf(id, folder), nil
+}
+
+// FolderOf is the folder of account row id that records folder: the row's key when it records none.
+func FolderOf(id int64, folder string) string {
+	if folder == "" {
+		return actor.Key(actor.Account, id)
+	}
+	return folder
+}
+
+// AccountDir is the account's folder, accounts/<folder> (AccountFolder); who is its key, its name, or, on a home whose accounts table
+// cannot be read (a lent machine has none), the folder's own name. A name not looked up gets accounts/.unregistered/<name>.
 func AccountDir(home, who string) string {
-	if k := AccountKey(home, who); k != "" {
-		return filepath.Join(home, "accounts", k)
+	f, read := accountFolder(home, who)
+	if f != "" {
+		return filepath.Join(home, "accounts", f)
+	}
+	if own := filepath.Join(home, "accounts", who); !read && who != "" && !strings.Contains(who, "/") && !strings.HasPrefix(who, ".") && isDir(own) {
+		return own
 	}
 	return filepath.Join(home, "accounts", Unregistered, who)
 }
 
-// AccountKeyReadOnly is AccountKeyIn on home's database opened read-only and closed after: for a home this process must neither
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
+}
+
+// AccountFolderReadOnly is AccountFolderIn on home's database opened read-only and closed after: for a home this process must neither
 // migrate nor write, a live run's real one.
-func AccountKeyReadOnly(home, name string) (string, error) {
+func AccountFolderReadOnly(home, name string) (string, error) {
 	d, err := sql.Open("sqlite", "file:"+DBFile(home)+"?mode=ro")
 	if err != nil {
 		return "", err
 	}
 	defer d.Close()
-	return AccountKeyIn(d, name)
+	return AccountFolderIn(d, name)
 }
 
 // WorkspaceKey is who's key: who itself when it is a workspace's key, else the key of the workspace named who; "" when none is, or
