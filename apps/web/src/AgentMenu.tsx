@@ -1,6 +1,6 @@
 import { baseName } from '#src/format/path.ts';
 import { deleteSaid, heldWords, type HeldWorktree, type WorktreeAnswer } from '@handline/app-core';
-import { classify, sentence, useAgentDetail, useNameOf, useNav, useRetireAgent, useWrite } from '@handline/app-data';
+import { classify, sentence, useAgentDetail, useNameOf, useNav, useRead, useRetireAgent, useWrite } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
 import { Copy, FolderOpen, Pencil, Pin, PinOff, Settings, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -52,7 +52,10 @@ export function AgentMenu({
 }) {
   const name = agent.key;
   // What the dialogs and toasts call it.
-  const word = useNameOf()(name);
+  const nameOf = useNameOf();
+  const word = nameOf(name);
+  // A lead with others in its workspace hands it to the daemon's next_lead.
+  const led = useRead('workspaces.list', {}).data?.workspaces.find((w) => w.lead === name && w.next_lead);
   const { nav, togglePin } = useNav();
   const pinned = nav.pins.includes(name);
   const detail = useAgentDetail(name).data;
@@ -80,7 +83,9 @@ export function AgentMenu({
     if (
       !(await confirm({
         title: `Delete ${word}?`,
-        message: 'Its terminal closes and it leaves the team.',
+        message: led
+          ? `Its terminal closes and it leaves the team. ${nameOf(led.next_lead!)} leads ${led.name} from then on.`
+          : 'Its terminal closes and it leaves the team.',
         confirmText: 'Delete',
         icon: <Trash2 size={14} />,
         danger: true,
