@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
 	"github.com/handline/handline/go/scheduler/worktreesetup"
@@ -431,7 +432,13 @@ func (s *Spawns) RegisterWorker(agent, handle string) (string, error) {
 		// Already a worker; the dispatch binds the (possibly new) terminal.
 		return s.Host.Dispatch(row.Task.String, handle, run), nil
 	}
-	spec := fmt.Sprintf("%s: a Handline agent. Work reaches it as a task (`hl task new --assign %s`); this task is the card it appears in.", agent, agent)
+	name := agent // hl takes workspace/name, never the key
+	if ws, n, err := paths.AgentNamed(s.Q, agent); err != nil {
+		return "", err
+	} else if n != "" {
+		name = ws + "/" + n
+	}
+	spec := fmt.Sprintf("%s: a Handline agent. Work reaches it as a task (`hl task new --assign %s`); this task is the card it appears in.", name, name)
 	task := s.Host.TaskCreate(spec, agent, agent, run)
 	if task == "" {
 		return "", nil

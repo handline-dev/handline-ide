@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/gitrun"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/scheduler/worktreesetup"
@@ -150,6 +151,7 @@ type runHost struct {
 	exists     bool
 	created    string
 	used, runs []string
+	spec       string // the last card's text
 }
 
 func (h *runHost) Available() bool         { return h.missing == "" }
@@ -159,7 +161,8 @@ func (h *runHost) RunCurrent() string      { return h.current }
 func (h *runHost) RunExists(string) bool   { return h.exists }
 func (h *runHost) RunUse(run string)       { h.used = append(h.used, run) }
 func (h *runHost) RunCreate(string) string { h.runs = append(h.runs, h.created); return h.created }
-func (h *runHost) TaskCreate(_, title, _, run string) string {
+func (h *runHost) TaskCreate(spec, title, _, run string) string {
+	h.spec = spec
 	return "task-" + title
 }
 func (h *runHost) Dispatch(task, handle, run string) string { return task + "@" + handle }
@@ -268,6 +271,11 @@ func TestEnsureRunRemembersTheRunAndPrefersTheOneTheTerminalIsBoundTo(t *testing
 	}
 	if task, err := s.RegisterWorker("a", "t1"); err != nil || task != "task-a@t1" {
 		t.Fatalf("%q %v", task, err)
+	}
+	// a card tells how to give the agent work by the name hl takes, not by its key
+	key, _ := paths.AgentKeyIn(s.Q, "a")
+	if _, err := s.RegisterWorker(key, "t1"); err != nil || !strings.Contains(h.spec, "--assign a/lead`") || strings.Contains(h.spec, key+":") {
+		t.Fatalf("%q %v", h.spec, err)
 	}
 }
 
