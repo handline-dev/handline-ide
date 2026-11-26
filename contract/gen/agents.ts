@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, Actor, InputHolder, Prompt, ReadCursor, Repo, RequestId, RequestName, Role, Status, Timestamp, Topic, Who, WriteKind } from './core.ts';
+import type { Accepted, Actor, InputHolder, Prompt, ReadCursor, Repo, RequestId, RequestName, RequestRef, Role, Status, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type Block = {
   kind: string;
@@ -338,6 +338,36 @@ export type AllowRule = {
   /** Claude Code's rule for the exact command, as the card's Always allow named it: Bash(npm test). */
   rule: string;
   at: Timestamp;
+};
+
+/** One recurring message of an agent: the daemon types `message` at it each time `cron` comes up. It exists only by a schedule proposal the founder approved (proposal.propose, kind schedule); nothing else adds, changes or removes one. */
+export type Schedule = {
+  /** Ten hex characters over its cron and message. An edit of either makes it another schedule, with a history of its own. */
+  id: string;
+  /** The agent's key. */
+  agent: string;
+  /** Five fields, minute hour day-of-month month day-of-week, in the daemon machine's local time (schedules.list's zone). Day-of-week is 0-6 with Sunday 0 (7 is Sunday too). When both day fields are written out, a day matches if either does; a day field that starts with * leaves the days to the other one. */
+  cron: string;
+  /** cron in words, in the same local time: `Every weekday at 09:30`; `On the 13th of every month, and also every Friday, at 09:00` for both day fields. null when no short sentence says the expression exactly (a step the hour does not divide by, a stepped * beside the other day field): show cron then. */
+  sentence: string | null;
+  /** The text typed at the agent each time, its first 1000 characters. */
+  message: string;
+  /** The message is longer than `message` holds. */
+  message_more: boolean;
+  /** When it is sent next: the first time cron names after the minute the daemon last handled it, or after now for a schedule it has not swept yet. null when cron names no time within eight years (30 February). */
+  next: Timestamp | null;
+  /** `next` has come and the message is not sent yet: it waits for the agent's turn to end, and is then sent once however many of its times passed. Times that pass while its last message is still unread are that message; no other is sent for them. */
+  due: boolean;
+  /** The messages it was last sent as, newest first, at most 5; the first is the last time it ran. Empty when it has not run. */
+  fires: ScheduleFire[];
+};
+
+/** One time a schedule's message was typed at its agent: a message from `schedule` to the agent, which chat.locate finds by `request` in the agent's chat (scope all). */
+export type ScheduleFire = {
+  at: Timestamp;
+  /** The message's request id (ChatMessage.id). */
+  request: number;
+  ref: RequestRef;
 };
 
 export interface AgentsMethods {
@@ -715,6 +745,26 @@ export interface AgentsMethods {
   name: string;
   request_id: RequestId;
 }; result: Accepted };
+  "schedules.list": { params: {
+  agent?: Who;
+}; result: {
+    /** By agent in agents.list's order, each agent's in the order it keeps them. */
+    schedules: Schedule[];
+    /** The agents whose stored schedules cannot be read. The daemon sends none of such an agent's schedules until its value is put right, so they are not in `schedules`. */
+    unreadable: {
+      /** The agent's key. */
+      agent: string;
+      /** What is wrong with the value, as the daemon says it. */
+      why: string;
+    }[];
+    /** The daemon machine's time zone at the call. Every cron and sentence is in that machine's local time, whatever zone the reader is in; next and a fire's at are UTC, as every Timestamp is. A schedule follows the machine's wall clock across a daylight-saving change. */
+    zone: {
+      /** Its short name as the machine gives it (KST, PDT); a bare offset (+09) for a zone with no name. */
+      name: string;
+      /** Minutes east of UTC at the call. */
+      offset_min: number;
+    };
+  } };
 }
 
 export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -763,10 +813,11 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.context.set": { role: "owner", callers: null, write: true, since: 1 },
   "agent.memory": { role: "owner", callers: null, write: false, since: 1 },
   "agent.memory.remove": { role: "owner", callers: null, write: true, since: 1 },
+  "schedules.list": { role: "member", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "agent.jobs" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review" | "agent.context" | "agent.memory"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.timeline" | "agent.options" | "agent.jobs" | "session.launch_prepare" | "prompt.list" | "permission.ask" | "agent.strip" | "progress.get" | "access.list" | "agent.review" | "agent.context" | "agent.memory" | "schedules.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "agents.list": {"resource": "agents", "feed": "agents"},
   "agent.get": {"resource": "agent", "id": "agent", "feed": "agents"},
   "agent.timeline": {"resource": "timeline", "feed": "agents"},
@@ -781,6 +832,7 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
   "agent.review": false,
   "agent.context": false,
   "agent.memory": false,
+  "schedules.list": {"resource": "schedules", "feed": null},
 };
 
 /** x-app-write of each write (x-app in core.json). */

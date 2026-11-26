@@ -23,6 +23,7 @@ export const reads = {
   "prompt.list": { resource: "prompts", id: "agent", feed: "notifications" },
   "agent.strip": { resource: "strip", id: "agent", feed: "agents" },
   "access.list": { resource: "access", id: "agent", feed: "agents" },
+  "schedules.list": { resource: "schedules" },
   "chat.messages": { resource: "chat-messages", feed: "chat" },
   "chat.transcript": { resource: "chat-transcript", id: "agent", feed: "chat" },
   "chat.locate": { resource: "chat-locate" },

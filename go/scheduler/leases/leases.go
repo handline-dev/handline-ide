@@ -16,6 +16,7 @@ import (
 
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/peer"
+	"github.com/handline/handline/go/kit/words"
 	"github.com/handline/handline/go/scheduler/procload"
 )
 
@@ -687,14 +688,7 @@ func (m *Manager) heldBy(kind string) string {
 	if len(who) == 0 {
 		return "none is held"
 	}
-	return "held by " + andList(who)
-}
-
-func andList(s []string) string {
-	if len(s) < 2 {
-		return strings.Join(s, "")
-	}
-	return strings.Join(s[:len(s)-1], ", ") + " and " + s[len(s)-1]
+	return "held by " + words.And(who)
 }
 
 // drop ends lease id. The caller holds mu.
@@ -893,28 +887,13 @@ func (m *Manager) View() []Pool {
 			}
 		}
 		for i, w := range m.inLine(kind) {
-			says := fmt.Sprintf("waiting for a %s, %s in line", Noun(kind), ordinal(i+1))
+			says := fmt.Sprintf("waiting for a %s, %s in line", Noun(kind), words.Ordinal(i+1))
 			if len(who) > 0 {
-				says += ", held by " + andList(who)
+				says += ", held by " + words.And(who)
 			}
 			p.Queue = append(p.Queue, Waiting{Agent: w.agent, Workspace: w.ws, Task: w.task, Since: w.since, Position: i + 1, Says: says})
 		}
 		out = append(out, p)
 	}
 	return out
-}
-
-func ordinal(n int) string {
-	suffix := "th"
-	if n%100 < 11 || n%100 > 13 {
-		switch n % 10 {
-		case 1:
-			suffix = "st"
-		case 2:
-			suffix = "nd"
-		case 3:
-			suffix = "rd"
-		}
-	}
-	return fmt.Sprintf("%d%s", n, suffix)
 }

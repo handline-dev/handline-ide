@@ -50,6 +50,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.context.set` | owner | yes | `agent`, `role?`, `base?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: change an agent's role or standing context |
 | `agent.memory` | owner |  | `agent` | `{agent, notes}` | `not_found` |  | not cached |
 | `agent.memory.remove` | owner | yes | `agent`, `name`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: remove a memory note |
+| `schedules.list` | member |  | `agent?` | `{schedules, unreadable, zone}` | `not_found`, `bad_request` |  | `schedules`, snapshot |
 
 ### `agents.list`
 
@@ -230,4 +231,8 @@ An agent's memory notes: one per Markdown file in its memory folder, in the orde
 ### `agent.memory.remove`
 
 The founder removes one of an agent's memory notes: its file, and its line in MEMORY.md; nothing else changes. Not found (`not_found`, data.what `memory`): no note of that name; data.what `agent`: no such agent. Bad request (`bad_request`, field name): a name two notes share. The file goes first, then its MEMORY.md line, which is rewritten whole and renamed into place; a line linking outside the folder is never taken.
+
+### `schedules.list`
+
+The recurring messages the daemon types at agents on a cron schedule: each with its agent, its cron in words, when it is sent next and the messages it was last sent as. With agent, that agent's only. Read-only: a schedule is added, changed or removed only by a schedule proposal the founder approves (proposal.propose). Not found (`not_found`, data.what `agent`): `agent` names no agent. No topic carries a schedule's change or its message being sent: a client reads again while it shows the list.
 

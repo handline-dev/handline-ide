@@ -64,6 +64,7 @@ import (
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/runs"
+	"github.com/handline/handline/go/scheduler/schedules"
 	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/sysres"
@@ -906,6 +907,7 @@ func (d *Daemon) newServer(transport string) *rpc.Server {
 	reads.Register(s, d.readsEnv())
 	leases.Register(s, d.leases)
 	runs.Register(s, d.runs, d.leases.View)
+	schedules.Register(s, d.cfg.Home)
 	s.Register("connection.addresses", rpc.Method{Handler: d.connectionAddresses, Read: true})
 	stream.StampCursor(s, d.hub.Log)
 	return s

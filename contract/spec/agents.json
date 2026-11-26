@@ -1362,6 +1362,97 @@
      "rule",
      "at"
     ]
+   },
+   "Schedule": {
+    "type": "object",
+    "description": "One recurring message of an agent: the daemon types `message` at it each time `cron` comes up. It exists only by a schedule proposal the founder approved (proposal.propose, kind schedule); nothing else adds, changes or removes one.",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Ten hex characters over its cron and message. An edit of either makes it another schedule, with a history of its own."
+     },
+     "agent": {
+      "type": "string",
+      "description": "The agent's key."
+     },
+     "cron": {
+      "type": "string",
+      "description": "Five fields, minute hour day-of-month month day-of-week, in the daemon machine's local time (schedules.list's zone). Day-of-week is 0-6 with Sunday 0 (7 is Sunday too). When both day fields are written out, a day matches if either does; a day field that starts with * leaves the days to the other one."
+     },
+     "sentence": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "cron in words, in the same local time: `Every weekday at 09:30`; `On the 13th of every month, and also every Friday, at 09:00` for both day fields. null when no short sentence says the expression exactly (a step the hour does not divide by, a stepped * beside the other day field): show cron then."
+     },
+     "message": {
+      "type": "string",
+      "description": "The text typed at the agent each time, its first 1000 characters."
+     },
+     "message_more": {
+      "type": "boolean",
+      "description": "The message is longer than `message` holds."
+     },
+     "next": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "When it is sent next: the first time cron names after the minute the daemon last handled it, or after now for a schedule it has not swept yet. null when cron names no time within eight years (30 February)."
+     },
+     "due": {
+      "type": "boolean",
+      "description": "`next` has come and the message is not sent yet: it waits for the agent's turn to end, and is then sent once however many of its times passed. Times that pass while its last message is still unread are that message; no other is sent for them."
+     },
+     "fires": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/ScheduleFire"
+      },
+      "description": "The messages it was last sent as, newest first, at most 5; the first is the last time it ran. Empty when it has not run."
+     }
+    },
+    "required": [
+     "id",
+     "agent",
+     "cron",
+     "sentence",
+     "message",
+     "message_more",
+     "next",
+     "due",
+     "fires"
+    ]
+   },
+   "ScheduleFire": {
+    "type": "object",
+    "description": "One time a schedule's message was typed at its agent: a message from `schedule` to the agent, which chat.locate finds by `request` in the agent's chat (scope all).",
+    "properties": {
+     "at": {
+      "$ref": "#/components/schemas/Timestamp"
+     },
+     "request": {
+      "type": "integer",
+      "description": "The message's request id (ChatMessage.id)."
+     },
+     "ref": {
+      "$ref": "#/components/schemas/RequestRef"
+     }
+    },
+    "required": [
+     "at",
+     "request",
+     "ref"
+    ]
    }
   }
  },
@@ -4366,6 +4457,96 @@
     }
    ],
    "description": "Not found (`not_found`, data.what `memory`): no note of that name; data.what `agent`: no such agent. Bad request (`bad_request`, field name): a name two notes share. The file goes first, then its MEMORY.md line, which is rewritten whole and renamed into place; a line linking outside the folder is never taken."
+  },
+  {
+   "name": "schedules.list",
+   "summary": "The recurring messages the daemon types at agents on a cron schedule: each with its agent, its cron in words, when it is sent next and the messages it was last sent as. With agent, that agent's only.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     },
+     "description": "Only this agent's schedules."
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "schedules": {
+       "type": "array",
+       "items": {
+        "$ref": "#/components/schemas/Schedule"
+       },
+       "description": "By agent in agents.list's order, each agent's in the order it keeps them."
+      },
+      "unreadable": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "agent": {
+          "type": "string",
+          "description": "The agent's key."
+         },
+         "why": {
+          "type": "string",
+          "description": "What is wrong with the value, as the daemon says it."
+         }
+        },
+        "required": [
+         "agent",
+         "why"
+        ]
+       },
+       "description": "The agents whose stored schedules cannot be read. The daemon sends none of such an agent's schedules until its value is put right, so they are not in `schedules`."
+      },
+      "zone": {
+       "type": "object",
+       "properties": {
+        "name": {
+         "type": "string",
+         "description": "Its short name as the machine gives it (KST, PDT); a bare offset (+09) for a zone with no name."
+        },
+        "offset_min": {
+         "type": "integer",
+         "description": "Minutes east of UTC at the call."
+        }
+       },
+       "required": [
+        "name",
+        "offset_min"
+       ],
+       "description": "The daemon machine's time zone at the call. Every cron and sentence is in that machine's local time, whatever zone the reader is in; next and a fire's at are UTC, as every Timestamp is. A schedule follows the machine's wall clock across a daylight-saving change."
+      }
+     },
+     "required": [
+      "schedules",
+      "unreadable",
+      "zone"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "schedules",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "description": "Read-only: a schedule is added, changed or removed only by a schedule proposal the founder approves (proposal.propose). Not found (`not_found`, data.what `agent`): `agent` names no agent. No topic carries a schedule's change or its message being sent: a client reads again while it shows the list."
   }
  ]
 }

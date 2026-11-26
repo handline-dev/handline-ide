@@ -1,0 +1,145 @@
+{
+ "fixtures": [
+  {
+   "name": "schedules.list.shape",
+   "spec": "schedules.list",
+   "about": "Every schedule with its agent, its cron and the cron in words or null, when it is sent next or null, and the messages it was sent as; beside them the agents whose value cannot be read and the machine's zone.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "schedules.list"
+     },
+     "result": {
+      "schedules": {
+       "$each": {
+        "id": {
+         "$regex": "^[0-9a-f]{10}$"
+        },
+        "agent": {
+         "$type": "string"
+        },
+        "cron": {
+         "$type": "string"
+        },
+        "sentence": {
+         "$oneOf": [
+          {
+           "$type": "string"
+          },
+          {
+           "$type": "null"
+          }
+         ]
+        },
+        "message": {
+         "$type": "string"
+        },
+        "message_more": {
+         "$type": "boolean"
+        },
+        "next": {
+         "$oneOf": [
+          {
+           "$type": "timestamp"
+          },
+          {
+           "$type": "null"
+          }
+         ]
+        },
+        "due": {
+         "$type": "boolean"
+        },
+        "fires": {
+         "$each": {
+          "at": {
+           "$type": "timestamp"
+          },
+          "request": {
+           "$type": "integer"
+          },
+          "ref": {
+           "$regex": "^[0-9a-f]{12}$"
+          }
+         }
+        }
+       }
+      },
+      "unreadable": {
+       "$each": {
+        "agent": {
+         "$type": "string"
+        },
+        "why": {
+         "$type": "string"
+        }
+       }
+      },
+      "zone": {
+       "name": {
+        "$type": "string"
+       },
+       "offset_min": {
+        "$type": "integer"
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "schedules.list.an_unknown_agent_is_not_found",
+   "spec": "schedules.list",
+   "about": "schedules.list of an agent the daemon does not know is not_found, never an empty list.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "schedules.list",
+      "params": {
+       "agent": "no.such-agent"
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "agent"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

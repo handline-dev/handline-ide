@@ -136,8 +136,7 @@ func (r *Runner) agent(agent string, items []cronspec.Schedule, now int64) error
 		if !ready(row) {
 			continue // due, and stays due until the agent stops
 		}
-		body := fmt.Sprintf("[schedule %s] %s", it.Cron, it.Message)
-		err = r.Say(Requester, agent, body, func(rid int64) error {
+		err = r.Say(Requester, agent, Body(it), func(rid int64) error {
 			if err := db.SetCursor(r.Q, at, minute); err != nil {
 				return err
 			}

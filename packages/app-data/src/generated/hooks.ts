@@ -26,6 +26,7 @@ export const useAgentJobs = (params: CallParams<"agent.jobs">, opts?: ReadOpts) 
 export const usePromptList = (params: CallParams<"prompt.list">, opts?: ReadOpts) => useRead("prompt.list", params, opts);
 export const useAgentStrip = (params: CallParams<"agent.strip">, opts?: ReadOpts) => useRead("agent.strip", params, opts);
 export const useAccessList = (params: CallParams<"access.list">, opts?: ReadOpts) => useRead("access.list", params, opts);
+export const useSchedulesList = (params: CallParams<"schedules.list"> = {}, opts?: ReadOpts) => useRead("schedules.list", params, opts);
 export const useChatMessages = (params: CallParams<"chat.messages">, opts?: ReadOpts) => useRead("chat.messages", params, opts);
 export const useChatTranscript = (params: CallParams<"chat.transcript">, opts?: ReadOpts) => useRead("chat.transcript", params, opts);
 export const useChatLocate = (params: CallParams<"chat.locate">, opts?: ReadOpts) => useRead("chat.locate", params, opts);

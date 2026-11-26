@@ -8,10 +8,12 @@ import { DEVICE_SEEDS } from '#src/seeds-devices.ts';
 import { LEARNING_SEEDS } from '#src/seeds-learning.ts';
 import { PROPOSAL_SEEDS } from '#src/seeds-proposals.ts';
 import { REQUEST_SEEDS } from '#src/seeds-requests.ts';
+import { SCHEDULE_SEEDS } from '#src/seeds-schedules.ts';
 import { STORY_SEEDS } from '#src/seeds-story.ts';
 import { TURN_SEEDS } from '#src/seeds-turns.ts';
 import { TOWN_SEEDS } from '#src/seeds-town.ts';
 import { stallNotice } from '#src/seeds-stall.ts';
+import { SWITCH_SEEDS } from '#src/seeds-switch.ts';
 
 const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
@@ -360,28 +362,7 @@ export const SEEDS: Record<string, Seed> = {
     s.fx.view = { ...s.fx.view, needs_you: { kind: 'usage', since, title: 'Usage limit: choose what to do', text: null, source: 'hook' } };
   },
 
-  /** The architect's account switch at each phase: what the working line draws from limit to the new session. */
-  'switch-saving': (d) => switching(d, { phase: 'saving', to: null, waits: 'background: shell: vite dev' }),
-  'switch-switching': (d) => switching(d, { phase: 'switching', to: 'beta' }),
-  'switch-starting': (d) => switching(d, { phase: 'starting', to: 'beta' }),
-  'switch-waiting': (d) => switching(d, { phase: 'waiting', to: null, until: inTwoHours() }),
-  /** The same wait with no account to spare: the card offers beta, and agent.switch_now takes it. */
-  'switch-offer': (d) => {
-    switching(d, { phase: 'waiting', to: null, until: inTwoHours() });
-    const s = d.sessions.get(ARCH)!;
-    const since = new Date(Date.now() - 60_000).toISOString();
-    s.fx.view = {
-      ...s.fx.view,
-      needs_you: {
-        kind: 'switch_offer',
-        since,
-        title: 'No account has room to spare',
-        text: 'beta is the closest, and may reach its limit again soon.',
-        source: 'daemon',
-        account: 'beta',
-      },
-    };
-  },
+  ...SWITCH_SEEDS,
 
   /** Three more accounts whose 5-hour number cannot be read as it stands: read 14 minutes ago, its window ended, no window open. */
   'usage-stale': (d) => {
@@ -417,6 +398,7 @@ export const SEEDS: Record<string, Seed> = {
   ...DEVICE_SEEDS,
   ...CLUSTER_SEEDS,
   ...LEARNING_SEEDS,
+  ...SCHEDULE_SEEDS,
   /** git missing and its install running: daemon.status carries the run until a test ends it with `endInstall`. */
   'installing-git': (d) => {
     d.admin.missingTools = [{ tool: 'git', fix: 'xcode-select --install' }];
@@ -430,19 +412,6 @@ export const SEEDS: Record<string, Seed> = {
   },
   ...TOWN_SEEDS,
 };
-
-const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();
-
-/** Puts the architect, on alpha at its 5-hour limit, in an account switch. */
-function switching(
-  d: FakeDaemon,
-  sw: { phase: 'saving' | 'switching' | 'note' | 'starting' | 'waiting'; to: string | null; until?: string; waits?: string },
-): void {
-  const s = d.sessions.get(ARCH)!;
-  const since = new Date(Date.now() - 20_000).toISOString();
-  s.fx.account = sw.to === 'beta' && sw.phase === 'starting' ? 'beta' : 'alpha';
-  s.fx.view = { ...s.fx.view, account_switch: { cause: 'usage', from: 'alpha', since, until: null, ...sw } };
-}
 
 /** Seeds `all` leaves out, asked for by name: another cluster, and a machine without git. */
 export const BY_NAME = ['second-cluster', 'no-git', 'installing-git', 'git-install-failed'];
