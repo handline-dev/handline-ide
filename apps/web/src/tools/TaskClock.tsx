@@ -10,6 +10,7 @@ import { useState } from 'react';
 
 /** < 1m, 4m, 58m, 1h 40m. */
 const length = (seconds: number) => (seconds < 60 ? '< 1m' : span(seconds * 1000).replace(/ ([dhm])\b/g, '$1'));
+export { length as timeLength };
 
 /** The stretches the time box does not count, in the person's words. */
 const PAUSED: Partial<Record<TimeLabel, string>> = {

@@ -114,5 +114,7 @@ export function seedTasks(tasks: TaskStore, at: string): void {
     done: ago(1500),
     evidence: 'abc1234',
     priority: 2,
+    // A closed task keeps what it cost.
+    spend: { usd: 1.12, minutes: 41, by_agent: { 'handline.architect': 1.12 }, by_model: { 'claude-opus-4-5': 1.12 } }, // local-ref-ok
   });
 }

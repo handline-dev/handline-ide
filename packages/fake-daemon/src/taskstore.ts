@@ -48,6 +48,8 @@ export type Row = Task &
     review?: TaskDetail['review'];
     /** The commits that name it in their subject (task.changes), oldest first; a seed sets them. */
     commits?: SeedCommit[];
+    /** What the task and its sub-tasks cost (TaskDetail.spend); a seed sets it. Only task.get serves it: a list row and a change notice carry none. */
+    spend?: TaskDetail['spend'];
   };
 
 export class TaskStore {
@@ -146,7 +148,7 @@ export class TaskStore {
     return t.to === 'human' ? { on: 'founder', text: 'needs you', tasks: [], since: t.created } : null;
   }
   protected view(row: Row): Task {
-    const { body: _body, memos: _memos, notes: _notes, blockers, clock, estimate: _estimate, todo: _todo, ...t } = row;
+    const { body: _body, memos: _memos, notes: _notes, blockers, clock, estimate: _estimate, todo: _todo, spend: _spend, ...t } = row;
     const ended = t.state === 'done' || t.state === 'discarded';
     const fresh = (row.memos ?? []).filter((m) => m.author !== 'human' && m.id > (this.seenUpto.get(row.id) ?? 0));
     return {
@@ -278,6 +280,8 @@ export class TaskStore {
       body: t.body,
       ...planFields(t),
       review: t.review ?? null,
+      spent_usd: t.spend?.usd ?? null,
+      spend: t.spend ?? null,
       ...(bodyParts ? { body_parts: bodyParts } : {}),
       deliveries: t.delivered ? [{ at: t.delivered, how: 'typed', outcome: 'delivered' }] : [],
       events: [{ topic: 'tasks', type: 'task.opened', at: t.created, actor: null, agent: t.to, title: t.title, target: null, data: {} }],
