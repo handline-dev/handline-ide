@@ -23,8 +23,12 @@ import { toast } from '#src/ui/toast.tsx';
 /** What the box answers: a comment, or the founder's turn (tied to the comment that asked). */
 export type Reply = { id?: number; author: string; text: string; turn?: boolean };
 
-/** Who a comment reaches by its own words: the assignee and each agent it names, `text` as it is sent (toRefs). */
-const readers = (owner: string, text: string, known: string[]) => [...new Set([owner, ...refsIn(text).filter((n) => known.includes(n))])];
+/** Who a comment reaches by its own words, as the daemon tells it: the agents it names, or the assignee when it names none; `text` as it
+ * is sent (toRefs). The daemon's own answer (task.comment.recipients) comes first where it is served. */
+const readers = (owner: string, text: string, known: string[]) => {
+  const named = [...new Set(refsIn(text).filter((n) => known.includes(n)))];
+  return named.length ? named : [owner];
+};
 
 /** How many a comment will reach; hovering names them. */
 function Readers({ names }: { names: string[] }) {
