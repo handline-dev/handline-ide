@@ -3,6 +3,7 @@ import { Failure, invalidParams, refused, storeFailure } from '#src/errors.ts';
 import { discardAll } from '#src/discardbatch.ts';
 import { timeOf } from '#src/history.ts';
 import { changesOf } from '#src/taskchanges.ts';
+import { prOf } from '#src/taskpr.ts';
 import { REVIEW_LEVELS, REVIEW_WORKS, TaskFailure, type FakeTasks, type ReviewLevel, type ReviewWork } from '#src/tasks.ts';
 
 /** Answers one task method, turning the store's refusals into the daemon's errors. */
@@ -24,6 +25,8 @@ export function taskCall(
         return timeOf(p.task, tasks);
       case 'task.changes':
         return changesOf(p, tasks);
+      case 'task.pr':
+        return prOf(p, tasks);
       case 'tasks.list': {
         const list = tasks.list(p);
         // The texts a turn's ask replaced are in task.get only.

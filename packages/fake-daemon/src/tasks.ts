@@ -195,6 +195,7 @@ const BASIC = new Set([
   'task.history',
   'task.time',
   'task.changes',
+  'task.pr',
   'task.new',
   'task.edit',
   'task.withdraw',

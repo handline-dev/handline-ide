@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, Actor, AttachmentId, Duration, ImagePart, ReadCursor, RequestId, RequestName, RequestRef, Role, Status, TextPart, Timestamp, Topic, Who, WriteKind } from './core.ts';
+import type { Accepted, Actor, AttachmentId, Duration, ImagePart, PullUnavailable, ReadCursor, RequestId, RequestName, RequestRef, Role, Status, TextPart, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 /** The task's clock: it counts while the task is doing and nothing holds it, stands still keeping what is left while anything does, and runs on past its length. */
 export type TaskClock = {
@@ -425,6 +425,34 @@ export type Watch = {
   until?: "ci" | "closed" | "done";
 };
 
+/** A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty. */
+export type TaskPR = {
+  number: number;
+  /** The repository it is in (owner/name): the task's pr_repo, else the GitHub origin of the folder the task's holder works in; null when neither is known (unavailable no_repo). */
+  repo: string | null;
+  /** Its page; null only when the repository is not known. */
+  url: string | null;
+  /** closed is closed without a merge. null when it could not be read. */
+  state: ("open" | "merged" | "closed") | null;
+  draft: boolean;
+  /** The branch it merges into. */
+  base: string | null;
+  /** The review's decision; null when no review is asked for, or it could not be read. */
+  review: ("approved" | "changes_requested" | "review_required") | null;
+  /** The names of the checks that stand failed: the latest run of each has finished and is not ok. A run that was run again is not counted. */
+  failing: string[];
+  /** How many checks have not finished, by their latest run. */
+  waiting: number;
+  /** How many checks stand ok, by their latest run. */
+  passing: number;
+  /** Its newest commit. */
+  head_sha: string | null;
+  /** The commit its merge made; null until it is merged. */
+  merge_sha: string | null;
+  /** Why it could not be read; null when it was. */
+  unavailable: PullUnavailable | null;
+};
+
 /** A gate's watch as the task carries it, with its label and what it opened with. */
 export type TaskWatch = {
   vendor: string;
@@ -651,6 +679,9 @@ export interface TasksMethods {
       left_s: number;
     } | null;
   } & ReadCursor };
+  "task.pr": { params: {
+  task: number;
+}; result: TaskPR | null };
   "task.changes": { params: {
   task: number;
   /** One of the task's commits by its hex id or a prefix of it (at least 4); not one of them, or more than one: not_found, what commit. */
@@ -1040,6 +1071,7 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
   "task.get": { role: "agent", callers: null, write: false, since: 1 },
   "task.history": { role: "agent", callers: null, write: false, since: 1 },
   "task.time": { role: "agent", callers: null, write: false, since: 1 },
+  "task.pr": { role: "member", callers: null, write: false, since: 1 },
   "task.changes": { role: "member", callers: null, write: false, since: 1 },
   "task.new": { role: "agent", callers: null, write: true, since: 1 },
   "task.handoff": { role: "agent", callers: null, write: true, since: 1 },
@@ -1079,11 +1111,12 @@ export const TASKS_METHODS: { [K in keyof TasksMethods]: { role: Role; callers: 
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "task.changes" | "requests.pending" | "task.comment.recipients" | "task.board" | "lessons.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history" | "task.time" | "task.pr" | "task.changes" | "requests.pending" | "task.comment.recipients" | "task.board" | "lessons.list"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "tasks.list": {"resource": "tasks", "feed": "tasks"},
   "task.get": {"resource": "task", "id": "task", "feed": "tasks"},
   "task.history": {"resource": "task-history", "id": "task", "feed": null},
   "task.time": {"resource": "task-time", "id": "task", "feed": "tasks"},
+  "task.pr": {"resource": "task-pr", "id": "task", "feed": null},
   "task.changes": {"resource": "task-changes", "feed": null},
   "requests.pending": {"resource": "requests-pending", "feed": "tasks"},
   "task.comment.recipients": {"resource": "comment-recipients", "feed": "tasks"},

@@ -1,0 +1,117 @@
+{
+ "fixtures": [
+  {
+   "name": "task.pr.unknown_task_is_not_found",
+   "spec": "task.pr",
+   "about": "The pull request of a task nobody opened is not_found, what task.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.pr",
+      "params": {
+       "task": 999999
+      }
+     },
+     "error": {
+      "code": -32001,
+      "data": {
+       "code": "not_found",
+       "what": "task"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.pr.task_is_a_number",
+   "spec": "task.pr",
+   "about": "task is the task's number: a T-word is a bad request, field task.",
+   "as": "founder",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1,
+       "key": "{{founder_key}}"
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.pr",
+      "params": {
+       "task": "T1"
+      }
+     },
+     "error": {
+      "code": -32602,
+      "data": {
+       "code": "bad_request",
+       "field": "task"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "task.pr.an_agent_session_is_refused_by_role",
+   "spec": "task.pr",
+   "about": "A person's read: a call from an agent session is refused, gate role.",
+   "as": "agent",
+   "steps": [
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "hello",
+      "params": {
+       "client": "conformance/1",
+       "protocol": 1
+      }
+     },
+     "result": {}
+    },
+    {
+     "send": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "task.pr",
+      "params": {
+       "task": 1
+      }
+     },
+     "error": {
+      "code": -32002,
+      "data": {
+       "code": "refused",
+       "gate": "role"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

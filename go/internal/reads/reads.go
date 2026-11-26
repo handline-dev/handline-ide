@@ -24,6 +24,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/sysres"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 const (
@@ -90,13 +91,12 @@ type Env struct {
 	// lifts the limit it is at now (0 when it is not); runsOutAt, when it reaches a limit at the current burn (0 when it does not or
 	// is not known); resetsAt, when that limit lifts. nil reads the usage files.
 	AccountWall func(account string, now int64) (blockedUntil, runsOutAt, resetsAt int64)
-	// BranchPR answers the pull request of a branch of a GitHub repo as worktrees.list gives it (number, url, verdict, failing), nil for
-	// none; nil asks gh.
-	BranchPR func(ctx context.Context, repo, branch string) (map[string]any, error)
+	// GitHub reads a pull request for worktrees.list and task.pr; nil is the daemon's own reader (the github vendor a gate reads
+	// through), so one read of a pull request serves them all.
+	GitHub *watch.GitHub
 	// Person is whose requests, asks and turns the reads are: the calling person (asCaller); "" is the owner.
-	Person    string
-	branchPRs *branchPRs
-	samples   *usage.SampleCache // the outlook's usage_samples, held between reads
+	Person  string
+	samples *usage.SampleCache // the outlook's usage_samples, held between reads
 }
 
 // person is whose the reads are: Person, else the owner.
@@ -129,7 +129,6 @@ func (e *Env) asCaller(h func(*Env, *rpc.Conn, map[string]any) (any, error)) fun
 func Register(s *rpc.Server, env Env) {
 	e := &env
 	e.samples = &usage.SampleCache{}
-	e.branchPRs = newBranchPRs()
 	s.Register("load.get", rpc.Method{Handler: e.loadGet, Read: true})
 	s.Register("daemon.status", rpc.Method{Handler: e.status, Read: true})
 	s.Register("agents.list", rpc.Method{Handler: e.agentsList, Read: true})
@@ -144,6 +143,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("task.history", rpc.Method{Handler: e.taskHistory, Read: true})
 	s.Register("task.time", rpc.Method{Handler: e.taskTime, Read: true})
 	s.Register("task.changes", rpc.Method{Handler: e.taskChanges, Read: true})
+	s.Register("task.pr", rpc.Method{Handler: e.taskPR, Read: true})
 	s.Register("events.feed", rpc.Method{Handler: e.eventsFeed, Read: true})
 	s.Register("prompt.list", rpc.Method{Handler: e.promptList, Read: true})
 	s.Register("settings.get", rpc.Method{Verbatim: true, Handler: e.settingsGet, Read: true})

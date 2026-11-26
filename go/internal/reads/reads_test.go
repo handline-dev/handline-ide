@@ -16,6 +16,7 @@ import (
 	"github.com/handline/handline/go/internal/contracttest"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 func testEnv(t *testing.T) *Env {
@@ -32,9 +33,9 @@ func testEnv(t *testing.T) *Env {
 		_, err := os.Stat(filepath.Join(teamtest.AccountDir(t, home, acct), ".credentials.json"))
 		return err == nil, true
 	}
-	// No test asks GitHub for a branch's pull request: none unless it sets BranchPR.
-	none := func(context.Context, string, string) (map[string]any, error) { return nil, nil }
-	return &Env{DB: db, Home: home, Started: time.Now(), LoginState: login, BranchPR: none, branchPRs: newBranchPRs()}
+	// No test asks GitHub: gh is never run, and a branch has no pull request, unless the test gives its own GitHub.
+	none := func(context.Context, ...string) ([]byte, error) { return []byte("[]"), nil }
+	return &Env{DB: db, Home: home, Started: time.Now(), LoginState: login, GitHub: &watch.GitHub{Run: none}}
 }
 
 func addAgent(t *testing.T, e *Env, name, role string) {

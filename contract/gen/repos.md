@@ -11,7 +11,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `repo.set` | owner | yes | `path`, `script?`, `copy?`, `request_id` | `Accepted` | `not_found`, `bad_request`, `refused` | state | decided: save project setup |
 | `folder.init` | owner | yes | `path`, `request_id` | `Accepted & {path}` | `refused`, `not_found`, `bad_request` | state | decided: start git |
 | `folder.clone` | owner | yes | `url`, `path?`, `request_id` | `Accepted & {path}` | `refused`, `bad_request` | state | decided: clone |
-| `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees}` |  |  | `worktrees`, snapshot |
+| `worktrees.list` | member |  | `repo?`, `owner?` | `{worktrees, prs_unavailable}` |  |  | `worktrees`, snapshot |
 | `worktree.diff` | member |  | `path`, `file?`, `against?` | `{path, file, diff, truncated, against, base_ref}` | `not_found`, `bad_request`, `refused` |  | `worktree-diff`, snapshot |
 | `desks.list` | agent |  | `repo?` | `{desks, kept}` |  |  | not cached |
 | `desk.pin` | owner | yes | `desk`, `to?`, `request_id` | `Accepted` | `bad_request` |  | decided: pin a desk |

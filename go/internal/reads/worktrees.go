@@ -367,8 +367,11 @@ func (e *Env) worktreesList(_ *rpc.Conn, params map[string]any) (any, error) {
 	for i, wt := range out {
 		rows[i] = wt.(map[string]any)
 	}
-	e.attachPRs(rows)
-	return map[string]any{"worktrees": out}, nil
+	res := map[string]any{"worktrees": out, "prs_unavailable": nil}
+	if reason, why := e.attachPRs(rows); reason != "" {
+		res["prs_unavailable"] = unavailable(reason, why)
+	}
+	return res, nil
 }
 
 func (e *Env) worktreeDiff(_ *rpc.Conn, params map[string]any) (any, error) {

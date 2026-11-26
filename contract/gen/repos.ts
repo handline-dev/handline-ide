@@ -1,6 +1,6 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
-import type { Accepted, Repo, RequestId, Role, Timestamp, Topic, Who, WriteKind } from './core.ts';
+import type { Accepted, PullUnavailable, Repo, RequestId, Role, Timestamp, Topic, Who, WriteKind } from './core.ts';
 
 export type ChangedFile = {
   path: string;
@@ -109,6 +109,8 @@ export interface ReposMethods {
   owner?: Who;
 }; result: {
     worktrees: Worktree[];
+    /** Why no row carries a pull request though a branch was asked about: gh is not installed or not logged in on the daemon's machine (reason gh_missing or gh_logged_out). null when gh can be used, or nothing was asked. Absent from a daemon that does not send it. */
+    prs_unavailable?: PullUnavailable | null;
   } };
   "worktree.diff": { params: {
   path: string;

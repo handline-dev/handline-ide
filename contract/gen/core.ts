@@ -74,6 +74,14 @@ export type RefusalData = {
 /** Like 2h, 30m, 1d. */
 export type Duration = string;
 
+/** Why pull requests could not be read. The daemon reads them with the gh CLI's own login on the machine it runs on, never an agent's. */
+export type PullUnavailable = {
+  /** gh_missing: the gh CLI is not installed on the daemon's machine. gh_logged_out: it is not logged in there (gh auth login). no_repo: the task names a number with no repository, and its holder's folder on this machine has no GitHub origin. gone: GitHub has no such pull request, or this login cannot see it. failed: the read failed for another reason, in text. */
+  reason: "gh_missing" | "gh_logged_out" | "no_repo" | "gone" | "failed";
+  /** The reason in words a person can act on. */
+  text: string;
+};
+
 export type InputHolder = {
   kind: "daemon" | "person" | "device";
   /** `daemon`, or the person or device. */

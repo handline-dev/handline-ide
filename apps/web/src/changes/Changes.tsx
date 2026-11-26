@@ -10,6 +10,7 @@ import { useTabState } from '#src/persist/tabState.ts';
 import { ChatCommentBar } from '#src/changes/CommentBar.tsx';
 import { Elsewhere, File } from '#src/changes/DiffFile.tsx';
 import { agentPlace, useLineDrafts, useMovedMarked } from '#src/changes/lineDrafts.ts';
+import { PullChip, PullsUnavailable } from '#src/ui/PullChip.tsx';
 
 /** The agent's worktree changes against its base: the branch, each changed file with its lines added and removed, and the diff
  * under it, folded per file. A line or a file takes a comment; the comments wait as drafts and go to the agent's chat as one message. */
@@ -19,6 +20,8 @@ export function Changes({ agent }: { agent: string }) {
   const detail = useAgentDetail(agent).data;
   const path = detail?.worktree?.path ?? '';
   const row = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path);
+  // Why the branch shows no pull request, when it is the daemon's gh that cannot be used.
+  const noPulls = useWorktrees({ owner: agent }).data?.prs_unavailable;
   const worktreeChanged = row?.changed ?? [];
   // The branch the worktree merges into, as its row names it: main in most repos, master or another where the repo says so.
   const base = row?.base || 'main';
@@ -52,6 +55,7 @@ export function Changes({ agent }: { agent: string }) {
           <GitBranch size={14} />
           <span className="text-fg">{detail.worktree.branch}</span>
           <span>{`${worktreeChanged.length} files changed`}</span>
+          {row?.pr && <PullChip pr={row.pr} />}
           <span className="flex-1" />
           <Segmented
             label="Compare"
@@ -60,6 +64,8 @@ export function Changes({ agent }: { agent: string }) {
             options={AGAINST}
             word={(v) => (v === 'head' ? 'Uncommitted' : `vs ${diff.data?.against === 'base' ? (diff.data.base_ref ?? base) : base}`)}
           />
+          {/* Why the branch shows no pull request, on a line of its own under the row's items. */}
+          <PullsUnavailable why={noPulls} className="basis-full" />
         </div>
         {diff.isPending && <LinesLoading label="Loading the diff" />}
         {diff.isError && <p className="text-sm text-danger">The diff did not load.</p>}

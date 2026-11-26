@@ -48,6 +48,7 @@ export const useTasksList = (params: CallParams<"tasks.list"> = {}, opts?: ReadO
 export const useTaskGet = (params: CallParams<"task.get">, opts?: ReadOpts) => useRead("task.get", params, opts);
 export const useTaskHistory = (params: CallParams<"task.history">, opts?: ReadOpts) => useRead("task.history", params, opts);
 export const useTaskTime = (params: CallParams<"task.time">, opts?: ReadOpts) => useRead("task.time", params, opts);
+export const useTaskPr = (params: CallParams<"task.pr">, opts?: ReadOpts) => useRead("task.pr", params, opts);
 export const useTaskChanges = (params: CallParams<"task.changes">, opts?: ReadOpts) => useRead("task.changes", params, opts);
 export const useRequestsPending = (params: CallParams<"requests.pending"> = {}, opts?: ReadOpts) => useRead("requests.pending", params, opts);
 export const useTaskCommentRecipients = (params: CallParams<"task.comment.recipients">, opts?: ReadOpts) => useRead("task.comment.recipients", params, opts);

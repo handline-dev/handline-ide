@@ -18,6 +18,7 @@ import { Linked, Markdown } from '#src/ui/Markdown.tsx';
 import { MarkReply } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { Fields } from '#src/tools/TaskFields.tsx';
+import { TaskPull } from '#src/tools/TaskPull.tsx';
 import { GO_TURN, goToTurn, openTurnRow, takeTyping, toBottom, type OpenTurn } from '#src/tools/TaskTurn.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
@@ -149,6 +150,7 @@ export function TaskTab({ id }: { id: number }) {
                 </p>
                 <TaskAlongside task={t.id} holder={t.to ?? undefined} open={open} />
                 <Fields t={t} open={open} />
+                <TaskPull t={t} />
                 {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
                 {open && !mine && why && (
                   <p className="flex items-start gap-2 text-sm text-muted">

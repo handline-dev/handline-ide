@@ -1813,6 +1813,146 @@
      "target"
     ]
    },
+   "TaskPR": {
+    "type": "object",
+    "description": "A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty.",
+    "properties": {
+     "number": {
+      "type": "integer"
+     },
+     "repo": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The repository it is in (owner/name): the task's pr_repo, else the GitHub origin of the folder the task's holder works in; null when neither is known (unavailable no_repo)."
+     },
+     "url": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Its page; null only when the repository is not known."
+     },
+     "state": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "open",
+         "merged",
+         "closed"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "closed is closed without a merge. null when it could not be read."
+     },
+     "draft": {
+      "type": "boolean"
+     },
+     "base": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The branch it merges into."
+     },
+     "review": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "approved",
+         "changes_requested",
+         "review_required"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The review's decision; null when no review is asked for, or it could not be read."
+     },
+     "failing": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "The names of the checks that stand failed: the latest run of each has finished and is not ok. A run that was run again is not counted."
+     },
+     "waiting": {
+      "type": "integer",
+      "description": "How many checks have not finished, by their latest run."
+     },
+     "passing": {
+      "type": "integer",
+      "description": "How many checks stand ok, by their latest run."
+     },
+     "head_sha": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Its newest commit."
+     },
+     "merge_sha": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The commit its merge made; null until it is merged."
+     },
+     "unavailable": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/PullUnavailable"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Why it could not be read; null when it was."
+     }
+    },
+    "required": [
+     "number",
+     "repo",
+     "url",
+     "state",
+     "draft",
+     "base",
+     "review",
+     "failing",
+     "waiting",
+     "passing",
+     "head_sha",
+     "merge_sha",
+     "unavailable"
+    ]
+   },
    "TaskWatch": {
     "type": "object",
     "description": "A gate's watch as the task carries it, with its label and what it opened with.",
@@ -2823,6 +2963,49 @@
     "resource": "task-time",
     "id": "task",
     "feed": "tasks"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "task.pr",
+   "summary": "A task's pull request as its host has it now: where it stands, the checks that failed by their latest run, the review's decision. null for a task that names none (Task.pr). The daemon reads it with the gh CLI's own login on the machine it runs on and keeps the answer about a minute; a gate on the same pull request and its branch's verdict in worktrees.list come from the same read. What could not be read is said in unavailable, never left out.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "task",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "oneOf": [
+      {
+       "$ref": "#/components/schemas/TaskPR"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "task-pr",
+    "id": "task",
+    "feed": null
    },
    "x-since": 1,
    "errors": [

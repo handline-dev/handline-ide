@@ -12,6 +12,7 @@ import { SCHEDULE_SEEDS } from '#src/seeds-schedules.ts';
 import { STORY_SEEDS } from '#src/seeds-story.ts';
 import { TURN_SEEDS } from '#src/seeds-turns.ts';
 import { TOWN_SEEDS } from '#src/seeds-town.ts';
+import { PULL_SEEDS } from '#src/seeds-pulls.ts';
 import { stallNotice } from '#src/seeds-stall.ts';
 import { SWITCH_SEEDS } from '#src/seeds-switch.ts';
 
@@ -411,6 +412,7 @@ export const SEEDS: Record<string, Seed> = {
     endInstall(d, 'git', false);
   },
   ...TOWN_SEEDS,
+  ...PULL_SEEDS,
 };
 
 /** Seeds `all` leaves out, asked for by name: another cluster, and a machine without git. */

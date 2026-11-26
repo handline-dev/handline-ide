@@ -2,15 +2,12 @@ package reads
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/protocol/operations"
@@ -167,99 +164,43 @@ func TestEveryWorktreeCarriesItsFactsAndItsPullRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DB.Exec("INSERT INTO meta(name, value, updated) VALUES(?, '2048', 0)", "worktree_size:"+mine)
-	asked := 0
-	var answer map[string]any
-	var fail error
-	e.BranchPR = func(_ context.Context, r, branch string) (map[string]any, error) {
-		asked++
-		if r != "acme/app" || branch != "story/x" {
-			t.Errorf("asked about %s %s", r, branch)
-		}
-		return answer, fail
-	}
-	mineRow := func() map[string]any {
+	gh := &fakeGh{t: t, lists: map[string]string{"acme/app story/x": `[` + recordedPull("OPEN", "",
+		checkRun("build", "FAILURE", "11:50:00"), checkRun("lint", "TIMED_OUT", "11:50:00"), checkRun("go", "SUCCESS", "11:50:00")) + `]`}}
+	e.GitHub = gh.reader()
+	list := func() (row, unavailable map[string]any) {
 		t.Helper()
 		got, err := e.worktreesList(nil, map[string]any{"owner": alice})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return got.(map[string]any)["worktrees"].([]any)[0].(map[string]any)
+		res := got.(map[string]any)
+		unavailable, _ = res["prs_unavailable"].(map[string]any)
+		return res["worktrees"].([]any)[0].(map[string]any), unavailable
 	}
-	answer = map[string]any{"number": 7, "url": "https://github.com/acme/app/pull/7", "verdict": "checks_failing", "failing": 2}
-	w := mineRow()
+	w, unavailable := list()
 	if w["base"] != "main" || w["commits_ahead"] != 1 || w["files_changed"] != 1 || w["size_bytes"] != int64(2048) {
 		t.Fatalf("facts: %v", w)
 	}
-	if pr, _ := w["pr"].(map[string]any); pr["verdict"] != "checks_failing" || pr["failing"] != 2 || pr["number"] != 7 {
-		t.Fatalf("pr: %v", w["pr"])
+	if pr, _ := w["pr"].(map[string]any); pr["verdict"] != "checks_failing" || pr["failing"] != 2 || pr["number"] != int64(7) ||
+		pr["url"] != "https://github.com/acme/app/pull/7" || unavailable != nil {
+		t.Fatalf("pr: %v %v", w["pr"], unavailable)
 	}
-	answer = nil
-	if mineRow()["pr"] == nil || asked != 1 {
-		t.Fatalf("a minute's answer is kept: asked %d", asked)
+	gh.lists = nil
+	if w, _ := list(); w["pr"] == nil || gh.asked["pr list"] != 1 {
+		t.Fatalf("a minute's answer is kept: asked %v", gh.asked)
 	}
-	e.branchPRs = newBranchPRs()
-	fail = errors.New("gh: not logged in")
-	if w := mineRow(); w["pr"] != nil {
-		t.Fatalf("gh failing is pr null, never a guess: %v", w["pr"])
+	// gh cannot answer: pr null, never a guess, and the read says why when it is this machine's gh that is not set up
+	gh.fail, e.GitHub = errors.New("gh pr: HTTP 502"), gh.reader()
+	if w, unavailable := list(); w["pr"] != nil || unavailable != nil {
+		t.Fatalf("a read that failed with gh set up: %v %v", w["pr"], unavailable)
 	}
-}
-
-// recorded is one pull request as `gh pr list --json` printed it, with these checks (each a recorded statusCheckRollup entry).
-func recorded(t *testing.T, checks ...string) ghPull {
-	t.Helper()
-	var p ghPull
-	if err := json.Unmarshal([]byte(`{"number":7,"state":"OPEN","statusCheckRollup":[`+strings.Join(checks, ",")+`]}`), &p); err != nil {
-		t.Fatal(err)
+	gh.loggedOut, e.GitHub = true, gh.reader()
+	if w, unavailable := list(); w["pr"] != nil || unavailable["reason"] != "gh_logged_out" || unavailable["text"] != "gh is not logged in: run gh auth login" {
+		t.Fatalf("logged out: %v %v", w["pr"], unavailable)
 	}
-	return p
-}
-
-// checkRun is a check run of name that started at a time of day and concluded so ("" while it runs); commitStatus a commit status.
-func checkRun(name, conclusion, started string) string {
-	state := "COMPLETED"
-	if conclusion == "" {
-		state = "IN_PROGRESS"
-	}
-	return `{"__typename":"CheckRun","name":"` + name + `","workflowName":"ci","status":"` + state + `","conclusion":"` + conclusion +
-		`","startedAt":"2026-10-20T` + started + `Z"}`
-}
-
-func commitStatus(context, state string) string {
-	return `{"__typename":"StatusContext","context":"` + context + `","state":"` + state + `"}`
-}
-
-func TestAPullRequestsVerdictIsWhatHoldsIt(t *testing.T) {
-	t.Parallel()
-	failing := func(conclusions ...string) watch.Rollup {
-		var checks []string
-		for i, c := range conclusions {
-			checks = append(checks, checkRun(fmt.Sprintf("check-%d", i), c, "11:00:00"))
-		}
-		return recorded(t, checks...).Checks
-	}
-	for _, c := range []struct {
-		name string
-		pr   ghPull
-		want string
-	}{
-		{"merged", ghPull{State: "MERGED", IsDraft: true}, "merged"},
-		{"draft", ghPull{State: "OPEN", IsDraft: true}, "draft"},
-		{"checks fail before a review is asked", ghPull{State: "OPEN", ReviewDecision: "CHANGES_REQUESTED", Checks: failing("FAILURE")}, "checks_failing"},
-		{"changes", ghPull{State: "OPEN", ReviewDecision: "CHANGES_REQUESTED"}, "changes_requested"},
-		{"review required", ghPull{State: "OPEN", ReviewDecision: "REVIEW_REQUIRED"}, "waiting_review"},
-		{"approved", ghPull{State: "OPEN", ReviewDecision: "APPROVED"}, "ready"},
-		{"no review rule", ghPull{State: "OPEN"}, "ready"},
-	} {
-		if got := pullVerdict(c.pr)["verdict"]; got != c.want {
-			t.Errorf("%s: %v, want %s", c.name, got, c.want)
-		}
-	}
-	got := pullVerdict(ghPull{State: "OPEN", Checks: failing("FAILURE", "TIMED_OUT", "SUCCESS")})
-	if got["failing"] != 2 {
-		t.Fatalf("failing count: %v", got)
-	}
-	if _, has := pullVerdict(ghPull{State: "OPEN"})["failing"]; has {
-		t.Fatal("failing is only on checks_failing")
+	gh.fail, e.GitHub = exec.ErrNotFound, gh.reader()
+	if _, unavailable := list(); unavailable["reason"] != "gh_missing" {
+		t.Fatalf("no gh: %v", unavailable)
 	}
 }
 
@@ -278,10 +219,10 @@ func gitIn(t *testing.T) func(dir string, args ...string) {
 func TestWorktreesWithNoPullRequestToAskAboutAreNeverAsked(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	e.BranchPR = func(_ context.Context, repo, branch string) (map[string]any, error) {
-		t.Errorf("asked about %s %s", repo, branch)
-		return nil, nil
-	}
+	e.GitHub = &watch.GitHub{Run: func(_ context.Context, args ...string) ([]byte, error) {
+		t.Errorf("ran gh %v", args)
+		return []byte("[]"), nil
+	}}
 	root, _ := filepath.EvalSymlinks(t.TempDir())
 	git := gitIn(t)
 	repo, other, detached := filepath.Join(root, "repo"), filepath.Join(root, "other"), filepath.Join(root, "detached")
@@ -320,68 +261,6 @@ func TestWorktreesWithNoPullRequestToAskAboutAreNeverAsked(t *testing.T) {
 		if w["owner"] == "onbase" && w["size_bytes"] != int64(4096) {
 			t.Errorf("a size kept under the real path is read for a linked one: %v", w["size_bytes"])
 		}
-	}
-}
-
-func TestAStatusContextOrAStartupFailureCountsAsFailing(t *testing.T) {
-	t.Parallel()
-	pr := recorded(t, commitStatus("deploy", "FAILURE"), commitStatus("lint", "ERROR"), checkRun("build", "STARTUP_FAILURE", "11:00:00"), commitStatus("docs", "SUCCESS"),
-		checkRun("go", "SUCCESS", "11:00:00"))
-	if got := pullVerdict(pr); got["verdict"] != "checks_failing" || got["failing"] != 3 {
-		t.Fatalf("%v", got)
-	}
-}
-
-// A check that failed and was run again leaves its failed run in what gh prints. A branch's verdict counts each check by its latest
-// run, as a gate does: the passing rerun clears it, a rerun still going is not a failure yet, and a rerun that failed is one failure.
-func TestARunThatARerunReplacedDoesNotCountAsFailing(t *testing.T) {
-	t.Parallel()
-	for _, c := range []struct {
-		name    string
-		checks  []string
-		verdict string
-		failing any
-	}{
-		{"failed, then passed on a rerun", []string{checkRun("build", "FAILURE", "11:50:00"), checkRun("build", "SUCCESS", "11:55:00"), checkRun("go", "SUCCESS", "11:50:00")}, "ready", nil},
-		{"whatever order gh lists them in", []string{checkRun("build", "SUCCESS", "11:55:00"), checkRun("build", "FAILURE", "11:50:00")}, "ready", nil},
-		{"the rerun is still going", []string{checkRun("build", "FAILURE", "11:50:00"), checkRun("build", "", "11:55:00")}, "ready", nil},
-		{"the rerun failed too", []string{checkRun("build", "FAILURE", "11:50:00"), checkRun("build", "FAILURE", "11:55:00")}, "checks_failing", 1},
-		{"a commit status set again", []string{commitStatus("deploy", "FAILURE"), commitStatus("deploy", "SUCCESS")}, "ready", nil},
-		{"cancelled and not run again", []string{checkRun("build", "CANCELLED", "11:50:00")}, "checks_failing", 1},
-	} {
-		got := pullVerdict(recorded(t, c.checks...))
-		if got["verdict"] != c.verdict || got["failing"] != c.failing {
-			t.Errorf("%s: %v, want %s %v", c.name, got, c.verdict, c.failing)
-		}
-	}
-}
-
-func TestTheOpenPullRequestOfABranchStandsInFrontOfAMergedOne(t *testing.T) {
-	t.Parallel()
-	pulls := []ghPull{{Number: 3, State: "MERGED"}, {Number: 2, State: "CLOSED"}, {Number: 1, State: "OPEN"}}
-	if p, ok := chosenPull(pulls); !ok || p.Number != 1 {
-		t.Fatalf("%v %v", p, ok)
-	}
-	if p, ok := chosenPull(pulls[:2]); !ok || p.Number != 3 {
-		t.Fatalf("a merged one when none is open: %v %v", p, ok)
-	}
-	if _, ok := chosenPull(pulls[1:2]); ok {
-		t.Fatal("a closed one is none")
-	}
-}
-
-func TestABranchesPullRequestIsKeptAMinuteAndThenAskedAgain(t *testing.T) {
-	t.Parallel()
-	now := time.Now()
-	c := newBranchPRs()
-	c.now = func() time.Time { return now }
-	c.put("k", map[string]any{"number": 1})
-	if _, hit := c.get("k"); !hit {
-		t.Fatal("kept")
-	}
-	now = now.Add(branchPRTTL + time.Second)
-	if _, hit := c.get("k"); hit {
-		t.Fatal("kept past its minute")
 	}
 }
 

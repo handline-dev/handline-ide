@@ -1,7 +1,7 @@
 // The fake daemon's repos and worktrees: read-only, as the Python and Go daemons serve them today.
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
-import type { RecentFolder, Repo, Worktree } from '@handline/contract';
+import type { PullUnavailable, RecentFolder, Repo, Worktree } from '@handline/contract';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { AGENTS } from '#src/fixtures.ts';
 import { FakeDesks } from '#src/desks.ts';
@@ -224,6 +224,8 @@ export class FakeWorktrees {
   private on: boolean;
   /** What worktrees.list serves; a test replaces it. */
   rows: Worktree[] = seed();
+  /** Why worktrees.list shows no pull request (a daemon whose gh cannot be used); null when it can. A test sets it. */
+  prsUnavailable: PullUnavailable | null = null;
   repos: Repo[] = REPOS.map((r) => ({ ...r }));
   /** The project's desks (desks.list, desk.pin, desks.keep). */
   desks = new FakeDesks();
@@ -304,7 +306,7 @@ export class FakeWorktrees {
         if (p.owner !== undefined && typeof p.owner !== 'string') throw invalidParams('owner must be a string', 'owner');
         const repo = p.repo as string | undefined;
         const rows = this.rows.filter((w) => (!repo || w.repo === repo) && (p.owner === undefined || w.owner === p.owner));
-        return { worktrees: structuredClone(rows) };
+        return { worktrees: structuredClone(rows), prs_unavailable: this.prsUnavailable };
       }
       case 'worktree.diff': {
         if (typeof p.path !== 'string' || !p.path) throw invalidParams('worktree.diff needs a path', 'path');

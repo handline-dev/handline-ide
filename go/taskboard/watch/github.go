@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
@@ -19,11 +20,15 @@ import (
 const NoCIWait = 10 * time.Minute
 
 // GitHub watches a pull request's CI (ci) or its close (closed), or an issue being finished (done), through the gh CLI's own login: handline
-// never sees a token. A target is owner/name#N.
+// never sees a token. A target is owner/name#N. It is also the one reader of a pull request (ReadPull, Pull, BranchPull), for whoever
+// shows one.
 type GitHub struct {
 	// Run runs gh with args and answers its standard output; nil runs the gh CLI. Now is the clock; nil is time.Now.
 	Run func(ctx context.Context, args ...string) ([]byte, error)
 	Now func() time.Time
+
+	mu   sync.Mutex
+	kept map[string]kept // what was last read, by pull request, by branch and for Unready
 }
 
 var githubTarget = regexp.MustCompile(`^([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#([1-9][0-9]*)$`)
@@ -41,6 +46,12 @@ func PullOf(w db.Watch) (repo string, number int64, ok bool) {
 	return m[1], n, err == nil
 }
 
+// Why gh cannot be used on this machine (Unready).
+const (
+	GhMissing   = "gh_missing"
+	GhLoggedOut = "gh_logged_out"
+)
+
 func (g *GitHub) Ready(ctx context.Context) (bool, string) {
 	if _, err := g.gh(ctx, "auth", "status"); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
@@ -49,6 +60,25 @@ func (g *GitHub) Ready(ctx context.Context) (bool, string) {
 		return false, "gh is not logged in: run gh auth login"
 	}
 	return true, ""
+}
+
+// Unready is why gh cannot be used on this machine, as a reason (GhMissing or GhLoggedOut) and Ready's words; both "" when it can. The
+// answer is kept for PullTTL, so a screen that shows many pull requests asks once.
+func (g *GitHub) Unready(ctx context.Context) (reason, why string) {
+	const key = "\x00ready"
+	k, ok := g.held(key)
+	if !ok {
+		_, err := g.gh(ctx, "auth", "status")
+		g.keep(key, nil, err)
+		k.err = err
+	}
+	switch {
+	case k.err == nil:
+		return "", ""
+	case errors.Is(k.err, exec.ErrNotFound):
+		return GhMissing, "the gh CLI is not installed"
+	}
+	return GhLoggedOut, "gh is not logged in: run gh auth login"
 }
 
 // Parse takes ci and closed to be about a pull request and done about an issue; GitHub numbers them together, so which one #N is shows
@@ -73,24 +103,29 @@ func (g *GitHub) Check(ctx context.Context, target, until string, since time.Tim
 		return "", "", fmt.Errorf("a github target is owner/name#N, not %q", target)
 	}
 	repo, n := m[1], m[2]
-	kind, fields := "pr", "state,mergeCommit,statusCheckRollup,commits"
 	if until == "done" {
-		kind, fields = "issue", "state,stateReason"
-	}
-	out, err := g.gh(ctx, kind, "view", n, "-R", repo, "--json", fields)
-	if err != nil {
-		if gone(err) {
-			return Gone, err.Error(), nil
+		out, err := g.gh(ctx, "issue", "view", n, "-R", repo, "--json", "state,stateReason")
+		if err != nil {
+			if gone(err) {
+				return Gone, err.Error(), nil
+			}
+			return "", "", err
 		}
+		return doneVerdict(out)
+	}
+	number, _ := strconv.ParseInt(n, 10, 64)
+	p, err := g.ReadPull(ctx, repo, number) // a gate reads afresh, and leaves what it read for a card or a branch's verdict
+	switch {
+	case errors.Is(err, ErrGone):
+		return Gone, err.Error(), nil
+	case err != nil:
 		return "", "", err
+	case until == "ci":
+		v, evidence := ciVerdict(p, since, g.now())
+		return v, evidence, nil
 	}
-	switch until {
-	case "ci":
-		return ciVerdict(out, since, g.now())
-	case "closed":
-		return closedVerdict(out)
-	}
-	return doneVerdict(out)
+	v, evidence := closedVerdict(p)
+	return v, evidence, nil
 }
 
 type ghCheck struct {
@@ -140,17 +175,22 @@ func (c ghCheck) ok() bool {
 // Rollup is a pull request's checks as gh gives them (statusCheckRollup): every run of every check, a rerun beside the run it replaced.
 type Rollup []ghCheck
 
-// Failed names the checks that stand failed, in the order they first appear: the latest run of each has finished and is not ok. A run
-// that a rerun replaced says nothing, and a check still waiting has not failed yet. Every reader of a pull request's checks counts
-// through this, so a gate and a branch's verdict cannot disagree.
-func (r Rollup) Failed() []string {
-	var failed []string
+// Checks is where each check stands, in the order the checks first appear: by its latest run, waiting until that has finished, then
+// passed when it is ok and failed when it is not. A run that a rerun replaced says nothing. Every reader of a pull request's checks
+// reads them through this, so a gate and a branch's verdict cannot disagree.
+func (r Rollup) Checks() []Check {
+	var out []Check
 	for _, c := range latest(r) {
-		if !c.waiting() && !c.ok() {
-			failed = append(failed, c.name())
+		state := CheckFailed
+		switch {
+		case c.waiting():
+			state = CheckWaiting
+		case c.ok():
+			state = CheckPassed
 		}
+		out = append(out, Check{Name: c.name(), State: state})
 	}
-	return failed
+	return out
 }
 
 // latest keeps one entry per check, the one that started last (a later entry on a tie), in the order the checks first appear. A check that was
@@ -172,66 +212,54 @@ func latest(rollup Rollup) []ghCheck {
 	return out
 }
 
-// ciVerdict reads `gh pr view --json state,mergeCommit,statusCheckRollup,commits`. A check run is waiting until it completes and ok when
-// it concludes SUCCESS, NEUTRAL or SKIPPED; a commit status is waiting while PENDING or EXPECTED and ok when SUCCESS. Only the latest run
-// of each check counts. Every check ok is passed and any other end is failed, once none waits. A PR that closes while its CI still waits
-// is failed: that CI will not finish. A PR with no checks NoCIWait after its head commit and the watch's start has no CI, and is passed.
-func ciVerdict(out []byte, since, now time.Time) (Verdict, string, error) {
-	var pr struct {
-		State   string
-		Rollup  Rollup `json:"statusCheckRollup"`
-		Commits []struct{ CommittedDate time.Time }
-	}
-	if err := json.Unmarshal(out, &pr); err != nil {
-		return "", "", err
-	}
-	closed := pr.State == "MERGED" || pr.State == "CLOSED"
-	if len(pr.Rollup) == 0 {
+// ciVerdict is a pull request's CI. A check run is waiting until it completes and ok when it concludes SUCCESS, NEUTRAL or SKIPPED; a
+// commit status is waiting while PENDING or EXPECTED and ok when SUCCESS. Only the latest run of each check counts. Every check ok is
+// passed and any other end is failed, once none waits. A PR that closes while its CI still waits is failed: that CI will not finish. A
+// PR with no checks NoCIWait after its head commit and the watch's start has no CI, and is passed.
+func ciVerdict(p *Pull, since, now time.Time) (Verdict, string) {
+	closed := p.State != PullOpen
+	if len(p.Checks) == 0 {
 		switch {
 		case closed:
-			return Failed, "closed before CI", nil
-		case len(pr.Commits) > 0:
-			if head := pr.Commits[len(pr.Commits)-1].CommittedDate; head.After(since) {
-				since = head
+			return Failed, "closed before CI"
+		case !p.HeadAt.IsZero():
+			if p.HeadAt.After(since) {
+				since = p.HeadAt
 			}
 			if now.Sub(since) >= NoCIWait {
-				return Passed, "no CI on this PR", nil
+				return Passed, "no CI on this PR"
 			}
 		}
-		return Waiting, "", nil
+		return Waiting, ""
 	}
-	for _, c := range latest(pr.Rollup) {
-		if c.waiting() {
-			if closed {
-				return Failed, "closed before CI", nil
-			}
-			return Waiting, "", nil
+	if p.Count(CheckWaiting) > 0 {
+		if closed {
+			return Failed, "closed before CI"
 		}
+		return Waiting, ""
 	}
-	if failed := pr.Rollup.Failed(); len(failed) > 0 {
-		return Failed, "ci failed: " + strings.Join(failed, ", "), nil
+	if failed := p.Failed(); len(failed) > 0 {
+		return Failed, "ci failed: " + strings.Join(failed, ", ")
 	}
-	return Passed, "ci passed", nil
+	return Passed, "ci passed"
 }
 
-func closedVerdict(out []byte) (Verdict, string, error) {
-	var pr struct {
-		State       string
-		MergeCommit *struct{ Oid string }
+// merged is the evidence of a merge: the commit it made, when the host names it.
+func merged(p *Pull) string {
+	if p.MergeSha == "" {
+		return "merged"
 	}
-	if err := json.Unmarshal(out, &pr); err != nil {
-		return "", "", err
+	return "merged " + p.MergeSha
+}
+
+func closedVerdict(p *Pull) (Verdict, string) {
+	switch p.State {
+	case PullMerged:
+		return Passed, merged(p)
+	case PullClosed:
+		return Failed, "closed unmerged"
 	}
-	switch pr.State {
-	case "MERGED":
-		if pr.MergeCommit == nil {
-			return Passed, "merged", nil
-		}
-		return Passed, "merged " + pr.MergeCommit.Oid, nil
-	case "CLOSED":
-		return Failed, "closed unmerged", nil
-	}
-	return Waiting, "", nil
+	return Waiting, ""
 }
 
 // doneVerdict is an issue closed as completed (passed) or for any other reason, such as not planned (failed).

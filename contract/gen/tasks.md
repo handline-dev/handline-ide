@@ -9,6 +9,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.get` | agent |  | `task` | `TaskDetail & ReadCursor` | `not_found` |  | `task` by task, fed by tasks |
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
+| `task.pr` | member |  | `task` | `TaskPR \| null` | `not_found`, `bad_request` |  | `task-pr` by task, snapshot |
 | `task.changes` | member |  | `task`, `commit?` | `{task, commits, commit, files, diff, truncated, left_out}` | `not_found`, `bad_request` |  | `task-changes`, snapshot |
 | `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `draft?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
 | `task.handoff` | agent | yes | `task`, `to`, `note?`, `files?`, `checked?`, `misses?`, `tests?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
@@ -61,6 +62,10 @@ Every change to a task, newest first: one row per field changed, with who made i
 ### `task.time`
 
 Where a task's time went, from its opening to its end (or now): segments in order that cover it with no gap or overlap, and the split of its time box. Read from what the daemon already records (the task's state events, its turns, its blockers and children, its asks of the founder, its acting agent's parks and starts); nothing is timed twice. Where two causes overlap, the stretch shows one, in this order: waiting on the founder, blocked by a task, waiting on another agent, queued, at an account's wall, starting, working.
+
+### `task.pr`
+
+A task's pull request as its host has it now: where it stands, the checks that failed by their latest run, the review's decision. null for a task that names none (Task.pr). The daemon reads it with the gh CLI's own login on the machine it runs on and keeps the answer about a minute; a gate on the same pull request and its branch's verdict in worktrees.list come from the same read. What could not be read is said in unavailable, never left out.
 
 ### `task.changes`
 

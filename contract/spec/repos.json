@@ -625,6 +625,17 @@
        "items": {
         "$ref": "#/components/schemas/Worktree"
        }
+      },
+      "prs_unavailable": {
+       "oneOf": [
+        {
+         "$ref": "#/components/schemas/PullUnavailable"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Why no row carries a pull request though a branch was asked about: gh is not installed or not logged in on the daemon's machine (reason gh_missing or gh_logged_out). null when gh can be used, or nothing was asked. Absent from a daemon that does not send it."
       }
      },
      "required": [

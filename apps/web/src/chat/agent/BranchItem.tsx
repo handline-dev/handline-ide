@@ -1,5 +1,7 @@
 import { useWorktrees } from '@handline/app-data';
+import type { PullUnavailable, Worktree } from '@handline/client';
 import { Check, Copy, FileDiff, GitBranch } from 'lucide-react';
+import { PullChip, PullsUnavailable } from '#src/ui/PullChip.tsx';
 import { CardAction, chip, MenuHeading, MenuRule } from '#src/chat/agent/menuParts.tsx';
 import { focusIn } from '#src/layout/focus.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -7,30 +9,56 @@ import type { ReactNode } from 'react';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { useCopy } from '#src/ui/copy.ts';
 
-/** The branch: resting on it shows its changed files and copies its name; a click opens the Changes tab with the diff. */
+/** The branch: resting on it shows its changed files and copies its name; a click opens the Changes tab with the diff. Its pull
+ * request, when it has one, stands beside it: the number and what holds it, a link to GitHub. */
 export function BranchItem({ agent, branch, path }: { agent: string; branch: string; path: string }) {
-  const changed = useWorktrees({ owner: agent }).data?.worktrees.find((w) => w.path === path)?.changed ?? [];
+  const list = useWorktrees({ owner: agent }).data;
+  const row = list?.worktrees.find((w) => w.path === path);
+  const changed = row?.changed ?? [];
+  const diff = useOpenable('diff');
+  const added = changed.reduce((n, f) => n + f.added, 0);
+  const deleted = changed.reduce((n, f) => n + f.deleted, 0);
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <HoverCard
+        trigger={
+          <button type="button" {...diff} className={chip}>
+            <GitBranch size={13} className="shrink-0" />
+            <span className="truncate">{branch}</span>
+            {changed.length > 0 && (
+              <span className="shrink-0 tabular-nums">
+                <span className="text-success">+{added}</span> <span className="text-danger">−{deleted}</span>
+              </span>
+            )}
+          </button>
+        }
+      >
+        <BranchCard agent={agent} branch={branch} changed={changed} noPulls={list?.prs_unavailable} />
+      </HoverCard>
+      {row?.pr && <PullChip pr={row.pr} />}
+    </div>
+  );
+}
+
+/** What resting on the branch shows: its biggest changed files, why it shows no pull request when gh cannot be used, and its actions. */
+function BranchCard({
+  agent,
+  branch,
+  changed,
+  noPulls,
+}: {
+  agent: string;
+  branch: string;
+  changed: Worktree['changed'];
+  noPulls?: PullUnavailable | null;
+}) {
   const diff = useOpenable('diff');
   // The copy button says it took, in place, for a moment: the card stays open under the pointer, so it is seen there.
   const { copied, copy } = useCopy();
-  const added = changed.reduce((n, f) => n + f.added, 0);
-  const deleted = changed.reduce((n, f) => n + f.deleted, 0);
   const biggest = [...changed].sort((a, b) => b.added + b.deleted - (a.added + a.deleted)).slice(0, 5);
   const rest = changed.find((f) => !biggest.includes(f));
   return (
-    <HoverCard
-      trigger={
-        <button type="button" {...diff} className={chip}>
-          <GitBranch size={13} className="shrink-0" />
-          <span className="truncate">{branch}</span>
-          {changed.length > 0 && (
-            <span className="shrink-0 tabular-nums">
-              <span className="text-success">+{added}</span> <span className="text-danger">−{deleted}</span>
-            </span>
-          )}
-        </button>
-      }
-    >
+    <>
       {changed.length > 0 && (
         <>
           <MenuHeading>{`${changed.length} files changed`}</MenuHeading>
@@ -51,6 +79,12 @@ export function BranchItem({ agent, branch, path }: { agent: string; branch: str
           <MenuRule />
         </>
       )}
+      {noPulls && (
+        <>
+          <PullsUnavailable why={noPulls} className="max-w-64 px-2 py-1" />
+          <MenuRule />
+        </>
+      )}
       {/* The card opens above the branch, so its actions sit at its foot, nearest the pointer. */}
       <div className="flex flex-col">
         <CardAction icon={<FileDiff size={14} />} {...diff}>
@@ -63,7 +97,7 @@ export function BranchItem({ agent, branch, path }: { agent: string; branch: str
           {copied ? 'Copied' : 'Copy branch name'}
         </CardAction>
       </div>
-    </HoverCard>
+    </>
   );
 }
 
