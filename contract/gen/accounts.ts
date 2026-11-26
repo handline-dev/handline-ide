@@ -188,7 +188,7 @@ export type Outlook = {
     week_resets_at: Timestamp | null;
   }[];
   cost_per_day: DayCosts;
-  /** What each agent used over the last `range` (the span of `past`), largest cost first, ties by name. Absent from a daemon that does not send it. */
+  /** What each agent used over the last `range` (the span of `past`), largest cost first, ties by name; plan money of a week's rise with no priced call comes last as a row of (unattributed) with no tokens. Absent from a daemon that does not send it. */
   agent_use?: {
     agent: string;
     /** Tokens the agent used in the span. */
@@ -201,6 +201,8 @@ export type Outlook = {
     est_pct: number | null;
     /** Its cost share of each account in the span, by account name (a fraction, 0 to 1). An account on which nothing at all was spent is absent; one on which others spent but none of this agent's tokens was priced is 0. */
     fracs: { [key: string]: number };
+    /** Its plan money in the span, US dollars: each account's week rise in the span times that account's weekly budget, split by its cost share of that account (`fracs`). Token prices only split it; they never size it. */
+    plan_cost?: number;
   }[];
   /** Only with `agent`: the points of the combined week the pick had used by each time of `past`, one number per `past` entry in the same order: its cost share of each account times what that account had used so far, averaged over the accounts. Empty when the pick used nothing in the span or is not an agent or group. Absent from a daemon that does not send it. */
   overlay?: number[];
@@ -229,6 +231,36 @@ export type Outlook = {
       unused_pct?: number;
     }[];
   }[];
+  plan_cost_per_day?: PlanDayCosts;
+  /** The week in plan money: each account's monthly fee turned into a weekly budget, of which its week's percent used is spent. Absent from a daemon that does not send it. */
+  budget?: {
+    /** Each metered account, by name. */
+    accounts: {
+      account: string;
+      /** The plan as Anthropic names it (Pro, Max, Ultra); null when none is recorded. */
+      plan: string | null;
+      /** Its monthly fee in US dollars: the one set on the account (account.set plan_fee), else its plan's listed one (Pro 20, Max 100, Ultra 200); 0 for a plan with none. */
+      fee_usd: number;
+      /** Its weekly budget: fee_usd x 12 / 52. */
+      week_usd: number;
+      /** Percent of its week used now; null with no reading. A week whose reset has passed is 0. */
+      used_pct: number | null;
+      /** used_pct of week_usd; null with no reading. */
+      spent_usd: number | null;
+      /** week_usd less spent_usd; null with no reading. */
+      left_usd: number | null;
+      /** Whether its reading carries a 5-hour figure: an Ultra account has no 5-hour limit, so none. */
+      five_hour: boolean;
+    }[];
+    /** The weekly budgets together, of the accounts with a fee and a reading. */
+    week_usd: number;
+    /** What those accounts spent of them this week. */
+    spent_usd: number;
+    /** week_usd less spent_usd. */
+    left_usd: number;
+    /** Percent of week_usd left: the accounts' weeks weighted by their budgets, not averaged. null when no account counts. */
+    left_pct: number | null;
+  };
 };
 
 /** The cost of one founder's task: its wall time, and the tokens spent inside the doing windows of every task in its subtree, per agent. */
@@ -260,6 +292,14 @@ export type DayCosts = {
   agents: { [key: string]: number };
 }[];
 
+/** The plan money the agents used per local calendar day of the range, oldest first; a day nothing rose is absent. Absent from a daemon that does not send it. */
+export type PlanDayCosts = {
+  /** Local calendar day, YYYY-MM-DD. */
+  day: string;
+  /** Plan money in US dollars of each agent that day: each account's week rises seen that day (dated by the reading that shows them) times its weekly budget, split by the agents' list-price cost on that account that day; money of a rise with no priced call is under (unattributed). */
+  agents: { [key: string]: number };
+}[];
+
 export interface AccountsMethods {
   "accounts.list": { params: {
   /** Add each account's agents_assigned, agents_running, agents_background and agents_unplaced. Default false. */
@@ -280,6 +320,8 @@ export interface AccountsMethods {
   cycle?: boolean;
   /** Last usable day YYYY-MM-DD; a date alone turns the cycle on, as `hl account cycle --end` does; null clears it. */
   cycle_end?: string | null;
+  /** The account's monthly fee in US dollars when it is not its plan's listed one; null goes back to the plan's. */
+  plan_fee?: number | null;
   request_id: RequestId;
 }; result: Accepted };
   "account.wake": { params: {

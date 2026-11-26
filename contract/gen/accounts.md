@@ -6,7 +6,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | Method | Role | Write | Params | Result | Errors | Gates | App |
 |---|---|---|---|---|---|---|---|
 | `accounts.list` | agent |  | `roster?`, `usage?` | `{accounts} & ReadCursor` | `bad_request` |  | `accounts`, fed by accounts |
-| `account.set` | owner | yes | `account`, `label?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
+| `account.set` | owner | yes | `account`, `label?`, `recover?`, `paused?`, `cycle?`, `cycle_end?`, `plan_fee?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: save account |
 | `account.wake` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | authored: wake |
 | `account.read_usage` | owner | yes | `account`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: read usage |
 | `account.add` | owner | yes | `account?`, `vendor?`, `request_id` | `Accepted & {account}` | `refused`, `bad_request` | role, state | decided: add account |
@@ -26,7 +26,7 @@ Accounts with login state, use, agents, recent moves.
 
 ### `account.set`
 
-The account Settings form in one call: alias, usage recovery, the month cycle and pause; nothing is written if any is refused. Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cycle, recover, alias) each write one of these fields.
+The account Settings form in one call: alias, usage recovery, the month cycle, the plan fee and pause; nothing is written if any is refused. Fields not given are left alone. Chosen over set_cycle_on/set_cycle_end methods because the UI saves these together and the CLI twins (cycle, recover, alias) each write one of these fields.
 
 ### `account.wake`
 

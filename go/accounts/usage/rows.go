@@ -15,7 +15,7 @@ import (
 // that holds them. They come from the account's row, never from config.yaml.
 var AccountKeys = []struct{ Prefix, Column string }{
 	{"label_", "label"}, {"paused_", "paused"},
-	{"usage_recover_", "usage_recover"}, {"month_cycle_", "month_cycle"}, {"sub_end_", "sub_end"},
+	{"usage_recover_", "usage_recover"}, {"month_cycle_", "month_cycle"}, {"sub_end_", "sub_end"}, {"plan_fee_", "plan_fee"},
 }
 
 // AccountSetting is the account and column a per-account Config key is held in; acct is "" for any other key.
@@ -66,7 +66,7 @@ func withAccountRows(home string, m Config) (Config, error) {
 func ReadAccountRows(q interface {
 	Query(string, ...any) (*sql.Rows, error)
 }) (map[string]map[string]any, error) {
-	rows, err := q.Query("SELECT name, label, paused, usage_recover, month_cycle, sub_end FROM accounts")
+	rows, err := q.Query("SELECT name, label, paused, usage_recover, month_cycle, sub_end, plan_fee FROM accounts")
 	if err != nil {
 		return nil, err
 	}
@@ -76,8 +76,9 @@ func ReadAccountRows(q interface {
 		var name string
 		var label, subEnd sql.NullString
 		var recover, cycle sql.NullInt64
+		var fee sql.NullFloat64
 		var paused bool
-		if err := rows.Scan(&name, &label, &paused, &recover, &cycle, &subEnd); err != nil {
+		if err := rows.Scan(&name, &label, &paused, &recover, &cycle, &subEnd, &fee); err != nil {
 			return nil, err
 		}
 		set := map[string]any{}
@@ -95,6 +96,9 @@ func ReadAccountRows(q interface {
 		}
 		if subEnd.Valid {
 			set["sub_end"] = subEnd.String
+		}
+		if fee.Valid {
+			set["plan_fee"] = fee.Float64
 		}
 		out[name] = set
 	}
@@ -131,7 +135,7 @@ func SetAccount(q actor.Q, name string, set map[string]any) error {
 	return err
 }
 
-// columnValue is v as col stores it: text for label and sub_end, 0 or 1 for the flags;
+// columnValue is v as col stores it: text for label and sub_end, a number of at least 0 for plan_fee, 0 or 1 for the flags;
 // nil is NULL but for paused, whose default is 0.
 func columnValue(col string, v any) (any, error) {
 	if prefixOf(col) == "" {
@@ -147,6 +151,10 @@ func columnValue(col string, v any) (any, error) {
 	case "label", "sub_end":
 		if s, ok := v.(string); ok {
 			return s, nil
+		}
+	case "plan_fee":
+		if f, ok := num(v); ok && f >= 0 && f <= MaxFee {
+			return f, nil
 		}
 	default:
 		if b, ok := v.(bool); ok {

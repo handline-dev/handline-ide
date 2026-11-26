@@ -1,6 +1,7 @@
 package adminwrites
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,7 +17,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// account.set: an account's alias, usage recovery, month cycle and pause, in its row; account.wake ends its stall. account.set
+// account.set: an account's alias, usage recovery, month cycle, plan fee and pause, in its row; account.wake ends its stall. account.set
 // writes what a retry writes again. settings.trust stays with the Python daemon; account.add and account.remove are in accountadmin.go.
 
 const labelMax = 40
@@ -30,6 +31,30 @@ func flagParam(p map[string]any, key string) (v, given bool, err error) {
 		return false, false, badParam(key+" is true or false", key)
 	}
 	return b, true, nil
+}
+
+// feeParam is account.set's plan_fee: a monthly fee in US dollars from 0 to usage.MaxFee, or null for the plan's listed one.
+func feeParam(p map[string]any) (fee any, given bool, err error) {
+	v, in := p["plan_fee"]
+	if !in || v == nil {
+		return nil, in, nil
+	}
+	var f float64
+	ok := true
+	switch n := v.(type) {
+	case float64:
+		f = n
+	case json.Number:
+		var perr error
+		f, perr = n.Float64()
+		ok = perr == nil
+	default:
+		ok = false
+	}
+	if !ok || !(f >= 0 && f <= usage.MaxFee) {
+		return nil, false, badParam(fmt.Sprintf("plan_fee is a monthly fee in US dollars from 0 to %d, or null", usage.MaxFee), "plan_fee")
+	}
+	return f, true, nil
 }
 
 func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
@@ -65,6 +90,10 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 			}
 			end = s
 		}
+	}
+	fee, hasFee, err := feeParam(p)
+	if err != nil {
+		return nil, err
 	}
 	cfg, err := e.readAccount(acct)
 	if err != nil {
@@ -105,6 +134,14 @@ func (e *Env) accountSet(c *rpc.Conn, p map[string]any) (any, error) {
 		}
 		cfg.set("month_cycle_"+acct, cycleOn)
 		said = append(said, fmt.Sprintf("%s: month cycle %s", acct, map[bool]string{true: "on", false: "off"}[cycleOn]))
+	}
+	if hasFee && fmt.Sprint(fee) != fmt.Sprint(cfg.get("plan_fee_"+acct)) {
+		cfg.set("plan_fee_"+acct, fee)
+		if fee == nil {
+			said = append(said, acct+": plan fee is the plan's")
+		} else {
+			said = append(said, fmt.Sprintf("%s: plan fee $%v a month", acct, fee))
+		}
 	}
 	if hasPaused && paused != (cfg.get("paused_"+acct) == true) {
 		if paused {

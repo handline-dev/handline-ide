@@ -86,12 +86,12 @@ type AccountFactors struct {
 	Scale float64 `json:"plan_scale"`
 }
 
-// PlanScale is a plan's size relative to Pro: Max 5x is 5, Max 20x 20. The rate-limit tier tells the two Max plans apart; a Max with no
-// tier is taken as 5x.
+// PlanScale is a plan's weekly usage relative to Pro: Max is 5, Ultra (claude's max_20x tier) 10, as Anthropic lists them. The rate-limit
+// tier tells the two apart; a Max with no tier is taken as Max.
 func PlanScale(subscription, tier string) float64 {
 	switch {
 	case strings.Contains(tier, "max_20x"):
-		return 20
+		return 10
 	case strings.Contains(tier, "max_5x"), strings.Contains(subscription, "max"):
 		return 5
 	}
@@ -100,7 +100,7 @@ func PlanScale(subscription, tier string) float64 {
 
 // PlanName is the plan as Anthropic names it now, from what claude reports: the 20x Max plan was renamed Ultra and the 5x one is just
 // Max, while claude still says subscription "max" with tier "default_claude_max_20x" or "default_claude_max_5x". A Max with no tier is
-// taken as Max, as PlanScale takes it as 5x. Any other subscription ("pro", "team", "enterprise") is its own word capitalized; ""
+// taken as Max, as PlanScale takes it. Any other subscription ("pro", "team", "enterprise") is its own word capitalized; ""
 // when none is recorded.
 func PlanName(subscription, tier string) string {
 	switch {

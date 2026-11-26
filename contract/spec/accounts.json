@@ -822,6 +822,10 @@
           "type": "number"
          },
          "description": "Its cost share of each account in the span, by account name (a fraction, 0 to 1). An account on which nothing at all was spent is absent; one on which others spent but none of this agent's tokens was priced is 0."
+        },
+        "plan_cost": {
+         "type": "number",
+         "description": "Its plan money in the span, US dollars: each account's week rise in the span times that account's weekly budget, split by its cost share of that account (`fracs`). Token prices only split it; they never size it."
         }
        },
        "required": [
@@ -833,7 +837,7 @@
         "fracs"
        ]
       },
-      "description": "What each agent used over the last `range` (the span of `past`), largest cost first, ties by name. Absent from a daemon that does not send it."
+      "description": "What each agent used over the last `range` (the span of `past`), largest cost first, ties by name; plan money of a week's rise with no priced call comes last as a row of (unattributed) with no tokens. Absent from a daemon that does not send it."
      },
      "overlay": {
       "type": "array",
@@ -992,6 +996,125 @@
        ]
       },
       "description": "Each account that has a reading in the span, by name: its windows and its pace line, for a chart per account. Absent from a daemon that does not send it."
+     },
+     "plan_cost_per_day": {
+      "$ref": "#/components/schemas/PlanDayCosts"
+     },
+     "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "accounts": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "additionalProperties": false,
+         "properties": {
+          "account": {
+           "type": "string"
+          },
+          "plan": {
+           "oneOf": [
+            {
+             "type": "string"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "The plan as Anthropic names it (Pro, Max, Ultra); null when none is recorded."
+          },
+          "fee_usd": {
+           "type": "number",
+           "description": "Its monthly fee in US dollars: the one set on the account (account.set plan_fee), else its plan's listed one (Pro 20, Max 100, Ultra 200); 0 for a plan with none."
+          },
+          "week_usd": {
+           "type": "number",
+           "description": "Its weekly budget: fee_usd x 12 / 52."
+          },
+          "used_pct": {
+           "oneOf": [
+            {
+             "type": "number"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "Percent of its week used now; null with no reading. A week whose reset has passed is 0."
+          },
+          "spent_usd": {
+           "oneOf": [
+            {
+             "type": "number"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "used_pct of week_usd; null with no reading."
+          },
+          "left_usd": {
+           "oneOf": [
+            {
+             "type": "number"
+            },
+            {
+             "type": "null"
+            }
+           ],
+           "description": "week_usd less spent_usd; null with no reading."
+          },
+          "five_hour": {
+           "type": "boolean",
+           "description": "Whether its reading carries a 5-hour figure: an Ultra account has no 5-hour limit, so none."
+          }
+         },
+         "required": [
+          "account",
+          "plan",
+          "fee_usd",
+          "week_usd",
+          "used_pct",
+          "spent_usd",
+          "left_usd",
+          "five_hour"
+         ]
+        },
+        "description": "Each metered account, by name."
+       },
+       "week_usd": {
+        "type": "number",
+        "description": "The weekly budgets together, of the accounts with a fee and a reading."
+       },
+       "spent_usd": {
+        "type": "number",
+        "description": "What those accounts spent of them this week."
+       },
+       "left_usd": {
+        "type": "number",
+        "description": "week_usd less spent_usd."
+       },
+       "left_pct": {
+        "oneOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "description": "Percent of week_usd left: the accounts' weeks weighted by their budgets, not averaged. null when no account counts."
+       }
+      },
+      "required": [
+       "accounts",
+       "week_usd",
+       "spent_usd",
+       "left_usd",
+       "left_pct"
+      ],
+      "description": "The week in plan money: each account's monthly fee turned into a weekly budget, of which its week's percent used is spent. Absent from a daemon that does not send it."
      }
     },
     "required": [
@@ -1091,6 +1214,30 @@
      ]
     },
     "description": "What the agents cost per local calendar day, oldest first; a day with no calls is absent."
+   },
+   "PlanDayCosts": {
+    "type": "array",
+    "items": {
+     "type": "object",
+     "properties": {
+      "day": {
+       "type": "string",
+       "description": "Local calendar day, YYYY-MM-DD."
+      },
+      "agents": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "number"
+       },
+       "description": "Plan money in US dollars of each agent that day: each account's week rises seen that day (dated by the reading that shows them) times its weekly budget, split by the agents' list-price cost on that account that day; money of a rise with no priced call is under (unattributed)."
+      }
+     },
+     "required": [
+      "day",
+      "agents"
+     ]
+    },
+    "description": "The plan money the agents used per local calendar day of the range, oldest first; a day nothing rose is absent. Absent from a daemon that does not send it."
    }
   }
  },
@@ -1156,7 +1303,7 @@
   },
   {
    "name": "account.set",
-   "summary": "The account Settings form in one call: alias, usage recovery, the month cycle and pause; nothing is written if any is refused.",
+   "summary": "The account Settings form in one call: alias, usage recovery, the month cycle, the plan fee and pause; nothing is written if any is refused.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -1212,6 +1359,23 @@
        }
       ],
       "description": "Last usable day YYYY-MM-DD; a date alone turns the cycle on, as `hl account cycle --end` does; null clears it."
+     }
+    },
+    {
+     "name": "plan_fee",
+     "required": false,
+     "schema": {
+      "oneOf": [
+       {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 100000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The account's monthly fee in US dollars when it is not its plan's listed one; null goes back to the plan's."
      }
     },
     {

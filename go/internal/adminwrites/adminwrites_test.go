@@ -278,6 +278,17 @@ func TestAccountSetWritesConfigAndRefusesWhatNeedsTheProfile(t *testing.T) {
 	if r.code(r.one("account.set", `{"account":"main","cycle":true,"request_id":"a6"}`)) != "refused" || r.account("main")["month_cycle"] != true {
 		t.Fatal("the cycle on with no end day: refused, nothing written")
 	}
+	if r.code(r.one("account.set", `{"account":"main","plan_fee":-1,"request_id":"a7"}`)) != "bad_request" {
+		t.Fatal("a fee under 0 is refused")
+	}
+	if res := r.result(r.one("account.set", `{"account":"main","plan_fee":150,"request_id":"a8"}`)); res["said"] != "main: plan fee $150 a month" ||
+		r.account("main")["plan_fee"] != 150.0 {
+		t.Fatalf("a fee of its own: %v %v", res, r.account("main"))
+	}
+	if res := r.result(r.one("account.set", `{"account":"main","plan_fee":null,"request_id":"a9"}`)); res["said"] != "main: plan fee is the plan's" ||
+		r.account("main")["plan_fee"] != nil {
+		t.Fatalf("null goes back to the plan's fee: %v", res)
+	}
 }
 
 func (auth) SessionsReadable() error { return nil }

@@ -255,26 +255,40 @@ func agentForCwd(cwd string, trees []worktreeOf) string {
 	return Unattributed
 }
 
-// CallCosts is the list-price cost of each agent per local day over (dayLo, hi] and stats.agent_use over (useLo, hi] (agentUses), from one read of the calls.
-func CallCosts(q db.Q, dayLo, useLo, hi int64, table []priceEntry, weekUsed map[string]float64) (map[string]map[string]float64, []AgentUse, error) {
+// CallCost is what CallCosts reads from one pass over the calls.
+type CallCost struct {
+	Daily map[string]map[string]float64 // list-price cost per local day and agent
+	Uses  []AgentUse                    // stats.agent_use (agentUses)
+	Plan  PlanCosts
+}
+
+// CallCosts is the list-price cost of each agent per local day over (dayLo, hi], stats.agent_use over (useLo, hi] (agentUses), and the
+// plan money of both (planCostsOf, from the samples rows, from at least OutlookMaxAgeS before either, and each account's weekly budget weekUSD), from one read of the calls.
+func CallCosts(q db.Q, dayLo, useLo, hi int64, table []priceEntry, rows []sampleRow, weekUSD map[string]float64) (CallCost, error) {
 	daily := map[string]map[string]float64{}
+	days := dayCalls{}
 	per := tally{}
 	err := scanCalls(q, min(dayLo, useLo), hi, table, func(ts int64, k callKey, tokens int64, cost float64) {
 		if ts > dayLo {
-			addDay(daily, ts, k.agent, cost)
+			day := dayOf(ts)
+			addDay(daily, day, k.agent, cost)
+			days.add(day, k, cost)
 		}
 		if ts > useLo {
 			per.add(k, tokens, cost)
 		}
 	})
 	if err != nil {
-		return nil, nil, err
+		return CallCost{}, err
 	}
-	return daily, agentUses(per, per.keys(), weekUsed), nil
+	weekUsed := WeekConsumed(rows, useLo, hi)
+	return CallCost{Daily: daily, Uses: agentUses(per, per.keys(), weekUsed),
+		Plan: planCostsOf(days, per, rows, dayLo, useLo, hi, weekUSD)}, nil
 }
 
-func addDay(daily map[string]map[string]float64, ts int64, agent string, cost float64) {
-	day := time.Unix(ts, 0).In(time.Local).Format("2006-01-02")
+func dayOf(ts int64) string { return time.Unix(ts, 0).In(time.Local).Format("2006-01-02") }
+
+func addDay(daily map[string]map[string]float64, day, agent string, cost float64) {
 	if daily[day] == nil {
 		daily[day] = map[string]float64{}
 	}

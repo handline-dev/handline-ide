@@ -188,5 +188,10 @@
   "version": 137,
   "name": "drop_sandbox_domains",
   "additive": false
+ },
+ {
+  "version": 138,
+  "name": "account_plan_fee",
+  "additive": true
  }
 ]

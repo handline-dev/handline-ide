@@ -171,17 +171,20 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	ends, outSince := e.accountEnds(cfg, rows, clock)
 	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince)
 	byAccount, future := outlookByAccount(all, now, hours, ends, outSince)
-	cost, uses, err := usage.CallCosts(e.DB, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), usage.WeekConsumed(rows, now-span, now))
-	if err != nil {
-		return nil, err
-	}
 	loads, err := ue.ReadAll(e.DB, "")
 	if err != nil {
 		return nil, err
 	}
-	runway := []any{}
+	runway, budgets := []any{}, []usage.AccountBudget{}
+	weekUSD := map[string]float64{}
 	for _, a := range paths.ListAccounts(e.Home) {
 		st := ue.Read(a)
+		if !st.Unmetered {
+			sub, tier := team.Accounts{Home: e.Home}.RecordedPlan(a)
+			b := usage.BudgetOf(st, usage.PlanName(sub, tier), cfg.FeeOf(a, sub, tier), now)
+			b.Account = a
+			budgets, weekUSD[a] = append(budgets, b), b.WeekUSD
+		}
 		var runs any
 		if !st.Unmetered {
 			runs = runsOut(st, now, loads[a])
@@ -192,16 +195,52 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 		}
 		runway = append(runway, map[string]any{"account": a, "runs_out_in_seconds": runs, "week_resets_at": resets})
 	}
+	c, err := usage.CallCosts(e.DB, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), all, weekUSD)
+	if err != nil {
+		return nil, err
+	}
 	agentUse := []any{}
-	for _, u := range uses {
-		agentUse = append(agentUse, agentUseOf(u))
+	for _, u := range c.Uses {
+		row := agentUseOf(u)
+		row["plan_cost"] = round(c.Plan.Span[u.Agent], 4)
+		agentUse = append(agentUse, row)
+		delete(c.Plan.Span, u.Agent)
+	}
+	if v, ok := c.Plan.Span[usage.Unattributed]; ok { // a rise with no priced call: plan money no agent row holds
+		agentUse = append(agentUse, map[string]any{"agent": usage.Unattributed, "tokens": 0, "cost": 0.0, "share": 0.0, "est_pct": nil,
+			"fracs": map[string]any{}, "plan_cost": round(v, 4)})
 	}
 	res := map[string]any{"range": name, "now": ts(now), "accounts": out.Accounts, "past": points(out.Past), "future": points(future),
-		"runway": runway, "by_account": byAccount, "cost_per_day": perDayOf(cost), "agent_use": agentUse}
+		"runway": runway, "by_account": byAccount, "cost_per_day": perDayOf(c.Daily), "agent_use": agentUse,
+		"budget": budgetOf(budgets), "plan_cost_per_day": perDayOf(c.Plan.Daily)}
 	if pick != nil {
-		res["overlay"] = overlayOf(rows, uses, *pick, out.Past)
+		res["overlay"] = overlayOf(rows, c.Uses, *pick, out.Past)
 	}
 	return res, nil
+}
+
+// budgetOf is stats.outlook's budget: each account's week in plan money, and the accounts together weighted by their budgets.
+func budgetOf(bs []usage.AccountBudget) map[string]any {
+	accts := []any{}
+	for _, b := range bs {
+		var used, spent, left any
+		if s := b.Spent(); s != nil {
+			used, spent, left = round(*b.UsedPct, 2), round(*s, 2), round(max(0, b.WeekUSD-*s), 2)
+		}
+		var plan any
+		if b.Plan != "" {
+			plan = b.Plan
+		}
+		accts = append(accts, map[string]any{"account": b.Account, "plan": plan, "fee_usd": round(b.FeeUSD, 2), "week_usd": round(b.WeekUSD, 2),
+			"used_pct": used, "spent_usd": spent, "left_usd": left, "five_hour": b.FiveHour})
+	}
+	t := usage.TotalOf(bs)
+	var leftPct any
+	if t.LeftPct != nil {
+		leftPct = round(*t.LeftPct, 2)
+	}
+	return map[string]any{"accounts": accts, "week_usd": round(t.WeekUSD, 2), "spent_usd": round(t.SpentUSD, 2),
+		"left_usd": round(t.WeekUSD-t.SpentUSD, 2), "left_pct": leftPct}
 }
 
 // outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged, each going as usage.Paced does.

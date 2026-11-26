@@ -83,7 +83,7 @@ func TestThePlanScaleComesFromTheTierTheVendorRecords(t *testing.T) {
 		// The shape every account here held on 11-04 (Pro).
 		{map[string]any{"billingType": "stripe_subscription", "seatTier": nil, "organizationRateLimitTier": "default_claude_ai", "userRateLimitTier": nil},
 			"pro", "default_claude_ai", 1},
-		{map[string]any{"organizationRateLimitTier": "default_claude_max_20x", "userRateLimitTier": nil}, "max", "default_claude_max_20x", 20},
+		{map[string]any{"organizationRateLimitTier": "default_claude_max_20x", "userRateLimitTier": nil}, "max", "default_claude_max_20x", 10},
 		{map[string]any{"organizationRateLimitTier": "default_claude_ai", "userRateLimitTier": "default_claude_max_5x"}, "max", "default_claude_max_5x", 5},
 		{map[string]any{}, "max", "", 5},
 	} {

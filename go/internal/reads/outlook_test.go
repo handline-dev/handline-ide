@@ -186,6 +186,45 @@ func outlookWithUse(t *testing.T) (*Env, time.Time) {
 	return e, clock
 }
 
+// The plan money: a, a Pro account with its fee set to $26 ($6 a week), rose 20 points, b, recorded as Max ($23.08 a week), 10.
+// grp.one takes 3/4 of a's and all of b's, grp.two 1/4 of a's; each day's is the same, all of it today.
+func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
+	t.Parallel()
+	e, clock := outlookWithUse(t)
+	for acct, sub := range map[string]string{"a": `{"subscriptionType":"pro"}`, "b": `{"subscriptionType":"max"}`} {
+		dir := paths.AccountDir(e.Home, teamtest.Account(t, e.Home, acct))
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "subscription.json"), []byte(sub), 0o644)
+		five := map[string]string{"a": "null", "b": "4"}[acct] // a reads as an Ultra does: a 5-hour window with no figure
+		os.WriteFile(filepath.Join(dir, "status.json"), []byte(fmt.Sprintf(`{"collected_at": %d, "windows": [{"minutes": 300, "used_percent": %s, "resets_at": null},`+
+			`{"minutes": 10080, "used_percent": %d, "resets_at": %d}]}`, clock.Unix(), five, map[string]int{"a": 30, "b": 20}[acct], clock.Unix()+86400)), 0o644)
+	}
+	run(t, e, "UPDATE accounts SET plan_fee = 26 WHERE name = 'a'")
+	got, err := e.outlookAt("24h", 24, clock, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := got.(map[string]any)
+	bud := res["budget"].(map[string]any)
+	accts := bud["accounts"].([]any)
+	want := "[map[account:a fee_usd:26 five_hour:false left_usd:4.2 plan:Pro spent_usd:1.8 used_pct:30 week_usd:6] " +
+		"map[account:b fee_usd:100 five_hour:true left_usd:18.46 plan:Max spent_usd:4.62 used_pct:20 week_usd:23.08]]"
+	if got := fmt.Sprint(accts); got != want {
+		t.Fatalf("each account's week in plan money: %s", got)
+	}
+	if bud["week_usd"] != 29.08 || bud["spent_usd"] != 6.42 || bud["left_pct"] != 77.94 {
+		t.Fatalf("weighted by budget: %v", bud)
+	}
+	day := res["plan_cost_per_day"].([]any)[0].(map[string]any)["agents"].(map[string]any)
+	if day["grp.one"] != 3.2077 || day["grp.two"] != 0.3 {
+		t.Fatalf("a's 20 points are $1.20, b's 10 are $2.3077: %v", day)
+	}
+	uses := res["agent_use"].([]any)
+	if uses[0].(map[string]any)["plan_cost"] != 3.2077 || uses[1].(map[string]any)["plan_cost"] != 0.3 {
+		t.Fatalf("%v", uses)
+	}
+}
+
 func TestOutlookGivesWhatEachAgentUsedAndTheEstimateOfTheWeek(t *testing.T) {
 	t.Parallel()
 	e, clock := outlookWithUse(t)

@@ -148,15 +148,15 @@ func TestCallCostsKeepsEachCutoff(t *testing.T) {
 	}
 	spent := func(lo, useLo int64) (float64, float64) {
 		t.Helper()
-		daily, uses, err := CallCosts(q, lo, useLo, day, nil, nil)
+		c, err := CallCosts(q, lo, useLo, day, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var d, u float64
-		for _, per := range daily {
+		for _, per := range c.Daily {
 			d += per[Unattributed]
 		}
-		for _, x := range uses {
+		for _, x := range c.Uses {
 			u += x.Cost
 		}
 		return d, u
