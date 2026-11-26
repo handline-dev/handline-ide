@@ -1,9 +1,13 @@
 import { count } from '#src/format/count.ts';
 // A task's code: its commits with All changes first, and the files of what is picked, each opening its diff in the look of the agent's
 // Changes. In a tab of its own (code:<id>, CodeTab) and in a story sub-task's Code tab; the task's change size opens the tab (ChangeSize).
+// A line or a file takes a comment; the comments wait as drafts of the task, on every view of its code, and go out once (CommentBar).
 import { Hooks } from '@handline/app-data';
 import { useState } from 'react';
-import { byFile, File } from '#src/changes/Changes.tsx';
+import { diffFiles } from '@handline/app-core';
+import { TaskCommentBar } from '#src/changes/CommentBar.tsx';
+import { File, noted } from '#src/changes/DiffFile.tsx';
+import { taskPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
 import { codeOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Ago } from '#src/ui/Ago.tsx';
@@ -49,8 +53,10 @@ export function ChangeSize({ task }: { task: number }) {
 
 /** The Code tab of its own, "T<n> Code". */
 export function CodeTab({ id }: { id: number }) {
+  // The bar of waiting comments stays at the top of the scroll area: no fade over it.
+  const waiting = useLineDrafts(taskPlace(id)).list.length > 0;
   return (
-    <ScrollFade keep={`code:${id}`} className="min-h-0 flex-1">
+    <ScrollFade keep={`code:${id}`} fadeTop={!waiting} className="min-h-0 flex-1">
       <TaskCode task={id} />
     </ScrollFade>
   );
@@ -70,6 +76,7 @@ export function TaskCode({ task }: { task: number }) {
   const row = (on: boolean) => `flex w-full items-center gap-3 px-2 py-1.5 text-left text-sm ${on ? 'bg-selected' : 'hover:bg-hover/30'}`;
   return (
     <div className="flex flex-col gap-4 p-4">
+      <TaskCommentBar task={task} />
       <section className="flex flex-col">
         <h3 className="px-2 pb-1 text-xs font-medium text-muted">Commits</h3>
         <button type="button" aria-pressed={!commit} onClick={() => pick(null)} className={`${row(!commit)} rounded-md`}>
@@ -100,16 +107,20 @@ export function TaskCode({ task }: { task: number }) {
           </button>
         ))}
       </section>
-      {shown ? <Files key={commit ?? 'all'} changes={shown} /> : <LinesLoading label="Loading the commit" />}
+      {shown ? <Files key={commit ?? 'all'} task={task} changes={shown} /> : <LinesLoading label="Loading the commit" />}
     </div>
   );
 }
 
-/** The files of what is picked, each folded until clicked; past the first ones, "Show N more files". */
-function Files({ changes }: { changes: Changes }) {
+/** The files of what is picked, each folded until clicked; past the first ones, "Show N more files". A path the diff has several
+ * sections of (commits that do not follow each other) is one file with every section, its lines not numbered. */
+function Files({ task, changes }: { task: number; changes: Changes }) {
   const [opened, setOpened] = useState<string[]>([]);
   const [every, setEvery] = useState(false);
-  const diffs = new Map(byFile(changes.diff).map((f) => [f.path, f]));
+  const drafts = useLineDrafts(taskPlace(task));
+  // The commit the diff says it is of, not the one picked: while a pick loads, the diff before it is still the one on screen.
+  const commenting = { drafts, view: changes.commit ?? 'all', commit: changes.commit ?? undefined };
+  const diffs = new Map(diffFiles(changes.diff).map((f) => [f.path, f]));
   const files = every ? changes.files : changes.files.slice(0, FIRST);
   return (
     <section className="flex flex-col gap-2">
@@ -117,7 +128,8 @@ function Files({ changes }: { changes: Changes }) {
       {files.map((f) => (
         <File
           key={`${f.repo}/${f.path}`}
-          file={diffs.get(f.path) ?? { path: f.path, lines: [f.binary ? 'A binary file.' : 'Left out: the diff is too long to show.'] }}
+          file={diffs.get(f.path) ?? noted(f.path, f.binary ? 'A binary file.' : 'Left out: the diff is too long to show.')}
+          commenting={commenting}
           added={f.added}
           deleted={f.deleted}
           open={opened.includes(f.path)}

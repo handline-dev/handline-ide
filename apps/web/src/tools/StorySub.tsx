@@ -6,6 +6,7 @@ import { useMe } from '@handline/app-react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { TaskCode } from '#src/tools/TaskCode.tsx';
+import { taskPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
 import { useTabState } from '#src/persist/tabState.ts';
 import { FaceName } from '#src/ui/Face.tsx';
 import { startsAfter, wordOf, type Sub } from '#src/tools/storyWords.ts';
@@ -23,6 +24,7 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
   const [tab, setTab] = useTabState<Tab | null>(`subtab:${sub.id}`, null);
   // Every hook before the early return: a render after the load must call the same ones.
   const code = !!Hooks.useTaskChanges({ task: sub.id }).data?.commits.length;
+  const waiting = useLineDrafts(taskPlace(sub.id)).list.length > 0;
   if (!t) return <div className="flex-1" />;
   const open = new Set(story.subtasks.filter((x) => !CLOSED.includes(x.state)).map((x) => x.id));
   const word = wordOf(t, sub, me, open);
@@ -87,7 +89,7 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
       </div>
       {shown === 'plan' && <PlanTab t={t} open={open} />}
       {shown === 'code' && (
-        <ScrollFade keep={`subcode:${t.id}`} className="min-h-0 flex-1">
+        <ScrollFade keep={`subcode:${t.id}`} fadeTop={!waiting} className="min-h-0 flex-1">
           <TaskCode task={t.id} />
         </ScrollFade>
       )}

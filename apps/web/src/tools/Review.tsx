@@ -1,9 +1,11 @@
 // A Ready task's result and the founder's verdict on it: shared by a story's sub-task panel and a task's own page.
+import { lineCommentsText, redoLabel } from '@handline/app-core';
 import type { MemoFile, TaskDetail } from '@handline/client';
 import { useAttachmentUrl, useWrite } from '@handline/app-data';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
+import { taskPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
 import { ChangeSize, TaskCode } from '#src/tools/TaskCode.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
@@ -89,12 +91,33 @@ function Poster({ id }: { id: string }) {
   return url ? <img src={url} alt="" className="h-37 w-full object-cover object-top opacity-80" /> : <div className="h-37 bg-hover/30" />;
 }
 
-/** Redo with a note, or OK: a Ready task's verdict. */
+/** Redo with a note, or OK: a Ready task's verdict. While line comments on its code wait as drafts, a second Redo sends it back with
+ * them as its note (the whole text, which a Redo types to the agent), after asking for any words to add: a Redo raises the agent's review
+ * level and has it keep a lesson, so it is never what sending comments does by itself. */
 export function VerdictButtons({ t }: { t: TaskDetail }) {
   const ok = useWrite('task.ok');
   const redo = useWrite('task.redo');
+  const drafts = useLineDrafts(taskPlace(t.id));
+  const n = drafts.list.length;
   return (
-    <span className="flex shrink-0 gap-2">
+    <span className="flex flex-wrap justify-end gap-2">
+      {n > 0 && (
+        <Button
+          disabled={redo.isPending}
+          onClick={() =>
+            void note({ title: redoLabel(n), hint: 'Anything to add (optional)', go: 'Send back', required: false }).then(
+              (lead) =>
+                lead !== undefined &&
+                redo.mutate(
+                  { task: t.id, note: lineCommentsText(drafts.list, { lead }) },
+                  { onError: sayRefusal, onSuccess: drafts.clear },
+                ),
+            )
+          }
+        >
+          {redoLabel(n)}
+        </Button>
+      )}
       <Button
         disabled={redo.isPending}
         onClick={() =>
