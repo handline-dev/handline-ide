@@ -82,7 +82,14 @@ function drawOffice({ room, sig, house: key }: { room: Room; sig: string; house:
     front: { url: urlOf(wall), pic: wall, door: boxOf(wall, wallFrame, DOOR), top, people: cast.figures.some((f) => touches(top, f.box)) },
     // Hinged by the corner, it opens into the room, away from the viewer.
     leaves: leavesOf(room.blocks, DOOR, 'right'),
-    stage: { seats: seatsOf(room, ground.floor), door: doorOf(room), floor: ground.floor, people: room.people, layout: room.w },
+    stage: {
+      seats: seatsOf(room, ground.floor),
+      desks: new Map(cast.desks.map((d) => [d.person.key, d.at])),
+      door: doorOf(room),
+      floor: ground.floor,
+      people: room.people,
+      layout: room.w,
+    },
   };
   drawings.delete(key);
   drawings.set(key, { sig, drawn });

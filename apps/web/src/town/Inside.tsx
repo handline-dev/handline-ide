@@ -14,6 +14,7 @@ import { useWalker } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
 import { useCrowd } from '#src/town/crowd.ts';
+import { useGivenWork } from '#src/town/errands.ts';
 import { Bubbles, Label, nameSize, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
@@ -63,6 +64,8 @@ export function Inside({
     if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z], out: true });
   });
   const crowd = useCrowd(drawn?.stage ?? null);
+  // One teammate giving another work walks over to it, talks and walks back.
+  useGivenWork((from, to) => crowd.errand(from, to));
   // The front wall goes see-through while a person reaches into it.
   const seeThrough = useSeeThrough(drawn, founder, crowd);
   // The door opens for whoever comes near it once it is free, and shuts when nobody is near.

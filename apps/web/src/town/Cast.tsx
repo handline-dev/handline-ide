@@ -2,7 +2,7 @@
 // founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them; the bubbles of those
 // waiting for the founder.
 import { useSyncExternalStore } from 'react';
-import { useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
+import { talking, useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
 import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/founder.tsx';
 import type { Door } from '#src/town/moves.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
@@ -39,16 +39,40 @@ export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder
 }
 
 function Walking({ drawn, mover: m, label }: { drawn: Drawn; mover: Mover; label: { text: string; size: number; halo: number } }) {
+  const box = boxOn(drawn.ground, WALKERS, m.at);
   return (
-    <WalkingFigure
-      ground={drawn.ground}
-      sheet={WALKERS}
-      at={m.at}
-      col={walkColumn(m.facing, m.walked / STRIDE)}
-      row={m.row}
-      flip={m.facing === 'right'}
-      label={label}
-    />
+    <>
+      <WalkingFigure
+        ground={drawn.ground}
+        sheet={WALKERS}
+        at={m.at}
+        col={walkColumn(m.facing, m.walked / STRIDE)}
+        row={m.row}
+        flip={m.facing === 'right'}
+        label={label}
+      />
+      {talking(m) && <Speech x={m.facing === 'left' ? box.x + box.w * 0.18 : box.x + box.w * 0.82} y={box.y + box.h * 0.04} />}
+    </>
+  );
+}
+
+/** A speech bubble with its tail at (x, y), over the head of one giving work, a sheet of paper in it. */
+function Speech({ x, y }: { x: number; y: number }) {
+  const [w, h] = [15, 9];
+  return (
+    <g className="pointer-events-none" transform={`translate(${x - w / 2} ${y - h - 3})`}>
+      <path
+        d={`M2 0H${w - 2}Q${w} 0 ${w} 2V${h - 2}Q${w} ${h} ${w - 2} ${h}H${w / 2 + 2}L${w / 2} ${h + 3}L${w / 2 - 2} ${h}H2Q0 ${h} 0 ${h - 2}V2Q0 0 2 0Z`}
+        fill={NAME_HALO}
+        stroke={NAME_INK}
+        strokeWidth={0.8}
+      />
+      {/* A sheet of paper: the work being given, as the papers on a desk are. */}
+      <rect x={w / 2 - 2.5} y={1.5} width={5} height={6} fill="white" stroke={NAME_INK} strokeWidth={0.6} />
+      {[3.4, 4.9].map((y) => (
+        <line key={y} x1={w / 2 - 1.5} x2={w / 2 + 1.5} y1={y} y2={y} stroke={NAME_INK} strokeWidth={0.5} />
+      ))}
+    </g>
   );
 }
 
