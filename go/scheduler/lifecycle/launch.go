@@ -809,6 +809,13 @@ func (l *Launcher) git(worktree string, args ...string) string {
 // MainRefFiles are the files git rewrites to move the repository's default branch (gitrun.DefaultBranch: master in a repository whose
 // work merges into master), which a session may not write: its ref, the packed refs, and the lock files beside them. The sandbox lets
 // a session write the repository's .git for its own commits; this keeps the session from moving the branch work lands on.
+//
+// origin/HEAD and its lock are among them, since that ref is what says which branch the default is: a session that could point it at
+// another branch would, from the next launch on, leave the real one unguarded here, unseen by the land guard, and not the branch a
+// done or a prune measures against. A launch gives origin/HEAD its branch before the session starts (gitrun.NameOriginHead), so the
+// session has no need to write it. Its own fetch still tries to (git's remote.<name>.followRemoteHEAD, "create" when unset), says
+// that it could not lock the ref, and goes on to update every other ref and exit 0; with that setting "never" the fetch leaves the
+// ref alone and says nothing.
 func (l *Launcher) MainRefFiles(worktree string) []string {
 	common := l.git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if common == "" {
@@ -816,7 +823,8 @@ func (l *Launcher) MainRefFiles(worktree string) []string {
 	}
 	ref := filepath.Join(common, "refs", "heads", filepath.FromSlash(gitrun.DefaultBranch(worktree)))
 	packed := filepath.Join(common, "packed-refs")
-	return []string{ref, ref + ".lock", packed, packed + ".lock"}
+	head := filepath.Join(common, "refs", "remotes", "origin", "HEAD")
+	return []string{ref, ref + ".lock", packed, packed + ".lock", head, head + ".lock"}
 }
 
 // knowsAs is the agent a temp was hired from, whose lessons and memory folder it works with; agent itself for an agent of its own.

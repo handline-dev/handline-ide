@@ -230,7 +230,11 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	}
 	landPush := ""
 	if l.held(agent).LandBy == agent {
-		landPush = gitrun.DefaultBranch(cwd) // a runner's folder is not on this machine, so there the answer is the guess, main
+		// A runner's folder is not on this machine: no git is asked about a path that is missing here, or is some other repository's.
+		landPush = gitrun.IntegrationBranch
+		if site.Node == "" {
+			landPush = gitrun.DefaultBranch(cwd)
+		}
 	}
 	argv = drv.LaunchArgv(exe, cli.LaunchArgs{
 		Cwd: cwd, Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
