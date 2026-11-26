@@ -3,7 +3,6 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/handline/handline/go/kit/addr"
@@ -16,6 +15,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 // Edited is what a committed task.edit leaves for the telling layer.
@@ -310,9 +310,6 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	return "", fmt.Sprintf("task T%d edited by %s: %s", tid, addr.Ref(by), strings.Join(said, ", ")), nil
 }
 
-// prRepoName is a pull request's repository as GitHub names it: owner/name.
-var prRepoName = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
-
 // prParam is task.edit's pr and pr_repo: a pull request number, and the repository it is in when the caller knows it.
 func prParam(p map[string]any) (pr int64, repo string, err error) {
 	if p["pr"] != nil {
@@ -324,7 +321,7 @@ func prParam(p map[string]any) (pr int64, repo string, err error) {
 	}
 	if p["pr_repo"] != nil {
 		s, ok := p["pr_repo"].(string)
-		if !ok || !prRepoName.MatchString(s) || pr == 0 {
+		if !ok || !watch.RepoName(s) || pr == 0 { // owner/name as GitHub names a repository, never a step of a path
 			return 0, "", badParam("pr_repo is the repository of pr as owner/name, given with pr", "pr_repo")
 		}
 		repo = s

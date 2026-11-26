@@ -70,7 +70,8 @@ func TestTaskEditNamesAPullRequestWithItsRepository(t *testing.T) {
 	if r := run("w", "task.edit", "e4", `,"task":9,"pr":8`); r["error"] != nil || prLink(t, sdb) != "#8" {
 		t.Fatalf("%v %q", r["error"], prLink(t, sdb))
 	}
-	for i, c := range []string{`,"task":9,"pr_repo":"o/r"`, `,"task":9,"pr":9,"pr_repo":"not a repo"`, `,"task":9,"pr":9,"pr_repo":7`} {
+	for i, c := range []string{`,"task":9,"pr_repo":"o/r"`, `,"task":9,"pr":9,"pr_repo":"not a repo"`, `,"task":9,"pr":9,"pr_repo":7`,
+		`,"task":9,"pr":9,"pr_repo":"../.."`, `,"task":9,"pr":9,"pr_repo":"o/.."`, `,"task":9,"pr":9,"pr_repo":"./r"`} {
 		if e := errText(run("w", "task.edit", "bad"+string(rune('a'+i)), c)); !strings.Contains(e, "pr_repo is the repository of pr as owner/name") {
 			t.Errorf("%s: %q", c, e)
 		}

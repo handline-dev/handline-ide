@@ -70,7 +70,8 @@ then stands.
   deadline. A read of GitHub that fails meanwhile does not put its reason over that status. A gate still held so at its deadline does not end as `timed out`: it opens as passed with
   `merged <sha>; T<n> not closed: <why> (tried until the gate's deadline)`, the same is left on the task as a comment, and
   the task goes back to its holder, who has the commit to close it with.
-- **The origin cannot be fetched at all:** an origin that is a local path, or any transport other than https, ssh and git,
+- **The origin cannot be fetched at all:** an origin over any transport other than https, ssh and git (plain http, or a
+  local path, which for a pull request on GitHub is already given back as another repository, below)
   is refused by the daemon's fetch (`transport 'file' not allowed`), and no later fetch goes better. The gate does not wait
   out its deadline on it: it checks the clone as it stands. A clone that already holds the merge on origin's copy of the
   default branch (someone fetched it there) closes the task. Otherwise, after 3 passes (about 3 minutes), the gate opens as
@@ -83,6 +84,12 @@ then stands.
   no commit**, the agent has no folder on this machine, or the task is a person's turn: the task is not closed. The gate
   opens as passed with `merged <sha>; T<n> not closed: <why>`, the same is left on the task as a comment, and the task
   goes back to its holder as from any gate.
+- **The pull request is in another repository** than the one the acting agent works in: the watch names `owner/name` on
+  GitHub, and the origin of the agent's folder (`git remote get-url origin`) must be that repository on github.com, upper
+  and lower case aside. A commit merged elsewhere can be on this default branch too (a fork, a mirror) and says nothing of
+  the work here, so nothing is fetched and the task is not closed: `merged <sha>; T<n> not closed: its pull request is in
+  <owner/name>, and <agent>'s repository here is <other>`. An origin that is no github.com remote (a local path, another
+  host) cannot be told to be it and is given back the same way; its holder closes it with `hl task done T<n> <sha>`.
 - **The task no longer waits on the gate** (unblocked by hand): the gate opens as passed and touches nothing.
 - **Failed, gone or timed out:** the task goes back to its holder, as from any gate.
 
@@ -117,7 +124,7 @@ two minutes after it went stale.
 
 | | |
 |---|---|
-| target | `owner/name#N`, e.g. `handline-dev/handline#418`. GitHub numbers PRs and issues together: `ci`, `closed` and `landed` read `#N` as a PR, and `done` reads it as an issue. A number of the other kind reads as gone. `hl task wait T<n> --pr 418` is `github:<this checkout's origin>#418`. |
+| target | `owner/name#N`, e.g. `handline-dev/handline#418`; neither part is `.` or `..`, which are steps of a path and no name (`task.edit`'s `pr_repo` is held to the same). GitHub numbers PRs and issues together: `ci`, `closed` and `landed` read `#N` as a PR, and `done` reads it as an issue. A number of the other kind reads as gone. `hl task wait T<n> --pr 418` is `github:<this checkout's origin>#418`. |
 | a PR's read | `gh pr view N -R owner/name --json number,url,state,isDraft,baseRefName,headRefOid,mergeCommit,reviewDecision,statusCheckRollup,commits,latestReviews,reviews`. Only the latest run of each check (the one that started last) counts: a run that was cancelled or failed and run again is superseded. A check run is waiting until its status is `COMPLETED`, and ok when it concludes `SUCCESS`, `NEUTRAL` or `SKIPPED`. A commit status is waiting while `PENDING` or `EXPECTED`, and ok when `SUCCESS`. A finished check that is not ok stands failed. |
 | until `ci` (PR) | Once nothing waits: all ok is passed (`ci passed`); anything else is failed (`ci failed: <names>`). A PR that is merged or closed while a check still waits is failed (`closed before CI`). A PR with no checks is waiting until 10 minutes after its head commit or the gate's start, whichever is later, then passed (`no CI on this PR`). |
 | until `closed` (PR) | `MERGED` is passed (`merged <sha>`). `CLOSED` is failed (`closed unmerged`). `OPEN` is waiting, whatever its checks say. |

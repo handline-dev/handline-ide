@@ -33,19 +33,17 @@ type GitHub struct {
 	kept map[string]kept // what was last read, by pull request, by branch and for Unready
 }
 
-var githubTarget = regexp.MustCompile(`^([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#([1-9][0-9]*)$`)
-
 func (*GitHub) Untils() []string { return []string{"ci", "closed", "landed", "done"} }
 
 // PullOf is the pull request watch w is about, as its host names it: the repository (owner/name) and the number. ok is false for a watch
 // on anything else: an issue, or another vendor's target.
 func PullOf(w db.Watch) (repo string, number int64, ok bool) {
-	m := githubTarget.FindStringSubmatch(w.Target)
-	if w.Vendor != "github" || w.Until == "done" || m == nil {
+	repo, n, ok := splitTarget(w.Target)
+	if w.Vendor != "github" || w.Until == "done" || !ok {
 		return "", 0, false
 	}
-	n, err := strconv.ParseInt(m[2], 10, 64)
-	return m[1], n, err == nil
+	number, err := strconv.ParseInt(n, 10, 64)
+	return repo, number, err == nil
 }
 
 // Why gh cannot be used on this machine (Unready).
@@ -120,27 +118,26 @@ func (g *GitHub) Unready() (reason, why string) {
 // Parse takes ci, closed and landed to be about a pull request and done about an issue; GitHub numbers them together, so which one #N
 // is shows only when it is read, and a number of the other kind reads as gone.
 func (*GitHub) Parse(target, until string) (string, string, error) {
-	m := githubTarget.FindStringSubmatch(target)
-	if m == nil {
+	_, n, ok := splitTarget(target)
+	if !ok {
 		return "", "", fmt.Errorf("a github target is owner/name#N, not %q", target)
 	}
 	switch until {
 	case "ci":
-		return target, "PR #" + m[2] + " CI", nil
+		return target, "PR #" + n + " CI", nil
 	case "closed":
-		return target, "PR #" + m[2] + " to close", nil
+		return target, "PR #" + n + " to close", nil
 	case "landed":
-		return target, "PR #" + m[2] + " to land", nil
+		return target, "PR #" + n + " to land", nil
 	}
-	return target, "issue #" + m[2] + " done", nil
+	return target, "issue #" + n + " done", nil
 }
 
 func (g *GitHub) Check(ctx context.Context, target, until string, since time.Time) (Verdict, string, error) {
-	m := githubTarget.FindStringSubmatch(target)
-	if m == nil {
+	repo, n, ok := splitTarget(target)
+	if !ok {
 		return "", "", fmt.Errorf("a github target is owner/name#N, not %q", target)
 	}
-	repo, n := m[1], m[2]
 	if until == "done" {
 		out, err := g.gh(ctx, "issue", "view", n, "-R", repo, "--json", "state,stateReason")
 		if err != nil {
