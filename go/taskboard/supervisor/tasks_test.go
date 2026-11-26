@@ -434,7 +434,7 @@ func (r *rig) saysTo(agent string) []string {
 }
 
 // The stall this guards against: the holder of a task asked, in a memo on it, an agent with no part in the task to discard a duplicate, and
-// nobody was told. Anyone named with @ is told, and the assignee; the writer and the opener are not.
+// nobody was told. Anyone named with @ is told, and only they: not the assignee, the writer or the opener.
 func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 	r := newRig(t)
 	r.register("carol", "dave")
@@ -450,13 +450,13 @@ func TestAMemoReachesTheAgentsItNamesWhateverTheTaskState(t *testing.T) {
 		}
 	}
 	r.must(r.TellMemo(r.DB, tid, r.k(("alice")), "edited", "@alice @carol mind the cache", "", false))
-	if len(r.saysTo(r.k("alice"))) != 0 || len(r.saysTo(r.k("carol"))) != 2 || len(r.saysTo(r.k("bob"))) != 1 {
-		t.Fatalf("the writer was told, or the agent named or the assignee was not: %q %q %q", r.saysTo(r.k("alice")), r.saysTo(r.k("carol")), r.saysTo(r.k("bob")))
+	if len(r.saysTo(r.k("alice"))) != 0 || len(r.saysTo(r.k("carol"))) != 2 || len(r.saysTo(r.k("bob"))) != 0 {
+		t.Fatalf("the writer or the assignee was told, or the agent named was not: %q %q %q", r.saysTo(r.k("alice")), r.saysTo(r.k("carol")), r.saysTo(r.k("bob")))
 	}
 }
 
-// Told at once: the holder of the task, the reader a say named, a reader the memo names with @, and anyone when the memo is sent now. The
-// task's opener, with no @ or say, is not told.
+// Told at once: the holder of the task, the reader a say named, a reader the memo names with @ (and then only it), and anyone when the memo
+// is sent now. The task's opener, with no @ or say, is not told.
 func TestAMemoIsToldAtOnceOnlyToWhomItIsAimedAt(t *testing.T) {
 	r := newRig(t)
 	r.register("carol")
@@ -472,8 +472,8 @@ func TestAMemoIsToldAtOnceOnlyToWhomItIsAimedAt(t *testing.T) {
 	}
 	r.term.typed = nil
 	r.must(r.TellMemo(r.DB, tid, r.k(("alice")), "added", "@carol look", "", false))
-	if len(r.term.typed) != 2 || !strings.Contains(r.term.last(), "T1 comment by alice/lead: @carol look") {
-		t.Fatalf("the reader named with @ was not told at once: %q", r.term.typed)
+	if len(r.term.typed) != 1 || len(r.saysTo(r.k("carol"))) != 1 || !strings.Contains(r.term.last(), "T1 comment by alice/lead: @carol look") {
+		t.Fatalf("the reader named with @ was not told at once, or not alone: %q", r.term.typed)
 	}
 	r.term.typed = nil
 	r.must(r.TellMemo(r.DB, tid, r.k(("alice")), "added", "said", r.k(("bob")), false))

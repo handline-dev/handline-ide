@@ -24,8 +24,8 @@ const CancelVerdict = "withdrawn by the founder"
 // Teller is what follows a write once it has committed: the typed says and the deliveries the Python write did after its commit
 // (the supervisor's telling layer). A nil Teller tells nothing.
 type Teller interface {
-	// MemoChanged tells whom a memo concerns (the holder of a doing task, who the task answers to, the agents it names with @) that it was
-	// added, edited or deleted (what), with the memo's text: at once when now, else a reader mid-turn hears at the end of its turn.
+	// MemoChanged tells whom a memo concerns (the agents it names with @, only those; naming no one, the task's holder and who it answers
+	// to) that it was added, edited or deleted (what), with the memo's text: at once when now, else a reader mid-turn hears at the end of its turn.
 	// skip leaves those agents out of the telling (a comment's skip); the memo stays on the task.
 	MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string)
 	// MemoRecipients is who MemoChanged would tell of a comment by `by` with this text, and why, without telling anyone. A missing task is nil, false.
