@@ -806,15 +806,15 @@ func (l *Launcher) git(worktree string, args ...string) string {
 	return strings.TrimSpace(r.Stdout)
 }
 
-// MainRefFiles are the files git rewrites to move the repository's main branch, which a session may not write: its ref, the packed
-// refs, and the lock files beside them. The sandbox lets a session write the repository's .git for its own commits; this keeps the
-// daemon the only mover of main.
+// MainRefFiles are the files git rewrites to move the repository's default branch (gitrun.DefaultBranch: master in a repository whose
+// work merges into master), which a session may not write: its ref, the packed refs, and the lock files beside them. The sandbox lets
+// a session write the repository's .git for its own commits; this keeps the session from moving the branch work lands on.
 func (l *Launcher) MainRefFiles(worktree string) []string {
 	common := l.git(worktree, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if common == "" {
 		return nil
 	}
-	ref := filepath.Join(common, "refs", "heads", gitrun.IntegrationBranch)
+	ref := filepath.Join(common, "refs", "heads", filepath.FromSlash(gitrun.DefaultBranch(worktree)))
 	packed := filepath.Join(common, "packed-refs")
 	return []string{ref, ref + ".lock", packed, packed + ".lock"}
 }

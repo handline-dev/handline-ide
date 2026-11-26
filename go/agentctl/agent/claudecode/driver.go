@@ -66,6 +66,9 @@ func (Driver) PromptArgv(prompt string) []string { return []string{"--", prompt}
 
 var notAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 
+// plainBranch is a branch name a permission rule can carry as it is: nothing in it closes the rule or widens it.
+var plainBranch = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
+
 // TranscriptDir is where the sessions run in worktree are recorded: claude names the folder after the path, every
 // character that is not a letter or digit becoming a dash.
 func (Driver) TranscriptDir(configDir, worktree string) (string, bool) {
@@ -156,9 +159,9 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 		allow = append(allow, "Read(/"+p+")", "Read(/"+p+"/**)") // a file outside the worktree asks, unless a rule allows it
 	}
 	allow = append(allow, o.AlwaysAllow...)
-	if o.LandPush {
+	if plainBranch.MatchString(o.LandPush) {
 		// By exact text, so --force, another branch or a compound command still asks; the land guard still runs on it.
-		allow = append(allow, "Bash(git push origin HEAD:main)")
+		allow = append(allow, "Bash(git push origin HEAD:"+o.LandPush+")")
 	}
 	perms := NewObject()
 	if len(allow) > 0 {

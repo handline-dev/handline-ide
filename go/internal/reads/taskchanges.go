@@ -130,15 +130,7 @@ func (e *Env) taskRepos(owner string) []string {
 }
 
 // changesBase is the ref landed commits are on: origin/<default branch>, else the local default branch; "" when there is neither.
-func changesBase(root string) string {
-	def := gitrun.DefaultBranch(root)
-	for _, r := range []string{"origin/" + def, def} {
-		if ok, _ := git(root, "rev-parse", "--verify", "--quiet", r+"^{commit}"); ok {
-			return r
-		}
-	}
-	return ""
-}
+func changesBase(root string) string { return gitrun.BaseOf(root).Ref() }
 
 // commitsNaming are root's commits whose subject names tid, one per change: a copy on the base first, else the newest.
 func commitsNaming(root string, tid int64, kn known) ([]*taskCommit, error) {

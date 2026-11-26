@@ -228,6 +228,10 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if len(mode) > 0 && chosen == team.DefaultMode {
 		trusted = l.TrustedEnvironment(cwd, confined.Lifted)
 	}
+	landPush := ""
+	if l.held(agent).LandBy == agent {
+		landPush = gitrun.DefaultBranch(cwd) // a runner's folder is not on this machine, so there the answer is the guess, main
+	}
 	argv = drv.LaunchArgv(exe, cli.LaunchArgs{
 		Cwd: cwd, Model: modelOf(cfg), Effort: effort, Disallowed: l.disallowed(agent),
 		MCPArgs:  append(append([]string{}, mcpArg...), team.MCPConfigArgs(cfg)...),
@@ -237,7 +241,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		SandboxOff:  !sandboxed,
 		MCPApproved: approved, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
 		AlwaysAllow: rules,
-		LandPush:    l.held(agent).LandBy == agent,
+		LandPush:    landPush,
 		AllowWrite:  allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.Roster.OtherFolders(agent),
 		WeakerNetwork: allowed.Cert, Excluded: allowed.Commands,
 	})
@@ -393,7 +397,9 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	}
 	l.recordTerminal(site, agent, env["HANDLINE_ACCOUNT"], resumeID(extra) != "")
 	if site.Node == "" {
-		gitrun.PointOriginHeadAtMain(site.Cwd) // the session names its main branch from it; a runner's worktree is made with it
+		// The session names the branch its work merges into from origin/HEAD, so one that names no branch is given the repository's
+		// default; one that names a branch is the repository's own word and stays. A runner's worktree is made with it.
+		gitrun.NameOriginHead(site.Cwd)
 	}
 	keys := make([]string, 0, len(env))
 	for k := range env {

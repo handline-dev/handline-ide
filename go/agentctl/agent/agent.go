@@ -43,8 +43,9 @@ type LaunchArgs struct {
 	ReadAllow []string
 	// AlwaysAllow are the tool rules (Tool(content)) the founder always allows the agent: its session starts with them allowed.
 	AlwaysAllow []string
-	// LandPush lets the session run `git push origin HEAD:main` without asking: it is the workspace's land_by agent.
-	LandPush bool
+	// LandPush is the default branch of the repository the session starts in, for the workspace's land_by agent: it may run
+	// `git push origin HEAD:<LandPush>` without asking. "" for anyone else.
+	LandPush string
 	// AskRead is the part of Hide whose Read tool asks the founder instead of refusing; Bash is refused all of Hide.
 	AskRead []string
 	// AllowWrite and AllowDomains are what a sandboxed session may write beyond its worktrees and reach on the network.

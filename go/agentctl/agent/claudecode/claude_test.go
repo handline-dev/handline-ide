@@ -222,14 +222,25 @@ func TestReadAllowAllowsThePathAndWhatIsUnderIt(t *testing.T) {
 	}
 }
 
-// The land_by agent's push runs without asking by its exact text, and nobody else's does.
+// The land_by agent's push to its repository's default branch runs without asking by its exact text, and nobody else's does; a branch
+// name that could close or widen the rule gets none.
 func TestLandPushAllowsOnlyTheExactPushCommand(t *testing.T) {
-	has := func(landPush bool) bool {
-		argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", Disallowed: "Task", LandPush: landPush})
-		return strings.Contains(argv[len(argv)-1], `"Bash(git push origin HEAD:main)"`)
+	last := func(branch string) string {
+		argv := (Driver{}).LaunchArgv("/bin/claude", agent.LaunchArgs{Effort: "high", Disallowed: "Task", LandPush: branch})
+		return argv[len(argv)-1]
 	}
-	if !has(true) || has(false) {
-		t.Fatal("the rule is for the lander's launch only")
+	for _, branch := range []string{"main", "master", "release/1.x"} {
+		if !strings.Contains(last(branch), `"Bash(git push origin HEAD:`+branch+`)"`) {
+			t.Fatalf("the lander's push to %s is not allowed: %s", branch, last(branch))
+		}
+	}
+	if strings.Contains(last("master"), "HEAD:main") {
+		t.Fatal("a master repository's lander is allowed a push to main")
+	}
+	for _, branch := range []string{"", "a)b", "-x", "a b", "a:*"} {
+		if strings.Contains(last(branch), "git push") {
+			t.Fatalf("%q made a push rule: %s", branch, last(branch))
+		}
 	}
 }
 

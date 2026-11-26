@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-// IntegrationBranch is the branch work is branched from and merged into.
+// IntegrationBranch is the default branch of a repository made here, and the guess for one that names none. The branch a repository's
+// work is branched from and merged into is asked of it: DefaultBranch.
 const IntegrationBranch = "main"
 
 // Result is what git said, untouched. RC is -1 when git could not be run at all (missing, or past the timeout) and Stderr says why.
@@ -56,11 +57,11 @@ func NoPrompts(protocols []string) []string {
 	return env
 }
 
-// DefaultBranch is the branch the repository at repo merges into: origin's HEAD, else main or master when it has one, else the
-// branch its main worktree has checked out, else IntegrationBranch. repo may be any of its worktrees.
+// DefaultBranch is the branch the repository at repo merges into: origin's HEAD when it names a branch origin has, else main or master
+// when it has one, else the branch its main worktree has checked out, else IntegrationBranch. repo may be any of its worktrees.
 func DefaultBranch(repo string) string {
-	if r := Run(repo, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"); r.RC == 0 && strings.TrimSpace(r.Stdout) != "" {
-		return strings.TrimPrefix(strings.TrimSpace(r.Stdout), "origin/")
+	if b := originHead(repo); b != "" {
+		return b
 	}
 	for _, b := range []string{IntegrationBranch, "master"} {
 		for _, ref := range []string{"refs/heads/", "refs/remotes/origin/"} {
@@ -95,14 +96,90 @@ func OnMain(repo, rev string) Result {
 	return Run(repo, "merge-base", "--is-ancestor", rev, MainRef(repo))
 }
 
-// PointOriginHeadAtMain makes origin/HEAD name origin/main. True when it was changed; false when it already did, or when
-// there is no origin/main to point at.
-func PointOriginHeadAtMain(cwd string) bool {
-	r := Run(cwd, "symbolic-ref", "-q", "refs/remotes/origin/HEAD")
-	if r.RC == 0 && strings.TrimSpace(r.Stdout) == "refs/remotes/origin/"+IntegrationBranch {
+// originHead is the branch origin/HEAD names, "" when it names none, or one origin no longer has: the remote dropped or renamed it and a
+// prune took its ref, while git keeps the name.
+func originHead(repo string) string {
+	r := Run(repo, "symbolic-ref", "-q", "refs/remotes/origin/HEAD")
+	b, ok := strings.CutPrefix(strings.TrimSpace(r.Stdout), "refs/remotes/origin/")
+	if r.RC != 0 || !ok || b == "" || Run(repo, "rev-parse", "-q", "--verify", "refs/remotes/origin/"+b+"^{commit}").RC != 0 {
+		return ""
+	}
+	return b
+}
+
+// NameOriginHead gives origin/HEAD a branch when it names none that origin has: the repository's default branch (DefaultBranch), which
+// a session then reads from it as the branch work merges into. One that names a branch of origin is left as it is, whichever branch
+// that is: it is the remote's own word, or the person's. True when it was set; false when it was left, or origin has no such branch.
+func NameOriginHead(cwd string) bool {
+	if originHead(cwd) != "" {
 		return false
 	}
-	return Run(cwd, "remote", "set-head", "origin", IntegrationBranch).RC == 0
+	return Run(cwd, "remote", "set-head", "origin", DefaultBranch(cwd)).RC == 0
+}
+
+// Base is where a repository's landed work is. Branch is its default branch, and Refs are the refs of it the repository has: origin's
+// copy first ("origin/<branch>"), then the local branch. What has landed is what the first of them reaches (Ref): origin's copy when
+// the clone has one, since a push moves it and nothing but a fetch into it moves the clone's own branch, so a commit on the local
+// branch alone has not landed; else the local branch, as in a repository with no remote. This is MainRef and OnMain for a default
+// branch of any name.
+type Base struct {
+	Branch string
+	Refs   []string
+}
+
+// BaseOf is the Base of the repository at repo, which may be any of its worktrees.
+func BaseOf(repo string) Base {
+	b := Base{Branch: DefaultBranch(repo)}
+	for _, ref := range []string{"origin/" + b.Branch, b.Branch} {
+		if Run(repo, "rev-parse", "--verify", "--quiet", b.full(ref)+"^{commit}").RC == 0 {
+			b.Refs = append(b.Refs, ref)
+		}
+	}
+	return b
+}
+
+// full is one of Refs by its whole name, which no tag or other ref of the same short name can stand in for.
+func (b Base) full(ref string) string {
+	if ref == b.Branch {
+		return "refs/heads/" + ref
+	}
+	return "refs/remotes/" + ref
+}
+
+// Ref is the ref landed work is measured against: origin's copy of the default branch, else the local one; "" when there is neither.
+func (b Base) Ref() string {
+	if len(b.Refs) == 0 {
+		return ""
+	}
+	return b.Refs[0]
+}
+
+// Reaches is whether rev has landed: Ref has it as an ancestor, or is it. why is what git said when it does not and git said
+// anything; a rev that is simply not merged leaves it "".
+func (b Base) Reaches(repo, rev string) (ok bool, why string) {
+	if len(b.Refs) == 0 {
+		return false, "this repo has no " + b.Branch + " branch"
+	}
+	r := Run(repo, "merge-base", "--is-ancestor", rev, b.full(b.Refs[0]))
+	if r.RC == 0 {
+		return true, ""
+	}
+	return false, strings.TrimSpace(r.Stderr + r.Stdout)
+}
+
+// NotIn are the commits of tip that have not landed, as the revisions to hand git log or rev-list: tip, less what Ref has. ok is
+// false when the base has no ref, and so nothing to measure tip against.
+func (b Base) NotIn(tip string) (revs []string, ok bool) {
+	if len(b.Refs) == 0 {
+		return nil, false
+	}
+	return []string{tip, "--not", b.full(b.Refs[0])}, true
+}
+
+// HasOrigin is whether the repository at repo names a remote origin: only then can a commit have landed there and not be known here
+// yet. Nothing in this package fetches: origin's copy of a branch is as the clone last heard it, from its own fetch or push.
+func HasOrigin(repo string) bool {
+	return Run(repo, "config", "--get", "remote.origin.url").RC == 0
 }
 
 // Names is whether subject's last parenthesis names task tid as a whole token: "(T9201)" or "(T9139, T9140)".
@@ -134,8 +211,8 @@ type TaskFile struct {
 // sorted by path.
 func TaskFiles(repo string, tid int64) ([]TaskFile, error) {
 	revs := []string{"--branches"}
-	if def := DefaultBranch(repo); Run(repo, "rev-parse", "--verify", "--quiet", "origin/"+def+"^{commit}").RC == 0 {
-		revs = append(revs, "origin/"+def)
+	if b := BaseOf(repo); b.Ref() != "" && b.Ref() != b.Branch {
+		revs = append(revs, b.Ref())
 	}
 	r := RunTimeout(repo, 20*time.Second, append([]string{"--no-optional-locks", "-c", "core.quotePath=false", "log", "--no-merges", "-F", "--grep=T" + strconv.FormatInt(tid, 10),
 		"--format=%x1e%s", "--name-status", "--no-renames"}, revs...)...)
