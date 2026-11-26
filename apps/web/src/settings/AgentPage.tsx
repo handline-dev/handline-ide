@@ -18,6 +18,7 @@ import { Memory, Role } from '#src/settings/AgentContext.tsx';
 import { AllowRules } from '#src/settings/AllowRules.tsx';
 import { Sandbox } from '#src/settings/SandboxBlock.tsx';
 import { Schedules } from '#src/settings/Schedules.tsx';
+import { ScreenCaptureAgent } from '#src/settings/ScreenCapture.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { useAccountPin } from '#src/chat/agent/accountPin.ts';
@@ -65,6 +66,7 @@ export function AgentPage({ agent }: { agent: string }) {
       <AllowRules agent={agent} />
       <AccountPin agent={agent} />
       <Sandbox agent={agent} />
+      <ScreenCaptureAgent agent={agent} />
       <Review agent={agent} />
     </SettingsPage>
   );
