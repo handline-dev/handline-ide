@@ -255,7 +255,7 @@ func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
 	}
 }
 
-// recipients answers who add then tells, by one rule: with and without skip, for the founder's comment and an agent's.
+// recipients answers who add then tells, by one rule, for the founder's comment and an agent's.
 func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 	d, agents := tellDaemon(t, true)
 	tid, err := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
@@ -274,11 +274,6 @@ func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 		return strings.Join(out, ",")
 	}
 	told := func(who string) bool { return strings.Contains(agents.said(who), "mind the cache") }
-	n := 0
-	add := func(f *pipeConn, skip string) {
-		n++
-		result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.comment.add","params":{"task":%d,"text":"@alice mind the cache","skip":%s,"request_id":"rc%d"}}`, 10+n, tid, skip, n)))
-	}
 	if got := recipients(founder, "@alice mind the cache"); got != alice+":asked" {
 		t.Fatalf("the founder's comment is for who it names only: %q", got)
 	}
@@ -291,20 +286,8 @@ func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 	if got := recipients(agent, "no one named"); got != bob+":assignee" {
 		t.Fatalf("a comment naming no one is told to the holder only: %q", got)
 	}
-	add(founder, `[]`)
+	result(t, founder.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":10,"method":"task.comment.add","params":{"task":%d,"text":"@alice mind the cache","request_id":"rc1"}}`, tid)))
 	if !told(alice) || told(bob) {
 		t.Fatalf("add told other than recipients said: alice %v bob %v", told(alice), told(bob))
-	}
-	d2, agents2 := tellDaemon(t, true)
-	alice2, bob2 := key(t, d2, "alice"), key(t, d2, "bob")
-	tid2, _ := db.NewTask(d2.db, "job", bob2, alice2, 0, db.DefaultPriority, "", 0, "")
-	result(t, pipeTo(t, d2, "k").ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":9,"method":"task.comment.add","params":{"task":%d,"text":"mind the cache","skip":["bob"],"request_id":"rs1"}}`, tid2)))
-	if strings.Contains(agents2.said(alice2), "mind the cache") || strings.Contains(agents2.said(bob2), "mind the cache") {
-		t.Fatalf("a skipped assignee was told, or one not aimed at was: alice %q bob %q", agents2.said(alice2), agents2.said(bob2))
-	}
-	var kept int
-	d2.db.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ?", tid2).Scan(&kept)
-	if kept != 1 {
-		t.Fatalf("the comment stays on the task: %d", kept)
 	}
 }

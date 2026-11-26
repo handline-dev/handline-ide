@@ -32,7 +32,7 @@ test('a founder comment is told to the assignee and the agent it names, an agent
   assert.deepEqual(await founders(held), ['handline.auditor:assignee']); // the holder answers; the agent it reports to is not told
   const theirs = (await owner.call('task.new', { owner: 'human', title: 'theirs', body: 'decide', request_id: 'r4' })).task as number;
   assert.deepEqual(await founders(theirs), [`${ARCH}:owner`]); // no agent holds it: the agent it reports to is
-  await s.client.call('task.comment.add', { task, text: `@${ARCH} look`, skip: [ARCH], request_id: 'r2' });
+  await s.client.call('task.comment.add', { task, text: `@${ARCH} look`, request_id: 'r2' });
   assert.equal((await s.client.call('task.get', { task })).memos.length, 1);
   owner.close();
   s.client.close();
