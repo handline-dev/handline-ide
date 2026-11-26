@@ -16,11 +16,11 @@ type fallbackScreen struct{ term.Blind }
 func TestScreenForIsTheVendorOfTheTerminalsAgent(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
-	if _, err := r.Register("shop", RegisterOpts{Vendor: strp("codex")}); err != nil {
+	if _, err := r.Register("shop/lead", RegisterOpts{Vendor: strp("codex")}); err != nil {
 		t.Fatal(err)
 	}
-	register(t, r, "shop.ui")
-	cx, cl := paths.AgentKey(home, "shop"), paths.AgentKey(home, "shop.ui")
+	register(t, r, "shop/ui")
+	cx, cl := paths.AgentKey(home, "shop"), paths.AgentKey(home, "shop/ui")
 	q, err := store.Shared(paths.DBFile(home))
 	if err != nil {
 		t.Fatal(err)

@@ -85,8 +85,8 @@ func names(t *testing.T, r map[string]any) string {
 // workspace runs; the founder sets and removes any; a name means one run for every agent.
 func TestAgentsAndTheFounderSetAndRemoveRunsInBothScopes(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "web", "web.dev")
-	worker, dev := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "web.dev")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "web", "web/dev")
+	worker, dev := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "web/dev")
 	gp, web := WorkspaceOf(d, worker), WorkspaceOf(d, dev)
 	if gp == 0 || web == 0 || gp == web {
 		t.Fatalf("workspaces %d %d", gp, web)
@@ -150,7 +150,7 @@ func TestAgentsAndTheFounderSetAndRemoveRunsInBothScopes(t *testing.T) {
 
 func TestARunIsRefusedAWordTooBroadAReservedNameOrNoPreset(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
 	run := runner(t, d, nil)
 	for params, want := range map[string]string{
 		`"name":"Xcode","scope":"mac","cmds":["x"],"why":"w"`:                   "lowercase",
@@ -176,8 +176,8 @@ func TestARunIsRefusedAWordTooBroadAReservedNameOrNoPreset(t *testing.T) {
 // The lease manager reads the runs as kinds with their limits, and a name as the agent asking knows it.
 func TestLeasesSeesEachRunAsAKindAndResolvesANamePerAgent(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "web", "web.dev")
-	worker, dev := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "web.dev")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "web", "web/dev")
+	worker, dev := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "web/dev")
 	gp := WorkspaceOf(d, worker)
 	for _, r := range []Run{{Name: "xcode", Workspace: gp, Cmds: []string{"xcodebuild"}, AtOnce: 1}, {Name: "shots", Cmds: []string{"@browser"}, AtOnce: 2}} {
 		if err := Set(d, r); err != nil {
@@ -215,7 +215,7 @@ func (f *failing) Query(q string, args ...any) (*sql.Rows, error) {
 // A read that fails keeps the runs last read, so a busy database lifts no limit; a write is read at once, and the rest after bookTTL.
 func TestTheBookKeepsTheLastGoodReadAndReadsAgainAfterAWrite(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
 	now := time.Unix(1000, 0)
 	f := &failing{DB: d}
 	b := &Book{DB: f, Now: func() time.Time { return now }}
@@ -245,8 +245,8 @@ func TestTheBookKeepsTheLastGoodReadAndReadsAgainAfterAWrite(t *testing.T) {
 // founder changes any.
 func TestOnlyTheFounderChangesOrRemovesARunHeSet(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.dev")
-	worker, dev := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.dev")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/dev")
+	worker, dev := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "gp/dev")
 	gp := WorkspaceOf(d, worker)
 	run := runner(t, d, func() []leases.Pool { return nil })
 	ok := func(as, method, params, what string) {

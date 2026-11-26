@@ -377,8 +377,8 @@ func TestMain(m *testing.M) {
 // outside every workspace folder (the app) sees every agent.
 func TestTeamGetIsTheCallersWorkspace(t *testing.T) {
 	e := testEnv(t)
-	teamtest.Seed(t, e.Home, "shop", "shop.designer", "blog")
-	designer := teamtest.Key(t, e.Home, "shop.designer")
+	teamtest.Seed(t, e.Home, "shop", "shop/designer", "blog")
+	designer := teamtest.Key(t, e.Home, "shop/designer")
 	keys := func(got any, field string) (out []string) {
 		for _, x := range got.(map[string]any)[field].([]any) {
 			m := x.(map[string]any)

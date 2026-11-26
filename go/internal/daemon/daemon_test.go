@@ -21,7 +21,7 @@ import (
 type fakeAuth struct {
 	agent, key string
 	sessions   error  // what SessionsReadable says
-	home       string // set by start: agent is an old name, and the session is its key there
+	home       string // set by start: agent is a name as teamtest names it, and the session is its key there
 }
 
 func (f fakeAuth) AgentOf(pid int) string {

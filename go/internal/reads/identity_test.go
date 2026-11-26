@@ -14,6 +14,9 @@ func TestPeopleAndWorkspacesAreListedByKey(t *testing.T) {
 	run(t, e, "INSERT INTO workspaces(id, name, folder, added_folders, created_at) VALUES(5, 'shop', '/p', '[\"/q\"]', 0)")
 	run(t, e, "INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(7, 5, 'lead', 'p1', 0)")
 	run(t, e, "UPDATE workspaces SET lead = 7 WHERE id = 5")
+	// a seat (hired_from) never leads, and keys compare as numbers: a9 before a10
+	run(t, e, "INSERT INTO agents(id, workspace, name, owner, created_at, hired_from) VALUES(8, 5, 'lead-2', 'p1', 0, 7)")
+	run(t, e, "INSERT INTO agents(id, workspace, name, owner, created_at) VALUES(10, 5, 'ui', 'p1', 0), (9, 5, 'api', 'p1', 0)")
 	got := func(f func() (any, error)) string {
 		v, err := f()
 		if err != nil {
@@ -23,7 +26,8 @@ func TestPeopleAndWorkspacesAreListedByKey(t *testing.T) {
 		return string(b)
 	}
 	ws := got(func() (any, error) { return e.workspacesList(nil, nil) })
-	if want := `{"key":"w5","lead":"a7","name":"shop","folder":"/p","added_folders":["/q"],` +
+	// next_lead: the oldest agent there but the lead, who leads it once the lead is retired
+	if want := `{"key":"w5","lead":"a7","next_lead":"a9","name":"shop","folder":"/p","added_folders":["/q"],` +
 		`"folders":[{"path":"/p","name":"p","git":false,"default":true},{"path":"/q","name":"q","git":false,"default":false}]}`; !sameJSON(ws, `{"workspaces":[`+want+`]}`) {
 		t.Errorf("workspaces.list %s", ws)
 	}

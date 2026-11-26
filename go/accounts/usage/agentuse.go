@@ -2,7 +2,6 @@ package usage
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/handline/handline/go/data/db"
 )
@@ -168,21 +167,14 @@ func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUs
 	return out
 }
 
-// PickUse is the use of a pick of the agents table: an agent, or "grp:<name>" for the agent <name> and every <name>.* together (fractions
-// of the account added up, as group_uses does). ok is false for a name that is neither.
+// PickUse is the use of a pick of the agents table, an agent. ok is false for a name that used nothing.
 func PickUse(uses []AgentUse, pick string) (AgentUse, bool) {
-	group, isGroup := strings.CutPrefix(pick, "grp:")
-	sum := AgentUse{Agent: pick, Fracs: map[string]float64{}}
-	found := false
 	for _, u := range uses {
-		if (isGroup && (u.Agent == group || strings.HasPrefix(u.Agent, group+"."))) || (!isGroup && u.Agent == pick) {
-			found = true
-			for a, f := range u.Fracs {
-				sum.Fracs[a] += f
-			}
+		if u.Agent == pick {
+			return u, true
 		}
 	}
-	return sum, found
+	return AgentUse{Agent: pick, Fracs: map[string]float64{}}, false
 }
 
 // WeekConsumed is outlook.week_consumed: the points of each account's week used between lo and hi, the rises from one sample to the next
@@ -259,7 +251,7 @@ func ConsumedCurve(rows []sampleRow, times []int64) map[string][]float64 {
 type Samples = []sampleRow
 
 // Overlay is agent_overlay: the points of the combined week the pick had used by each time of past, its cost share of each account times
-// what that account had used so far, averaged over the accounts. Empty when the pick used nothing or is no agent or group.
+// what that account had used so far, averaged over the accounts. Empty when the pick used nothing or is no agent.
 func Overlay(rows Samples, uses []AgentUse, pick string, past []OutlookPoint) []float64 {
 	use, found := PickUse(uses, pick)
 	if !found || len(use.Fracs) == 0 {

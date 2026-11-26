@@ -165,7 +165,7 @@ func doing(t *testing.T, d *Daemon, agent string) {
 	d.env().AdvanceCurrentTask(d.db, agent)
 }
 
-// key is the key of the agent named name by its old name in d's home; human is the owner, p1.
+// key is the key of the agent named name (as teamtest names it) in d's home; human is the owner, p1.
 func key(t *testing.T, d *Daemon, name string) string {
 	t.Helper()
 	return teamtest.Key(t, d.cfg.Home, name)

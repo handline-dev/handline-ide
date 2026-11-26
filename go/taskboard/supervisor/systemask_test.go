@@ -60,19 +60,19 @@ func (r *rig) callAs(agent, call string) map[string]any {
 	return out
 }
 
-// founderOnlyTeam registers eng.alice and ops.bob: agents of two workspaces, neither a lead, so neither may reach the other.
+// founderOnlyTeam registers eng/alice and ops/bob: agents of two workspaces, neither a lead, so neither may reach the other.
 func (r *rig) founderOnlyTeam() {
 	r.t.Helper()
-	r.register("eng.alice", "ops.bob")
+	r.register("eng/alice", "ops/bob")
 }
 
 // An agent's handoff through task.handoff is no system step: to an agent it may not reach it is refused and the task stays.
 func TestAnAgentsHandoffStillNeedsItsEdge(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
-	tid := r.newTask("eng.alice", "human", "job")
-	got := r.callAs("eng.alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":%d,"to":%q,"note":"yours","request_id":"h1"}}`, tid, r.k("ops.bob")))
-	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng.alice") || !strings.Contains(fmt.Sprint(got), "ops.bob is in another workspace") {
+	tid := r.newTask("eng/alice", "human", "job")
+	got := r.callAs("eng/alice", fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.handoff","params":{"task":%d,"to":%q,"note":"yours","request_id":"h1"}}`, tid, r.k("ops/bob")))
+	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng/alice") || !strings.Contains(fmt.Sprint(got), "ops/bob is in another workspace") {
 		t.Fatalf("refused, and the task stays: %v %+v", got, task)
 	}
 }
@@ -83,7 +83,7 @@ func TestASystemAskToAnUnknownTargetIsRefused(t *testing.T) {
 	r.founderOnlyTeam()
 	tx, _ := r.DB.Begin()
 	defer tx.Rollback()
-	asked, err := r.TaskAsk(tx, taskwrites.AskReq{From: "daemon", To: "nobody.such", Kind: "task", Body: "x", System: true,
+	asked, err := r.TaskAsk(tx, taskwrites.AskReq{From: "daemon", To: "nobody/such", Kind: "task", Body: "x", System: true,
 		Within: func(int64) error { return fmt.Errorf("not reached") }})
 	if err != nil || asked.OK || !strings.Contains(asked.Msg, "unknown target") {
 		t.Fatalf("%+v %v", asked, err)
@@ -94,15 +94,15 @@ func TestASystemAskToAnUnknownTargetIsRefused(t *testing.T) {
 func TestEndReviewsMovesATaskWithNoTeamEdgeFromTheDaemon(t *testing.T) {
 	r := newRig(t)
 	r.founderOnlyTeam()
-	tid := r.newTask("ops.bob", "eng.alice", "reviewed")
+	tid := r.newTask("ops/bob", "eng/alice", "reviewed")
 	if _, err := r.DB.Exec("UPDATE tasks SET reported_at = 5, report = 'built it' WHERE id = ?", tid); err != nil {
 		t.Fatal(err)
 	}
 	said, err := taskwrites.EndReviews(r.DB, r.home, r.Env)
-	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d left review: handed to eng.alice]", tid) {
+	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d left review: handed to eng/alice]", tid) {
 		t.Fatalf("%q %v", said, err)
 	}
-	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng.alice") {
+	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng/alice") {
 		t.Fatalf("%+v", task)
 	}
 }

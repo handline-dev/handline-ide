@@ -115,9 +115,9 @@
    ]
   },
   {
-   "name": "agent.retire.a_workspace_contact_with_others_in_it_is_refused",
+   "name": "agent.retire.a_lead_with_others_in_its_workspace_is_retired",
    "spec": "agent.retire",
-   "about": "A workspace's contact while others are still in its workspace is refused (gate state) and the reason says so and names them; nothing is retired.",
+   "about": "A workspace's lead with others still in its workspace is retired like any agent; the oldest other agent there leads it from then on.",
    "as": "founder",
    "steps": [
     {
@@ -143,14 +143,10 @@
        "request_id": "conf-ret-3"
       }
      },
-     "error": {
-      "code": -32002,
-      "data": {
-       "code": "refused",
-       "gate": "state",
-       "reason": {
-        "$regex": "is its workspace's contact, and others are still in it"
-       }
+     "result": {
+      "accepted": true,
+      "said": {
+       "$regex": "is retired"
       }
      }
     }

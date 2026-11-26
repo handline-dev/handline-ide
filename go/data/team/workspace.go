@@ -279,7 +279,7 @@ func within(path, dir string) bool {
 }
 
 // Create makes workspace name on folder (as Folder keeps it) with its lead, the workspace's contact, and seeds its rules as
-// a launch would. Returns the workspace's key. Should the folders fail after the rows are in, Register(name) makes them.
+// a launch would. Returns the workspace's key. Should the folders fail after the rows are in, Register(name/lead) makes them.
 func (r *Roster) Create(name, folder string) (string, error) {
 	if err := requireFounder(); err != nil {
 		return "", err
@@ -292,26 +292,26 @@ func (r *Roster) Create(name, folder string) (string, error) {
 	}
 	var ws int64
 	err := inTx(r.DB, func(q db.Q) error {
-		if at, err := find(q, name); err != nil {
+		if at, err := find(q, name+"/"+names.Lead); err != nil {
 			return err
 		} else if at.ws != 0 {
 			return refuse("workspace %s exists already", name)
 		}
 		var err error
-		ws, err = r.register(q, name, RegisterOpts{Repo: folder}, "") // a bare name is the workspace's lead
+		ws, err = r.register(q, name+"/"+names.Lead, RegisterOpts{Repo: folder}, "")
 		return err
 	})
 	if err != nil {
 		return "", err
 	}
-	if _, err := r.folders(name, RegisterOpts{}); err != nil {
+	if _, err := r.folders(name+"/"+names.Lead, RegisterOpts{}); err != nil {
 		return "", err
 	}
 	key := actor.Key(actor.Workspace, ws)
 	return key, seedWorkspace(r.DB, key, time.Now().Unix())
 }
 
-// RenameWorkspace gives workspace ws (its key) the name name. Its agents' dotted names follow it; their keys, folders and rows stay.
+// RenameWorkspace gives workspace ws (its key) the name name. Its agents' keys, names, folders and rows stay.
 func (r *Roster) RenameWorkspace(ws, name string) error {
 	id, err := r.workspaceID(ws)
 	if err != nil {

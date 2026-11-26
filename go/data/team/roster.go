@@ -77,9 +77,9 @@ func refuse(format string, a ...any) error { return &names.Refusal{Msg: fmt.Spri
 // row is where an agent is: its id (0 when there is none yet), its workspace's id (0 when there is none), name and default folder, and
 // own, the folder of its workspace it works in ("" for the default).
 type row struct {
-	id, ws              int64
-	wsName, folder, own string
-	lead                bool
+	id, ws                    int64
+	wsName, name, folder, own string // name: a new agent's, from "workspace/name"
+	lead                      bool
 }
 
 // works is the folder the agent works in: its own, else its workspace's default.
@@ -90,34 +90,30 @@ func (r row) works() string {
 	return r.folder
 }
 
-// find is where who's agent is: who is its key or its old dotted name.
+// find is where who's agent is: who is its key, "workspace/name" (of an agent that may not be there yet: a new one's workspace and
+// name), or any other word paths.AgentKeyIn takes.
 func find(q db.Q, who string) (row, error) {
-	if k, id, ok := actor.Parse(who); ok && k == actor.Agent {
+	wsName, agent, qualified := strings.Cut(who, "/")
+	if !qualified {
+		k, err := paths.AgentKeyIn(q, who)
+		if err != nil || k == "" {
+			return row{}, err
+		}
+		_, id, _ := actor.Parse(k)
 		var r row
 		var lead sql.NullInt64
-		err := q.QueryRow(`SELECT a.id, w.id, w.name, w.folder, COALESCE(a.folder, ''), w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace
+		err = q.QueryRow(`SELECT a.id, w.id, w.name, w.folder, COALESCE(a.folder, ''), w.lead FROM agents a JOIN workspaces w ON w.id = a.workspace
 			WHERE a.id = ?`, id).Scan(&r.id, &r.ws, &r.wsName, &r.folder, &r.own, &lead)
-		if errors.Is(err, sql.ErrNoRows) {
-			return row{}, nil
-		}
 		r.lead = lead.Valid && lead.Int64 == r.id
 		return r, err
 	}
-	wsName, agent := SplitLegacy(who)
-	r := row{wsName: wsName}
+	r := row{wsName: wsName, name: agent}
 	var lead sql.NullInt64
 	err := q.QueryRow("SELECT id, folder, lead FROM workspaces WHERE name = ?", wsName).Scan(&r.ws, &r.folder, &lead)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, nil
 	}
 	if err != nil {
-		return r, err
-	}
-	if agent == "" {
-		r.id, r.lead = lead.Int64, lead.Valid
-		if r.lead {
-			err = q.QueryRow("SELECT COALESCE(folder, '') FROM agents WHERE id = ?", r.id).Scan(&r.own)
-		}
 		return r, err
 	}
 	err = q.QueryRow("SELECT id, COALESCE(folder, '') FROM agents WHERE workspace = ? AND name = ?", r.ws, agent).Scan(&r.id, &r.own)
@@ -321,8 +317,8 @@ func strp(s string) *string { return &s }
 
 func present(p *string) bool { return p != nil && *p != "" }
 
-// Register creates or updates an agent: its row (and its workspace's, for a new workspace), its folders and its role. A bare name
-// is a workspace's lead, which a new workspace gets as its first agent; ws.agent is an agent of workspace ws.
+// Register creates or updates an agent: its row (and its workspace's, for a new workspace), its folders and its role. A new agent is
+// named workspace/name; a new workspace's first agent leads it. An agent there is may be named by any word paths.AgentKeyIn takes.
 func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	if present(o.Effort) && !contains(ValidEffort, *o.Effort) {
 		return "", refuse("effort must be one of %s, not %s", strings.Join(ValidEffort, ", "), pyQuote(*o.Effort))
@@ -376,6 +372,9 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 		return 0, err
 	}
 	repo := expandUser(o.Repo)
+	if at.id == 0 && at.name == "" {
+		return 0, refuse("a new agent is named as workspace/name, not %s", name)
+	}
 	if at.ws == 0 {
 		if at.ws, at.folder, err = createWorkspace(q, at.wsName, repo); err != nil {
 			return 0, err
@@ -394,11 +393,12 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 	}
 	isNew := at.id == 0
 	if isNew {
-		_, agent := SplitLegacy(name)
-		isLead := agent == ""
-		if isLead {
-			agent = names.Lead
+		agent := at.name
+		var lead sql.NullInt64
+		if err := q.QueryRow("SELECT lead FROM workspaces WHERE id = ?", at.ws).Scan(&lead); err != nil {
+			return 0, err
 		}
+		isLead := !lead.Valid // a new workspace's first agent leads it
 		if err := names.Check(q, names.Agent, agent, at.ws); err != nil {
 			return 0, err
 		}
@@ -567,7 +567,8 @@ func NewRosterOn(q db.Q, home string) *Roster {
 	return &Roster{DB: q, Home: home, Store: protected.New(home)}
 }
 
-// Remove deletes the agent's row. A lead goes only as its workspace's last agent, and its workspace with it.
+// Remove deletes the agent's row. When it leads a workspace others are still in, the oldest of them (NextLead) leads it from then on; the
+// workspace goes with its last agent.
 func (r *Roster) Remove(name string) error {
 	if r.err != nil {
 		return r.err
@@ -584,11 +585,17 @@ func (r *Roster) Remove(name string) error {
 		if err := q.QueryRow("SELECT COUNT(*) FROM agents WHERE workspace = ? AND id != ?", at.ws, at.id).Scan(&others); err != nil {
 			return err
 		}
-		if at.lead && others > 0 {
-			return refuse("%s leads workspace %s, which has %d other agent(s): retire them first", name, at.wsName, others)
-		}
 		if at.lead {
-			if _, err := q.Exec("UPDATE workspaces SET lead = NULL WHERE id = ?", at.ws); err != nil {
+			next, err := NextLead(q, at.ws)
+			if err != nil {
+				return err
+			}
+			var lead any // NULL for the last agent, whose workspace goes below
+			if next != "" {
+				_, id, _ := actor.Parse(next)
+				lead = id
+			}
+			if _, err := q.Exec("UPDATE workspaces SET lead = ? WHERE id = ?", lead, at.ws); err != nil {
 				return err
 			}
 		}
@@ -605,8 +612,19 @@ func (r *Roster) Remove(name string) error {
 	})
 }
 
-// Rename gives the agent old the name new, within its workspace (ws.a to ws.b). A lead's name is its workspace's, so renaming a lead
-// renames a workspace, which only one with no other agent may do while they are named by dotted names.
+// NextLead is the key of the agent that leads workspace ws (its id) once its lead leaves: the oldest other agent in it (the lowest id),
+// never a seat (a temp lent from an agent), "" when there is none.
+func NextLead(q db.Q, ws int64) (string, error) {
+	var id sql.NullInt64
+	err := q.QueryRow(`SELECT MIN(a.id) FROM agents a JOIN workspaces w ON w.id = a.workspace
+		WHERE a.workspace = ? AND a.hired_from IS NULL AND (w.lead IS NULL OR a.id != w.lead)`, ws).Scan(&id)
+	if err != nil || !id.Valid {
+		return "", err
+	}
+	return actor.Key(actor.Agent, id.Int64), nil
+}
+
+// Rename gives the agent old the name new in its workspace. A lead is renamed like any agent: its workspace keeps its name.
 func (r *Roster) Rename(old, new string) error {
 	if r.err != nil {
 		return r.err
@@ -619,32 +637,10 @@ func (r *Roster) Rename(old, new string) error {
 		if at.id == 0 {
 			return &NotRegistered{old}
 		}
-		oldWs := at.wsName // old may be the agent's key
-		newWs, newAgent := SplitLegacy(new)
-		if at.lead != (newAgent == "") {
-			return refuse("a workspace's lead is named by the workspace (%s), any other agent as workspace.agent: %s cannot become %s", oldWs, old, new)
-		}
-		if at.lead {
-			var others int
-			if err := q.QueryRow("SELECT COUNT(*) FROM agents WHERE workspace = ? AND id != ?", at.ws, at.id).Scan(&others); err != nil {
-				return err
-			}
-			if others > 0 {
-				return refuse("renaming %s renames workspace %s, which has %d other agent(s)", old, oldWs, others)
-			}
-			if err := names.Check(q, names.Workspace, newWs, 0); err != nil {
-				return err
-			}
-			_, err = q.Exec("UPDATE workspaces SET name = ? WHERE id = ?", newWs, at.ws)
+		if err := names.Check(q, names.Agent, new, at.ws); err != nil {
 			return err
 		}
-		if newWs != oldWs {
-			return refuse("%s cannot move to workspace %s by a rename", old, newWs)
-		}
-		if err := names.Check(q, names.Agent, newAgent, at.ws); err != nil {
-			return err
-		}
-		_, err = q.Exec("UPDATE agents SET name = ? WHERE id = ?", newAgent, at.id)
+		_, err = q.Exec("UPDATE agents SET name = ? WHERE id = ?", new, at.id)
 		return err
 	})
 }

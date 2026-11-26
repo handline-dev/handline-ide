@@ -57,7 +57,7 @@ func newRig(t *testing.T) *rig {
 	return &rig{t, d, home, env}
 }
 
-// server serves as agent, named by its old name ("" for the founder), the way the daemon does: a who word becomes its key.
+// server serves as agent, named as teamtest names it ("" for the founder), the way the daemon does: a who word becomes its key.
 func (r *rig) server(agent string) *rpc.Server {
 	if agent != "" {
 		agent = teamtest.Key(r.t, r.home, agent)
@@ -125,13 +125,13 @@ func (r *rig) count(q string, args ...any) int {
 	return n
 }
 
-// k is the key of the agent or person named name by its old name (human is the owner, p1).
+// k is the key of the agent or person named name as teamtest names it (human is the owner, p1).
 func (r *rig) k(name string) string {
 	r.t.Helper()
 	return teamtest.Key(r.t, r.home, name)
 }
 
-// request adds an ask from requester to target, both named by their old names.
+// request adds an ask from requester to target, both named as teamtest names them.
 func (r *rig) request(requester, target, body string) int64 {
 	r.t.Helper()
 	rid, err := dbpkg.AddRequest(r.db, dbpkg.NewRequest{Requester: r.k(requester), Target: r.k(target), Body: body, Kind: "ask"})

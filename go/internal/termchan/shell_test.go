@@ -119,7 +119,7 @@ func TestShellOpenRefusals(t *testing.T) {
 			t.Fatalf("%v: %v", p, err)
 		}
 	}
-	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "nobody.here"}); err == nil {
+	if _, err := r.e.shellOpen(person("casey"), map[string]any{"agent": "nobody/here"}); err == nil {
 		t.Fatal("an agent nobody has")
 	}
 	r.e.DB.Exec("UPDATE agent_state SET worktree = '/no/such/dir' WHERE agent = ?", r.ann)

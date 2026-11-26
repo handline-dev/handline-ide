@@ -35,8 +35,8 @@ func refusedGate(r map[string]any) string {
 // waits for the agent's next fresh start; an agent may not, and empty or unchanged text writes nothing.
 func TestTheFounderReadsAndReplacesAnAgentsContext(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
-	worker := teamtest.Key(t, home, "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
+	worker := teamtest.Key(t, home, "gp/worker")
 	server := func(as string) *rpc.Server { return contextServer(d, home, as) }
 	rid := 0
 	set := func(as, params string) map[string]any {
@@ -92,8 +92,8 @@ func TestTheFounderReadsAndReplacesAnAgentsContext(t *testing.T) {
 // note's file and its index line and leaves every other byte of MEMORY.md as it was; only the founder may.
 func TestTheFounderReadsAnAgentsMemoryAndRemovesOneNote(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
-	worker := teamtest.Key(t, home, "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
+	worker := teamtest.Key(t, home, "gp/worker")
 	dir := filepath.Join(paths.AgentDir(home, worker), "memory")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)

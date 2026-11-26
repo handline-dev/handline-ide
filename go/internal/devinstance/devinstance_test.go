@@ -36,7 +36,7 @@ func newRig(t *testing.T) *rig {
 	if _, err := db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('handline.daemon', 'idle', 1, ?)", wt); err != nil {
 		t.Fatal(err)
 	}
-	teamtest.Seed(t, live, "handline.daemon")
+	teamtest.Seed(t, live, "handline/daemon")
 	r := &rig{loaded: map[string]bool{}, sha: "abc1234"}
 	r.Env = &Env{UserHome: user, LiveHome: live, UID: 501, Path: "/usr/bin",
 		Launchctl: func(args ...string) (string, error) {

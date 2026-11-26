@@ -108,8 +108,8 @@ func proposalPropose(c *hlclient.Client, kind string, args []string) (int, bool)
 			n, r, hasRepo := strings.Cut(m, "=")
 			members = append(members, n)
 			if hasRepo && r != "" {
-				if !strings.HasPrefix(n, p.pos[0]+".") {
-					n = p.pos[0] + "." + n
+				if !strings.HasPrefix(n, p.pos[0]+"/") {
+					n = p.pos[0] + "/" + n
 				}
 				repos[n] = r
 			}

@@ -87,8 +87,8 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 	if len(sn.got) > 0 && sn.got[len(sn.got)-1]["state"] == "failed" {
 		t.Fatalf("%v", sn.got[len(sn.got)-1])
 	}
-	startedByKey(t, r, "ann.new", repo)
-	cfg, err := team.NewRoster(r.e.Home).Read("ann.new")
+	startedByKey(t, r, "ann/new", repo)
+	cfg, err := team.NewRoster(r.e.Home).Read("ann/new")
 	if err != nil || cfg["effort"] != "high" || cfg["repo"] != repo {
 		t.Fatalf("registered with what was asked: %v %v", cfg, err)
 	}
@@ -96,7 +96,7 @@ func TestCreateRegistersAndStartsAndTellsEachStep(t *testing.T) {
 		t.Fatalf("%v", st)
 	}
 	last := sn.got[len(sn.got)-1]
-	if res := last["result"].(map[string]any); res["agent"] != "ann.new" || res["registered"] != true || last["agent"] != "ann.new" {
+	if res := last["result"].(map[string]any); res["agent"] != "ann/new" || res["registered"] != true || last["agent"] != "ann/new" {
 		t.Fatalf("%v", last)
 	}
 	again := result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": "new", "role": "worker", "effort": "high", "request_id": rid("c1")}))
@@ -113,13 +113,13 @@ func TestCreateWhoseStartFailsIsRefusedAndLeavesTheAgentRegistered(t *testing.T)
 	m := c.call("agent.create", map[string]any{"workspace": "ann", "name": "solo", "role": "worker", "request_id": rid("c2")})
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
-	if e["message"] != "ann.solo is registered; starting it failed: diverged" || d["registered"] != true || d["operation"] == nil {
+	if e["message"] != "ann/solo is registered; starting it failed: diverged" || d["registered"] != true || d["operation"] == nil {
 		t.Fatalf("refused with how far it got: %v", m)
 	}
 	if last := sn.got[len(sn.got)-1]; last["state"] != "failed" {
 		t.Fatalf("the operations topic says the same: %v", last)
 	}
-	if _, err := team.NewRoster(r.e.Home).Read("ann.solo"); err != nil {
+	if _, err := team.NewRoster(r.e.Home).Read("ann/solo"); err != nil {
 		t.Fatalf("nothing is cleaned up: %v", err)
 	}
 	again := c.call("agent.create", map[string]any{"workspace": "ann", "name": "solo", "role": "worker", "request_id": rid("c2")})
@@ -138,7 +138,7 @@ func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 	e, _ := m["error"].(map[string]any)
 	d, _ := e["data"].(map[string]any)
 	op, _ := d["operation"].(string)
-	if msg, _ := e["message"].(string); op == "" || !strings.Contains(msg, "not finished in time (starting ann.slow): nothing was undone, it goes on") {
+	if msg, _ := e["message"].(string); op == "" || !strings.Contains(msg, "not finished in time (starting ann/slow): nothing was undone, it goes on") {
 		t.Fatalf("refused at the limit with what it reached: %v", m)
 	}
 	close(r.ctl.hold)
@@ -151,7 +151,7 @@ func TestCreateAnswersOnceStartedAndAtTheLimitSaysItGoesOn(t *testing.T) {
 func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 	r, _, c := createRig(t)
 	annIn(t, r)
-	if _, err := r.e.Roster.Register("ann.taken", team.RegisterOpts{Role: "worker"}); err != nil {
+	if _, err := r.e.Roster.Register("ann/taken", team.RegisterOpts{Role: "worker"}); err != nil {
 		t.Fatal(err)
 	}
 	ok := map[string]any{"workspace": "ann", "name": "x", "role": "worker"}
@@ -167,7 +167,7 @@ func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 		t.Fatalf("a used name: %q", g)
 	}
 	if f := badField(with("name", "ann.x", "u2")); f != "name" {
-		t.Fatalf("a dotted name: %q", f)
+		t.Fatalf("a name with a dot: %q", f)
 	}
 	if f := badField(with("effort", "extreme", "u3")); f != "effort" {
 		t.Fatalf("%q", f)
@@ -191,7 +191,7 @@ func TestCreateRefusesWhatItCannotStart(t *testing.T) {
 
 func TestCreateRefusesASecondOfTheNameWhileTheFirstRuns(t *testing.T) {
 	r, _, c := createRig(t)
-	if _, err := r.e.DB.Exec("INSERT INTO operations(id, kind, state, steps_done, agent, created_at, updated_at) VALUES('held', 'agent.create', 'running', 0, 'ann.busy', 0, 0)"); err != nil {
+	if _, err := r.e.DB.Exec("INSERT INTO operations(id, kind, state, steps_done, agent, created_at, updated_at) VALUES('held', 'agent.create', 'running', 0, 'ann/busy', 0, 0)"); err != nil {
 		t.Fatal(err)
 	}
 	operations.Begin("held")
@@ -246,11 +246,11 @@ func TestCreateInAWorkspaceWorksInTheFolderAskedFor(t *testing.T) {
 		t.Fatal(err)
 	}
 	result(t, c.call("agent.create", map[string]any{"workspace": "ann", "name": "server", "folder": api, "role": "worker", "request_id": rid("f1")}))
-	startedByKey(t, r, "ann.server", api)
+	startedByKey(t, r, "ann/server", api)
 	result(t, c.call("agent.create", map[string]any{"workspace": ws, "name": "ui", "role": "worker", "request_id": rid("f2")}))
-	startedByKey(t, r, "ann.ui", web)
-	if r.e.Roster.RepoOf("ann.server") != api {
-		t.Fatalf("it works in that folder from now on: %q", r.e.Roster.RepoOf("ann.server"))
+	startedByKey(t, r, "ann/ui", web)
+	if r.e.Roster.RepoOf("ann/server") != api {
+		t.Fatalf("it works in that folder from now on: %q", r.e.Roster.RepoOf("ann/server"))
 	}
 	for i, p := range []map[string]any{
 		{"workspace": "ann", "name": "a.b", "role": "worker"},

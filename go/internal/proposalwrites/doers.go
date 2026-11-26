@@ -20,6 +20,7 @@ import (
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/prefs"
 	"github.com/handline/handline/go/internal/worktreeprune"
+	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
@@ -109,7 +110,7 @@ func (e *Env) doAdd(p step) (bool, string, error) {
 	if why := applyRepoProblem(p.str("repo")); why != "" {
 		return false, why, nil
 	}
-	if ws, _ := team.SplitLegacy(name); p.str("team") != "" && p.str("team") != ws {
+	if ws, _, _ := strings.Cut(name, "/"); p.str("team") != "" && p.str("team") != ws {
 		return false, fmt.Sprintf("%s would be in workspace %s, not %s: an agent's workspace is the first part of its name", name, ws, p.str("team")), nil
 	}
 	if err := e.register(name, p, p.str("repo"), e.roleOf(p, "")); err != nil {
@@ -139,11 +140,11 @@ func (e *Env) doTeam(p step) (bool, string, error) {
 	seen := map[string]bool{}
 	var repos []string
 	for _, n := range everyone {
-		repo := p.str("repo." + n)
+		repo, who := p.str("repo."+n), n
 		if n == name {
-			repo = p.str("repo")
+			repo, who = p.str("repo"), name+"/"+names.Lead // the workspace's first agent, its lead
 		}
-		if err := e.register(n, p, repo, role); err != nil {
+		if err := e.register(who, p, repo, role); err != nil {
 			return false, "", err
 		}
 		if repo != "" && !seen[repo] {
@@ -165,9 +166,9 @@ func (e *Env) doRetire(p step) (bool, string, error) {
 	if err != nil {
 		return false, "", err
 	}
-	label := name // what the answer and the archive folder call it: its name, read before its row goes
+	label := name // what the answer and the archive folder call it: workspace/name, read before its row goes
 	if key != "" {
-		if label, err = paths.AgentNameIn(p.tx, key); err != nil {
+		if label, err = nameOf(p.tx, key); err != nil {
 			return false, "", err
 		}
 		name = key
@@ -212,7 +213,7 @@ func (e *Env) removeAgent(tx *sql.Tx, name, label, uniq string) (dest, refused s
 		return "", fmt.Sprintf("%s has seats at work (%s): it can go once their tasks are over.", addr.Ref(name), strings.Join(busy, ", ")), nil
 	}
 	for _, s := range seats { // its idle seats go with it
-		seatLabel, err := paths.AgentNameIn(tx, s)
+		seatLabel, err := nameOf(tx, s)
 		if err != nil {
 			return "", "", err
 		}
@@ -244,7 +245,7 @@ func (e *Env) removeAgent(tx *sql.Tx, name, label, uniq string) (dest, refused s
 		return "", "", err
 	}
 	src := paths.AgentDir(e.Home, name) // name is its key: Remove refused a name with no row
-	dest = filepath.Join(e.Home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+label)
+	dest = filepath.Join(e.Home, "agents", "archive", time.Now().Format("2006-01-02")+"-"+strings.ReplaceAll(label, "/", "-"))
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return "", "", err
 	}
@@ -264,22 +265,20 @@ func (e *Env) removeAgent(tx *sql.Tx, name, label, uniq string) (dest, refused s
 
 // doRename gives an identity another name. Its folder and rows are by key, so they stay as they are. Not while it is running.
 func (e *Env) doRename(p step) (bool, string, error) {
-	old, new := p.str("agent"), p.str("to") // old: the agent's key or its old name; new: the name it takes
+	old, new := p.str("agent"), p.str("to") // old: the agent's key or a word that names it; new: the name it takes in its workspace
 	was, err := paths.AgentKeyIn(p.tx, old)
 	if err != nil {
 		return false, "", err
 	}
-	now, err := paths.AgentKeyIn(p.tx, new)
+	if was == "" {
+		return false, fmt.Sprintf("%s is not an agent", old), nil
+	}
+	ws, current, err := paths.AgentNamed(p.tx, was)
 	if err != nil {
 		return false, "", err
 	}
-	label := old // what the answers call it: its name before the rename
-	if was != "" {
-		if label, err = paths.AgentNameIn(p.tx, was); err != nil {
-			return false, "", err
-		}
-	}
-	if now != "" && (was == "" || was == now) {
+	label := ws + "/" + current // what the answers call it: its name before the rename
+	if current == new {
 		return true, fmt.Sprintf("%s was renamed to %s already", label, new), nil // approved again after it took effect: settled, not a failure
 	}
 	if e.Live == nil {
@@ -292,10 +291,7 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	if live[was] {
 		return false, fmt.Sprintf("%s has a session running. Close it first (Close in its menu in the app) - an identity cannot change under a running session.", label), nil
 	}
-	if now != "" {
-		return false, fmt.Sprintf("There is already an agent named %s; choose another name.", new), nil
-	}
-	if err := e.rosterIn(p).Rename(old, new); err != nil {
+	if err := e.rosterIn(p).Rename(was, new); err != nil {
 		if team.IsRefusal(err) {
 			return false, err.Error(), nil
 		}
@@ -303,6 +299,15 @@ func (e *Env) doRename(p step) (bool, string, error) {
 	}
 	// Every row names the agent by its key, which a rename keeps: only its own row changes.
 	return true, fmt.Sprintf("%s is now %s.", label, new), nil
+}
+
+// nameOf is the agent whose key is key as workspace/name, read through q; key itself when no agent has it.
+func nameOf(q *sql.Tx, key string) (string, error) {
+	ws, name, err := paths.AgentNamed(q, key)
+	if err != nil || name == "" {
+		return key, err
+	}
+	return ws + "/" + name, nil
 }
 
 // ---------------------------------------------------------------- settings, context, schedule, global

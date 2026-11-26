@@ -7,9 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/handline/handline/go/kit/addr"
-
-	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/worktreeprune"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -18,14 +15,13 @@ import (
 
 // retireMethod is agent.retire: the founder retires an agent by the same step an approved retire proposal runs (doRetire), and the call
 // answers only with how it ended. One with a session running is held until its turn ends and the call waits for it, up to RetireWait.
-// Refused while it is its workspace's contact and others are still in that workspace.
+// A workspace's lead goes like any agent: the oldest other agent there leads it from then on (team.NextLead).
 func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	agent, _ := params["agent"].(string)
 	if agent == "" {
 		return nil, rpc.BadRequestError("agent is an agent's name", "agent", rpc.InvalidParams)
 	}
-	everyone := paths.ListAgents(e.Home)
-	if !slices.Contains(everyone, agent) {
+	if !slices.Contains(paths.ListAgents(e.Home), agent) {
 		err := rpc.NotFoundError("no such agent: " + agent)
 		err.Data = map[string]any{"what": "agent", "name": agent}
 		return nil, err
@@ -36,11 +32,6 @@ func (e *Env) retireMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if !ok {
 		return nil, rpc.Refused("could not confirm whether "+agent+" has a session running just now - try again in a moment.", "state", "")
-	}
-	if deps, err := e.dependents(agent, everyone); err != nil {
-		return nil, err
-	} else if len(deps) > 0 {
-		return nil, rpc.Refused(fmt.Sprintf("%s is its workspace's contact, and others are still in it (%s): retire or move them first.", addr.Ref(agent), strings.Join(deps, ", ")), "state", "")
 	}
 	choice, _ := params["worktree"].(string)
 	if v, has := params["worktree"]; has && choice != worktreeprune.Keep && choice != worktreeprune.Save && choice != worktreeprune.Force {
@@ -131,19 +122,4 @@ func (e *Env) refuseHeldWork(agents ...string) error {
 	r := rpc.Refused(who+" worktrees hold work: "+strings.Join(said, "; ")+". Say save or force in worktree to delete it with them gone.", "dirty", "")
 	r.Data["worktrees"] = list
 	return r
-}
-
-// dependents are the others in agent's workspace when it is that workspace's contact: they would be left with none.
-func (e *Env) dependents(agent string, everyone []string) ([]string, error) {
-	t, err := team.LoadTeam(e.Home)
-	if err != nil || t.ContactOf(t.TeamOf(agent)) != agent {
-		return nil, err
-	}
-	var out []string
-	for _, n := range everyone {
-		if n != agent && t.TeamOf(n) == t.TeamOf(agent) {
-			out = append(out, n)
-		}
-	}
-	return out, nil
 }

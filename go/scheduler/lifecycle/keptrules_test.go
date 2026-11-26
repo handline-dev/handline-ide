@@ -10,14 +10,14 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 )
 
-// keptRig is the launch rig with agents in two workspaces, shop (its lead and bob) and lab, and accounts a, b and c; keys by old name.
+// keptRig is the launch rig with agents in two workspaces, shop (its lead and bob) and lab, and accounts a, b and c; keys by teamtest name.
 func keptRig(t *testing.T) (*launchRig, map[string]string, func(ws, key string, v any)) {
 	t.Helper()
 	r := newLaunchRig(t)
-	teamtest.Seed(t, r.l.Home, "shop", "shop.bob", "lab")
+	teamtest.Seed(t, r.l.Home, "shop", "shop/bob", "lab")
 	addAccounts(t, r, "a", "b", "c")
 	keys := map[string]string{}
-	for _, n := range []string{"shop", "shop.bob", "lab"} {
+	for _, n := range []string{"shop", "shop/bob", "lab"} {
 		keys[n] = teamtest.Key(t, r.l.Home, n)
 	}
 	set := func(ws, key string, v any) {
@@ -106,7 +106,7 @@ func TestTheAccountsRuleLeavesItsWorkspacesAgentsOnlyTheAccountsItNames(t *testi
 
 func TestAgentCapHoldsAWakeWhileThatManyOfItsWorkspaceAreMidTurn(t *testing.T) {
 	r, keys, set := keptRig(t)
-	shop, bob, lab := keys["shop"], keys["shop.bob"], keys["lab"]
+	shop, bob, lab := keys["shop"], keys["shop/bob"], keys["lab"]
 	row := &db.AgentState{Agent: shop, ClosedAt: sql.NullInt64{Int64: 5, Valid: true}}
 	r.l.Ports.Usage = fakeUsage{st: AccountStatus{Exists: true}, midTurn: []string{bob, lab}}
 	if w := r.l.WakeWait(r.l.Q, shop, row); w != nil {

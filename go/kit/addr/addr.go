@@ -264,7 +264,7 @@ func Address(q Q, reader, key string) string {
 // (Render), and a rename changes no stored text. A command a reader types names the who with Address instead.
 func Ref(key string) string {
 	if _, _, ok := actor.Parse(key); !ok {
-		return key // a word that is no key (an old name, a phrase) stays as it is
+		return key // a word that is no key (a name, a phrase) stays as it is
 	}
 	return "<@" + key + ">"
 }

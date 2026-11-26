@@ -228,8 +228,8 @@ func TestTheTriggerJudgesContextByTheAgentsOwnLimit(t *testing.T) {
 func TestAWakeHeldByItsWorkspacesCapIsACapAndNoAccountsWall(t *testing.T) {
 	p, lc, _, _ := wired(t) // alice is closed, with one request from the person that nothing has delivered
 	d, home := p.db, p.home
-	teamtest.Seed(t, home, "alice.bob")
-	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "alice.bob")
+	teamtest.Seed(t, home, "alice/bob")
+	alice, bob := teamtest.Key(t, home, "alice"), teamtest.Key(t, home, "alice/bob")
 	ws, _, _ := team.WorkspaceID(d, "alice")
 	if err := team.SetRule(d, ws, team.RuleAgentCap, int64(1), "p1", 1); err != nil {
 		t.Fatal(err)

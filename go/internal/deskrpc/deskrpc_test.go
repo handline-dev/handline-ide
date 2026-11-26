@@ -19,8 +19,8 @@ import (
 
 func TestTheFounderPinsADeskByItsNameAndAnyoneReadsTheDesks(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
-	worker := teamtest.Key(t, home, "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
+	worker := teamtest.Key(t, home, "gp/worker")
 	for _, q := range []string{"INSERT INTO worktree_folders(path, repo, holder, last_agent, last_used) VALUES('/r.worktrees.noindex/desk-1', '/r', NULL, 'x', 5)",
 		"INSERT INTO worktree_folders(path, repo, last_used) VALUES('/s.worktrees.noindex/desk-1', '/s', 6)",
 		"INSERT INTO worktree_folders(path, repo, last_used) VALUES('/r.worktrees.noindex/desk-2', '/r', 7)"} {
@@ -95,9 +95,9 @@ func TestDesksKeepSetsTheNumberAndTheListSaysWhatGoesTonight(t *testing.T) {
 	t.Setenv("HANDLINE_AGENT", "")
 	home := t.TempDir()
 	repo, _ := filepath.EvalSymlinks(t.TempDir()) // the pool keeps repos by their resolved path
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
 	teamtest.Set(t, home, "gp", "repo", repo)
-	worker := teamtest.Key(t, home, "gp.worker")
+	worker := teamtest.Key(t, home, "gp/worker")
 	old := time.Now().Add(-5 * 24 * time.Hour).Unix()
 	busy := t.TempDir() // the oldest desk holds an untracked file: the prune passes it over
 	if r := gitrun.Run(busy, "init", "-q"); r.RC != 0 {

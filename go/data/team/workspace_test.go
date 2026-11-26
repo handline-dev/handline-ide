@@ -42,11 +42,11 @@ func TestCreateMakesTheWorkspaceItsLeadAndItsRules(t *testing.T) {
 func TestAnUnchangedFolderIsNoChange(t *testing.T) {
 	home := newHome(t)
 	r := NewRoster(home)
-	register(t, r, "shop", "shop.ui")
+	register(t, r, "shop", "shop/ui")
 	plain := t.TempDir()
 	d, _ := store.Shared(paths.DBFile(home))
 	d.Exec("UPDATE workspaces SET folder = ? WHERE name = 'shop'", plain)
-	for _, who := range []string{"shop", "shop.ui"} {
+	for _, who := range []string{"shop", "shop/ui"} {
 		if err := r.SetKeys(who, []yamlcompat.Pair{{Key: "repo", Val: plain}, {Key: "model", Val: "opus"}}); err != nil {
 			t.Fatalf("%s: %v", who, err)
 		}
@@ -106,7 +106,7 @@ func TestAFolderSharedWithAnotherWorkspaceIsRefused(t *testing.T) {
 	if _, err := r.Create("blog", other); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.Register("blog", RegisterOpts{Repo: repo}); err == nil || !strings.Contains(err.Error(), "shares it") {
+	if _, err := r.Register("blog/lead", RegisterOpts{Repo: repo}); err == nil || !strings.Contains(err.Error(), "shares it") {
 		t.Fatalf("a lead moved onto shop's folder: %v", err)
 	}
 }
@@ -137,19 +137,19 @@ func TestAWorkspaceHoldsSeveralFoldersAndEachAgentWorksInOne(t *testing.T) {
 	if _, err := r.Create("blog", testfiles.GitCheckout(t)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.Register("blog", RegisterOpts{Repo: api}); err == nil || !strings.Contains(err.Error(), "shares it") {
+	if _, err := r.Register("blog/lead", RegisterOpts{Repo: api}); err == nil || !strings.Contains(err.Error(), "shares it") {
 		t.Fatalf("an added folder is the workspace's too: %v", err)
 	}
-	if _, err := r.Register("shop.server", RegisterOpts{Repo: api}); err != nil {
+	if _, err := r.Register("shop/server", RegisterOpts{Repo: api}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := r.Register("shop.ui", RegisterOpts{Repo: web}); err != nil {
+	if _, err := r.Register("shop/ui", RegisterOpts{Repo: web}); err != nil {
 		t.Fatal(err)
 	}
-	if r.RepoOf("shop.server") != api || r.RepoOf("shop.ui") != web || r.RepoOf("shop") != web {
-		t.Fatalf("each in its folder: %q %q %q", r.RepoOf("shop.server"), r.RepoOf("shop.ui"), r.RepoOf("shop"))
+	if r.RepoOf("shop/server") != api || r.RepoOf("shop/ui") != web || r.RepoOf("shop") != web {
+		t.Fatalf("each in its folder: %q %q %q", r.RepoOf("shop/server"), r.RepoOf("shop/ui"), r.RepoOf("shop"))
 	}
-	if got := r.OtherFolders("shop.server"); strings.Join(got, ",") != web+","+filepath.Clean(notes) {
+	if got := r.OtherFolders("shop/server"); strings.Join(got, ",") != web+","+filepath.Clean(notes) {
 		t.Fatalf("it reads the others: %v", got)
 	}
 	var own sql.NullString
@@ -157,7 +157,7 @@ func TestAWorkspaceHoldsSeveralFoldersAndEachAgentWorksInOne(t *testing.T) {
 	if own.Valid {
 		t.Fatalf("an agent of the default keeps none of its own: %v", own)
 	}
-	if _, err := r.Register("shop.ui", RegisterOpts{Repo: testfiles.GitCheckout(t)}); err == nil || !strings.Contains(err.Error(), "not a folder of workspace shop") {
+	if _, err := r.Register("shop/ui", RegisterOpts{Repo: testfiles.GitCheckout(t)}); err == nil || !strings.Contains(err.Error(), "not a folder of workspace shop") {
 		t.Fatalf("a folder the workspace does not hold: %v", err)
 	}
 	if err := r.RemoveFolder(ws, api); err == nil || !strings.Contains(err.Error(), "1 of its agents work in") {
@@ -181,7 +181,7 @@ func TestAWorkspaceHoldsSeveralFoldersAndEachAgentWorksInOne(t *testing.T) {
 	if err := r.SetKeys("shop", []yamlcompat.Pair{{Key: "repo", Val: other}}); err != nil {
 		t.Fatal(err)
 	}
-	if r.RepoOf("shop") != other || r.RepoOf("shop.ui") != other || r.RepoOf("shop.server") != api {
-		t.Fatalf("%q %q %q", r.RepoOf("shop"), r.RepoOf("shop.ui"), r.RepoOf("shop.server"))
+	if r.RepoOf("shop") != other || r.RepoOf("shop/ui") != other || r.RepoOf("shop/server") != api {
+		t.Fatalf("%q %q %q", r.RepoOf("shop"), r.RepoOf("shop/ui"), r.RepoOf("shop/server"))
 	}
 }

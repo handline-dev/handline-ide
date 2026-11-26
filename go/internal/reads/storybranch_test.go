@@ -11,8 +11,9 @@ import (
 func TestAStorysSubTaskBranchIsNamedForItsAssignee(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	addAgent(t, e, "wb", "")
-	key := teamtest.Key(t, e.Home, "wb")
+	addAgent(t, e, "shop", "")
+	addAgent(t, e, "shop/wb", "")
+	key := teamtest.Key(t, e.Home, "shop/wb")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(7, 'part', '"+key+"', 'p1', 1), (8, 'plain', '"+key+"', 'p1', 1)")
 	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'p1', 'task_new', '{"task_id": 7, "draft": true}'), (1, 'p1', 'task_new', '{"task_id": 8}')`)
 	for tid, want := range map[int64]string{7: "wb-T7", 8: ""} {

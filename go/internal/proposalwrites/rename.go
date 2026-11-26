@@ -1,7 +1,6 @@
 package proposalwrites
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -79,36 +78,25 @@ func (e *Env) renameMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	return e.retired(c, ok, said)
 }
 
-// renameTarget is the name agent.rename hands the roster for agent's new word to: workspace.word for an agent, the bare word for a
-// workspace's lead (whose name is its workspace's), and whether it is the name the agent has already. Everything the rename would refuse is
-// refused here, before a running session is touched: a word that is not a free name, or a lead whose workspace has other agents.
+// renameTarget is the name agent.rename hands the roster for agent's new word to, and whether it is the name the agent has already. A
+// lead is renamed like any agent; its workspace keeps its name. A word that is not a free name in its workspace is refused here, before a
+// running session is touched.
 func (e *Env) renameTarget(agent, to string) (qualified string, same bool, err error) {
 	_, id, _ := actor.Parse(agent)
-	var ws, others int64
-	var wsName, name string
-	var lead sql.NullInt64
-	if err := e.DB.QueryRow(`SELECT w.id, w.name, a.name, w.lead, (SELECT COUNT(*) FROM agents o WHERE o.workspace = w.id AND o.id != a.id)
-		FROM agents a JOIN workspaces w ON w.id = a.workspace WHERE a.id = ?`, id).Scan(&ws, &wsName, &name, &lead, &others); err != nil {
+	var ws int64
+	var name string
+	if err := e.DB.QueryRow(`SELECT workspace, name FROM agents WHERE id = ?`, id).Scan(&ws, &name); err != nil {
 		return "", false, err
 	}
-	isLead := lead.Valid && lead.Int64 == id
-	kind, current, qualified := names.Agent, name, wsName+"."+to
-	if isLead {
-		kind, current, qualified = names.Workspace, wsName, to
-		if others > 0 {
-			return "", false, rpc.Refused(fmt.Sprintf("%s leads workspace %s, whose name is its own: a rename would rename the workspace, which has %d "+
-				"other agent(s).", addr.Ref(agent), wsName, others), "state", "")
-		}
+	if to == name {
+		return to, true, nil
 	}
-	if to == current {
-		return qualified, true, nil
-	}
-	if err := names.Check(e.DB, kind, to, ws); err != nil {
+	if err := names.Check(e.DB, names.Agent, to, ws); err != nil {
 		var bad *names.Refusal
 		if errors.As(err, &bad) {
 			return "", false, rpc.Refused(bad.Msg, "state", "")
 		}
 		return "", false, err
 	}
-	return qualified, false, nil
+	return to, false, nil
 }

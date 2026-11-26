@@ -44,6 +44,7 @@ export function workspacesOf(
         added_folders: more,
         folders: all.map((path, i) => ({ path, name: path.split('/').pop()!, git: !plain(path), default: i === 0 })),
         lead: agents.includes(seg) ? seg : null,
+        next_lead: agents.find((a) => a !== seg && segment(a) === seg) ?? null,
       };
     })
     .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));

@@ -155,10 +155,6 @@ func ListAgents(home string) []string {
 	return out
 }
 
-// LegacyNameSQL is an agent's old dotted name in SQL (the workspace's name for its lead, else workspace.agent), over agents a joined to
-// workspaces w.
-const LegacyNameSQL = "CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '.' || a.name END"
-
 // ReadAgents is ListAgents with the read errors: each agent's key, by workspace, its lead first. A home with no database yet has no
 // agents.
 func ReadAgents(home string) ([]string, error) {

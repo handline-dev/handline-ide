@@ -129,7 +129,7 @@ func TestACoreLogicAskIsSentWithItsNoteOnePerAgentASweep(t *testing.T) {
 	r.must(r.SweepTaskAsks())
 	says := r.planSays("bob")
 	if len(says) != 1 || !strings.HasPrefix(says[0], "Write the core logic of T1 (the parser): only its key function and that function's test") ||
-		!strings.Contains(says[0], "Which part: the tokenizer") || !strings.Contains(says[0], "Commit on branch bob-T1 ") {
+		!strings.Contains(says[0], "Which part: the tokenizer") || !strings.Contains(says[0], "Commit on branch lead-T1 ") {
 		t.Fatalf("the core ask goes first, alone: %q", says)
 	}
 	r.must(r.SweepTaskAsks())

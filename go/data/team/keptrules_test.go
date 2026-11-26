@@ -200,21 +200,21 @@ func TestModeMaxRefusesAStrongerModeAtRegisterAndHoldsToolsDeny(t *testing.T) {
 	r := NewRoster(home)
 	must(t, SetRule(d, shop, RuleModeMax, "acceptEdits", "p1", 1))
 	must(t, SetRule(d, shop, RuleToolsDeny, []string{"WebFetch"}, "p1", 1))
-	if _, err := r.Register("shop.ui", RegisterOpts{Mode: strp("auto")}); err == nil || !strings.Contains(err.Error(), "mode auto is stronger than mode_max acceptEdits, set by p1") {
+	if _, err := r.Register("shop/ui", RegisterOpts{Mode: strp("auto")}); err == nil || !strings.Contains(err.Error(), "mode auto is stronger than mode_max acceptEdits, set by p1") {
 		t.Errorf("a stronger mode: %v", err)
 	}
-	if _, err := r.Register("shop.ui", RegisterOpts{Mode: strp("acceptEdits")}); err != nil {
+	if _, err := r.Register("shop/ui", RegisterOpts{Mode: strp("acceptEdits")}); err != nil {
 		t.Errorf("a mode at the cap: %v", err)
 	}
-	if _, err := r.Register("lab.ui", RegisterOpts{Mode: strp("auto")}); err != nil {
+	if _, err := r.Register("lab/ui", RegisterOpts{Mode: strp("auto")}); err != nil {
 		t.Errorf("another workspace has no cap: %v", err)
 	}
 	h, _ := HeldFor(d, shop)
 	if !reflect.DeepEqual(h.Deny, []string{"WebFetch"}) || h.CapMode("auto") != "acceptEdits" || h.CapMode("plan") != "plan" {
 		t.Errorf("%+v", h)
 	}
-	must(t, SetRule(d, shop, RuleLandBy, "shop.lander", "p1", 1))
-	if h, _ := HeldFor(d, shop); h.LandBy != "shop.lander" {
+	must(t, SetRule(d, shop, RuleLandBy, "shop/lander", "p1", 1))
+	if h, _ := HeldFor(d, shop); h.LandBy != "shop/lander" {
 		t.Errorf("land_by: %+v", h)
 	}
 	if h, _ := HeldFor(d, lab); len(h.Deny) != 0 || h.LandBy != "" || h.CapMode("auto") != "auto" {

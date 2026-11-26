@@ -97,7 +97,7 @@ func newRig(t *testing.T) *rig {
 		return maps.Clone(r.live), true
 	}}
 	for _, a := range []string{"alice", "bob"} {
-		if _, err := team.NewRoster(home).Register(a, team.RegisterOpts{Role: "r"}); err != nil {
+		if _, err := team.NewRoster(home).Register(a+"/lead", team.RegisterOpts{Role: "r"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -318,9 +318,9 @@ func (r *rig) strayFolders() []string {
 	return out
 }
 
-// rosterText is the agents, one "  <name>: {}" line each, so a check reads who is registered.
+// rosterText is the agents, one "  <name>: {}" line each (ws for its lead, as teamtest names it), so a check reads who is registered.
 func (r *rig) rosterText() string {
-	rows, err := r.db.Query("SELECT " + paths.LegacyNameSQL + " FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY a.id")
+	rows, err := r.db.Query("SELECT CASE WHEN w.lead = a.id THEN w.name ELSE w.name || '/' || a.name END FROM agents a JOIN workspaces w ON w.id = a.workspace ORDER BY a.id")
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestRejectIsRecordedOnceAndAFixedProposalIsRefusedAgain(t *testing.T) {
 func TestApproveNeedsTheSubjectTheFounderReadAndAppliesIt(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	p, id := r.propose("aaaa0002", "kind", "add", "agent", "carol")
+	p, id := r.propose("aaaa0002", "kind", "add", "agent", "carol/lead")
 	if m := r.call("proposal.decide", fmt.Sprintf(`{"proposal":%d,"decision":"approve","request_id":"a0"}`, id)); m["error"] == nil {
 		t.Fatal("an approve names its subject")
 	}
@@ -413,7 +413,7 @@ func TestApproveNeedsTheSubjectTheFounderReadAndAppliesIt(t *testing.T) {
 		t.Fatal("nothing changed")
 	}
 	res := r.decide(id, "approve", p.subject(), "a2")["result"].(map[string]any)
-	if !strings.HasPrefix(res["said"].(string), "carol is an agent.") {
+	if !strings.HasPrefix(res["said"].(string), "carol/lead is an agent.") {
 		t.Fatalf("%v", res)
 	}
 	if !strings.Contains(r.rosterText(), "  carol: {}") || r.state("aaaa0002") != "applied" {
@@ -428,16 +428,16 @@ func TestAddRegistersTheAgentInItsWorkspace(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	repo := testfiles.GitCheckout(t)
-	p, id := r.propose("aaaa0003", "kind", "add", "agent", "eng.carol", "team", "eng", "repo", repo)
+	p, id := r.propose("aaaa0003", "kind", "add", "agent", "eng/carol", "team", "eng", "repo", repo)
 	res := r.decide(id, "approve", p.subject(), "b1")["result"].(map[string]any)
 	said := res["said"].(string)
-	if !strings.HasPrefix(said, "eng.carol is an agent, team eng.") || !strings.HasSuffix(said, "is a git repository.") {
+	if !strings.HasPrefix(said, "eng/carol is an agent, team eng.") || !strings.HasSuffix(said, "is a git repository.") {
 		t.Fatalf("%q", said)
 	}
-	if !strings.Contains(r.rosterText(), "  eng.carol: {}") || team.NewRoster(r.home).RepoOf("eng.carol") != repo {
+	if !strings.Contains(r.rosterText(), "  eng: {}") || team.NewRoster(r.home).RepoOf("eng/carol") != repo {
 		t.Fatalf("%s", r.rosterText())
 	}
-	if in := r.agentPart("eng.carol", db.PartRole); in.Text == "" || in.Actor == team.SeedActor || in.Approver != actor.OwnerKey {
+	if in := r.agentPart("eng/carol", db.PartRole); in.Text == "" || in.Actor == team.SeedActor || in.Approver != actor.OwnerKey {
 		t.Fatalf("registered with a role by its proposer, with the founder's OK: %+v", in)
 	}
 	// the team named is the workspace its name says
@@ -452,8 +452,8 @@ func TestADiffThatFailsHalfwayPutsEverythingBack(t *testing.T) {
 	r := newRig(t)
 	before := r.rosterText()
 	p, id := r.propose("aaaa0004", "kind", "bundle", "agent", "2 changes",
-		"i1.kind", "add", "i1.agent", "dave",
-		"i2.kind", "rename", "i2.agent", "dave", "i2.to", "dave.x")
+		"i1.kind", "add", "i1.agent", "dave/lead",
+		"i2.kind", "rename", "i2.agent", "dave", "i2.to", "X")
 	res := r.decide(id, "approve", p.subject(), "c1")
 	msg := res["error"].(map[string]any)["message"].(string)
 	if !strings.Contains(msg, "step 2 of 2 (rename dave) failed") || !strings.Contains(msg, "Nothing was changed") {
@@ -523,7 +523,7 @@ func TestRetireArchivesTheFolderAndRenameMovesTheNameAndItsRows(t *testing.T) {
 	r.db.QueryRow("SELECT target FROM requests WHERE body = 'hi'").Scan(&target)
 	r.db.QueryRow("SELECT agent FROM agent_state").Scan(&agent)
 	yml := r.rosterText()
-	if target != r.who("robert") || agent != r.who("robert") || !strings.Contains(yml, "  robert: {}") || strings.Contains(yml, "bob") {
+	if target != r.who("robert") || agent != r.who("robert") || r.who("bob/robert") != r.who("robert") || strings.Contains(yml, "bob/lead") {
 		t.Fatalf("%s %s\n%s", target, agent, yml)
 	}
 	pairs, _, _ := yamlcompat.ParsePairs(r.settingsText("robert"))
@@ -847,8 +847,8 @@ func TestTheProposerIsToldHowEachDecisionWentInTheWordsTheOldCLIUsed(t *testing.
 	p, id := r.propose("aaaa0013", "kind", "schedule", "agent", "bob", "set.action", "add", "set.cron", "0 9 * * *", "set.message", "m")
 	r.decide(id, "approve", p.subject(), "t3")
 	p, id = r.propose("aaaa0014", "kind", "bundle", "agent", "2 changes",
-		"i1.kind", "add", "i1.agent", "dave",
-		"i2.kind", "rename", "i2.agent", "dave", "i2.to", "dave.x")
+		"i1.kind", "add", "i1.agent", "dave/lead",
+		"i2.kind", "rename", "i2.agent", "dave", "i2.to", "X")
 	r.decide(id, "approve", p.subject(), "t4")
 	got := r.told("alice")
 	if len(got) != 4 || got[0] != "proposal aaaa0011 was rejected: not now" || got[1] != "proposal aaaa0012 was rejected." ||
@@ -878,7 +878,7 @@ func TestABatchOfDecisionsWaitsForTheProposersDigestAndNothingIsFromTheFounder(t
 func TestAnOutcomeReachesTheAgentsABundleNamesOnceEach(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	if _, err := team.NewRoster(r.home).Register("carol", team.RegisterOpts{Role: "r"}); err != nil {
+	if _, err := team.NewRoster(r.home).Register("carol/lead", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
 	_, id := r.propose("aaaa0031", "kind", "bundle", "agent", "2 changes",
@@ -949,7 +949,7 @@ func TestACacheThatCannotBeRemovedDoesNotUndoARetire(t *testing.T) {
 	defer os.Chmod(caches, 0o755)
 	p, id := r.propose("aaaa0009", "kind", "retire", "agent", "bob")
 	res := r.decide(id, "approve", p.subject(), "g1")["result"].(map[string]any)
-	if !strings.Contains(res["said"].(string), "bob is retired") || strings.Contains(r.rosterText(), "bob:") {
+	if !strings.Contains(res["said"].(string), "bob/lead is retired") || strings.Contains(r.rosterText(), "bob:") {
 		t.Fatalf("the retire stopped half done: %v", res)
 	}
 }
@@ -976,9 +976,10 @@ func TestProposeWritesTheProposalFileAndRefusesWhatTheOldCLIRefused(t *testing.T
 		t.Fatalf("a context text is kept as JSON on one line: %+v", cp)
 	}
 	for _, c := range []struct{ params, want string }{
-		{`"kind":"add","args":{"name":"alice"},"why":"w"`, "alice is already an agent"},
+		{`"kind":"add","args":{"name":"alice/lead"},"why":"w"`, "alice/lead is already an agent"},
+		{`"kind":"add","args":{"name":"carol"},"why":"w"`, "a new agent is named as workspace/name"},
 		{`"kind":"retire","args":{"name":"ghost"},"why":"w"`, "ghost is not an agent"},
-		{`"kind":"add","args":{"name":"carol"},"why":"w"`, "carol needs a repo"},
+		{`"kind":"add","args":{"name":"carol/lead"},"why":"w"`, "carol/lead needs a repo"},
 		{`"kind":"retire","args":{"name":"bob"},"why":" "`, "say why"},
 		{`"kind":"link","args":{"name":"alice","to":"bob"},"why":"w"`, `kind "link" is not raised this way`},
 		{`"kind":"context","args":{"name":"bob","sets":{"x.md":"t"}},"why":"w"`, "only ROLE.md, base.md and rules"},
@@ -1021,11 +1022,11 @@ func TestProposeRenameTeamAndBundleAreDraftedAsTheOldCLIDraftsThem(t *testing.T)
 	if rn.kind() != "rename" || rn.str("agent") != r.who("bob") || rn.str("to") != "robert" {
 		t.Fatalf("%+v", rn)
 	}
-	tm := loaded(call("t1", `"kind":"team","args":{"name":"zed","repo":"/r","members":["sea","zed.air"],"repos":{"zed.sea":"/r"}},"why":"w"`))
-	if tm.str("members") != "zed.sea,zed.air" || tm.str("repo.zed.sea") != rr || tm.str("repo.zed.air") != rr {
+	tm := loaded(call("t1", `"kind":"team","args":{"name":"zed","repo":"/r","members":["sea","zed/air"],"repos":{"zed/sea":"/r"}},"why":"w"`))
+	if tm.str("members") != "zed/sea,zed/air" || tm.str("repo.zed/sea") != rr || tm.str("repo.zed/air") != rr {
 		t.Fatalf("%+v", tm)
 	}
-	b := loaded(call("b1", `"kind":"bundle","args":{"name":"2 changes","changes":[{"kind":"rename","name":"carol","to":"cy"},{"kind":"add","name":"carol","repo":"/r"}]},"why":"w"`))
+	b := loaded(call("b1", `"kind":"bundle","args":{"name":"2 changes","changes":[{"kind":"rename","name":"alice","to":"cy"},{"kind":"add","name":"carol/lead","repo":"/r"}]},"why":"w"`))
 	if b.kind() != "bundle" || b.str("agent") != "2 changes" || len(b.items()) != 2 {
 		t.Fatalf("%+v", b)
 	}
@@ -1035,7 +1036,7 @@ func TestProposeRenameTeamAndBundleAreDraftedAsTheOldCLIDraftsThem(t *testing.T)
 	}
 	for _, c := range []struct{ params, want string }{
 		{`"kind":"rename","args":{"name":"bob"},"why":"w"`, "a rename needs a new name"},
-		{`"kind":"rename","args":{"name":"bob","to":"alice"},"why":"w"`, "alice is already an agent"},
+		{`"kind":"rename","args":{"name":"bob","to":"alice"},"why":"w"`, `"alice" is already the name of a workspace`},
 		{`"kind":"team","args":{"name":"zed","repo":"/r"},"why":"w"`, "a team needs at least one member"},
 		{`"kind":"team","args":{"name":"zed","members":["sea"]},"why":"w"`, "needs --repo"},
 		{`"kind":"team","args":{"name":"alice","repo":"/r","members":["sea"]},"why":"w"`, "alice already an agent"},
@@ -1075,8 +1076,11 @@ func TestAnApproveChecksTheRepoAgain(t *testing.T) {
 	} {
 		id := fmt.Sprintf("aaab000%d", i)
 		fields := []string{"kind", c.kind, "agent", "carol", "repo", c.repo}
+		if c.kind == "add" {
+			fields[3] = "carol/lead"
+		}
 		if c.kind == "team" {
-			fields = append(fields, "members", "carol.a", "repo.carol.a", testfiles.GitCheckout(t))
+			fields = append(fields, "members", "carol/a", "repo.carol/a", testfiles.GitCheckout(t))
 		}
 		p, n := r.propose(id, fields...)
 		res := r.decide(n, "approve", p.subject(), "d"+id)
@@ -1094,13 +1098,13 @@ func TestTheFoundersOwnAddIsAppliedAtOnce(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	repo := testfiles.GitCheckout(t)
-	m := r.call("proposal.propose", fmt.Sprintf(`{"kind":"add","args":{"name":"carol","repo":%q},"why":"we need her","request_id":"f1"}`, repo))
+	m := r.call("proposal.propose", fmt.Sprintf(`{"kind":"add","args":{"name":"carol/lead","repo":%q},"why":"we need her","request_id":"f1"}`, repo))
 	res, ok := m["result"].(map[string]any)
 	if !ok {
 		t.Fatalf("%v", m)
 	}
 	id := fmt.Sprintf("%08x", int64(res["proposal"].(float64)))
-	if said := res["said"].(string); !strings.HasPrefix(said, "proposal "+id+" applied: carol is an agent.") {
+	if said := res["said"].(string); !strings.HasPrefix(said, "proposal "+id+" applied: carol/lead is an agent.") {
 		t.Fatalf("%q", said)
 	}
 	if st := r.state(id); st != "applied" {
@@ -1180,7 +1184,7 @@ func TestAHeldRenameWhoseStartIsHeldIsAppliedAndStartsByItself(t *testing.T) {
 	if f["agent"] != r.who("robert") || f["state"] != "waiting" || !strings.Contains(f["text"].(string), "the computer is busy right now") {
 		t.Fatalf("follow-up waits: %v", f)
 	}
-	if !strings.Contains(r.rosterText(), "  robert: {}") {
+	if r.who("bob/robert") != r.who("bob") {
 		t.Fatal("the rename itself stands")
 	}
 	still := func(string) (bool, string) {
@@ -1231,9 +1235,10 @@ func TestAFailedFollowUpEndsWhenTheAgentIsRunning(t *testing.T) {
 	if r.followUp("aaaa000f")["state"] != "failed" {
 		t.Fatal("failed first")
 	}
-	r.setLive("robert", true)
+	r.setLive("robert", true) // bob's key: sweepEnded would mark it ended again
 	started := 0
-	r.sweepEnded(func(string) (bool, string) { started++; return true, "" })
+	r.e.SweepHeld(HeldPorts{Alive: func(a string) bool { return r.live[a] }, Idle: func(string) bool { return true },
+		Close: func(string) (bool, string) { return true, "" }, Start: func(string) (bool, string) { started++; return true, "" }})
 	if r.followUp("aaaa000f") != nil || started != 0 {
 		t.Fatalf("follow-up gone, no start by the sweep: %v %d", r.followUp("aaaa000f"), started)
 	}
@@ -1285,7 +1290,7 @@ func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 		}
 	}
 	os.Mkdir(filepath.Join(base, "plain"), 0o755)
-	if _, err := team.NewRoster(r.home).Register("alice", team.RegisterOpts{Role: "r", Repo: base}); err != nil {
+	if _, err := team.NewRoster(r.home).Register("alice/lead", team.RegisterOpts{Role: "r", Repo: base}); err != nil {
 		t.Fatal(err)
 	}
 	propose := func(as, rid, params string) map[string]any {
@@ -1303,19 +1308,19 @@ func TestAProposedRepoIsKeptAbsoluteAndMustBeAGitCheckout(t *testing.T) {
 		p, _ := r.e.load(fmt.Sprintf("%08x", int64(out["proposal"].(float64))))
 		return p
 	}
-	if p := stored(propose("alice", "a1", `"kind":"add","args":{"name":"carol","repo":"app"},"why":"w"`)); p.str("repo") != filepath.Join(base, "app") {
+	if p := stored(propose("alice", "a1", `"kind":"add","args":{"name":"carol/lead","repo":"app"},"why":"w"`)); p.str("repo") != filepath.Join(base, "app") {
 		t.Fatalf("the relative repo is alice's own repo's app: %q", p.str("repo"))
 	}
-	tm := stored(propose("alice", "t1", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed.sea":"app"}},"why":"w"`))
-	if tm.str("repo") != filepath.Join(base, "app") || tm.str("repo.zed.sea") != filepath.Join(base, "app") {
-		t.Fatalf("%q %q", tm.str("repo"), tm.str("repo.zed.sea"))
+	tm := stored(propose("alice", "t1", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed/sea":"app"}},"why":"w"`))
+	if tm.str("repo") != filepath.Join(base, "app") || tm.str("repo.zed/sea") != filepath.Join(base, "app") {
+		t.Fatalf("%q %q", tm.str("repo"), tm.str("repo.zed/sea"))
 	}
 	for _, c := range []struct{ as, params, want string }{
-		{"alice", `"kind":"add","args":{"name":"dan","repo":"plain"},"why":"w"`, "repo plain is not a git checkout (" + filepath.Join(base, "plain") + ")"},
-		{"alice", `"kind":"add","args":{"name":"dan","repo":"handline/handline"},"why":"w"`, "repo handline/handline is not a folder"},
-		{"alice", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed.sea":"plain"}},"why":"w"`, "repo plain is not a git checkout"},
-		{"alice", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed.sea":"lib"}},"why":"w"`, "zed.sea would work in " + filepath.Join(base, "lib") + ", but a workspace has one folder"},
-		{"", `"kind":"add","args":{"name":"dan","repo":"app"},"why":"w"`, "repo app is a relative path and p1 has no repo to take it from"},
+		{"alice", `"kind":"add","args":{"name":"dan/lead","repo":"plain"},"why":"w"`, "repo plain is not a git checkout (" + filepath.Join(base, "plain") + ")"},
+		{"alice", `"kind":"add","args":{"name":"dan/lead","repo":"handline/handline"},"why":"w"`, "repo handline/handline is not a folder"},
+		{"alice", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed/sea":"plain"}},"why":"w"`, "repo plain is not a git checkout"},
+		{"alice", `"kind":"team","args":{"name":"zed","repo":"app","members":["sea"],"repos":{"zed/sea":"lib"}},"why":"w"`, "zed/sea would work in " + filepath.Join(base, "lib") + ", but a workspace has one folder"},
+		{"", `"kind":"add","args":{"name":"dan/lead","repo":"app"},"why":"w"`, "repo app is a relative path and p1 has no repo to take it from"},
 	} {
 		m := propose(c.as, "e"+c.want[:12], c.params)
 		msg, _ := m["error"].(map[string]any)["message"].(string)
@@ -1360,7 +1365,7 @@ func TestApplyNowInterruptsTheBusyTurnAndAppliesTheChange(t *testing.T) {
 		t.Fatalf("interrupted once, then applied: %d %s", interrupted, r.state("aaaa000e"))
 	}
 	for _, m := range []map[string]any{applied(), decided()} {
-		if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), "bob is retired") {
+		if res, _ := m["result"].(map[string]any); res == nil || !strings.Contains(res["said"].(string), "bob/lead is retired") {
 			t.Fatalf("apply_now and the approve both answer once it is applied: %v", m)
 		}
 	}
@@ -1569,7 +1574,7 @@ func TestAnAddOfACodexAgentPinsItToTheCodexAccount(t *testing.T) {
 	if _, err := (team.Accounts{Home: r.home}).Add("cx", "codex"); err != nil {
 		t.Fatal(err)
 	}
-	for i, c := range []struct{ name, vendor, pin string }{{"carol", "codex", "cx"}, {"dave", "", ""}} {
+	for i, c := range []struct{ name, vendor, pin string }{{"carol/lead", "codex", "cx"}, {"dave/lead", "", ""}} {
 		args := fmt.Sprintf(`{"name":%q,"repo":%q}`, c.name, testfiles.GitCheckout(t))
 		if c.vendor != "" {
 			args = fmt.Sprintf(`{"name":%q,"repo":%q,"vendor":%q}`, c.name, testfiles.GitCheckout(t), c.vendor)

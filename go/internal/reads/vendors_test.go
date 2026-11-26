@@ -104,7 +104,7 @@ func TestVendorsInUseReadsAccountsAndAgents(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "vendor")); err != nil {
 		t.Fatal(err)
 	}
-	teamtest.Set(t, e.Home, "ws.dev", "vendor", "opencode")
+	teamtest.Set(t, e.Home, "ws/dev", "vendor", "opencode")
 	if got := e.vendorsInUse(); !reflect.DeepEqual(got, map[string]bool{"claude": true, "opencode": true}) {
 		t.Fatalf("a claude account and an opencode agent: %v", got)
 	}

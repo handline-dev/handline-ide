@@ -6,7 +6,7 @@ export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 export const AGENTS = ['handline.architect', 'handline.auditor', 'handline.term-build'];
 
-/** What the outlook_agent_use fixtures name (--var outlook_agent=grp.one outlook_group=grp): two agents of the group grp. */
+/** What the outlook_agent_use fixtures name (--var outlook_agent=grp.one): two agents. */
 const AGENT_USE = [
   { agent: 'grp.one', tokens: 9000, cost: 3.5, share: 0.7, est_pct: 4.2, fracs: { alpha: 0.7 } },
   { agent: 'grp.two', tokens: 3000, cost: 1.5, share: 0.3, est_pct: null, fracs: { alpha: 0.3 } },
@@ -14,7 +14,6 @@ const AGENT_USE = [
 const OVERLAYS: Record<string, number[]> = {
   'grp.one': [0, 1.5, 2.9, 4, 5, 5.5, 6, 6.2, 6.4, 6.6, 6.8, 7, 7.2],
   'grp.two': [0, 0.5, 1.2, 1.5, 1.8, 2, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7],
-  'grp:grp': [0, 2, 4.1, 5.5, 6.8, 7.5, 8.1, 8.4, 8.7, 9, 9.3, 9.6, 9.9],
 };
 
 const FIVE = 5 * HOUR;

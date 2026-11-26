@@ -580,11 +580,11 @@ func TestAMoveGoesToTheMostHeadroomPastWallsAndPausesNotPastAnyCount(t *testing.
 func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	r := newLaunchRig(t)
 	home := r.l.Home
-	for _, n := range []string{"manager", "manager.marina", "manager.keeper", "lone"} {
+	for _, n := range []string{"manager", "manager/marina", "manager/keeper", "lone"} {
 		teamtest.Set(t, home, n, "vendor", "claude")
 	}
 	k := func(n string) string { return teamtest.Key(t, home, n) }
-	mgrK, devK, keeperK, loneK := k("manager"), k("manager.marina"), k("manager.keeper"), k("lone")
+	mgrK, devK, keeperK, loneK := k("manager"), k("manager/marina"), k("manager/keeper"), k("lone")
 	tm, err := team.LoadTeam(home)
 	if err != nil {
 		t.Fatal(err)
@@ -613,7 +613,7 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 	}
 	mgr, dev, scout := context(mgrK), context(devK), context(loneK)
 	rules := "# Rules for team manager\n" + strings.TrimSpace(team.DefaultRules)
-	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev} {
+	for who, text := range map[string]string{"manager": mgr, "manager/marina": dev} {
 		if !strings.Contains(text, rules) {
 			t.Errorf("%s: the seeded team file is not in the prompt:\n%s", who, text)
 		}
@@ -660,8 +660,8 @@ func TestAnAgentIsToldItsTeamFromTheRoster(t *testing.T) {
 			}
 		}
 	}
-	for who, text := range map[string]string{"manager": mgr, "manager.marina": dev, "lone": scout} {
-		if !strings.Contains(text, r.l.yourTeam(map[string]string{"manager": mgrK, "manager.marina": devK, "lone": loneK}[who])) {
+	for who, text := range map[string]string{"manager": mgr, "manager/marina": dev, "lone": scout} {
+		if !strings.Contains(text, r.l.yourTeam(map[string]string{"manager": mgrK, "manager/marina": devK, "lone": loneK}[who])) {
 			t.Errorf("%s: the team text is not in the prompt:\n%s", who, text)
 		}
 	}
@@ -1424,7 +1424,7 @@ func TestAStartNamesWhoChangedEachPart(t *testing.T) {
 	if err := r.l.Q.QueryRow("SELECT changed, changed_lines FROM session_starts WHERE agent = 'ann'").Scan(&changed, &lines); err != nil {
 		t.Fatal(err)
 	}
-	if changed != "ROLE.md changed by bob with the founder's OK" || !strings.Contains(lines, `"added":["reviews"]`) {
+	if changed != "ROLE.md changed by bob/lead with the founder's OK" || !strings.Contains(lines, `"added":["reviews"]`) {
 		t.Fatalf("%q %q", changed, lines)
 	}
 	hist, err := db.InstructionsAfter(r.l.Q, ann, db.PartRole, 0)
@@ -1483,7 +1483,7 @@ func TestAPeerJoiningRestartsNoMemberButANewContactDoes(t *testing.T) {
 	if static, _ := r.l.staticPreamble(ann); strings.Contains(static, "`bob`") {
 		t.Fatal("bob is listed before it joined")
 	}
-	teamtest.Set(t, r.l.Home, "ann.bob", "vendor", "claude")
+	teamtest.Set(t, r.l.Home, "ann/bob", "vendor", "claude")
 	after, _ := r.l.PartsSince(ann)
 	if r.l.WhatChanged(ann) != "" || after["team instructions"] != before["team instructions"] {
 		t.Fatalf("a new peer restarts the member: %q", r.l.WhatChanged(ann))
@@ -1491,7 +1491,7 @@ func TestAPeerJoiningRestartsNoMemberButANewContactDoes(t *testing.T) {
 	if static, _ := r.l.staticPreamble(ann); !strings.Contains(static, "`bob`") {
 		t.Fatalf("a launch after the peer joined does not list it:\n%s", static)
 	}
-	bob := teamtest.Key(t, r.l.Home, "ann.bob")
+	bob := teamtest.Key(t, r.l.Home, "ann/bob")
 	_, id, _ := actor.Parse(bob)
 	if _, err := r.l.Q.Exec("UPDATE workspaces SET lead = ? WHERE name = 'ann'", id); err != nil {
 		t.Fatal(err)

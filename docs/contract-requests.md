@@ -160,8 +160,8 @@ Append to `contract/fixtures/tasks.json`:
 
 - `range` is 12h, 24h, 3d, 7d or 14d, and the window is that far before `at` and the same after it. `past` is up to `at`, as the usage samples recorded it; `future` is the guess. Both are on one grid, `step_s` apart, about 96 points over the two. The bridge's own functions cut an account at the end of its month and when it is logged out; the daemon reuses them.
 - `left_pct` is the percent of the week left, averaged over the accounts with a reading, null where none had one.
-- `agents` are the agents' use over `[at - range, at]`, largest cost first, then name; `share` is 0 to 1, `week_pct` the estimate the bridge shows as `~ week %`. Token calls no worktree claims are `(unattributed)`. The client groups dotted names itself.
-- `pick` is an agent, or `grp:<first part of a dotted name>` for a group, and the reply's `overlay` is what it had eaten of the combined week at each point of `past`, the same count and order. An agent that used nothing gives zeros. A name that is no team agent and no group is `not_found`. Without `pick`, `overlay` is null.
+- `agents` are the agents' use over `[at - range, at]`, largest cost first, then name; `share` is 0 to 1, `week_pct` the estimate the bridge shows as `~ week %`. Token calls no worktree claims are `(unattributed)`.
+- `pick` is an agent, and the reply's `overlay` is what it had eaten of the combined week at each point of `past`, the same count and order. An agent that used nothing gives zeros. A name that is no team agent is `not_found`. Without `pick`, `overlay` is null.
 - `runway` is the bridge's runway for each account with a trusted reading, `text` being its one line; an account with a stale or unknown reading is left out.
 - `cost_days` (7, 14 or 30) adds `cost`: one entry for each of the last that many local days, oldest first, today last, `by_agent` empty for a day with no call. It is the list price of the token log, not what the plan charged. Without it `cost` is null.
 - The read parses the usage files (hundreds of ms): a reply up to 30 s old is allowed, and `at` says when it was made. **Events.** None; the bridge asks every 30 s and so can a client.
@@ -174,7 +174,7 @@ Append to `contract/fixtures/tasks.json`:
  "paramStructure": "by-name",
  "params": [
             {"name": "range", "required": true, "schema": {"type": "string", "enum": ["12h", "24h", "3d", "7d", "14d"], "description": "The window is this far before now and the same after it."}},
-            {"name": "pick", "required": false, "schema": {"type": "string", "description": "An agent, or `grp:<first part of a dotted name>` for a group: its use is returned in `overlay`."}},
+            {"name": "pick", "required": false, "schema": {"type": "string", "description": "An agent: its use is returned in `overlay`."}},
             {"name": "cost_days", "required": false, "schema": {"type": "integer", "enum": [7, 14, 30], "description": "Also return the cost of each of the last this many local days; without it `cost` is null."}}
            ],
  "result": {"name": "result", "schema": {"$ref": "#/components/schemas/Outlook"}},
@@ -209,7 +209,7 @@ Append to `contract/fixtures/tasks.json`:
                 },
  "Outlook": {
              "type": "object",
-             "properties": {"range": {"type": "string", "enum": ["12h", "24h", "3d", "7d", "14d"]}, "at": {"$ref": "#/components/schemas/Timestamp", "description": "When this was computed; the boundary between `past` and `future`."}, "step_s": {"type": "integer", "description": "Seconds between points."}, "accounts": {"type": "integer", "description": "Accounts with a reading in the window."}, "past": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookPoint"}, "description": "Recorded, up to `at`."}, "future": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookPoint"}, "description": "Guessed, after `at`."}, "agents": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookAgent"}, "description": "Largest cost first, then name."}, "overlay": {"oneOf": [{"type": "array", "items": {"type": "number"}, "description": "Points of the combined week the picked agent or group had eaten at each point of `past`, same count and order; null without `pick`."}, {"type": "null"}]}, "runway": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookRunway"}, "description": "One per account with a trusted reading; an account whose reading is stale or unknown is left out, because no figure is better than a wrong one."}, "cost": {"oneOf": [{"$ref": "#/components/schemas/OutlookCost"}, {"type": "null"}]}},
+             "properties": {"range": {"type": "string", "enum": ["12h", "24h", "3d", "7d", "14d"]}, "at": {"$ref": "#/components/schemas/Timestamp", "description": "When this was computed; the boundary between `past` and `future`."}, "step_s": {"type": "integer", "description": "Seconds between points."}, "accounts": {"type": "integer", "description": "Accounts with a reading in the window."}, "past": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookPoint"}, "description": "Recorded, up to `at`."}, "future": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookPoint"}, "description": "Guessed, after `at`."}, "agents": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookAgent"}, "description": "Largest cost first, then name."}, "overlay": {"oneOf": [{"type": "array", "items": {"type": "number"}, "description": "Points of the combined week the picked agent had eaten at each point of `past`, same count and order; null without `pick`."}, {"type": "null"}]}, "runway": {"type": "array", "items": {"$ref": "#/components/schemas/OutlookRunway"}, "description": "One per account with a trusted reading; an account whose reading is stale or unknown is left out, because no figure is better than a wrong one."}, "cost": {"oneOf": [{"$ref": "#/components/schemas/OutlookCost"}, {"type": "null"}]}},
              "required": ["range", "at", "step_s", "accounts", "past", "future", "agents", "overlay", "runway", "cost"]
             }
 }
@@ -231,7 +231,7 @@ Append to `contract/fixtures/tasks.json`:
   {"send": {"jsonrpc": "2.0", "id": 1, "method": "hello", "params": {"client": "conformance/1", "protocol": 1, "key": "{{founder_key}}"}}, "result": {}},
   {"send": {"jsonrpc": "2.0", "id": 2, "method": "stats.outlook", "params": {"range": "7d", "cost_days": 7}}, "result": {"cost": {"basis": "list_price", "days": {"$type": "array", "$each": {"day": {"$regex": "^\\d{4}-\\d{2}-\\d{2}$"}, "by_agent": {"$type": "object"}}}}}}
  ]},
- {"name": "stats.outlook.pick_must_be_known", "spec": "stats.outlook", "about": "A pick that names no agent or group is not_found.", "as": "founder", "steps": [
+ {"name": "stats.outlook.pick_must_be_known", "spec": "stats.outlook", "about": "A pick that names no agent is not_found.", "as": "founder", "steps": [
   {"send": {"jsonrpc": "2.0", "id": 1, "method": "hello", "params": {"client": "conformance/1", "protocol": 1, "key": "{{founder_key}}"}}, "result": {}},
   {"send": {"jsonrpc": "2.0", "id": 2, "method": "stats.outlook", "params": {"range": "24h", "pick": "no.such_agent"}}, "error": {"code": -32001, "data": {"code": "not_found"}}}
  ]},

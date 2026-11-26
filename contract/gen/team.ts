@@ -157,6 +157,8 @@ export type Workspace = {
   added_folders: string[];
   /** The key of its lead agent; null before it has one. */
   lead: string | null;
+  /** The key of the agent that leads it once its lead is retired: the oldest other agent in it that is not a seat (a temp lent from an agent), by the lowest key number compared as a number (a9 before a10). null when there is none, and the workspace goes with the lead. */
+  next_lead: string | null;
   /** Every folder of the workspace, the default first. Each agent works in one of them (agents.list folder) and reads the others. */
   folders: WorkspaceFolder[];
 };

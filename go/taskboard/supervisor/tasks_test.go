@@ -52,12 +52,12 @@ func TestAdvanceDeliversTheNextQueuedTaskAndMakesItCurrent(t *testing.T) {
 	}
 }
 
-// newUnroutableTask queues a task for eng.bob that its opener ops.carol, an agent of another workspace, may not ask of it; eng leads its
+// newUnroutableTask queues a task for eng/bob that its opener ops/carol, an agent of another workspace, may not ask of it; eng leads its
 // workspace.
 func (r *rig) newUnroutableTask() int64 {
 	r.t.Helper()
-	r.register("eng", "eng.bob", "ops.carol")
-	return r.newTask("eng.bob", "ops.carol", "unroutable")
+	r.register("eng", "eng/bob", "ops/carol")
+	return r.newTask("eng/bob", "ops/carol", "unroutable")
 }
 
 func TestAdvanceDeliversATaskHandedBackToItsOpenerAsItsOwnWork(t *testing.T) {
@@ -96,8 +96,8 @@ func TestSelfDeliveryCarriesWhatItsRequestsClosedWith(t *testing.T) {
 func TestAdvanceRecordsARefusedDeliveryOnceAndTellsItsOpener(t *testing.T) {
 	r := newRig(t)
 	tid := r.newUnroutableTask()
-	other := r.newTask("eng.bob", "eng", "fine")
-	changed, refused, err := r.AdvanceCurrentTask(r.DB, r.k("eng.bob"))
+	other := r.newTask("eng/bob", "eng", "fine")
+	changed, refused, err := r.AdvanceCurrentTask(r.DB, r.k("eng/bob"))
 	r.must(err)
 	if !changed {
 		t.Fatal("the second task was not delivered")
@@ -105,24 +105,24 @@ func TestAdvanceRecordsARefusedDeliveryOnceAndTellsItsOpener(t *testing.T) {
 	if refused[tid] == "" {
 		t.Fatalf("%v", refused)
 	}
-	if cur, _, _ := db.CurrentTask(r.DB, r.k("eng.bob")); cur != other {
+	if cur, _, _ := db.CurrentTask(r.DB, r.k("eng/bob")); cur != other {
 		t.Fatal(cur)
 	}
 	var n int
 	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&n)
-	r.AdvanceCurrentTask(r.DB, r.k("eng.bob"))
+	r.AdvanceCurrentTask(r.DB, r.k("eng/bob"))
 	var m int
 	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM events WHERE kind = 'task_deliver_refused'")).Scan(&m)
 	if n != 1 || m != 1 {
 		t.Fatalf("a permanent refusal fills the log: %d %d", n, m)
 	}
 	var told int
-	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'ops.carol' AND body LIKE ?"), db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
+	r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE requester = ? AND target = 'ops/carol' AND body LIKE ?"), db.NoticeRequester, fmt.Sprintf("T%d could not be delivered%%", tid)).Scan(&told)
 	if told != 1 {
-		t.Fatalf("ops.carol opened it, so it is told once: %d", told)
+		t.Fatalf("ops/carol opened it, so it is told once: %d", told)
 	}
 	if _, ok, _ := db.Meta(r.DB, fmt.Sprintf("notice_watch:%d", tid)); !ok {
-		t.Fatal("the founder hears if ops.carol does not move it in an hour")
+		t.Fatal("the founder hears if ops/carol does not move it in an hour")
 	}
 }
 
@@ -372,7 +372,7 @@ func TestSweepTaskQueueDeliversAWaitingTaskToAFreeOwnerAndBacksOffWhenNothingLan
 	r2 := newRig(t)
 	r2.newUnroutableTask()
 	r2.must(r2.SweepTaskQueue(r2.clock))
-	if n, _ := db.Cursor(r2.DB, "taskqueue:"+r2.k("eng.bob")); n != r2.clock {
+	if n, _ := db.Cursor(r2.DB, "taskqueue:"+r2.k("eng/bob")); n != r2.clock {
 		t.Fatalf("retry clock %d", n)
 	}
 	r2.logs = nil

@@ -166,7 +166,7 @@ func TestHrRenameAndTeamGoThroughTheDaemon(t *testing.T) {
 	}
 	want := []string{
 		`proposal.propose {"args":{"name":"a.one","to":"a.uno"},"kind":"rename","why":"w"}`,
-		`proposal.propose {"args":{"members":["sea","air"],"name":"zed","repo":"/r","repos":{"zed":"/r","zed.sea":"/s"}},"kind":"team","why":"w"}`,
+		`proposal.propose {"args":{"members":["sea","air"],"name":"zed","repo":"/r","repos":{"zed":"/r","zed/sea":"/s"}},"kind":"team","why":"w"}`,
 	}
 	if got := sent(calls()); !reflect.DeepEqual(got, want) {
 		t.Errorf("calls\n got  %v\n want %v", got, want)

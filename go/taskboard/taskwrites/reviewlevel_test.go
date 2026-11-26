@@ -20,10 +20,10 @@ import (
 // founder can still Redo one that went on, and a Redo puts the level back to every at once.
 func TestAReviewLevelBelowEveryLetsACheckedFinishSkipTheFounder(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.lander")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/lander")
 	homes.Store(d, home)
-	commit := workRepo(t, home, "gp.worker")
-	worker, lander := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.lander")
+	commit := workRepo(t, home, "gp/worker")
+	worker, lander := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "gp/lander")
 	gp, _, _ := team.WorkspaceID(d, "gp")
 	if err := team.SetRule(d, gp, team.RuleLandBy, lander, "p1", 1); err != nil {
 		t.Fatal(err)
@@ -119,14 +119,14 @@ func TestAReviewLevelBelowEveryLetsACheckedFinishSkipTheFounder(t *testing.T) {
 // A finish that would skip the founder but whose land_by agent cannot be asked rolls back whole, its automatic OK too.
 func TestADeniedSkipLeavesNoAutomaticOK(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.lander")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/lander")
 	homes.Store(d, home)
-	worker, lander := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.lander")
+	worker, lander := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "gp/lander")
 	gp, _, _ := team.WorkspaceID(d, "gp")
 	if err := team.SetRule(d, gp, team.RuleLandBy, lander, "p1", 1); err != nil {
 		t.Fatal(err)
 	}
-	workRepo(t, home, "gp.worker")(1, "go/a.go")
+	workRepo(t, home, "gp/worker")(1, "go/a.go")
 	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'part', %q, 'gp', 1)", worker),
 		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'gp', 'task_new', '{"task_id": 1, "draft": true}')`)
 	model, _ := team.NewRosterOn(d, home).Model(worker)
@@ -153,8 +153,8 @@ func TestADeniedSkipLeavesNoAutomaticOK(t *testing.T) {
 // gives each kind the agent has done its level and record.
 func TestOnlyTheFounderSetsAReviewLevel(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker")
-	worker := teamtest.Key(t, home, "gp.worker")
+	d := teamtest.Seed(t, home, "gp", "gp/worker")
+	worker := teamtest.Key(t, home, "gp/worker")
 	server := func(as string) *rpc.Server {
 		s := rpc.NewServer(auth{as}, "x", store.LatestVersion(), "local", func(string, ...any) {})
 		s.DB = d
@@ -197,10 +197,10 @@ func TestOnlyTheFounderSetsAReviewLevel(t *testing.T) {
 // task's kinds back to every and no other; a changed model starts every kind at every.
 func TestAFinishIsSampledByTheStrictestLevelOfTheKindsItsCommitsAre(t *testing.T) {
 	home := t.TempDir()
-	d := teamtest.Seed(t, home, "gp", "gp.worker", "gp.lander")
+	d := teamtest.Seed(t, home, "gp", "gp/worker", "gp/lander")
 	homes.Store(d, home)
-	commit := workRepo(t, home, "gp.worker")
-	worker, lander := teamtest.Key(t, home, "gp.worker"), teamtest.Key(t, home, "gp.lander")
+	commit := workRepo(t, home, "gp/worker")
+	worker, lander := teamtest.Key(t, home, "gp/worker"), teamtest.Key(t, home, "gp/lander")
 	gp, _, _ := team.WorkspaceID(d, "gp")
 	if err := team.SetRule(d, gp, team.RuleLandBy, lander, "p1", 1); err != nil {
 		t.Fatal(err)
@@ -262,7 +262,7 @@ func TestAFinishIsSampledByTheStrictestLevelOfTheKindsItsCommitsAre(t *testing.T
 	if finish(14) { // no commit names it: its kinds are unknown
 		t.Fatal("a task of no known kind skipped the founder")
 	}
-	teamtest.Set(t, home, "gp.worker", "model", "another-model")
+	teamtest.Set(t, home, "gp/worker", "model", "another-model")
 	other, _ := team.NewRosterOn(d, home).Model(worker)
 	if l, _ := db.ReviewLevel(d, worker, db.WorkDocs, other); other == model || l.Level != db.LevelEvery {
 		t.Fatalf("after a model change docs is %s", l.Level)

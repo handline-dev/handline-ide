@@ -16,12 +16,11 @@ import (
 func TestTheFounderRenamesAnIdleAgentAndIsRefusedWhatTheRenameWouldRefuse(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	if _, err := team.NewRoster(r.home).Register("alice.kid", team.RegisterOpts{Role: "r"}); err != nil {
+	if _, err := team.NewRoster(r.home).Register("alice/kid", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
-	bob, kid := r.who("bob"), r.who("alice.kid")
+	bob, kid := r.who("bob"), r.who("alice/kid")
 	for i, c := range []struct{ params, want string }{
-		{`"agent":"alice","to":"ann"`, "a rename would rename the workspace, which has 1 other agent(s)"},
 		{`"agent":"` + kid + `","to":"bob"`, `"bob" is`},
 		{`"agent":"` + kid + `","to":"bo.b"`, `"bo.b" is not a`},
 		{`"agent":"nobody","to":"x"`, "no such agent"},
@@ -30,23 +29,27 @@ func TestTheFounderRenamesAnIdleAgentAndIsRefusedWhatTheRenameWouldRefuse(t *tes
 			t.Errorf("%s: %s", c.params, msg)
 		}
 	}
-	r.setLive("alice.kid", true)
+	r.setLive("alice/kid", true)
 	if m := r.call("agent.rename", `{"agent":"`+kid+`","to":"kid","request_id":"same"}`); m["result"] == nil || len(r.e.listing()) != 0 {
 		t.Fatalf("its own name held a rename: %v %d", m, len(r.e.listing()))
 	}
-	r.setLive("alice.kid", false)
+	r.setLive("alice/kid", false)
 	if m := r.call("agent.rename", `{"agent":"`+kid+`","to":"kiddo","request_id":"k1"}`); m["result"] == nil {
 		t.Fatalf("an agent in a workspace with others: %v", m)
 	}
-	if r.who("alice.kiddo") != kid {
-		t.Fatalf("alice.kiddo is %q", r.who("alice.kiddo"))
+	if r.who("alice/kiddo") != kid {
+		t.Fatalf("alice.kiddo is %q", r.who("alice/kiddo"))
 	}
-	m := r.call("agent.rename", `{"agent":"bob","to":"robert","request_id":"n5"}`)
-	if res, _ := m["result"].(map[string]any); res == nil || res["said"] != "bob is now robert." {
-		t.Fatalf("%v", m)
+	// a lead is renamed like any agent, others in its workspace or not, and its workspace keeps its name
+	alice := r.who("alice")
+	for _, c := range []struct{ who, to, said string }{{"alice", "ann", "alice/lead is now ann."}, {"bob", "robert", "bob/lead is now robert."}} {
+		m := r.call("agent.rename", `{"agent":"`+r.who(c.who)+`","to":"`+c.to+`","request_id":"n-`+c.to+`"}`)
+		if res, _ := m["result"].(map[string]any); res == nil || res["said"] != c.said {
+			t.Fatalf("%v", m)
+		}
 	}
-	if r.who("robert") != bob || strings.Contains(r.rosterText(), "  bob: {}") {
-		t.Fatalf("a lead alone renamed, same key: %s\n%s", r.who("robert"), r.rosterText())
+	if r.who("bob/robert") != bob || r.who("bob") != bob || r.who("alice/ann") != alice || r.who("alice") != alice {
+		t.Fatalf("a lead renamed keeps its key and leads its workspace by the same name:\n%s", r.rosterText())
 	}
 	seat, err := team.NewSeat(r.db, bob, 1)
 	if err != nil {
@@ -96,7 +99,7 @@ func TestTheFoundersRenameOfARunningAgentInterruptsItsTurnAndAnswersOnceRenamed(
 	}
 	select {
 	case m := <-got:
-		if res, _ := m["result"].(map[string]any); res == nil || res["said"] != "bob is now robert." {
+		if res, _ := m["result"].(map[string]any); res == nil || res["said"] != "bob/lead is now robert." {
 			t.Fatalf("the outcome, not an acceptance: %v", m)
 		}
 	case <-time.After(10 * time.Second):

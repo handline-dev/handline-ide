@@ -84,12 +84,12 @@ func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *test
 func TestATasksPageNamesItsSubtasksParentMergeAndWhomToAsk(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	for _, a := range []string{"amy", "eng", "eng.bob", "eng.cy", "dee"} {
+	for _, a := range []string{"amy", "eng", "eng/bob", "eng/cy", "dee"} {
 		addAgent(t, e, a, "")
 	}
 	nameOf := map[string]string{} // by key, so the wants read by name
 	key := func(name string) string { k := teamtest.Key(t, e.Home, name); nameOf[k] = name; return k }
-	amy, bob, cy, dee := key("amy"), key("eng.bob"), key("eng.cy"), key("dee")
+	amy, bob, cy, dee := key("amy"), key("eng/bob"), key("eng/cy"), key("dee")
 	key("eng")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'the story', ?, ?, 10), "+
 		"(2, 'a', ?, ?, 10), (3, 'b', ?, ?, 10), (4, 'c', ?, ?, 10)", amy, amy, bob, amy, cy, bob, cy, bob)

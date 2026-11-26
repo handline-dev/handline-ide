@@ -836,7 +836,7 @@ func (l *Launcher) MemoryDir(agent string) (string, error) {
 
 // HiddenMemories are the memory folders agent may not read: every other agent's.
 func (l *Launcher) HiddenMemories(agent string) ([]string, error) {
-	keys, err := paths.AgentKeys(l.Home)
+	keys, err := paths.ReadAgents(l.Home)
 	if err != nil {
 		return nil, err
 	}
@@ -1627,11 +1627,12 @@ func launchedInstructions(q db.Q, old map[string]json.RawMessage) (int64, error)
 	return db.LastInstructionID(q, int64(since))
 }
 
-// personWords is who as the chat names it: an agent by its name, the founder as the founder, anything else as it is.
+// personWords is who as the chat names it: an agent by its handle (paths.AgentHandle), the founder as the founder, anything else as
+// it is.
 func (l *Launcher) personWords(who string) string {
 	switch actor.KindOf(who) {
 	case actor.Agent:
-		if n, err := paths.AgentNameIn(l.Q, who); err == nil && n != "" {
+		if n := paths.AgentHandle(l.Home, who); n != who {
 			return n
 		}
 	case actor.Person:

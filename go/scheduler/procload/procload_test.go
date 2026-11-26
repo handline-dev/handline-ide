@@ -218,8 +218,8 @@ func TestAChildStaysItsAgentsAfterItsParentEndsAndItIsReparented(t *testing.T) {
 // HANDLINE_AGENT holds the agent's name: a process is owned by the agent's key, as one found by its pane is.
 func TestAProcessMarkedWithANameIsOwnedByTheKey(t *testing.T) {
 	home := t.TempDir()
-	teamtest.Seed(t, home, "shop", "shop.quill")
-	quill := teamtest.Key(t, home, "shop.quill")
+	teamtest.Seed(t, home, "shop", "shop/quill")
+	quill := teamtest.Key(t, home, "shop/quill")
 	rows := []Raw{{PID: 100, PPID: 1, Start: 1}}
 	tr := tracker(&rows, map[int]string{100: "quill"}, nil)
 	tr.Home = home

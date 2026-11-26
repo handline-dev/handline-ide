@@ -33,7 +33,7 @@ func TestRunDeliversAStorysSubTaskWithItsPlan(t *testing.T) {
 	if sent == nil {
 		t.Fatal("not delivered")
 	}
-	want := "Plan, version 2 (OK by the founder):\nchange badge.tsx and its test\n\nCommit on branch bob-T1 (made from origin/main; if it exists, " +
+	want := "Plan, version 2 (OK by the founder):\nchange badge.tsx and its test\n\nCommit on branch lead-T1 (made from origin/main; if it exists, " +
 		"carry on from it). In your result, say what you changed from the plan."
 	if !strings.HasPrefix(sent.Body, strings.TrimSpace(brief)+"\n\n") || !strings.HasSuffix(sent.Body, want) {
 		t.Fatalf("%q", sent.Body)
@@ -49,7 +49,7 @@ func TestRunDeliversAStorysSubTaskWithItsPlan(t *testing.T) {
 	_, err = r.DB.Exec("UPDATE tasks SET owner = ? WHERE id = ?", r.k("alice"), bare)
 	r.must(err)
 	row, _ = db.GetTask(r.DB, bare)
-	branch := fmt.Sprintf("alice-T%d", bare)
+	branch := fmt.Sprintf("lead-T%d", bare) // alice leads its workspace, and its agent is named lead
 	if body, plan := queuedBody(r.DB, row); body != "bare part\n\nCommit on branch "+branch+" (made from origin/main; if it exists, carry on from it)." || plan != 0 {
 		t.Fatalf("%q %d", body, plan)
 	}

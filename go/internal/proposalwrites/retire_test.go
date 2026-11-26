@@ -25,34 +25,37 @@ func refusal(t *testing.T, m map[string]any) string {
 	return e["message"].(string)
 }
 
-func TestAgentRetireRefusesADependedOnAgentAndRetiresOneThatIsNot(t *testing.T) {
+// A lead is retired like any agent: the oldest other agent of its workspace leads it from then on.
+func TestAgentRetireOfALeadMakesTheOldestOtherAgentTheLead(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	// bob.kid is an agent of bob's workspace, whose contact is bob
-	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
-		t.Fatal(err)
+	for _, n := range []string{"bob/kid", "bob/pup"} {
+		if _, err := team.NewRoster(r.home).Register(n, team.RegisterOpts{Role: "r"}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	bob, kid := r.who("bob"), r.who("bob.kid")
-	if msg := refusal(t, r.call("agent.retire", `{"agent":"bob","request_id":"r2"}`)); !strings.Contains(msg, addr.Ref(bob)+" is its workspace's contact, and others are still in it ("+kid+")") {
-		t.Fatal(msg)
+	bob, kid, pup := r.who("bob"), r.who("bob/kid"), r.who("bob/pup")
+	m := r.call("agent.retire", `{"agent":"`+bob+`","request_id":"r2"}`)
+	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), "bob/lead is retired") {
+		t.Fatalf("%v", m)
 	}
-	if !slices.Contains(paths.ListAgents(r.home), bob) {
-		t.Fatal("a refusal retired nothing")
+	if slices.Contains(paths.ListAgents(r.home), bob) || r.who("bob") != kid {
+		t.Fatalf("bob's workspace is led by %s, want the oldest other agent %s", r.who("bob"), kid)
 	}
-	// bob.kid is retired: nothing depends on it
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", kid)
-	m := r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r3"}`)
+	r.db.Exec("INSERT INTO agent_state(agent, state, updated) VALUES(?, 'idle', 1)", pup)
+	m = r.call("agent.retire", `{"agent":"`+pup+`","request_id":"r3"}`)
 	res, _ := m["result"].(map[string]any)
-	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-bob.kid")
-	if res == nil || !strings.HasPrefix(res["said"].(string), "bob.kid is retired; its folder is at "+archive) {
+	archive := filepath.Join(r.home, "agents", "archive", time.Now().Format("2006-01-02")+"-bob-pup")
+	if res == nil || !strings.HasPrefix(res["said"].(string), "bob/pup is retired; its folder is at "+archive) {
 		t.Fatalf("%v", m)
 	}
 	if _, err := os.Stat(filepath.Join(archive, "memory")); err != nil {
 		t.Fatal("the folder is archived:", err)
 	}
+	kid = pup // the rest of the test reads the agent retired last
 	var rows int
 	r.db.QueryRow("SELECT COUNT(*) FROM agent_state WHERE agent = ?", kid).Scan(&rows)
-	if rows != 0 || strings.Contains(r.rosterText(), "bob.kid") {
+	if rows != 0 || strings.Contains(r.rosterText(), "bob/pup") {
 		t.Fatalf("rows %d\n%s", rows, r.rosterText())
 	}
 	again, _ := r.call("agent.retire", `{"agent":"`+kid+`","request_id":"r3"}`)["result"].(map[string]any)
@@ -111,7 +114,7 @@ func TestTheFoundersRetireOfARunningAgentAnswersOnceItIsRetired(t *testing.T) {
 		}
 		sweep(true)
 	})
-	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), "bob is retired; its folder is at ") {
+	if res, _ := m["result"].(map[string]any); res == nil || !strings.HasPrefix(res["said"].(string), "bob/lead is retired; its folder is at ") {
 		t.Fatalf("the outcome, not an acceptance: %v", m)
 	}
 	if strings.Contains(r.rosterText(), "bob") || r.state(r.e.listing()[0].id()) != "applied" {
@@ -412,10 +415,10 @@ func TestAnAgentInTheRepositorysOwnCheckoutIsDeletedAndTheCheckoutStays(t *testi
 func TestRetiringAnAgentIsRefusedWhileASeatIsAtWorkAndTakesItsIdleSeats(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
-	if _, err := team.NewRoster(r.home).Register("bob.kid", team.RegisterOpts{Role: "r"}); err != nil {
+	if _, err := team.NewRoster(r.home).Register("bob/kid", team.RegisterOpts{Role: "r"}); err != nil {
 		t.Fatal(err)
 	}
-	kid := r.who("bob.kid")
+	kid := r.who("bob/kid")
 	var seats []string
 	for range 2 {
 		s, err := team.NewSeat(r.db, kid, 1)
