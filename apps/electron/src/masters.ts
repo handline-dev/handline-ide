@@ -1,4 +1,4 @@
-// The owner's machines as the shell sees them (docs/story4-design.md section 4): the doors the page may join whichever is master at.
+// The owner's machines as the shell sees them (docs/several-machines.md section 4): the doors the page may join whichever is master at.
 import type { ShellDaemon } from '@handline/app-core';
 import type { Door, Settings, SettingsFile } from '#src/mode.ts';
 import { CHANNELS, DaemonView } from '#src/bridge.ts';

@@ -1,4 +1,4 @@
-// Package codex is the Codex CLI vendor (docs/design/codex-support.md): an account keeps its own CODEX_HOME.
+// Package codex is the Codex CLI vendor: an account keeps its own CODEX_HOME.
 package codex
 
 import (

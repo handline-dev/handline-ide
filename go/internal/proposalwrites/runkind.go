@@ -17,7 +17,7 @@ import (
 	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
-// A run proposal (docs/design/agent-run-proposals.md): an agent proposes a shell command, and the founder's approve runs it in a window of
+// A run proposal: an agent proposes a shell command, and the founder's approve runs it in a window of
 // the terminal host beside that agent, which is told how it ended. The window is opened by the daemon, outside the agent's sandbox.
 
 const (

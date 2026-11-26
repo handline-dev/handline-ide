@@ -1,23 +1,23 @@
 # Development
 
 ```bash
-tools/test.sh     # the contract's generated files current, then the Go suite and its gates; no network, no tokens
+tools/test.sh     # the contract's generated files current, then the Go suite, its gates and the fakes build; no network, no tokens
 tools/test.sh ./internal/reads -run X   # go test's own arguments: one package, one test
 tools/test-go.sh          # only go test ./...
-tools/test-go.sh --gates  # what is not a package's test: tidy, dupl, the builds, the conformance fixtures
+tools/test-go.sh --gates  # what is not a package's test: go.mod tidy, dupl, a cgo-free build, the conformance fixtures
 tools/check.sh main   # what a change needs: nothing for docs; otherwise the app checks, the contract, the Go tests of the packages the change reaches (all for go.mod, migrations, contract/, tools/) and the gates
-HANDLINE_GO_RACE=1 tools/test-go.sh   # the Go suite with go test -race: the auditor's run on a sha for a Go change, nobody else's
+HANDLINE_GO_RACE=1 tools/test-go.sh   # the Go suite with go test -race, run on the exact sha before a Go change lands
 ```
 
-`HANDLINE_LIVE=1 tools/live-e2e.sh` drives one real haiku agent through a test daemon on a scratch home and prints how
-fast the event stream showed each step. It spends tokens on the account `tools/live_account.py` picks (the most headroom
-now), so it runs only by hand, by any agent, and never from `tools/test.sh` or `check.sh`. Name the account in `HANDLINE_LIVE_ACCOUNT`.
+`HANDLINE_LIVE=1 tools/live-e2e.sh` drives a real Claude Code through a test daemon on a scratch home and prints how
+fast the event stream showed each step. It spends tokens on the account named in `HANDLINE_LIVE_ACCOUNT`
+(`tools/live_account.py`), so it runs only by hand, never from `tools/test.sh`, `check.sh` or CI.
 
-`tools/prune_worktrees.py` lists the worktrees that are merged into main, clean and no agent's; `--remove` removes them.
+`tools/prune_worktrees.py` lists the worktrees of this repository that are done with, and why each other one stays; `--remove` removes them.
 
 ## React Compiler
 
-The web and phone apps build with the React Compiler, and lint holds the Rules of React it relies on (`packages/config/eslint/react.js`, the
+The web app builds with the React Compiler, and lint holds the Rules of React it relies on (`packages/config/eslint/react.js`, the
 `react-hooks` compiler rules as errors). They are rules of React, so they hold with or without the compiler.
 
 Do:
@@ -34,12 +34,10 @@ Do not:
 - Define a component inside a component.
 - Disable a `react-hooks` rule. `'use no memo'` only with a comment saying why.
 
-The debt is the `compilerDebt` block in `apps/web/eslint.config.js` and `apps/mobile/eslint.config.js`: files that still break a rule sit at
-`warn` there. The list only shrinks; a file that is not in it gets the error.
+The debt is the `compilerDebt` block in a package's `eslint.config.js` (`packages/app-data`, `packages/app-react`): files that still
+break a rule sit at `warn` there. The list only shrinks; a file that is not in it gets the error.
 
-Design notes are in `design/` and `docs/`.
+Design notes are in `docs/`.
 
-Working on the desktop app itself — the page with hot reload, a dev Electron
-instance next to the everyday one, pairing — is in
-[app-dev-loop](app-dev-loop.md); running it for real (phones, Tailscale) in
-[run-on-real-daemon](run-on-real-daemon.md).
+Working on the desktop app itself (the page with hot reload, a dev Electron instance next to the everyday one, pairing) is in
+[app-dev-loop](app-dev-loop.md); running it on a real daemon in [run-on-real-daemon](run-on-real-daemon.md).

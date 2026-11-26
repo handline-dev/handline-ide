@@ -8,7 +8,7 @@ write (`task.wait`): it opens the gate, blocks the task on it and, if the task i
 
 A watch is `{vendor, target, until}`:
 
-- **vendor** is the outside tool. This daemon has `github`.
+- **vendor** is the outside tool. The one vendor is `github`.
 - **target** is the thing, written the way that tool writes it. Only the vendor reads it.
 - **until** is what the gate waits for, from one shared list: `ci` (the checks finished), `closed` (a PR merged or closed),
   `done` (an issue finished). Each vendor takes some of them. If none is given, the vendor's first is used.
@@ -16,7 +16,7 @@ A watch is `{vendor, target, until}`:
 A vendor answers each read with `waiting`, `passed`, `failed` or `gone`, plus one line of evidence. The gate's result is
 `passed`, `failed` or `timed_out`, and its done evidence is the vendor's line.
 
-## The gate (package `gates`)
+## The gate (`go/internal/gates`)
 
 Every 60 s the daemon reads each open gate, one at a time, on a clock of its own (not the tick):
 
@@ -27,7 +27,7 @@ Every 60 s the daemon reads each open gate, one at a time, on a clock of its own
   `watching <label> - last read failed: <why>` until a read works again.
 - **Past the deadline** (its time box, 24 h by default): the gate is `timed out`, and its target is not read.
 
-## What a vendor implements (package `watch`)
+## What a vendor implements (`go/taskboard/watch`)
 
 A vendor is one file, `go/taskboard/watch/<vendor>.go`, listed in `watch.Vendors`. It has four methods:
 
@@ -36,9 +36,10 @@ A vendor is one file, `go/taskboard/watch/<vendor>.go`, listed in `watch.Vendors
   canonical form, and a label people read (`PR #418 CI`). An error refuses the watch as a bad request.
 - `Ready(ctx)` says whether the vendor is set up, and why not. A watch whose vendor is not set up is refused. This is checked
   last, so every other refusal reads nothing outside.
-- `Check(ctx, target, until)` reads the target once. An error means it could not be read; it is never a verdict.
+- `Check(ctx, target, until, since)` reads the target once; `since` is when the gate started. An error means it could not be read;
+  it is never a verdict.
 
-No secrets go in the database, on the wire, or in `agent.yaml`. A vendor whose tool has a CLI with its own login uses that CLI.
+No secrets go in the database, on the wire, or in an agent's settings. A vendor whose tool has a CLI with its own login uses that CLI.
 
 A new vendor ships: its file, a test that feeds `Check` recorded tool output for each until and each failure case, and a
 section below.

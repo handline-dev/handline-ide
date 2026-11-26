@@ -1,4 +1,4 @@
-// Package projects puts each workspace's repo on the master's runners (docs/story4-design.md, slice 8): a runner clones it from the
+// Package projects puts each workspace's repo on the master's runners (docs/several-machines.md): a runner clones it from the
 // repo's remote when it links (it joined, or came back) and when a workspace is added, so an agent placed there has the project.
 package projects
 

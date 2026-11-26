@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 )
 
-// A person's move on a fake clock: scenario rows F1-F3, F5, F6 and the pin refusals D1/D2 of docs/design/account-assignment-scenarios.md.
+// A person's move on a fake clock, and the refusals of a pinned agent's move.
 
 func newReserveRig(t *testing.T) (*termMoveRig, *int64) {
 	t.Helper()

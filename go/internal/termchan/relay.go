@@ -1,6 +1,6 @@
 package termchan
 
-// The bytes format of a runner's terminal (docs/story4-design.md, slice 12): each app client's attach on the master is a stream of its
+// The bytes format of a runner's terminal (docs/several-machines.md): each app client's attach on the master is a stream of its
 // own from the runner (runner.attach), which serves it with this same bytes channel (Streams). On the master the client is a BytesClient
 // as any other; its resync asks the runner for one in its stream (runner.resync).
 

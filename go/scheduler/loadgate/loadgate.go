@@ -1,4 +1,4 @@
-// Package loadgate says whether the machine is too loaded to start more work (docs/story2-load-research.md, 2-1). It is level-triggered
+// Package loadgate says whether the machine is too loaded to start more work. It is level-triggered
 // on the latest measure and has no model: over a limit a new start waits, and it goes once a later measure is under. Running agents are
 // never stopped, and a machine with no agent mid-turn never holds a start, so work never stalls on the load alone.
 package loadgate

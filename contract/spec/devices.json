@@ -978,7 +978,7 @@
       },
       "placement": {
        "type": "object",
-       "description": "Where each agent's next session starts and why (docs/story4-design.md section 7). Absent on a daemon that does not place agents.",
+       "description": "Where each agent's next session starts and why (docs/several-machines.md section 7). Absent on a daemon that does not place agents.",
        "properties": {
         "mode": {
          "type": "string",

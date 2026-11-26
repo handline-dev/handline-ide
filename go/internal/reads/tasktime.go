@@ -10,7 +10,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// The waiting reasons a segment names, in the words of docs/story1-research.md ("One picture of what waits and why"). They live here alone so
+// The waiting reasons a segment names, in the app's own words for what waits and why. They live here alone so
 // the shared state and reason list can replace them in one place.
 const (
 	waitFounder = "needs you"

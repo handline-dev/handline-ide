@@ -1,4 +1,4 @@
-// Package homefiles is files of a Handline home sent between the master and a runner (docs/story4-design.md, slice 6): each named by
+// Package homefiles is files of a Handline home sent between the master and a runner (docs/several-machines.md): each named by
 // its path under the home, so it lands at the same place under the other machine's home, and never outside it.
 package homefiles
 

@@ -26,7 +26,7 @@ func repoDir(home, remote string) string {
 	return filepath.Join(home, "runner-repos", hex.EncodeToString(sum[:8]))
 }
 
-// HooksDir is the hooks folder of every worktree the runner makes (docs/story4-design.md, slice 8).
+// HooksDir is the hooks folder of every worktree the runner makes (docs/several-machines.md).
 func HooksDir(home string) string { return filepath.Join(home, "runner-hooks") }
 
 // hookNames are the hooks the runner's folder holds: core.hooksPath takes the place of the project's own, so each runs the project's

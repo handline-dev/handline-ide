@@ -1,4 +1,4 @@
-// Package boardcopy is the copy of the board the owner's machines keep (docs/story4-design.md, section 4, slice 17): Litestream, as a
+// Package boardcopy is the copy of the board the owner's machines keep (docs/several-machines.md section 4): Litestream, as a
 // library inside the master, writes each committed change of the board to a folder on the master (Copier); each of the owner's runners
 // pulls what it lacks of that folder in pieces (Changes on the master, Apply on the runner); a copy restores to a board file (Restore).
 package boardcopy

@@ -1,5 +1,5 @@
-// The fake's agents keep their dotted names as their keys. The words the app writes them out by come from the name the way the
-// importer splits it (docs/design/people-workspaces.md, No migration): the first segment is the workspace, the rest the agent's name,
+// The fake's agents keep their dotted names as their keys. The words the app writes them out by come from the dotted name:
+// the first segment is the workspace, the rest the agent's name,
 // and the agent named just the segment is its lead.
 import type { Person, Workspace } from '@handline/contract';
 

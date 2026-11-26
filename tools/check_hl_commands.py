@@ -12,12 +12,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HISTORY = {
-    "agent-state-elsewhere", "contract-requests", "daemon-plan", "direct-writers", "hook-probes", "improvement-round",
-    "lint-and-file-size", "memory-design", "phase0-findings",
-    "python-daemon-removal", "structured-switch",
-    "vendor-extension-decisions", "watch-vendors",
-}  # plus every story*: research and design written before the command existed
+HISTORY = set()
 REF = re.compile(r"(?<![\w/.-])hl ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?")
 
 
@@ -48,7 +43,7 @@ def files():
     out = ["AGENTS.md"] + sorted(glob.glob(os.path.join(ROOT, "skill", "*")))
     for d in sorted(glob.glob(os.path.join(ROOT, "docs", "*.md"))):
         name = os.path.basename(d)[:-3]
-        if name not in HISTORY and not name.startswith("story"):
+        if name not in HISTORY:
             out.append(d)
     lifecycle = [g for g in sorted(glob.glob(os.path.join(ROOT, LIFECYCLE, "*.go"))) if not g.endswith("_test.go")]
     if not lifecycle:

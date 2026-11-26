@@ -14,13 +14,11 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// The one send path to a structured session (docs/design/structured-sessions.md, "Delivery"): the same for a person's message, another agent's,
-// the daemon's own notices and a task. A message goes out once under an operation id; a retry that finds it already out writes nothing; one
-// that was written and not confirmed when its session ended is marked unknown, never written again, and the sender of each request in it is told. A pending message and a batch of answers have no sender to tell: the delivery_unknown event records them.
-//
-// The ledger is the cursors table, one row per operation, so nothing here needs a schema of its own: `send:<agent>:<op>` holds the state.
-// The Agents port's contract: an error from Send means nothing was written. A message written and never echoed stays Written; ending it needs
-// a deadline from the session layer (S1).
+// The one send path to a structured session, for a person's message, another agent's, the daemon's notices and a task. A message goes
+// out once under an operation id; a retry that finds it out writes nothing; one written and not confirmed when its session ended is
+// marked unknown, never written again, and each request's sender is told (a pending message or a batch of answers: delivery_unknown).
+// The ledger is the cursors table, one row per operation: `send:<agent>:<op>` holds the state. An error from Send means nothing was
+// written; a message written and never echoed stays Written until the session layer ends it.
 
 // The states of a send, as the ledger holds them.
 const (

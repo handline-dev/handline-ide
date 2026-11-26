@@ -1,4 +1,4 @@
-// A home that joined a master, as a cluster engine's does (clusters.ts; docs/story4-design.md section 4): what it keeps of its masters,
+// A home that joined a master, as a cluster engine's does (clusters.ts; docs/several-machines.md section 4): what it keeps of its masters,
 // and the shell's connection to the master it obeys, with the device token it joined with. Only a master listens.
 import fs from 'node:fs';
 import path from 'node:path';

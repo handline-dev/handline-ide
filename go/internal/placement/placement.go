@@ -1,4 +1,4 @@
-// Package placement picks the machine an agent's session starts on (docs/story4-design.md sections 2 and 7): on Auto a light agent stays
+// Package placement picks the machine an agent's session starts on (docs/several-machines.md sections 2 and 7): on Auto a light agent stays
 // on the master's machine and a heavy one goes to the lent device with the most room that has all it needs; on Manual an agent pinned to
 // a device starts there.
 package placement

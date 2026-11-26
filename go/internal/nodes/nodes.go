@@ -1,4 +1,4 @@
-// Package nodes is the master's side of its runners (docs/story4-design.md, slice 4): the live link of each runner, which the runner
+// Package nodes is the master's side of its runners (docs/several-machines.md): the live link of each runner, which the runner
 // dials and keeps open, the calls the master drives a runner with over it, and node.forward, by which a runner's agents reach the master.
 package nodes
 

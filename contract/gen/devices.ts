@@ -169,7 +169,7 @@ export interface DevicesMethods {
     };
     nodes: Node[];
     cluster: Cluster;
-    /** Where each agent's next session starts and why (docs/story4-design.md section 7). Absent on a daemon that does not place agents. */
+    /** Where each agent's next session starts and why (docs/several-machines.md section 7). Absent on a daemon that does not place agents. */
     placement?: {
       /** The agent_placement setting. */
       mode: "auto" | "manual";

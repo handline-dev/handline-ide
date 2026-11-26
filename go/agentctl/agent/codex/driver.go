@@ -16,7 +16,7 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 )
 
-// Driver is codex as a launch starts it (docs/design/codex-support.md, S1 findings): the TUI, one process per agent, its home the
+// Driver is codex as a launch starts it: the TUI, one process per agent, its home the
 // account's CODEX_HOME.
 type Driver struct {
 	Account
@@ -58,7 +58,7 @@ func (Driver) TranscriptDir(string, string) (string, bool) { return "", false }
 // efforts maps Handline's effort onto codex's model_reasoning_effort, which has no step above high.
 var efforts = map[string]string{"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"}
 
-// LaunchArgv is S1's launch line. --no-daemon keeps each agent off codex's shared app-server; the inline projects table trusts the
+// LaunchArgv is the launch line. --no-daemon keeps each agent off codex's shared app-server; the inline projects table trusts the
 // worktree without saving it; the rules go in as developer_instructions, so nothing is written into the repo; the hooks are Handline's
 // own file, so their review is bypassed. On a codex with permission profiles the sandbox reaches the daemon's socket and AllowDomains
 // only; on an older one, or with WeakerNetwork, the whole network. Disallowed, Hide, NoWrite, ReadAllow and MCPArgs have no codex flag.
