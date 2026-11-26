@@ -66,7 +66,7 @@ export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.s
 
 /** A tab on one thing, opened from a link: a task (`task:8503`), a page (`web:<address>`), a repo file (`file:<path>`). */
 export const taskOf = (id: number) => `task:${id}`;
-/** A chat message with the lines around it, as search finds it (chat/Located): `msg:4521`. */
+/** A chat message with the lines around it, as a search hit or a schedule's last run opens it (chat/Located): `msg:4521`. */
 export const messageOf = (id: number) => `msg:${id}`;
 /** A task's sub-tasks as a graph (tools/Story): `plan:8503`. */
 export const planOf = (id: number) => `plan:${id}`;

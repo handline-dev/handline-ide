@@ -1,6 +1,7 @@
-// A chat message that search found, with the lines around it: chat.locate's window (the page of messages around the message and the
-// agent's transcript of the same span), drawn as the chat draws them. It is a still window on the past, not the live chat: Open chat
-// goes there.
+// The app's one way to a chat message from outside its chat: a search hit and a schedule's last run both open this tab. It draws
+// chat.locate's window (the page of messages around the message and the agent's transcript of the same span) as the chat draws
+// them, so the message shows however far back it is, with no paging to it. It is a still window on the past, not the live chat:
+// Open chat goes there.
 import { chatOfHit } from '@handline/app-core';
 import { Hooks, useNameOf, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
@@ -15,8 +16,6 @@ import { Button } from '#src/ui/Button.tsx';
 import { Page } from '#src/ui/Page.tsx';
 
 type Located = Methods['chat.locate']['result'];
-/** How the message found is marked: a line round it, a little off its words. */
-const MARK = ['rounded-md', 'outline-2', 'outline-offset-4', 'outline-warning'];
 /** Messages in the window, about half of them older than the one found. */
 const WINDOW = 40;
 
@@ -59,13 +58,13 @@ function Window({ at, request }: { at: Located; request: number }) {
     at.agent,
   );
   const box = useRef<HTMLDivElement>(null);
-  // The message found comes to the middle and is marked for a moment, as a comment gone to is (tools/TaskTurn).
+  // The message comes to the middle and is lit once, as a line that just changed is (styles.css just-changed).
   useEffect(() => {
     const el = box.current?.querySelector(`[data-id="message:${request}"]`);
     if (!el) return;
     el.scrollIntoView({ block: 'center' });
-    el.classList.add(...MARK);
-    const t = setTimeout(() => el.classList.remove(...MARK), 2500);
+    el.classList.add('rounded-md', 'just-changed');
+    const t = setTimeout(() => el.classList.remove('rounded-md', 'just-changed'), 2500);
     return () => clearTimeout(t);
   }, [request, at]);
   return (

@@ -1,12 +1,11 @@
 // The schedules: the messages Handline sends an agent at set times, each with when it is sent next and when it was last sent, which
-// opens that message in the agent's chat. Read-only: an agent asks for a schedule and the founder allows it. Settings › Schedules
+// opens that message with the chat's lines around it (chat/Located, as a message search finds does). Read-only: an agent asks for a schedule and the founder allows it. Settings › Schedules
 // lists every agent's; an agent's settings tab lists its own.
 import { Hooks, useNameOf } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { ArrowUpRight } from 'lucide-react';
-import { aimChat } from '#src/chat/aim.ts';
 import { clockOrDay, useNow } from '#src/format/time.ts';
-import { chatOf } from '#src/layout/kinds.tsx';
+import { messageOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { nextWord, zoneNote } from '#src/settings/data/schedules.ts';
 import { Block } from '#src/settings/Meter.tsx';
@@ -91,21 +90,22 @@ function Row({ s, named }: { s: Schedule; named: boolean }) {
         </div>
         <div className="flex items-baseline gap-3">
           <dt className="w-8 text-muted">Last</dt>
-          <dd>{last ? <LastRun agent={s.agent} fire={last} /> : <span className="text-muted">Not yet</span>}</dd>
+          <dd>{last ? <LastRun fire={last} /> : <span className="text-muted">Not yet</span>}</dd>
         </div>
       </dl>
     </li>
   );
 }
 
-/** When it was last sent: opens the agent's chat on that message, by the app's scheme, and Settings closes so the chat shows. */
-function LastRun({ agent, fire }: { agent: string; fire: Schedule['fires'][number] }) {
-  const open = useOpenable(chatOf(agent), { focus: () => aimChat(agent, fire.request, fire.at), onOpen: closeSettings });
+/** When it was last sent: opens that message among the chat's lines around it, however far back it is, by the app's scheme, and
+ * Settings closes so it shows. */
+function LastRun({ fire }: { fire: Schedule['fires'][number] }) {
+  const open = useOpenable(messageOf(fire.request), { onOpen: closeSettings });
   return (
     <button
       type="button"
       {...open}
-      title={`Sent ${clockOrDay(fire.at)}. Open it in the chat.`}
+      title={`Sent ${clockOrDay(fire.at)}. Open it among the chat's messages.`}
       className="flex items-center gap-1 rounded text-fg underline-offset-2 hover:underline"
     >
       <Ago at={fire.at} />

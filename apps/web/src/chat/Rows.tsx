@@ -17,12 +17,9 @@ export function useChatRows(source: ChatSource, agent: string, live: TaskEvent[]
   const nameOf = useNameOf();
   const me = useMe();
   // Drawn by the chat's own rules (mine) whatever was read: what the agent says to other agents shows as quiet lines.
-  const drawn = chatView(source, 'mine', agent, me, [], true);
-  const { entries, bash } = foldBash(drawn.entries);
+  const { entries, bash } = foldBash(chatView(source, 'mine', agent, me, [], true).entries);
   return {
     entries,
-    /** The time the lines are drawn from; null when they reach the chat's first. */
-    floor: drawn.floor,
     /** What each ! line ran and printed, by its message. */
     bash,
     rows: onePerTask(taskRuns(foldTurns(entries), agent, me, nameOf, live)),
