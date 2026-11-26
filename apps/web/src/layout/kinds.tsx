@@ -49,11 +49,13 @@ export const chatOf = (name: string) => `chat:${name}`;
  * `<kind>|<agent>`, as a chat carries it in `chat:<agent>`. */
 export const agentKind = (kind: string) => ['shell', 'newshell', 'diff', 'markdown'].includes(kind) || /^(shell|file):/.test(kind);
 export const withAgent = (kind: string, agent: string) => `${kind}|${agent}`;
+/** Tasks may name an agent too, `tasks|<agent>` (opened from its desk in the town), though opening Tasks never carries one. */
+const namesAgent = (kind: string) => agentKind(kind) || kind === 'tasks';
 export const ownedBy = (opens: string) => {
   // | and a key with no slash: a file path or an address never reads as an agent.
   const i = opens.lastIndexOf('|');
   const agent = opens.slice(i + 1);
-  return i > 0 && /^[\w.-]+$/.test(agent) && agentKind(opens.slice(0, i)) ? { kind: opens.slice(0, i), agent } : null;
+  return i > 0 && /^[\w.-]+$/.test(agent) && namesAgent(opens.slice(0, i)) ? { kind: opens.slice(0, i), agent } : null;
 };
 /** `opens` naming agent `from` when it is one of an agent's kinds that does not yet. A shell's owner is set when it opens (a plain one
  *  has none), so moving or reopening it never gives it one. */

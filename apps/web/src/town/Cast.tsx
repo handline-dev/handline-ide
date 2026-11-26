@@ -17,19 +17,19 @@ const STRIDE = 0.16;
 
 export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder: Founder; crowd: Crowd; scale: number }) {
   const movers = useMovers(crowd);
-  const font = 11 / scale; // names stay 11px on screen whatever the scale
+  const font = nameSize(scale);
   const items = [
     ...drawn.cast.figures.filter((f) => !movers.has(f.person.key)).map((f) => ({ z: f.z, el: <Drawing key={f.person.key} figure={f} /> })),
     ...[...movers].map(([key, m]) => ({
       z: m.at[1],
-      el: <Walking key={key} drawn={drawn} mover={m} label={{ text: m.name, size: font, halo: 2.5 / scale }} />,
+      el: <Walking key={key} drawn={drawn} mover={m} label={{ text: m.name, size: font, halo: font * HALO }} />,
     })),
   ].sort((a, b) => a.z - b.z);
   // Those up to `behind` are behind the founder. One list, each keyed, so nobody is drawn anew as the founder walks past.
   const behind = useFounder(founder, (me) => (me ? items.filter((i) => i.z <= me.at[1]).length : 0));
   const names = drawn.cast.names
     .filter((n) => !movers.has(n.person.key))
-    .map((n) => <Label key={`name:${n.person.key}`} x={n.x} y={n.y} font={font} scale={scale} text={n.person.name} />);
+    .map((n) => <Label key={`name:${n.person.key}`} x={n.x} y={n.y} font={font} text={n.person.name} />);
   return [
     ...items.slice(0, behind).map((i) => i.el),
     ...names,
@@ -81,8 +81,13 @@ export function useThroughDoor(crowd: Crowd, door: Door | undefined): 'in' | 'ou
   });
 }
 
-/** A name under a person or desk: `font` and the halo keep their screen size whatever the scale. */
-export function Label({ x, y, font, scale, text }: { x: number; y: number; font: number; scale: number; text: string }) {
+/** A name's size in picture pixels: 11px on screen, smaller once the room is drawn too small for names that size to sit apart. */
+export const nameSize = (scale: number) => Math.min(11 / scale, 6.5);
+/** A name's halo, for its size. */
+const HALO = 2.5 / 11;
+
+/** A name under a person or desk, `font` picture pixels tall. */
+export function Label({ x, y, font, text }: { x: number; y: number; font: number; text: string }) {
   return (
     <text
       x={x}
@@ -92,7 +97,7 @@ export function Label({ x, y, font, scale, text }: { x: number; y: number; font:
       fontWeight={600}
       fill={NAME_INK}
       stroke={NAME_HALO}
-      strokeWidth={2.5 / scale}
+      strokeWidth={font * HALO}
       paintOrder="stroke"
       className="pointer-events-none"
     >

@@ -19,7 +19,7 @@ import { failedLine, look } from '#src/ui/taskLook.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 
-type Show = 'mine' | 'own' | 'draft' | 'closed';
+type Show = 'mine' | 'own' | 'holds' | 'draft' | 'closed';
 
 const SHOWS: { key: Show; label: string }[] = [
   { key: 'mine', label: 'My requests' },
@@ -27,6 +27,8 @@ const SHOWS: { key: Show; label: string }[] = [
   { key: 'draft', label: 'Drafts' },
   { key: 'closed', label: 'Closed' },
 ];
+/** A tab naming its agent lists all it holds in one, the founder's requests among them, as the papers on its desk count them. */
+const NAMED: typeof SHOWS = [{ key: 'holds', label: 'Open' }, ...SHOWS.slice(2)];
 
 /** A request nothing has moved for this long is on hold: folded under the ones in progress. */
 const HOLD_MS = 14 * 24 * 60 * 60 * 1000;
@@ -44,19 +46,32 @@ const GROUPS: { title: string; has: (t: Task) => boolean }[] = [
 
 /** The tasks: open ones grouped by what they are doing, drafts, or the closed ones; in an agent's pane, that agent's by default.
  * A row opens the task in this pane. */
-export function TasksTab({ agent }: { agent: string | null }) {
-  const [kept, setShow] = useTabState<Show | 'open'>('show', 'mine');
+/** `named`: the tab names its agent (one's desk in the town opened it), so it lists what that agent holds. */
+export function TasksTab({ agent, named = false }: { agent: string | null; named?: boolean }) {
+  const [kept, setShow] = useTabState<Show | 'open'>('show', named ? 'holds' : 'mine');
   const show: Show = kept === 'open' ? 'mine' : kept;
   const [only, setOnly] = useTabState('only', true);
   const [held, setHeld] = useTabState('held', false);
   const owner = agent && only ? agent : undefined;
-  const open = show === 'mine' || show === 'own';
+  const open = show === 'mine' || show === 'own' || show === 'holds';
   const params = show === 'closed' ? { state: 'closed', order: 'closed' as const, owner } : { state: open ? 'open' : show, owner };
   const useListed = () => useTasks(params);
   // The Tasks page lists every cluster's; an agent's pane, its own cluster's.
   return (
     <Across hook={useListed} alone={!!agent} sig={(q) => JSON.stringify([q.isPending, q.isError, q.data])}>
-      {(all) => <Tasks agent={agent} all={all} show={show} setShow={setShow} only={only} setOnly={setOnly} held={held} setHeld={setHeld} />}
+      {(all) => (
+        <Tasks
+          agent={agent}
+          named={named}
+          all={all}
+          show={show}
+          setShow={setShow}
+          only={only}
+          setOnly={setOnly}
+          held={held}
+          setHeld={setHeld}
+        />
+      )}
     </Across>
   );
 }
@@ -67,6 +82,7 @@ type At = Task & { cluster: string };
 
 function Tasks({
   agent,
+  named,
   all: got,
   show,
   setShow,
@@ -76,6 +92,7 @@ function Tasks({
   setHeld,
 }: {
   agent: string | null;
+  named: boolean;
   all: Of<Q>[];
   show: Show;
   setShow: (s: Show) => void;
@@ -85,18 +102,18 @@ function Tasks({
   setHeld: (b: boolean) => void;
 }) {
   const owner = agent && only ? agent : undefined;
-  const open = show === 'mine' || show === 'own';
+  const open = show === 'mine' || show === 'own' || show === 'holds';
   const q = got.find((g) => g.cluster === '')?.data;
   const several = got.length > 1;
   const merged: At[] = got.flatMap((g) => (g.data.data?.items ?? []).map((t) => ({ ...t, cluster: g.cluster })));
   const all = several ? merged.sort((a, b) => (b.done ?? b.created).localeCompare(a.done ?? a.created)) : merged;
-  const items = open ? all.filter((t) => !!t.my_request === (show === 'mine')) : all;
+  const items = open && show !== 'holds' ? all.filter((t) => !!t.my_request === (show === 'mine')) : all;
   const mine = all.filter((t) => t.my_request).length;
   const now = useNow(60_000 * 10);
   const groups =
     show === 'mine'
       ? [{ title: 'In progress', items: items.filter((t) => !onHold(t, now)) }]
-      : show === 'own'
+      : show === 'own' || show === 'holds'
         ? GROUPS.reduce<{ title: string; items: At[] }[]>((out, g) => {
             const taken = new Set(out.flatMap((o) => o.items));
             out.push({ title: g.title, items: items.filter((t) => !taken.has(t) && g.has(t)) });
@@ -109,7 +126,7 @@ function Tasks({
       <Page>
         <div className="flex flex-col gap-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
-            {SHOWS.map((x) => (
+            {(named ? NAMED : SHOWS).map((x) => (
               <Chip key={x.key} on={show === x.key} onClick={() => setShow(x.key)}>
                 {x.label}
                 {x.key === 'mine' && q?.data ? <span className="ml-1.5 text-accent">{mine}</span> : null}

@@ -21,20 +21,18 @@ export type Front = { url: string; pic: Picture; door: Box | null; top: Int32Arr
 /** `stage`: who sits where, for the people's walks (crowd.ts). */
 export type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground; front: Front; leaves: Leaves | null; stage: Stage };
 
-/** What a drawing shows: the bench width and each person's name and state, so a poll that changes nothing draws nothing. */
-const sigOf = (house: House, cols: number) =>
-  [house.key, cols, house.decisions.length, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}:${p.queue}:${p.cached}`)].join(
-    ' ',
-  );
+/** What a drawing shows: its decisions and each person's name and state, so a poll that changes nothing draws nothing. */
+const sigOf = (house: House) =>
+  [house.key, house.decisions.length, ...house.people.map((p) => `${p.key}:${p.name}:${p.activity}:${p.queue}:${p.cached}`)].join(' ');
 /** The last drawings, by house, so an office is there at once when it comes back; the oldest goes past MOST. */
 const drawings = new Map<string, { sig: string; drawn: Drawn }>();
 const MOST = 4;
 
 /** The room drawn with its people, as image URLs and where each person and desk is; laid out and drawn again only when what it shows
- *  changes, not on each poll. `cols` is null until the pane has a size. */
-export function useDrawn(house: House, cols: number | null): Drawn | null {
-  const sig = cols === null ? null : sigOf(house, cols);
-  const lay = () => ({ sig, house: house.key, room: cols === null ? null : roomOf(house, cols) });
+ *  changes, not on each poll. */
+export function useDrawn(house: House): Drawn | null {
+  const sig = sigOf(house);
+  const lay = () => ({ sig, house: house.key, room: roomOf(house) });
   const [laid, setLaid] = useState(lay);
   if (laid.sig !== sig) setLaid(lay());
   return useMemo(() => drawOffice(laid), [laid]);
@@ -62,9 +60,9 @@ export function touches(top: Int32Array, box: Box): boolean {
 }
 
 /** The office for a layout: the kept drawing when it shows the same, else drawn now and kept. */
-function drawOffice({ room, sig, house: key }: { room: Room | null; sig: string | null; house: string }): Drawn | null {
+function drawOffice({ room, sig, house: key }: { room: Room; sig: string; house: string }): Drawn {
   const kept = drawings.get(key);
-  if (!room || sig === null || kept?.sig === sig) return kept?.drawn ?? null;
+  if (kept?.sig === sig) return kept.drawn;
   renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
   // Both drawn through the same camera, which the room's size alone sets.
   const frame = drawRoom(renderer, { ...room, blocks: room.blocks.filter((b) => !inFront(b)) });
