@@ -8,6 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // turnRig is a task bob owns and carol opened, queued, with alice's turn on top: every rule that asks who works it now must answer alice.
@@ -147,6 +148,34 @@ func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *tes
 	}
 }
 
+// A comment that names someone reaches only them, not the task's holder.
+func TestACommentThatNamesSomeoneSkipsTheHolder(t *testing.T) {
+	r, tid := turnRig(t)
+	got, ok := r.MemoRecipients(tid, r.k("dave"), "<@"+r.k("carol")+"> look", false)
+	if !ok || len(got) != 1 || got[0].Agent != r.k("carol") || got[0].Why != "asked" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+// The founder's comment that gives their turn back reaches the holder it goes back to, whomever else it names.
+func TestATurnGivenBackReachesItsHolderWhomeverItNames(t *testing.T) {
+	r, tid := turnRig(t)
+	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: actor.OwnerKey, By: r.k("alice"), Since: r.clock}))
+	got, ok := r.MemoRecipients(tid, actor.OwnerKey, "yes, and <@"+r.k("carol")+"> see this", false)
+	if !ok || fmt.Sprint(got) != fmt.Sprint([]taskwrites.Recipient{{Agent: r.k("alice"), Why: "assignee"}, {Agent: r.k("carol"), Why: "asked"}}) {
+		t.Fatalf("%+v", got)
+	}
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"yes, and <@%s> see this","request_id":"c1"}`, tid, r.k("carol")))
+	var back string // the task's return to alice carries the comment
+	r.must(r.DB.QueryRow(r.sql("SELECT body FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = ? ORDER BY r.id DESC LIMIT 1"), tid, r.k("alice")).Scan(&back))
+	if !strings.Contains(back, "see this") {
+		t.Fatalf("alice is not told: %q", back)
+	}
+	if says := fmt.Sprint(r.saysTo("carol")); !strings.Contains(says, "see this") {
+		t.Fatalf("carol is not told: %s", says)
+	}
+}
+
 // The founder's question on a task Ready for them is told to the agent below their turn, which answers it in a comment; their turn stays.
 func TestTheFoundersQuestionOnAReadyTaskIsToldToItsAssignee(t *testing.T) {
 	r, tid := turnRig(t)
@@ -156,6 +185,9 @@ func TestTheFoundersQuestionOnAReadyTaskIsToldToItsAssignee(t *testing.T) {
 	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: actor.OwnerKey, By: r.k("alice"), Since: r.clock, Memo: mid}))
 	if got, ok := r.MemoRecipients(tid, actor.OwnerKey, "why the yellow?", false); !ok || len(got) != 1 || got[0].Agent != r.k("alice") {
 		t.Fatalf("%+v", got)
+	}
+	if got, ok := r.MemoRecipients(tid, actor.OwnerKey, "<@"+r.k("carol")+"> why?", false); !ok || len(got) != 2 || got[0].Agent != r.k("alice") {
+		t.Fatalf("a question naming someone else must still reach the holder: %+v", got)
 	}
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"why the yellow?","request_id":"c1"}`, tid))
 	says := fmt.Sprint(r.saysTo("alice"))

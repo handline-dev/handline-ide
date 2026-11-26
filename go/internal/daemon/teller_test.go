@@ -279,28 +279,28 @@ func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 		n++
 		result(t, f.ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.comment.add","params":{"task":%d,"text":"@alice mind the cache","skip":%s,"request_id":"rc%d"}}`, 10+n, tid, skip, n)))
 	}
-	if got := recipients(founder, "@alice mind the cache"); got != alice+":asked,"+bob+":assignee" {
-		t.Fatalf("the founder's comment is for who it names and the assignee: %q", got)
+	if got := recipients(founder, "@alice mind the cache"); got != alice+":asked" {
+		t.Fatalf("the founder's comment is for who it names only: %q", got)
 	}
 	if got := recipients(founder, "no one named"); got != bob+":assignee" {
 		t.Fatalf("the founder's comment on a task an agent holds is that holder's alone: %q", got)
 	}
-	if got := recipients(agent, "@alice mind the cache"); got != alice+":asked,"+bob+":assignee" {
-		t.Fatalf("an agent's comment is for who it names and the holder: %q", got)
+	if got := recipients(agent, "@alice mind the cache"); got != alice+":asked" {
+		t.Fatalf("an agent's comment is for who it names only: %q", got)
 	}
 	if got := recipients(agent, "no one named"); got != bob+":assignee" {
 		t.Fatalf("a comment naming no one is told to the holder only: %q", got)
 	}
 	add(founder, `[]`)
-	if !told(alice) || !told(bob) {
+	if !told(alice) || told(bob) {
 		t.Fatalf("add told other than recipients said: alice %v bob %v", told(alice), told(bob))
 	}
 	d2, agents2 := tellDaemon(t, true)
 	alice2, bob2 := key(t, d2, "alice"), key(t, d2, "bob")
 	tid2, _ := db.NewTask(d2.db, "job", bob2, alice2, 0, db.DefaultPriority, "", 0, "")
-	result(t, pipeTo(t, d2, "k").ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":9,"method":"task.comment.add","params":{"task":%d,"text":"@alice mind the cache","skip":["bob"],"request_id":"rs1"}}`, tid2)))
-	if !strings.Contains(agents2.said(alice2), "mind the cache") || strings.Contains(agents2.said(bob2), "mind the cache") {
-		t.Fatalf("a skipped assignee was told, or the one not skipped was not: alice %q bob %q", agents2.said(alice2), agents2.said(bob2))
+	result(t, pipeTo(t, d2, "k").ask(fmt.Sprintf(`{"jsonrpc":"2.0","id":9,"method":"task.comment.add","params":{"task":%d,"text":"mind the cache","skip":["bob"],"request_id":"rs1"}}`, tid2)))
+	if strings.Contains(agents2.said(alice2), "mind the cache") || strings.Contains(agents2.said(bob2), "mind the cache") {
+		t.Fatalf("a skipped assignee was told, or one not aimed at was: alice %q bob %q", agents2.said(alice2), agents2.said(bob2))
 	}
 	var kept int
 	d2.db.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ?", tid2).Scan(&kept)

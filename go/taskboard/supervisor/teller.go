@@ -38,8 +38,10 @@ func (e *Env) MemoRecipients(tid int64, by, text string, now bool) (out []taskwr
 	if row == nil {
 		return nil, false
 	}
+	top := row.Acting
 	check(toldBelow(e.DB, row, by)) // the founder's comment passes their turn before it is told, so it goes to the holder below
-	return e.memoRecipients(e.DB, row, by, text, "", now), true
+	back := row.Acting != top
+	return e.memoRecipients(e.DB, row, by, text, "", now, back), true
 }
 
 // PassedPause is task.send_now's telling: the agent takes the task it let through the pause now (ActNow).

@@ -537,7 +537,7 @@ func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string
 		return nil
 	}
 	ready := what == "added" && must(readyBelow(q, row, by)) // the founder's question on a task Ready for them: told to the agent below their turn
-	for _, r := range e.memoRecipients(q, row, by, text, to, now) {
+	for _, r := range e.memoRecipients(q, row, by, text, to, now, ready) {
 		if slices.Contains(skip, r.Agent) {
 			continue
 		}
@@ -576,15 +576,21 @@ func toldBelow(q db.Q, row *db.Task, by string) error {
 	return err
 }
 
-// memoRecipients is the one rule for whom a comment on row is told: an agent it names with @ or that was said it (to) is asked, and the
-// task's holder (its assignee) is always told. Who the task answers to (owner) is told only when it is sent now, or when the founder wrote it
-// on a task no agent holds (the founder does, or the holder has retired): otherwise answering is the holder's. The founder's comment that
-// names no one on a task they hold is told to the last agent that commented there (last_writer): the one who spoke to them.
-func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now bool) []taskwrites.Recipient {
+// memoRecipients is the one rule for whom a comment on row is told. A comment that names agents with @, or that was said to one (to), is
+// told to those only: each is asked. One that names no one is told to the task's holder (its assignee); who the task answers to (owner) is
+// told only when it is sent now, or when the founder wrote it on a task no agent holds (the founder does, or the holder has retired):
+// otherwise answering is the holder's. The founder's comment that names no one on a task they hold is told to the last agent that commented
+// there (last_writer): the one who spoke to them. back is the founder's comment that answers their turn (passes it back, or asks on a
+// task Ready for them): the agent below it is told whomever it names.
+func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now, back bool) []taskwrites.Recipient {
 	seat := e.seatFor(q, row, by)
 	named := mapOnce(e.mentioned(by, text), seat)
+	if to != "" {
+		named = mapOnce(append(named, to), seat)
+	}
+	named = slices.DeleteFunc(named, func(a string) bool { return must(paths.Reaches(e.DB, a)) == by }) // naming only oneself names no one
 	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
-	readers := mapOnce(e.memoReaders(row, by, named), seat)
+	readers := mapOnce(e.memoReaders(row, by, named, back), seat)
 	last := ""
 	if len(named) == 0 && actor.IsPerson(by) && row.Acting == by {
 		if last = seat(e.lastWriter(q, row.ID, by)); last != "" && !slices.Contains(readers, last) {
@@ -593,7 +599,7 @@ func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now bool
 	}
 	var out []taskwrites.Recipient
 	for _, a := range readers {
-		asked := a == to || slices.Contains(named, a)
+		asked := slices.Contains(named, a)
 		if delivery.ClassOf(delivery.Memo, now || asked || a == row.Acting || a == last || unheld, false) != delivery.ClassNow {
 			continue
 		}
@@ -647,13 +653,21 @@ func (e *Env) linkMemoTell(q db.Q, mid int64, reader string, rid int64) {
 	}
 }
 
-// memoReaders is whom a memo on row concerns, each once: who the task answers to (its reporter), its assignee whatever the task's state, and
-// every registered agent the memo names with @. Never the writer, or the founder, who reads the board.
-func (e *Env) memoReaders(row *db.Task, by string, mentioned []string) []string {
-	named := append([]string{row.AnswersTo(), row.Acting}, mentioned...)
+// memoReaders is whom a memo on row concerns, each once: the agents it names (named), with the task's assignee when it gives a turn back
+// (back); naming no one, who the task answers to (its reporter) and its assignee whatever the task's state. Never the writer, or the
+// founder, who reads the board.
+func (e *Env) memoReaders(row *db.Task, by string, named []string, back bool) []string {
+	list := []string{row.AnswersTo(), row.Acting}
+	if len(named) > 0 {
+		list = nil
+		if back {
+			list = []string{row.Acting}
+		}
+	}
+	list = append(list, named...)
 	skip := map[string]bool{"": true, by: true, actor.OwnerKey: true}
 	var out []string
-	for _, a := range named {
+	for _, a := range list {
 		a = must(paths.Reaches(e.DB, a)) // an idle seat's word goes to the agent it is of
 		if !skip[a] {
 			skip[a] = true
