@@ -1,39 +1,70 @@
-// An agent's settings tab, its top: who it is (its role and standing context, each edited in a modal and in force from its next
+// An agent's settings tab, its top: who it is (its role and standing context, each edited in place under its row and in force from its next
 // fresh start) and its memory notes, each removable.
 import { useAgentContext, useAgentMemory, useWrite, why } from '@handline/app-data';
+import { AnimatePresence } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { Block } from '#src/settings/Meter.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
-import { prompt } from '#src/ui/modal.tsx';
+import { RoleEditor } from '#src/settings/RoleEditor.tsx';
 import { toast } from '#src/ui/toast.tsx';
 
 type Part = 'role' | 'base';
 const TITLE: Record<Part, string> = { role: 'Role', base: 'Standing context' };
 
-/** Its role and standing context, a row each with its first lines; Edit opens the whole text in a modal. */
+/** The text with its blank lines dropped, so the preview's lines carry words. */
+const preview = (text: string) => text.replace(/\n\s*\n+/g, '\n').trim();
+
+/** Its role and standing context, a row each with its first lines; Edit opens the whole text under the row. */
 export function Role({ agent }: { agent: string }) {
   const context = useAgentContext(agent).data;
   const set = useWrite('agent.context.set', agent);
+  const [open, setOpen] = useState<Part>();
   if (!context) return null;
-  const edit = async (part: Part) => {
-    const was = context[part]?.text ?? '';
-    const text = await prompt({ title: TITLE[part], initial: was, submitText: 'Save', long: true });
-    if (text === undefined || text.trim() === was.trim()) return;
-    set.mutate({ agent, [part]: text }, { onError: (e) => toast(`Did not save: ${why(e) || 'try again'}`, { tone: 'warning' }) });
+  const save = (part: Part, text: string) => {
+    if (text.trim() === (context[part]?.text ?? '').trim()) return setOpen(undefined);
+    set.mutate(
+      { agent, [part]: text },
+      {
+        onSuccess: () => setOpen((o) => (o === part ? undefined : o)),
+        onError: (e) => toast(`Did not save: ${why(e) || 'try again'}`, { tone: 'warning' }),
+      },
+    );
   };
   return (
     <Block title="Who it is" note="An edit applies when it next starts fresh.">
       <ul className="-mx-2 flex flex-col">
         {(['role', 'base'] as const).map((part) => (
-          <li key={part} className="flex items-start gap-3 border-t border-border px-2 py-2 first:border-t-0">
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-sm text-fg">{TITLE[part]}</span>
-              <span className="line-clamp-2 text-xs whitespace-pre-line text-muted">{context[part]?.text || 'None'}</span>
-            </span>
-            <Button variant="ghost" disabled={set.isPending} onClick={() => void edit(part)}>
-              Edit
-            </Button>
+          <li key={part} className="border-t border-border first:border-t-0">
+            <div className="flex items-start gap-3 px-2 py-2">
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm text-fg">{TITLE[part]}</span>
+                {open !== part && (
+                  <span className="line-clamp-4 text-xs whitespace-pre-line text-muted">
+                    {preview(context[part]?.text ?? '') || 'None'}
+                  </span>
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                aria-expanded={open === part}
+                className={open === part ? 'invisible' : ''}
+                onClick={() => setOpen(part)}
+              >
+                Edit
+              </Button>
+            </div>
+            <AnimatePresence initial={false}>
+              {open === part && (
+                <RoleEditor
+                  initial={context[part]?.text ?? ''}
+                  busy={set.isPending}
+                  save={(text) => save(part, text)}
+                  close={() => setOpen(undefined)}
+                />
+              )}
+            </AnimatePresence>
           </li>
         ))}
       </ul>
