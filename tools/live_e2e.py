@@ -351,6 +351,58 @@ def terminal_turns(r: Run, sock: str, config_dir: str, root: Path, group: int) -
               "note": f"states seen: {', '.join(r.s.states_since(a, t)) or 'none'}; transcript fds the daemon still holds: {fds}"})
 
 
+def session_ids(home: Path, agent: str) -> list[str]:
+    """The Claude session ids agent's sessions began with, oldest first, from its SessionStart hooks."""
+    con = sqlite3.connect(home / "db.sqlite", timeout=10)
+    try:
+        rows = con.execute("SELECT json_extract(payload, '$.session_id') FROM events WHERE agent = ? AND kind = 'SessionStart' ORDER BY id",
+                           (agent,)).fetchall()
+    finally:
+        con.close()
+    return [r[0] for r in rows if r[0]]
+
+
+def worktree_of(home: Path, agent: str) -> str:
+    con = sqlite3.connect(home / "db.sqlite", timeout=10)
+    try:
+        row = con.execute("SELECT COALESCE(worktree, '') FROM agent_state WHERE agent = ?", (agent,)).fetchone()
+    finally:
+        con.close()
+    return row[0] if row else ""
+
+
+def pong(r: Run, agent: str, body: str, word: str, name: str) -> float | None:
+    """Sends body to agent and waits for its reply with word; the seconds from the send to the message typed, None when it never was."""
+    t = time.time()
+    req = r.d.write("chat.send", {"agent": agent, "body": body}).get("request")
+    typed = r.s.wait(t, landed(req), t + MODEL_S + SLOW_S)
+    r.record({"step": f"{name}: send to typed", "paced_by": "daemon+model", "result": "pass" if typed else "missing",
+              "seconds": round(typed[0] - t, 2) if typed else None})
+    reply = r.s.wait(t, lambda ev: ev["type"] == "chat.message" and ev["data"].get("from") == agent and word in (ev["data"].get("body") or ""),
+                     t + MODEL_S + SLOW_S)
+    r.record({"step": f"{name}: reply", "paced_by": "model", "result": "pass" if reply else "missing",
+              "seconds": round(reply[0] - t, 2) if reply else None})
+    return round(typed[0] - t, 2) if typed else None
+
+
+def closed_wake(r: Run, home: Path, other: str) -> None:
+    """A closed agent keeps its own worktree while another wakes in between, and its next message resumes the same conversation there."""
+    d, a = r.d, r.agent
+    pong(r, a, "Reply with the single word PONG and nothing else.", "PONG", "first message")
+    first, folder = session_ids(home, a), worktree_of(home, a)
+    t = time.time()
+    d.write("session.stop", {"agent": a, "mode": "close"})
+    r.step("closed", t, lambda ev: agent_changed(a, "no_terminal")(ev) or agent_changed(a, "idle")(ev))
+    time.sleep(3)
+    pong(r, other, "Reply with the single word PONG and nothing else.", "PONG", "another agent woken in between")
+    seconds = pong(r, a, "Reply with the single word AGAIN and nothing else.", "AGAIN", "the closed agent's next message")
+    after, folder2 = session_ids(home, a), worktree_of(home, a)
+    resumed = bool(first) and bool(after) and after[-1] == first[-1]
+    r.record({"step": "the closed agent resumed the same conversation in the same folder", "paced_by": "daemon",
+              "result": "pass" if resumed and folder == folder2 else "FAIL", "seconds": seconds,
+              "note": f"sessions {first[-1:] or 'none'} -> {after[-1:] or 'none'}; folder {folder} -> {folder2}; other's folder {worktree_of(home, other)}"})
+
+
 def scratch(root: Path, account: dict) -> tuple[Path, str]:
     """The test daemon's home under root, with its founder key where the daemon looks for one under a test root, the real shared
     settings, and a git checkout for the agent (a worktree of this repository: see the module doc). The account and the agent are
@@ -392,6 +444,34 @@ def seed(d: Daemon, home: Path, account: dict, work: Path) -> str:
     (home / "agents" / f"a{agent_id}").mkdir(parents=True)
     return f"a{agent_id}"
 
+
+
+def pool_agents(home: Path, agent: str) -> str:
+    """For the wake scenario: agent and a second agent of its workspace work in worktrees of their own from the pool, not in its folder;
+    returns the second one's key."""
+    con = sqlite3.connect(home / "db.sqlite", timeout=10)
+    ws, owner = con.execute("SELECT workspace, owner FROM agents WHERE id = ?", (int(agent[1:]),)).fetchone()
+    other = con.execute("INSERT INTO agents(workspace, name, owner, model, effort, weight, mode, created_at) "
+                        "VALUES(?, 'other', ?, 'haiku', 'medium', 'light', 'default', 0)", (ws, owner)).lastrowid
+    con.execute("UPDATE agent_state SET worktree = NULL WHERE agent = ?", (agent,))
+    con.commit()
+    con.close()
+    (home / "agents" / f"a{other}").mkdir(parents=True)
+    return f"a{other}"
+
+
+def drop_worktrees(root: Path) -> None:
+    """Removes every worktree of this repository the run made under root (its folder, and each agent's from the pool) and the branches
+    checked out in them, which the run made."""
+    listed = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=REPO, capture_output=True, text=True).stdout
+    for entry in listed.split("\n\n"):
+        fields = dict(line.split(" ", 1) for line in entry.splitlines() if " " in line)
+        path = fields.get("worktree", "")
+        if not path or not Path(path).resolve().is_relative_to(root):
+            continue
+        subprocess.run(["git", "worktree", "remove", "--force", path], cwd=REPO, capture_output=True)
+        if fields.get("branch", "").startswith("refs/heads/"):
+            subprocess.run(["git", "branch", "-D", fields["branch"].removeprefix("refs/heads/")], cwd=REPO, capture_output=True)
 
 def start_daemon(binary: str, root: Path, home: Path, account: dict, tmux: str) -> int:
     """The test daemon as production runs it (terminal agents, the tick, hook-driven turns), in a process group of its own so its
@@ -465,6 +545,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--daemon", help="the handlined binary to test; by default this checkout's is built")
     ap.add_argument("--json", action="store_true", help="print the table as JSON at the end")
+    ap.add_argument("--scenario", choices=["turns", "wake"], default="turns",
+                    help="turns: a terminal agent's turns timed; wake: a closed agent's message after another agent woke in between")
     ap.add_argument("--keep", action="store_true", help="keep the test root (home, daemon log, worktree) for a look afterwards")
     args = ap.parse_args()
     if os.environ.get("HANDLINE_LIVE") != "1":
@@ -489,7 +571,10 @@ def main() -> int:
         s = Stream(home / "daemon.sock", key)
         r = Run(d, s, Answerer(home / "daemon.sock", key, s, agent), agent)
         print(f"live-e2e: {AGENT} ({agent}) on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
-        terminal_turns(r, tmux, account["config_dir"], root, daemon)
+        if args.scenario == "wake":
+            closed_wake(r, home, pool_agents(home, agent))
+        else:
+            terminal_turns(r, tmux, account["config_dir"], root, daemon)
         print(f"live-e2e: {r.answerer.yeses} permission prompt(s) outside the steps answered yes", flush=True)
     except (Refused, OSError, subprocess.CalledProcessError, KeyboardInterrupt) as e:
         print(f"live-e2e: {str(e) or 'interrupted'}", file=sys.stderr)
@@ -499,7 +584,7 @@ def main() -> int:
             stop_daemon(daemon)
         tmuxsock.stop(tmux)
         if not args.keep:
-            subprocess.run(["git", "worktree", "remove", "--force", str(root / "work")], cwd=REPO, capture_output=True)
+            drop_worktrees(root)
         if args.keep:
             print(f"live-e2e: kept {root}", file=sys.stderr)
         else:
