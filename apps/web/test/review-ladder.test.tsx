@@ -30,6 +30,7 @@ vi.mock('@handline/app-data', () => ({
   useAgentDetail: () => ok({ settings: { ...settings } }),
   useLessons: () => ok({ items: [] }),
   Hooks: { useAccessList: () => ({ data: { rules: [] } }), useAccessRuleRemove: () => ({ mutate() {} }) },
+  useSettings: () => ({ isSuccess: false }),
   useNameOf: () => (k: string) => k,
   useProposals: () => ok({ proposals: [] }),
   useTask: () => ({}),

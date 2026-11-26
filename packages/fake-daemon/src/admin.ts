@@ -1,5 +1,6 @@
 // The fake daemon's read-mostly admin surface: the stats windows, the usage outlook, the home settings, the standing answers, and the repos
 // and worktrees (worktrees.ts).
+import { Overrides } from '#src/overrides.ts';
 import { OWNER } from '#src/names.ts';
 import type {
   ConnectionAddresses,
@@ -44,6 +45,7 @@ export class FakeAdmin {
   private now: () => Timestamp;
   private on: boolean;
   private values: Settings['values'] = structuredClone(DEFAULTS);
+  private overrides = new Overrides();
   private devices: Device[] = [
     {
       id: 'd1',
@@ -196,9 +198,10 @@ export class FakeAdmin {
       case 'connection.addresses':
         return this.addresses();
       case 'settings.get':
-        return this.settings();
+        return this.overrides.read(this.settings(), p.agent);
       case 'settings.set':
-        return (this.set((p.changes ?? {}) as SettingsChanges), accepted('Saved.'));
+        // With `agent`, that agent's own value.
+        return (this.overrides.set(p.agent, p.changes) || this.set((p.changes ?? {}) as SettingsChanges), accepted('Saved.'));
       case 'lease.get':
         return this.leases();
       case 'run.list':
