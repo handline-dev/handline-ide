@@ -1,4 +1,4 @@
-// Which daemon is the master now (docs/story4-design.md section 4): a master names itself and its number in hello
+// Which daemon is the master now (docs/several-machines.md section 4): a master names itself and its number in hello
 // (capabilities.master), and an app obeys only the highest it has seen. Runners do not listen, so only a master answers at all.
 import { DaemonClient } from '#src/client.ts';
 import type { ClientOptions, HelloResult } from '#src/client-options.ts';

@@ -1,4 +1,4 @@
-// The clusters this Mac joined (docs/story4-design.md section 1, slice 24). This Mac's own daemon keeps its board; for each cluster the
+// The clusters this Mac joined (docs/several-machines.md section 1). This Mac's own daemon keeps its board; for each cluster the
 // shell runs an engine beside it: a handlined in a home of its own that joined that cluster's master as `hl device join` joins a
 // machine (this person's Mac, on Off), so it runs that cluster's agents only once it is set to Run there. The page reaches each master
 // itself, its certificate pinned, with the engine's device token; the shell keeps a connection to each to say whether it answers.

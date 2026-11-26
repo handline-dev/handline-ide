@@ -10,5 +10,6 @@ The daemon's records and the team's files: its own Go module, `github.com/handli
 | `stream` | The event stream clients subscribe to |
 | `team` | The agents' and accounts' files, routing, standing consent |
 | `agenthost` | What the daemon tells agentctl about a Handline home |
+| `homeinit` | Sets a Handline home up: its folders, shared settings and hooks, Handline's own skills, an agent's sandbox and permission entries |
 
 Test it alone: `cd go/data && GOWORK=off go test ./...`, which `tools/test-go.sh ./data/...` runs too.

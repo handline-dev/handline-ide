@@ -7,8 +7,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 )
 
-// Rows F5, F6 and F7 of docs/design/account-assignment-scenarios.md on the real Launcher and usage adapter (placeRig), the clock moved by
-// hand. B4, E3, E4 and E7 were the cap's and went with it (T9103); E6 is in accounts/usage.
+// A person's move and the place it lands on the real Launcher and usage adapter (placeRig), the clock moved by hand.
 
 // F5: a restart rebuilds the counts from what the store holds: a new adapter over the same store counts the same, a reservation held
 // before the restart still holds, and an agent both running and held is one.

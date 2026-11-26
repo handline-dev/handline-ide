@@ -18,7 +18,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// The master moved by hand (docs/story4-design.md section 4, slices 18 and 37): node.promote, or runner.promote from the master, makes
+// The master moved by hand (docs/several-machines.md section 4): node.promote, or runner.promote from the master, makes
 // this runner the master, and a runner whose master is gone looks for the one that is master now among the owner's machines its
 // heartbeats were told of.
 

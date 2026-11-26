@@ -4,7 +4,7 @@ Thanks for wanting to help. Two things to know before you open a pull request.
 
 ## 1. Sign the contributor license agreement
 
-handline is released under the GNU Affero General Public License v3.0, and the project owner also
+Handline is released under the GNU Affero General Public License v3.0, and the project owner also
 offers commercial licenses to people who cannot meet the AGPL's terms. To be able to do both, the
 project needs the right to distribute every contribution under other licenses as well. The
 [CLA](CLA.md) gives it; it is adapted from the Apache ICLA. You keep
@@ -24,14 +24,12 @@ request without it is not merged.
 
 - Unit tests for logic you change, in the same commit. A screen change adds no render test; it shows
   before and after pictures instead, and if it changes a kept test file, that file is updated (the list is in AGENTS.md).
-  `tools/test.sh` runs the tests; see
-  [docs/development.md](docs/development.md).
+  `tools/test.sh` runs the tests and `tools/check.sh` what CI runs; see [docs/development.md](docs/development.md).
 - Commit messages, code comments and docs say what changed and why, in words. They carry no
   personal data (emails, real names, home paths, tokens) and no ids from a private tracker or chat.
   `tools/localrefs.py` shows what would be refused.
 - English everywhere in the repository.
-- A new source file starts with `# SPDX-License-Identifier: AGPL-3.0-only`. Files that predate this
-  rule do not need one added; the [LICENSE](LICENSE) covers the whole repository.
+- The [LICENSE](LICENSE) covers the whole repository; a file needs no license header.
 
 ## Reporting a problem
 

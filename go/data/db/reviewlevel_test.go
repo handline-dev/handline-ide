@@ -156,7 +156,7 @@ func TestTheKindOfWorkIsReadFromTheChangedFiles(t *testing.T) {
 		"packages/app-data/src/read.ts":         WorkScreen,
 		"go/data/db/reviewlevel.go":             WorkDaemon,
 		"tools/check.sh":                        WorkDaemon,
-		"docs/design/review-flow.md":            WorkDocs,
+		"docs/design/turns.md":                  WorkDocs,
 		"AGENTS.md":                             WorkDocs,
 		"go/README.md":                          WorkDocs,
 	} {

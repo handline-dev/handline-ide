@@ -1,4 +1,4 @@
-// Package runner is a daemon in runner mode (docs/story4-design.md, slice 4): a joined machine's daemon, which keeps no board. It
+// Package runner is a daemon in runner mode (docs/several-machines.md): a joined machine's daemon, which keeps no board. It
 // keeps one link open to the master, with its device token, and serves the calls the master drives it with over that link; its local
 // socket forwards its agents' calls to the master, each proven the agent's by process descent from a session it opened.
 package runner

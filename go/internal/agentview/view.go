@@ -1,5 +1,5 @@
 // Package agentview writes the stored view of each structured agent (agent_view), which agents.list and agent.get serve. A terminal
-// agent's row is never touched. docs/design/agentview-structured.md has the field-by-field table and what was dropped.
+// agent's row is never touched.
 package agentview
 
 import (

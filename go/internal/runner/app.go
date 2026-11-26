@@ -1,6 +1,6 @@
 package runner
 
-// The Mac app around a cluster engine (docs/story4-design.md slice 26): app.json from its shell goes up in the heartbeat, and the
+// The Mac app around a cluster engine (docs/several-machines.md): app.json from its shell goes up in the heartbeat, and the
 // answer's app_update comes back to the shell in app-update.json.
 
 import (

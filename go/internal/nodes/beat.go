@@ -14,7 +14,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// A runner's heartbeat (runner.Beat, docs/story4-design.md section 1 item 4, slice 9): a runner the master has not heard from for
+// A runner's heartbeat (runner.Beat, docs/several-machines.md section 1 item 4): a runner the master has not heard from for
 // OfflineAfter is offline; after the reclaim time (ReclaimKey, ReclaimS
 // by default) offline, its sessions are taken back.
 const (

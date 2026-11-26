@@ -15,7 +15,7 @@ import (
 	"github.com/handline/handline/go/protocol/sessiontoken"
 )
 
-// Rows E1 and E2 of docs/design/account-assignment-scenarios.md: placements racing, on the real Launcher and usage adapter, the clock
+// Placements racing, on the real Launcher and usage adapter, the clock
 // fixed at usageNow. No sleeps: the racers start together off a closed channel.
 
 type placeRig struct {

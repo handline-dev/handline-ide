@@ -176,7 +176,7 @@ export interface ShellApi {
   stopDaemon?(): Promise<{ ok: true } | Fail<'bad_request' | 'cannot_stop'>>;
   /** The owner's machines' doors from node.status (fp '' for a plain door), so the window may join whichever is master next. */
   keepDoors?(doors: { addr: string; fp: string }[]): Promise<{ ok: true } | Fail<'bad_request'>>;
-  /** The clusters this Mac joined (docs/story4-design.md slice 24): each one's master, as the page opens it, and this Mac's device token
+  /** The clusters this Mac joined (docs/several-machines.md): each one's master, as the page opens it, and this Mac's device token
    * there. `onClusters` is called now with the list and on every change (a join, a leave, a master that answers or stops). */
   clusters?(): Promise<{ ok: true; clusters: ShellCluster[] } | Fail<'bad_request'>>;
   onClusters?(cb: (clusters: ShellCluster[]) => void): () => void;

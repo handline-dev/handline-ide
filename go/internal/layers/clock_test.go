@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// clocked are the packages the account scenarios run on a fake clock (docs/design/account-assignment-scenarios.md): each reads the
+// clocked are the packages the account scenarios run on a fake clock: each reads the
 // time through an injected Now or db.Now, and the wall clock only as a Now's default, in a function named now.
 var clocked = []string{"accounts/usage", "scheduler/lifecycle"}
 

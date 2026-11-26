@@ -1,4 +1,4 @@
-// The owner's machines, kept so the page finds the master after it moves (docs/story4-design.md section 4): each machine's door from
+// The owner's machines, kept so the page finds the master after it moves (docs/several-machines.md section 4): each machine's door from
 // node.status, the master last joined and the highest master number seen. The device token stays the one this browser paired with:
 // the board's copy carries it to the new master.
 import type { KV } from '@handline/app-core';

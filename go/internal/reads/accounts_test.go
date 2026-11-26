@@ -331,7 +331,7 @@ func TestAccountsListSaysAPausedAccountIsPausedAndTakesNoAgent(t *testing.T) {
 	}
 }
 
-// Scenario B3 and B7 (docs/design/account-assignment-scenarios.md), the 7 / 2 fixture: alpha, cap 2, has 7 agents, 3 mid-turn and 4 at
+// The 7 / 2 fixture: alpha, cap 2, has 7 agents, 3 mid-turn and 4 at
 // their prompt with background work running. agents_running is the mid-turn count the cap holds to; the 4 are counted apart, not in it.
 func TestAccountsListRosterCountsMidTurnAsTheCapDoesAndBackgroundWorkApart(t *testing.T) {
 	t.Parallel()

@@ -8,9 +8,9 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// Rows of docs/design/account-assignment-scenarios.md on a fake clock: A (window edges), B (no cap), C (placement order), D (a new start:
+// The account-choice scenarios on a fake clock: A (window edges), B (no cap), C (placement order), D (a new start:
 // an account that fits first, else the most room).
-// Each case names its row. now is moved by hand; nothing sleeps.
+// Each case names its group and number. now is moved by hand; nothing sleeps.
 
 // acct is one account's reading as a scenario states it: percents and seconds from the clock to each reset.
 type acct struct {

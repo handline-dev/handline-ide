@@ -12,8 +12,8 @@ description: The hl commands an agent runs in Handline: chat, tasks, progress, p
 - `hl team` who you can reach and what each is doing.
 - `hl task show|list|board|new|comment|done|handoff|pass|back|edit|discard` tasks. A task you hold ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"`.
 - `hl task comment T<n> add "<text>" --turn human` puts a decision on the founder; `"@human ..."` first is news that moves no turn.
-- `hl progress "done: ... left: ..."` keeps a long task's handoff current.
-- `hl propose run "<command>" --why "<why>"` for a command you cannot run yourself; other `hl propose` forms change agents, teams, rules, settings and schedules.
+- `hl progress --done N --of M "<what you are doing now>"` reports work in steps on the task.
+- `hl propose run "<command>" --cwd <dir> --why "<why>"` for a command you cannot run yourself; other `hl propose` forms change agents, teams, rules, settings and schedules.
 - `hl lesson add "<text>" --task T<n>` records a correction.
 - `hl use <run|port> -- <command>` takes a shared resource (a port, the simulator, a browser) for one command.
 - `hl browser ...` drives your own browser (the handline-browser skill).

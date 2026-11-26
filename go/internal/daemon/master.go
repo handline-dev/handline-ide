@@ -24,7 +24,7 @@ import (
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
-// The master moved by hand (docs/story4-design.md section 4, slice 18).
+// The master moved by hand (docs/several-machines.md section 4).
 
 // askClient is the client a master names when it asks another machine's door: not a runner's link.
 const askClient = "handlined-master"

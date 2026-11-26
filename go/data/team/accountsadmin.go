@@ -122,7 +122,7 @@ func (a Accounts) Add(acct, vendor string, extra ...Link) (string, error) {
 var byEmail sync.Mutex
 
 // OfEmail is the claude account logged in as email, or recorded with it, "" for none: an email is one account on every machine
-// (docs/story4-design.md section 1 item 3).
+// (docs/several-machines.md section 1 item 3).
 func (a Accounts) OfEmail(email string) string {
 	if email == "" {
 		return ""

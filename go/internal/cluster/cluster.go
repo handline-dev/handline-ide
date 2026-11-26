@@ -1,6 +1,6 @@
 // Package cluster runs a master and runners on one machine: separate handlined processes with their own homes, sockets and loopback
 // ports, each runner joined to the master as `hl device join` joins one and set to Run, for the tests of the cluster slices
-// (docs/story4-design.md, slice 3) and `hl dev cluster`. Loopback, plain HTTP only.
+// (docs/several-machines.md) and `hl dev cluster`. Loopback, plain HTTP only.
 package cluster
 
 import (

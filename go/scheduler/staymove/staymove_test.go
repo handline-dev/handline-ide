@@ -59,7 +59,7 @@ func TestOnlyANeverMeasuredStartTakesTheDefault(t *testing.T) {
 	}
 }
 
-// Rows A7-A9 of docs/design/account-assignment-scenarios.md: the week wall with work waiting, the cache's edge to the second, and T.
+// The week wall with work waiting, the cache's edge to the second, and T.
 func TestScenarioAWallRows(t *testing.T) {
 	warm := func(reset, ended float64, cold *float64) Situation {
 		return Situation{WorkWaiting: true, ResetInS: f(reset), ColdStartPct: cold, WindowS: window5h, TurnEndedS: f(ended), CacheLifeS: hour}

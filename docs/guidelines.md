@@ -1,7 +1,6 @@
 # Running a team well
 
-These come from running handline on its own development. They are habits, not rules the tool
-enforces.
+Habits that work, not rules the tool enforces.
 
 ## Write tasks that can be finished
 
@@ -53,35 +52,28 @@ If the result is wrong, the asker runs `hl task reopen T12 "<why>"`.
 
 ## Give each agent one job
 
-Keep roles narrow and write them in `ROLE.md`: what the agent owns, and what it does not touch.
-The roles that worked in practice:
-
-- **A builder** per area of the code. It owns its files and writes the change.
-- **An auditor** who reads a change and the test results and answers PASS or FAIL.
-- **A merger** who merges only after a PASS.
-
-The builder does not review or merge its own work. When code is ready, the builder opens a review
-task for the auditor, waits, and on a PASS opens a merge task. See
-[best cases](best-cases.md#build-review-merge).
+Keep roles narrow: what the agent owns, and what it does not touch. A builder per area of the code
+works well. It writes the change, has a review subagent read the diff before it pushes, and closes
+its task with the pushed sha. See [best cases](best-cases.md).
 
 ## Keep fixed text small
 
-An agent's role (1 KB) and standing context (2 KB) go into every session. Put things that change or that only
+An agent's role and standing context go into every session. Put things that change or that only
 some tasks need in the repo's docs, and tell the agent where to look.
 
 ## Decisions that are yours
 
-When an agent needs a call only you can make, it opens a task with owner `human`. It shows up as a
-card in the bridge. You answer inside the card, and the answer is recorded on the task. Agents
-should not guess on your behalf, and they should not stop silently. If an agent is blocked, it
-says so in a task.
+When an agent needs a call only you can make, it puts you on the task it holds with
+`hl task comment T<n> add "<the decision and what it recommends>" --turn human`. It shows up in
+the app's Requests and in your chat with that agent; your comment answers it and gives the task back.
+Agents should not guess on your behalf, and they should not stop silently.
 
 ## Cost
 
 - Pick the smallest model that does the job. Use `--model haiku` for note-taking agents and a
   larger one where mistakes are costly.
 - `--effort` changes the cost of every turn. Raise it for an agent that needs it, not for the team.
-- Spread agents over accounts. The Accounts page sets how many run at once on one.
+- Spread agents over accounts.
 - Let idle sessions close. A closed session keeps its terminal and account and resumes on
   demand. An idle open one holds a few hundred megabytes of memory.
 
@@ -90,8 +82,8 @@ says so in a task.
 `hl` shows a dialog an agent is stuck on, and it names the dialog, but it never answers one.
 Permission prompts, logins, and anything that costs money are yours.
 
-That holds at launch too. When a start stops at a dialog no standing rule answers, `hl team` shows the
-agent stalled with the dialog in its own words and a decision lands in your inbox. Answer it in the
+That holds at launch too. When a start stops at a dialog no standing rule answers, the agent shows as
+stalled with the dialog in its own words, and a card lands in Requests. Answer it in the
 terminal; the stall lifts by itself once the screen is clear.
 
 ## Habits that pay off

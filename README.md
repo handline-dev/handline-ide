@@ -17,9 +17,9 @@ It is early. We use it every day to build Handline itself, but you cannot instal
 
 ## Why not the tools that already exist?
 
-Plenty of tools help you give work to AI. You can assign a ticket to an AI in a project tracker such
-as Linear, line up cards for AIs on a board, or circle a bug on a screenshot and send it. All of them
-answer one question: how do I hand this to an AI?
+Plenty of tools help you give work to AI: assign a ticket to an AI in a project tracker, line up
+cards for AIs on a board, or circle a bug on a screenshot and send it. All of them answer one
+question: how do I hand this to an AI?
 
 Handline starts from the next question: when many AIs work for one person, how does that person
 keep up? Handline is built to save your attention. This is what it aims for:
@@ -55,14 +55,19 @@ asks you to look.
 At the end of the week you look at one map of all the work: what is done, what is moving, and what
 waits on you.
 
+## What it does
+
+- Orders by pointing at the screen, and the result reviewed inside the task.
+- New work held while the computer is short of memory, with what is slowing it down shown.
+- Command windows in the same app, next to the AIs.
+- More than one computer: add another machine, such as an old laptop, a small desktop or a server
+  you rent, and Handline spreads the work across them.
+
 ## Where it is going
 
-1. Give orders by pointing at the screen, and review the result inside the task.
-2. Hold new work when the computer is running out of memory, and show what is slowing it down.
-3. Open command windows in the same app, next to the AIs.
-4. Grow past one computer. Building an app takes a lot of memory and disk, and one laptop runs out
-   fast. Add another machine, such as an old laptop, a small desktop or a server you rent, and
-   Handline spreads the work across all of them as if they were one.
+1. Pull requests, reviews and CI shown on the task, from GitHub or GitLab.
+2. The app tells you what to look at now.
+3. A first-time user can install it and get from start to end alone.
 
 ## What to run
 
@@ -75,7 +80,7 @@ waits on you.
 ## Read next
 
 - [docs/how-it-works.md](docs/how-it-works.md): the rules Handline follows, and why.
-- [docs/setup.md](docs/setup.md): installing it today, for developers.
+- [docs/setup.md](docs/setup.md): installing it, for developers.
 - [docs/development.md](docs/development.md): working on Handline itself.
 
 ## License

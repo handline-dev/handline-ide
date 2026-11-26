@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// The risk marks of a proposed command (docs/design/agent-run-proposals.md, The card): hints for the founder reading it, from its text
+// The risk marks of a proposed command: hints for the founder reading it, from its text
 // alone. They never approve or block anything, and a command with none is not safe.
 const (
 	RiskDelete      = "delete"
