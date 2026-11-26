@@ -2982,7 +2982,6 @@
    "x-write": false,
    "x-app-cache": {
     "resource": "task-changes",
-    "id": "task",
     "feed": "tasks"
    },
    "x-since": 1,

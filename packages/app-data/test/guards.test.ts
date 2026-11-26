@@ -49,6 +49,10 @@ describe('guard 3: every read has a key', () => {
     expect(keyOf('a', 'tasks.list', { state: 'doing' })).toEqual(['d', 'a', 'tasks', { state: 'doing' }]);
     expect(keyOf('a', 'stats.outlook', { agent: undefined })).toEqual(['d', 'a', 'outlook']);
   });
+  it("one commit of a task's changes is its own entry, apart from all of the task's changes", () => {
+    expect(keyOf('a', 'task.changes', { task: 7 })).toEqual(['d', 'a', 'task-changes', { task: 7 }]);
+    expect(keyOf('a', 'task.changes', { task: 7, commit: 'abc1' })).toEqual(['d', 'a', 'task-changes', { task: 7, commit: 'abc1' }]);
+  });
 });
 
 /** Files that still call the daemon by hand. Q2 and Q3 move them; this list may only get shorter. */

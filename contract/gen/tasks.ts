@@ -1080,7 +1080,7 @@ export const TASKS_APP_CACHE: { [K in "tasks.list" | "task.get" | "task.history"
   "task.get": {"resource": "task", "id": "task", "feed": "tasks"},
   "task.history": {"resource": "task-history", "id": "task", "feed": null},
   "task.time": {"resource": "task-time", "id": "task", "feed": "tasks"},
-  "task.changes": {"resource": "task-changes", "id": "task", "feed": "tasks"},
+  "task.changes": {"resource": "task-changes", "feed": "tasks"},
   "requests.pending": {"resource": "requests-pending", "feed": "tasks"},
   "task.comment.recipients": {"resource": "comment-recipients", "feed": "tasks"},
   "task.board": {"resource": "board", "feed": "tasks"},

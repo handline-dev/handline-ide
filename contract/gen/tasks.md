@@ -9,7 +9,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.get` | agent |  | `task` | `TaskDetail & ReadCursor` | `not_found` |  | `task` by task, fed by tasks |
 | `task.history` | agent |  | `task` | `{task, rows}` | `not_found`, `bad_request` |  | `task-history` by task, snapshot |
 | `task.time` | agent |  | `task` | `{task, start, end, segments, estimate, expected, box} & ReadCursor` | `not_found`, `bad_request` |  | `task-time` by task, fed by tasks |
-| `task.changes` | member |  | `task`, `commit?` | `{task, commits, commit, files, diff, truncated, left_out}` | `not_found`, `bad_request` |  | `task-changes` by task, fed by tasks |
+| `task.changes` | member |  | `task`, `commit?` | `{task, commits, commit, files, diff, truncated, left_out}` | `not_found`, `bad_request` |  | `task-changes`, fed by tasks |
 | `task.new` | agent | yes | `owner`, `reporter?`, `title`, `body?`, `time_box?`, `parent?`, `no_parent?`, `request?`, `duplicate_ok?`, `blocked_by?`, `watch?`, `priority?`, `estimate?`, `tags?`, `expects?`, `ui?`, `draft?`, `request_id` | `Accepted & {task}` | `refused` | duplicate_title | authored: new task |
 | `task.handoff` | agent | yes | `task`, `to`, `note?`, `files?`, `checked?`, `misses?`, `tests?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | not from the app |
 | `task.turn.pop` | agent | yes | `task`, `outcome`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: give back |
