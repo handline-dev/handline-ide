@@ -70,7 +70,9 @@ export async function scratch(prefix) {
 /** Starts the app of `appDir` (apps/electron) with env added to ours, its output to log; returns the child, which outlives this process. */
 export function startApp(appDir, env, log) {
   const out = fs.openSync(log, 'a');
-  const child = spawn('node', ['launch.ts'], { cwd: appDir, env: { ...process.env, ...env }, stdio: ['ignore', out, out], detached: true });
+  // An agent's shell names the installed app's daemon binary (HANDLINE_HANDLINED): a test app must run the daemon of the checkout it is built from.
+  const { HANDLINE_HANDLINED: _installed, ...ours } = process.env;
+  const child = spawn('node', ['launch.ts'], { cwd: appDir, env: { ...ours, ...env }, stdio: ['ignore', out, out], detached: true });
   child.unref();
   return child;
 }
