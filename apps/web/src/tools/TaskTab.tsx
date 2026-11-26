@@ -2,10 +2,11 @@ import { outsideBlockers } from '#src/tools/subtasks.ts';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
-import { Hooks, useNameOf, useTaskHistory, useTaskSeen, useWrite } from '@handline/app-data';
+import { Hooks, useNameOf, useTaskHistory, useTaskSeen } from '@handline/app-data';
 import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
-import { Check, Ellipsis, Hourglass, RotateCcw, Trash2 } from 'lucide-react';
+import { Hourglass } from 'lucide-react';
+import { Verbs } from '#src/tools/TaskVerbs.tsx';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { JumpDown } from '#src/ui/JumpDown.tsx';
@@ -13,9 +14,7 @@ import { ago } from '#src/format/time.ts';
 import { TaskAlongside } from '#src/tools/TaskAlongside.tsx';
 import { taskOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { IconButton } from '#src/ui/IconButton.tsx';
 import { Linked, Markdown } from '#src/ui/Markdown.tsx';
-import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { MarkReply, markInto } from '#src/chat/MessageImages.tsx';
 import { useDraft } from '#src/chat/drafts.ts';
 import { Fields } from '#src/tools/TaskFields.tsx';
@@ -32,8 +31,6 @@ import { Page } from '#src/ui/Page.tsx';
 import { Clamped } from '#src/ui/Clamped.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { keptScroll } from '#src/ui/keptScroll.ts';
-import { sayRefusal } from '#src/ui/refusal.tsx';
-import { toast } from '#src/ui/toast.tsx';
 import { useTabState } from '#src/persist/tabState.ts';
 
 const CLOSED = ['done', 'discarded'];
@@ -284,44 +281,6 @@ function TaskLink({ id, title, state }: { id: number; title?: string; state?: Lo
       <span className="text-accent">T{id}</span>
       {title && <span className="ml-1 text-fg">{title}</span>}
     </button>
-  );
-}
-
-/** The task's verbs: Done or Reopen, Discard. */
-function Verbs({ id, open, state }: { id: number; open: boolean; state: string }) {
-  const done = useWrite('task.done');
-  const reopen = useWrite('task.reopen');
-  const discard = useWrite('task.discard');
-  const failed = (what: string) => (e: unknown) =>
-    toast(`${what} did not work: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
-  return (
-    // Every verb in the one menu: the state is read at the title, the verbs are asked for here.
-    <div className="flex shrink-0 items-center">
-      <Menu
-        align="end"
-        trigger={
-          <IconButton label="More">
-            <Ellipsis size={16} />
-          </IconButton>
-        }
-      >
-        {open && (
-          <MenuItem icon={<Check size={14} />} onClick={() => done.mutate({ task: id }, { onError: sayRefusal })}>
-            Done
-          </MenuItem>
-        )}
-        {state === 'done' && (
-          <MenuItem icon={<RotateCcw size={14} />} onClick={() => reopen.mutate({ task: id }, { onError: failed('Reopen') })}>
-            Reopen
-          </MenuItem>
-        )}
-        {open && (
-          <MenuItem danger icon={<Trash2 size={14} />} onClick={() => discard.mutate({ task: id }, { onError: sayRefusal })}>
-            Discard
-          </MenuItem>
-        )}
-      </Menu>
-    </div>
   );
 }
 
