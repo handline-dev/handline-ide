@@ -60,6 +60,12 @@ const rules: Record<string, Rule> = {
     void qc.invalidateQueries({ queryKey: qk.task(d, t.id) });
     if (t.parent) void qc.invalidateQueries({ queryKey: qk.task(d, t.parent) });
     void qc.invalidateQueries({ queryKey: qk.taskHistory(d, t.id) });
+    // Its commits are read from the repository, which sends no event: a change to the task is when a new one is likeliest, so what
+    // is open of its code (all of its changes and any one commit's) is read again.
+    void qc.invalidateQueries({
+      queryKey: qk.taskChanges(d),
+      predicate: (q) => (q.queryKey[3] as { task?: number } | undefined)?.task === t.id,
+    });
     patchTaskLists(qc, d, t, e.cursor);
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'task.board') });
     void qc.invalidateQueries({ queryKey: qk.resource(d, 'requests.pending') });

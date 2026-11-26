@@ -45,7 +45,7 @@ export const reads = {
   "task.get": { resource: "task", id: "task", feed: "tasks" },
   "task.history": { resource: "task-history", id: "task" },
   "task.time": { resource: "task-time", id: "task", feed: "tasks" },
-  "task.changes": { resource: "task-changes", feed: "tasks" },
+  "task.changes": { resource: "task-changes" },
   "requests.pending": { resource: "requests-pending", feed: "tasks" },
   "task.comment.recipients": { resource: "comment-recipients", feed: "tasks" },
   "task.board": { resource: "board", feed: "tasks" },

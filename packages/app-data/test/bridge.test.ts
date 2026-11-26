@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Event as WireEvent } from '@handline/client';
 import { EVENT_REQUIRED } from '#src/generated/reads.ts';
-import { applyEvent, createBridge, qk, resume, resync, writes, type Ctx } from '#src/index.ts';
+import { applyEvent, createBridge, keyOf, qk, resume, resync, writes, type Ctx } from '#src/index.ts';
 
 const D = 'd1';
 let qc: QueryClient;
@@ -125,6 +125,14 @@ describe('tasks and inbox', () => {
     applyEvent(c, ev('task.changed', task(7, 'doing'), { topic: 'tasks' }));
     expect(stale(qk.taskHistory(D, 7))).toBe(true);
     expect(stale(qk.taskHistory(D, 8))).toBe(false);
+  });
+  it("task.changed reads that task's code again, all of it and each commit read, and only that task's", () => {
+    const all = keyOf(D, 'task.changes', { task: 7 });
+    const one = keyOf(D, 'task.changes', { task: 7, commit: 'abc1' });
+    const other = keyOf(D, 'task.changes', { task: 8 });
+    for (const k of [all, one, other]) qc.setQueryData(k, { task: 0, commits: [], files: [], diff: '' });
+    applyEvent(c, ev('task.changed', task(7, 'doing'), { topic: 'tasks' }));
+    expect([all, one, other].map(stale)).toEqual([true, true, false]);
   });
   it("a task or memo write reads the task's history again once it settles", () => {
     const touched = (method: string, p: object) => writes[method]!.touches!(D, p as never).map((k) => JSON.stringify(k));

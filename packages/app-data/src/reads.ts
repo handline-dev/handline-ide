@@ -106,6 +106,8 @@ export const qk = {
   task: (d: string, task: number) => keyOf(d, 'task.get', { task }),
   taskHistory: (d: string, task: number) => keyOf(d, 'task.history', { task }),
   taskTime: (d: string, task: number) => keyOf(d, 'task.time', { task }),
+  /** Every read of a task's changes: all of them and each commit's, of every task. */
+  taskChanges: (d: string) => resourceKey(d, 'task.changes'),
   prefs: (d: string) => keyOf(d, 'prefs.get'),
   prompts: (d: string, agent: string) => keyOf(d, 'prompt.list', { agent }),
   operation: (d: string, operation: string) => keyOf(d, 'operation.get', { operation }),
