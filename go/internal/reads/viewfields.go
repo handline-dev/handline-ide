@@ -19,7 +19,7 @@ type Wall struct {
 }
 
 // viewFields are the fields of an agent's view that are read from the board, the team files and the lifecycle, not stored with it
-// (AgentView kind, task_role, task_count, ready, wall, fire, cache_ignored, config_error). One builder for agents.list, agent.get and the working line.
+// (AgentView kind, task_role, task_count, ready, waits_on, wall, fire, cache_ignored, config_error). One builder for agents.list, agent.get and the working line.
 type viewFields struct {
 	taskCount map[string]int
 	// ready is the agents whose current task is queued and held by no open blocker.
@@ -30,6 +30,7 @@ type viewFields struct {
 	founderUnread map[string]int
 	// founderSeen is each agent's for_you_seen cursor.
 	founderSeen map[string]int64
+	waits       map[string]*waitsOn
 }
 
 // viewFields reads the board once for every agent.
@@ -54,6 +55,9 @@ func (e *Env) viewFields() (*viewFields, error) {
 	f := &viewFields{taskCount: map[string]int{}, ready: map[string]bool{}, lastToFounder: map[string]map[string]any{},
 		founderUnread: map[string]int{}, founderSeen: map[string]int64{}}
 	if err := e.founderFields(f); err != nil {
+		return nil, err
+	}
+	if f.waits, err = e.agentWaits(open, b); err != nil {
 		return nil, err
 	}
 	for _, t := range open {
@@ -142,6 +146,10 @@ func (e *Env) addFields(name string, view map[string]any, x *viewCtx) error {
 		view["last_to_founder"] = m
 	}
 	view["ready"] = x.ready[name] && screenIdle(view["state"])
+	view["waits_on"] = nil
+	if !working(view) {
+		view["waits_on"] = x.waits[name].wire()
+	}
 	if e.Delivery == nil {
 		// No lifecycle here to say: the wall and fire the stored view holds (the Python tick writes them) stand.
 		for _, k := range []string{"wall", "fire"} {

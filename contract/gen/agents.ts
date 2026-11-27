@@ -87,6 +87,15 @@ export type AgentView = {
   task_count?: number;
   /** The agent is idle (the screen word IDLE), has a current task, that task is queued, and no open blocker holds it: it can be given work now. Absent means false. */
   ready?: boolean;
+  /** What the agent waits on when it is not working and every task it holds waits: its open tasks that are not drafts, its current task, and those it acts on as a turn. A blocker the agent holds itself is not named: what that one waits on is. null when it is working, holds nothing, or holds a task that does not wait. agent.changed sends it again when a blocker ends, a new one starts, or the agent starts working. Absent from a daemon that does not serve it. */
+  waits_on?: {
+    /** The first task the agent's held tasks wait on: a task one of them is blocked by or is the parent of, or a held task on another's turn. */
+    task: number;
+    /** The key of the agent or person acting on that task now (p1 for the founder's turn), the founder's for a draft with no turn on it, which waits for them to run it; null when none does. */
+    holder: string | null;
+    /** How many other tasks they wait on. */
+    more: number;
+  } | null;
   /** What holds back a wake that is due (the screens' wall cell): the account that would wake it. Null when would_wake is false or nothing holds it back. Absent from a daemon that does not serve it yet. */
   wall?: {
     /** The account whose window the wake waits on. */

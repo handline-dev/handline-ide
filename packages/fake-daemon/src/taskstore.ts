@@ -7,6 +7,7 @@ import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
 import type { SeedCommit } from '#src/taskchanges.ts';
 import { invalidParams } from '#src/errors.ts';
+import { waitsOn } from '#src/agentwaits.ts';
 import { refs, type FakeAttachments } from '#src/attachments.ts';
 
 export class TaskFailure extends Error {
@@ -147,6 +148,10 @@ export class TaskStore {
         this.open(t.id) &&
         (t.id === current || (t.state !== 'draft' && (t.acting ?? t.to) === t.to && !t.blockers.some((b) => this.open(b.task)))),
     ).length;
+  }
+  /** As the daemon's waits_on, before it looks at whether the agent works. */
+  waitsOn(agent: string, current: number | null) {
+    return waitsOn(this.rows, agent, current, (id) => this.open(id));
   }
   protected open(id: number): boolean {
     const t = this.rows.find((r) => r.id === id);

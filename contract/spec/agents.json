@@ -312,6 +312,44 @@
       "type": "boolean",
       "description": "The agent is idle (the screen word IDLE), has a current task, that task is queued, and no open blocker holds it: it can be given work now. Absent means false."
      },
+     "waits_on": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "task": {
+          "type": "integer",
+          "description": "The first task the agent's held tasks wait on: a task one of them is blocked by or is the parent of, or a held task on another's turn."
+         },
+         "holder": {
+          "oneOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "The key of the agent or person acting on that task now (p1 for the founder's turn), the founder's for a draft with no turn on it, which waits for them to run it; null when none does."
+         },
+         "more": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many other tasks they wait on."
+         }
+        },
+        "required": [
+         "task",
+         "holder",
+         "more"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "What the agent waits on when it is not working and every task it holds waits: its open tasks that are not drafts, its current task, and those it acts on as a turn. A blocker the agent holds itself is not named: what that one waits on is. null when it is working, holds nothing, or holds a task that does not wait. agent.changed sends it again when a blocker ends, a new one starts, or the agent starts working. Absent from a daemon that does not serve it."
+     },
      "wall": {
       "oneOf": [
        {
