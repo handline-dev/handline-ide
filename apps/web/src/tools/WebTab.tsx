@@ -1,10 +1,12 @@
 import { ArrowLeft, ArrowRight, Camera, ExternalLink, RotateCw, SquareDashedMousePointer } from 'lucide-react';
-import { toChat } from '#src/chat/toChat.ts';
+import { LAST_CHAT, toChat } from '#src/chat/toChat.ts';
 import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenTab } from '#src/layout/openTab.tsx';
 import { ImageViewer } from '#src/viewer/ImageViewer.tsx';
 import { useState } from 'react';
-import { usePersisted } from '#src/persist/kv.ts';
+import { read, usePersisted } from '#src/persist/kv.ts';
+import { toast } from '#src/ui/toast.tsx';
+import { useNameOf } from '@handline/app-data';
 import { shell } from '#src/shell.ts';
 import { usePageShot } from '#src/tools/pageShot.ts';
 import { ServerPicker } from '#src/tools/ServerPicker.tsx';
@@ -26,11 +28,13 @@ export function addressOf(typed: string): string | null {
 
 /** A web page beside the chat, its address kept per tab: a <webview> in the shell (every site shows), an iframe in a browser. */
 export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: string | null; start?: string }) {
-  // A Web tab names no agent: it is drawn for the one the focused tab shows, and is given none once it takes the focus itself. It
-  // keeps the last one it had, so its buttons are still there when one of them is clicked.
+  // A Web tab names no agent: it sends to the one the focused tab shows, else the one it had last, else the last chat opened.
   const [last, setLast] = useState(shown);
   if (shown && shown !== last) setLast(shown);
-  const agent = shown ?? last;
+  const agent = shown ?? last ?? read<string | null>(LAST_CHAT, null);
+  const nameOf = useNameOf();
+  const to = agent ? nameOf(agent) : 'an agent';
+  const needAgent = (go: () => void) => () => (agent ? go() : toast('Open an agent first', { tone: 'warning' }));
   const [url, setUrl] = usePersisted(`tab/${tab}/url`, start);
   const [typed, setTyped] = useState(url);
   const page = webPage(tab);
@@ -74,17 +78,17 @@ export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: 
           onChange={(e) => setTyped(e.target.value)}
           onFocus={(e) => e.target.select()}
         />
-        {url && canShoot && agent && (
-          <IconButton label="Screenshot to mark up and send to the chat" onClick={() => void capture()}>
+        {url && canShoot && (
+          <IconButton label={`Screenshot to send to ${to}`} onClick={needAgent(() => void capture())}>
             <Camera size={14} />
           </IconButton>
         )}
-        {url && canPick && agent && (
+        {url && canPick && (
           <IconButton
-            label={picking ? 'Click an element in the page, or stop picking (Esc)' : 'Pick an element to send to the chat'}
+            label={picking ? 'Click an element in the page, or stop picking (Esc)' : `Pick an element to send to ${to}`}
             aria-pressed={picking}
             className="aria-pressed:bg-selected aria-pressed:text-accent"
-            onClick={() => void pick()}
+            onClick={needAgent(() => void pick())}
           >
             <SquareDashedMousePointer size={14} />
           </IconButton>
@@ -115,6 +119,7 @@ export function WebTab({ tab, agent: shown, start = '' }: { tab: string; agent: 
           onMarked={(marked, send) => {
             // The chat is brought up first, so a chat it mounts is the one that takes the picture.
             openTab(chatOf(agent), 'here');
+            if (!shown) toast(`Sent to ${nameOf(agent)}`);
             // A picked element's details ride on its picture.
             const out = shot.note ? marked.map((m) => ({ ...m, note: shot.note })) : marked;
             setTimeout(() => toChat(agent, out, send));

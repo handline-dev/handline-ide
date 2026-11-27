@@ -7,6 +7,9 @@ const waiting = new Map<string, { marked: MarkedPicture[]; send: boolean }>();
 // Each agent's open chats, newest last: a chat open twice (two panes) gives way to the newer one, and back when it closes.
 const takers = new Map<string, Take[]>();
 
+/** The kept name of the agent whose chat was shown last: where a Web tab sends when no agent is on screen. */
+export const LAST_CHAT = 'chat/last';
+
 export function toChat(agent: string, marked: MarkedPicture[], send = false) {
   const take = takers.get(agent)?.at(-1);
   if (take) return take(marked, send);

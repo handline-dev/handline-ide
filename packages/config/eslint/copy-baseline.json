@@ -81,7 +81,7 @@
   "apps/web/src/tools/TaskTab.tsx": ["did not load.", "No comments yet."],
   "apps/web/src/tools/TasksTab.tsx": ["Tasks did not load.", "No tasks here."],
   "apps/web/src/tools/TextTab.tsx": ["This text is no longer kept in this browser."],
-  "apps/web/src/tools/WebTab.tsx": ["Screenshot to mark up and send to the chat", "Type an address to open a page."],
+  "apps/web/src/tools/WebTab.tsx": ["Type an address to open a page."],
   "apps/web/src/town/Find.tsx": ["No team or person matches."],
   "apps/web/src/town/PersonCard.tsx": ["Click to chat · right-click for more"],
   "apps/web/src/ui/Boundary.tsx": ["stopped working."],

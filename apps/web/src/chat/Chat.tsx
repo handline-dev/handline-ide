@@ -3,6 +3,8 @@ import { knownUpTo, turnMinutes } from '@handline/app-core';
 import { useAgents, useChat, useChatActions, useChatReadMarks, useChatServed, useChatSuspense, useVerbRun } from '@handline/app-data';
 import { restartingLine, VERBS } from '@handline/app-core';
 import { useNearEnd } from '@handline/app-react';
+import { LAST_CHAT } from '#src/chat/toChat.ts';
+import { write } from '#src/persist/kv.ts';
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from 'react';
 import { ContextRing } from '#src/chat/agent/ContextRing.tsx';
 import { COMPACTING_WORDS, useCompacting, useCompactNow } from '#src/chat/agent/compaction.ts';
@@ -43,6 +45,7 @@ import { useTabState } from '#src/persist/tabState.ts';
 /** An agent's chat: its lines, and the box to write in. The box is there from the first moment; the lines wait, as a skeleton,
  * until the messages and the transcript are both read (a suspense boundary), so the chat appears whole. */
 export function Chat({ agent }: { agent: string }) {
+  useEffect(() => write(LAST_CHAT, agent), [agent]);
   const served = useChatServed();
   const { send } = useChatActions(agent);
   // Whether a turn is running, for Stop: the same read the stream suspends on, here without suspending.
