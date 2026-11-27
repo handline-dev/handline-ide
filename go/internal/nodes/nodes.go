@@ -68,6 +68,9 @@ type Registry struct {
 		Placed(agent string, ok bool)
 		Next(agent string) string
 	}
+	// StartsOn, when set, is whether agent has an account it may start on that is logged in on node: the launch's own answer, which
+	// placement and a wake read too.
+	StartsOn func(agent, node string) bool
 	// Check, when set, is the programs a runner is asked whether it has, which its next heartbeat says (Has.Programs).
 	Check func() []string
 	// Hold, when set, refuses what a runner's link writes into the board while non-nil: the master is handing over.
@@ -163,6 +166,14 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 	if r.OnLink != nil {
 		go r.OnLink(node)
 	}
+}
+
+// IsLinked is whether the master holds a link to node now: a heartbeat alone is not one.
+func (r *Registry) IsLinked(node string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.links[node]
+	return ok
 }
 
 // Linked is the nodes linked now.

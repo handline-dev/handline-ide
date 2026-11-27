@@ -230,12 +230,7 @@ func ForgetTold(q Q, agent string) error {
 
 // NotifiedSession is db.get_notified_session.
 func NotifiedSession(q Q, agent string) (string, error) {
-	var s sql.NullString
-	err := q.QueryRow("SELECT notified_session FROM agent_state WHERE agent = ?", agent).Scan(&s)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return s.String, err
+	return textOf(q, "SELECT notified_session FROM agent_state WHERE agent = ?", agent)
 }
 
 // SetNotifiedSession is db.set_notified_session.

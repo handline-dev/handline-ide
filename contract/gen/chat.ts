@@ -80,7 +80,7 @@ export type TranscriptItem = {
   /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript). */
   id: number;
   at: Timestamp;
-  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment" | "account_moved" | "move_failed" | "concurrent_work";
+  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment" | "account_moved" | "move_failed" | "machine_moved" | "concurrent_work";
   text?: string;
   tool?: string;
   /** For kind tool: the text the tool printed, as the store holds it. Absent when the store holds none. */
@@ -177,6 +177,15 @@ export type TranscriptItem = {
   move_failed?: {
     to: string;
     /** Why, in the daemon's words. */
+    reason: string;
+  };
+  /** Kind machine_moved: a closed agent whose terminal was on a runner Mac that could not start it was started on another machine; read as "Started on <to>: <reason>". */
+  machine_moved?: {
+    /** The runner's name. */
+    from: string;
+    /** The machine it started on, by name. */
+    to: string;
+    /** Why it left the runner, naming it ("MacBook Air is offline"). */
     reason: string;
   };
   /** Kind concurrent_work: a line in an agent's own chat where work beside its own started (a task that came to it mid-turn went to a seat of it) or ended. The task's title and commits are the task's, read as for the other task lines; chat.transcript with agent = seat and task = task_id reads that work's conversation. */

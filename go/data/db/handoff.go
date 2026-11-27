@@ -9,12 +9,7 @@ import (
 
 // GetHandoff is db.get_handoff: the record, "" when there is none.
 func GetHandoff(q Q, agent string) (string, error) {
-	var h sql.NullString
-	err := q.QueryRow("SELECT handoff FROM agent_state WHERE agent = ?", agent).Scan(&h)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return h.String, err
+	return textOf(q, "SELECT handoff FROM agent_state WHERE agent = ?", agent)
 }
 
 // SetHandoff is db.set_handoff: keep the record. Keeping one for an agent with no row creates it idle.
@@ -31,12 +26,7 @@ func ClearHandoff(q Q, agent string) error {
 
 // LastHandoffTrigger is the trigger_kind of the agent's most recently updated handoff (db.last_handoff), "" when it has none.
 func LastHandoffTrigger(q Q, agent string) (string, error) {
-	var k sql.NullString
-	err := q.QueryRow("SELECT trigger_kind FROM handoff WHERE agent = ? ORDER BY updated DESC LIMIT 1", agent).Scan(&k)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return k.String, err
+	return textOf(q, "SELECT trigger_kind FROM handoff WHERE agent = ? ORDER BY updated DESC LIMIT 1", agent)
 }
 
 // HandoffRow is one handoff row.

@@ -7,7 +7,7 @@
 #   tools/check-go-dupl.sh --list [dir]   the clone groups, most copied lines first: the cleanup queue
 here="$(cd "$(dirname "$0")" && pwd)"
 TOKENS=50
-CODE_MAX=24
+CODE_MAX=20
 TESTS_MAX=30
 AGENTCTL_CODE_MAX=0
 AGENTCTL_TESTS_MAX=2
@@ -15,7 +15,7 @@ KIT_CODE_MAX=0
 KIT_TESTS_MAX=0
 PROTOCOL_CODE_MAX=0
 PROTOCOL_TESTS_MAX=2
-DATA_CODE_MAX=8
+DATA_CODE_MAX=4
 DATA_TESTS_MAX=0
 ACCOUNTS_CODE_MAX=2
 ACCOUNTS_TESTS_MAX=0

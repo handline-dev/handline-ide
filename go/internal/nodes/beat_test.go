@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/store"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 func registry(t *testing.T) *Registry {
@@ -159,3 +160,52 @@ type nextOn map[string]string
 func (n nextOn) Where(agent string) string { return n[agent] }
 func (nextOn) Placed(string, bool)         {}
 func (n nextOn) Next(agent string) string  { return n[agent] }
+
+// A wake leaves a runner set to Off or Pause, or where none of the agent's accounts can start, at once; one with no link only once it has
+// been away past LeaveAfter. Release drops the agent's session there.
+func TestAWakeLeavesARunnerForLastingReasonsAndAnUnlinkedOneOnlyPastTheWait(t *testing.T) {
+	r := registry(t)
+	r.Self = "m0"
+	now := time.Now()
+	r.SetClock(func() time.Time { return now })
+	r.Hear("n1", runner.Beat{Version: "v1"}, now)
+	if why, wait := r.LeaveFor("bob", "m0"); why != "" || wait {
+		t.Fatalf("this machine: %q %v", why, wait)
+	}
+	if why, wait := r.LeaveFor("bob", "n1"); why != "" || !wait {
+		t.Fatalf("no link a moment: waited for, %q %v", why, wait)
+	}
+	r.SetClock(func() time.Time { return now.Add(LeaveAfter + time.Second) })
+	if why, _ := r.LeaveFor("bob", "n1"); why != "it is offline" {
+		t.Fatalf("away past the wait: %q", why)
+	}
+	r.DB.Exec("UPDATE nodes SET lending = 'off' WHERE id = 'n1'")
+	if why, _ := r.LeaveFor("bob", "n1"); why != "it is set to off" {
+		t.Fatalf("set to off: %q", why)
+	}
+	r.DB.Exec("UPDATE nodes SET lending = 'run' WHERE id = 'n1'")
+	r.SetClock(func() time.Time { return now })
+	r.mu.Lock()
+	r.links = map[string]*rpc.Conn{"n1": nil}
+	r.mu.Unlock()
+	r.StartsOn = func(agent, node string) bool { return false }
+	if why, _ := r.LeaveFor("bob", "n1"); why != "none of its accounts can start there" {
+		t.Fatalf("no account there: %q", why)
+	}
+	r.StartsOn = func(agent, node string) bool { return true }
+	if why, wait := r.LeaveFor("bob", "n1"); why != "" || wait {
+		t.Fatalf("linked, with its account: %q %v", why, wait)
+	}
+	r.mu.Lock()
+	r.links = nil
+	r.mu.Unlock()
+	if err := r.Release("bob", "n1", "it is set to off"); err != nil {
+		t.Fatal(err)
+	}
+	if node, _ := r.sessionNode("bob"); node != "" {
+		t.Fatalf("its session is still placed on %q", node)
+	}
+	if r.NodeName("n1") != "box" {
+		t.Fatal(r.NodeName("n1"))
+	}
+}

@@ -214,6 +214,24 @@ func (l *Launcher) mayStartAccounts(agent string) []string {
 	return l.mayStartOn(l.machineOf(agent), agent)
 }
 
+// StartsOn is whether the launch could choose an account for agent on node ("" is this machine), room aside: its pin or held account
+// when it has one, else any it may start on there (its vendor's, allowed, logged in there, not paused). Placement and a wake read it.
+func (l *Launcher) StartsOn(agent, node string) bool {
+	if node != "" && l.Ports.Devices == nil {
+		return false
+	}
+	m := l.machineAt(node)
+	if pin := l.heldTo(m, agent); pin != "" {
+		return !l.unusable(m, agent, pin)
+	}
+	for _, a := range l.mayStartOn(m, agent) {
+		if !l.unusable(m, agent, a) {
+			return true
+		}
+	}
+	return false
+}
+
 func (l *Launcher) mayStartOn(m machine, agent string) []string {
 	allowed, _ := l.accountsRule(agent)
 	var out []string

@@ -260,3 +260,27 @@ func TestAPinnedAgentOnManualStartsOnItsDevice(t *testing.T) {
 		t.Fatalf("Auto dropped the pin: %+v", st)
 	}
 }
+
+// A runner the master holds no link to, or where none of the agent's accounts is logged in, takes none of its sessions: the heavy agent
+// goes to the other, and with neither left it stays here.
+func TestARunnerWithNoLinkOrNoneOfTheAgentsAccountsTakesNoSession(t *testing.T) {
+	p, _ := two(t)
+	heavy(t, p, "a1", "check.sh", 3)
+	linked := map[string]bool{"r1": true, "r2": false}
+	p.Linked = func(n string) bool { return linked[n] }
+	loggedIn := map[string]bool{"r1": false, "r2": true}
+	p.Reg.StartsOn = func(agent, n string) bool { return agent == "a1" && loggedIn[n] }
+	if why := p.Lacks("bob", "r2"); why != "it is not linked to this master" {
+		t.Fatalf("r2: %q", why)
+	}
+	if why := p.Lacks("bob", "r1"); why != "none of its accounts can start there" {
+		t.Fatalf("r1: %q", why)
+	}
+	if got := p.Next("bob"); got != "" {
+		t.Fatalf("with no runner able to take it, it starts here: %q", got)
+	}
+	linked["r2"] = true
+	if got := p.Next("bob"); got != "r2" {
+		t.Fatalf("a runner linked with its account logged in takes it: %q", got)
+	}
+}

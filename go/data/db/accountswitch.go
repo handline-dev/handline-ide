@@ -20,6 +20,10 @@ const (
 // MoveFailedKind is the event of a move that could not run when its turn ended or its note was in: a line in the agent's chat.
 const MoveFailedKind = "move_failed"
 
+// MachineMovedKind is the event of a closed agent started on another machine than the runner Mac its terminal was on, which could not
+// start it: a line in the agent's chat.
+const MachineMovedKind = "machine_moved"
+
 // Pending is whether the switch is a person's move that has not begun: AgentView.pending_move, not account_switch.
 func (s *AccountSwitch) Pending() bool {
 	return s != nil && (s.Phase == SwitchScheduled || s.Phase == SwitchStopping)

@@ -770,6 +770,16 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	}
 	base, err := m.Launch.CommandFor(agent, c.movedTo, why0, c.restartedBy)
 	check(err)
+	// A terminal on a runner that cannot start it now is left before the account is chosen, which reads the agent's machine: the
+	// conversation stays there, so this start is fresh.
+	kept := session
+	left := m.leaveRunner(agent, wt)
+	if left.wait {
+		return false, m.waitingForRunner(agent, left)
+	}
+	if left.why != "" {
+		session = ""
+	}
 
 	// Resuming the session is what makes closing cheap, so it is tried first - but a resume can be the very thing that fails: an id whose
 	// transcript was pruned, or a worktree moved out from under it, gives a launch that refuses every time it is retried. A fresh start in
@@ -848,8 +858,9 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		told func(string) error
 		ok   bool
 	}
-	ok := false
-	for _, resume := range attempts {
+	ok, paneGone := false, false
+	for i := 0; i < len(attempts); i++ {
+		resume := attempts[i]
 		handle := must(db.Terminal(m.Q, agent))
 		// Checked fresh before every send, not only after one fails: the closed branch has no lock on the world outside Handline, and a session
 		// can come up here between the first attempt's check and the second's, or before either has run at all. taken still holds the
@@ -873,7 +884,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		}
 		if !resume && len(attempts) > 1 {
 			// The resume did not take, so this start is fresh.
-			m.recordUnlessKept(agent, session, "handoff with gaps")
+			m.recordUnlessKept(agent, kept, "handoff with gaps")
 		}
 		restartNote := ""
 		if c.restartedBy != "" {
@@ -927,9 +938,30 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 			}
 			break
 		}
+		// A launch on a runner that did not take is asked about again: a runner that cannot start the agent now is left, and one fresh
+		// start is placed again in this wake, uncounted; one away a moment is waited for; a pane or tmux server gone there is forgotten,
+		// and the attempt runs again in a new terminal.
+		if !taken && left.why == "" {
+			if left = m.leaveRunner(agent, wt); left.why != "" {
+				session = ""
+				attempts = append(attempts[:i+1], false)
+				continue
+			}
+			if left.wait {
+				return false, m.waitingForRunner(agent, left)
+			}
+			if !paneGone && m.dropGonePane(agent, wt, why) {
+				paneGone = true
+				i--
+				continue
+			}
+		}
 	}
 	if !ok {
 		return false, m.wakeFailed(agent, session, why, took, foreign)
+	}
+	if left.why != "" {
+		m.startedElsewhere(agent, left)
 	}
 	if c.movedFrom != "" {
 		m.recordMove(agent, c.movedFrom, c.movedTo, "pinned", c.moveReason)
