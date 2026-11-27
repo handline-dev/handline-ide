@@ -119,9 +119,10 @@ func taskCardKinds() []string {
 	return kinds
 }
 
-// ownKinds are the events the agent's own chat shows of itself: an account move that landed, a person's that could not run, and a seat of
+// ownKinds are the events the agent's own chat shows of itself: an account move that landed, a person's that could not run, a start on
+// another machine than the runner that could not take it, and a seat of
 // it hired for a task (concurrent work started) or let go once it is over (ended).
-var ownKinds = []string{"moved_account", db.MoveFailedKind, temps.HiredEvent, temps.LeftEvent}
+var ownKinds = []string{"moved_account", db.MoveFailedKind, db.MachineMovedKind, temps.HiredEvent, temps.LeftEvent}
 
 // ownItemOf is an ownKinds event as a transcript item: account_moved (cause manual for a person's move, policy for the daemon's; an
 // event written before moves kept a reason reads one from its trigger), move_failed, or concurrent_work; false for any other event.
@@ -144,6 +145,9 @@ func ownItemOf(ev row) (map[string]any, bool) {
 	case db.MoveFailedKind:
 		return map[string]any{"id": id, "at": at, "kind": "move_failed",
 			"move_failed": map[string]any{"to": text(p["to"]), "reason": text(p["reason"])}}, true
+	case db.MachineMovedKind:
+		return map[string]any{"id": id, "at": at, "kind": "machine_moved",
+			"machine_moved": map[string]any{"from": text(p["from"]), "to": text(p["to"]), "reason": text(p["reason"])}}, true
 	case temps.HiredEvent, temps.LeftEvent:
 		work := map[string]any{"task_id": num(p["task_id"]), "seat": text(p["seat"]), "phase": "started"}
 		if ev.str("kind") == temps.LeftEvent {

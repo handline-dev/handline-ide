@@ -197,6 +197,8 @@ type Manager struct {
 	Blocked  Blocked
 	Launch   Launch
 	Spawn    Spawner
+	// Runners is the runner Macs a closed agent's terminal may be on; nil is none.
+	Runners RunnersPort
 	Agents   AgentsPort
 	Status   StatusPort
 	Observe  Observer
@@ -265,4 +267,14 @@ func (m *Manager) loadHeld(agent string) string {
 		must(db.AddEvent(m.Q, agent, "load_limit_passed", db.KV{K: "held", V: why}, db.KV{K: "request_id", V: head.ID}))
 	}
 	return ""
+}
+
+// RunnersPort is what a wake asks of the runner Macs (nodes.Registry).
+type RunnersPort interface {
+	// LeaveFor is why a wake should start agent elsewhere than node now, "" when not; wait when node cannot start it yet is not left.
+	LeaveFor(agent, node string) (why string, wait bool)
+	// Release drops agent's session on node from the master's records.
+	Release(agent, node, why string) error
+	// NodeName is the name of node, "" being this machine.
+	NodeName(node string) string
 }

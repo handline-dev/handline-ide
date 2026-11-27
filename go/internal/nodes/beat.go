@@ -490,3 +490,68 @@ func (r *Registry) OffMachine(agent string) string {
 	}
 	return ""
 }
+
+// LeaveAfter is how long a closed agent's runner may be away (no link) before a wake starts the agent elsewhere: a master that just
+// started, a runner asleep a moment or one taking the master's new build comes back with the agent's conversation.
+const LeaveAfter = 2 * time.Minute
+
+// LeaveFor is why a wake should start a closed agent elsewhere than node now, "" when not (yet), and for this machine. Its person set
+// it to Pause or Off, or none of the agent's accounts can start there, at once; a runner with no link, only once it has been away past
+// LeaveAfter. Wait is whether node cannot start it now though it is not left yet.
+func (r *Registry) LeaveFor(agent, node string) (why string, wait bool) {
+	if node == "" || node == r.Self {
+		return "", false
+	}
+	var lending string
+	if err := r.DB.QueryRow("SELECT lending FROM nodes WHERE id = ?", node).Scan(&lending); err != nil {
+		return "it is not a machine of this master", false
+	}
+	if lending != "run" {
+		return "it is set to " + lending, false
+	}
+	if !r.IsLinked(node) {
+		_, at, ok := r.Heard(node)
+		if !ok || at.Before(r.started) {
+			at = r.started
+		}
+		if r.Now().Sub(at) < LeaveAfter {
+			return "", true
+		}
+		return "it is offline", false
+	}
+	if r.StartsOn != nil && !r.StartsOn(agent, node) {
+		return "none of its accounts can start there", false
+	}
+	if why := r.Takes(node); why != "" {
+		return why, false
+	}
+	return "", false
+}
+
+// Release drops agent's session on node from the master's records, as a reclaim does, why it was: the agent starts again where placement
+// puts it, not resumed (its conversation is on that machine).
+func (r *Registry) Release(agent, node, why string) error {
+	_ = r.Flush(agent) // its note, while the runner can still send it
+	b, _, _ := r.Heard(node)
+	var last runner.BeatSession
+	for _, s := range b.Sessions {
+		if s.Agent == agent {
+			last = s
+		}
+	}
+	rec := Reclaimed{Agent: agent, Node: node, Memo: reclaimMemo(r.nodeName(node), why, last)}
+	if err := r.takeBack(agent, node, &rec); err != nil {
+		return fmt.Errorf("release %s from %s: %w", agent, node, err)
+	}
+	r.forget(agent)
+	r.log("nodes: %s: %s released (%s)", node, agent, why)
+	return nil
+}
+
+// NodeName is the name a person gave node ("" is this machine), its id when it has none.
+func (r *Registry) NodeName(node string) string {
+	if node == "" {
+		node = r.Self
+	}
+	return r.nodeName(node)
+}

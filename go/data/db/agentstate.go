@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -331,9 +332,14 @@ func ResetCounter(q Q, agent, column string) error {
 
 // Terminal is the agent's terminal, "" when none is recorded.
 func Terminal(q Q, agent string) (string, error) {
+	return textOf(q, "SELECT terminal FROM agent_state WHERE agent = ?", agent)
+}
+
+// textOf is the one text value query reads for args, "" when it finds no row or a NULL.
+func textOf(q Q, query string, args ...any) (string, error) {
 	var t sql.NullString
-	err := q.QueryRow("SELECT terminal FROM agent_state WHERE agent = ?", agent).Scan(&t)
-	if err == sql.ErrNoRows {
+	err := q.QueryRow(query, args...).Scan(&t)
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return t.String, err
@@ -490,4 +496,15 @@ func HasEventAfter(q Q, since int64, agent, kind string) (bool, error) {
 	var n int
 	err := q.QueryRow("SELECT COUNT(*) FROM events WHERE id > ? AND agent = ? AND kind = ?", since, agent, kind).Scan(&n)
 	return n > 0, err
+}
+
+// AgentNode is the machine agent's session was last placed on (agent_state.node), "" for this one or none.
+func AgentNode(q Q, agent string) (string, error) {
+	return textOf(q, "SELECT node FROM agent_state WHERE agent = ?", agent)
+}
+
+// ClearNode forgets the machine agent's session was placed on.
+func ClearNode(q Q, agent string) error {
+	_, err := q.Exec("UPDATE agent_state SET node = NULL WHERE agent = ?", agent)
+	return err
 }

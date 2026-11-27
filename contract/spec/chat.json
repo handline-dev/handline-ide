@@ -349,6 +349,7 @@
        "task_comment",
        "account_moved",
        "move_failed",
+       "machine_moved",
        "concurrent_work"
       ]
      },
@@ -686,6 +687,29 @@
        }
       },
       "required": [
+       "to",
+       "reason"
+      ]
+     },
+     "machine_moved": {
+      "type": "object",
+      "description": "Kind machine_moved: a closed agent whose terminal was on a runner Mac that could not start it was started on another machine; read as \"Started on <to>: <reason>\".",
+      "properties": {
+       "from": {
+        "type": "string",
+        "description": "The runner's name."
+       },
+       "to": {
+        "type": "string",
+        "description": "The machine it started on, by name."
+       },
+       "reason": {
+        "type": "string",
+        "description": "Why it left the runner, naming it (\"MacBook Air is offline\")."
+       }
+      },
+      "required": [
+       "from",
        "to",
        "reason"
       ]

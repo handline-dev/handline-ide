@@ -228,6 +228,8 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	if cfg.Nodes != nil { // an agent on a runner is launched from here, on an account logged in there, and its note brought here before it is read
 		cfg.Nodes.Launch = p.LC.runnerLaunch
 		p.LC.Launch.Ports.Devices = cfg.Nodes
+		cfg.Nodes.StartsOn = p.LC.Launch.StartsOn
+		m.Runners = cfg.Nodes
 		ho.Fetch = cfg.Nodes.Flush
 	}
 	return p.LC

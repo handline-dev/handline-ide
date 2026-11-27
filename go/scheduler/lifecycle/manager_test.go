@@ -82,6 +82,7 @@ type fakeTerm struct {
 	launchOK   bool
 	failResume bool // a resume never starts, a fresh start does as launchOK says
 	closedPane bool
+	notTaken   string // why a launch that did not start says so; "" is "nothing started"
 }
 
 func (f *fakeTerm) TypeableNow(string) bool            { return !f.busy }
@@ -104,6 +105,9 @@ func (f *fakeTerm) Relaunch(_, cmd string, started func() bool) (bool, string) {
 	}
 	if f.launchOK && started() {
 		return true, ""
+	}
+	if f.notTaken != "" {
+		return false, f.notTaken
 	}
 	return false, "nothing started"
 }

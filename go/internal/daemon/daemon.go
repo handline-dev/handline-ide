@@ -317,6 +317,7 @@ func Start(cfg Config) (*Daemon, error) {
 			c := usage.LoadConfig(cfg.Home)
 			return placement.Limits{Sessions: loadgate.LimitsOf(c).Agents, AgentsRSS: worktreepool.GB(c, worktreepool.AgentsMemoryMaxKey)}
 		}, Manual: func() bool { return usage.LoadConfig(cfg.Home)[placement.Key] == placement.Manual }}
+	placer.Linked = d.nodes.IsLinked
 	d.nodes.Placer, d.nodes.Check = placer, placer.Check
 	d.placer = placer
 	d.nodes.Turns = cfg.Turns

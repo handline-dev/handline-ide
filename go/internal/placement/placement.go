@@ -63,6 +63,8 @@ type Placer struct {
 	Limits func() Limits
 	// Manual is whether placement is Manual (Key); nil is Auto.
 	Manual func() bool
+	// Linked is whether the master holds a link to a machine now (Registry.IsLinked); nil takes a heartbeat for one.
+	Linked func(node string) bool
 	Log    func(format string, a ...any)
 
 	mu       sync.Mutex
@@ -77,6 +79,7 @@ type picking struct {
 
 // need is what an agent's session needs of a machine, and what placement goes by.
 type need struct {
+	agent     string
 	workspace string
 	cli       string // its vendor's CLI
 	pin       string // the device it is pinned to (agents.device), "" for none
@@ -318,6 +321,12 @@ func (p *Placer) lacks(node string, n need, l Limits) string {
 		if why := p.Reg.Takes(node); why != "" {
 			return why
 		}
+		if p.Linked != nil && !p.Linked(node) {
+			return "it is not linked to this master"
+		}
+		if p.Reg.StartsOn != nil && n.agent != "" && !p.Reg.StartsOn(n.agent, node) {
+			return "none of its accounts can start there"
+		}
 		if p.Holds == nil || !p.Holds(node, n.workspace) {
 			return "its project is not there"
 		}
@@ -411,7 +420,7 @@ func (p *Placer) needOf(key string) (need, error) {
 	if err := p.DB.QueryRow("SELECT workspace, vendor, device FROM agents WHERE id = ?", id).Scan(&ws, &vendor, &pin); err != nil {
 		return need{}, err
 	}
-	n := need{workspace: actor.Key(actor.Workspace, ws), cli: team.DefaultVendor, pin: pin.String}
+	n := need{agent: key, workspace: actor.Key(actor.Workspace, ws), cli: team.DefaultVendor, pin: pin.String}
 	if vendor.String != "" {
 		n.cli = vendor.String
 	}

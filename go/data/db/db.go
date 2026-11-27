@@ -229,12 +229,7 @@ func ForgetTold(q Q, agent string) error {
 
 // NotifiedSession is the session agent's queue head was last typed into, "" when none is recorded.
 func NotifiedSession(q Q, agent string) (string, error) {
-	var s sql.NullString
-	err := q.QueryRow("SELECT notified_session FROM agent_state WHERE agent = ?", agent).Scan(&s)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return s.String, err
+	return textOf(q, "SELECT notified_session FROM agent_state WHERE agent = ?", agent)
 }
 
 // SetNotifiedSession records the session agent's queue head was typed into; "" writes NULL.
