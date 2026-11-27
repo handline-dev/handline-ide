@@ -2,6 +2,7 @@
 // each in the house of the agent that asks.
 import type { AgentView, PendingRequest, Workspace } from '@handline/client';
 import { activityOf, holdLine, type Activity } from '#src/layout/agentList.ts';
+import { motionOf, type Motion } from '#src/town/motion.ts';
 
 /** What a person is doing, in a word. */
 export const WORDS: Record<Activity, string> = {
@@ -17,7 +18,8 @@ export const WORDS: Record<Activity, string> = {
 /** `queue`: the tasks it owns that are not done; `cached`: its prompt cache still holds its conversation; `task`: the task it holds now,
  *  and `steps` the steps done and in all of it, null without a count;
  *  `why`: why it waits or stopped, in the daemon's words. For its card: `team`, its workspace's name; `role`, the first line of its role
- *  (empty for none); its `model` and `effort`; `ctx`, the whole percent of its context window in use, null when not known. */
+ *  (empty for none); its `model` and `effort`; `ctx`, the whole percent of its context window in use, null when not known. `motion`:
+ *  how it moves where it sits (motion.ts). */
 export type Person = {
   key: string;
   name: string;
@@ -33,6 +35,7 @@ export type Person = {
   model?: string | null;
   effort?: string | null;
   ctx?: number | null;
+  motion?: Motion | null;
 };
 export type Decision = { id: string; task: number | null; title: string; agent: string | null; house: string | null };
 /** `hq`: the founder's HQ, where the pinned agents gather and every decision lands. */
@@ -49,9 +52,10 @@ export type Town = { houses: House[]; decisions: Decision[] };
 
 /** What the town shows a person doing: working too while it rests at its prompt and its subagents or background commands run; a
  *  Monitor watch is waiting, not work. */
+const backgroundWork = (a: AgentView) => (a.background ?? []).some((j) => j.kind !== 'monitor');
 function townActivity(a: AgentView): Activity {
   const act = activityOf(a);
-  return act === 'resting' && (a.background ?? []).some((j) => j.kind !== 'monitor') ? 'working' : act;
+  return act === 'resting' && backgroundWork(a) ? 'working' : act;
 }
 
 const personOf = (a: AgentView, now: number, team: string): Person => ({
@@ -69,6 +73,7 @@ const personOf = (a: AgentView, now: number, team: string): Person => ({
   model: a.model ?? null,
   effort: a.effort ?? null,
   ctx: a.ctx_pct ?? null,
+  motion: motionOf(townActivity(a), a.doing?.text, backgroundWork(a)),
 });
 
 /** The town from workspaces.list, agents.list and the founder's turn, at `now`. A request whose agent is in no house is only in the

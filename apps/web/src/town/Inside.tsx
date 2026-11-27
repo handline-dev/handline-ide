@@ -13,7 +13,7 @@ import { DoorSwing, type Way } from '#src/town/door.tsx';
 import { useWalker } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
-import { Monitors } from '#src/town/monitors.tsx';
+import { Monitors, MotionsOf } from '#src/town/monitors.tsx';
 import { useCrowd } from '#src/town/crowd.ts';
 import { fadeOf, useMore } from '#src/town/pan.ts';
 import { useGivenWork } from '#src/town/errands.ts';
@@ -79,6 +79,8 @@ export function Inside({
   } else if (through && (!swing || (swing.crowd && swing.way === 'shut'))) setSwing({ way: 'open', out: through === 'out', crowd: true });
   else if (!through && swing?.crowd && swing.way === 'open') setSwing({ way: 'shut', out: swing.out, crowd: true });
   const more = useMore(pane, drawn && `${pw}x${ph}x${drawn.w * scale}x${drawn.h * scale}`);
+  // How each moves and what its screen shows, from the newest people: the drawing is not made again for it.
+  const motions = new Map(house.people.map((p) => [p.key, p.motion ?? null]));
   const decisions = house.decisions.length;
 
   /** Walks out of the door: up to it, then, once nobody else swings it, it opens and the founder goes back to the city. */
@@ -111,49 +113,51 @@ export function Inside({
         <div ref={pane} className="flex min-h-0 min-w-0 flex-1 overflow-auto" style={fadeOf(more)}>
           {drawn && pw > 0 && (
             <div className="relative m-auto shrink-0" style={{ width: drawn.w * scale, height: drawn.h * scale }}>
-              <svg
-                width={drawn.w * scale}
-                height={drawn.h * scale}
-                viewBox={`0 0 ${drawn.w} ${drawn.h}`}
-                className="block"
-                role="img"
-                aria-label={`${house.name}'s office`}
-              >
-                <image
-                  href={drawn.url}
-                  width={drawn.w}
-                  height={drawn.h}
-                  style={PIXEL}
-                  onClick={(e) => {
-                    const r = e.currentTarget.getBoundingClientRect();
-                    founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
-                  }}
-                />
-                <Monitors screens={drawn.screens} />
-                <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} cheers={cheers} />
-                <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
-                  <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
-                  {drawn.front.door && drawn.leaves && swing && (
-                    <DoorSwing
-                      pic={drawn.front.pic}
-                      door={{ box: drawn.front.door, through: THROUGH, leaves: drawn.leaves }}
-                      toPixel={drawn.ground.toPixel}
-                      way={swing.way}
-                      out={swing.out}
-                      onDone={() => {
-                        if (swing.crowd && swing.way === 'open') return; // held open till they are through
-                        if (swing.way !== 'open') return setSwing(null);
-                        // Sent somewhere else while it opened: it shuts again.
-                        const [me, from] = [founder.get()?.at, swing.from];
-                        if (me && from && Math.hypot(me[0] - from[0], me[1] - from[1]) < 0.05) onBack();
-                        else setSwing({ way: 'shut', out: true });
-                      }}
-                    />
-                  )}
-                </g>
-                <Bubbles drawn={drawn} crowd={crowd} />
-                <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} cheers={cheers} />
-              </svg>
+              <MotionsOf value={motions}>
+                <svg
+                  width={drawn.w * scale}
+                  height={drawn.h * scale}
+                  viewBox={`0 0 ${drawn.w} ${drawn.h}`}
+                  className="block"
+                  role="img"
+                  aria-label={`${house.name}'s office`}
+                >
+                  <image
+                    href={drawn.url}
+                    width={drawn.w}
+                    height={drawn.h}
+                    style={PIXEL}
+                    onClick={(e) => {
+                      const r = e.currentTarget.getBoundingClientRect();
+                      founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
+                    }}
+                  />
+                  <Monitors screens={drawn.screens} />
+                  <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} cheers={cheers} />
+                  <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
+                    <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
+                    {drawn.front.door && drawn.leaves && swing && (
+                      <DoorSwing
+                        pic={drawn.front.pic}
+                        door={{ box: drawn.front.door, through: THROUGH, leaves: drawn.leaves }}
+                        toPixel={drawn.ground.toPixel}
+                        way={swing.way}
+                        out={swing.out}
+                        onDone={() => {
+                          if (swing.crowd && swing.way === 'open') return; // held open till they are through
+                          if (swing.way !== 'open') return setSwing(null);
+                          // Sent somewhere else while it opened: it shuts again.
+                          const [me, from] = [founder.get()?.at, swing.from];
+                          if (me && from && Math.hypot(me[0] - from[0], me[1] - from[1]) < 0.05) onBack();
+                          else setSwing({ way: 'shut', out: true });
+                        }}
+                      />
+                    )}
+                  </g>
+                  <Bubbles drawn={drawn} crowd={crowd} />
+                  <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} cheers={cheers} />
+                </svg>
+              </MotionsOf>
               <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} />
             </div>
           )}

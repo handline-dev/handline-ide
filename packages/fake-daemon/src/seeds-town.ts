@@ -1,34 +1,38 @@
 // More workspaces for the Town tab, enough to fill a screen: agents at work, resting, asleep, waiting, so each building looks different.
-// The handline office has one of every state an office marks, and a task with a step count and a queue behind it.
+// The handline office has one of every state an office marks, and a task with a step count and a queue behind it. A doing line starts
+// with its tool, as the daemon's does, so the people move by it: reading, writing or running something.
 import type { FakeDaemon } from '#src/daemon.ts';
 import { AGENTS } from '#src/fixtures.ts';
 import { newSession } from '#src/session.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
-/** What the people of a big team are doing, different from desk to desk so a room's lines can be told apart. */
+/** What the people of a big team are doing, different from desk to desk so a room's lines can be told apart, each led by its tool so
+ *  the room shows every motion. */
 const DOINGS = [
-  'Plan the next release',
-  'Fix the login redirect',
-  'Write tests for the cart',
-  'Review the search change',
-  'Update the deploy script',
-  'Answer the support thread',
-  'Draw the onboarding screens',
-  'Speed up the image upload',
-  'Check the billing report',
-  'Translate the help pages',
+  'Read Plan the next release',
+  'Edit Fix the login redirect',
+  'Write Add tests for the cart',
+  'Agent Review the search change',
+  'Bash Run the deploy script',
+  'Grep Find the support thread',
+  'Edit Draw the onboarding screens',
+  'Bash Time the image upload',
+  'Read Check the billing report',
+  'Write Translate the help pages',
 ];
+/** What those at work in the small teams do, in turn: one of each motion. */
+const WORK = ['Read Look over the open issues', 'Edit Fix the failing check', 'Bash Run the tests', 'Agent Review the change'];
 
 const PEOPLE: [string, 'running' | 'idle' | 'closed' | 'waiting', string?][] = [
-  ['handline', 'running', 'Plan the release notes'],
+  ['handline', 'running', 'Read the notes of the last release'],
   ['handline.ui', 'running', 'Edit the settings sheet'],
-  ['shop', 'running', 'Review the checkout change'],
-  ['shop.web', 'running', 'Build the product page'],
-  ['shop.api', 'running', 'Run the payment tests'],
+  ['shop', 'running', 'Grep Find every caller of the checkout'],
+  ['shop.web', 'running', 'Write Add the product page'],
+  ['shop.api', 'running', 'Bash Run the payment tests'],
   ['shop.design', 'idle'],
   ['shop.copy', 'waiting'],
-  ['harbor', 'running', 'Read the import logs'],
+  ['harbor', 'running', 'Read Look at the import logs'],
   ['harbor.data', 'closed'],
   ['personal', 'idle'],
   ...crowd(),
@@ -63,7 +67,7 @@ function crowd(): typeof PEOPLE {
   return teams.flatMap(([team, size, work]) =>
     Array.from({ length: size }, (_, k): (typeof PEOPLE)[number] => {
       const name = k === 0 ? team : `${team}.${words[k - 1]}`;
-      if (k < work) return [name, 'running', size > 6 ? DOINGS[k % DOINGS.length] : 'Ship the next change'];
+      if (k < work) return [name, 'running', size > 6 ? DOINGS[k % DOINGS.length] : WORK[k % WORK.length]];
       return [name, k === size - 1 && size > 2 ? 'waiting' : 'idle'];
     }),
   );
