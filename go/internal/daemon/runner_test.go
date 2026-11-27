@@ -433,9 +433,9 @@ func linkedRunner(t *testing.T, master *Daemon, node string) *nodes.Runner {
 }
 
 func TestMain(m *testing.M) {
-	// No test reads this machine's own interfaces or Tailscale: a test that wants addresses serves its own (serveHosts).
-	addressesNow = func() []netAddress { return nil }
-	tailnetHTTPS = func() bool { return false }
+	// No test reads this machine's own interfaces or Tailscale: a test that wants addresses serves its own (serveOn).
+	machineHosts = func(Config) []netAddress { return nil }
+	machineHTTPS = func() bool { return false }
 	code := m.Run()
 	clustertest.Remove() // the handlined and hl the runner test built
 	os.Exit(code)

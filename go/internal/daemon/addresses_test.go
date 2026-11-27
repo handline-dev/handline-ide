@@ -22,9 +22,9 @@ import (
 )
 
 func TestTheAddressListKeepsLANAndTailscaleAndLeavesLoopbackAndPublicOut(t *testing.T) {
-	was, wasTS, wasLocal := interfaceAddrs, tailscaleName, localName
-	t.Cleanup(func() { interfaceAddrs, tailscaleName, localName = was, wasTS, wasLocal })
-	interfaceAddrs = func() ([]ifaceAddr, error) {
+	wasTS, wasLocal := tailscaleName, localName
+	t.Cleanup(func() { tailscaleName, localName = wasTS, wasLocal })
+	ifaces := func() ([]ifaceAddr, error) {
 		return []ifaceAddr{{"lo0", net.ParseIP("127.0.0.1")}, {"en0", net.ParseIP("192.168.0.5")}, {"en0", net.ParseIP("8.8.8.8")},
 			{"en5", net.ParseIP("100.70.0.1")}, {"utun3", net.ParseIP("100.101.1.2")}, {"en7", net.ParseIP("10.0.0.3")},
 			{"en8", net.ParseIP("172.20.1.1")}, {"en9", net.ParseIP("172.32.0.1")}}, nil
@@ -32,7 +32,7 @@ func TestTheAddressListKeepsLANAndTailscaleAndLeavesLoopbackAndPublicOut(t *test
 	tailscaleName = func() string { return "mac.tail1.ts.net" }
 	localName = func() string { return "mac.local" }
 	var got []string
-	for _, a := range machineAddresses() {
+	for _, a := range machineAddresses(ifaces) {
 		got = append(got, fmt.Sprintf("%s %s %s %v", a.Host, a.Kind, a.Iface, a.IPs))
 	}
 	want := []string{"192.168.0.5 lan en0 [192.168.0.5]", "10.0.0.3 lan en7 [10.0.0.3]", "172.20.1.1 lan en8 [172.20.1.1]",
@@ -42,18 +42,20 @@ func TestTheAddressListKeepsLANAndTailscaleAndLeavesLoopbackAndPublicOut(t *test
 		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	tailscaleName, localName = func() string { return "" }, func() string { return "" }
-	interfaceAddrs = func() ([]ifaceAddr, error) { return []ifaceAddr{{"lo0", net.ParseIP("127.0.0.1")}}, nil }
-	if a := machineAddresses(); len(a) != 0 {
+	loopOnly := func() ([]ifaceAddr, error) { return []ifaceAddr{{"lo0", net.ParseIP("127.0.0.1")}}, nil }
+	if a := machineAddresses(loopOnly); len(a) != 0 {
 		t.Fatalf("loopback alone listed %v", a)
 	}
 }
 
-// serveHosts makes the address list these hosts, all on loopback so the test can bind them.
-func serveHosts(t *testing.T, hosts ...netAddress) {
-	t.Helper()
-	was := addressesNow
-	t.Cleanup(func() { addressesNow = was })
-	addressesNow = func() []netAddress { return hosts }
+// serveOn makes d's address list these hosts, all on loopback so the test can bind them.
+func serveOn(d *Daemon, hosts ...netAddress) { d.cfg.machine.setHosts(hosts) }
+
+// hostsOf is a machine of these hosts for a daemon not started yet (Config.machine).
+func hostsOf(hosts ...netAddress) *machineView {
+	m := &machineView{}
+	m.setHosts(hosts)
+	return m
 }
 
 var loop = []net.IP{net.ParseIP("127.0.0.1")}
@@ -157,7 +159,8 @@ func boundAddr(t *testing.T, d *Daemon, ip string) string {
 func TestAnEngineServesTheAddressesChosenInItsMacsOwnHome(t *testing.T) {
 	own, c := startDoors(t, false)
 	engine, _ := startDoors(t, false, func(cfg *Config) { cfg.AddressesHome = own.cfg.Home })
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
+	serveOn(own, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
+	serveOn(engine, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
 	setAddresses(t, c, `["127.0.0.1"]`)
 	engine.net.relisten()
 	ls := listeners(engine)
@@ -185,7 +188,7 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	if before == "" || len(listeners(d)) != 1 {
 		t.Fatalf("unset network_addresses is not the -listen door: %v", listeners(d))
 	}
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
+	serveOn(d, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop})
 	if r := setAddresses(t, c, `["127.0.0.1"]`); !reflect.DeepEqual(r["unreachable_devices"], []any{}) {
 		t.Fatalf("%v", r)
 	}
@@ -219,7 +222,7 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 
 	// The address goes away (Wi-Fi off): the LAN door closes with the connection open through it, and only the desktop app's
 	// loopback door is left, plain and listed nowhere.
-	serveHosts(t)
+	serveOn(d)
 	d.net.relisten()
 	ws.SetReadDeadline(time.Now().Add(5 * time.Second))
 	if _, _, err := ws.ReadMessage(); err == nil || isTimeout(err) {
@@ -233,7 +236,7 @@ func TestChosenHostsAreServedLiveTLSOnTheLANPlainOnTailscaleAndDroppedWhenGone(t
 	}
 
 	// It comes back as Tailscale's (the address list is read again on each round): served plain.
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
+	serveOn(d, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
 	d.net.relisten()
 	if l := listeners(d); len(l) != 1 || l[0].TLS || l[0].Fingerprint != "" {
 		t.Fatalf("a Tailscale host is not served plain: %v", l)
@@ -257,8 +260,8 @@ func isTimeout(err error) bool { ne, ok := err.(net.Error); return ok && ne.Time
 func sha256Of(b []byte) []byte { s := sha256.Sum256(b); return s[:] }
 
 func TestASettingNamingAHostThisMachineDoesNotHaveIsRefused(t *testing.T) {
-	_, c := startDoors(t, false)
-	serveHosts(t, netAddress{Host: "192.168.0.5", Kind: kindLAN, IPs: []net.IP{net.ParseIP("192.168.0.5")}})
+	d, c := startDoors(t, false)
+	serveOn(d, netAddress{Host: "192.168.0.5", Kind: kindLAN, IPs: []net.IP{net.ParseIP("192.168.0.5")}})
 	r := call(t, c, "settings.set", `{"changes":{"network_addresses":["10.9.9.9"]}}`)
 	if gate(r) != "address" || !strings.Contains(fmt.Sprint(r), "192.168.0.5") {
 		t.Fatalf("%v", r)
@@ -273,7 +276,7 @@ func TestASettingNamingAHostThisMachineDoesNotHaveIsRefused(t *testing.T) {
 // With no Tailscale or Wi-Fi address to pick, a pairing names the host the setting chose.
 func TestDevicePairNamesTheChosenHostInItsLink(t *testing.T) {
 	d, c := startDoors(t, true)
-	serveHosts(t, netAddress{Host: "127.0.0.1", IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
+	serveOn(d, netAddress{Host: "127.0.0.1", IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
 	setAddresses(t, c, `["mac.local"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
 	res := call(t, c, "device.pair", `{}`)["result"].(map[string]any)
@@ -301,7 +304,7 @@ func TestAPairingPicksTheTailscaleNameElseTheFirstWiFiAddressAndServesIt(t *test
 	pair := func() map[string]any { return call(t, c, "device.pair", `{}`)["result"].(map[string]any) }
 
 	// Unset: the name is picked and served beside the -listen door, and the setting stays unset.
-	serveHosts(t, ts...)
+	serveOn(d, ts...)
 	d.net.relisten()
 	if l, _ := pair()["web_link"].(string); !strings.HasPrefix(l, "http://mac.ts.net:") {
 		t.Fatalf("with Tailscale up the pairing does not name its name: %v", l)
@@ -311,7 +314,7 @@ func TestAPairingPicksTheTailscaleNameElseTheFirstWiFiAddressAndServesIt(t *test
 	}
 
 	// The setting lists only a Wi-Fi address: the name is still picked, and served.
-	serveHosts(t, away, ts[0], ts[1])
+	serveOn(d, away, ts[0], ts[1])
 	setAddresses(t, c, `["10.9.9.9"]`)
 	if l, _ := pair()["web_link"].(string); !strings.HasPrefix(l, "http://mac.ts.net:") {
 		t.Fatalf("%v", l)
@@ -321,7 +324,7 @@ func TestAPairingPicksTheTailscaleNameElseTheFirstWiFiAddressAndServesIt(t *test
 	}
 
 	// Tailscale down: the first Wi-Fi address, over TLS with its fingerprint.
-	serveHosts(t, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop}, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop}, away)
+	serveOn(d, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop}, netAddress{Host: "127.0.0.1", Kind: kindLAN, Iface: "en0", IPs: loop}, away)
 	d.net.relisten()
 	res := pair()
 	if l, _ := res["web_link"].(string); !strings.HasPrefix(l, "https://127.0.0.1:") || res["fingerprint"] == "" || !strings.HasSuffix(l, "&fp="+res["fingerprint"].(string)) {
@@ -332,7 +335,7 @@ func TestAPairingPicksTheTailscaleNameElseTheFirstWiFiAddressAndServesIt(t *test
 // -advertise names the address with the setting unset: a pairing names it, not a pick.
 func TestAnAdvertisedAddressIsNamedInsteadOfAPick(t *testing.T) {
 	d, c := startDoors(t, false, func(c *Config) { c.Advertise = "pub.example:443" })
-	serveHosts(t, netAddress{Host: "mac.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
+	serveOn(d, netAddress{Host: "mac.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
 	d.net.relisten()
 	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); res["web_link"] != "http://pub.example:443/#pair="+res["code"].(string) {
 		t.Fatalf("%v", res)
@@ -368,7 +371,7 @@ func TestWithChosenAddressesALoopbackDoorThatCannotBeBoundFailsTheStartAndAnothe
 	}
 	port := held.Addr().(*net.TCPAddr).Port
 	// 10.9.9.9 is listed as this machine's, so its door is wanted, but no interface has it: its bind fails
-	serveHosts(t, netAddress{Host: "10.9.9.9", Kind: kindLAN, Iface: "en0", IPs: []net.IP{net.ParseIP("10.9.9.9")}})
+	hosts := hostsOf(netAddress{Host: "10.9.9.9", Kind: kindLAN, Iface: "en0", IPs: []net.IP{net.ParseIP("10.9.9.9")}})
 	var mu sync.Mutex
 	var logged []string
 	start := func() (*Daemon, error) {
@@ -379,7 +382,7 @@ func TestWithChosenAddressesALoopbackDoorThatCannotBeBoundFailsTheStartAndAnothe
 		t.Cleanup(func() { os.RemoveAll(dir) })
 		os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("network_addresses:\n  - 10.9.9.9\n"), 0o644)
 		return Start(Config{Home: dir, DBFile: filepath.Join(dir, "db.sqlite"), SocketFile: filepath.Join(dir, "d.sock"),
-			Listen: fmt.Sprintf("127.0.0.1:%d", port), Auth: fakeAuth{key: "k"}, Log: func(f string, a ...any) {
+			Listen: fmt.Sprintf("127.0.0.1:%d", port), Auth: fakeAuth{key: "k"}, machine: hosts, Log: func(f string, a ...any) {
 				mu.Lock()
 				logged = append(logged, fmt.Sprintf(f, a...))
 				mu.Unlock()
@@ -410,7 +413,7 @@ func TestWithChosenAddressesALoopbackDoorThatCannotBeBoundFailsTheStartAndAnothe
 // The pairing names the MagicDNS name, which Handline picks while Tailscale is up, though the setting lists only the plain IP.
 func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsChosen(t *testing.T) {
 	d, c := startDoors(t, true)
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
+	serveOn(d, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
 		netAddress{Host: "mac.tail1.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
 	setAddresses(t, c, `["127.0.0.1"]`)
 	_, port, _ := net.SplitHostPort(boundAddr(t, d, "127.0.0.1"))
@@ -438,7 +441,7 @@ func TestAPairingForThePlainTailscaleIPNamesTheMagicDNSNameEvenWhenOnlyTheIPIsCh
 	}
 
 	// Without a MagicDNS name the IP is named as before.
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
+	serveOn(d, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop})
 	d.net.relisten()
 	if res := call(t, c, "device.pair", `{}`)["result"].(map[string]any); !strings.Contains(res["web_link"].(string), "//127.0.0.1:") {
 		t.Fatalf("%v", res)
@@ -501,8 +504,8 @@ func TestAFailedTailscaleReadIsNotKept(t *testing.T) {
 // device.pair names the address it is given in place of the pick, with that door's own link; an address no open door serves is refused
 // (gate network), and an empty one is bad_request.
 func TestDevicePairNamesTheHostItIsGiven(t *testing.T) {
-	_, c := startDoors(t, true)
-	serveHosts(t, netAddress{Host: "127.0.0.1", IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
+	d, c := startDoors(t, true)
+	serveOn(d, netAddress{Host: "127.0.0.1", IPs: loop}, netAddress{Host: "mac.local", Kind: kindMDNS, IPs: loop})
 	setAddresses(t, c, `["127.0.0.1", "mac.local"]`)
 	res := call(t, c, "device.pair", `{"host":"mac.local"}`)["result"].(map[string]any)
 	if l, _ := res["web_link"].(string); !strings.HasPrefix(l, "https://mac.local:") || !strings.HasSuffix(l, "&fp="+res["fingerprint"].(string)) {

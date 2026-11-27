@@ -152,7 +152,7 @@ func listenNetwork(cfg Config, d *Daemon) (*netDoors, error) {
 	}
 	_, port, _ := net.SplitHostPort(cfg.Listen)
 	n := &netDoors{d: d, cfg: cfg, port: port, rs: d.newServer("network"), open: map[string]*networkListener{}, stop: make(chan struct{})}
-	n.ts = &tsCert{dir: filepath.Join(cfg.Home, "network"), ready: func() { n.relisten() }}
+	n.ts = &tsCert{dir: filepath.Join(cfg.Home, "network"), ready: func() { n.relisten() }, get: cfg.fetchTailscaleCert}
 	if cfg.WebDir != "" {
 		var err error
 		if n.ui, err = webUI(cfg.WebDir); err != nil {
@@ -207,9 +207,9 @@ func (n *netDoors) want() (hosts []netAddress, specs map[string]doorSpec, names 
 // wantAll is want, saying also whether the last of hosts is there only as the pick (OwnDoor leaves it out: runners reach a host chosen).
 func (n *netDoors) wantAll() (hosts []netAddress, specs map[string]doorSpec, names map[string]string, picked string, onlyPicked, chosen bool) {
 	specs = map[string]doorSpec{loopback: {web: true}} // the desktop app's door
-	all := addressesNow()
+	all := n.cfg.addressesNow()
 	// the master's door for runners (master.go) is the plain one; Tailscale is asked only while its address is up
-	https := n.ts != nil && n.cfg.plain() && slices.ContainsFunc(all, func(a netAddress) bool { return a.Kind == kindTailscale }) && tailnetHTTPS()
+	https := n.ts != nil && n.cfg.plain() && slices.ContainsFunc(all, func(a netAddress) bool { return a.Kind == kindTailscale }) && n.cfg.tailnetHTTPS()
 	have := map[string]netAddress{}
 	names = map[string]string{}
 	for _, a := range all {
@@ -339,7 +339,7 @@ func (n *netDoors) listen(ip string, spec doorSpec) (*networkListener, error) {
 			MinVersion: tls.VersionTLS13})
 	} else {
 		// A plain door is never served anywhere the tailnet (or loopback, for a local proxy) is not the only way in.
-		if err := checkPlainBind(addr); err != nil {
+		if err := checkPlainBind(addr, n.cfg.ifaces); err != nil {
 			return nil, err
 		}
 		l.ln, err = net.Listen("tcp", addr)
@@ -393,7 +393,7 @@ func (n *netDoors) tlsSource() (*certSource, error) {
 	if n.src != nil {
 		return n.src, nil
 	}
-	crt, key, err := ensureLANCert(n.cfg.Home)
+	crt, key, err := ensureLANCert(n.cfg.Home, n.cfg.addressesNow())
 	if err != nil {
 		return nil, fmt.Errorf("network listener certificate: %w", err)
 	}
@@ -553,8 +553,8 @@ type ifaceAddr struct {
 	IP   net.IP
 }
 
-// interfaceAddrs lists the machine's interface addresses; a variable so a test can name some.
-var interfaceAddrs = func() ([]ifaceAddr, error) {
+// osInterfaces lists the machine's interface addresses.
+func osInterfaces() ([]ifaceAddr, error) {
 	ifs, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -576,8 +576,8 @@ var interfaceAddrs = func() ([]ifaceAddr, error) {
 
 // tailscaleIPs are the addresses held by the Tailscale interface itself (utun* on macOS, tailscale* elsewhere) in
 // 100.64.0.0/10. The range alone is not enough: carrier-grade NAT hands it out on ordinary LAN and Wi-Fi interfaces.
-func tailscaleIPs() ([]net.IP, error) {
-	all, err := interfaceAddrs()
+func tailscaleIPs(ifaces func() ([]ifaceAddr, error)) ([]net.IP, error) {
+	all, err := ifaces()
 	if err != nil {
 		return nil, err
 	}
@@ -595,7 +595,7 @@ func tailscaleIPs() ([]net.IP, error) {
 }
 
 // plainAddr completes ":PORT" with the Tailscale address; a given host is left for checkPlainBind to judge.
-func plainAddr(listen string) (string, error) {
+func plainAddr(listen string, ifaces func() ([]ifaceAddr, error)) (string, error) {
 	host, port, err := net.SplitHostPort(listen)
 	if err != nil {
 		return "", fmt.Errorf("network listener address %q: %w (want :PORT or ADDR:PORT)", listen, err)
@@ -603,7 +603,7 @@ func plainAddr(listen string) (string, error) {
 	if host != "" {
 		return listen, nil
 	}
-	ips, err := tailscaleIPs()
+	ips, err := tailscaleIPs(ifaces)
 	if err != nil {
 		return "", err
 	}
@@ -611,7 +611,7 @@ func plainAddr(listen string) (string, error) {
 }
 
 // checkPlainBind admits only an address of the Tailscale interface, or loopback for a local proxy such as `tailscale serve`.
-func checkPlainBind(addr string) error {
+func checkPlainBind(addr string, ifaces func() ([]ifaceAddr, error)) error {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return err
@@ -620,7 +620,7 @@ func checkPlainBind(addr string) error {
 		if ip.IsLoopback() {
 			return nil
 		}
-		ips, _ := tailscaleIPs()
+		ips, _ := tailscaleIPs(ifaces)
 		for _, t := range ips {
 			if t.Equal(ip) {
 				return nil

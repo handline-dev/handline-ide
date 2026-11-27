@@ -145,6 +145,10 @@ type Config struct {
 	BeforeClose func()
 	// StopWork, when set, stops the tick and returns once it has: the master hands over, or a newer one outranked it.
 	StopWork func()
+	// machine is what a test has this daemon read in place of its machine, one per daemon (Start makes it); interfaces, when set,
+	// lists the interface addresses in place of the machine's.
+	machine    *machineView
+	interfaces func() ([]ifaceAddr, error)
 }
 
 // Daemon is a running daemon. Close stops the listeners and waits for the connections to end.
@@ -199,8 +203,11 @@ func Start(cfg Config) (*Daemon, error) {
 	if cfg.Auth == nil {
 		cfg.Auth = authority.New(cfg.Home)
 	}
+	if cfg.machine == nil {
+		cfg.machine = &machineView{}
+	}
 	if cfg.plain() && cfg.Listen != "" {
-		addr, err := plainAddr(cfg.Listen)
+		addr, err := plainAddr(cfg.Listen, cfg.ifaces)
 		if err != nil {
 			return nil, err
 		}

@@ -53,20 +53,18 @@ func TestWithTailnetHTTPSTheTailscaleDoorServesTailscalesCertificateAndRenewsIt(
 	writeNameCert(t, name, crt, key, time.Now().Add(10*24*time.Hour)) // last fetched long ago: due for renewal
 	var pool atomic.Pointer[x509.CertPool]
 	var fetched atomic.Int32
-	wasFetch, wasHTTPS := fetchTailscaleCert, tailnetHTTPS
-	t.Cleanup(func() { fetchTailscaleCert, tailnetHTTPS = wasFetch, wasHTTPS })
-	tailnetHTTPS = func() bool { return true }
-	fetchTailscaleCert = func(n, crtFile, keyFile string) error {
+	d.cfg.machine.setHTTPS(func() bool { return true })
+	d.cfg.machine.setFetch(func(n, crtFile, keyFile string) error {
 		if n != name || crtFile != crt || keyFile != key {
 			t.Errorf("tailscale cert %s %s %s", n, crtFile, keyFile)
 		}
 		fetched.Add(1)
 		pool.Store(writeNameCert(t, name, crtFile, keyFile, time.Now().Add(90*24*time.Hour)))
 		return nil
-	}
+	})
 	renewed := make(chan struct{})
 	d.net.ts.ready = func() { d.net.relisten(); close(renewed) }
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
+	serveOn(d, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
 		netAddress{Host: name, Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
 	setAddresses(t, c, `["127.0.0.1"]`)
 
@@ -111,7 +109,7 @@ func TestWithTailnetHTTPSTheTailscaleDoorServesTailscalesCertificateAndRenewsIt(
 	}
 
 	// HTTPS turned off: the door is plain alone again, and the link http.
-	tailnetHTTPS = func() bool { return false }
+	d.cfg.machine.setHTTPS(func() bool { return false })
 	d.net.relisten()
 	res = call(t, c, "device.pair", `{}`)["result"].(map[string]any)
 	if l, _ := res["web_link"].(string); !strings.HasPrefix(l, "http://"+name+":") {
@@ -127,15 +125,13 @@ func TestATailscaleCertificateThatCannotBeFetchedLeavesTheDoorPlain(t *testing.T
 	d, c := startDoors(t, false)
 	var fetched atomic.Int32
 	failed := make(chan struct{}, 4)
-	wasFetch, wasHTTPS := fetchTailscaleCert, tailnetHTTPS
-	t.Cleanup(func() { fetchTailscaleCert, tailnetHTTPS = wasFetch, wasHTTPS })
-	tailnetHTTPS = func() bool { return true }
-	fetchTailscaleCert = func(string, string, string) error {
+	d.cfg.machine.setHTTPS(func() bool { return true })
+	d.cfg.machine.setFetch(func(string, string, string) error {
 		fetched.Add(1)
 		defer func() { failed <- struct{}{} }()
 		return os.ErrPermission
-	}
-	serveHosts(t, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
+	})
+	serveOn(d, netAddress{Host: "127.0.0.1", Kind: kindTailscale, Iface: "utun3", IPs: loop},
 		netAddress{Host: "mac.tail1.ts.net", Kind: kindTailscaleName, Iface: "utun3", IPs: loop})
 	setAddresses(t, c, `["127.0.0.1"]`)
 	<-failed
