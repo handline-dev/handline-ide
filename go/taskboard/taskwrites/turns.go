@@ -36,6 +36,11 @@ func optText(p map[string]any, key string) (string, error) {
 // delivered to: the task is in front of them as theirs to act on). memo is the comment it is handed over with, whose text is ask; 0 for a
 // turn the daemon puts on with ask as its own text.
 func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64, onPass, evidence string) (Handover, *Asked, error) {
+	return pushTurnPassing(tx, tell, tid, by, to, ask, memo, onPass, evidence, "")
+}
+
+// pushTurnPassing is pushTurn of a turn whose pass hands the task to passTo (onPass handoff).
+func pushTurnPassing(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64, onPass, evidence, passTo string) (Handover, *Asked, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return Handover{}, nil, err
@@ -74,7 +79,7 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	}
 	h := Handover{Task: tid, By: by, From: t.Acting, To: to, Title: t.Title}
 	push := func() error {
-		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence, Memo: memo})
+		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence, PassTo: passTo, Memo: memo})
 	}
 	if actor.IsPerson(to) {
 		return h, &Asked{OK: true, Msg: "it waits on the founder"}, shiftTask(tx, tell, &h, "the founder's turn", true, push)
@@ -148,6 +153,8 @@ type Popped struct {
 	Done  *DoneResult
 	// Notes is the notice a pop back to a draft's opener types it, in place of a delivery: a draft goes to no one.
 	Notes []told
+	// hold is a review's pass held behind the task's later steps, told in place of a done.
+	hold *laterHold
 }
 
 // turnPopMethod is task.turn.pop.
@@ -197,6 +204,9 @@ func turnPopMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 }
 
 func (p Popped) said() string {
+	if p.hold != nil {
+		return p.hold.said
+	}
 	if p.Done != nil {
 		return p.Done.Said
 	}
@@ -205,6 +215,10 @@ func (p Popped) said() string {
 
 // tell is what a committed pop leaves: the task's done told, or the agent below moved on to it.
 func (p Popped) tell(tell Teller) {
+	if p.hold != nil {
+		p.hold.tell(tell, p.Task, p.hold.h.By)
+		return
+	}
 	if p.Done != nil {
 		tell.Done(p.Task, p.By, p.Done.Owner, p.Done.Told, p.Done.Finished)
 		return
@@ -259,6 +273,9 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 	below := Below(turns, base)
 	h := Handover{Task: tid, By: by, From: top.Agent, To: below, Title: t.Title}
 	if outcome == db.TurnPass && top.OnPass == db.TurnOnPassDone {
+		if hold, err := holdReview(tx, tell, tid, by, below, note, memo, top); err != nil || hold != nil {
+			return Popped{Handover: hold.handover(), Asked: &Asked{OK: true}, hold: hold}, err
+		}
 		res, err := MarkDone(tx, home, top.Agent, DoneIn{Task: tid, Words: top.Evidence, TurnPassed: true})
 		var refused *rpc.Error
 		switch {
@@ -269,6 +286,20 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 			memo = 0 // the refusal is news to the one below
 		default:
 			return Popped{}, err
+		}
+	}
+	held := top.OnPass == db.TurnOnPassFinish || top.OnPass == db.TurnOnPassHandoff
+	if held { // its person's pass or send-back answers the later steps the turn brought
+		if err := db.AnswerLater(tx, tid, top.Agent, 0); err != nil {
+			return Popped{}, err
+		}
+	}
+	if outcome == db.TurnPass && held { // and a pass lets what their agent asked go on
+		if p, done, err := passHeld(tx, home, tell, tid, by, top, &note); err != nil || done {
+			return p, err
+		}
+		if note == "" {
+			told = fmt.Sprintf("T%d is your turn again: %s did the later steps; finish it with your done", tid, addr.Ref(by))
 		}
 	}
 	pop := func() error {

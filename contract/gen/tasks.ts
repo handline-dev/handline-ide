@@ -354,6 +354,10 @@ export type Memo = {
   parts?: (TextPart | ImagePart)[];
   /** The files the memo carries, in the order they were given; present only when it carries one. */
   files?: MemoFile[];
+  /** The person a later step is for (task.comment.add later); absent on any other comment. */
+  later?: string;
+  /** With later: true while the task is open and that person has not commented on it since. */
+  later_open?: boolean;
   /** The comment this one answers; null for none. */
   reply_to?: number | null;
   /** Where the tell of a founder's comment stands for each agent it was told to, in the order told; present only on a founder comment that told someone. */
@@ -887,6 +891,8 @@ export interface TasksMethods {
   turn?: Who;
   /** With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work). */
   done?: string;
+  /** A step only this person can do that the rest of the task does not wait on (Memo.later): posted and shown now, it pushes no turn, tells no one and adds no Requests row, and the agent keeps working. A later comment of this person's on the task answers it. A done or handoff by an agent while any is open writes one comment listing them and puts this person's turn on it: their pass closes the task with the done's evidence, or hands it on as asked; their comment sends it back with their words. Refused with turn or done, and from a person. */
+  later?: Who;
   /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, MemoFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
   files?: string[];
   request_id: RequestId;

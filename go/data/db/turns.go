@@ -18,8 +18,14 @@ const (
 	TurnCleared  = "cleared"
 )
 
-// TurnOnPassDone is a turn whose pass closes the task (a review of finished work).
-const TurnOnPassDone = "done"
+// TurnOnPassDone is a turn whose pass closes the task (a review of finished work). A person's turn that holds an agent's own done or
+// handoff behind its later steps: TurnOnPassFinish runs that done again (Evidence, as the taskwrites held done keeps it),
+// TurnOnPassHandoff hands the task to Turn.PassTo with Evidence as the note.
+const (
+	TurnOnPassDone    = "done"
+	TurnOnPassFinish  = "finish"
+	TurnOnPassHandoff = "handoff"
+)
 
 // Turn is one turn on a task: who acts, what they were asked, who put them there and when, and what a pass does. Memo is the comment it
 // was handed over with, 0 for a turn from before; Ask is that comment's text when there is one.
@@ -28,6 +34,7 @@ type Turn struct {
 	Since          int64
 	OnPass         string
 	Evidence       string
+	PassTo         string
 	Memo           int64
 }
 
@@ -43,7 +50,7 @@ func ActingSQL(alias string) string {
 
 // Turns is task tid's stack, bottom first.
 func Turns(q Q, tid int64) ([]Turn, error) {
-	rows, err := q.Query("SELECT agent, "+TurnAskSQL("u")+", pushed_by, since, COALESCE(on_pass, ''), COALESCE(evidence, ''), COALESCE(memo, 0) "+
+	rows, err := q.Query("SELECT agent, "+TurnAskSQL("u")+", pushed_by, since, COALESCE(on_pass, ''), COALESCE(evidence, ''), COALESCE(pass_to, ''), COALESCE(memo, 0) "+
 		"FROM task_turns u WHERE task_id = ? ORDER BY pos", tid)
 	if err != nil {
 		return nil, err
@@ -52,7 +59,8 @@ func Turns(q Q, tid int64) ([]Turn, error) {
 	var out []Turn
 	for rows.Next() {
 		var t Turn
-		if err := rows.Scan(&t.Agent, &t.Ask, &t.By, &t.Since, &t.OnPass, &t.Evidence, &t.Memo); err != nil {
+		cols := []any{&t.Agent, &t.Ask, &t.By, &t.Since, &t.OnPass, &t.Evidence, &t.PassTo, &t.Memo}
+		if err := rows.Scan(cols...); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -81,8 +89,8 @@ func PushTurn(q Q, tid int64, t Turn) error {
 	if t.Memo != 0 {
 		ask = ""
 	}
-	if _, err := q.Exec("INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, on_pass, evidence, memo) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		tid, n+1, t.Agent, ask, t.By, t.Since, nullStr(t.OnPass), nullStr(t.Evidence), nullInt(t.Memo, t.Memo != 0)); err != nil {
+	if _, err := q.Exec("INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, on_pass, evidence, pass_to, memo) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		tid, n+1, t.Agent, ask, t.By, t.Since, nullStr(t.OnPass), nullStr(t.Evidence), nullStr(t.PassTo), nullInt(t.Memo, t.Memo != 0)); err != nil {
 		return err
 	}
 	_, err := AddEvent(q, t.By, "task_turn_push", KV{K: "task_id", V: tid}, KV{K: "to", V: t.Agent}, KV{K: "ask", V: ask},

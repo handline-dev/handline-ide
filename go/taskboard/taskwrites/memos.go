@@ -212,6 +212,18 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 		if err != nil {
 			return nil, err
 		}
+		later, err := optText(p, "later")
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case later != "" && !actor.IsPerson(later):
+			return nil, badParam("later names the person the step is for: human", "later")
+		case later != "" && (to != "" || evidence != ""):
+			return nil, badParam("later asks nothing now, so it goes with no turn and no done", "later")
+		case later != "" && actor.IsPerson(c.Caller.Actor()):
+			return nil, badParam("later is an agent's step for a person", "later")
+		}
 		store := attachments.New(home)
 		files, err := store.AddFiles(c.Server().DB, home, c.Caller.Actor(), c.Caller.Role == "owner", paths) // read before the write: a video is large
 		if err != nil {
@@ -247,6 +259,14 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				return nil, err
 			}
 			added = mid
+			if later != "" {
+				if err := turnPerson(tx, later); err != nil {
+					return nil, err
+				}
+				if err := db.SetMemoLater(tx, mid, later); err != nil {
+					return nil, err
+				}
+			}
 			if hasReply {
 				if _, err := tx.Exec("UPDATE task_memos SET reply_to = ? WHERE id = ?", reply, mid); err != nil {
 					return nil, err
@@ -260,6 +280,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					return nil, refusal("a person's comment hands no turn to a person: name an agent")
 				}
 				if err = answerMemoAsks(tx, tid, me); err != nil {
+					return nil, err
+				}
+				if err = db.AnswerLater(tx, tid, me, mid); err != nil { // their comment answers the later steps for them before it
 					return nil, err
 				}
 				// while the founder's turn is on top, their comment passes it, the comment its note; on a task Ready for them it is a
@@ -283,7 +306,11 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					case to != "":
 						return nil, refusal(fmt.Sprintf("T%d waits on you: answer with a comment and no turn, and it goes back to the agent that asked", tid))
 					case !ready:
-						p, err := popTurn(tx, home, tell, tid, c.Caller.Actor(), db.TurnPass, body, mid)
+						outcome := db.TurnPass // a turn holding a done or handoff goes on by a pass; a comment sends it back
+						if top := turns[len(turns)-1]; top.OnPass == db.TurnOnPassFinish || top.OnPass == db.TurnOnPassHandoff {
+							outcome = db.TurnSendBack
+						}
+						p, err := popTurn(tx, home, tell, tid, c.Caller.Actor(), outcome, body, mid)
 						if err != nil {
 							return nil, err
 						}
@@ -295,6 +322,9 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				return nil, err
 			}
 			said := fmt.Sprintf("comment %d added to T%d", mid, tid)
+			if later != "" {
+				said += fmt.Sprintf(", a later step for %s: keep working; your done or handoff brings every open one to them at once", addr.Ref(later))
+			}
 			if to != "" {
 				onPass := ""
 				if evidence != "" {
@@ -333,7 +363,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				skip = append(skip, to) // the turn's delivery carries the comment
 			}
 		}
-		if err == nil && tell != nil {
+		if err == nil && tell != nil && later == "" { // a later step tells no one: the done or handoff brings it
 			told := body
 			if lines := store.FileLines(files); lines != "" {
 				told += "\n" + lines

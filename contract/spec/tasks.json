@@ -1534,6 +1534,14 @@
       },
       "description": "The files the memo carries, in the order they were given; present only when it carries one."
      },
+     "later": {
+      "type": "string",
+      "description": "The person a later step is for (task.comment.add later); absent on any other comment."
+     },
+     "later_open": {
+      "type": "boolean",
+      "description": "With later: true while the task is open and that person has not commented on it since."
+     },
      "reply_to": {
       "oneOf": [
        {
@@ -4198,6 +4206,14 @@
      "schema": {
       "type": "string",
       "description": "With turn naming an agent: the done evidence a pass of that turn closes the task with (a review of finished work)."
+     }
+    },
+    {
+     "name": "later",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/Who",
+      "description": "A step only this person can do that the rest of the task does not wait on (Memo.later): posted and shown now, it pushes no turn, tells no one and adds no Requests row, and the agent keeps working. A later comment of this person's on the task answers it. A done or handoff by an agent while any is open writes one comment listing them and puts this person's turn on it: their pass closes the task with the done's evidence, or hands it on as asked; their comment sends it back with their words. Refused with turn or done, and from a person."
      }
     },
     {
