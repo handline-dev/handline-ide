@@ -14,20 +14,12 @@ import (
 
 // loginLifted is the cursor holding the id of the failed turn a lift has passed. That turn stays the agent's last event
 // until it is prompted again, and without this it would stall the account a second time.
-// The older "login_lifted:<agent>" cursor holds a session row id, so this one has its own name.
 func loginLifted(agent string) string { return "login_lifted_event:" + agent }
 
-// legacyLifted is when the older "login_lifted:<agent>" cursor was last set, 0 if never. A refusal at or before it was lifted: that
-// cursor is a session row id, which cannot be compared with an event id, so its time is.
-func legacyLifted(q db.Q, agent string) int64 {
-	at, _, _ := db.CursorUpdated(q, "login_lifted:"+agent)
-	return at
-}
-
-// lifted is whether a lift has passed a failure on acct: the agent's own lift cursor, the older lift cursor, or a login since.
+// lifted is whether a lift has passed a failure on acct: the agent's lift cursor or a login since.
 func lifted(q db.Q, accounts team.Accounts, agent, acct string, f handoff.Failure) bool {
 	cursor, _ := db.Cursor(q, loginLifted(agent))
-	return f.ID <= cursor || f.TS <= legacyLifted(q, agent) || accounts.LoggedInSince(acct, f.TS)
+	return f.ID <= cursor || accounts.LoggedInSince(acct, f.TS)
 }
 
 // stalled is the account's stall, unless a Stop on the account since it was set says the account works again: that ends it.
