@@ -195,6 +195,30 @@ func TestNeedsYouIsReadOnceAndNeverForAnAgentWithNoRow(t *testing.T) {
 	}
 }
 
+func TestNeedsYouCarriesItsDetailOnOneLineClippedAndNoneWhenEmpty(t *testing.T) {
+	r := newRig(t, "why", "bare")
+	for _, a := range []string{"why", "bare"} {
+		r.state(t, a, states.Idle, "")
+		r.sess.alive[a] = true
+	}
+	r.env.NeedsYou = func(a string) *NeedsYou {
+		n := &NeedsYou{Kind: "stuck", Source: "daemon", Title: "Stuck", Since: 4000}
+		if a == "why" {
+			n.Detail = "launch failed\nexit 1 " + strings.Repeat("x", 2*textCap)
+		}
+		return n
+	}
+	r.env.RefreshOne("why")
+	r.env.RefreshOne("bare")
+	d, _ := r.stored(t, "why")["needs_you"].(map[string]any)["detail"].(string)
+	if !strings.HasPrefix(d, "launch failed") || strings.Contains(d, "\n") || utf8.RuneCountInString(d) != textCap {
+		t.Errorf("detail %q (%d runes): want one line, clipped to %d", d, utf8.RuneCountInString(d), textCap)
+	}
+	if n := r.stored(t, "bare")["needs_you"].(map[string]any); n["detail"] != nil {
+		t.Errorf("a need with no detail has none: %v", n)
+	}
+}
+
 func TestALiveTurnShowsRunningWhateverTheRowSays(t *testing.T) {
 	r := newRig(t, "a")
 	r.state(t, "a", states.Idle, "")
