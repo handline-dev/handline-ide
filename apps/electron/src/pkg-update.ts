@@ -82,16 +82,13 @@ export class SelfUpdater implements PkgUpdater {
 
   async check(): Promise<void> {
     this.flow.remind();
-    if (this.busy || this.flow.view.phase !== 'idle') return; // told already, or being prepared
+    const phase = this.flow.view.phase;
+    if (this.busy || (phase !== 'idle' && phase !== 'failed')) return; // told already, or being prepared
     this.busy = true;
     try {
-      const latest = parseLatest(await this.ports.text(`${this.base()}/${latestFile(this.ports.arch())}`));
-      // Another channel's builds are not ordered with this one's (Canary's numbers run ahead of Stable's): any other version is the update.
-      const current = this.ports.current();
-      const next = this.where().switched ? latest?.version !== current : latest && isNewer(latest.version, current);
-      if (!latest || !next) return;
-      if (!(await this.ports.idle())) return; // owed: the next check offers again
-      await this.prepare(latest);
+      const latest = await this.read();
+      if (!latest || !(await this.ports.idle())) return; // owed: the next check offers again
+      await this.prepare(latest, true);
     } catch {
       /* offline, or the release is being replaced: the next check tries again */
     } finally {
@@ -99,22 +96,49 @@ export class SelfUpdater implements PkgUpdater {
     }
   }
 
-  private async prepare(latest: Latest): Promise<void> {
+  /** The release as it is now, or null when it offers nothing newer. */
+  private async read(): Promise<Latest | null> {
+    const latest = parseLatest(await this.ports.text(`${this.base()}/${latestFile(this.ports.arch())}`));
+    // Another channel's builds are not ordered with this one's (Canary's numbers run ahead of Stable's): any other version is the update.
+    const current = this.ports.current();
+    const next = this.where().switched ? latest?.version !== current : latest && isNewer(latest.version, current);
+    return latest && next ? latest : null;
+  }
+
+  /** `reread`: a zip gone from the release (its channel moved on) reads the release once more and takes what it names. */
+  private async prepare(latest: Latest, reread: boolean): Promise<void> {
     try {
       this.flow.preparing('Downloading', 0);
-      const zip = await this.ports.download(`${this.base()}/${latest.path}`, (f) => this.flow.preparing('Downloading', f));
+      let zip: string;
+      try {
+        zip = await this.ports.download(`${this.base()}/${latest.path}`, (f) => this.flow.preparing('Downloading', f));
+      } catch (e) {
+        const now = reread && /\b404\b/.test(String(e instanceof Error ? e.message : e)) ? await this.read() : null;
+        if (!now || now.path === latest.path) throw e;
+        return await this.prepare(now, false);
+      }
       this.flow.preparing('Checking', 1);
       if ((await this.ports.sha512(zip)) !== latest.sha512) throw new Error('the download does not match its checksum');
       const staged = await this.ports.stage(zip);
       this.flow.ready(() => void this.go(staged), latest.version);
     } catch (e) {
-      this.flow.failed(e instanceof Error ? e.message : String(e), () => void this.retry(latest));
+      this.flow.failed(e instanceof Error ? e.message : String(e), () => void this.retry());
     }
   }
 
-  private async retry(latest: Latest): Promise<void> {
-    this.flow.idle();
-    await this.prepare(latest);
+  /** Try again, by the button or the timer: the release is read again, so a channel that moved on is followed. */
+  private async retry(): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const latest = await this.read();
+      if (!latest) return this.flow.idle();
+      await this.prepare(latest, true);
+    } catch (e) {
+      this.flow.failed(e instanceof Error ? e.message : String(e), () => void this.retry());
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async go(staged: string): Promise<void> {

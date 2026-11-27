@@ -53,6 +53,7 @@ export function UpdatesBlock() {
             {ready ? 'Restart to update' : 'Try again'}
           </Button>
         )}
+        {failed && <Button onClick={() => void shell()?.updateAct?.('details')}>Details</Button>}
       </Setting>
     </Block>
   );

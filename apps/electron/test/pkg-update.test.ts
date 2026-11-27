@@ -195,3 +195,62 @@ test('on a channel the person switched to, any other version is offered, even a 
     assert.equal(flow.view.phase === 'ready', offered, `${switched} ${current}`);
   }
 });
+
+const yml = (v: string) => `version: ${v}\npath: Handline-${v}-mac.zip\nsha512: S${v}\n`;
+
+/** A release that can move on: `gone` holds the zips deleted from it. */
+function moving(first: string) {
+  const s = { v: first, gone: new Set<string>(), calls: [] as string[] };
+  const ports: PkgPorts = {
+    ...rigPorts(),
+    text: async () => yml(s.v),
+    download: async (url) => {
+      s.calls.push(url);
+      if ([...s.gone].some((z) => url.endsWith(z))) throw new Error(`HTTP 404 for ${url}`);
+      return url.slice(url.lastIndexOf('/') + 1);
+    },
+    sha512: async (zip) => `S${/Handline-(.+)-mac\.zip/.exec(zip)?.[1]}`,
+  };
+  return { s, ports };
+}
+
+test('a zip gone at Try again: the retry reads the release again and takes the newer version', async () => {
+  const { s, ports } = moving('0.1.42');
+  ports.sha512 = async () => 'bad';
+  const flow = new UpdateFlow(Date.now, () => () => undefined);
+  const u = new SelfUpdater(ports, flow, () => ({ base: 'https://e.org', switched: false }));
+  await u.check();
+  assert.equal(flow.view.phase, 'failed');
+  ports.sha512 = async (zip) => `S${/Handline-(.+)-mac\.zip/.exec(zip)?.[1]}`;
+  s.v = '0.1.43';
+  s.gone.add('Handline-0.1.42-mac.zip');
+  flow.act('retry');
+  await new Promise((res) => setTimeout(res, 5));
+  assert.equal(flow.view.phase, 'ready');
+  assert.equal(flow.readyVersion, '0.1.43');
+});
+
+test('a 404 mid-download reads the release once more and goes on with what it names', async () => {
+  const { s, ports } = moving('0.1.42');
+  s.gone.add('Handline-0.1.42-mac.zip');
+  let reads = 0;
+  ports.text = async () => (reads++ === 0 ? yml('0.1.42') : yml('0.1.43'));
+  const flow = new UpdateFlow(Date.now, () => () => undefined);
+  await new SelfUpdater(ports, flow, () => ({ base: 'https://e.org', switched: false })).check();
+  assert.equal(flow.readyVersion, '0.1.43');
+  assert.equal(s.calls.length, 2);
+});
+
+test('a failed update keeps checking: a newer release found by the next check is prepared', async () => {
+  const { s, ports } = moving('0.1.42');
+  s.gone.add('Handline-0.1.42-mac.zip');
+  const flow = new UpdateFlow(Date.now, () => () => undefined);
+  const u = new SelfUpdater(ports, flow, () => ({ base: 'https://e.org', switched: false }));
+  await u.check();
+  assert.equal(flow.view.phase, 'failed');
+  assert.match(flow.log, /404/);
+  s.v = '0.1.43';
+  await u.check();
+  assert.equal(flow.view.phase, 'ready');
+  assert.equal(flow.readyVersion, '0.1.43');
+});

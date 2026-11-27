@@ -16,7 +16,7 @@ export const updateReady = (u: ShellUpdate | null) => u?.phase === 'ready' || u?
 
 /** The update's line in its popover. */
 export function UpdateRow({ u }: { u: ShellUpdate }) {
-  const act = (what: 'restart' | 'retry') =>
+  const act = (what: 'restart' | 'retry' | 'details') =>
     void shell()
       ?.updateAct?.(what)
       .catch(() => {});
@@ -37,6 +37,11 @@ export function UpdateRow({ u }: { u: ShellUpdate }) {
           className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-xs text-accent-fg hover:opacity-90"
         >
           {ready ? 'Restart now' : 'Try again'}
+        </button>
+      )}
+      {u.phase === 'failed' && (
+        <button type="button" onClick={() => act('details')} className="shrink-0 text-xs text-muted hover:text-fg">
+          Details
         </button>
       )}
     </div>

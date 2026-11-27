@@ -248,13 +248,20 @@ function handleUpdate(origin: string, flow: UpdateFlow, redraw: () => void): voi
     view: () => flow.view,
     act: (what) => flow.act(what),
     details: () => {
-      fs.writeFileSync(log, flow.log || flow.view.reason, { mode: 0o600 });
+      if (!fs.existsSync(log)) fs.writeFileSync(log, flow.log || flow.view.reason, { mode: 0o600 });
       void shell.openPath(log);
     },
   });
   ipcMain.handle(CHANNELS.update, (e) => u.view(e));
   ipcMain.handle(CHANNELS.updateAct, (e, arg) => u.act(e, arg));
+  let logged = '';
   flow.onChange(() => {
+    // Each failure's raw text is kept as it happens, so a later Try again cannot hide the first reason.
+    if (flow.view.phase !== 'failed') logged = '';
+    else if (flow.log !== logged) {
+      logged = flow.log;
+      fs.appendFile(log, `${new Date().toISOString()} ${flow.log}\n`, { mode: 0o600 }, () => undefined);
+    }
     redraw();
     win?.webContents.send(CHANNELS.update, flow.view);
   });
