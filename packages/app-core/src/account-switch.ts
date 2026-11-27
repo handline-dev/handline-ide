@@ -24,6 +24,8 @@ export function moveSteps(s: { phase: SwitchPhase; from: string; to: string | nu
   title: string;
   steps: MoveStep[];
   at: number;
+  /** It waits on the agent's background work, which agent.move_now ends. */
+  background: boolean;
 } | null {
   const at = ORDER.indexOf(s.phase as (typeof ORDER)[number]);
   if (at < 0) return null;
@@ -36,8 +38,12 @@ export function moveSteps(s: { phase: SwitchPhase; from: string; to: string | nu
     title: s.to ? `Moving to ${s.to}` : 'Moving to another account',
     steps: names.map((name, i) => ({ name, state: i < at ? 'done' : i === at ? 'now' : 'next' })),
     at,
+    background: s.phase === 'saving' && !!s.waits?.startsWith('background: '),
   };
 }
+
+/** How long the current step has waited, from the switch's since: "34m". */
+export const stepWaited = (since: string, now = Date.now()): string => shortSpan(Math.max(0, (now - Date.parse(since)) / 1000));
 
 /** What a saving switch waits for, from the daemon's words: the turn to end, its handoff note, or background: <jobs>. */
 const waitsWords = (w: string): string =>

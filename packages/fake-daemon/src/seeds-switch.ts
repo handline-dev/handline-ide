@@ -20,7 +20,7 @@ function switching(
 
 export const SWITCH_SEEDS: Record<string, Seed> = {
   /** The architect's account switch at each phase: what the working line draws from limit to the new session. */
-  'switch-saving': (d) => switching(d, { phase: 'saving', to: null, waits: 'background: shell: vite dev' }),
+  'switch-saving': (d) => switching(d, { phase: 'saving', to: null, waits: 'background: xcodebuild test' }),
   'switch-switching': (d) => switching(d, { phase: 'switching', to: 'beta' }),
   'switch-starting': (d) => switching(d, { phase: 'starting', to: 'beta' }),
   'switch-waiting': (d) => switching(d, { phase: 'waiting', to: null, until: inTwoHours() }),
