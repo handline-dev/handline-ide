@@ -598,7 +598,7 @@ func (e *Env) decidedOf(tid int64) (any, error) {
 		return nil, err
 	}
 	push, err := queryOne(e.DB, "SELECT json_extract(payload, '$.ask') AS ask, (SELECT body FROM task_comments WHERE id = json_extract(payload, '$.comment')) "+
-		"AS memo_body FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask') AND "+eventTask+" = ? AND id < ? AND "+
+		"AS comment_body FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask') AND "+eventTask+" = ? AND id < ? AND "+
 		"? IN (json_extract(payload, '$.to'), json_extract(payload, '$.agent')) ORDER BY id DESC LIMIT 1", tid, pop.i("id"), actor.OwnerKey)
 	if err != nil {
 		return nil, err
@@ -606,7 +606,7 @@ func (e *Env) decidedOf(tid int64) (any, error) {
 	ask := ""
 	if push != nil {
 		if ask = push.str("ask"); ask == "" {
-			ask = push.str("memo_body")
+			ask = push.str("comment_body")
 		}
 	}
 	return map[string]any{"at": ts(pop["ts"]), "ask": textsafe.Text(ask), "answer": textsafe.Text(pop.str("answer"))}, nil
@@ -918,18 +918,18 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 			"target": map[string]any{"screen": "tasks", "id": fmt.Sprint(*tid)}, "data": data})
 	}
 	task["events"] = evs
-	memos, err := query(e.DB, "SELECT m.*, "+db.LaterOpenSQL("m")+" AS later_open FROM task_comments m WHERE m.task_id = ? ORDER BY m.id", *tid)
+	comments, err := query(e.DB, "SELECT m.*, "+db.LaterOpenSQL("m")+" AS later_open FROM task_comments m WHERE m.task_id = ? ORDER BY m.id", *tid)
 	if err != nil {
 		return nil, err
 	}
-	ms := make([]any, len(memos))
-	for i, m := range memos {
-		if ms[i], err = memoJSON(e.DB, m, parts, images, agent); err != nil {
+	ms := make([]any, len(comments))
+	for i, m := range comments {
+		if ms[i], err = commentJSON(e.DB, m, parts, images, agent); err != nil {
 			return nil, err
 		}
 	}
 	task["comments"] = ms
-	if task["timeline"], err = e.taskTimeline(*tid, memos, reqs, parts); err != nil {
+	if task["timeline"], err = e.taskTimeline(*tid, comments, reqs, parts); err != nil {
 		return nil, err
 	}
 	blockers, err := e.blockers(*tid)
@@ -1038,44 +1038,44 @@ func (e *Env) taskResultOf(tid int64, task map[string]any) error {
 	return nil
 }
 
-// memoTo is the person a comment is written to: the one its leading mention names (addr.Lead); "" for a comment that opens with no
+// commentTo is the person a comment is written to: the one its leading mention names (addr.Lead); "" for a comment that opens with no
 // person.
-func memoTo(body string) string {
+func commentTo(body string) string {
 	if to := addr.Lead(body); actor.IsPerson(to) {
 		return to
 	}
 	return ""
 }
 
-func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store, withPath bool) (map[string]any, error) {
+func commentJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store, withPath bool) (map[string]any, error) {
 	var edited any
 	if m.set("edited_at") {
 		edited = ts(m["edited_at"])
 	}
-	memo := map[string]any{"id": m.i("id"), "task": m.i("task_id"), "author": m.str("author"),
+	comment := map[string]any{"id": m.i("id"), "task": m.i("task_id"), "author": m.str("author"),
 		"at": ts(m["created_at"]), "text": m.str("body"), "edited_at": edited, "reply_to": nil}
 	if m.set("reply_to") {
-		memo["reply_to"] = m.i("reply_to")
+		comment["reply_to"] = m.i("reply_to")
 	}
-	if to := memoTo(m.str("body")); to != "" {
-		memo["to"] = to
+	if to := commentTo(m.str("body")); to != "" {
+		comment["to"] = to
 	}
 	if m.set("later") {
-		memo["later"], memo["later_open"] = m.str("later"), m.i("later_open") == 1
+		comment["later"], comment["later_open"] = m.str("later"), m.i("later_open") == 1
 	}
 	if p := parts(m.str("body")); p != nil {
-		memo["parts"] = p
+		comment["parts"] = p
 	}
 	if actor.IsPerson(m.str("author")) {
-		readers, err := memoReaders(q, m.i("id"))
+		readers, err := commentReaders(q, m.i("id"))
 		if err != nil {
 			return nil, err
 		}
 		if len(readers) > 0 {
-			memo["readers"] = readers
+			comment["readers"] = readers
 		}
 	}
-	infos, err := attachments.MemoFiles(q, m.i("id"))
+	infos, err := attachments.CommentFiles(q, m.i("id"))
 	if err != nil {
 		return nil, err
 	}
@@ -1084,15 +1084,15 @@ func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store,
 		for i, in := range infos {
 			files[i] = store.FileMap(in, withPath)
 		}
-		memo["files"] = files
+		comment["files"] = files
 	}
-	return memo, nil
+	return comment, nil
 }
 
-// memoReaders is where the tell of memo mid stands for each reader it reached or may yet: read (with when), held for the reader's next digest
+// commentReaders is where the tell of comment mid stands for each reader it reached or may yet: read (with when), held for the reader's next digest
 // (since when), or sent and not yet read (when it was sent). A tell typed at once counts as read when it landed in the agent's session;
 // a held one when the agent opens it with hl read (MarkReadBy).
-func memoReaders(q db.Q, mid int64) ([]any, error) {
+func commentReaders(q db.Q, mid int64) ([]any, error) {
 	rows, err := query(q, "SELECT t.reader, t.request_id, r.read_at, r.delivered_at, r.typed_at, r.landed_at, r.send_now, r.notice "+
 		"FROM comment_tells t JOIN requests r ON r.id = t.request_id WHERE t.comment_id = ? AND NOT "+db.NeverReached("r.")+" ORDER BY t.rowid", mid)
 	if err != nil {
@@ -1190,12 +1190,12 @@ func (e *Env) turnsOf(tid int64, history bool) ([]any, error) {
 				at, edited = ts(ev["ts"]), ts(ev["ts"])
 			}
 		}
-		var memo any
-		if u.Memo != 0 {
-			memo = u.Memo
+		var comment any
+		if u.Comment != 0 {
+			comment = u.Comment
 		}
 		turn := map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence, "edited": edited,
-			"comment": memo}
+			"comment": comment}
 		if history {
 			turn["earlier"] = earlier
 		}

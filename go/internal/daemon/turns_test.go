@@ -301,7 +301,7 @@ func TestATasksEventCarriesEachPersonsOwnUnreadCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mid, err := db.AddMemo(d.db, tid, "a9", "a comment")
+	mid, err := db.AddComment(d.db, tid, "a9", "a comment")
 	if err != nil {
 		t.Fatal(err)
 	}

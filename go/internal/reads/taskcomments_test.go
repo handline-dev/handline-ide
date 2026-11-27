@@ -31,18 +31,18 @@ func TestAFounderCommentShowsWhereItsTellStandsForEachReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memos := got.(map[string]any)["comments"].([]any)
+	comments := got.(map[string]any)["comments"].([]any)
 	var states []string
-	for _, r := range memos[0].(map[string]any)["readers"].([]any) {
+	for _, r := range comments[0].(map[string]any)["readers"].([]any) {
 		states = append(states, r.(map[string]any)["agent"].(string)+":"+r.(map[string]any)["state"].(string))
 	}
 	if fmt.Sprint(states) != "[a:held b:sent c:read d:read]" {
 		t.Fatalf("%v", states)
 	}
-	if m, ok := memos[0].(map[string]any)["readers"].([]any)[0].(map[string]any)["minutes"].(int64); !ok || m < 1 {
-		t.Fatalf("a held reader says how long until its digest: %v", memos[0])
+	if m, ok := comments[0].(map[string]any)["readers"].([]any)[0].(map[string]any)["minutes"].(int64); !ok || m < 1 {
+		t.Fatalf("a held reader says how long until its digest: %v", comments[0])
 	}
-	if _, ok := memos[1].(map[string]any)["readers"]; ok {
+	if _, ok := comments[1].(map[string]any)["readers"]; ok {
 		t.Fatal("only the founder's comments show readers")
 	}
 }

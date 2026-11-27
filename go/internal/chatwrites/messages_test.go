@@ -186,7 +186,7 @@ func TestAnAskFromACommentIsReadAwayOnlyByNamingIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	ask := func(text string) (rid, mid int64) {
-		mid, err := dbpkg.AddMemo(r.db, tid, r.k("alice"), text)
+		mid, err := dbpkg.AddComment(r.db, tid, r.k("alice"), text)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -199,7 +199,7 @@ func TestAnAskFromACommentIsReadAwayOnlyByNamingIt(t *testing.T) {
 	later := r.request("alice", "human", "fyi")
 	if got := r.result(r.one(s, "inbox.mark_read", fmt.Sprintf(`{"ids":[%d],"request_id":"s2"}`, later))); got["said"] != "1 read" ||
 		r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'queued'", a1) != 1 {
-		t.Fatal("reading past a memo ask reads the later message and leaves the ask open")
+		t.Fatal("reading past a comment ask reads the later message and leaves the ask open")
 	}
 	r.result(r.one(s, "chat.seen", fmt.Sprintf(`{"agent":"alice","up_to":%d,"request_id":"s1"}`, later)))
 	if r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'queued' AND read_at IS NULL", a1) != 1 {
@@ -211,9 +211,9 @@ func TestAnAskFromACommentIsReadAwayOnlyByNamingIt(t *testing.T) {
 	}
 }
 
-// A founder message to an agent closes no memo ask unless it replies to that ask (a ! line is a shell command, not an answer); another agent's
+// A founder message to an agent closes no comment ask unless it replies to that ask (a ! line is a shell command, not an answer); another agent's
 // asks and asks the reply does not name stay.
-func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
+func TestAFounderMessageToAnAgentClosesACommentAskOnlyAsAReplyToIt(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	s := r.server("")
@@ -222,7 +222,7 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	ask := func(agent string) int64 {
-		mid, err := dbpkg.AddMemo(r.db, tid, agent, "@human?")
+		mid, err := dbpkg.AddComment(r.db, tid, agent, "@human?")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -235,7 +235,7 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 		return r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'queued'", rid) == 1
 	}
 	first, second, other := ask("alice"), ask("alice"), ask("bob")
-	firstMemo := r.count("SELECT comment_id FROM requests WHERE id = ?", first)
+	firstComment := r.count("SELECT comment_id FROM requests WHERE id = ?", first)
 	r.result(r.one(s, "chat.send", `{"agent":"alice","body":"unrelated","request_id":"f1"}`))
 	r.result(r.one(s, "chat.send", `{"agent":"alice","body":"!ls","request_id":"f2"}`))
 	if !open(first) || !open(second) || !open(other) {
@@ -245,7 +245,7 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 	if open(first) || r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'landed'", first) != 1 {
 		t.Fatal("a reply to the ask answers it")
 	}
-	if r.count("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, actor.OwnerKey, firstMemo) != 1 {
+	if r.count("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, actor.OwnerKey, firstComment) != 1 {
 		t.Fatal("a chat reply under the ask is the founder's comment on the task")
 	}
 	if !open(second) || !open(other) {

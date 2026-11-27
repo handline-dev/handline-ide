@@ -143,8 +143,8 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		case "comment":
 			line = it["title"]
 			ask = "ask"
-			if memo, _ := strconv.ParseInt(id, 10, 64); memo != 0 {
-				if r, err := queryOne(e.DB, "SELECT task_id FROM task_comments WHERE id = ?", memo); err != nil {
+			if comment, _ := strconv.ParseInt(id, 10, 64); comment != 0 {
+				if r, err := queryOne(e.DB, "SELECT task_id FROM task_comments WHERE id = ?", comment); err != nil {
 					return nil, err
 				} else if r != nil {
 					tid = r.i("task_id")
@@ -331,12 +331,12 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 
 // askOfDraft is a run row's ask: the first line of the newest comment that opens with the founder on the task, else on its parent; nil when none.
 func (e *Env) askOfDraft(tid int64) (any, error) {
-	memos, err := query(e.DB, "SELECT m.body FROM task_comments m WHERE m.task_id = ?1 OR m.task_id = (SELECT parent_task FROM tasks WHERE id = ?1) "+
+	comments, err := query(e.DB, "SELECT m.body FROM task_comments m WHERE m.task_id = ?1 OR m.task_id = (SELECT parent_task FROM tasks WHERE id = ?1) "+
 		"ORDER BY m.task_id = ?1 DESC, m.id DESC", tid)
 	if err != nil {
 		return nil, err
 	}
-	for _, m := range memos {
+	for _, m := range comments {
 		if actor.IsPerson(addr.Lead(m.str("body"))) {
 			return firstLine(withoutLead(m.str("body"))), nil
 		}

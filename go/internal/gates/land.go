@@ -325,7 +325,7 @@ func (s *Sweep) giveBack(gate int64, evidence string, c closing) error {
 		return err
 	}
 	note := fmt.Sprintf("Gate T%d passed (%s) and did not close this task: %s", gate, evidence, c.back)
-	if _, err := db.AddMemo(tx, c.task, daemonAuthor, note); err != nil {
+	if _, err := db.AddComment(tx, c.task, daemonAuthor, note); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

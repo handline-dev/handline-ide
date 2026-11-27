@@ -14,7 +14,7 @@ import (
 // onePNG is a 1x1 PNG.
 var onePNG, _ = base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
-func TestAMemoCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
+func TestACommentCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
 	d, agents := tellDaemon(t, true)
 	doing(t, d, "bob")
 	src := t.TempDir()
@@ -26,10 +26,10 @@ func TestAMemoCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
 	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"@bob the proposal","files":`+string(files)+`,"request_id":"m1"}}`))
 
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
-	memo := task["comments"].([]any)[0].(map[string]any)
-	got := memo["files"].([]any)
+	comment := task["comments"].([]any)[0].(map[string]any)
+	got := comment["files"].([]any)
 	if len(got) != 2 {
-		t.Fatalf("%v", memo)
+		t.Fatalf("%v", comment)
 	}
 	for i, want := range []struct {
 		kind, name, mime string
@@ -54,13 +54,20 @@ func TestAMemoCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
 	if len(kept) != 1 {
 		t.Fatalf("%v", kept)
 	}
-	// a memo naming the holder is typed at once, with a line per file it can read
-	if said := agents.said(key(t, d, "bob")); !strings.Contains(said, "the proposal") || !strings.Contains(said, "[file 2: "+kept[0]+" (text/markdown, 20 B)]") {
+	// a comment naming the holder is typed at once, with a line per file it can read (the typed text may be cut; the request keeps it whole)
+	if said := agents.said(key(t, d, "bob")); !strings.Contains(said, "the proposal") {
 		t.Fatalf("%q", said)
+	}
+	var body string
+	if err := d.db.QueryRow("SELECT body FROM requests WHERE target = ? AND body LIKE 'T1 comment 1 by%'", key(t, d, "bob")).Scan(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "[file 2: "+kept[0]+" (text/markdown, 20 B)]") {
+		t.Fatalf("%q", body)
 	}
 }
 
-func TestAMemoFileOfAnotherTypeIsRefused(t *testing.T) {
+func TestACommentFileOfAnotherTypeIsRefused(t *testing.T) {
 	d, _ := tellDaemon(t, true)
 	doing(t, d, "bob")
 	src := t.TempDir()
@@ -77,12 +84,12 @@ func TestAMemoFileOfAnotherTypeIsRefused(t *testing.T) {
 		}
 	}
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
-	if memos := task["comments"].([]any); len(memos) != 0 {
-		t.Fatalf("a refused memo was kept: %v", memos)
+	if comments := task["comments"].([]any); len(comments) != 0 {
+		t.Fatalf("a refused comment was kept: %v", comments)
 	}
 }
 
-func TestAMemosFileIsHeldWhileItsTaskIsOpenAndNotOnceTheMemoIsDeleted(t *testing.T) {
+func TestACommentsFileIsHeldWhileItsTaskIsOpenAndNotOnceTheCommentIsDeleted(t *testing.T) {
 	d, _ := tellDaemon(t, true)
 	doing(t, d, "bob")
 	md := filepath.Join(t.TempDir(), "plan.md")
@@ -97,12 +104,12 @@ func TestAMemosFileIsHeldWhileItsTaskIsOpenAndNotOnceTheMemoIsDeleted(t *testing
 	}
 	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"m2"}}`))
 	if held, _ := attachments.Held(d.db, 12345); len(held) != 0 {
-		t.Fatalf("a deleted memo's file is still held: %v", held)
+		t.Fatalf("a deleted comment's file is still held: %v", held)
 	}
 }
 
-// the founder's memo is typed at once to the holder, which cuts its text but keeps each file line whole on its own line
-func TestTheFoundersMemoKeepsALinePerFileWhenTypedToTheHolder(t *testing.T) {
+// the founder's comment is typed at once to the holder, which cuts its text but keeps each file line whole on its own line
+func TestTheFoundersCommentKeepsALinePerFileWhenTypedToTheHolder(t *testing.T) {
 	d, _ := tellDaemon(t, true)
 	doing(t, d, "bob")
 	src := t.TempDir()
@@ -122,12 +129,12 @@ func TestTheFoundersMemoKeepsALinePerFileWhenTypedToTheHolder(t *testing.T) {
 	}
 	for _, want := range []string{"T1 comment 1 by human: the proposal xx", "\n[file 1: ", "\n[file 2: "} {
 		if !strings.Contains(said, want) {
-			t.Fatalf("no %q in the told memo: %q", want, said)
+			t.Fatalf("no %q in the told comment: %q", want, said)
 		}
 	}
 	for _, p := range kept {
 		if !strings.Contains(said, p+" (") {
-			t.Fatalf("%s is not whole in the told memo: %q", p, said)
+			t.Fatalf("%s is not whole in the told comment: %q", p, said)
 		}
 	}
 }

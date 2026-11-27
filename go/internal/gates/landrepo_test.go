@@ -40,8 +40,8 @@ func TestAMergeInAnotherRepositoryDoesNotCloseTheTask(t *testing.T) {
 		if e != "" || blockers != 0 || !strings.HasPrefix(gate, "merged "+sha+"; T2 not closed: its pull request is in o/r, and ") || !strings.HasSuffix(gate, why) {
 			t.Fatalf("origin %q: T2 %q (%d blockers), the gate %q", origin, e, blockers, gate)
 		}
-		if !strings.Contains(r.memos(), why) {
-			t.Fatalf("origin %q: the comment says why: %s", origin, r.memos())
+		if !strings.Contains(r.comments(), why) {
+			t.Fatalf("origin %q: the comment says why: %s", origin, r.comments())
 		}
 	}
 	for _, origin := range []string{"https://github.com/o/r.git", "https://github.com/O/R.git"} {

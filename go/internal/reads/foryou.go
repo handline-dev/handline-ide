@@ -57,8 +57,8 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 			task = linked.i("id")
 		}
 		switch {
-		case m.memo != 0:
-			id = strconv.FormatInt(m.memo, 10)
+		case m.comment != 0:
+			id = strconv.FormatInt(m.comment, 10)
 		case task != 0:
 			kind, id, title = "task", strconv.FormatInt(task, 10), linked.str("title")
 		}

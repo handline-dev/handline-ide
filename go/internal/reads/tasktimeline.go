@@ -25,18 +25,18 @@ func seconds(v any) float64 {
 	return 0
 }
 
-// taskTimeline is TaskDetail.timeline: the task's memos, handoffs (a request that carried one is that handoff's
-// row), the other requests linked to it (not a memo's tell, the ask a memo to the founder opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with, the lessons added on it and the commands its agents asked the founder to run while doing it, oldest first to the
-// fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
-func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {
+// taskTimeline is TaskDetail.timeline: the task's comments, handoffs (a request that carried one is that handoff's
+// row), the other requests linked to it (not a comment's tell, the ask a comment to the founder opens or a return that told a comment, which repeat the comment), the edits of its brief, its marks done, the notes it was sent back with, the lessons added on it and the commands its agents asked the founder to run while doing it, oldest first to the
+// fraction of a second. parts cuts a text at the images it names; a comment, a handoff, an edit and a reject row carry them.
+func (e *Env) taskTimeline(tid int64, comments, reqs []row, parts func(string) []any) ([]any, error) {
 	type entry struct {
 		at  float64
 		row map[string]any
 	}
 	var out []entry
-	add := func(at float64, who, kind, text string, memo, edited any, imaged bool) {
+	add := func(at float64, who, kind, text string, comment, edited any, imaged bool) {
 		text = textsafe.Text(text)
-		r := map[string]any{"at": ts(at), "who": who, "kind": kind, "text": text, "comment": memo, "edited_at": edited}
+		r := map[string]any{"at": ts(at), "who": who, "kind": kind, "text": text, "comment": comment, "edited_at": edited}
 		if imaged {
 			if p := parts(text); p != nil {
 				r["parts"] = p
@@ -44,7 +44,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		}
 		out = append(out, entry{at, r})
 	}
-	for _, m := range memos {
+	for _, m := range comments {
 		var edited any
 		if m.set("edited_at") {
 			edited = ts(m["edited_at"])
@@ -76,7 +76,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		}
 	}
 	for _, r := range reqs {
-		if carried[r.i("id")] || r.i("notice") == 2 || r.set("comment_id") { // a memo's tell, or the ask a memo to the founder opened, repeats the memo row
+		if carried[r.i("id")] || r.i("notice") == 2 || r.set("comment_id") { // a comment's tell, or the ask a comment to the founder opened, repeats the comment row
 			continue
 		}
 		if r.str("requester") == db.NoticeRequester && r.str("kind") == "say" { // the board's notice to an agent belongs to its chat
@@ -115,11 +115,11 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 			note, _ := p["note"].(string)
 			add(at, ev.str("agent"), "reject", note, nil, nil, true)
 		case "task_turn_push":
-			var memo any // the comment the turn was handed over with
+			var comment any // the comment the turn was handed over with
 			if m, _ := rpc.AsInt(p["comment"]); m != 0 {
-				memo = m
+				comment = m
 			}
-			add(at, fmt.Sprintf("%s → %s", ev.str("agent"), text(p["to"])), "turn", text(p["ask"]), memo, nil, false)
+			add(at, fmt.Sprintf("%s → %s", ev.str("agent"), text(p["to"])), "turn", text(p["ask"]), comment, nil, false)
 			out[len(out)-1].row["turn"] = "push"
 		case "task_turn_pop":
 			if to := text(p["to"]); to != "" { // a stack cleared by an end or a draft gives the task to no one; a note is a comment's row

@@ -38,7 +38,7 @@ type storyHost struct {
 
 func (h storyHost) Agents() []string { return h.agents }
 
-// One story through the real paths: a task the founder gave alice, a child bob does for it, three memos with no @ (told to the holder), the child done
+// One story through the real paths: a task the founder gave alice, a child bob does for it, three comments with no @ (told to the holder), the child done
 // (which leaves bob nothing to start, so alice, who gave it, is told that once), the parent done, and bob's own task running past its timeout. It
 // counts what each recipient is told.
 func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing.T) {
@@ -105,7 +105,7 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 		}
 		return out
 	}
-	memo, result_, timeout := count("% comment % by %"), count("%done by%"), count("%past its%")
+	comment, result_, timeout := count("% comment % by %"), count("%done by%"), count("%past its%")
 	idle := count("%has nothing it can start now.")
 	for to, n := range idle { // the idle say carries the done; it is counted on its own
 		if result_[to] -= n; result_[to] == 0 {
@@ -118,18 +118,18 @@ func TestAStoryTellsTheFounderOneNoticeAndAgentsOnlyWhatTheyMustActOn(t *testing
 			founder++
 		}
 	}
-	total := founder + len(memo) + len(result_) + len(timeout) + len(idle)
-	for _, m := range []map[string]int{memo, result_, timeout, idle} {
+	total := founder + len(comment) + len(result_) + len(timeout) + len(idle)
+	for _, m := range []map[string]int{comment, result_, timeout, idle} {
 		for _, n := range m {
 			total += n - 1
 		}
 	}
-	t.Logf("founder task_done %d; memo notices %v; child-result notices %v; idle says %v; timeout notices %v; total %d", founder, memo, result_, idle, timeout, total)
+	t.Logf("founder task_done %d; comment notices %v; child-result notices %v; idle says %v; timeout notices %v; total %d", founder, comment, result_, idle, timeout, total)
 	if founder != 1 {
 		t.Fatalf("the founder is told once, of their task done: %d", founder)
 	}
-	if len(memo) != 1 || memo[alice] != 3 || len(result_) != 0 {
-		t.Fatalf("the holder is told of each memo with no @, no one else, and no one of a child that did not fail: %v %v", memo, result_)
+	if len(comment) != 1 || comment[alice] != 3 || len(result_) != 0 {
+		t.Fatalf("the holder is told of each comment with no @, no one else, and no one of a child that did not fail: %v %v", comment, result_)
 	}
 	if len(idle) != 1 || idle[alice] != 1 {
 		t.Fatalf("bob has nothing to start once the child is done: alice, who gave it, is told once: %v", idle)

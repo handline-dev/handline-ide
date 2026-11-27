@@ -307,11 +307,11 @@ func Doors(q interface {
 	return out, rs.Err()
 }
 
-// Reclaimed is a session the sweep took back from a runner: the task it was on and the memo that task was given.
+// Reclaimed is a session the sweep took back from a runner: the task it was on and the comment that task was given.
 type Reclaimed struct {
 	Agent, Node string
 	Task        int64
-	Memo        string
+	Comment     string
 }
 
 // Sweep takes back the sessions of each runner offline past reclaimS (Reclaim).
@@ -357,7 +357,7 @@ func (r *Registry) Sweep(reclaimS int64) ([]Reclaimed, error) {
 }
 
 // Reclaim takes back node's sessions, why it was: each leaves node_sessions, so its terminal reads gone and the lifecycle starts its
-// agent again by the usual placement; it is not resumed (its conversation is on that machine), and the task it was on is given a memo
+// agent again by the usual placement; it is not resumed (its conversation is on that machine), and the task it was on is given a comment
 // naming the commit last pushed on its branch.
 func (r *Registry) Reclaim(node, why string) ([]Reclaimed, error) {
 	b, _, _ := r.Heard(node)
@@ -371,7 +371,7 @@ func (r *Registry) Reclaim(node, why string) ([]Reclaimed, error) {
 		if r.local != nil {
 			key = r.local().AgentCaller(a).Key
 		}
-		rec := Reclaimed{Agent: key, Node: node, Memo: reclaimMemo(r.nodeName(node), why, last[a])}
+		rec := Reclaimed{Agent: key, Node: node, Comment: reclaimComment(r.nodeName(node), why, last[a])}
 		if err := r.takeBack(a, node, &rec); err != nil {
 			return out, fmt.Errorf("reclaim %s from %s: %w", a, node, err)
 		}
@@ -382,7 +382,7 @@ func (r *Registry) Reclaim(node, why string) ([]Reclaimed, error) {
 	return out, nil
 }
 
-// takeBack drops agent's session on node and gives its task rec's memo, in one transaction.
+// takeBack drops agent's session on node and gives its task rec's comment, in one transaction.
 func (r *Registry) takeBack(agent, node string, rec *Reclaimed) error {
 	tx, err := r.DB.Begin()
 	if err != nil {
@@ -399,7 +399,7 @@ func (r *Registry) takeBack(agent, node string, rec *Reclaimed) error {
 		return err
 	}
 	if rec.Task != 0 {
-		if _, err := db.AddMemo(tx, rec.Task, "daemon", rec.Memo); err != nil {
+		if _, err := db.AddComment(tx, rec.Task, "daemon", rec.Comment); err != nil {
 			return err
 		}
 	}
@@ -414,8 +414,8 @@ func (r *Registry) nodeName(node string) string {
 	return name
 }
 
-// reclaimMemo is the memo a reclaimed session's task is given.
-func reclaimMemo(machine, why string, s runner.BeatSession) string {
+// reclaimComment is the comment a reclaimed session's task is given.
+func reclaimComment(machine, why string, s runner.BeatSession) string {
 	var at string
 	switch {
 	case s.Branch == "":
@@ -539,7 +539,7 @@ func (r *Registry) Release(agent, node, why string) error {
 			last = s
 		}
 	}
-	rec := Reclaimed{Agent: agent, Node: node, Memo: reclaimMemo(r.nodeName(node), why, last)}
+	rec := Reclaimed{Agent: agent, Node: node, Comment: reclaimComment(r.nodeName(node), why, last)}
 	if err := r.takeBack(agent, node, &rec); err != nil {
 		return fmt.Errorf("release %s from %s: %w", agent, node, err)
 	}

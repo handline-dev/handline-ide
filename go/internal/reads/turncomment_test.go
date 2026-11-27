@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// A turn handed over with a comment reads as that comment: its ask is the comment's text as it reads now, memo names it, and the
-// timeline's push row carries the same memo.
+// A turn handed over with a comment reads as that comment: its ask is the comment's text as it reads now, comment names it, and the
+// timeline's push row carries the same comment.
 func TestATurnReadsTheCommentItWasHandedOverWith(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)

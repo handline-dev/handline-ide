@@ -67,7 +67,7 @@ func TestADetectorRunsOnlyWhenATableItNamesChanged(t *testing.T) {
 	exec(t, d, "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'bob', 'n', 1)")
 	look(false)
 	if tasks.runs != 2 || reqs.runs != 1 {
-		t.Fatalf("a memo ran %d and %d, want 2 and 1", tasks.runs, reqs.runs)
+		t.Fatalf("a comment ran %d and %d, want 2 and 1", tasks.runs, reqs.runs)
 	}
 	exec(t, d, "UPDATE task_comments SET body = 'x'")
 	exec(t, d, "DELETE FROM task_comments")

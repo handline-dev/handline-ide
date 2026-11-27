@@ -868,8 +868,8 @@ func promptItemOf(agent string, b row) map[string]any {
 // gave it back, a comment to the founder.
 var commentCardKinds = []string{"comment_add", "task_turn_ask", "task_turn_pop", "task_turn_push"}
 
-// commentBodySQL is, on an events row, the text of the comment its payload names (memo_body).
-const commentBodySQL = "(SELECT body FROM task_comments WHERE id = json_extract(payload, '$.comment')) AS memo_body"
+// commentBodySQL is, on an events row, the text of the comment its payload names (comment_body).
+const commentBodySQL = "(SELECT body FROM task_comments WHERE id = json_extract(payload, '$.comment')) AS comment_body"
 
 // commentCardOf is an event as a task_comment item and the agent whose chat shows it; false for an event that is none. A turn put on the
 // founder is in the chat of the agent below it, the founder's comment that gives it back in the chat of the agent it returns to, a comment to the
@@ -877,7 +877,7 @@ const commentBodySQL = "(SELECT body FROM task_comments WHERE id = json_extract(
 func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 	p := decodeObject(ev.str("payload"))
 	tid, isInt := rpc.AsInt(p["task_id"])
-	memo, _ := rpc.AsInt(p["comment"])
+	comment, _ := rpc.AsInt(p["comment"])
 	var kind, words string
 	switch ev.str("kind") {
 	case "task_turn_push", "task_turn_ask": // a push names who it puts on in to, a reask in agent
@@ -885,12 +885,12 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 			return nil, "", false
 		}
 		// A turn put with a comment to the founder is that comment's line already: drawing it again would swap the line under the reader.
-		if memo != 0 && !actor.IsPerson(ev.str("agent")) && db.ToPerson(ev.str("memo_body")) {
+		if comment != 0 && !actor.IsPerson(ev.str("agent")) && db.ToPerson(ev.str("comment_body")) {
 			return nil, "", false
 		}
 		kind, agent, words = "turn", ev.str("agent"), text(p["ask"])
 	case "task_turn_pop":
-		if !actor.IsPerson(ev.str("agent")) || memo == 0 || text(p["to"]) == "" || actor.IsPerson(text(p["to"])) {
+		if !actor.IsPerson(ev.str("agent")) || comment == 0 || text(p["to"]) == "" || actor.IsPerson(text(p["to"])) {
 			return nil, "", false
 		}
 		kind, agent = "answer", text(p["to"])
@@ -905,15 +905,15 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 	if !isInt {
 		return nil, "", false
 	}
-	if ev.set("memo_body") {
-		words = ev.str("memo_body")
+	if ev.set("comment_body") {
+		words = ev.str("comment_body")
 	}
-	var memoID any
-	if memo != 0 {
-		memoID = memo
+	var commentID any
+	if comment != 0 {
+		commentID = comment
 	}
 	return map[string]any{"id": itemID(ev.i("ts"), itemTask, ev.i("id")), "at": ts(ev["ts"]), "kind": "task_comment",
-		"task_comment": map[string]any{"task": tid, "comment": memoID, "kind": kind, "who": ev.str("agent"), "text": textsafe.Text(words)}}, agent, true
+		"task_comment": map[string]any{"task": tid, "comment": commentID, "kind": kind, "who": ev.str("agent"), "text": textsafe.Text(words)}}, agent, true
 }
 
 // taskItemOf is one task event of the events table as a transcript item and the task it names; false when the chat does not show it. A

@@ -21,12 +21,12 @@ func (c commenter) Comments(_ context.Context, repo string, number int64) ([]wat
 	return c.comments(repo, number), nil
 }
 
-type memoTeller struct {
+type commentTeller struct {
 	doneTeller
 	told []string
 }
 
-func (m *memoTeller) MemoChanged(tid, _ int64, by, what, text string, now bool, skip []string) {
+func (m *commentTeller) CommentChanged(tid, _ int64, by, what, text string, now bool, skip []string) {
 	m.told = append(m.told, text)
 }
 
@@ -34,7 +34,7 @@ func (m *memoTeller) MemoChanged(tid, _ int64, by, what, text string, now bool, 
 // passes: a bot's, a stranger's, one older than the task, and a closed task's are not; a GitHub @name is not read as a mention.
 func TestCommentsOnATasksPullRequestReachItsHolderOnceEach(t *testing.T) {
 	sdb, _, s := gateRig(t)
-	tell := &memoTeller{}
+	tell := &commentTeller{}
 	s.Tell = tell
 	if _, err := sdb.Exec("UPDATE tasks SET pr = 7, pr_repo = 'o/r', created_at = 100 WHERE id = 2"); err != nil {
 		t.Fatal(err)
@@ -68,9 +68,9 @@ func TestCommentsOnATasksPullRequestReachItsHolderOnceEach(t *testing.T) {
 	if strings.Join(tell.told, "|") != strings.Join(want, "|") || read[8] != 0 {
 		t.Fatalf("told %q, read %v", tell.told, read)
 	}
-	var memos int
-	if err := sdb.QueryRow("SELECT COUNT(*) FROM task_comments WHERE task_id = 2 AND author = ?", daemonAuthor).Scan(&memos); err != nil || memos != 3 {
-		t.Fatalf("%d comments on the task, %v", memos, err)
+	var comments int
+	if err := sdb.QueryRow("SELECT COUNT(*) FROM task_comments WHERE task_id = 2 AND author = ?", daemonAuthor).Scan(&comments); err != nil || comments != 3 {
+		t.Fatalf("%d comments on the task, %v", comments, err)
 	}
 	on = append(on, watch.Comment{Key: "l2", Kind: watch.CommentLine, Path: "go/a.go", Body: "outdated", At: at(400), Member: true})
 	if err := s.Pass(context.Background(), 1000); err != nil {
@@ -83,7 +83,7 @@ func TestCommentsOnATasksPullRequestReachItsHolderOnceEach(t *testing.T) {
 		t.Fatalf("the gate is untouched: %d blockers", len(bs))
 	}
 	// a relayed comment can be deleted, and is not passed on again
-	if err := db.DeleteMemo(sdb, memoOf(t, sdb, "l2"), "human"); err != nil {
+	if err := db.DeleteComment(sdb, commentOf(t, sdb, "l2"), "human"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Pass(context.Background(), 1000); err != nil || len(tell.told) != 4 {
@@ -91,7 +91,7 @@ func TestCommentsOnATasksPullRequestReachItsHolderOnceEach(t *testing.T) {
 	}
 }
 
-func memoOf(t *testing.T, sdb *sql.DB, key string) int64 {
+func commentOf(t *testing.T, sdb *sql.DB, key string) int64 {
 	t.Helper()
 	var mid int64
 	if err := sdb.QueryRow("SELECT memo FROM pr_comments_told WHERE task_id = 2 AND comment = ?", key).Scan(&mid); err != nil {
