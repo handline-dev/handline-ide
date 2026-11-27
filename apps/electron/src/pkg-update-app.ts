@@ -58,15 +58,16 @@ function ports(o: { idle: () => Promise<boolean> }): PkgPorts {
 }
 
 /** Looks for a newer build once a minute after launch and then every half hour, on the release of the channel the person picked (`picked`), else the
- * build's own. `channel` is the one in use, null for a build with no update address (a checkout); `look` checks at once. */
+ * build's own. `channel` is the one in use and `source` its address, null for a build with no update address (a checkout); `look` checks at once. */
 export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolean>; picked: () => UpdateChannel | undefined }): {
   stop: () => void;
   look: () => void;
   channel: () => UpdateChannel | null;
+  source: () => string | null;
 } {
   const base = packagedUpdateUrl(app.getAppPath());
   const built = base ? channelOf(base) : null;
-  if (!base || !built) return { stop: () => undefined, look: () => undefined, channel: () => null };
+  if (!base || !built) return { stop: () => undefined, look: () => undefined, channel: () => null, source: () => null };
   sweepSwap();
   const channel = () => o.picked() ?? built;
   const updater = new SelfUpdater(ports(o), o.flow, () => ({ base: withChannel(base, channel()), switched: channel() !== built }));
@@ -80,18 +81,21 @@ export function startPkgUpdate(o: { flow: UpdateFlow; idle: () => Promise<boolea
     },
     look,
     channel,
+    source: () => withChannel(base, channel()),
   };
 }
 
 /** Settings' Updates channel: which release the app reads, and picking another. */
 export function handleUpdateChannel(
   origin: string,
-  get: () => UpdateChannel | null,
+  pkg: { channel: () => UpdateChannel | null; source: () => string | null; look: () => void },
   set: (c: UpdateChannel) => void,
-  look: () => void,
 ): void {
+  const look = pkg.look;
   const u = new UpdateChannelCalls(origin, {
-    get,
+    get: pkg.channel,
+    version: () => (app.isPackaged ? app.getVersion() : null),
+    source: pkg.source,
     set: (c) => {
       set(c);
       look();

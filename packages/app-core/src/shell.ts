@@ -168,8 +168,11 @@ export interface ShellApi {
   update?(): Promise<({ ok: true } & ShellUpdate) | Fail<'bad_request'>>;
   updateAct?(what: 'restart' | 'later' | 'retry' | 'details'): Promise<{ ok: true } | Fail<'bad_request'>>;
   onUpdate?(cb: (v: ShellUpdate) => void): () => void;
-  /** The release channel the app reads updates from (null for a build that reads none), and picking another; it looks there at once. */
-  updateChannel?(): Promise<{ ok: true; channel: UpdateChannel | null } | Fail<'bad_request'>>;
+  /** The release channel the app reads updates from and the address on it (null for a build that reads none), the running version (null for a checkout), and picking
+   * another channel; it looks there at once. */
+  updateChannel?(): Promise<
+    { ok: true; channel: UpdateChannel | null; version: string | null; source: string | null } | Fail<'bad_request'>
+  >;
   setUpdateChannel?(channel: UpdateChannel): Promise<{ ok: true } | Fail<'bad_request'>>;
   /** The app's own daemon: its state now, its last state and every change, and a Start that brings it up again (a no-op while it starts or runs). */
   daemon?(): Promise<({ ok: true } & ShellDaemon) | Fail<'bad_request'>>;

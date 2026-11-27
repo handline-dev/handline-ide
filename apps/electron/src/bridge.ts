@@ -323,6 +323,10 @@ export interface UpdateChannelDeps {
   /** The channel updates come from; null for a build that reads none (a checkout). */
   get(): UpdateChannel | null;
   set(channel: UpdateChannel): void;
+  /** The running app's version; null for a checkout, whose version is Electron's. */
+  version(): string | null;
+  /** The address updates are read from now, on the channel in use; null for a build that reads none. */
+  source(): string | null;
 }
 
 /** The update channel in Settings: which one the app reads, and picking another. */
@@ -333,8 +337,9 @@ export class UpdateChannelCalls {
     this.origin = origin;
     this.d = d;
   }
-  get(e: Sender): { ok: true; channel: UpdateChannel | null } | Fail<'bad_request'> {
-    return fromWindow(e, this.origin) ? { ok: true, channel: this.d.get() } : bad('not from the app window');
+  get(e: Sender): { ok: true; channel: UpdateChannel | null; version: string | null; source: string | null } | Fail<'bad_request'> {
+    if (!fromWindow(e, this.origin)) return bad('not from the app window');
+    return { ok: true, channel: this.d.get(), version: this.d.version(), source: this.d.source() };
   }
   set(e: Sender, arg: unknown): Reply {
     if (!fromWindow(e, this.origin)) return bad('not from the app window');

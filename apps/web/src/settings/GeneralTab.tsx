@@ -1,7 +1,8 @@
-// Settings > General: the cluster's name, renamed by its owner (setting cluster_name).
+// Settings > General: this app's version and updates, and the cluster's name, renamed by its owner (setting cluster_name).
 import { useServes, useSettings, useWrite, why } from '@handline/app-data';
 import { Block, Setting } from '#src/settings/Meter.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
+import { UpdatesBlock } from '#src/settings/UpdatesBlock.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { prompt } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -16,7 +17,8 @@ export function GeneralTab() {
     save.mutate({ changes: { cluster_name: next } }, { onError: (e) => toast(`It was not renamed: ${why(e)}`, { tone: 'warning' }) });
   };
   return (
-    <SettingsPage keep="settings-general" title="General" note="This cluster.">
+    <SettingsPage keep="settings-general" title="General" note="This app and its cluster.">
+      <UpdatesBlock />
       <Block title="Cluster">
         <Setting title="Cluster name">
           <span className="flex items-center gap-3 text-sm">

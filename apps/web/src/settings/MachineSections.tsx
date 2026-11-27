@@ -10,7 +10,6 @@ import { SharedRuns } from '#src/settings/SharedRuns.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
 import { useService } from '#src/settings/data/service.ts';
 import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
-import { UpdatesBlock } from '#src/settings/UpdatesBlock.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Segmented } from '#src/ui/Segmented.tsx';
@@ -205,7 +204,6 @@ export function MachineSections() {
         </Setting>
         {why('awake')}
       </Block>
-      <UpdatesBlock />
       {service && <ServiceBlock service={service} working={m.working} />}
     </>
   );

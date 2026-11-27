@@ -405,7 +405,7 @@ if (!app.requestSingleInstanceLock({ background })) {
     const checking = setInterval(() => void updater.check().catch(() => undefined), 30_000);
     app.on('quit', () => clearInterval(checking));
     const pkg = startPkgUpdate({ flow, idle: idleOf(page, composer), picked: () => current.updateChannel });
-    handleUpdateChannel(origin, pkg.channel, saveUpdateChannel(settings, current), pkg.look);
+    handleUpdateChannel(origin, pkg, saveUpdateChannel(settings, current));
     app.on('quit', pkg.stop);
 
     const desk = new Desk(client, {

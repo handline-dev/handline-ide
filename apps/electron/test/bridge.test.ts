@@ -243,10 +243,16 @@ test('the page lists, joins, leaves and takes over clusters only from the window
 test('update channel: read and picked only from the window, one of the three, and only on a build that reads updates', () => {
   let now: 'stable' | 'nightly' | 'canary' | null = 'nightly';
   const picked: string[] = [];
-  const u = new UpdateChannelCalls(ORIGIN, { get: () => now, set: (c) => void picked.push(c) });
+  const source = 'https://github.com/o/r/releases/download/mac-nightly';
+  const u = new UpdateChannelCalls(ORIGIN, {
+    get: () => now,
+    set: (c) => void picked.push(c),
+    version: () => '0.1.9',
+    source: () => source,
+  });
   const top: Sender = { senderFrame: { url: `${ORIGIN}/`, parent: null } };
   const evil: Sender = { senderFrame: { url: 'https://evil.example/', parent: null } };
-  assert.deepEqual(u.get(top), { ok: true, channel: 'nightly' });
+  assert.deepEqual(u.get(top), { ok: true, channel: 'nightly', version: '0.1.9', source });
   assert.equal(u.get(evil).ok, false);
   assert.deepEqual(u.set(top, 'canary'), { ok: true });
   assert.equal(u.set(top, 'edge').ok, false);
