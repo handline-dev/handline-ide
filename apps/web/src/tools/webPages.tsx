@@ -146,7 +146,7 @@ export function WebPages() {
 
 // Under the menus, dialogs and Settings (z-40, z-50); hidden until the loop lays it over its slot.
 // White under the page, as a browser draws one that sets no background; the page's own background still covers it.
-const STYLE = { position: 'fixed', zIndex: 1, visibility: 'hidden', border: 0, background: '#fff' } as const;
+const STYLE = { position: 'fixed', zIndex: 1, visibility: 'hidden', border: 0, background: 'white' } as const;
 
 function Laid({ page: { tab, url, reload } }: { page: Page }) {
   const ref = (el: HTMLElement | null) => {
