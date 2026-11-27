@@ -5,6 +5,7 @@ import { laterKey, tomorrowAt9, turnKey } from '@handline/app-core';
 import { RotateCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { useRowActions } from '#src/requests/RowMenu.tsx';
+import { RunButton } from '#src/requests/RunRow.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -78,12 +79,15 @@ export function TurnQuick({ p }: { p: PendingRequest }) {
   // A note is not put off: opening its task reads it.
   if (!later || p.kind === 'note') return null;
   return (
-    <IconButton
-      label="Dismiss until tomorrow 09:00"
-      onClick={() => void act.later([{ keys: [turnKey(p)], later }], tomorrowAt9(Date.now()))}
-    >
-      <X size={14} />
-    </IconButton>
+    <>
+      {p.kind === 'run' && p.task !== null && <RunButton task={p.task} />}
+      <IconButton
+        label="Dismiss until tomorrow 09:00"
+        onClick={() => void act.later([{ keys: [turnKey(p)], later }], tomorrowAt9(Date.now()))}
+      >
+        <X size={14} />
+      </IconButton>
+    </>
   );
 }
 

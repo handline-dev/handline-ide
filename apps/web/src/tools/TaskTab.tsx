@@ -5,7 +5,7 @@ import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, t
 import { Hooks, useNameOf, useTaskHistory, useTaskSeen } from '@handline/app-data';
 import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
-import { Hourglass } from 'lucide-react';
+import { Hourglass, Play } from 'lucide-react';
 import { Verbs } from '#src/tools/TaskVerbs.tsx';
 import { look, TaskState, type Lookable } from '#src/ui/taskLook.tsx';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -152,6 +152,13 @@ export function TaskTab({ id }: { id: number }) {
                 <Fields t={t} open={open} />
                 <TaskPull t={t} />
                 {/* The founder's turn is its row in Activity; up here only why the task waits on someone else. */}
+                {/* A draft only the founder can run says so, as a turn of his would. */}
+                {t.state === 'draft' && t.status?.text && (
+                  <p className="flex items-start gap-2 text-sm text-accent">
+                    <Play size={14} className="mt-0.5 shrink-0" />
+                    <Linked text={t.status.text} />
+                  </p>
+                )}
                 {open && !mine && why && (
                   <p className="flex items-start gap-2 text-sm text-muted">
                     {lease ? <LeaseIcon kind={lease.kind} size={14} /> : <Hourglass size={14} className="mt-0.5 shrink-0" />}

@@ -39,6 +39,7 @@ import { failedLine } from '#src/ui/taskLook.tsx';
 import { WARN, WARN_WORD } from '#src/requests/warnings.ts';
 import { useRefs } from '#src/ui/refs.tsx';
 import { spring } from '#src/motion.ts';
+import { Holds, runLine } from '#src/requests/RunRow.tsx';
 
 const KIND: Record<PendingRequest['kind'], typeof HardDrive> = {
   allow: ShieldQuestion,
@@ -62,6 +63,7 @@ function turnIcon(p: PendingRequest): ReactNode {
 
 /** In Requests, what a row is about: a task, an account, or the warning's own thing. */
 function subjectIcon(p: PendingRequest): ReactNode {
+  if (p.kind === 'run') return <Play size={16} className="text-muted" />;
   if (p.task !== null) return <ListChecks size={16} className="text-muted" />;
   if (p.source === 'proposal') return <Lightbulb size={16} className="text-muted" />;
   if (p.warning?.kind === 'login') return <UserRound size={16} className="text-warning" />;
@@ -100,10 +102,13 @@ function Line({
   who,
   wait,
   answers,
+  below,
   onPick,
   chosen,
   word,
 }: {
+  /** Under the row's text, outside its button: links of its own. */
+  below?: ReactNode;
   /** Another cluster's name, at the row's end. */
   word?: ReactNode;
   /** A plain click calls this instead of opening; `chosen` marks the shown row. */
@@ -167,57 +172,60 @@ function Line({
         />
       )}
       {pick && <motion.span aria-hidden initial={false} animate={{ width: picking ? 24 : 0 }} transition={spring} className="shrink-0" />}
-      <button
-        type="button"
-        {...open}
-        // A click opens the row, picked or not: only its box picks.
-        onClick={(e: MouseEvent<HTMLButtonElement>) => {
-          if (pick && apart) return void toast(APART, { tone: 'warning' });
-          if (onPick && !e.metaKey && !e.ctrlKey && !e.altKey) return onPick();
-          open.onClick(e);
-        }}
-        onAuxClick={open.onAuxClick}
-        onKeyDown={open.onKeyDown}
-        title={hint}
-        className={`flex min-w-0 flex-1 gap-2.5 text-left ${lead !== undefined ? 'px-2 py-3' : 'px-2 py-1.5'}`}
-      >
-        {lead !== undefined ? (
-          // A Requests row: the task number in the title's line, the text under both from the row's left edge.
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="flex min-w-0 items-baseline gap-2">
-              <span
-                className={`grid h-lh w-4 shrink-0 self-start place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
-              >
-                {icon}
-              </span>
-              {lead && <span className="shrink-0 text-muted tabular-nums">{lead}</span>}
-              <span className="truncate font-medium text-fg">{title}</span>
-              {who && <span className="shrink-0 text-muted">{who}</span>}
-              {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
-              {word && <span className={`flex shrink-0 items-center ${wait ? '' : 'ml-auto pl-3'}`}>{word}</span>}
-            </span>
-            {/* The answers sit over the row's bottom-right: the text keeps their room. */}
-            {meta && <span className={`line-clamp-2 break-words text-muted ${answers ? 'pr-36' : ''}`}>{meta}</span>}
-          </span>
-        ) : (
-          <>
-            <span
-              className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
-            >
-              {icon}
-              {mark && <UnreadDot className="absolute -top-0.5 -right-0.5" />}
-            </span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <button
+          type="button"
+          {...open}
+          // A click opens the row, picked or not: only its box picks.
+          onClick={(e: MouseEvent<HTMLButtonElement>) => {
+            if (pick && apart) return void toast(APART, { tone: 'warning' });
+            if (onPick && !e.metaKey && !e.ctrlKey && !e.altKey) return onPick();
+            open.onClick(e);
+          }}
+          onAuxClick={open.onAuxClick}
+          onKeyDown={open.onKeyDown}
+          title={hint}
+          className={`flex min-w-0 flex-1 gap-2.5 text-left ${lead !== undefined ? 'px-2 py-3' : 'px-2 py-1.5'}`}
+        >
+          {lead !== undefined ? (
+            // A Requests row: the task number in the title's line, the text under both from the row's left edge.
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex min-w-0 items-baseline gap-2">
-                <span className="truncate text-fg">{title}</span>
+                <span
+                  className={`grid h-lh w-4 shrink-0 self-start place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
+                >
+                  {icon}
+                </span>
+                {lead && <span className="shrink-0 text-muted tabular-nums">{lead}</span>}
+                <span className="truncate font-medium text-fg">{title}</span>
                 {who && <span className="shrink-0 text-muted">{who}</span>}
                 {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
+                {word && <span className={`flex shrink-0 items-center ${wait ? '' : 'ml-auto pl-3'}`}>{word}</span>}
               </span>
-              <span className="line-clamp-2 break-words text-xs text-muted">{meta}</span>
+              {/* The answers sit over the row's bottom-right: the text keeps their room. */}
+              {meta && <span className={`line-clamp-2 break-words text-muted ${answers ? 'pr-36' : ''}`}>{meta}</span>}
             </span>
-          </>
-        )}
-      </button>
+          ) : (
+            <>
+              <span
+                className={`relative mt-0.5 grid size-4 shrink-0 place-items-center ${pick && !picking ? 'group-hover/line:invisible' : ''}`}
+              >
+                {icon}
+                {mark && <UnreadDot className="absolute -top-0.5 -right-0.5" />}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="truncate text-fg">{title}</span>
+                  {who && <span className="shrink-0 text-muted">{who}</span>}
+                  {wait && <span className="ml-auto shrink-0 pl-3 text-xs text-muted tabular-nums">{wait}</span>}
+                </span>
+                <span className="line-clamp-2 break-words text-xs text-muted">{meta}</span>
+              </span>
+            </>
+          )}
+        </button>
+        {below}
+      </div>
       {answers && <span className="absolute right-2 bottom-2 flex items-center gap-2">{answers}</span>}
       {(trailing || (opens && !picking)) && (
         <span className="absolute top-1.5 right-1.5 hidden items-center gap-1 rounded-md bg-surface group-hover/line:flex group-focus-within/line:flex">
@@ -256,7 +264,8 @@ function turnOpens(p: PendingRequest, asker?: string | null): string | null {
 }
 
 /** In Requests' own list, a proposal's and a step-down offer's answers always show; the others' on hover. */
-const answersShown = (p: PendingRequest) => p.source === 'proposal' || p.warning?.kind === 'review' || !!p.warning?.stall;
+const answersShown = (p: PendingRequest) =>
+  p.kind === 'run' || p.source === 'proposal' || p.warning?.kind === 'review' || !!p.warning?.stall;
 
 /** Something waiting on the founder: what is asked, who asks (an agent, or the daemon itself), how long ago. */
 export function TurnLine({
@@ -301,7 +310,9 @@ export function TurnLine({
         lead: p.source === 'proposal' ? '' : p.task !== null ? `T${p.task}` : p.warning ? WARN_WORD[p.warning.kind] : '',
         who: proposal ? (proposal.requested_by ? nameOf(proposal.requested_by) : 'daemon') : daemon ? 'daemon' : nameOf(p.agent!),
         wait: until ? `back ${until}` : ago(p.last_at),
-        answers: answersShown(p) ? <TurnQuick p={p} /> : undefined,
+        // A run row's Run sits in its own line under the text, so a narrow row keeps its words.
+        answers: answersShown(p) && p.kind !== 'run' ? <TurnQuick p={p} /> : undefined,
+        below: <Holds p={p} answers={p.kind === 'run' ? <TurnQuick p={p} /> : undefined} />,
       })}
       meta={
         full
@@ -309,9 +320,11 @@ export function TurnLine({
             ? proposal.reason
             : p.ask
               ? refs(p.ask)
-              : p.warning
-                ? (p.warning.line ?? '') // the icon and its word already say what it is; a step-down offer adds its record
-                : ASK[p.kind]
+              : p.kind === 'run'
+                ? runLine(p, p.agent ? nameOf(p.agent) : 'the daemon')
+                : p.warning
+                  ? (p.warning.line ?? '') // the icon and its word already say what it is; a step-down offer adds its record
+                  : ASK[p.kind]
           : [
               until ? `back ${until}` : ASK[p.kind],
               daemon ? 'daemon' : nameOf(p.agent!),

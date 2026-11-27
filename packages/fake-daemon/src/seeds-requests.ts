@@ -7,7 +7,16 @@ export const REQUEST_SEEDS: Record<string, Seed> = {
   /** Drafts only the founder can run: one two queued tasks wait on, one its agent left behind, and a founder's turn that holds a task up. */
   'draft-runs': (d) => {
     const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
-    d.tasks.seed({ id: 3950, from: 'handline.architect', to: 'handline.term-build', title: 'Split the session store', state: 'draft' });
+    // The daemon's status line of a draft only the founder can run.
+    const waits = (text: string) => ({ state: 'waiting', reason: 'run', text, until: null, since: ago(19 * 60), tasks: [] });
+    d.tasks.seed({
+      id: 3950,
+      from: 'handline.architect',
+      to: 'handline.term-build',
+      title: 'Split the session store',
+      state: 'draft',
+      status: waits('waits for you to run it: T3951, T3952 wait on it'),
+    });
     d.tasks.seed({
       id: 3951,
       from: 'handline.architect',
@@ -24,7 +33,14 @@ export const REQUEST_SEEDS: Record<string, Seed> = {
       state: 'queued',
       blockers: [{ task: 3951, reason: 'needs the split list' }],
     });
-    d.tasks.seed({ id: 3953, from: 'handline.ui', to: 'handline.ui', title: 'Tidy the tab bar', state: 'draft' });
+    d.tasks.seed({
+      id: 3953,
+      from: 'handline.ui',
+      to: 'handline.ui',
+      title: 'Tidy the tab bar',
+      state: 'draft',
+      status: waits('<@handline.ui> left it for you to run'),
+    });
     const run = (task: number, title: string, agent: string, holds: number[], at: string, ask: string | null) => ({
       task,
       title,
