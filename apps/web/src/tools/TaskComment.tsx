@@ -168,26 +168,20 @@ export function CommentBox({
     },
   ];
   const failed = (what: string) => (e: unknown) => toast(`${what}: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' });
-  /** A picture is named in the text, where it is drawn; any other file (or a folder) goes with the comment as a file of its own type. */
-  const split = (ids: string[]) => {
+  /** Every upload is named in the text by its id: `files` takes only paths on the daemon's machine, which a browser upload has none of. */
+  const uploads = (ids: string[]) => {
     const known = knownAttachments(ids);
-    const picture = (id: string) => known.find((a) => a.id === id && a.mime.startsWith('image/'));
-    return {
-      pictures: ids.flatMap((id) => picture(id) ?? []).map((a) => ({ id: a.id, name: a.name })),
-      files: ids.filter((id) => !picture(id)),
-    };
+    return ids.map((id) => ({ id, name: known.find((a) => a.id === id)?.name ?? '' }));
   };
   const send = (body: string, ids: string[] = []) => {
     // The comment first, then the handover: the new owner finds it waiting.
     // An answer to a comment that asked the founder ends the wait: the open asks are closed with it.
     const answers = reply?.text.includes(`<@${me}>`) ? openAsks(t, me).map((r) => r.id) : [];
     onSent();
-    const { pictures, files } = split(ids);
     add.mutate(
       {
         task: t.id,
-        text: withImages(toRefs(dir, body), pictures),
-        ...(files.length ? { files } : {}),
+        text: withImages(toRefs(dir, body), uploads(ids)),
         ...(reply?.id != null ? { reply: reply.id } : {}),
       },
       {
