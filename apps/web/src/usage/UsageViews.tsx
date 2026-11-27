@@ -215,7 +215,11 @@ export const COST_RANGES: readonly CostRange[] = ['7d', '14d', '30d'];
 
 /** The daemon's name for cost whose folder no agent's worktree holds now. */
 const UNMATCHED = '(unattributed)';
-const costName = (a: string) => (a === UNMATCHED ? 'Removed or outside' : a || 'Your own sessions');
+/** The stack's key for usage credits: paid on top of the plan, drawn above the day's plan money. */
+const CREDITS = '(usage credits)';
+const costName = (a: string) => (a === UNMATCHED ? 'Removed or outside' : a === CREDITS ? 'Usage credits' : a || 'Your own sessions');
+/** A day's usage credits in dollars. */
+const creditsOf = (d: object) => ('extra' in d ? (d.extra as Record<string, number>).USD : 0) ?? 0;
 
 /** The unmatched cost's name, with what it is on hover. */
 function Unmatched() {
@@ -255,7 +259,13 @@ export function CostPerDay({ range }: { range: CostRange }) {
   const { agents, sums, all } = costByAgent({ ...o, cost_per_day: days });
   const order = agents.map((a, i) => ({ a, sum: sums[i] })).sort((x, y) => y.sum - x.sum);
   const tone = new Map(order.map((x, i) => [x.a, SERIES[i % SERIES.length]]));
-  const dayTotal = (d: (typeof days)[number]) => agents.reduce((n, a) => n + (d.agents[a] ?? 0), 0);
+  const plan = (d: (typeof days)[number]) => agents.reduce((n, a) => n + (d.agents[a] ?? 0), 0);
+  const dayTotal = (d: (typeof days)[number]) => plan(d) + creditsOf(d);
+  const credits = days.reduce((n, d) => n + creditsOf(d), 0);
+  const of = (d: (typeof days)[number], a: string) => (a === CREDITS ? creditsOf(d) : (d.agents[a] ?? 0));
+  const tones = (a: string) => (a === CREDITS ? 'bg-warning' : tone.get(a));
+  // Usage credits sit on top of the plan stack, so they never read as part of it.
+  const stack = credits > 0 ? [...order.map((x) => x.a), CREDITS] : order.map((x) => x.a);
   // Plan money per day is cents, so the scale has no dollar floor.
   const top = Math.max(0.01, ...days.map(dayTotal));
   return (
@@ -270,12 +280,12 @@ export function CostPerDay({ range }: { range: CostRange }) {
         {days.map((d, i) => (
           <div key={d.day} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-1">
             <div className="flex flex-col-reverse overflow-hidden rounded-sm" style={{ height: `${(dayTotal(d) / top) * 100}%` }}>
-              {order.map(({ a }) => (
+              {stack.map((a) => (
                 <span
                   key={a}
                   onMouseEnter={() => setHover({ day: i, agent: a })}
-                  className={`${tone.get(a)} transition-opacity ${hover && hover.agent !== a ? 'opacity-30' : ''}`}
-                  style={{ flexGrow: d.agents[a] ?? 0 }}
+                  className={`${tones(a)} transition-opacity ${hover && hover.agent !== a ? 'opacity-30' : ''}`}
+                  style={{ flexGrow: of(d, a) }}
                 />
               ))}
             </div>
@@ -292,8 +302,8 @@ export function CostPerDay({ range }: { range: CostRange }) {
                 style={{ left: `${at}%`, transform: at > 70 ? 'translateX(calc(-100% - 8px))' : 'translateX(8px)' }}
               >
                 <span className="flex items-center gap-1.5 text-fg">
-                  <span className={`size-2 rounded-sm ${tone.get(hover.agent)}`} />
-                  {costName(hover.agent)} ${(d.agents[hover.agent] ?? 0).toFixed(2)}
+                  <span className={`size-2 rounded-sm ${tones(hover.agent)}`} />
+                  {costName(hover.agent)} ${of(d, hover.agent).toFixed(2)}
                 </span>
                 <span className="text-muted">
                   {d.day} · ${dayTotal(d).toFixed(2)} that day
@@ -312,6 +322,15 @@ export function CostPerDay({ range }: { range: CostRange }) {
             tone={tone.get(a)}
           />
         ))}
+        {credits > 0 && (
+          <Ranked
+            name="Usage credits"
+            sub="Paid on top of the plans"
+            figures={`$${credits.toFixed(2)}`}
+            fill={credits / (order[0]?.sum || credits)}
+            tone="bg-warning"
+          />
+        )}
       </div>
     </div>
   );

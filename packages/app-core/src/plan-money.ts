@@ -18,3 +18,24 @@ export const weekBudgets = (b: Pick<Budget, 'accounts'> | null | undefined): Map
 /** An agent's plan money on an account: its share of the week times the account's weekly budget; 0 with no share or no budget. */
 export const planUsd = (weekPct: number | null, weekUsd: number | undefined): number =>
   weekPct === null || !weekUsd ? 0 : (weekPct / 100) * weekUsd;
+
+type Extra = NonNullable<Budget['accounts'][number]['extra']>;
+
+/** An amount in its currency: "$12.40" for dollars, "12.40 EUR" otherwise. */
+const money = (n: number, currency: string | null) => (!currency || currency === 'USD' ? usd(n) : `${n.toFixed(2)} ${currency}`);
+
+/** The top line's usage credits: "+$12.40 spent on usage credits this month"; null when nothing was spent. */
+export function creditsMonthWords(spent: Record<string, number> | null | undefined): string | null {
+  const parts = Object.entries(spent ?? {})
+    .filter(([, n]) => n > 0)
+    .map(([c, n]) => `+${money(n, c)}`);
+  return parts.length ? `${parts.join(' ')} spent on usage credits this month` : null;
+}
+
+/** An account's usage credits under its Week bar; null when they are off or unknown. `spent` is true when it spent some this month. */
+export function creditsLine(x: Extra | null | undefined): { text: string; spent: boolean } | null {
+  if (!x?.on) return null;
+  const spent = x.spent ?? 0;
+  const limit = x.cap === null ? 'no limit' : `limit ${money(x.cap, x.currency)}`;
+  return { text: `Usage credits · ${money(spent, x.currency)} spent this month · ${limit}`, spent: spent > 0 };
+}

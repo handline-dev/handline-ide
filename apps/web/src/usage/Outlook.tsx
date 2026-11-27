@@ -2,7 +2,7 @@ import { Segmented } from '#src/ui/Segmented.tsx';
 // The head of Usage, as the legacy page had it: "Week 43% left" and the accounts' week left together, recorded to now and guessed after
 // it (dashed), each account's weekly reset under the axis, and the part lost at the last reset as a bar. Moving over the plot reads a point.
 // Every number is the daemon's (stats.outlook); the drawing is the legacy one in this app's tokens.
-import { axisTicks, budgetLeftWords, dateTime, guessLine, lostAtLastReset, weekResets } from '@handline/app-core';
+import { axisTicks, budgetLeftWords, creditsMonthWords, dateTime, guessLine, lostAtLastReset, weekResets } from '@handline/app-core';
 import type { Outlook as Data } from '@handline/client';
 import { useOutlook } from '@handline/app-data';
 import { RotateCcw } from 'lucide-react';
@@ -78,6 +78,7 @@ function Readout({ o, name }: { o: Data; name?: string }) {
   const recorded = o.past.filter((p) => p.left_pct !== null).at(-1)?.left_pct ?? null;
   const left = mine ? (mine.used_pct === null ? null : 100 - mine.used_pct) : (o.budget?.left_pct ?? recorded);
   const money = budgetLeftWords(mine ?? o.budget);
+  const credits = name === undefined ? creditsMonthWords(o.budget?.extra_spent) : null;
   return (
     <span className="flex flex-wrap items-baseline gap-x-2">
       <strong className="text-xl font-semibold text-fg tabular-nums">
@@ -85,6 +86,7 @@ function Readout({ o, name }: { o: Data; name?: string }) {
         {left === null ? 'Week: no reading' : `Week ${Math.round(left)}% left`}
       </strong>
       {money && <span className="text-sm text-muted tabular-nums">{money}</span>}
+      {credits && <span className="text-sm text-warning tabular-nums">{credits}</span>}
     </span>
   );
 }

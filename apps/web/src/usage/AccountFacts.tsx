@@ -1,4 +1,4 @@
-import { unusedLine } from '@handline/app-core';
+import { creditsLine, unusedLine } from '@handline/app-core';
 import { useAgents, useNameOf, useOutlook } from '@handline/app-data';
 import { activityOf } from '#src/layout/agentList.ts';
 import type { Account } from '@handline/client';
@@ -34,7 +34,9 @@ export function AccountFacts({
 }) {
   const out = a.login_state === 'needs_login';
   const ends = endsOn(a);
-  const mine = useOutlook('24h').data?.by_account?.find((b) => b.account === a.name);
+  const outlook = useOutlook('24h').data;
+  const mine = outlook?.by_account?.find((b) => b.account === a.name);
+  const credits = creditsLine(outlook?.budget?.accounts.find((b) => b.account === a.name)?.extra);
   const noFive = mine?.five_hour === false;
   const unused = unusedLine(mine?.forecast);
   return (
@@ -74,6 +76,9 @@ export function AccountFacts({
           </div>
           <div className="min-w-24 flex-1">
             <UsageBar stacked name="Week" span={WEEK} w={a.weekly} age={a.age_s} foot={unused} />
+            {credits && (
+              <span className={`block text-xs tabular-nums ${credits.spent ? 'text-warning' : 'text-muted'}`}>{credits.text}</span>
+            )}
           </div>
           <div className="min-w-24 flex-1">
             <AgentsBar account={a} />
