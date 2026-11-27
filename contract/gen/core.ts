@@ -580,6 +580,14 @@ export type SettingsChanges = {
   block_screen_capture?: boolean | null;
   /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. null removes the key (back to the default). */
   screencapture_via_handline?: boolean | null;
+  /** The model a new claude agent gets when it is made without one: an agent.options model alias or a full model id, passed to the CLI as is. One word, not starting with -. Existing agents keep theirs. null removes the key (back to the default). */
+  default_model_claude?: string | null;
+  /** The effort a new claude agent gets when it is made without one. Existing agents keep theirs. null removes the key (back to the default). */
+  default_effort_claude?: ("low" | "medium" | "high" | "xhigh" | "max") | null;
+  /** The model a new codex agent (one hired by proposal; agent.create makes claude agents) gets when it is made without one, passed to codex as is. One word, not starting with -. Default "": codex's own default. Existing agents keep theirs. null removes the key (back to the default). */
+  default_model_codex?: string | null;
+  /** The effort a new codex agent gets when it is made without one; codex runs xhigh and max as high. Existing agents keep theirs. null removes the key (back to the default). */
+  default_effort_codex?: ("low" | "medium" | "high" | "xhigh" | "max") | null;
 };
 
 /** One method as a daemon lists it: its role and whether this caller may call it. */
