@@ -84,8 +84,25 @@ func quoted(r *db.Request) string {
 	return "> " + textsafe.Oneline(r.Quote.String) + "\n\n"
 }
 
-// besideLine is the line above a founder's message to agent while it is mid-turn or a seat of it is at work, "" otherwise: the tasks its
-// seats hold, where a word for one goes, and how the message becomes work of its own that a seat takes.
+// toTemp is how the founder's message ref becomes a task a temp takes, after "To give <what> to a temp: ".
+func toTemp(q db.Q, ref string) string {
+	return fmt.Sprintf("`hl task request %s \"<title>\"`", db.MsgNameOf(q, ref))
+}
+
+// untaskedWindowS is how far back a founder's message is one the agent may still be acting on.
+const untaskedWindowS = 3600
+
+// selfAskReason is the refusal of agent asking itself: the command that gives its newest untasked founder message of the last hour to a
+// temp, or how a temp gets work when there is none.
+func selfAskReason(q db.Q, agent string, now int64) string {
+	if ref := must(db.UntaskedFounderMessage(q, agent, now-untaskedWindowS)); ref != "" {
+		return "an agent cannot ask itself; to give the founder's message to a temp: " + toTemp(q, ref)
+	}
+	return "an agent cannot ask itself; a temp takes a task someone else assigns you, or the founder's message you give it with `hl task request <msg> \"<title>\"`"
+}
+
+// besideLine is the line after a founder's message to agent while it is mid-turn or a seat of it is at work, "" otherwise: how the message
+// becomes work of its own that a seat takes, the tasks its seats hold, and where a word for one goes.
 func besideLine(q db.Q, agent string, row *db.Request) string {
 	var held []string
 	for _, seat := range must(team.TempsOf(q, agent)) {
@@ -100,9 +117,9 @@ func besideLine(q db.Q, agent string, row *db.Request) string {
 	if st := stateOf(q, agent); len(held) == 0 && (st == nil || st.State != states.Running) {
 		return ""
 	}
-	line := ""
+	line := "To give this to a temp: " + toTemp(q, row.Ref) + "."
 	if len(held) > 0 {
-		line = fmt.Sprintf("Your temps are on %s; a word for one goes there: `hl task comment T<n> add \"...\"`. ", strings.Join(held, ", "))
+		line += fmt.Sprintf(" Your temps are on %s; a word for one goes there: `hl task comment T<n> add \"...\"`.", strings.Join(held, ", "))
 	}
-	return line + fmt.Sprintf("If this is new work apart from your current task, `hl task request %s \"<title>\"` makes it a task a temp takes.", row.Ref)
+	return line
 }

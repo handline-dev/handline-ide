@@ -439,6 +439,19 @@ func MarkFounderSaid(q Q, rid int64) error {
 	return err
 }
 
+// UntaskedFounderMessage is the ref of the founder's newest own message to agent since since that no task was made from: what
+// task.request would turn into work; "" for none.
+func UntaskedFounderMessage(q Q, agent string, since int64) (string, error) {
+	var ref string
+	err := q.QueryRow("SELECT COALESCE(ref, '') FROM requests r WHERE r.target = ? AND r.kind = 'say' AND r.founder_auth >= 1 AND r.ts >= ? "+
+		"AND r.state NOT IN ('denied', 'withdrawn', 'replaced') AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.from_request = r.id) "+
+		"AND NOT EXISTS (SELECT 1 FROM task_requests l WHERE l.request_id = r.id) ORDER BY r.ts DESC, r.id DESC LIMIT 1", agent, since).Scan(&ref)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return ref, err
+}
+
 // FounderAuthored is whether MarkFounderAuthored marked the request and it is typed, not said (MarkFounderSaid).
 func FounderAuthored(q Q, rid int64) (bool, error) {
 	var v int

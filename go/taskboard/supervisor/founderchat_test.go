@@ -9,6 +9,7 @@ import (
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/agentctl/peerport"
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/states"
 )
 
 // typedRig is peerRig with the founder's words typed at bob: a copy of what TypeIn was given, in order.
@@ -92,9 +93,12 @@ func TestTheFoundersQuoteIsTypedAboveTheReply(t *testing.T) {
 	}
 }
 
-// A message that starts with ! is typed exactly as written, even as a reply: the reference line would push the ! off the front.
+// A message that starts with ! is typed exactly as written, even as a reply to an agent mid-turn: the reference line would push the ! off
+// the front, and the temp line after it would be run as part of the command.
 func TestABangMessageIsTypedAsWrittenEvenAsAReply(t *testing.T) {
 	r, _, typed := typedRig(t)
+	r.Temps = &fakeTemps{r: r}
+	r.must(db.SetAgentState(r.DB, r.k("bob"), states.Running, 0, ""))
 	parent := r.ask(r.k("bob"), r.k(("human")), "#566 merge please", "say")
 	out, err := r.Ask(r.DB, AskIn{Target: r.k(("bob")), Body: "!git status", Requester: r.k(("human")), Kind: "say", ParentID: parent})
 	r.must(err)
@@ -145,5 +149,34 @@ func TestAMessageThatOnlyNamesTheFounderIsNotTyped(t *testing.T) {
 	eventually(t, func() bool { return in.count() == 1 })
 	if len(typed()) != 0 || strings.HasPrefix(in.texts[0], "typed: ") {
 		t.Fatalf("typed %q, inbox %q", typed(), in.texts)
+	}
+}
+
+// An agent that asks itself is told how its founder's newest untasked message goes to a temp, with that message named; with none, how a
+// temp gets work.
+func TestAnAgentAskingItselfIsToldHowTheFoundersMessageGoesToATemp(t *testing.T) {
+	r := newRig(t)
+	selfAsk := func() string {
+		out, err := r.Ask(r.DB, AskIn{Target: r.k("bob"), Body: "fix the footer", Requester: r.k("bob"), Kind: "task", NoCard: true})
+		r.must(err)
+		if out.OK {
+			t.Fatal("an agent asked itself")
+		}
+		return out.Message
+	}
+	general := "an agent cannot ask itself; a temp takes a task someone else assigns you, or the founder's message you give it with " +
+		"`hl task request <msg> \"<title>\"`"
+	if got := selfAsk(); got != general {
+		t.Fatalf("with no founder message: %q", got)
+	}
+	rid := r.founderSays(r.k("bob"), "fix the footer; a temp can do it")
+	want := "an agent cannot ask itself; to give the founder's message to a temp: `hl task request " + db.MsgName(r.DB, rid) + " \"<title>\"`"
+	if got := selfAsk(); got != want {
+		t.Fatalf("with the founder's message: %q\nwant %q", got, want)
+	}
+	tid := r.newTask("bob", "human", "the footer")
+	r.must(db.LinkRequest(r.DB, tid, rid))
+	if got := selfAsk(); got != general {
+		t.Fatalf("once the message is a task: %q", got)
 	}
 }

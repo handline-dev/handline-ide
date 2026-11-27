@@ -200,6 +200,9 @@ func (e *Env) Ask(q db.Q, in AskIn) (out *AskOut, err error) {
 		return o, nil
 	}
 	d := t.Route(requester, in.Target, int(depth))
+	if requester == in.Target && !actor.IsPerson(requester) {
+		d.Reason = selfAskReason(q, requester, e.now())
+	}
 	if in.System && !d.Allowed && t.Known(in.Target) {
 		d = team.Decision{Allowed: true, Reason: "the daemon's own step", ChainDepth: int(depth)}
 	}

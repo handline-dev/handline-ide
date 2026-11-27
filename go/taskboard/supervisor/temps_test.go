@@ -228,9 +228,9 @@ func TestAnIdleSeatsWordsReachItsAgent(t *testing.T) {
 	}
 }
 
-// A founder's message to an agent with a seat at work carries one line above the founder's words: the tasks its seats hold, where a word
-// for one goes, and task.request for new work. An agent mid-turn with no seat at work gets only the last; a free one, none. The message
-// still lands: the transcript ends with the founder's words.
+// A founder's message to an agent with a seat at work carries one line after the founder's words: task.request for new work, the tasks its
+// seats hold, and where a word for one goes. An agent mid-turn with no seat at work gets only the first; a free one, none. The message
+// still lands: the transcript ends with what was typed.
 func TestTheFoundersMessageToABusyAgentSaysWhatRunsBesideIt(t *testing.T) {
 	r, _, typed := typedRig(t)
 	bob := r.k("bob")
@@ -253,8 +253,8 @@ func TestTheFoundersMessageToABusyAgentSaysWhatRunsBesideIt(t *testing.T) {
 	eventually(t, func() bool { return len(typed()) == 2 })
 	row, err := db.GetRequest(r.DB, rid)
 	r.must(err)
-	want := fmt.Sprintf("Your temps are on T%d \"the footer\"; a word for one goes there: `hl task comment T<n> add \"...\"`. "+
-		"If this is new work apart from your current task, `hl task request %s \"<title>\"` makes it a task a temp takes.\n\nand the header?", footer, row.Ref)
+	want := fmt.Sprintf("and the header?\n\nTo give this to a temp: `hl task request %s \"<title>\"`. "+
+		"Your temps are on T%d \"the footer\"; a word for one goes there: `hl task comment T<n> add \"...\"`.", db.MsgNameOf(r.DB, row.Ref), footer)
 	if typed()[1] != want {
 		t.Fatalf("typed %q\nwant  %q", typed()[1], want)
 	}
