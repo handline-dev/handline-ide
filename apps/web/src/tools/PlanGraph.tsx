@@ -22,7 +22,10 @@ export function PlanGraph({
   subs,
   open: picked,
   onPick,
+  bare = false,
 }: {
+  /** Only the graph, for a page that says the head and has its own Run. */
+  bare?: boolean;
   parent: number;
   subs: Sub[];
   open: number | null;
@@ -66,12 +69,14 @@ export function PlanGraph({
         ];
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <p className="flex h-12 shrink-0 items-center gap-1.5 truncate border-b border-border px-6 text-sm text-muted">
-        <span className="font-semibold text-fg">Plan</span>
-        {head.filter(Boolean).map((w) => (
-          <span key={String(w)}>· {w}</span>
-        ))}
-      </p>
+      {!bare && (
+        <p className="flex h-12 shrink-0 items-center gap-1.5 truncate border-b border-border px-6 text-sm text-muted">
+          <span className="font-semibold text-fg">Plan</span>
+          {head.filter(Boolean).map((w) => (
+            <span key={String(w)}>· {w}</span>
+          ))}
+        </p>
+      )}
       <div ref={box} className="flex min-h-0 flex-1 overflow-hidden p-6">
         <div className="relative mx-auto shrink-0" style={{ width: g.width * k, height: g.height * k }}>
           <div className="absolute top-0 left-0 origin-top-left" style={{ width: g.width, height: g.height, transform: `scale(${k})` }}>
@@ -116,15 +121,17 @@ export function PlanGraph({
           </div>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-3 text-xs text-muted">
-        <span className="flex-1 truncate">A → B: B starts after A is merged</span>
-        {drafts.length > 0 && (
-          <Button variant="primary" onClick={() => run(drafts, open)}>
-            <Play size={14} className="mr-1.5" />
-            Run
-          </Button>
-        )}
-      </div>
+      {!bare && (
+        <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-3 text-xs text-muted">
+          <span className="flex-1 truncate">A → B: B starts after A is merged</span>
+          {drafts.length > 0 && (
+            <Button variant="primary" onClick={() => run(drafts, open)}>
+              <Play size={14} className="mr-1.5" />
+              Run
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

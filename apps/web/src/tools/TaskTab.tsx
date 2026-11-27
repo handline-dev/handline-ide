@@ -23,7 +23,8 @@ import { GO_TURN, goToTurn, openTurnRow, takeTyping, toBottom, type OpenTurn } f
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { CommentBox, type Reply } from '#src/tools/TaskComment.tsx';
 import { ChangeSize } from '#src/tools/TaskCode.tsx';
-import { PlanFlow, storyChat } from '#src/tools/Story.tsx';
+import { PlanStrip } from '#src/tools/PlanStrip.tsx';
+import { storyChat } from '#src/tools/Story.tsx';
 import { DraftRun } from '#src/tools/RunPlan.tsx';
 import { Result, VerdictButtons } from '#src/tools/Review.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
@@ -193,7 +194,7 @@ export function TaskTab({ id }: { id: number }) {
                   </Clamped>
                 </Section>
               )}
-              {t.subtasks.length > 0 && <PlanFlow t={t} />}
+              {t.subtasks.length > 0 && <PlanStrip t={t} />}
               {t.review ? (
                 <Section title="Result">
                   <Result t={t} review={t.review} />
