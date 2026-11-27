@@ -283,6 +283,16 @@ export const CHAT_SEEDS: Record<string, Seed> = {
       memos: [
         { id: 9501, task: 6902, author: ARCH, at: iso(-12), text: 'The plan is ready to read.' },
         { id: 9502, task: 6902, author: ME, at: iso(-9), text: 'Reading it now.' },
+        // A step only the founder can do, which the agent does not wait on.
+        {
+          id: 9503,
+          task: 6902,
+          author: ARCH,
+          at: iso(-6),
+          text: 'When you can: log in to the App Store on the Mac mini, so it can install Xcode.',
+          later: ME,
+          later_open: true,
+        },
       ],
     });
     d.chat.seed(ARCH, {
