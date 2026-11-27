@@ -74,7 +74,6 @@ func (o fakeObserver) LiveSessions() (map[string]bool, bool) { return o.sessions
 type fakeDialogs struct{}
 
 func (fakeDialogs) PastDialog(db.Q, string, bool) (string, string) { return "", "" }
-func (fakeDialogs) Reason(kind, detail string) string              { return kind + ": " + detail }
 func (fakeDialogs) DecisionAfterS() int64                          { return 600 }
 
 type fakeWaits struct{ limit map[string]bool }

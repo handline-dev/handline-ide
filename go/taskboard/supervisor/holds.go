@@ -94,9 +94,6 @@ func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
 	if failed := e.FailedReason(agent, now); failed != "" {
 		return failed, false
 	}
-	if blk := must(db.BlockGet(q, agent)); blk != nil {
-		return e.Dialogs.Reason(blk.Kind, blk.Detail), false
-	}
 	if why, _ := e.Stuck.DeliveryBlock(q, agent); why != "" {
 		return why, false
 	}

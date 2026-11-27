@@ -205,24 +205,6 @@ func TestPendingMessagesAreOwedUntilDeleted(t *testing.T) {
 	}
 }
 
-func TestBlocksOpenUpdateAndClear(t *testing.T) {
-	q := open(t)
-	BlockOpen(q, "a", "dialog", "d", "w", 10, 20, "tick", "t")
-	BlockUpdate(q, "a", "login", "d2", "w", 30, "t2")
-	b, _ := BlockGet(q, "a")
-	if b == nil || b.Kind != "login" || b.Seen != 30 || b.Since != 10 {
-		t.Fatalf("%+v", b)
-	}
-	BlockSetRequest(q, []string{"a"}, 4)
-	if b, _ := BlockGet(q, "a"); b.RequestID.Int64 != 4 {
-		t.Fatal("request not set")
-	}
-	BlockClear(q, "a")
-	if b, _ := BlockGet(q, "a"); b != nil {
-		t.Fatal("not cleared")
-	}
-}
-
 func TestAHandoffStartsInFlightAdvancesAndLeavesTheOldestFirst(t *testing.T) {
 	q := open(t)
 	if h, err := InFlightFor(q, "a"); err != nil || h != nil {

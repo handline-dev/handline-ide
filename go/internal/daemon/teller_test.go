@@ -62,7 +62,6 @@ type wiredPorts struct{ live map[string]bool }
 
 func (w wiredPorts) LiveSessions() (map[string]bool, bool)        { return w.live, true }
 func (wiredPorts) PastDialog(db.Q, string, bool) (string, string) { return "", "" }
-func (wiredPorts) Reason(kind, detail string) string              { return kind + ": " + detail }
 func (wiredPorts) DecisionAfterS() int64                          { return 600 }
 func (wiredPorts) WaitingOnPrompt(db.Q, *db.AgentState) bool      { return false }
 func (wiredPorts) AtLimit(db.Q, string) bool                      { return false }

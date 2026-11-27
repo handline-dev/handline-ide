@@ -48,7 +48,6 @@ func (o liveSessions) LiveSessions() (map[string]bool, bool) {
 type noDialogs struct{}
 
 func (noDialogs) PastDialog(db.Q, string, bool) (string, string) { return "", "" }
-func (noDialogs) Reason(kind, detail string) string              { return session.Reason(kind, detail) }
 func (noDialogs) DecisionAfterS() int64                          { return session.DecisionAfterS }
 
 // waits: no agent's permission prompt is held by this daemon, so none waits on one here.

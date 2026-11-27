@@ -12,21 +12,21 @@ func TestEachTaskIsServedWithItsStateAndReason(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	e.Delivery = wallDelivery{}
-	tasks := "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, delivered_at, reported_at, report, done_evidence, done_at, " +
+	tasks := "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, delivered_at, done_evidence, done_at, " +
 		"discarded_by, discard_reason, discarded_at) VALUES "
 	for _, v := range []string{
-		"(1, 'draft', 'bob', 'amy', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(2, 'queued', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(3, 'doing', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(4, 'mine', 'p1', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(6, 'done', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, 'x', 4, NULL, NULL, NULL)",
-		"(7, 'discarded', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, 'amy', 'dup', 4)",
-		"(8, 'blocked', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(9, 'asks', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(10, 'cap', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(11, 'wall', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(12, 'busy', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
-		"(13, 'ready', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(1, 'draft', 'bob', 'amy', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(2, 'queued', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(3, 'doing', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL)",
+		"(4, 'mine', 'p1', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL)",
+		"(6, 'done', 'bob', 'amy', 1, 'amy', 2, 'x', 4, NULL, NULL, NULL)",
+		"(7, 'discarded', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, 'amy', 'dup', 4)",
+		"(8, 'blocked', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(9, 'asks', 'bob', 'amy', 1, 'amy', 2, NULL, NULL, NULL, NULL, NULL)",
+		"(10, 'cap', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(11, 'wall', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(12, 'busy', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL)",
+		"(13, 'ready', 'bob', 'amy', 1, 'amy', NULL, NULL, NULL, NULL, NULL, NULL)",
 	} {
 		run(t, e, tasks+v)
 	}

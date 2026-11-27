@@ -26,11 +26,10 @@ type Observer interface {
 	LiveSessions() (sessions map[string]bool, ok bool)
 }
 
-// Dialogs is session/blocked.py: getting past a dialog, and the words for a recorded block.
+// Dialogs is getting past a dialog, and how long one stands before the founder is told.
 type Dialogs interface {
 	// PastDialog gets past a dialog standing before a type at the agent: "" when nothing stands in the way, else why and the dialog's title.
 	PastDialog(q db.Q, agent string, onlyLimit bool) (why, title string)
-	Reason(kind, detail string) string
 	DecisionAfterS() int64 // how long a dialog stands before the founder is told
 }
 

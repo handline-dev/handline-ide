@@ -34,8 +34,7 @@ func TestAWaitOnAClosedAgentIsFiledUnderCapWhenItsAccountIsPausedAndWallAtItsLim
 	d.Exec("UPDATE requests SET state = 'closed'") // wired's begin, ahead of the task
 	dbpkg.SetClosed(d, alice, "s-alice")
 	dbpkg.SetAccount(d, alice, "a1", "")
-	now := time.Now().Unix()
-	dbpkg.BlockOpen(d, alice, "dialog", "a prompt", "", now, now, "", "") // the task waits on alice itself
+	dbpkg.SetCursor(d, "clear_owed:"+alice, 5) // the task waits on alice itself
 	tid, err := dbpkg.NewTask(d, "fix it", alice, "p1", 0, dbpkg.DefaultPriority, "", 0, "")
 	if err != nil {
 		t.Fatal(err)

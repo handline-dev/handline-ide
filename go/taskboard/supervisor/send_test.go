@@ -76,7 +76,6 @@ func TestPastDialogKeepsWhenThisDialogFirstProvedUnpassable(t *testing.T) {
 type stubDialogs struct{ why, title string }
 
 func (s stubDialogs) PastDialog(db.Q, string, bool) (string, string) { return s.why, s.title }
-func (stubDialogs) Reason(k, d string) string                        { return k + ": " + d }
 func (stubDialogs) DecisionAfterS() int64                            { return 600 }
 
 func TestSessionPresenceNeedsAWitnessAndWaitsAreBounded(t *testing.T) {
