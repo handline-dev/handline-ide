@@ -1,6 +1,6 @@
 import { Spinner } from '#src/ui/Loading.tsx';
 import { Refs } from '#src/ui/refs.tsx';
-import { clockTime, moveSteps, roomRows, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
+import { clockTime, moveSteps, roomRows, stepWaited, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
 import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data';
 import type { TranscriptItem } from '@handline/client';
 import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, TriangleAlert } from 'lucide-react';
@@ -24,37 +24,56 @@ export function useSwitchLock(agent: string): string | null {
   return s ? switchWords(s) : null;
 }
 
-/** A move under way as its three steps, the current one with its seconds; narrow, the title and the current step alone. Null for a wait. */
+/** A move under way as its three steps, the current one with how long it has waited; narrow, the title and the current step alone.
+ * Held on background work, Move now ends the work and moves. Null for a wait. */
 export function MoveSteps({ agent }: { agent: string }) {
   const s = useSwitch(agent)?.account_switch;
   const tick = useNow(1000);
+  const moveNow = useWrite('agent.move_now', agent);
   const m = s ? moveSteps(s) : null;
   if (!s || !m) return null;
-  const secs = Math.max(0, Math.floor((tick - Date.parse(s.since)) / 1000));
-  const took = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const took = <span className="shrink-0 tabular-nums">· {stepWaited(s.since, tick)}</span>;
   const now = m.steps[m.at];
   return (
     <span role="status" className="@container flex min-w-0 flex-1 items-center gap-2 text-xs text-muted">
       <span className="shrink-0 font-medium text-fg">{m.title}</span>
-      <span className="hidden min-w-0 items-center gap-1.5 truncate @xl:flex">
+      <span className="hidden min-w-0 items-center gap-1.5 @xl:flex">
         {m.steps.map((st, i) => (
-          <span key={st.name} className={`flex shrink-0 items-center gap-1 ${st.state === 'now' ? 'text-fg' : ''}`}>
+          <span key={st.name} className={`flex items-center gap-1 ${st.state === 'now' ? 'min-w-0 text-fg' : 'shrink-0'}`}>
             {i > 0 && <span aria-hidden>—</span>}
             {st.state === 'done' ? (
-              <Check size={12} className="text-success" aria-label="done" />
+              <Check size={12} className="shrink-0 text-success" aria-label="done" />
             ) : st.state === 'now' ? (
               <Spinner size={12} label="now" />
             ) : (
-              <Circle size={12} aria-label="next" />
+              <Circle size={12} className="shrink-0" aria-label="next" />
             )}
-            {st.name}
-            {st.state === 'now' && <span className="tabular-nums">{took}</span>}
+            <span className="min-w-0 truncate">{st.name}</span>
+            {st.state === 'now' && took}
           </span>
         ))}
       </span>
-      <span className="min-w-0 truncate @xl:hidden">
-        · {m.at + 1}/{m.steps.length} {now.name} · <span className="tabular-nums">{took}</span>
+      <span className="flex min-w-0 items-center gap-1 @xl:hidden">
+        <span className="min-w-0 truncate">
+          · {m.at + 1}/{m.steps.length} {now.name}
+        </span>
+        {took}
       </span>
+      {m.background && (
+        <button
+          type="button"
+          className="shrink-0 rounded px-1 font-medium text-accent hover:bg-hover disabled:opacity-50"
+          disabled={moveNow.isPending}
+          onClick={() =>
+            moveNow.mutate(
+              { agent, request_id: uuid() },
+              { onError: (e) => toast(`Did not move now: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }) },
+            )
+          }
+        >
+          Move now
+        </button>
+      )}
     </span>
   );
 }

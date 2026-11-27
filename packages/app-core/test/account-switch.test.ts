@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { moveSteps, roomRows, switchWords, waitLine } from '#src/index.ts';
+import { moveSteps, roomRows, stepWaited, switchWords, waitLine } from '#src/index.ts';
 
 const w = (used_pct: number, resets_at: string | null = '2026-11-10T21:30:00Z') => ({ used_pct, resets_at, source: 'measured' });
 
@@ -76,6 +76,15 @@ test("a move's three steps: the phase's step is now, those before done, those af
     'Finish turn after this turn',
   );
   assert.equal(moveSteps({ phase: 'waiting', from: 'alpha', to: null }), null);
+});
+
+test('a move held on background work names the job and how long it has waited, and can be moved now', () => {
+  const m = moveSteps({ phase: 'saving', from: 'alpha', to: null, waits: 'background: xcodebuild test' })!;
+  const now = Date.parse('2026-11-28T03:34:20Z');
+  assert.equal(`${m.steps[m.at].name} · ${stepWaited('2026-11-28T03:00:00Z', now)}`, 'Finish turn after xcodebuild test ends · 34m');
+  assert.equal(m.background, true);
+  assert.equal(moveSteps({ phase: 'saving', from: 'alpha', to: null, waits: 'the turn to end' })!.background, false);
+  assert.equal(stepWaited('2026-11-28T03:34:08Z', now), '12s');
 });
 
 test('the wait line counts down to the reset, a minute at least', () => {
