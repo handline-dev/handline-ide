@@ -18,7 +18,7 @@ type taskCmd func(c *hlclient.Client, args []string) (int, bool)
 
 var taskCmds = map[string]taskCmd{
 	"new": taskNew, "begin": taskBegin, "handoff": taskHandoff, "start": taskStart, "note": taskNote,
-	"comment": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
+	"comment": taskComment, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
 	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
 	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest,
 	"turn": taskTurnGone, "pass": taskPop("pass"), "back": taskPop("send_back"), "plan": taskPlan,
@@ -406,7 +406,7 @@ func taskNote(c *hlclient.Client, args []string) (int, bool) {
 	return said(c.Write("task.comment.add", map[string]any{"task": tid, "text": p.pos[1]})), true
 }
 
-func taskMemo(c *hlclient.Client, args []string) (int, bool) {
+func taskComment(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--file", "--attach", "--reply", "--turn", "--done", "--later"}, []string{"--now"}, nil)
 	if !ok || len(p.pos) < 2 {
 		return 0, false
@@ -486,7 +486,7 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 	}
 	switch verb {
 	case "list":
-		return memoList(c, tid), true
+		return commentList(c, tid), true
 	case "add":
 		params := map[string]any{"task": tid, "text": rest[0]}
 		if now {

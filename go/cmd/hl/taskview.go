@@ -71,13 +71,13 @@ func readFailed(err error, what string) int {
 	return 1
 }
 
-func memoList(c *hlclient.Client, tid int) int {
+func commentList(c *hlclient.Client, tid int) int {
 	t, err := c.Call("task.get", obj{"task": tid})
 	if err != nil {
 		return readFailed(err, fmt.Sprintf("T%d", tid))
 	}
-	memos := list(t, "comments")
-	for _, m := range memos {
+	comments := list(t, "comments")
+	for _, m := range comments {
 		edited := ""
 		if given(m, "edited_at") {
 			edited = ", edited " + stamp(m["edited_at"])
@@ -87,7 +87,7 @@ func memoList(c *hlclient.Client, tid int) int {
 			fmt.Println(l)
 		}
 	}
-	if len(memos) == 0 {
+	if len(comments) == 0 {
 		fmt.Printf("T%d has no comments\n", tid)
 	}
 	return 0
@@ -159,9 +159,9 @@ func detailLines(t obj, now float64, home string) []string {
 	out = append(out, "", "brief", body)
 	out = append(out, pathLines(list(t, "body_parts"), "")...)
 	out = append(out, planLines(t)...)
-	if memos := list(t, "comments"); len(memos) > 0 {
+	if comments := list(t, "comments"); len(comments) > 0 {
 		out = append(out, "", "comments")
-		for _, m := range memos {
+		for _, m := range comments {
 			out = append(out, fmt.Sprintf("  comment %s  %s  %s\n    %s", str(m, "id"), str(m, "author"), stamp(m["at"]), str(m, "text")))
 			out = append(out, pathLines(list(m, "parts"), "    ")...)
 			out = append(out, fileLines(list(m, "files"), "    ")...)
@@ -234,16 +234,16 @@ func nowLines(t obj) []string {
 		}
 		out = append(out, q)
 	}
-	memos := list(t, "comments")
+	comments := list(t, "comments")
 	if asked == 0 {
-		for _, m := range memos {
+		for _, m := range comments {
 			if str(m, "author") == holder {
 				asked = num(m, "id")
 			}
 		}
 	}
 	var said []string
-	for _, m := range memos {
+	for _, m := range comments {
 		if num(m, "id") > asked && str(m, "author") == "human" {
 			said = append(said, fmt.Sprint(num(m, "id")))
 		}

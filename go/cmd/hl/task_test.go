@@ -347,10 +347,10 @@ func TestTaskShowPrintsThePlanAndWhereItsAsksStand(t *testing.T) {
 }
 
 func TestTaskShowOpensWithWhereItStandsNow(t *testing.T) {
-	memo := func(id float64, author string) obj { return obj{"id": id, "author": author, "text": "x"} }
+	comment := func(id float64, author string) obj { return obj{"id": id, "author": author, "text": "x"} }
 	open := obj{"id": float64(7), "title": "t", "to": "w", "acting": "human",
 		"turns":    []any{obj{"agent": "human", "by": "w", "comment": float64(3)}},
-		"comments":    []any{memo(1, "human"), memo(3, "w")},
+		"comments":    []any{comment(1, "human"), comment(3, "w")},
 		"subtasks": []any{obj{"id": float64(8), "owner": "x", "state": "doing"}, obj{"id": float64(9), "owner": "y", "state": "done"}},
 		"blockers": []any{obj{"task": float64(5), "owner": "z"}},
 	}
@@ -360,7 +360,7 @@ func TestTaskShowOpensWithWhereItStandsNow(t *testing.T) {
 		t.Fatalf("no %q in\n%s", want, got)
 	}
 	// answered: the founder's comments since the holder's last one
-	answered := obj{"id": float64(7), "title": "t", "to": "w", "comments": []any{memo(1, "human"), memo(3, "w"), memo(4, "human"), memo(5, "human")}}
+	answered := obj{"id": float64(7), "title": "t", "to": "w", "comments": []any{comment(1, "human"), comment(3, "w"), comment(4, "human"), comment(5, "human")}}
 	got = strings.Join(detailLines(answered, 0, ""), "\n")
 	if want := "now\n  holder w   turn w\n  founder since: comment 4, 5\n\nbrief"; !strings.Contains(got, want) {
 		t.Fatalf("no %q in\n%s", want, got)

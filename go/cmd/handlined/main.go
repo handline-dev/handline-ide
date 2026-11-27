@@ -206,12 +206,12 @@ func main() {
 		cfg.Transcripts = true
 		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry) {
 			parts.Bind(db, env)
-			if n, err := dbpkg.WithdrawMemoAsksOfEndedTasks(db); err != nil {
+			if n, err := dbpkg.WithdrawCommentAsksOfEndedTasks(db); err != nil {
 				log.Printf("withdrawing the comment asks of ended tasks: %v", err)
 			} else if n > 0 {
 				log.Printf("withdrew %d comment asks of ended tasks", n)
 			}
-			if n, err := taskwrites.WithdrawUnaddressedMemoAsks(db); err != nil {
+			if n, err := taskwrites.WithdrawUnaddressedCommentAsks(db); err != nil {
 				log.Printf("withdrawing the comment asks not addressed to the founder: %v", err)
 			} else if n > 0 {
 				log.Printf("withdrew %d comment asks not addressed to the founder", n)
