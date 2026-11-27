@@ -372,7 +372,7 @@ func TestRunningTheDraftsAQuestionNamesAnswersIt(t *testing.T) {
 		if got := told(sdb); !strings.Contains(got, "Ran T3") || strings.Contains(got, "T2") {
 			t.Fatalf("the agent below was told %q", got)
 		}
-		if n := count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1"); n != 0 {
+		if n := count(t, sdb, "SELECT COUNT(*) FROM task_comments WHERE task_id = 1"); n != 0 {
 			t.Fatalf("%d comments written in the founder's name", n)
 		}
 	})
