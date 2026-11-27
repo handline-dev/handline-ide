@@ -11,12 +11,7 @@ import { sayRefusal } from '#src/ui/refusal.tsx';
 export function DraftRun({ t }: { t: TaskDetail }) {
   const { run, pending } = useRun();
   return (
-    <Button
-      variant="primary"
-      className="shrink-0"
-      disabled={pending}
-      onClick={() => run(t.parent ?? t.id, [t], new Set(t.blocked_by ?? []))}
-    >
+    <Button variant="primary" className="shrink-0" disabled={pending} onClick={() => run([t], new Set(t.blocked_by ?? []))}>
       <Play size={14} />
       Run
     </Button>
@@ -26,33 +21,26 @@ export function DraftRun({ t }: { t: TaskDetail }) {
 /** Run drafts: one draft that waits on nothing starts at once; otherwise the Run window shows the order first. */
 export function useRun() {
   const queue = useWrite('task.queue');
-  const run = (parent: number, drafts: Task[], open: Set<number>) => {
+  const run = (drafts: Task[], open: Set<number>) => {
     const [only] = drafts;
     if (drafts.length === 1 && !startsAfter(only, open).length) {
       queue.mutate({ tasks: [only.id] }, { onError: sayRefusal });
       return;
     }
-    void openModal<boolean>((close) => <RunWindow parent={parent} drafts={drafts} open={open} close={close} />);
+    void openModal<boolean>((close) => <RunWindow drafts={drafts} open={open} close={close} />);
   };
   return { run, pending: queue.isPending };
 }
 
-function RunWindow({ parent, drafts, open, close }: { parent: number; drafts: Task[]; open: Set<number>; close: (v?: boolean) => void }) {
+function RunWindow({ drafts, open, close }: { drafts: Task[]; open: Set<number>; close: (v?: boolean) => void }) {
   const nameOf = useNameOf();
   const queue = useWrite('task.queue');
-  const comment = useWrite('task.comment.add', String(parent));
   const now = drafts.filter((d) => !startsAfter(d, open).length).length;
   const go = () =>
     queue.mutate(
       { tasks: drafts.map((d) => d.id) },
       {
-        onSuccess: () => {
-          comment.mutate(
-            { task: parent, text: `Ran ${drafts.length} tasks: ${drafts.map((d) => `T${d.id}`).join(', ')}` },
-            { onError: sayRefusal },
-          );
-          close(true);
-        },
+        onSuccess: () => close(true),
         onError: sayRefusal,
       },
     );

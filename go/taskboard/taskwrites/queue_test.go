@@ -270,3 +270,57 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 		t.Fatalf("the reply names the memo: %q", said)
 	}
 }
+
+// The founder's Run of drafts under a parent waiting on them takes their turn off the parent with no message: it goes back to its holder,
+// nobody is told or asked. A Run by one without the turn leaves the parent as it is.
+func TestTheFoundersRunEndsTheirTurnOnTheParentQuietly(t *testing.T) {
+	t.Parallel()
+	for _, run := range [][]int{{2}, {2, 3}} {
+		sdb, mk := discardEnv(t)
+		exec(t, sdb,
+			"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'plan', 'worker', 'manager', 1, 1)",
+			"INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task) VALUES(2, 'a', 'other', 'manager', 1, 1), (3, 'b', 'other', 'manager', 1, 1)",
+			"INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 1, 'p1', 'worker', 1)")
+		f := &fakeTeller{}
+		list, _ := json.Marshal(run)
+		r := call(t, mk("human", f), fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"task.queue","params":{"tasks":%s,"request_id":"q1"}}`, list))
+		if r[0]["error"] != nil {
+			t.Fatalf("run %v: %v", run, r[0])
+		}
+		if count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1") != 0 ||
+			count(t, sdb, "SELECT COUNT(*) FROM agent_state WHERE agent = 'worker' AND current_task = 1") != 0 {
+			t.Fatalf("run %v: the founder's turn stays on the parent, or its holder was handed it", run)
+		}
+		if n := count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'worker'") + count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1"); n != 0 || len(f.handed) != 0 || len(f.memos) != 0 {
+			t.Fatalf("run %v: the parent's holder was told: %d rows, handed %v, memos %v", run, n, f.handed, f.memos)
+		}
+		for _, n := range f.notified {
+			if n.To == "worker" {
+				t.Fatalf("run %v: the parent's holder was told %q", run, n.Text)
+			}
+		}
+	}
+	for i, c := range []struct {
+		by, more, why string
+		turns         int
+	}{
+		{"manager", "INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 2, 'manager', 'p1', 1)", "an agent's Run on its own turn", 2},
+		{"human", "INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 2, 'gp', 'p1', 1)", "an agent's turn above the founder's", 2},
+		{"human", `INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'worker', 'task_ready', '{"task_id": 1}')`, "a Ready parent", 1},
+	} {
+		sdb, mk := discardEnv(t)
+		exec(t, sdb,
+			"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'plan', 'worker', 'manager', 1, 1)",
+			"INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task) VALUES(2, 'a', 'other', 'manager', 1, 1)",
+			"INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 1, 'p1', 'worker', 1)")
+		if c.more != "" {
+			exec(t, sdb, c.more)
+		}
+		if r := call(t, mk(c.by, &fakeTeller{}), fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"task.queue","params":{"tasks":[2],"request_id":"k%d"}}`, i)); r[0]["error"] != nil {
+			t.Fatalf("%s: %v", c.why, r[0])
+		}
+		if count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1") != c.turns || count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'p1'") != 1 {
+			t.Fatalf("%s took a turn off the parent", c.why)
+		}
+	}
+}
