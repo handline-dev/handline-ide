@@ -1,15 +1,12 @@
 import type { ReactNode } from 'react';
-import { RotateCw } from 'lucide-react';
 import { useRefs } from '#src/ui/refs.tsx';
-import { useAccounts, useAgentDetail, useAgents, useUnstall, why } from '@handline/app-data';
+import { useAccounts, useAgentDetail, useAgents } from '@handline/app-data';
 import { activityOf, holdLine, restarting, waitsOf } from '#src/layout/agentList.ts';
 import { WaitsLine, WaitsMark } from '#src/ui/WaitsOn.tsx';
-import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { Button, useAction } from '#src/ui/Button.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
-import { toast } from '#src/ui/toast.tsx';
 import { Dots } from '#src/chat/Dots.tsx';
+import { SetGoingButton, useSetGoing } from '#src/chat/agent/SetGoing.tsx';
 
 /** Whether the agent's account needs a login: the card's Log in. */
 function useNeedsLogin(a: { account: string | null } | undefined, act: string | null) {
@@ -112,29 +109,16 @@ export function FootRow({
 export function HoldCard({ agent }: { agent: string }) {
   const a = useAgents().data?.agents.find((x) => x.key === agent);
   const refs = useRefs();
-  const unstall = useUnstall(agent);
   const terminal = useOpenable('shell');
-  const wake = useAction();
+  const going = useSetGoing(agent);
   // A switch offer is the switch card's (SwitchWait), drawn with its accounts; here it would show the same offer twice.
   const need = a?.needs_you?.source === 'daemon' && a.needs_you.kind !== 'switch_offer' ? a.needs_you : null;
   const act = a ? activityOf(a) : null;
   const needsLogin = useNeedsLogin(a, act);
   if (!a || !act || (!need && !needsLogin)) return null;
-  const button =
-    need?.kind === 'start_failed' || need?.kind === 'no_session' ? (
-      <Button
-        busy={wake.busy}
-        // A refused wake has cleared the stall all the same, so this card may be gone by the answer: the reason is a toast.
-        onClick={() => void wake.go(() => unstall().catch((e: unknown) => toast(why(e), { tone: 'warning' })))}
-      >
-        <RotateCw size={14} />
-        Try again
-      </Button>
-    ) : needsLogin ? (
-      <Button onClick={() => openSettings({ section: 'accounts', account: a.account ?? undefined })}>Log in</Button>
-    ) : need?.kind === 'trust' || need?.kind === 'dialog' ? (
-      <Button {...terminal}>Open terminal</Button>
-    ) : null;
+  const button = going && going.go !== 'switch' && going.go !== 'wake' && (
+    <SetGoingButton agent={agent} going={going} terminal={terminal} />
+  );
   return (
     <div role="status" className="flex max-w-150 flex-col gap-3 rounded-lg border border-border p-3 text-sm">
       <div className="flex gap-2.5">

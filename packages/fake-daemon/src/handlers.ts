@@ -116,7 +116,8 @@ const BASE: Record<string, (h: Call) => unknown> = {
     const offer = s.fx.view?.needs_you;
     const to = typeof p.account === 'string' && p.account ? p.account : (offer?.account ?? 'beta');
     s.fx.account = to;
-    const { needs_you: _offer, ...view } = s.fx.view ?? {};
+    // The wall was the old account's: it holds the agent no longer.
+    const { needs_you: _offer, status: _wall, ...view } = s.fx.view ?? {};
     s.fx.view = { ...view, account_switch: { ...sw, phase: 'switching', to, until: null, since: new Date().toISOString() } };
     script.control(s, actor, 'agent.switch_now', `${actor.name} switched the agent to ${to}`);
     script.setState(s, s.state, actor);

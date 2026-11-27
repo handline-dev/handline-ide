@@ -3,6 +3,7 @@
 import type { AgentView, InboxItem, MachineNeed, Task } from '@handline/client';
 import { isPerson } from '#src/chat.ts';
 import { CLOSED } from '#src/task-table.ts';
+import { needFix } from '#src/set-going.ts';
 
 export type CardKind = 'decision' | 'approval' | 'dialog' | 'attention' | 'machine' | 'task';
 
@@ -269,9 +270,9 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
       primary: 1,
       // A dialog the daemon does not know has no Allow or Deny: the terminal is the only way. A stall the daemon raised has its one button.
       actions:
-        n.kind === 'start_failed' || n.kind === 'no_session'
+        needFix(n.kind) === 'retry'
           ? [{ type: 'retry', agent: a.key }]
-          : dialog || n.kind === 'trust'
+          : needFix(n.kind) === 'terminal'
             ? [{ type: 'terminal', agent: a.key }]
             : [
                 { type: 'open', to: `#/agents/${encodeURIComponent(a.key)}` },

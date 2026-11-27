@@ -252,6 +252,11 @@ export class ScriptCore {
     s.open = true;
     s.hasTerminal = !s.structured;
     s.sessionId ??= `s-${s.fx.name}-${++s.counter}`;
+    // A seeded status (off, stopped) was the closed session's: the new one's comes from its state.
+    if (s.fx.view?.status) {
+      const { status: _seeded, ...view } = s.fx.view;
+      s.fx.view = view;
+    }
     this.edit(s, () => {
       s.lines.push(...BANNER.map((l) => l.replace('{worktree}', s.fx.worktree)));
     });

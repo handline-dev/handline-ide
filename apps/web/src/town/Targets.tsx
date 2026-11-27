@@ -9,7 +9,8 @@ import type { AgentView } from '@handline/client';
 import { useState, type CSSProperties } from 'react';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent } from '#src/NewAgent.tsx';
-import { chatOf } from '#src/layout/kinds.tsx';
+import { chatOf, withAgent } from '#src/layout/kinds.tsx';
+import { SetGoingButton, useSetGoing } from '#src/chat/agent/SetGoing.tsx';
 import { floatingSurface } from '#src/ui/Popover.tsx';
 import { useFounder, type Founder } from '#src/town/founder.tsx';
 import { usePapersTip } from '#src/town/Marks.tsx';
@@ -38,47 +39,60 @@ function PersonTarget({
   shown,
   quiet,
   onShow,
+  onTerminal,
 }: {
   person: Person;
   agent: AgentView | undefined;
   row: number | undefined;
   style: CSSProperties;
   shown: boolean;
-  /** No card opens: the founder is walking. */
+  /** No card opens: the founder is walking, to this person too; its card opens once the walk ends here. */
   quiet: boolean;
   onShow: () => void;
+  /** Opens its terminal in the town's windows. */
+  onTerminal: () => void;
 }) {
-  // The pointer has rested on it; and, clicked or right-clicked, its card stays shut until the pointer has left. Both end the moment
-  // the pointer leaves, so a card never opens late, under the next click.
+  // The pointer has rested on it; and, right-clicked, its card stays shut until the pointer has left. Both end the moment the pointer
+  // leaves, so a card never opens late, under the next click; a card with a button keeps open while the pointer crosses to it.
   const [resting, setResting] = useState(false);
   const [used, setUsed] = useState(false);
+  const going = useSetGoing(person.key);
+  const open = resting && !quiet && !used;
   const target = (
     <button
       type="button"
       aria-label={tipOf(person)}
       style={style}
       className={look(shown)}
-      onClick={() => {
-        setUsed(true);
-        onShow();
-      }}
+      onClick={onShow}
       onContextMenu={() => setUsed(true)}
       onPointerLeave={() => {
-        setResting(false);
+        // A card that shows with a button is closed by its own leave, so the pointer can cross to it; any other rest ends here.
+        if (!going || !open) setResting(false);
         setUsed(false);
       }}
     />
   );
-  // The app's hover card (ui/HoverCard.tsx) on the same parts, but for one thing: its panel takes no pointer. In a row of desks a panel
-  // that held the pointer would lie over the neighbours and keep them from being hovered or clicked.
+  // The app's hover card (ui/HoverCard.tsx) on the same parts, but for one thing: its panel takes no pointer unless it has a button. In a
+  // row of desks a panel that held the pointer would lie over the neighbours and keep them from being hovered or clicked.
   const card = (
     // Only the pointer opens it: the keys' focus comes back here by itself when the menu or a dialog closes.
-    <P.Root open={resting && !quiet && !used} onOpenChange={(open, e) => setResting(open && e.reason === 'trigger-hover')}>
+    <P.Root open={open} onOpenChange={(open, e) => setResting(open && e.reason === 'trigger-hover')}>
       <P.Trigger render={target} delay={300} closeDelay={0} />
       <P.Portal>
-        <P.Positioner side="right" align="start" sideOffset={6} collisionPadding={8} className="pointer-events-none z-50">
+        <P.Positioner
+          side="right"
+          align="start"
+          sideOffset={6}
+          collisionPadding={8}
+          className={`z-50 ${going ? 'pointer-events-auto' : 'pointer-events-none'}`}
+        >
           <P.Popup className={`${floatingSurface} p-1`}>
-            <PersonCard person={person} row={row} />
+            <PersonCard
+              person={person}
+              row={row}
+              action={going && <SetGoingButton agent={person.key} going={going} terminal={{ onClick: onTerminal }} />}
+            />
           </P.Popup>
         </P.Positioner>
       </P.Portal>
@@ -140,6 +154,7 @@ export function Targets({
           founder.go(s.at, () => founder.turn(s.face ?? 'right'));
           show(opens, person.name);
         }}
+        onTerminal={() => show(withAgent('shell', person.key), `Terminal · ${person.name}`)}
       />
     );
   };

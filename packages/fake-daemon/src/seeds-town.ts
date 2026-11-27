@@ -76,18 +76,22 @@ function crowd(): typeof PEOPLE {
 /** The workspace whose office shows everything an office can; an agent's name there is this, a dot and its own word. */
 const OFFICE = 'handline';
 const inOffice = (word: string) => `${OFFICE}.${word}`;
-/** In that office, one of each state an office marks: on hold at its usage limit, stopped on a fault, asleep at an empty desk. */
+/** In that office, one of each state an office marks: on hold at its usage limit waiting to switch account, stopped on a fault, asleep
+ *  at an empty desk. */
 const MARKED: {
   name: string;
   state: string;
   status: { state: string; reason: string; text: string };
   task?: { id: number; title: string };
+  /** Waits at its account's limit for another account. */
+  switches?: boolean;
 }[] = [
   {
     name: inOffice('guide'),
     state: 'idle',
     status: { state: 'waiting', reason: 'wall', text: 'Usage limit, back at 14:00' },
     task: { id: 9817, title: 'Write the pairing guide' },
+    switches: true,
   },
   {
     name: inOffice('checker'),
@@ -117,9 +121,12 @@ export const TOWN_SEEDS: Record<string, Seed> = {
     const base = AGENTS.find((a) => a.name === 'handline.auditor')!;
     const at = new Date().toISOString();
     for (const m of MARKED) {
-      const view = { status: { ...m.status, until: null, since: at, tasks: [] } };
+      const wait = { cause: 'usage', from: base.account ?? 'beta', phase: 'waiting' as const, to: null, until: null, since: at };
+      const view = { status: { ...m.status, until: null, since: at, tasks: [] }, ...(m.switches ? { account_switch: wait } : {}) };
       d.sessions.set(m.name, newSession({ ...base, name: m.name, state: m.state, wall: false, task: m.task ?? null, view }, at));
       d.structure(m.name);
+      // A stalled start and a sleep leave a session to resume and none open, so Try again and Wake have one to start.
+      if (m.state !== 'idle') d.sessions.get(m.name)!.open = false;
       if (m.task) d.tasks.seed({ ...m.task, from: 'human', to: m.name, state: 'doing' });
     }
     const todo = { done: 3, total: 7, current: 'List what changed for users', updated_at: at };

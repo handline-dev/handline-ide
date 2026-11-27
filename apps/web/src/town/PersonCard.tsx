@@ -1,6 +1,7 @@
 // The card that opens while the pointer rests on a person or its desk in an office (Targets.tsx): who it is and in which team, its role,
 // its state in words with the app's own mark, what it does now and how far along, what waits behind that, and what it runs on.
 import { useRead } from '@handline/app-data';
+import type { ReactNode } from 'react';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { Face } from '#src/town/face.tsx';
 import { kindOf, stepsOf, waitingOf } from '#src/town/marks.ts';
@@ -13,8 +14,8 @@ function Progress({ task, waiting }: { task: number | null; waiting: string | nu
   return parts.length ? <p className="text-xs text-muted tabular-nums">{parts.join(' · ')}</p> : null;
 }
 
-/** `row`: its figure on the people sheet, for its face. */
-export function PersonCard({ person: p, row }: { person: Person; row: number | undefined }) {
+/** `row`: its figure on the people sheet, for its face; `action`: what gets it going when it is stopped, on hold or asleep. */
+export function PersonCard({ person: p, row, action }: { person: Person; row: number | undefined; action?: ReactNode }) {
   const doing = p.doing?.trim();
   // The reason only for one on hold or stopped, and only when it says more than the state's own word.
   const stuck = p.activity === 'held' || p.activity === 'error';
@@ -39,6 +40,7 @@ export function PersonCard({ person: p, row }: { person: Person; row: number | u
           {why && <span className="text-muted"> · {why}</span>}
         </span>
       </div>
+      {action && <div className="flex">{action}</div>}
       {doing && <p className="line-clamp-2">{doing}</p>}
       <Progress task={p.task ?? null} waiting={waitingOf(p)} />
       {kind && <p className="text-xs text-muted">{kind}</p>}
