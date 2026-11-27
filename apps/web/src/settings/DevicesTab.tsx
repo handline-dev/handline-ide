@@ -324,7 +324,7 @@ export function DevicesTab({ open: start }: { open?: string }) {
     </div>
   );
   const bulk = (
-    <div className="flex items-center gap-2" role="region" aria-label="Selection">
+    <div className="flex flex-wrap items-center gap-2" role="region" aria-label="Selection">
       <span className="text-sm text-fg">{chosen.length} selected</span>
       {MODES.map((m) => (
         <Button key={m} disabled={runners.length === 0 || q.pending !== null} onClick={() => setAll(runners, m, q)}>
@@ -343,27 +343,24 @@ export function DevicesTab({ open: start }: { open?: string }) {
       title="Devices"
       note="The computers that run agents, and the phones and browsers that connect."
       action={
-        chosen.length > 0 ? (
-          bulk
-        ) : (
-          <div className="flex shrink-0 items-center gap-2">
-            {shell()?.joinCluster && (
-              <Button onClick={() => void joinWithLink()}>
-                <Link2 size={14} />
-                Join with a link
-              </Button>
-            )}
-            <Button variant="primary" onClick={() => void openPairSheet()}>
-              <Plus size={14} />
-              Connect a device
+        <div className="flex shrink-0 items-center gap-2">
+          {shell()?.joinCluster && (
+            <Button onClick={() => void joinWithLink()}>
+              <Link2 size={14} />
+              Join with a link
             </Button>
-          </div>
-        )
+          )}
+          <Button variant="primary" onClick={() => void openPairSheet()}>
+            <Plus size={14} />
+            Connect a device
+          </Button>
+        </div>
       }
     >
       <SetAsideNote />
       {q.loading && <ListLoading rows={3} label="Loading devices" />}
       {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
+      {chosen.length > 0 && bulk}
       {recent.length > 0 && list(recent)}
       {old.length > 0 && (
         <div className="flex flex-col gap-2">
