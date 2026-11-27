@@ -15,9 +15,9 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/cmdruns"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/policy"
-	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -41,7 +41,7 @@ func sha256Hex(s string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func rpcPyJSON(v map[string]any) string { return pyjson.PyJSON(v, true, true) }
+func sortedASCIIJSON(v map[string]any) string { return jsontext.Spaced(v, true, true) }
 
 type proposal struct {
 	flat

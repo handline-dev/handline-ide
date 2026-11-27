@@ -9,7 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // Bounds the telling layer waits by.
@@ -189,5 +189,5 @@ func (e *Env) guard(what string, out *string) {
 
 func sortStrings(xs []string) { sort.Strings(xs) }
 
-// pyQuote is s as a JSON string, non-ASCII escaped as \uXXXX.
-func pyQuote(s string) string { return pyjson.PyJSON(s, false, true) }
+// jsonQuote is s as a JSON string, non-ASCII escaped as \uXXXX.
+func jsonQuote(s string) string { return jsontext.Spaced(s, false, true) }

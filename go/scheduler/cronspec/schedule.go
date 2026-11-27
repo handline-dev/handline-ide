@@ -53,8 +53,8 @@ func ParseSchedules(items []Schedule) ([]Schedule, error) {
 	return out, nil
 }
 
-// pyText is a schedule's field as text: "" for none, a string as it is, anything else as JSON.
-func pyText(v any) string {
+// valueText is a schedule's field as text: "" for none, a string as it is, anything else as JSON.
+func valueText(v any) string {
 	switch s := v.(type) {
 	case nil:
 		return ""
@@ -77,9 +77,9 @@ func isDigits(s string) bool {
 	return true
 }
 
-// pyRepr quotes s for an error message: in single quotes unless it holds one and no double quote, with backslashes, line breaks,
+// quote quotes s for an error message: in single quotes unless it holds one and no double quote, with backslashes, line breaks,
 // tabs and the quote escaped.
-func pyRepr(s string) string {
+func quote(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		q = `"`
@@ -143,11 +143,11 @@ func load(home, agent string) ([]Schedule, error) {
 		if len(m) != 2 || !hasC || !hasM {
 			return nil, badValue(fmt.Sprintf("schedule %d is {cron, message} and nothing else", i+1))
 		}
-		cronText := pyText(m["cron"])
+		cronText := valueText(m["cron"])
 		if _, err := parseCron(cronText); err != nil {
 			return nil, badValue(err.Error())
 		}
-		message := strings.Join(strings.Fields(pyText(m["message"])), " ")
+		message := strings.Join(strings.Fields(valueText(m["message"])), " ")
 		if message == "" {
 			return nil, badValue(fmt.Sprintf("schedule %d has no message", i+1))
 		}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // Q is what a statement runs on: a *sql.DB or a *sql.Tx.
@@ -55,7 +55,7 @@ func addEvent(q Q, agent, account, kind, dedup string, ts int64, payload []KV) (
 	if len(payload) > 0 {
 		parts := make([]string, len(payload))
 		for i, e := range payload {
-			parts[i] = pyjson.PyJSON(e.K, false, false) + ": " + pyjson.PyJSON(e.V, false, false)
+			parts[i] = jsontext.Spaced(e.K, false, false) + ": " + jsontext.Spaced(e.V, false, false)
 		}
 		p = "{" + strings.Join(parts, ", ") + "}"
 	}

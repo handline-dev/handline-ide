@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
@@ -12,7 +12,7 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 func jsonList(xs []string) string {
 	parts := make([]string, len(xs))
 	for i, x := range xs {
-		parts[i] = pyjson.PyJSON(x, false, true)
+		parts[i] = jsontext.Spaced(x, false, true)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }

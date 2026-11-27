@@ -8,7 +8,7 @@ import (
 )
 
 // The expected answers are fixed for these settings (the moments are local midnights).
-func TestEndOfAndWarnDaysAgreeWithPython(t *testing.T) {
+func TestEndOfAndWarnDaysGiveTheFixedAnswers(t *testing.T) {
 	cfg := Config{"month_cycle_a": true, "sub_end_a": "2026-10-22", "month_cycle_b": false, "sub_end_b": "2026-10-22", "sub_end_c": "2026-11-30",
 		"month_cycle_d": true, "sub_end_d": "garbage", "cycle_warn_days": 5}
 	for acct, want := range map[string]string{"a": "2026-10-23", "c": "2026-12-01"} {
@@ -20,7 +20,7 @@ func TestEndOfAndWarnDaysAgreeWithPython(t *testing.T) {
 	}
 	for _, acct := range []string{"b", "d", "z"} {
 		if got, ok := cfg.EndOf(acct); ok {
-			t.Errorf("%s: an end where Python has none: %v", acct, got)
+			t.Errorf("%s: an end where the fixture has none: %v", acct, got)
 		}
 	}
 	if cfg.WarnDays() != 5 || (Config{}).WarnDays() != 3 || (Config{"cycle_warn_days": -1}).WarnDays() != 3 || (Config{"cycle_warn_days": true}).WarnDays() != 3 {

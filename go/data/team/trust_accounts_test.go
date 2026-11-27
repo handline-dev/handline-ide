@@ -39,7 +39,7 @@ func TestTrustRootsStandingConsent(t *testing.T) {
 	}
 	b, _ := tr.Store.Get("trust", "roots.json")
 	if !strings.Contains(b, "\"why\": \"added by the founder\"") || !strings.HasPrefix(b, "[\n  {\n    \"root\": ") {
-		t.Fatalf("the roots are the Python's indent-2 JSON: %s", b)
+		t.Fatalf("the roots are indent-2 JSON: %s", b)
 	}
 	if got := tr.ListRoots(); len(got) != 1 {
 		t.Fatalf("%v", got)

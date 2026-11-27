@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/handline/handline/go/kit/atomicfile"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // An agent stopped at a permission prompt only the founder can answer has one small file, home/waiting/<agent>.json:
@@ -46,12 +46,12 @@ func summary(toolInput any) string {
 			}
 		}
 		if !found {
-			text = pyjson.PyJSON(t, true, true)
+			text = jsontext.Spaced(t, true, true)
 		}
 	case string:
 		text = t
 	default:
-		text = pyjson.PyJSON(t, true, true)
+		text = jsontext.Spaced(t, true, true)
 	}
 	return printable(text)
 }

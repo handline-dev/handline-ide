@@ -243,7 +243,7 @@ func zeroResetIsNone(v any) {
 	}
 }
 
-func TestStatusMatchesPython(t *testing.T) {
+func TestStatusMatchesTheFixtureCases(t *testing.T) {
 	f := loadFixture(t)
 	for _, c := range f.Cases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestStatusMatchesPython(t *testing.T) {
 				g, w := got.(map[string]any), want.(map[string]any)
 				for k := range w {
 					if !reflect.DeepEqual(g[k], w[k]) {
-						t.Errorf("%s: go %v, python %v", k, g[k], w[k])
+						t.Errorf("%s: got %v, want %v", k, g[k], w[k])
 					}
 				}
 			}

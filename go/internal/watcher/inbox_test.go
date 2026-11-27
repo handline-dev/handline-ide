@@ -116,7 +116,7 @@ func TestAFirstLookThatFailsIsTakenAgainAndStillSaysNothing(t *testing.T) {
 	}
 }
 
-func TestGoAndPythonWriteTheSameInboxEvents(t *testing.T) {
+func TestInboxEventsMatchTheRecordedRows(t *testing.T) {
 	now := int64(1_790_000_000) // fixed: the recorded rows carry the times
 	py, events := parity(t, func(d *sql.DB) Detector { return &Inbox{Reads: &reads.Env{DB: d}} },
 		func(run func(string, ...any)) {
@@ -131,12 +131,12 @@ func TestGoAndPythonWriteTheSameInboxEvents(t *testing.T) {
 			run("UPDATE requests SET state = 'answered', state_at = ? WHERE id = 4", now+102)
 		})
 	if len(py) != len(events) || len(py) == 0 {
-		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
+		t.Fatalf("recorded %d rows, go wrote %d", len(py), len(events))
 	}
 	for i, e := range events {
 		sameRow(t, i, py[i], e)
 		if !same(py[i]["data"], e.Data) {
-			t.Errorf("row %d data: python %v, go %s", i, py[i]["data"], e.Data)
+			t.Errorf("row %d data: want %v, got %s", i, py[i]["data"], e.Data)
 		}
 	}
 }

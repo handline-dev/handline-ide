@@ -8,7 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // A running session is never restarted for changed prompt parts (ROLE.md, base.md, team instructions): claude --resume keeps the system
@@ -142,7 +142,7 @@ func (a *ApplySettings) apply(t *Tick, agent string, now int64) {
 			obj[p.Name] = p.Value
 		}
 	}
-	text := pyjson.PyJSON(obj, true, true)
+	text := jsontext.Spaced(obj, true, true)
 	if applied, _ := must2(db.Meta(t.Q, SettingsApplied+agent)); applied == text {
 		check(db.SetSettingsOwed(t.Q, agent, names, now, false)) // a launch cannot give it: the next fresh start tries again
 		return

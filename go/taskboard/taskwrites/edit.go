@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -27,8 +27,8 @@ type Edited struct {
 	Freed    []string // the owners whose last blocker the edit cleared, or whose current task it blocked: their turn is reconsidered
 }
 
-// pyRepr quotes a string for a message: single quotes unless it holds one and no double quote, the quote and \ escaped.
-func pyRepr(s string) string {
+// quote quotes a string for a message: single quotes unless it holds one and no double quote, the quote and \ escaped.
+func quote(s string) string {
 	q := byte('\'')
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		q = '"'
@@ -297,11 +297,11 @@ func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, ti
 	payload := []kv{{"task_id", tid}}
 	var said []string
 	for _, c := range changes {
-		payload = append(payload, kv{c.key, pyjson.Pairs{{K: "old", V: c.old}, {K: "new", V: c.new}}})
+		payload = append(payload, kv{c.key, jsontext.Pairs{{K: "old", V: c.old}, {K: "new", V: c.new}}})
 		if c.kept {
 			said = append(said, c.key+" changed")
 		} else {
-			said = append(said, fmt.Sprintf("%s %s -> %s", saidAs(c.key), pyRepr(c.old), pyRepr(c.new)))
+			said = append(said, fmt.Sprintf("%s %s -> %s", saidAs(c.key), quote(c.old), quote(c.new)))
 		}
 	}
 	if err := addEvent(tx, by, "edit_task", payload...); err != nil {
@@ -368,10 +368,10 @@ func linkPR(tx *sql.Tx, t *task, by string, pr int64, repo string) (string, stri
 	if _, err := tx.Exec("UPDATE tasks SET pr = ?, pr_repo = NULLIF(?, ''), edited_by = ?, edited_at = ? WHERE id = ?", pr, repo, by, db.Now(), t.ID); err != nil {
 		return "", "", err
 	}
-	if err := addEvent(tx, by, "edit_task", kv{"task_id", t.ID}, kv{"pr", pyjson.Pairs{{K: "old", V: old}, {K: "new", V: now}}}); err != nil {
+	if err := addEvent(tx, by, "edit_task", kv{"task_id", t.ID}, kv{"pr", jsontext.Pairs{{K: "old", V: old}, {K: "new", V: now}}}); err != nil {
 		return "", "", err
 	}
-	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> %s", t.ID, addr.Ref(by), pyRepr(old), pyRepr(now)), nil
+	return "", fmt.Sprintf("task T%d edited by %s: pr %s -> %s", t.ID, addr.Ref(by), quote(old), quote(now)), nil
 }
 
 // saidAs is how an edit's reply names a field: the owner column holds who works the task (its assignee), the reporter who answers for it

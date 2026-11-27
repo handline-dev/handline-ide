@@ -203,7 +203,7 @@ func TestAskedSetsAreOnlyForSettingsAndABundleNamesItsChanges(t *testing.T) {
 	}
 }
 
-func TestSubjectIsThePythonDigest(t *testing.T) {
+func TestSubjectIsTheDigest(t *testing.T) {
 	t.Parallel()
 	f, err := parseFlat("id: \"000000aa\"\nkind: settings\nagent: w\nrequested_by: boss\nwhy: \"caf\\\\u00e9 é\"\ncreated: 100\nstate: proposed\nset.model: opus\nset.effort: high\n")
 	if err != nil {

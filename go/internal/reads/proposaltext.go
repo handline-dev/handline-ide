@@ -368,5 +368,5 @@ func (f flat) subject() string {
 			fields[k] = f.get(k)
 		}
 	}
-	return sha256Hex(rpcPyJSON(fields))
+	return sha256Hex(sortedASCIIJSON(fields))
 }

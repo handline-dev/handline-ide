@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
-	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/storetest"
 )
 
@@ -41,7 +41,7 @@ func preToolUse(tool string, input map[string]any) string {
 	return string(b)
 }
 
-func TestHookDeniesAsPythonWritesIt(t *testing.T) {
+func TestHookDeniesInTheHookFormat(t *testing.T) {
 	r := hookRig(t, true)
 	out, errs, code := r.runIn(preToolUse("Bash", map[string]any{"command": "hl say worker \"`whoami`\""}), asAgent, "hook", "PreToolUse")
 	want := `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": ` +
@@ -88,12 +88,12 @@ func TestHookLetsThroughWithEmptyJSON(t *testing.T) {
 }
 
 // Every hook event is answered by hl itself, with exit 0, whatever the switch says.
-func TestHookIsGoForEveryEventAndNeverPython(t *testing.T) {
+func TestHookHandlesEveryEvent(t *testing.T) {
 	r := hookRig(t, false)
 	r.daemon(nil)
 	for _, args := range [][]string{{"hook", "PreToolUse"}, {"hook", "Stop"}, {"hook", "commit"}, {"hook", "Notification"},
 		{"hook", "TeammateIdle"}, {"hook", "PreToolUse", "x"}, {"hook"}} {
-		if out, _, code := r.runIn("{}", asAgent, args...); code != 0 || strings.HasPrefix(out, "python ") {
+		if out, _, code := r.runIn("{}", asAgent, args...); code != 0 {
 			t.Errorf("%v: %q %d", args, out, code)
 		}
 	}
@@ -315,7 +315,7 @@ func TestAStopAnswersWithTheNudgeTheDaemonReturns(t *testing.T) {
 	stop := `{"hook_event_name": "Stop", "session_id": "s1"}`
 	r := hookRig(t, false)
 	r.daemon(map[string]string{"hook.record": `{"accepted": true, "said": "", "nudge": "answer with hl say"}`})
-	want := pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": "answer with hl say"}}, true, true)
+	want := jsontext.Spaced(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": "answer with hl say"}}, true, true)
 	if out, _, code := r.runIn(stop, asAgent, "hook", "Stop"); code != 0 || strings.TrimSpace(out) != want {
 		t.Fatalf("exit %d, out %q, want %s", code, out, want)
 	}

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // reparented is a move setParent made: its message, the holders whose turn the move changes, and the old and new parent's owners.
@@ -73,7 +73,7 @@ func setParent(tx *sql.Tx, tid, parent int64, by string) (why string, m reparent
 		return "", m, err
 	}
 	old, now := parentRef(t.Parent), parentRef(newParent)
-	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"parent", pyjson.Pairs{{K: "old", V: old}, {K: "new", V: now}}}); err != nil {
+	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"parent", jsontext.Pairs{{K: "old", V: old}, {K: "new", V: now}}}); err != nil {
 		return "", m, err
 	}
 	if m.msg = fmt.Sprintf("task T%d moved under %s", tid, now); now == "" {

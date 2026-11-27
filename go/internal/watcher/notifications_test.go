@@ -122,7 +122,7 @@ func TestAFailedEmitDoesNotRepeatTheRowsBeforeIt(t *testing.T) {
 	}
 }
 
-func TestGoAndPythonWriteTheSameNotifications(t *testing.T) {
+func TestNotificationsMatchTheRecordedRows(t *testing.T) {
 	py, events := parity(t, func(d *sql.DB) Detector { return &Notifications{Reads: &reads.Env{DB: d}} },
 		func(run func(string, ...any)) {
 			run("INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'bob', 'mark_task_done', '{\"task_id\": 1}')")
@@ -135,12 +135,12 @@ func TestGoAndPythonWriteTheSameNotifications(t *testing.T) {
 			run("INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, first_seen, last_seen) VALUES('cat', 'question', 'fp2', 'Pick one', '[\"a\",\"b\"]', '{\"options\":[{\"label\":\"x\"},{\"label\":\"y\",\"checked\":true}],\"multi_select\":true}', 6, 9)")
 		})
 	if len(py) != len(events) || len(py) != 4 {
-		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
+		t.Fatalf("recorded %d rows, go wrote %d", len(py), len(events))
 	}
 	for i, e := range events {
 		sameRow(t, i, py[i], e)
 		if !same(py[i]["data"], e.Data) {
-			t.Errorf("row %d data: python %v, go %s", i, py[i]["data"], e.Data)
+			t.Errorf("row %d data: want %v, got %s", i, py[i]["data"], e.Data)
 		}
 	}
 }

@@ -706,7 +706,7 @@ func (e *Env) waitingOf(t row, state string, waits []row, rec map[string]any) (m
 		return nil, 0, nil
 	}
 	cause, since := holdCause(rec)
-	return map[string]any{"on": cause, "text": pyStr(rec["why"]), "tasks": []int64{}, "since": ts(since)}, since, nil
+	return map[string]any{"on": cause, "text": setText(rec["why"]), "tasks": []int64{}, "since": ts(since)}, since, nil
 }
 
 // holdCause is a hold record's cause and since when, unix seconds.
@@ -773,7 +773,7 @@ func waitLine(rec map[string]any, state, busy string) any {
 		since = time.Now().Unix()
 	}
 	secs := max(time.Now().Unix()-since, 0)
-	return fmt.Sprintf("waiting: %s (for %s)", pyStr(rec["why"]), ago(secs))
+	return fmt.Sprintf("waiting: %s (for %s)", setText(rec["why"]), ago(secs))
 }
 
 // ago is a duration in the largest unit that still says something: seconds under two minutes, minutes under an hour and a half, hours under a day, then days and hours.

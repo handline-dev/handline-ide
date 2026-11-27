@@ -18,7 +18,7 @@ import (
 func Folder(folder string) (kept string, git bool, err error) {
 	path := expandUser(folder)
 	if !filepath.IsAbs(path) {
-		return "", false, refuse("a workspace's folder is an absolute path, not %s", pyQuote(folder))
+		return "", false, refuse("a workspace's folder is an absolute path, not %s", quote(folder))
 	}
 	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
 		return "", false, refuse("%s is not a folder", path)

@@ -312,7 +312,7 @@ func present(p *string) bool { return p != nil && *p != "" }
 // named workspace/name; a new workspace's first agent leads it. An agent there is may be named by any word paths.AgentKeyIn takes.
 func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 	if present(o.Effort) && !contains(ValidEffort, *o.Effort) {
-		return "", refuse("effort must be one of %s, not %s", strings.Join(ValidEffort, ", "), pyQuote(*o.Effort))
+		return "", refuse("effort must be one of %s, not %s", strings.Join(ValidEffort, ", "), quote(*o.Effort))
 	}
 	if present(o.Vendor) {
 		if err := CheckVendor(*o.Vendor); err != nil {
@@ -320,7 +320,7 @@ func (r *Roster) Register(name string, o RegisterOpts) (string, error) {
 		}
 	}
 	if o.Mode != nil && !contains(Modes, *o.Mode) {
-		return "", refuse("mode must be one of %s, not %s", strings.Join(Modes, ", "), pyQuote(*o.Mode))
+		return "", refuse("mode must be one of %s, not %s", strings.Join(Modes, ", "), quote(*o.Mode))
 	}
 	var mcp string
 	if present(o.MCPConfig) {

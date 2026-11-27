@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // An agent stopped at a permission prompt only the founder can answer. Such an agent emits no Stop, so its state stays RUNNING and
@@ -68,7 +68,7 @@ func Summary(toolInput any) string {
 			}
 		}
 		if !found {
-			text = pyjson.PyJSON(in, true, true)
+			text = jsontext.Spaced(in, true, true)
 		}
 	case nil:
 	case string:

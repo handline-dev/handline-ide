@@ -8,7 +8,7 @@ import (
 )
 
 // testdata/transcripts holds transcripts and the fixed answer expected for each.
-func TestTheCacheClockReadsLikePython(t *testing.T) {
+func TestTheCacheClockGivesTheFixedAnswers(t *testing.T) {
 	b, err := os.ReadFile("testdata/transcripts/expected.json")
 	if err != nil {
 		t.Fatal(err)

@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -170,7 +170,7 @@ func (p *Prop) subject() string {
 			fields[x.Key] = x.Val
 		}
 	}
-	sum := sha256.Sum256([]byte(pyjson.PyJSON(fields, true, true)))
+	sum := sha256.Sum256([]byte(jsontext.Spaced(fields, true, true)))
 	return hex.EncodeToString(sum[:])
 }
 

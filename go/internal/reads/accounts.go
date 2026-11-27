@@ -46,7 +46,7 @@ func (e *Env) accountMoves(acct string) []any {
 			continue
 		}
 		out = append(out, map[string]any{"at": ts(r.i("ts")), "agent": r.str("agent"), "from": p["from"], "to": to,
-			"reason": pyText(p["trigger"])})
+			"reason": valueText(p["trigger"])})
 		if len(out) == movesShown {
 			break
 		}
@@ -54,8 +54,8 @@ func (e *Env) accountMoves(acct string) []any {
 	return out
 }
 
-// pyText is a value a trigger holds as text: "" for nil, a string as it is, anything else its JSON.
-func pyText(v any) string {
+// valueText is a value a trigger holds as text: "" for nil, a string as it is, anything else its JSON.
+func valueText(v any) string {
 	switch s := v.(type) {
 	case nil:
 		return ""

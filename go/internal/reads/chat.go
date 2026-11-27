@@ -509,7 +509,7 @@ func jsonStr(v any) string {
 	if s, ok := v.(string); ok {
 		return s
 	}
-	return pyStr(v)
+	return setText(v)
 }
 
 func editNotes(p map[string]any) []string {
@@ -1218,6 +1218,6 @@ func workingFrom(view map[string]any) map[string]any {
 		line = view["state_detail"]
 	}
 	st, _ := view["status"].(map[string]any)
-	turn := strings.EqualFold(pyStr(view["state"]), "running") && pyStr(st["reason"]) != "background" // at its prompt: no turn to stop
+	turn := strings.EqualFold(setText(view["state"]), "running") && setText(st["reason"]) != "background" // at its prompt: no turn to stop
 	return map[string]any{"turn_running": turn, "line": line, "since": view["state_since"]}
 }

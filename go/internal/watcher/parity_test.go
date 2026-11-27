@@ -116,7 +116,7 @@ func sameRow(t *testing.T, i int, want map[string]any, e *stream.Event) {
 		if !same(want[k], v) {
 			a, _ := json.Marshal(norm(want[k]))
 			b, _ := json.Marshal(norm(v))
-			t.Errorf("row %d %s: python %s, go %s", i, k, a, b)
+			t.Errorf("row %d %s: want %s, got %s", i, k, a, b)
 		}
 	}
 }
@@ -130,7 +130,7 @@ var sinceRecorded = func() map[string]bool {
 	return added
 }()
 
-func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
+func TestATaskChangeWritesTheRecordedRows(t *testing.T) {
 	py, events := parity(t, func(d *sql.DB) Detector { return &Tasks{Reads: &reads.Env{DB: d}} },
 		func(run func(string, ...any)) {
 			run("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
@@ -153,7 +153,7 @@ func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 			run("INSERT INTO agent_state(agent, state, updated, current_task) VALUES('dave', 'IDLE', 1, 4), ('erin', 'IDLE', 1, 5)")
 		})
 	if len(py) != len(events) || len(py) != 5 {
-		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
+		t.Fatalf("recorded %d rows, go wrote %d", len(py), len(events))
 	}
 	// Go's data must equal the recorded data on every field of the Task: clients read them all. report left the contract with the review
 	// state.
@@ -169,7 +169,7 @@ func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 			case !has:
 				t.Errorf("row %d: Go's Task lacks %s", i, k)
 			case !same(v, g):
-				t.Errorf("row %d %s: python %v, go %v", i, k, v, g)
+				t.Errorf("row %d %s: want %v, got %v", i, k, v, g)
 			}
 		}
 		switch fmt.Sprint(goTask["id"]) {
@@ -198,13 +198,13 @@ func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 		}
 		for k := range goTask {
 			if _, has := pyTask[k]; !has && !sinceRecorded[k] {
-				t.Errorf("row %d: Go's Task has %s, Python's does not", i, k)
+				t.Errorf("row %d: the Task has %s, the recorded one does not", i, k)
 			}
 		}
 	}
 }
 
-func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {
+func TestChatChangesWriteTheRecordedRows(t *testing.T) {
 	ins := "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(?, ?, ?, ?, ?, ?, 'say')"
 	pb := "INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) VALUES(?, 'question', 'f', 't', '[]', '{}', 1, ?, ?)"
 	py, events := parity(t, func(d *sql.DB) Detector { return &Chat{Reads: &reads.Env{DB: d}} },
@@ -223,12 +223,12 @@ func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {
 			run("UPDATE agent_view SET view = ? WHERE agent = 'bob'", `{"name":"bob","state":"running","state_since":"x","state_detail":"b"}`)
 		})
 	if len(py) != len(events) || len(py) < 8 {
-		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
+		t.Fatalf("recorded %d rows, go wrote %d", len(py), len(events))
 	}
 	for i, e := range events {
 		sameRow(t, i, py[i], e)
 		if !same(py[i]["data"], e.Data) {
-			t.Errorf("row %d data: python %v, go %s", i, py[i]["data"], e.Data)
+			t.Errorf("row %d data: want %v, got %s", i, py[i]["data"], e.Data)
 		}
 	}
 }

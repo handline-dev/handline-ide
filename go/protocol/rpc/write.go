@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/kit/policy"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 const (
@@ -34,7 +34,7 @@ func paramsKey(params map[string]any) string {
 			rest[k] = v
 		}
 	}
-	return pyjson.PyJSON(rest, true, false)
+	return jsontext.Spaced(rest, true, false)
 }
 
 func differentCall(rid string) *Error {
@@ -172,7 +172,7 @@ func replayed(c *Conn, method Method, kept string) (any, error) {
 
 // writeEvent is the generic event a write leaves when it writes none of its own.
 func writeEvent(db *sql.DB, actor string, caller Caller, name, rid string, now int64) error {
-	payload := pyjson.PyJSON(map[string]any{"method": name, "request_id": rid, "actor": caller.ActorInfo()}, false, false)
+	payload := jsontext.Spaced(map[string]any{"method": name, "request_id": rid, "actor": caller.ActorInfo()}, false, false)
 	_, err := db.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, 'rpc_write', ?)", now, actor, payload)
 	return err
 }

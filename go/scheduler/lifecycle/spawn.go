@@ -200,9 +200,9 @@ func PickBase(repo, base string) (ref, why string, err error) {
 	return "origin/" + base, why, nil
 }
 
-// pyRepr quotes s for a refusal: single quotes unless s holds one, then double quotes unless it holds those too, then single
+// quote quotes s for a refusal: single quotes unless s holds one, then double quotes unless it holds those too, then single
 // quotes with each inner one escaped.
-func pyRepr(s string) string {
+func quote(s string) string {
 	if !strings.Contains(s, "'") {
 		return "'" + s + "'"
 	}

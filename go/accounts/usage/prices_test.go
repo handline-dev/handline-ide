@@ -6,7 +6,7 @@ import (
 )
 
 // The want figures are the fixed list-price costs of these tokens.
-func TestCostMatchesThePythonTable(t *testing.T) {
+func TestCostMatchesThePriceTable(t *testing.T) {
 	tok := Tokens{Inp: 1000, CC: 2000, CR: 300000, Out: 500, Thinking: 200}
 	for model, want := range map[string]float64{
 		"claude-opus-5-5-x": 0.084, "claude-opus-4-1": 0.18, "claude-sonnet-5": 0.072, "claude-haiku-5-5": 0.036,

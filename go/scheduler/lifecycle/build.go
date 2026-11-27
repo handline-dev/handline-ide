@@ -169,7 +169,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	// Always pass effort explicitly: left unset it comes from whatever the environment carries.
 	effort := l.effortOf(cfg)
 	if !slices.Contains(team.ValidEffort, effort) {
-		return nil, nil, refuse("agent '%s' has effort=%s; must be one of %s", agent, pyRepr(effort), strings.Join(team.ValidEffort, ", "))
+		return nil, nil, refuse("agent '%s' has effort=%s; must be one of %s", agent, quote(effort), strings.Join(team.ValidEffort, ", "))
 	}
 
 	mcpArg, mcpErr := l.mcpConfigArg()

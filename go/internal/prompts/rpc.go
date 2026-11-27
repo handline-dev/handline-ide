@@ -45,12 +45,12 @@ func (e *Env) answerFor(b *Block, choice any) (Choice, error) {
 		offers += ", " + AlwaysKey
 	}
 	if !b.IsHook() || !slices.Contains(strings.Split(offers, ", "), c) {
-		return Choice{}, bad(fmt.Sprintf("this prompt offers %s, not %s", offers, pyRepr(fmt.Sprint(choice))), "choice")
+		return Choice{}, bad(fmt.Sprintf("this prompt offers %s, not %s", offers, quote(fmt.Sprint(choice))), "choice")
 	}
 	return Choice{Yes: c != "deny", Always: c == AlwaysKey}, nil
 }
 
-func pyRepr(s string) string {
+func quote(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		q = `"`

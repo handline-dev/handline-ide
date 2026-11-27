@@ -71,7 +71,7 @@ func str(p *string, def string) string {
 	return *p
 }
 
-func TestLaunchArgvIsWhatPythonWrites(t *testing.T) {
+func TestLaunchArgvMatchesTheFixture(t *testing.T) {
 	f := load(t)
 	if len(f.Launch) < 8 {
 		t.Fatalf("only %d cases", len(f.Launch))
@@ -88,12 +88,12 @@ func TestLaunchArgvIsWhatPythonWrites(t *testing.T) {
 	}
 }
 
-func TestTheSmallMethodsAreWhatPythonSays(t *testing.T) {
+func TestTheSmallMethodsMatchTheFixture(t *testing.T) {
 	f := load(t)
 	want := slices.Clone(Wanted)
 	slices.Sort(want)
 	if !reflect.DeepEqual(want, f.Wanted) {
-		t.Errorf("wanted events %v, Python's %v", want, f.Wanted)
+		t.Errorf("wanted events %v, want %v", want, f.Wanted)
 	}
 	for line, resume := range f.IsResume {
 		if got := (Driver{}).IsResume(strings.Fields(line)); got != resume {
@@ -101,11 +101,11 @@ func TestTheSmallMethodsAreWhatPythonSays(t *testing.T) {
 		}
 	}
 	if got, _ := (Driver{}).TranscriptDir("/c", "/Users/user/my repo.v2"); got != f.TranscriptDir {
-		t.Errorf("TranscriptDir %q, Python's %q", got, f.TranscriptDir)
+		t.Errorf("TranscriptDir %q, want %q", got, f.TranscriptDir)
 	}
 }
 
-func TestKeepingTheSharedSettingsCurrentWritesWhatPythonWrites(t *testing.T) {
+func TestKeepingTheSharedSettingsCurrentWritesTheFixture(t *testing.T) {
 	f := load(t)
 	// The home is reached through a symlink, so its real path differs on every platform (a macOS tmp dir does by itself, a Linux one does not).
 	root := t.TempDir()
@@ -138,11 +138,11 @@ func TestKeepingTheSharedSettingsCurrentWritesWhatPythonWrites(t *testing.T) {
 			}
 			// What a launch does to keep them current (lifecycle.Launcher.Build).
 			if err := h.EnsureShared(); (err != nil) != c.EnsureRefused {
-				t.Fatalf("EnsureShared: %v, Python refused: %v", err, c.EnsureRefused)
+				t.Fatalf("EnsureShared: %v, want refused: %v", err, c.EnsureRefused)
 			}
 			if !c.EnsureRefused {
 				if m := h.Missing(); m != c.Missing {
-					t.Errorf("Missing %v, Python's %v", m, c.Missing)
+					t.Errorf("Missing %v, want %v", m, c.Missing)
 				} else if m {
 					if err := h.Install("/opt/bin/hl"); err != nil {
 						t.Fatal(err)
@@ -171,7 +171,7 @@ func TestKeepingTheSharedSettingsCurrentWritesWhatPythonWrites(t *testing.T) {
 			}
 			_, err = os.Stat(filepath.Join(filepath.Dir(h.Target()), "statusline.sh"))
 			if (err == nil) != c.StatusLineKept {
-				t.Errorf("statusline.sh kept: %v, Python's %v", err == nil, c.StatusLineKept)
+				t.Errorf("statusline.sh kept: %v, want %v", err == nil, c.StatusLineKept)
 			}
 			// A second launch changes nothing.
 			if !c.EnsureRefused {

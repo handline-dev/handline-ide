@@ -46,7 +46,7 @@ func (unknown) Available() bool                { return false }
 func (unknown) ListTerminals() map[string]bool { return nil }
 func (unknown) ReadScreen(string, int) *Screen { return nil }
 func (u unknown) Send(string, string, bool) (bool, string) {
-	return false, "unknown terminal backend " + PyRepr(u.name)
+	return false, "unknown terminal backend " + Quote(u.name)
 }
 func (unknown) WaitIdle(string, int, func([]string) bool) bool { return false }
 
