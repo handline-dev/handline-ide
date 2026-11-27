@@ -19,7 +19,7 @@ export function TaskPull({ t }: { t: TaskDetail }) {
   const checks = pr ? pullChecks(pr) : [];
   const where = pr?.repo ?? t.pr_repo;
   return (
-    <section aria-label="Pull request" className="flex items-start gap-2 rounded-md border border-border px-3 py-2 text-sm">
+    <section aria-label="Pull request" className="flex items-start gap-2 text-sm">
       <GitPullRequest size={14} className="mt-0.5 shrink-0 text-muted" />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
