@@ -72,12 +72,12 @@ export class TaskComments extends TaskStore {
     return { recipients };
   }
 
-  /** task.seen: the marker moves forward to `upto`, by default the task's newest comment, and never back. */
+  /** task.seen: the marker moves forward to `upto`, by default the task's newest comment, and never back; a task with no comments is marked too. */
   seen(p: Record<string, unknown>): void {
     const t = this.find(p.task);
     const newest = (t.memos ?? []).reduce((n, m) => Math.max(n, m.id), 0);
     const upto = typeof p.upto === 'number' ? p.upto : newest;
-    if (upto > (this.seenUpto.get(t.id) ?? 0)) {
+    if (upto > (this.seenUpto.get(t.id) ?? -1)) {
       this.seenUpto.set(t.id, upto);
       this.emit(this.view(t));
     }
@@ -193,7 +193,7 @@ export class TaskComments extends TaskStore {
       if (ha !== hb) return ha ? -1 : 1;
       return ha ? a.last_at.localeCompare(b.last_at) : newest(a, b);
     };
-    const runs = this.runs.filter((r) => r.task === null || !answer.has(`task:${r.task}`));
+    const runs = this.runs.filter((r) => r.task === null || (!answer.has(`task:${r.task}`) && this.runnable(r.task, r.holds ?? [])));
     const shown = this.warnings.filter((w) => !this.dismissed.has(w.id!));
     const open = this.rows.filter((r) => r.state !== 'done' && r.state !== 'discarded');
     return {
@@ -208,6 +208,14 @@ export class TaskComments extends TaskStore {
         unseen_results: this.host.requests.unseen().length,
       },
     };
+  }
+
+  /** As the daemon: a run row stands while its task is a draft, and one nothing waits on (left behind) until the founder sees it at its newest comment. */
+  private runnable(id: number, holds: number[]): boolean {
+    const t = this.rows.find((r) => r.id === id);
+    if (t?.state !== 'draft') return false;
+    const newest = (t.memos ?? []).reduce((n, m) => Math.max(n, m.id), 0);
+    return holds.length > 0 || (this.seenUpto.get(id) ?? -1) < newest;
   }
 
   /** As the daemon: the newest comment to the founder by anyone but the founder, unread on its task and in its author's chat, on a task no row

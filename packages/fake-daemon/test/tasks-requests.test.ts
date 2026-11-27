@@ -107,3 +107,33 @@ test('requests.pending puts the rows that hold work up first, the longest wait f
   assert.equal(pending.counts.answer, pending.answer.length - pending.counts.notes);
   s.client.close();
 });
+
+test('a run row leaves when its draft is queued or discarded, and a left-behind one when the founder sees its task', async () => {
+  const s = setup({ client: 'boss' });
+  REQUEST_SEEDS['draft-runs']!(s.daemon);
+  s.daemon.tasks.verbs = true;
+  await s.client.start();
+  const runs = async () => (await s.client.call('requests.pending', {})).answer.filter((r) => r.kind === 'run').map((r) => r.task);
+  assert.deepEqual(await runs(), [3950, 3953]);
+  await s.client.call('task.seen', { task: 3950, request_id: 'r1' });
+  assert.deepEqual(await runs(), [3950, 3953], 'a draft that holds work stays when seen');
+  await s.client.call('task.queue', { tasks: [3950], request_id: 'r2' });
+  assert.deepEqual(await runs(), [3953]);
+  await s.client.call('task.seen', { task: 3953, request_id: 'r3' });
+  assert.deepEqual(await runs(), []);
+  s.client.close();
+});
+
+test('a run row leaves when its draft is discarded', async () => {
+  const s = setup({ client: 'boss' });
+  REQUEST_SEEDS['draft-runs']!(s.daemon);
+  s.daemon.tasks.verbs = true;
+  await s.client.start();
+  await s.client.call('task.discard', { task: 3953, reason: 'no', request_id: 'r1' });
+  const pending = await s.client.call('requests.pending', {});
+  assert.deepEqual(
+    pending.answer.filter((r) => r.kind === 'run').map((r) => r.task),
+    [3950],
+  );
+  s.client.close();
+});
