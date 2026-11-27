@@ -1,6 +1,7 @@
 package taskwrites
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -271,21 +272,27 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 	}
 }
 
-// The founder's Run of drafts under a parent waiting on them takes their turn off the parent with no message: it goes back to its holder,
-// nobody is told or asked. A Run by one without the turn leaves the parent as it is.
+// The founder's Run of the last drafts under a parent whose question names no task takes their turn off the parent with no message: it goes
+// back to its holder, nobody is told or asked. A Run that leaves a draft sub-task, or by one without the turn, leaves the parent as it is.
 func TestTheFoundersRunEndsTheirTurnOnTheParentQuietly(t *testing.T) {
 	t.Parallel()
-	for _, run := range [][]int{{2}, {2, 3}} {
+	for _, steps := range [][][]int{{{2, 3}}, {{2}, {3}}} {
+		run := steps[len(steps)-1]
 		sdb, mk := discardEnv(t)
 		exec(t, sdb,
 			"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'plan', 'worker', 'manager', 1, 1)",
 			"INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task) VALUES(2, 'a', 'other', 'manager', 1, 1), (3, 'b', 'other', 'manager', 1, 1)",
-			"INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(1, 1, 'p1', 'worker', 1)")
+			"INSERT INTO task_turns(task_id, pos, agent, pushed_by, since, ask) VALUES(1, 1, 'p1', 'worker', 1, 'run the plan')")
 		f := &fakeTeller{}
-		list, _ := json.Marshal(run)
-		r := call(t, mk("human", f), fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"task.queue","params":{"tasks":%s,"request_id":"q1"}}`, list))
-		if r[0]["error"] != nil {
-			t.Fatalf("run %v: %v", run, r[0])
+		for i, run := range steps {
+			list, _ := json.Marshal(run)
+			r := call(t, mk("human", f), fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"task.queue","params":{"tasks":%s,"request_id":"q%d"}}`, list, i))
+			if r[0]["error"] != nil {
+				t.Fatalf("run %v: %v", run, r[0])
+			}
+			if left := count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1"); i < len(steps)-1 && left != 1 {
+				t.Fatalf("run %v with a draft sub-task left took the founder's turn off the parent", run)
+			}
 		}
 		if count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1") != 0 ||
 			count(t, sdb, "SELECT COUNT(*) FROM agent_state WHERE agent = 'worker' AND current_task = 1") != 0 {
@@ -323,4 +330,99 @@ func TestTheFoundersRunEndsTheirTurnOnTheParentQuietly(t *testing.T) {
 			t.Fatalf("%s took a turn off the parent", c.why)
 		}
 	}
+}
+
+// questionEnv is task 1 with the founder's turn on it asking ask, its own draft sub-task 4, and drafts 2 and 3 of another parent, 5.
+func questionEnv(t *testing.T, ask string) (*sql.DB, func(agent string, tell ...Teller) *rpc.Server) {
+	t.Helper()
+	sdb, mk := discardEnv(t)
+	exec(t, sdb,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, sent_at) VALUES(1, 'asks', 'worker', 'manager', 1, 1), (5, 'other plan', 'other', 'manager', 1, 1)",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, parent_task) VALUES(2, 'b', 'other', 'manager', 1, 5), (3, 'c', 'other', 'manager', 1, 5), (4, 'own', 'other', 'manager', 1, 1)",
+		"INSERT INTO task_turns(task_id, pos, agent, pushed_by, since, ask) VALUES(1, 1, 'p1', 'worker', 1, '"+ask+"')")
+	return sdb, mk
+}
+
+// A question that names drafts is answered by the founder's Run or discard of the last of them, wherever they are; until then it stays open.
+func TestRunningTheDraftsAQuestionNamesAnswersIt(t *testing.T) {
+	t.Parallel()
+	queue := func(t *testing.T, s *rpc.Server, rid string, tid int) {
+		if r := call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":"task.queue","params":{"tasks":[%d],"request_id":%q}}`, tid, rid)); r[0]["error"] != nil {
+			t.Fatalf("queue T%d: %v", tid, r[0])
+		}
+	}
+	turns := func(sdb *sql.DB) int { return count(t, sdb, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1") }
+	told := func(sdb *sql.DB) string {
+		var body string
+		_ = sdb.QueryRow("SELECT body FROM requests WHERE kind = 'task' AND body LIKE 'T1 is your turn again%' ORDER BY id DESC LIMIT 1").Scan(&body)
+		return body
+	}
+
+	t.Run("drafts of another parent", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Please Run T2 and T3.")
+		f := &fakeTeller{}
+		queue(t, mk("human", f), "a", 2)
+		if turns(sdb) != 1 {
+			t.Fatal("Run of T2 passed a question that still names draft T3")
+		}
+		queue(t, mk("human", f), "b", 3)
+		if turns(sdb) != 0 {
+			t.Fatal("Run of the last named draft left the question open")
+		}
+		if got := told(sdb); !strings.Contains(got, "Ran T3") || strings.Contains(got, "T2") {
+			t.Fatalf("the agent below was told %q", got)
+		}
+		if n := count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1"); n != 0 {
+			t.Fatalf("%d comments written in the founder's name", n)
+		}
+	})
+	t.Run("a parent naming another, still draft, task", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Run T2 first.")
+		queue(t, mk("human", &fakeTeller{}), "a", 4)
+		if turns(sdb) != 1 {
+			t.Fatal("Running the parent's own sub-task answered a question about T2")
+		}
+	})
+	t.Run("a parent naming no task", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Run the plan.")
+		queue(t, mk("human", &fakeTeller{}), "a", 4)
+		if turns(sdb) != 0 || told(sdb) != "" {
+			t.Fatalf("Running the last sub-task draft left %d turns, told %q", turns(sdb), told(sdb))
+		}
+	})
+	t.Run("a parent naming itself", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Run the drafts under T1.")
+		queue(t, mk("human", &fakeTeller{}), "a", 4)
+		if turns(sdb) != 0 {
+			t.Fatal("a question naming only its own task was not answered by Running its last sub-task draft")
+		}
+	})
+	t.Run("a Ready task", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Run T2.")
+		exec(t, sdb, `INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'worker', 'task_ready', '{"task_id": 1}')`)
+		queue(t, mk("human", &fakeTeller{}), "a", 2)
+		if turns(sdb) != 1 {
+			t.Fatal("a Run passed a Ready task's turn")
+		}
+	})
+	t.Run("a batch discard", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Run T2 and T3.")
+		if r := call(t, mk("human", &fakeTeller{}), `{"jsonrpc":"2.0","id":1,"method":"task.discard","params":{"tasks":[2,3],"reason":"no","request_id":"d"}}`); r[0]["error"] != nil {
+			t.Fatal(r[0])
+		}
+		if turns(sdb) != 0 || !strings.Contains(told(sdb), "Discarded T2, T3") {
+			t.Fatalf("the batch discard left %d turns, told %q", turns(sdb), told(sdb))
+		}
+	})
+	t.Run("a discard of the last named draft", func(t *testing.T) {
+		sdb, mk := questionEnv(t, "Run T2 and T3.")
+		f := &fakeTeller{}
+		queue(t, mk("human", f), "a", 2)
+		if r := call(t, mk("human", f), `{"jsonrpc":"2.0","id":1,"method":"task.discard","params":{"task":3,"reason":"not needed","request_id":"d"}}`); r[0]["error"] != nil {
+			t.Fatal(r[0])
+		}
+		if turns(sdb) != 0 || !strings.Contains(told(sdb), "Discarded T3") {
+			t.Fatalf("the discard left %d turns, told %q", turns(sdb), told(sdb))
+		}
+	})
 }
