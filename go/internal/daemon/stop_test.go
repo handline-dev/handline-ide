@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// within fails the test unless f returns in time, so a stop that waits forever is a failure and not a ten-minute timeout.
+// within fails the test unless f returns in time, so a stop that waits forever is a failure and not a ten-minute timeout. The daemon
+// is started before it: a start slowed by a loaded machine is not the stop's time, and f must not touch t once the test may have ended.
 func within(t *testing.T, f func()) {
 	t.Helper()
 	done := make(chan struct{})
@@ -31,7 +32,8 @@ func stuck(t *testing.T) *Daemon {
 func TestAStuckCloseAfterASignalWritesTheStacksAndExitsWithOne(t *testing.T) {
 	var out strings.Builder
 	var exited []int
-	within(t, func() { stuck(t).Stop(50*time.Millisecond, &out, true, func(c int) { exited = append(exited, c) }) })
+	d := stuck(t)
+	within(t, func() { d.Stop(50*time.Millisecond, &out, true, func(c int) { exited = append(exited, c) }) })
 	if fmt.Sprint(exited) != "[1]" || !strings.Contains(out.String(), "daemon.(*Daemon).Close") {
 		t.Fatalf("exit %v, dump %q", exited, out.String())
 	}
@@ -40,7 +42,8 @@ func TestAStuckCloseAfterASignalWritesTheStacksAndExitsWithOne(t *testing.T) {
 // A dev-mode restart past a stuck Close returns, so its exec still runs.
 func TestAStuckCloseBeforeARestartWritesTheStacksAndReturns(t *testing.T) {
 	var out strings.Builder
-	within(t, func() { stuck(t).Stop(50*time.Millisecond, &out, false, func(int) { t.Error("exit") }) })
+	d := stuck(t)
+	within(t, func() { d.Stop(50*time.Millisecond, &out, false, func(int) { t.Error("exit") }) })
 	if !strings.Contains(out.String(), "daemon.(*Daemon).Close") {
 		t.Fatalf("dump %q", out.String())
 	}
@@ -48,7 +51,8 @@ func TestAStuckCloseBeforeARestartWritesTheStacksAndReturns(t *testing.T) {
 
 func TestACloseThatFinishesWritesNoDump(t *testing.T) {
 	var out strings.Builder
-	within(t, func() { start(t, fakeAuth{key: "k"}, "").Stop(time.Minute, &out, true, func(int) { t.Error("exit") }) })
+	d := start(t, fakeAuth{key: "k"}, "")
+	within(t, func() { d.Stop(time.Minute, &out, true, func(int) { t.Error("exit") }) })
 	if out.Len() != 0 {
 		t.Fatalf("dump %q", out.String())
 	}
