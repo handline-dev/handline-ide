@@ -24,7 +24,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `node.promote` | owner |  | none | `{number, handed_over}` | `refused` | board, door, copy | not cached |
 | `node.handover` | member |  | none | `{number}` | `refused` | node, copy, door, device | not cached |
 | `node.outranked` | member |  | none | `object` | `refused` | node, door | not cached |
-| `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |
+| `node.launch` | owner |  | `agent`, `params?` | `{argv, env, warnings, files, shipped, agent_dir}` | `refused` | node, not_on_node, prompt_file, launch, state | not cached |
 | `node.agent_files` | owner |  | `agent`, `files?`, `deleted?` | `Accepted` | `refused`, `bad_request` | node, not_on_node, path | not cached |
 
 ### `devices.list`

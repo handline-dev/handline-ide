@@ -296,7 +296,7 @@ func Start(cfg Config) (*Daemon, error) {
 		}
 		usage.RecordNewer(cfg.Home, r)
 	}
-	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log}
+	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log, Stop: d.stop}
 	d.nodes.OnLink = d.projects.Node
 	placer := &placement.Placer{DB: db, Home: cfg.Home, Reg: d.nodes, Holds: d.projects.Holds, Log: cfg.Log,
 		Here: d.room, Limits: func() placement.Limits {

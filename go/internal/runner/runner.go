@@ -620,10 +620,14 @@ func (r *Runner) launch(l *rpc.Link, agent string, params map[string]any) (any, 
 	if !homefiles.Inside(dir) {
 		return nil, fmt.Errorf("the master named %q as the agent's folder", dir)
 	}
-	// Its memory is the master's: a file left here by a session before, which the master no longer has, goes.
+	// Its memory is the master's, in the answer or sent as runner.files ahead of it when too big: a file left here by a session before,
+	// which the master no longer has, goes.
 	shipped := map[string]bool{}
 	for _, f := range files {
 		shipped[f.Path] = true
+	}
+	for _, p := range homefiles.Strings(got["shipped"]) {
+		shipped[p] = true
 	}
 	var stale []string
 	for p := range homefiles.Stamps(r.cfg.Home, filepath.Join(r.cfg.Home, dir, "memory")) {
@@ -721,7 +725,7 @@ func (r *Runner) sendAgent(agent string) error {
 			return err
 		}
 	}
-	deleted := make([]any, 0, len(gone))
+	deleted := make([]string, 0, len(gone))
 	for _, p := range gone {
 		rel, err := filepath.Rel(s.Agent, p)
 		if err != nil {
@@ -729,9 +733,11 @@ func (r *Runner) sendAgent(agent string) error {
 		}
 		deleted = append(deleted, rel)
 	}
-	if _, err := l.Call("node.agent_files", map[string]any{"agent": agent, "files": homefiles.Wire(files), "deleted": deleted},
-		hlclient.Quick); err != nil {
-		return err
+	for _, m := range homefiles.Messages(files, deleted) {
+		m["agent"] = agent
+		if _, err := l.Call("node.agent_files", m, hlclient.Quick); err != nil {
+			return err
+		}
 	}
 	r.sent[agent] = now
 	return nil

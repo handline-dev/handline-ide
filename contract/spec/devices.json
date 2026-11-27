@@ -1712,7 +1712,7 @@
     "name": "result",
     "schema": {
      "type": "object",
-     "description": "argv, env and warnings as session.launch_prepare answers, their paths the runner's; files, each {path under the home, data in base64, mode}; agent_dir, the agent's folder under the home.",
+     "description": "argv, env and warnings as session.launch_prepare answers, their paths the runner's; files, the agent's memory, handoff note and MCP config, each {path under the home, data in base64, mode}, while they fit in one message, else sent ahead of this answer as runner.files calls like the shared items and attachments; shipped, the path of each of the agent's own files, whichever way it went; agent_dir, the agent's folder under the home.",
      "properties": {
       "argv": {
        "type": "array",
@@ -1738,6 +1738,12 @@
         "type": "object"
        }
       },
+      "shipped": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      },
       "agent_dir": {
        "type": "string"
       }
@@ -1747,6 +1753,7 @@
       "env",
       "warnings",
       "files",
+      "shipped",
       "agent_dir"
      ]
     }
@@ -1790,7 +1797,7 @@
       "items": {
        "type": "object"
       },
-      "description": "Each {path under the agent's folder, data in base64, mode}."
+      "description": "Each {path under the agent's folder, data in base64, mode}; a piece of a file too big for one message adds offset and size, the whole file's."
      }
     },
     {

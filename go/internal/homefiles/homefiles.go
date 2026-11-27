@@ -15,11 +15,14 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// File is one file: its path under the home, what it holds and its mode bits.
+// File is one file: its path under the home, what it holds and its mode bits. A piece of a file too big for one message has Size, the
+// whole file's, and Offset, where Data goes in it.
 type File struct {
-	Path string
-	Data []byte
-	Mode fs.FileMode
+	Path   string
+	Data   []byte
+	Mode   fs.FileMode
+	Offset int64
+	Size   int64
 }
 
 // Rel is abs as a path under home; an error when it is not under it.
@@ -55,8 +58,8 @@ func Collect(home string, abs ...string) ([]File, error) {
 			if err != nil {
 				return err
 			}
-			if !d.Type().IsRegular() {
-				return nil // a folder is walked; a link, a socket: nothing to send
+			if !d.Type().IsRegular() || isPart(path) {
+				return nil // a folder is walked; a link, a socket, a file still coming in pieces: nothing to send
 			}
 			st, err := d.Info()
 			if err != nil {
@@ -102,7 +105,15 @@ func Apply(home string, files []File, deleted []string) error {
 		if err != nil {
 			return err
 		}
-		if err := atomicfile.Write(path, string(f.Data)); err != nil {
+		if f.Size > 0 {
+			whole, err := writePiece(home, real, path, f)
+			if err != nil {
+				return err
+			}
+			if !whole {
+				continue
+			}
+		} else if err := atomicfile.Write(path, string(f.Data)); err != nil {
 			return err
 		}
 		mode := f.Mode
@@ -124,9 +135,43 @@ func Apply(home string, files []File, deleted []string) error {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return err
 		}
+		os.Remove(filepath.Join(filepath.Dir(path), filepath.Base(partOf(d)))) // a send of it cut short
 	}
 	return nil
 }
+
+// writePiece writes f, a piece, into path's part file, made anew by the first piece, and renames it to path once it is whole.
+func writePiece(home, real, path string, f File) (whole bool, err error) {
+	part, err := within(home, real, partOf(f.Path), false)
+	if err != nil {
+		return false, err
+	}
+	flag := os.O_WRONLY
+	if f.Offset == 0 {
+		flag |= os.O_CREATE | os.O_TRUNC
+	} else if st, err := os.Stat(part); err != nil || st.Size() != f.Offset {
+		return false, fmt.Errorf("%s: a piece came out of its order", f.Path)
+	}
+	out, err := os.OpenFile(part, flag, 0o600)
+	if err != nil {
+		return false, fmt.Errorf("%s: a piece came without its start: %w", f.Path, err)
+	}
+	_, err = out.WriteAt(f.Data, f.Offset)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil || f.Offset+int64(len(f.Data)) < f.Size {
+		return false, err
+	}
+	return true, os.Rename(part, path)
+}
+
+// partOf is where the pieces of the file at rel gather until it is whole: hidden beside it, under a name no tool writes.
+func partOf(rel string) string {
+	return filepath.Join(filepath.Dir(rel), "."+filepath.Base(rel)+".hl-part")
+}
+
+func isPart(path string) bool { return strings.HasSuffix(path, ".hl-part") }
 
 // within is rel's path under home, its folder made when make, once no link on the way leads out of the home (real, home with its own
 // links resolved) and none stands in the file's place.
@@ -155,8 +200,65 @@ func within(home, real, rel string, make bool) (string, error) {
 func Wire(files []File) []any {
 	out := make([]any, 0, len(files))
 	for _, f := range files {
-		out = append(out, map[string]any{"path": f.Path, "data": base64.StdEncoding.EncodeToString(f.Data), "mode": int(f.Mode)})
+		w := map[string]any{"path": f.Path, "data": base64.StdEncoding.EncodeToString(f.Data), "mode": int(f.Mode)}
+		if f.Size > 0 {
+			w["offset"], w["size"] = f.Offset, f.Size
+		}
+		out = append(out, w)
 	}
+	return out
+}
+
+// MessageBytes is the most a piece of a file carries; a message of Messages is at most about messageWire bytes on the wire, under
+// rpc.MaxLineBytes, since a message past that ends the link it came on.
+const (
+	MessageBytes = 512 << 10
+	messageWire  = 768 << 10
+)
+
+// wireCost is about the most an entry takes in a message: its base64, its path with each byte escaped, and the JSON around them.
+func wireCost(data int, path string) int {
+	return base64.StdEncoding.EncodedLen(data) + 6*len(path) + 64
+}
+
+// Messages is files and deleted as the params of calls of at most about MessageBytes each, in order: a file bigger than that goes as
+// pieces, each in a message of its own, and the deleted paths in the last messages.
+func Messages(files []File, deleted []string) []map[string]any {
+	var out []map[string]any
+	var batch []File
+	var gone []any
+	n := 0
+	flush := func() {
+		if len(batch) > 0 || len(gone) > 0 {
+			out = append(out, map[string]any{"files": Wire(batch), "deleted": append([]any{}, gone...)})
+		}
+		batch, gone, n = nil, nil, 0
+	}
+	for _, f := range files {
+		if wireCost(len(f.Data), f.Path) > messageWire {
+			flush()
+			for off := 0; off < len(f.Data); off += MessageBytes {
+				p := f
+				p.Data, p.Offset, p.Size = f.Data[off:min(off+MessageBytes, len(f.Data))], int64(off), int64(len(f.Data))
+				batch = []File{p}
+				flush()
+			}
+			continue
+		}
+		if c := wireCost(len(f.Data), f.Path); n+c > messageWire {
+			flush()
+		}
+		batch = append(batch, f)
+		n += wireCost(len(f.Data), f.Path)
+	}
+	for _, d := range deleted {
+		if n+wireCost(0, d) > messageWire {
+			flush()
+		}
+		gone = append(gone, d)
+		n += wireCost(0, d)
+	}
+	flush()
 	return out
 }
 
@@ -176,7 +278,15 @@ func FromWire(v any) ([]File, error) {
 			return nil, errors.New("a file is a path and its base64 data")
 		}
 		mode, _ := rpc.AsInt(m["mode"])
-		out = append(out, File{Path: path, Data: b, Mode: fs.FileMode(mode) & fs.ModePerm})
+		f := File{Path: path, Data: b, Mode: fs.FileMode(mode) & fs.ModePerm}
+		if size, ok := rpc.AsInt(m["size"]); ok {
+			off, _ := rpc.AsInt(m["offset"])
+			if size <= 0 || off < 0 || off+int64(len(b)) > size {
+				return nil, errors.New("a piece of a file reaches past its size")
+			}
+			f.Offset, f.Size = off, size
+		}
+		out = append(out, f)
 	}
 	return out, nil
 }
@@ -204,7 +314,7 @@ func Stamps(home string, abs ...string) map[string]Stamp {
 	out := map[string]Stamp{}
 	for _, p := range abs {
 		filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || !d.Type().IsRegular() {
+			if err != nil || !d.Type().IsRegular() || isPart(path) {
 				return nil // unreadable or gone: seen again at the next look
 			}
 			st, err := d.Info()

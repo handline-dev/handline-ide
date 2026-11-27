@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/handline/handline/go/data/team"
@@ -36,6 +37,9 @@ func (r *Registry) sharedItems() []string {
 
 // SharedEvery is how often the master looks for a change to the shared items.
 const SharedEvery = 2 * time.Second
+
+// SharedRetryMax bounds the wait before shared items a runner did not take are sent to it again.
+const SharedRetryMax = 10 * time.Minute
 
 // runnerHome is node's home, asked once per link.
 func (r *Registry) runnerHome(node string) (string, error) {
@@ -160,12 +164,21 @@ func (r *Registry) sendFiles(node string, files []homefiles.File, deleted []stri
 	if err != nil {
 		return err
 	}
-	gone := make([]any, 0, len(deleted))
-	for _, d := range deleted {
-		gone = append(gone, d)
+	r.mu.Lock()
+	mu := r.sending[node]
+	if mu == nil {
+		mu = &sync.Mutex{}
+		r.sending[node] = mu
 	}
-	_, err = run.c.Call("runner.files", map[string]any{"files": homefiles.Wire(files), "deleted": gone}, CallWait)
-	return err
+	r.mu.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
+	for _, m := range homefiles.Messages(files, deleted) {
+		if _, err := run.c.Call("runner.files", m, CallWait); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // forRunner is text the master tells an agent on node: its paths are node's, and the attachments it names are there first.
@@ -234,9 +247,14 @@ func (r *Registry) Flush(agent string) error {
 }
 
 // WatchShared sends each linked runner the shared items as they change, every SharedEvery until stop: a runner linked anew gets them
-// all.
+// all. A send that fails is said once and tried again after a wait that doubles up to SharedRetryMax.
 func (r *Registry) WatchShared(stop <-chan struct{}) {
 	sent := map[*rpc.Conn]map[string]homefiles.Stamp{}
+	type failing struct {
+		n    int
+		next time.Time
+	}
+	fails := map[string]failing{}
 	t := time.NewTicker(SharedEvery)
 	defer t.Stop()
 	for {
@@ -262,6 +280,9 @@ func (r *Registry) WatchShared(stop <-chan struct{}) {
 			}
 		}
 		for node, c := range links {
+			if time.Now().Before(fails[node].next) {
+				continue
+			}
 			changed, gone := homefiles.Changed(sent[c], now)
 			if len(changed) == 0 && len(gone) == 0 {
 				continue
@@ -275,10 +296,24 @@ func (r *Registry) WatchShared(stop <-chan struct{}) {
 				err = r.sendFiles(node, files, gone)
 			}
 			if err != nil {
-				r.log("  shared items not sent to node %s: %v", node, err)
+				f := fails[node]
+				wait := SharedEvery
+				for range f.n {
+					wait = min(2*wait, SharedRetryMax)
+				}
+				if f.n == 0 {
+					r.log("  shared items not sent to node %s: %v; tried again after a wait that grows from %s", node, err, wait)
+				}
+				fails[node] = failing{n: f.n + 1, next: time.Now().Add(wait)}
 				continue
 			}
+			delete(fails, node)
 			sent[c] = now
+			r.mu.Lock()
+			if r.links[node] == c { // a link that ended meanwhile is gone from the map, and stays gone
+				r.shared[c] = true
+			}
+			r.mu.Unlock()
 		}
 	}
 }
@@ -345,10 +380,18 @@ func (r *Registry) launch(c *rpc.Conn, p map[string]any) (any, error) {
 	}
 	// It starts with its memory and handoff note, the MCP servers and the shared items every account sees: read before the launch is
 	// built, which uses up its prompt.
-	files, err := homefiles.Collect(r.Home, append([]string{filepath.Join(agentDir, "memory"), paths.HandoffNoteFile(r.Home, agent),
-		paths.MCPConfig(r.Home)}, r.sharedItems()...)...)
+	own, err := homefiles.Collect(r.Home, filepath.Join(agentDir, "memory"), paths.HandoffNoteFile(r.Home, agent), paths.MCPConfig(r.Home))
 	if err != nil {
 		return nil, err
+	}
+	var files []homefiles.File // sent ahead of the answer: the shared items, unless WatchShared sent them on this link, and attachments
+	r.mu.Lock()
+	sharedSent := r.shared[r.links[node]]
+	r.mu.Unlock()
+	if !sharedSent {
+		if files, err = homefiles.Collect(r.Home, r.sharedItems()...); err != nil {
+			return nil, err
+		}
 	}
 	got, err := r.Launch(node, agent, params)
 	if err != nil {
@@ -363,8 +406,19 @@ func (r *Registry) launch(c *rpc.Conn, p map[string]any) (any, error) {
 	} else {
 		files = append(files, named...)
 	}
+	shipped := make([]any, 0, len(own))
+	for _, f := range own {
+		shipped = append(shipped, f.Path)
+	}
+	inAnswer := own // its own files ride in the answer while they fit in one message, as a runner of any build reads them
+	if len(homefiles.Messages(own, nil)) > 1 {
+		files, inAnswer = append(files, own...), nil
+	}
+	if err := r.sendFiles(node, files, nil); err != nil { // ahead of the answer, in messages the link takes
+		return nil, err
+	}
 	return map[string]any{"argv": swapAll(got.Argv, r.Home, home), "env": swapAll(got.Env, r.Home, home),
-		"warnings": swapAll(got.Warnings, r.Home, home), "files": homefiles.Wire(files), "agent_dir": dir}, nil
+		"warnings": swapAll(got.Warnings, r.Home, home), "files": homefiles.Wire(inAnswer), "shipped": shipped, "agent_dir": dir}, nil
 }
 
 // agentFiles is node.agent_files: the agent's memory and handoff note as its session on the runner wrote them.
