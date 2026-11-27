@@ -14,20 +14,12 @@ import (
 
 // loginLifted is the cursor holding the id of the failed turn a lift has passed. That turn stays the agent's last event
 // until it is prompted again, and without this it would stall the account a second time.
-// It is the Go daemon's own: Python's "login_lifted:<agent>" holds a session row id, and one name for both would be read as the other's.
 func loginLifted(agent string) string { return "login_lifted_event:" + agent }
 
-// pythonLifted is when Python's lift last ran for the agent, 0 if never. A refusal at or before it was lifted there: the cursor of
-// that daemon is a session row id this one cannot compare with an event id, so its time is.
-func pythonLifted(q db.Q, agent string) int64 {
-	at, _, _ := db.CursorUpdated(q, "login_lifted:"+agent)
-	return at
-}
-
-// lifted is whether a lift has passed a failure on acct: the agent's own lift cursor, Python's lift, or a login since.
+// lifted is whether a lift has passed a failure on acct: the agent's lift cursor or a login since.
 func lifted(q db.Q, accounts team.Accounts, agent, acct string, f handoff.Failure) bool {
 	cursor, _ := db.Cursor(q, loginLifted(agent))
-	return f.ID <= cursor || f.TS <= pythonLifted(q, agent) || accounts.LoggedInSince(acct, f.TS)
+	return f.ID <= cursor || accounts.LoggedInSince(acct, f.TS)
 }
 
 // stalled is the account's stall, unless a Stop on the account since it was set says the account works again: that ends it.

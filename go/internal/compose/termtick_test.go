@@ -328,33 +328,6 @@ func TestARefusalOlderThanTheAccountsLastLoginMarksNothing(t *testing.T) {
 	}
 }
 
-func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
-	p, tk, _ := loginRig(t)
-	d := p.db
-	authFailed(t, p, "a1")
-	// Python's lift keeps a session row id under this name and sets it when it lifts: only the time it was written can be compared here.
-	lifted := "login_lifted:" + teamtest.Key(t, p.home, "bob")
-	if err := dbpkg.SetCursor(d, lifted, 77); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tk.Tick.Run(); err != nil {
-		t.Fatal(err)
-	}
-	acc := team.Accounts{Home: p.home}
-	if acc.Stalled("a1") != nil {
-		t.Fatal("the refusal that daemon lifted stalled the account")
-	}
-	if _, err := d.Exec("UPDATE cursors SET updated = updated - 100 WHERE name = ?", lifted); err != nil { // a lift from before the refusal
-		t.Fatal(err)
-	}
-	if _, err := tk.Tick.Run(); err != nil {
-		t.Fatal(err)
-	}
-	if acc.Stalled("a1") == nil {
-		t.Fatal("a refusal after the last lift is the account's")
-	}
-}
-
 func TestAStopHookWritesATerminalAgentsViewIdleAtOnceThoughItsSessionFileStillSaysBusy(t *testing.T) {
 	p, _, wt := termTickRig(t)
 	bob := teamtest.Key(t, p.home, "bob")
