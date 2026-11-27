@@ -42,6 +42,14 @@ func (Driver) InterruptLine(id string) []byte {
 	return b
 }
 
+func (Driver) StopTaskLine(id, task string) []byte {
+	b, _ := json.Marshal(map[string]any{"type": "control_request", "request_id": id, "request": map[string]any{"subtype": "stop_task", "task_id": task}})
+	return b
+}
+
+// Env asks the CLI to say each time its session starts or ends a turn.
+func (Driver) Env() []string { return []string{"CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1"} }
+
 func (Driver) Refuse(ask agent.Event, why string) []byte {
 	b, _ := json.Marshal(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "success", "request_id": ask.Request,
 		"response": map[string]any{"behavior": "deny", "message": why}}})
@@ -69,6 +77,15 @@ type frame struct {
 		Subtype  string `json:"subtype"`
 		ToolName string `json:"tool_name"`
 	} `json:"request"`
+	Tasks []struct {
+		TaskID      string `json:"task_id"`
+		Description string `json:"description"`
+	} `json:"tasks"`
+	RateLimit *struct {
+		Status        string `json:"status"`
+		RateLimitType string `json:"rateLimitType"`
+		ResetsAt      int64  `json:"resetsAt"`
+	} `json:"rate_limit_info"`
 }
 
 func (Driver) Read(line []byte) agent.Event {
@@ -78,8 +95,21 @@ func (Driver) Read(line []byte) agent.Event {
 	}
 	switch f.Type {
 	case "system":
-		if f.Subtype == "init" {
+		switch f.Subtype {
+		case "init":
 			return agent.Event{Kind: agent.EventInit, SessionID: f.SessionID}
+		case "session_state_changed":
+			return agent.Event{Kind: agent.EventState, State: f.State}
+		case "background_tasks_changed":
+			tasks := make([]agent.Task, 0, len(f.Tasks))
+			for _, t := range f.Tasks {
+				tasks = append(tasks, agent.Task{ID: t.TaskID, Description: t.Description})
+			}
+			return agent.Event{Kind: agent.EventBackground, Tasks: tasks}
+		}
+	case "rate_limit_event":
+		if r := f.RateLimit; r != nil {
+			return agent.Event{Kind: agent.EventLimit, Limit: agent.Limit{Blocked: r.Status == "rejected", Window: r.RateLimitType, ResetsAt: r.ResetsAt}}
 		}
 	case "command_lifecycle":
 		return agent.Event{Kind: agent.EventCommand, UUID: f.CommandUUID, State: f.State}

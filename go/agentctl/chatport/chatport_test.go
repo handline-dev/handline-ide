@@ -19,7 +19,8 @@ import (
 
 // fakeCLI speaks Claude's stream: it answers initialize with an account, and runs each user line as a turn: queued, started, the echo,
 // then (unless the text says "ask") a result. "ask" makes it ask for a tool first and wait for the answer; "long" keeps the turn open
-// until the next line comes. A line in the middle of a turn joins it.
+// until the next line comes; "bg" starts two pieces of background work and meets the usage limit, and stop_task stops one. A line in the
+// middle of a turn joins it.
 func fakeCLI() {
 	out := bufio.NewWriter(os.Stdout)
 	emit := func(v map[string]any) {
@@ -30,6 +31,7 @@ func fakeCLI() {
 	sc := bufio.NewScanner(os.Stdin)
 	open := false
 	var cmds []string
+	tasks := []map[string]any{}
 	// end closes the turn as the CLI can: its result, then each of its commands completed.
 	end := func(v map[string]any) {
 		emit(v)
@@ -48,6 +50,16 @@ func fakeCLI() {
 				emit(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "success", "request_id": m["request_id"],
 					"response": map[string]any{"account": map[string]any{"email": "someone@example.com"}}}})
 				emit(map[string]any{"type": "system", "subtype": "init", "session_id": "sess-1"})
+			}
+			if req["subtype"] == "stop_task" {
+				kept := []map[string]any{}
+				for _, t := range tasks {
+					if t["task_id"] != req["task_id"] {
+						kept = append(kept, t)
+					}
+				}
+				tasks = kept
+				emit(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": tasks})
 			}
 			if req["subtype"] == "interrupt" && open {
 				open = false
@@ -72,6 +84,13 @@ func fakeCLI() {
 				emit(map[string]any{"type": "control_request", "request_id": "ask1", "request": map[string]any{"subtype": "can_use_tool", "tool_name": "Bash"}})
 			case text == "long":
 				open = true
+			case text == "bg":
+				emit(map[string]any{"type": "system", "subtype": "session_state_changed", "state": "running"})
+				tasks = []map[string]any{{"task_id": "b1", "description": "sleep 8"}, {"task_id": "b2", "description": "sleep 300"}}
+				emit(map[string]any{"type": "system", "subtype": "background_tasks_changed", "tasks": tasks})
+				emit(map[string]any{"type": "rate_limit_event", "rate_limit_info": map[string]any{"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 99}})
+				end(map[string]any{"type": "result", "subtype": "success", "is_error": true, "api_error_status": 429})
+				emit(map[string]any{"type": "system", "subtype": "session_state_changed", "state": "idle"})
 			case open: // joined the running turn, which ends now
 				open = false
 				end(map[string]any{"type": "result", "subtype": "success"})
@@ -232,5 +251,40 @@ func TestInterruptEndsTheTurnAndAClosedSessionFailsWhatItDidNotTake(t *testing.T
 	}
 	if _, err := p.Send("a", "late", "x", delivery.Now); err == nil {
 		t.Fatal("sent to a closed session")
+	}
+}
+
+// The turn, the background work and the usage limit are what the stream last said, and the background work stops on it.
+func TestTheStreamSaysTheTurnTheBackgroundWorkAndTheLimit(t *testing.T) {
+	p, ev, _ := setup(t)
+	if _, known := p.Idle("a"); known {
+		t.Fatal("known before the stream said")
+	}
+	if n, _ := p.StopBackground("a", []string{"b9"}); n != 1 {
+		t.Fatal("the hooks' pieces are asked while the stream has listed none")
+	}
+	_, known := p.Background("nobody")
+	p.mu.Lock()
+	kept := p.agents["nobody"] != nil
+	p.mu.Unlock()
+	if known || kept {
+		t.Fatal("a read kept a state for an agent never seen")
+	}
+	_, _ = p.Send("a", "bg", "bg", delivery.Now)
+	if !ev.has(func() bool { idle, known := p.Idle("a"); return idle && known }) {
+		t.Fatal("not idle")
+	}
+	tasks, known := p.Background("a")
+	if !known || len(tasks) != 2 || tasks[1].Description != "sleep 300" {
+		t.Fatal(tasks, known)
+	}
+	if l := p.Limit("a"); !l.Blocked || l.Window != "five_hour" || l.ResetsAt != 99 {
+		t.Fatal(l)
+	}
+	if n, err := p.StopBackground("a", []string{"from-hooks"}); n != 2 || err != nil {
+		t.Fatal(n, err)
+	}
+	if !ev.has(func() bool { tasks, _ := p.Background("a"); return len(tasks) == 0 }) {
+		t.Fatal("still running")
 	}
 }

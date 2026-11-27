@@ -61,8 +61,9 @@ type Config struct {
 
 // Parts is what New builds. Locks goes to lifecycle.Manager.Locks and Spawns.Locks alike.
 type Parts struct {
-	chatOnce sync.Once
-	chat     *chatport.Port
+	chatOnce  sync.Once
+	chat      *chatport.Port
+	chatBuilt atomic.Pointer[chatport.Port] // chat, for the readers that may come before it is built
 
 	Locks *lifecycle.AgentLocks
 	Peer  func(agent string) bool

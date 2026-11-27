@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	_ "github.com/handline/handline/go/agentctl/agent/vendors"
+	"github.com/handline/handline/go/agentctl/chatport"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
 	dbpkg "github.com/handline/handline/go/data/db"
@@ -102,6 +103,8 @@ type Config struct {
 	Terminal term.Backend // the host the daemon reads panes from; nil is the configured one (tests give a fake)
 	// Turns, when set, says whether a terminal agent is mid-turn from its hooks and transcript; nil reads its screen (-turns-from-hooks).
 	Turns *turns.Tracker
+	// ChatPort reads the streams of the agents in Chat mode; nil knows none.
+	ChatPort func() *chatport.Port
 	// BoardCopy keeps a copy of the board for the owner's runners (boardcopy): a master's daemon runs with it.
 	BoardCopy bool
 
@@ -750,10 +753,14 @@ func (d *Daemon) nodesChanged() {
 func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 	return []func(*rpc.Server){
 		func(s *rpc.Server) {
+			typing := d.typing()
+			if d.cfg.Session != nil {
+				typing.Controls = d.cfg.Session().Controls // a Chat session takes a folder by being resumed with it
+			}
 			access.Register(s, d.cfg.Home, func(topic, typ string, data map[string]any) error {
 				_, err := d.hub.Append(stream.Entry{Topic: topic, Type: typ, Data: data})
 				return err
-			}, d.typing().AddDir)
+			}, typing.AddDir)
 		},
 		func(s *rpc.Server) {
 			adminwrites.Register(s, &adminwrites.Env{DB: d.db, Home: d.cfg.Home, Logins: d.logins, Changed: d.accountAdded,
@@ -808,7 +815,7 @@ func (d *Daemon) typing() *sessionrpc.Env {
 	if d.cfg.Terminal != nil {
 		t = term.New(d.cfg.Terminal, screens)
 	}
-	t.Chat = chatterm.New(d.cfg.Home, t)
+	t.Chat = chatterm.New(d.cfg.Home, t, d.cfg.ChatPort)
 	env := &sessionrpc.Env{DB: d.db, Home: d.cfg.Home, Holds: d.holds, Term: t, Marker: d.tchan.Marker,
 		Wall: func(agent string) string { why, _ := d.env().WallReason(d.db, agent, nil); return why }}
 	if d.cfg.Turns != nil {

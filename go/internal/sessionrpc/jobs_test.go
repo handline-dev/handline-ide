@@ -166,3 +166,37 @@ func TestStopAllPressesCtrlXCtrlKTwiceOnlyWhileSomethingRuns(t *testing.T) {
 		t.Fatalf("sent %q", h.sent)
 	}
 }
+
+// headlessChat is every terminal in Chat mode, its stream listing stops pieces of background work.
+type headlessChat struct {
+	stops, listed int
+	running       string
+	turn          bool
+	ids           []string
+}
+
+func (c *headlessChat) Headless(string) bool             { return true }
+func (c *headlessChat) Interrupt(string) error           { return nil }
+func (c *headlessChat) EndInput(string) error            { return nil }
+func (c *headlessChat) Idle(string) (bool, bool)         { return !c.turn, true }
+func (c *headlessChat) Background(string) (string, bool) { return c.running, true }
+func (c *headlessChat) AtLimit(string) bool              { return false }
+func (c *headlessChat) StopBackground(_ string, ids []string) (int, error) {
+	c.stops++
+	c.ids = ids
+	return c.listed, nil
+}
+
+func TestStopAllOnAChatSessionStopsEachPieceOnItsStreamAndTypesNothing(t *testing.T) {
+	r, h, c := jobsRig(t, []RunningJob{{ID: "b1", Type: "shell", Name: "sleep 300"}})
+	chat := &headlessChat{listed: 1, running: "sleep 300"}
+	r.e.Term.Chat = chat
+	result(t, c.call("agent.jobs.stop", map[string]any{"agent": "ann", "request_id": rid("chat")}))
+	if chat.stops != 1 || len(h.sent) != 0 || !slices.Equal(chat.ids, []string{"b1"}) {
+		t.Fatalf("stops %d, sent %q", chat.stops, h.sent)
+	}
+	chat.listed = 0
+	if g := refused(c.call("agent.jobs.stop", map[string]any{"agent": "ann", "request_id": rid("chat2")})); g == "" {
+		t.Fatal("a stream that lists nothing stopped something")
+	}
+}

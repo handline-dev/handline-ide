@@ -72,3 +72,23 @@ func TestAddDirPicksForThisSessionAtAnIdleComposerOnly(t *testing.T) {
 		t.Fatalf("a path with a space: sent %q", h.sent)
 	}
 }
+
+// A Chat session takes a folder between turns by being resumed in the same conversation; mid-turn or with work behind it, it waits for
+// the next session. Nothing is typed.
+func TestAddDirResumesAChatSessionBetweenTurns(t *testing.T) {
+	r, h, _ := typingRig(t)
+	chat := &headlessChat{turn: true}
+	r.e.Term.Chat = chat
+	r.ctl.ok = true
+	if r.e.AddDir(r.ann, "/data") || len(r.ctl.calls) != 0 {
+		t.Fatalf("mid-turn: %v", r.ctl.calls)
+	}
+	chat.turn, chat.running = false, "sleep 300"
+	if r.e.AddDir(r.ann, "/data") || len(r.ctl.calls) != 0 {
+		t.Fatalf("with work behind it: %v", r.ctl.calls)
+	}
+	chat.running = ""
+	if !r.e.AddDir(r.ann, "/data") || len(r.ctl.calls) != 1 || r.ctl.calls[0] != "restart "+r.ann+" false false" || len(h.sent) != 0 {
+		t.Fatalf("between turns: %v, sent %q", r.ctl.calls, h.sent)
+	}
+}

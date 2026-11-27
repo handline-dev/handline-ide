@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -50,6 +51,11 @@ type session struct {
 	held     []held
 	ops      map[string]string // uuid -> op written and not yet confirmed
 	receipts map[string]delivery.Receipt
+	// What the stream last said: the turn ("" before it said), the background work, and the usage limit.
+	state      string
+	tasks      []agent.Task
+	tasksKnown bool
+	limit      agent.Limit
 }
 
 func (p *Port) state(a string) *session {
@@ -242,6 +248,7 @@ func (p *Port) read(a string, c agent.Chat, r *holder.Reader) {
 		p.mu.Lock()
 		s := p.state(a)
 		s.watching, s.ready, s.active = false, false, map[string]bool{}
+		s.state, s.tasks, s.tasksKnown, s.limit = "", nil, false, agent.Limit{}
 		lost, unsent := s.ops, s.held
 		s.ops, s.held, s.receipts = map[string]string{}, nil, map[string]delivery.Receipt{}
 		p.mu.Unlock()
@@ -302,6 +309,19 @@ func (p *Port) handle(a string, c agent.Chat, rec holder.Record) {
 			p.OnTurnEnd(a, ev.IsError)
 		}
 		p.release(a)
+	case agent.EventState:
+		p.mu.Lock()
+		p.state(a).state = ev.State
+		p.mu.Unlock()
+	case agent.EventBackground:
+		p.mu.Lock()
+		s := p.state(a)
+		s.tasks, s.tasksKnown = ev.Tasks, true
+		p.mu.Unlock()
+	case agent.EventLimit:
+		p.mu.Lock()
+		p.state(a).limit = ev.Limit
+		p.mu.Unlock()
 	case agent.EventAsk:
 		_ = p.write(p.Socket(a), c.Refuse(ev, NoAsks))
 	case agent.EventRequest:
@@ -393,4 +413,58 @@ func (p *Port) Run(ctx context.Context, names func() []string, every time.Durati
 		case <-t.C:
 		}
 	}
+}
+
+// Idle is whether agent's session is between turns, as its stream last said; known is false while it has not said.
+func (p *Port) Idle(a string) (idle, known bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	st := p.peek(a).state
+	return st == "idle", st != ""
+}
+
+// peek is a's state without keeping one for an agent never seen.
+func (p *Port) peek(a string) session {
+	if s := p.agents[a]; s != nil {
+		return *s
+	}
+	return session{}
+}
+
+// Background is the work agent's session still runs behind its turn; known is false while its stream has not listed it.
+func (p *Port) Background(a string) ([]agent.Task, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	s := p.peek(a)
+	return slices.Clone(s.tasks), s.tasksKnown
+}
+
+// Limit is the usage limit agent's session last heard of.
+func (p *Port) Limit(a string) agent.Limit {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.peek(a).limit
+}
+
+// StopBackground asks the session to stop each piece of background work it listed, or while it has listed none, each of ids; n is how
+// many were asked.
+func (p *Port) StopBackground(a string, ids []string) (n int, err error) {
+	c := p.Chat(a)
+	if c == nil {
+		return 0, errors.New(a + " does not run in Chat mode")
+	}
+	if tasks, known := p.Background(a); known {
+		ids = ids[:0:0]
+		for _, t := range tasks {
+			ids = append(ids, t.ID)
+		}
+	}
+	stamp := time.Now().UnixNano()
+	for i, id := range ids {
+		if err := p.write(p.Socket(a), c.StopTaskLine(fmt.Sprintf("hl_stop_%d_%d", stamp, i), id)); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
 }

@@ -249,6 +249,19 @@ func (e *Env) stopJobs(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused(agent+" runs nothing in the background", "state", "")
 	}
 	return e.act(c, "agent.jobs.stop", params, true, func(handle string) (bool, string) {
+		if e.Term.Headless(handle) { // a Chat session stops its work on its stream, each piece by its id
+			var ids []string
+			for _, j := range e.running(agent) {
+				ids = append(ids, j.ID)
+			}
+			switch n, err := e.Term.StopBackground(handle, ids); {
+			case err != nil:
+				return false, err.Error()
+			case n == 0:
+				return false, "its stream lists no background work"
+			}
+			return true, ""
+		}
 		if why := e.Term.ShellLeft(handle); why != "" {
 			return false, why
 		}

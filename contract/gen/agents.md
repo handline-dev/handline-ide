@@ -150,7 +150,7 @@ Stop one background shell of the agent's. Sends SIGTERM to the background shell'
 
 ### `agent.jobs.stop`
 
-Stop all of the agent's background work. Presses Ctrl+X Ctrl+K twice in the agent's terminal: Claude Code stops its background work on the second, its confirm. Refused, gate state, while nothing runs (unclaimed, Ctrl+K would cut the person's draft) or the pane is a plain shell; gate screen_blocker with a dialog open; gate wall at the usage wall; terminal_lock and input_holder as session.input.
+Stop all of the agent's background work. Presses Ctrl+X Ctrl+K twice in the agent's terminal: Claude Code stops its background work on the second, its confirm. A Chat agent is asked on its stream to stop each piece of work its session lists, and nothing is typed. Refused, gate state, while nothing runs (unclaimed, Ctrl+K would cut the person's draft) or the pane is a plain shell; gate screen_blocker with a dialog open; gate wall at the usage wall; terminal_lock and input_holder as session.input.
 
 ### `session.interrupt`
 

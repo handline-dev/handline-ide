@@ -31,8 +31,12 @@ func (p *Parts) chatPort(tell peerDelivery) *chatport.Port {
 			},
 		}
 	})
+	p.chatBuilt.Store(p.chat)
 	return p.chat
 }
+
+// ChatPort is the port that reads the Chat holders' streams, nil until the parts are bound.
+func (p *Parts) ChatPort() *chatport.Port { return p.chatBuilt.Load() }
 
 // chatSession is whether agent's session runs under a Chat holder now: its socket is there. The setting says how the next one runs.
 func (p *Parts) chatSession(a string) bool { return chatterm.Running(p.home, a) }

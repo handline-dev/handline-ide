@@ -149,10 +149,27 @@ func (t *Term) CreateTerminal(command, cwd, title, agent string) (string, string
 
 // CloseTerminal closes the terminal and its tab.
 func (t *Term) CloseTerminal(handle string) (bool, string) {
+	if t.headless(handle) {
+		t.endHeadless(handle)
+	}
 	if h := t.host(); h != nil {
 		return h.CloseTerminal(handle, true)
 	}
 	return false, "the " + t.Backend.Name() + " terminal host cannot close terminals"
+}
+
+// endHeadless ends a headless session on its stream before its terminal goes: a running turn is interrupted, its input ended, and its
+// holder given HeadlessEndWait to finish writing and exit, so the conversation is whole for the session that resumes it.
+func (t *Term) endHeadless(handle string) {
+	if idle, known := t.Chat.Idle(handle); known && !idle {
+		_ = t.Chat.Interrupt(handle)
+	}
+	if t.Chat.EndInput(handle) != nil {
+		return
+	}
+	for end := t.now().Add(t.HeadlessEndWait); t.headless(handle) && t.now().Before(end); {
+		t.sleep(200 * time.Millisecond)
+	}
 }
 
 // CloseSession ends the agent's session and leaves its terminal standing, with a shell at the prompt in the same directory. The program

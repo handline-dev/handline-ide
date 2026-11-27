@@ -247,7 +247,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		MCPApproved: approved, ReadAllow: append([]string{filepath.Join(l.Home, "attachments")}, granted...),
 		AlwaysAllow: rules,
 		LandPush:    landPush,
-		AllowWrite:  allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.Roster.OtherFolders(agent),
+		AllowWrite:  allowWrite, AllowDomains: allowDomains, CacheDir: cacheDir, AddDirs: l.addDirs(site, agent, granted),
 		WeakerNetwork: allowed.Cert, Excluded: allowed.Commands,
 	})
 	// The pair goes whole or not at all: a caller's own mode wins, and a lone value left behind would be read as the opening prompt.
@@ -426,6 +426,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	}
 	if hold != nil {
 		argv = l.chatArgv(agent, argv)
+		l.chatEnv(agent, env)
 	} else if prompt != "" {
 		drv, err := l.Ports.Vendors.ForAgent(agent)
 		if err != nil {

@@ -511,6 +511,118 @@ def chat_turns(r: Run, home: Path, root: Path, binary: str, account: dict, tmux:
     return r2, group
 
 
+def new_session(home: Path, agent: str, before: list[str], until: float) -> bool:
+    """Waits until agent's sessions began one after those in before."""
+    while time.time() < until:
+        now = session_ids(home, agent)
+        if now and (not before or now[-1] != before[-1]):
+            return True
+        time.sleep(1)
+    return False
+
+
+def turn_ends(home: Path, agent: str, since: float, until: float) -> int:
+    """How many of agent's turns ended (Stop hooks) in [since, until]."""
+    con = sqlite3.connect(home / "db.sqlite", timeout=10)
+    try:
+        return con.execute("SELECT COUNT(*) FROM events WHERE agent = ? AND kind = 'Stop' AND ts BETWEEN ? AND ?",
+                           (agent, int(since), int(until) + 1)).fetchone()[0]
+    finally:
+        con.close()
+
+
+def account_of(home: Path, agent: str) -> str:
+    con = sqlite3.connect(home / "db.sqlite", timeout=10)
+    try:
+        row = con.execute("SELECT COALESCE(account, '') FROM agent_state WHERE agent = ?", (agent,)).fetchone()
+    finally:
+        con.close()
+    return row[0] if row else ""
+
+
+def chat_life(r: Run, home: Path, root: Path, move_to: str) -> None:
+    """Chat mode lifecycle: an idle close and the wake that resumes it, background work that ends and wakes the agent by itself, a folder
+    added between turns, a handoff to a fresh session, and (with move_to) an account move in the middle of the conversation."""
+    d, a = r.d, r.agent
+    d.write("agent.set", {"agent": a, "values": {"session_mode": "chat", "mode": "auto"}})
+    t = time.time()
+    try:
+        d.write("session.start", {"agent": a})
+    except Refused as e:
+        if "no session is running in it after" not in str(e):
+            raise
+    if not r.step("ready (idle)", t, agent_changed(a, "idle"), model=True):
+        return
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": "Remember the code word KIWI. Reply with the single word NOTED."})
+    r.step("first turn", t, said(a, "NOTED"), model=True)
+    r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+    first = session_ids(home, a)
+
+    t = time.time()
+    d.write("session.stop", {"agent": a, "mode": "close"})
+    r.step("idle close", t, lambda ev: agent_changed(a, "no_terminal")(ev) or agent_changed(a, "closed")(ev))
+    r.record({"step": "idle close: its holder is gone", "paced_by": "daemon", "result": "pass" if not chat_socket(home, a).exists() else "FAIL",
+              "seconds": None})
+    time.sleep(2)
+    pong(r, a, "What was the code word? Reply with it alone.", "KIWI", "wake")
+    after = session_ids(home, a)
+    r.record({"step": "wake: the same conversation resumed under a Chat holder", "paced_by": "daemon",
+              "result": "pass" if first and after and after[-1] == first[-1] and chat_socket(home, a).exists() else "FAIL",
+              "seconds": None, "note": f"sessions {first[-1:]} -> {after[-1:]}"})
+    r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(2)
+
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": "Start the Bash command `sleep 12; echo BG-OVER` with run_in_background true, reply with the single "
+                                              "word STARTED and end your turn. When it finishes you will be told: then reply with its output."})
+    over = r.s.wait(t, said(a, "BG-OVER"), t + MODEL_S)
+    stops = turn_ends(home, a, t, over[0]) if over else 0
+    r.record({"step": "background: its end woke the agent with no message", "paced_by": "model",
+              "result": "pass" if over and stops >= 2 else "FAIL", "seconds": round(over[0] - t, 2) if over else None,
+              "note": f"{stops} turn ends from the send to its BG-OVER: the turn that started it, then the one its end began"})
+    r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(3)
+
+    folder = root / "given"
+    folder.mkdir(exist_ok=True)
+    (folder / "secret.txt").write_text("MANGO\n")
+    before = session_ids(home, a)
+    t = time.time()
+    got = d.write("access.grant", {"agent": a, "path": str(folder), "scope": "always"})
+    r.record({"step": "folder: given now, between turns", "paced_by": "daemon", "result": "pass" if got.get("applies_from") == "now" else "FAIL",
+              "seconds": round(time.time() - t, 2), "note": str(got.get("applies_from"))})
+    r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+    pong(r, a, f"Read the file {folder}/secret.txt and reply with its content alone.", "MANGO", "folder")
+    after = session_ids(home, a)
+    r.record({"step": "folder: the same conversation, resumed with it", "paced_by": "daemon",
+              "result": "pass" if before and len(after) > len(before) and after[-1] == before[-1] else "FAIL", "seconds": None,
+              "note": f"sessions {before[-1:]} -> {after[-1:]}"})
+    r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+
+    if move_to:
+        d.write("account.add", {"account": move_to})
+        before = session_ids(home, a)
+        t = time.time()
+        d.write("agent.move", {"agent": a, "account": move_to})
+        moved = new_session(home, a, before, time.time() + MODEL_S + SLOW_S)
+        pong(r, a, "Reply with the single word MOVED.", "MOVED", "account move")
+        r.record({"step": "account move: it carries on on the new account under a Chat holder", "paced_by": "daemon",
+                  "result": "pass" if moved and account_of(home, a) == move_to and chat_socket(home, a).exists() else "FAIL",
+                  "seconds": round(time.time() - t, 2), "note": f"to {account_of(home, a)}; a person's move starts fresh with its handoff note"})
+        r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+
+    before = session_ids(home, a)
+    t = time.time()
+    d.write("session.compact", {"agent": a})
+    new_session(home, a, before, time.time() + MODEL_S + SLOW_S)
+    pong(r, a, "Reply with the single word FRESH.", "FRESH", "handoff")
+    after = session_ids(home, a)
+    r.record({"step": "handoff: a fresh session under a Chat holder", "paced_by": "daemon",
+              "result": "pass" if after and before and after[-1] != before[-1] and chat_socket(home, a).exists() else "FAIL",
+              "seconds": round(time.time() - t, 2), "note": f"sessions {before[-1:]} -> {after[-1:]}"})
+
+
 def scratch(root: Path, account: dict) -> tuple[Path, str]:
     """The test daemon's home under root, with its founder key where the daemon looks for one under a test root, the real shared
     settings, and a git checkout for the agent (a worktree of this repository: see the module doc). The account and the agent are
@@ -651,9 +763,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--daemon", help="the handlined binary to test; by default this checkout's is built")
     ap.add_argument("--json", action="store_true", help="print the table as JSON at the end")
-    ap.add_argument("--scenario", choices=["turns", "wake", "chat"], default="turns",
+    ap.add_argument("--scenario", choices=["turns", "wake", "chat", "chatlife"], default="turns",
                     help="turns: a terminal agent's turns timed; wake: a closed agent's message after another agent woke in between; "
-                         "chat: a Chat mode agent's task, messages, interrupt and a daemon restart mid-turn")
+                         "chat: a Chat mode agent's task, messages, interrupt and a daemon restart mid-turn; "
+                         "chatlife: a Chat mode agent's close and wake, background work, a folder, a handoff and (HANDLINE_LIVE_MOVE_TO) an account move")
     ap.add_argument("--keep", action="store_true", help="keep the test root (home, daemon log, worktree) for a look afterwards")
     args = ap.parse_args()
     if os.environ.get("HANDLINE_LIVE") != "1":
@@ -680,6 +793,8 @@ def main() -> int:
         print(f"live-e2e: {AGENT} ({agent}) on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
         if args.scenario == "wake":
             closed_wake(r, home, pool_agents(home, agent))
+        elif args.scenario == "chatlife":
+            chat_life(r, home, root, os.environ.get("HANDLINE_LIVE_MOVE_TO", ""))
         elif args.scenario == "chat":
             r, daemon = chat_turns(r, home, root, binary, account, tmux, daemon, key)
         else:

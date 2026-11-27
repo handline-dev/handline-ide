@@ -99,6 +99,7 @@ func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
 	cfg.Session = func() *sessionrpc.Env { return parts.SessionRPC(*ccfg) }
 	cfg.BeforeClose = parts.Wait
 	cfg.Context = parts.Context
+	cfg.ChatPort = parts.ChatPort
 	cfg.PromptChanged = parts.RefreshView
 }
 

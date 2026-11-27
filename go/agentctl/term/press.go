@@ -37,6 +37,8 @@ type Term struct {
 	Turns Turns
 	// Chat, when set, names the terminals whose session runs headless: no screen of theirs is read and no key reaches them.
 	Chat Chat
+	// HeadlessEndWait is how long a headless session is given to end on its stream before its terminal is closed under it.
+	HeadlessEndWait time.Duration
 
 	cacheMu sync.Mutex
 	cache   map[string]cachedBlocker // ScreenBlockerCached's reads, by handle
@@ -50,7 +52,7 @@ const (
 
 // New is a Term on b with the driver lookup drv: the agent CLI's wording of the screen of a handle. A handle it gives none for is read blind.
 func New(b Backend, drv func(handle string) Driver) *Term {
-	return &Term{Backend: b, Driver: drv, Settle: PressSettle}
+	return &Term{Backend: b, Driver: drv, Settle: PressSettle, HeadlessEndWait: 10 * time.Second}
 }
 
 func (t *Term) driver(handle string) Driver {
@@ -331,6 +333,11 @@ func (t *Term) ScreenBlocker(handle string) *Blocker {
 // BackgroundWork is what the session itself says is still running behind its prompt ("2 monitors"), "" when it says nothing; ok
 // is false when its screen could not be read.
 func (t *Term) BackgroundWork(handle string) (string, bool) {
+	if t.headless(handle) {
+		if running, known := t.Chat.Background(handle); known {
+			return running, true
+		}
+	}
 	if running, known := t.hookBackground(handle); known {
 		return running, true
 	}
@@ -343,6 +350,13 @@ func (t *Term) BackgroundWork(handle string) (string, bool) {
 
 // IdleWithBackground is whether the screen shows a session idle at its prompt with work running behind it.
 func (t *Term) IdleWithBackground(handle string) bool {
+	if t.headless(handle) {
+		idle, idleKnown := t.Chat.Idle(handle)
+		running, known := t.Chat.Background(handle)
+		if idleKnown && known {
+			return idle && running != ""
+		}
+	}
 	if running, known := t.hookBackground(handle); known {
 		return running != ""
 	}
@@ -371,6 +385,9 @@ func (t *Term) hookBackground(handle string) (string, bool) {
 // UsageLimitOpen is whether the dialog on this terminal's screen is the usage-limit one, the only dialog that waiting does not
 // clear and a person is not answering.
 func (t *Term) UsageLimitOpen(handle string) bool {
+	if t.headless(handle) {
+		return t.Chat.AtLimit(handle)
+	}
 	scr := t.screen(handle, 40)
 	if scr == nil {
 		return false
@@ -385,6 +402,10 @@ func (t *Term) UsageLimitOpen(handle string) bool {
 
 // TurnShown is whether the screen at handle draws a running turn; ok is false when it could not be read or no driver reads it.
 func (t *Term) TurnShown(handle string) (shown, ok bool) {
+	if t.headless(handle) {
+		idle, known := t.Chat.Idle(handle)
+		return known && !idle, known
+	}
 	d := t.driver(handle)
 	if _, blind := d.(Blind); blind {
 		return false, false
@@ -454,6 +475,11 @@ func (t *Term) ShellLeft(handle string) string {
 
 // WaitIdle is whether the agent at handle is idle within timeoutMs.
 func (t *Term) WaitIdle(handle string, timeoutMs int) bool {
+	if t.headless(handle) {
+		if idle, known := t.streamIdle(handle, time.Duration(timeoutMs)*time.Millisecond); known {
+			return idle
+		}
+	}
 	if t.Turns != nil {
 		if idle, known := t.Turns.WaitIdle(handle, time.Duration(timeoutMs)*time.Millisecond); known {
 			return idle
@@ -467,6 +493,11 @@ func (t *Term) WaitIdle(handle string, timeoutMs int) bool {
 
 // IdleNow is whether the agent is idle right now, without blocking the caller.
 func (t *Term) IdleNow(handle string) bool {
+	if t.headless(handle) {
+		if idle, known := t.Chat.Idle(handle); known {
+			return idle
+		}
+	}
 	if t.Turns != nil {
 		if idle, known := t.Turns.WaitIdle(handle, 0); known {
 			return idle

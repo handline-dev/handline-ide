@@ -8,8 +8,11 @@ type Chat interface {
 	Init() (line []byte, secret string)
 	// UserLine is a message from the person or a peer, under uuid, so the CLI's receipts name it.
 	UserLine(uuid, text string) []byte
-	// InterruptLine stops the running turn.
+	// InterruptLine stops the running turn; StopTaskLine one piece of background work.
 	InterruptLine(id string) []byte
+	StopTaskLine(id, task string) []byte
+	// Env is what the CLI's environment adds for a Chat session.
+	Env() []string
 	// Read takes from one frame only the fields an Event allows.
 	Read(frame []byte) Event
 	// Refuse answers an Ask with no, giving why.
@@ -41,7 +44,23 @@ const (
 	EventAsk
 	// EventRequest is any other request the CLI makes of the host: Request.
 	EventRequest
+	// EventState is the session running a turn or idle: State.
+	EventState
+	// EventBackground is the whole list of background work still running: Tasks.
+	EventBackground
+	// EventLimit is the account's usage limit as the CLI last heard it: Limit.
+	EventLimit
 )
+
+// Task is one piece of background work.
+type Task struct{ ID, Description string }
+
+// Limit is a usage window's standing: Blocked once the account is at it, until ResetsAt (unix seconds, 0 unknown).
+type Limit struct {
+	Blocked  bool
+	Window   string
+	ResetsAt int64
+}
 
 // Event is a frame by allowlist: nothing else is taken from it.
 type Event struct {
@@ -53,4 +72,6 @@ type Event struct {
 	IsError   bool
 	Request   string
 	Tool      string
+	Tasks     []Task
+	Limit     Limit
 }

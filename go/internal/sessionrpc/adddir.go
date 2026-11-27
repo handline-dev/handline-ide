@@ -23,6 +23,9 @@ func (e *Env) AddDir(agent, dir string) bool {
 	if strings.ContainsAny(dir, " \t") || e.Holds == nil {
 		return false
 	}
+	if handle, err := db.Terminal(e.DB, agent); err == nil && handle != "" && e.Term.Headless(handle) {
+		return e.addDirResumed(agent, handle)
+	}
 	hold := lock.TakeTerminal(e.Home, agent)
 	if hold == nil {
 		return false
@@ -51,6 +54,16 @@ func (e *Env) AddDir(agent, dir string) bool {
 		e.Term.Send(handle, ctrlU, false)
 	}
 	return false
+}
+
+// addDirResumed gives a Chat session the folder between turns: closed and resumed in the same conversation, its launch taking the folder as
+// it takes every grant. A turn running, or background work behind it, leaves the folder to the next session.
+func (e *Env) addDirResumed(agent, handle string) bool {
+	if e.Controls == nil || !e.Term.IdleNow(handle) || e.Term.IdleWithBackground(handle) {
+		return false
+	}
+	ok, _, err := e.Controls.Restart(Call{By: "daemon"}, agent, false, false)
+	return ok && err == nil
 }
 
 // ctrlU deletes the composer's line, what /add-dir left there unsent.

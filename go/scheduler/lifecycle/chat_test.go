@@ -22,6 +22,8 @@ func (chatDriver) ChatArgv(argv []string) []string         { return cc.ChatArgv(
 func (chatDriver) Init() ([]byte, string)                  { return cc.Init() }
 func (chatDriver) UserLine(uuid, text string) []byte       { return cc.UserLine(uuid, text) }
 func (chatDriver) InterruptLine(id string) []byte          { return cc.InterruptLine(id) }
+func (chatDriver) StopTaskLine(id, task string) []byte     { return cc.StopTaskLine(id, task) }
+func (chatDriver) Env() []string                           { return cc.Env() }
 func (chatDriver) Read(line []byte) cli.Event              { return cc.Read(line) }
 func (chatDriver) Refuse(ask cli.Event, why string) []byte { return cc.Refuse(ask, why) }
 func (chatDriver) Unserved(req cli.Event) []byte           { return cc.Unserved(req) }
@@ -57,6 +59,9 @@ func TestAChatAgentsLaunchRunsUnderTheHolderWithItsPromptAsTheFirstMessage(t *te
 	if slices.Contains(got.Argv, "-take the task") || !slices.Contains(got.Argv, "--print") || !slices.Contains(got.Argv, "--effort") {
 		t.Fatalf("the terminal line headless, without the prompt: %v", got.Argv)
 	}
+	if !slices.Contains(got.Env, cc.Env()[0]) {
+		t.Fatalf("the CLI's Chat env: %v", got.Env)
+	}
 	h := got.Hold
 	if len(h.Init) != 2 || !strings.Contains(h.Init[0], h.Secret) || !strings.Contains(h.Init[1], "-take the task") {
 		t.Fatalf("the opening line, then the prompt: %+v", h)
@@ -69,5 +74,28 @@ func TestAChatAgentsLaunchRunsUnderTheHolderWithItsPromptAsTheFirstMessage(t *te
 	r.l.Ports.Devices = fakeDevices{"box": {"main": "/runner/accounts/k1/.claude"}}
 	if got, err := r.l.Prepare(site, "ann", nil, false, prompt(), "main", "", ""); err != nil || got.Hold != nil {
 		t.Fatalf("a runner's session stays a terminal one for now: %+v %v", got, err)
+	}
+}
+
+// A Chat session works in its granted folders beside its own, as a terminal one does once /add-dir gave them; a terminal launch does not.
+func TestAChatLaunchAddsTheGrantedFolders(t *testing.T) {
+	r := newLaunchRig(t)
+	r.l.Ports.Vendors = chatVendors{fakeVendors{"claude"}}
+	dir, file := t.TempDir(), filepath.Join(t.TempDir(), "f")
+	os.WriteFile(file, nil, 0o600)
+	granted := []string{dir, file, "/missing"}
+	if got := r.l.addDirs(r.site(), "ann", granted); slices.Contains(got, dir) {
+		t.Fatalf("a terminal launch: %v", got)
+	}
+	if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "session_mode", Val: "chat"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.l.addDirs(r.site(), "ann", granted); !slices.Contains(got, dir) || slices.Contains(got, file) || slices.Contains(got, "/missing") {
+		t.Fatalf("a Chat launch: %v", got)
+	}
+	site := r.site()
+	site.Node = "box"
+	if got := r.l.addDirs(site, "ann", granted); slices.Contains(got, dir) {
+		t.Fatalf("a runner's launch: %v", got)
 	}
 }
