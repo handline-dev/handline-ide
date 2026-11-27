@@ -109,16 +109,22 @@ export function ModeControl({ row, setMode, busy }: { row: DeviceRow; setMode: (
 }
 
 const again = 'To use it again it has to be paired anew.';
+const youAgain = 'This device included: it shows pairing next, with a code from the master.';
 
 export function confirmRevoke(rows: DeviceRow[], revoke: (id: string) => Promise<unknown>) {
   const one = rows.length === 1 ? rows[0]! : null;
+  const here = rows.some((r) => r.here);
+  // This device goes last, so the others are revoked before it loses its access.
+  const order = [...rows.filter((r) => !r.here), ...rows.filter((r) => r.here)];
   void confirm({
     title: one ? `Revoke ${one.name}?` : `Revoke ${rows.length} devices?`,
-    message: `${one?.here ? 'This is the device you are using: it loses its access at once.' : `${one ? one.name : `The ${rows.length} devices`} ${one ? 'loses its' : 'lose their'} access at once.`} ${again}`,
+    message: `${one ? one.name : `The ${rows.length} devices`} ${one ? 'loses its' : 'lose their'} access at once. ${here ? youAgain : one ? again : again.replace('it', 'them')}`,
     confirmText: 'Revoke',
     danger: true,
     run: async () => {
-      for (const r of rows) await revoke(r.id);
+      for (const r of order) await revoke(r.id);
+      // The open connection outlives the token; a reload meets the refusal and shows pairing.
+      if (here) location.reload();
     },
   });
 }
