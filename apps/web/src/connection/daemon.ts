@@ -33,3 +33,16 @@ export function browserStorage(): KV | null {
     return null;
   }
 }
+
+/** Whether the daemon this page talks to runs on this machine: a page it served itself on loopback, or a `?daemon=` on loopback or on
+ *  this machine's own address (shell:own-host). */
+export function daemonOnThisMachine(search: string, loc: { hostname: string }, ownHost: string | null): boolean {
+  const here = (h: string) => LOOPBACK.has(h) || (!!ownHost && h === ownHost);
+  const given = new URLSearchParams(search).get('daemon');
+  if (given === null) return here(loc.hostname);
+  try {
+    return here(new URL(given).hostname);
+  } catch {
+    return false;
+  }
+}

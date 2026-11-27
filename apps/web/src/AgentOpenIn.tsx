@@ -6,6 +6,7 @@ import { useThisDevice } from '@handline/app-react';
 import { Bot, Code, SquareTerminal } from 'lucide-react';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { useCluster } from '#src/connection/clusters.tsx';
+import { browserStorage, daemonOnThisMachine } from '#src/connection/daemon.ts';
 import { shell } from '#src/shell.ts';
 import { MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -41,6 +42,9 @@ const ICONS: Record<OpenInApp, ReactNode> = {
   claude: <Bot size={14} />,
 };
 
+/** Whether this page's own daemon runs on this Mac; fixed for the page's life. */
+const daemonHere = daemonOnThisMachine(location.search, location, browserStorage()?.getItem('shell:own-host') || null);
+
 /** The apps as menu items, then a separator; nothing for an agent whose folder is not on this Mac (it lives on another machine, or in a
  *  cluster this Mac only joined) or that has no worktree, where the shell would only answer that it found none. */
 export function OpenInItems({ agent, apps }: { agent: string; apps: OpenInApp[] }) {
@@ -49,7 +53,7 @@ export function OpenInItems({ agent, apps }: { agent: string; apps: OpenInApp[] 
   const nodes = Hooks.useNodeStatus().data?.nodes ?? [];
   const agentNode = useAgents().data?.agents.find((a) => a.key === agent)?.node;
   const detail = useAgentDetail(agent).data;
-  if (cluster !== '' || !detail?.worktree || !folderIsHere({ device, nodes, agentNode })) return null;
+  if (cluster !== '' || !detail?.worktree || !folderIsHere({ daemonHere, device, nodes, agentNode })) return null;
   const open = async (app: OpenInApp) => {
     const r = await shell()?.openIn?.({ app, agent });
     if (r && !r.ok) toast(r.message, { tone: 'warning' });

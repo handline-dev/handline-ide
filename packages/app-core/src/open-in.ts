@@ -9,17 +9,19 @@ export const OPEN_IN_APPS: readonly { app: OpenInApp; label: string }[] = [
   { app: 'claude', label: 'Claude Code session' },
 ];
 
-/** Whether an agent's folder is on the Mac this app runs on, where the shell can open it. `device` is the paired device this app connects
- *  as (none on the master's own Mac, which connects as its person), `nodes` the machines node.status lists, and `agentNode` the machine
- *  the agent's last session opened on (none before its first, which the master's machine holds).
- *  On the master's own Mac the agents of the daemon's machine are here; on a lent Mac, the agents on its own node; any other paired
- *  device (a Mac that lends nothing) holds no agent's folder. */
+/** Whether an agent's folder is on the Mac this app runs on, where the shell can open it. `daemonHere` is whether the daemon the page
+ *  talks to runs on this Mac (reached on loopback or this Mac's own address), `device` the paired device this app connects as, `nodes`
+ *  the machines node.status lists, and `agentNode` the machine the agent's last session opened on (none before its first, which the
+ *  daemon's machine holds).
+ *  With the daemon on this Mac (the window may still connect as a paired device), the agents of the daemon's machine are here; on a
+ *  lent Mac, the agents on its own node; any other paired device (a Mac that lends nothing) holds no agent's folder. */
 export function folderIsHere(a: {
+  daemonHere: boolean;
   device: string | undefined;
   nodes: readonly { id: string; self: boolean; device?: string | null }[];
   agentNode: string | null | undefined;
 }): boolean {
-  if (!a.device) {
+  if (a.daemonHere || !a.device) {
     const self = a.nodes.find((n) => n.self);
     return !a.agentNode || !self || a.agentNode === self.id;
   }
