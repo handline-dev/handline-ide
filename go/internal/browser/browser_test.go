@@ -88,6 +88,12 @@ func TestDrivesAPageInItsOwnProfile(t *testing.T) {
 	if engine == "" {
 		t.Skip("no Chrome on this machine")
 	}
+	tmp, err := os.MkdirTemp("/tmp", "hlc") // short: Chrome's socket under it must fit a unix socket path; what Chrome leaves goes with it
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tmp) })
+	t.Setenv("TMPDIR", tmp)
 	one, two := t.TempDir(), t.TempDir()
 	a, err := Ensure(one, engine, false)
 	if err != nil {
