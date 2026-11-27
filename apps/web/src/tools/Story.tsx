@@ -11,7 +11,7 @@ import { planOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import { TaskChat } from '#src/tools/TaskTab.tsx';
 import { SubTask } from '#src/tools/StorySub.tsx';
-import { run } from '#src/tools/RunPlan.tsx';
+import { useRun } from '#src/tools/RunPlan.tsx';
 import { startsAfter, wordOf, type Sub, type Word } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
@@ -72,6 +72,7 @@ export function PlanFlow({ t }: { t: TaskDetail }) {
     .sort((a, b) => Number(forYou(b)) - Number(forYou(a)));
   const later = waits.length - next.length;
   const drafts = live.filter((x) => x.state === 'draft');
+  const { run } = useRun();
   const nowShown = more.now ? now : now.slice(0, SHOWN.now);
   const nextShown = more.next ? next : next.slice(0, SHOWN.next);
   if (!live.length) return null;
@@ -221,6 +222,7 @@ function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (
   // Only a sub-task not yet done or discarded holds another back.
   const open = new Set(kids.filter((x) => !['done', 'discarded'].includes(x.state)).map((x) => x.id));
   const drafts = kids.filter((x) => x.state === 'draft');
+  const { run } = useRun();
   const subOf = new Map(subs.map((x) => [x.id, x]));
   const word = (x: Task) => wordOf(x, subOf.get(x.id), me, open);
   const ready = (x: Task) => word(x).kind === 'you';

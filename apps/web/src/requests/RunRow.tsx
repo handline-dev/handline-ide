@@ -3,7 +3,7 @@ import { useTasks, useWrite } from '@handline/app-data';
 import type { PendingRequest } from '@handline/client';
 import { Play } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { run } from '#src/tools/RunPlan.tsx';
+import { useRun } from '#src/tools/RunPlan.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { Linked } from '#src/ui/Markdown.tsx';
 import { sayRefusal } from '#src/ui/refusal.tsx';
@@ -31,6 +31,7 @@ export function Holds({ p, answers }: { p: PendingRequest; answers?: ReactNode }
 /** Run: a lone draft is queued at once; a parent whose drafts are under it opens their Run window. */
 export function RunButton({ task }: { task: number }) {
   const queue = useWrite('task.queue');
+  const { run } = useRun();
   const listed = useTasks({ parent: task, all: true }).data;
   const kids = listed?.items ?? [];
   const drafts = kids.filter((x) => x.state === 'draft');

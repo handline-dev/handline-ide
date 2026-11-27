@@ -9,17 +9,32 @@ import { sayRefusal } from '#src/ui/refusal.tsx';
 
 /** A draft's Run, at its page's title: Run is the OK of its plan, so it is the one button. */
 export function DraftRun({ t }: { t: TaskDetail }) {
+  const { run, pending } = useRun();
   return (
-    <Button variant="primary" className="shrink-0" onClick={() => run(t.parent ?? t.id, [t], new Set())}>
+    <Button
+      variant="primary"
+      className="shrink-0"
+      disabled={pending}
+      onClick={() => run(t.parent ?? t.id, [t], new Set(t.blocked_by ?? []))}
+    >
       <Play size={14} />
       Run
     </Button>
   );
 }
 
-/** The Run window: each draft, who gets it and when it starts; Run N tasks queues them. */
-export function run(parent: number, drafts: Task[], open: Set<number>) {
-  void openModal<boolean>((close) => <RunWindow parent={parent} drafts={drafts} open={open} close={close} />);
+/** Run drafts: one draft that waits on nothing starts at once; otherwise the Run window shows the order first. */
+export function useRun() {
+  const queue = useWrite('task.queue');
+  const run = (parent: number, drafts: Task[], open: Set<number>) => {
+    const [only] = drafts;
+    if (drafts.length === 1 && !startsAfter(only, open).length) {
+      queue.mutate({ tasks: [only.id] }, { onError: sayRefusal });
+      return;
+    }
+    void openModal<boolean>((close) => <RunWindow parent={parent} drafts={drafts} open={open} close={close} />);
+  };
+  return { run, pending: queue.isPending };
 }
 
 function RunWindow({ parent, drafts, open, close }: { parent: number; drafts: Task[]; open: Set<number>; close: (v?: boolean) => void }) {
