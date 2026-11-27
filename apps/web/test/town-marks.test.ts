@@ -1,22 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
-import {
-  cutTo,
-  doingOf,
-  doingSize,
-  fitTo,
-  kindOf,
-  lineAt,
-  linesOf,
-  markOf,
-  papersTip,
-  queueOf,
-  roomsOf,
-  stepsOf,
-  tipOf,
-  waitingOf,
-  wrapTo,
-} from '#src/town/marks.ts';
+import { cutTo, kindOf, markOf, papersTip, queueOf, stepsOf, tipOf, waitingOf } from '#src/town/marks.ts';
 import type { Person } from '#src/town/model.ts';
 import { changedWork, POP_LETTERS, POP_MS, popped, popsOf, QUIET_MS, showing, type Popped } from '#src/town/pops.ts';
 
@@ -29,39 +13,11 @@ const person = (key: string, activity: Activity, doing: string | null = null, wh
   cached: false,
   why,
 });
-/** Every letter as wide as the next: 2 picture pixels. */
-const widthOf = (s: string) => [...s].length * 2;
 
 describe('the mark over a person', () => {
   it('is only for one on hold, stopped or asleep', () => {
     const all: Activity[] = ['working', 'waking', 'asleep', 'you', 'held', 'error', 'resting'];
     expect(all.map(markOf)).toEqual([null, null, 'asleep', null, 'held', 'error', null]);
-  });
-});
-
-describe('the line under a name', () => {
-  it('says what one at a desk is doing, and nothing for the others', () => {
-    expect(doingOf(person('a', 'working', 'Plan the notes'))).toBe('Plan the notes');
-    expect(doingOf(person('a', 'you', ' Ask about the name '))).toBe('Ask about the name');
-    expect(doingOf(person('a', 'working'))).toBeNull();
-    expect(doingOf(person('a', 'you'))).toBeNull();
-    for (const idle of ['resting', 'asleep', 'waking'] as const) expect(doingOf(person('a', idle, 'Old work'))).toBeNull();
-  });
-
-  it('says why one on hold or stopped waits when it has no work to name, else the state word', () => {
-    expect(doingOf(person('a', 'held', 'Write the guide', 'Usage limit'))).toBe('Write the guide');
-    expect(doingOf(person('a', 'held', null, 'Usage limit'))).toBe('Usage limit');
-    expect(doingOf(person('a', 'held'))).toBe('On hold');
-    expect(doingOf(person('a', 'error', '  '))).toBe('Stopped');
-  });
-
-  it('is 9px on screen, shrinks with the room and goes once it would be under 8px', () => {
-    expect(doingSize(3)).toBeCloseTo(3);
-    expect(doingSize(2)! * 2).toBeCloseTo(9);
-    // Capped in picture pixels as the names are, so it grows no further in a small room.
-    expect(doingSize(1.6)).toBeCloseTo(5.3);
-    expect(doingSize(1.5)).toBeNull();
-    expect(doingSize(0.5)).toBeNull();
   });
 });
 
@@ -79,52 +35,8 @@ describe('what hovering a person says', () => {
   });
 });
 
-describe('the room a line has', () => {
-  const o = { gap: 4, row: 5, most: 100 };
-
-  it('stops short of the nearest neighbour on its row, whichever side', () => {
-    const at = [
-      { x: 100, y: 50 },
-      { x: 133, y: 50 },
-      { x: 180, y: 52 },
-    ];
-    expect(roomsOf(at, 400, o)).toEqual([29, 29, 43]);
-  });
-
-  it('is not held back by another row, and stays inside the picture and under the most', () => {
-    const at = [
-      { x: 100, y: 50 },
-      { x: 110, y: 90 },
-      { x: 20, y: 130 },
-      { x: 395, y: 170 },
-    ];
-    expect(roomsOf(at, 400, o)).toEqual([100, 100, 36, 6]);
-    expect(roomsOf([{ x: 1, y: 0 }], 400, o)).toEqual([0]);
-  });
-});
-
-describe('a text cut to fit', () => {
-  it('stays whole when it fits', () => {
-    expect(fitTo('Plan', 8, widthOf)).toBe('Plan');
-  });
-
-  it('keeps its longest start that fits with the ellipsis, never over the room', () => {
-    for (let room = 4; room < 40; room++) {
-      const cut = fitTo('Plan the release notes', room, widthOf)!;
-      expect(widthOf(cut)).toBeLessThanOrEqual(room);
-      expect(cut.endsWith('…')).toBe(true);
-    }
-    expect(fitTo('Plan the release notes', 20, widthOf)).toBe('Plan the…');
-    expect(fitTo('Plan the release notes', 22, widthOf)).toBe('Plan the r…');
-  });
-
-  it('is nothing when not even a letter fits', () => {
-    expect(fitTo('Plan the release notes', 3, widthOf)).toBeNull();
-    expect(fitTo('Plan the release notes', 0, widthOf)).toBeNull();
-  });
-
+describe('a text cut short', () => {
   it('never cuts a letter of two code units in half', () => {
-    expect(fitTo('😀😀😀😀', 6, widthOf)).toBe('😀😀…');
     expect(cutTo('😀😀😀😀', 3)).toBe('😀😀…');
   });
 
@@ -134,80 +46,6 @@ describe('a text cut to fit', () => {
     // The space before the cut goes, so the ellipsis follows a letter.
     expect(long).toBe('Read the import logs of the last three…');
     expect([...cutTo('abcdefghij', 5)]).toHaveLength(5);
-  });
-});
-
-describe('the lines of an office', () => {
-  const names = [
-    { key: 'a', x: 100, y: 50 },
-    { key: 'b', x: 133, y: 50 },
-    { key: 'c', x: 166, y: 50 },
-    { key: 'd', x: 100, y: 110 },
-  ];
-  const look = { w: 400, size: 4, below: 5, heads: [], widthOf };
-  const people = [
-    person('a', 'working', 'Plan the release notes'),
-    person('b', 'resting', 'Old work'),
-    person('c', 'held'),
-    person('d', 'working', 'Read the logs'),
-  ];
-
-  it('wraps each within the room its row leaves and skips whoever has nothing to say', () => {
-    expect(linesOf(names, [], people, look)).toEqual([
-      // 33 apart less a gap of 3.6: 29.4 wide, 14 letters of 2 a line.
-      { key: 'a', x: 100, y: 50, lines: ['Plan the', 'release notes'] },
-      { key: 'c', x: 166, y: 50, lines: ['On hold'] },
-      { key: 'd', x: 100, y: 110, lines: ['Read the logs'] },
-    ]);
-  });
-
-  it('keeps one line where a second would reach the mark over a head of the row below', () => {
-    // Two lines under a name 5 tall at 50 end at 64.6; a mark reaches 7 over its head's top.
-    const under = (heads: { x: number; y: number }[]) => linesOf(names, [], people, { ...look, heads })[0].lines;
-    expect(under([{ x: 100, y: 70 }])).toEqual(['Plan the rele…']);
-    expect(under([{ x: 100, y: 80 }])).toEqual(['Plan the', 'release notes']);
-    // Neither a head far to the side nor the one over the name itself is in the way.
-    expect(
-      under([
-        { x: 200, y: 70 },
-        { x: 100, y: 20 },
-      ]),
-    ).toEqual(['Plan the', 'release notes']);
-  });
-
-  it('reads the newest people, by key, and leaves room for a name that gets no line', () => {
-    const now = [person('d', 'working', 'Read the import logs of the night')];
-    // The founder's desk stands on the last row, 30 to the right.
-    expect(linesOf(names, [{ x: 130, y: 112 }], now, look)).toEqual([{ key: 'd', x: 100, y: 110, lines: ['Read the', 'import logs…'] }]);
-    // With nobody beside it a line still ends within thirteen times its height: 52 wide here.
-    expect(linesOf(names, [], now, look)).toEqual([{ key: 'd', x: 100, y: 110, lines: ['Read the import logs of', 'the night'] }]);
-    expect(linesOf(names, [], [], look)).toEqual([]);
-  });
-
-  it('stands the lines one under the other, below the name', () => {
-    expect(lineAt(50, 5, 4, 0)).toBeCloseTo(59.2);
-    expect(lineAt(50, 5, 4, 1)).toBeCloseTo(63.6);
-  });
-});
-
-describe('a text on two lines', () => {
-  it('stays on one when it fits', () => {
-    expect(wrapTo('Plan the notes', 28, widthOf)).toEqual(['Plan the notes']);
-  });
-
-  it('breaks between words, and ends the second line in an ellipsis when it is too long too', () => {
-    expect(wrapTo('Plan the release notes', 30, widthOf)).toEqual(['Plan the', 'release notes']);
-    const long = wrapTo('Read the import logs of the last three nightly runs', 30, widthOf);
-    expect(long).toEqual(['Read the import', 'logs of the la…']);
-    for (const line of long) expect(widthOf(line)).toBeLessThanOrEqual(30);
-  });
-
-  it('cuts a first word too long for a line where the line ends', () => {
-    expect(wrapTo('Supercalifragilistic word', 20, widthOf)).toEqual(['Supercalif', 'ragilisti…']);
-  });
-
-  it('is nothing when not even a letter fits', () => {
-    expect(wrapTo('Plan the release notes', 1, widthOf)).toEqual([]);
   });
 });
 

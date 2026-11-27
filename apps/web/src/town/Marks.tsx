@@ -1,12 +1,10 @@
 // What an office shows over and under its people so it reads at a glance (marks.ts and pops.ts decide what; Inside.tsx and Cast.tsx place
-// it): an hourglass over one on hold, a red warning over one stopped on a fault, Zzz over the desk of one asleep; under each name a
-// smaller line saying what its person does; over one at work the steps done of its task as a bar; and a thought bubble that pops with
-// the new work when it changes. All vector, in picture pixels, so it stays crisp however large the room is drawn, and none of it takes
+// it): an hourglass over one on hold, a red warning over one stopped on a fault, Zzz over the desk of one asleep; over one at work the
+// steps done of its task as a bar; and a thought bubble that pops with the new work when it changes. All vector, in picture pixels, so it stays crisp however large the room is drawn, and none of it takes
 // a click. Whoever is walking gets nothing until it sits, as with the bubbles of those waiting for the founder.
-import { useMemo } from 'react';
 import { Hooks, useTasks } from '@handline/app-data';
 import { useMovers, type Crowd } from '#src/town/crowd.ts';
-import { doingSize, lineAt, linesOf, markOf, papersTip, queueOf, stepsOf, type At, type Mark } from '#src/town/marks.ts';
+import { markOf, papersTip, queueOf, stepsOf, type At, type Mark } from '#src/town/marks.ts';
 import type { Person } from '#src/town/model.ts';
 import type { Drawn } from '#src/town/office.ts';
 import { NAME_HALO, NAME_INK, NAME_MUTED, STEP_DONE, STEP_LEFT } from '#src/town/palette.ts';
@@ -30,57 +28,6 @@ function widthOf(text: string, size: number, weight: number): number {
 }
 
 const haloed = (size: number) => ({ stroke: NAME_HALO, strokeWidth: size * HALO, paintOrder: 'stroke' as const });
-
-/** Under each seated person's name what it does, on a line or two, cut to the room its row leaves; none in a room drawn too small.
- *  `walking` are the keys of those not at their place now. */
-export function DoingLines({
-  drawn,
-  people,
-  walking,
-  scale,
-  below,
-}: {
-  drawn: Drawn;
-  people: readonly Person[];
-  walking: ReadonlyMap<string, unknown>;
-  scale: number;
-  /** How far under a name's top its line starts: the name's own height. */
-  below: number;
-}) {
-  const size = doingSize(scale);
-  const lines = useMemo(() => {
-    if (!size) return [];
-    const { names, mine, hire, heads } = drawn.cast;
-    // The founder's desk and the empty one have labels of their own on their rows.
-    const others = [mine?.name, hire?.name].flatMap((at) => (at ? [{ x: at[0], y: at[1] }] : []));
-    return linesOf(
-      names.map((n) => ({ key: n.person.key, x: n.x, y: n.y })),
-      others,
-      people,
-      { w: drawn.w, size, below, heads, widthOf: (s) => widthOf(s, size, 600) },
-    );
-  }, [drawn, people, size, below]);
-  if (!size) return null;
-  return lines
-    .filter((l) => !walking.has(l.key))
-    .flatMap((l) =>
-      l.lines.map((text, i) => (
-        <text
-          key={`${l.key}:${i}`}
-          x={l.x}
-          y={lineAt(l.y, below, size, i)}
-          textAnchor="middle"
-          fontSize={size}
-          fontWeight={600}
-          fill={NAME_MUTED}
-          {...haloed(size)}
-          className="pointer-events-none"
-        >
-          {text}
-        </text>
-      )),
-    );
-}
 
 /** A pause sign in a round badge, in a quiet colour: waiting by design. */
 function Paused() {

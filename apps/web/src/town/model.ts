@@ -3,7 +3,7 @@
 import type { AgentView, PendingRequest, Workspace } from '@handline/client';
 import { activityOf, holdLine, type Activity } from '#src/layout/agentList.ts';
 
-/** What a person is doing, in a word, under their name. */
+/** What a person is doing, in a word. */
 export const WORDS: Record<Activity, string> = {
   working: 'Working',
   waking: 'Starting',
@@ -45,10 +45,17 @@ export type House = {
 };
 export type Town = { houses: House[]; decisions: Decision[] };
 
+/** What the town shows a person doing: working too while it rests at its prompt and its subagents or background commands run; a
+ *  Monitor watch is waiting, not work. */
+function townActivity(a: AgentView): Activity {
+  const act = activityOf(a);
+  return act === 'resting' && (a.background ?? []).some((j) => j.kind !== 'monitor') ? 'working' : act;
+}
+
 const personOf = (a: AgentView, now: number, team: string): Person => ({
   key: a.key,
   name: a.name,
-  activity: activityOf(a),
+  activity: townActivity(a),
   doing: a.task?.title ?? a.doing?.text ?? null,
   queue: a.task_count ?? 0,
   cached: !!a.cache_until && Date.parse(a.cache_until) > now,

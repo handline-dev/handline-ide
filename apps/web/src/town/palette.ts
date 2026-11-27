@@ -9,7 +9,7 @@ type RGB = [number, number, number];
 const css = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`;
 export const NAME_INK = css([74, 64, 56]);
 export const NAME_HALO = css([255, 250, 240]);
-/** What a person is doing, under its name, and the marks of one on hold or asleep: the names' ink, quieter. */
+/** The marks of one on hold or asleep: the names' ink, quieter. */
 export const NAME_MUTED = css([100, 87, 77]);
 /** The name under the empty desk of an agent that is away: lighter still, so it never reads as one of those present. */
 export const NAME_AWAY = css([146, 130, 116]);
