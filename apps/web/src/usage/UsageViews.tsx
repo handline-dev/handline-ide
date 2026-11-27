@@ -54,6 +54,7 @@ function Ranked({
   figures,
   fill,
   tone = 'bg-accent',
+  parts,
 }: {
   name: ReactNode;
   sub?: string;
@@ -62,16 +63,26 @@ function Ranked({
   figures: string;
   fill: number;
   tone?: string;
+  /** Rows under it, each a name and its figures in the same column. */
+  parts?: { name: string; figures: string }[];
 }) {
   return (
-    <div className="flex items-center gap-4 border-b border-border py-2 text-sm">
-      <div className="flex w-44 min-w-0 flex-col">
-        <span className="truncate text-fg">{name}</span>
-        {sub && <span className="truncate text-xs text-muted">{sub}</span>}
-        {place}
+    <div className="flex flex-col border-b border-border py-2 text-sm">
+      <div className="flex items-center gap-4">
+        <div className="flex w-44 min-w-0 flex-col">
+          <span className="truncate text-fg">{name}</span>
+          {sub && <span className="text-xs text-muted">{sub}</span>}
+          {place}
+        </div>
+        <Bar pct={Math.min(1, fill) * 100} fill={tone} />
+        <span className="w-36 shrink-0 text-right text-muted tabular-nums">{figures}</span>
       </div>
-      <Bar pct={Math.min(1, fill) * 100} fill={tone} />
-      <span className="w-36 shrink-0 text-right text-muted tabular-nums">{figures}</span>
+      {parts?.map((p) => (
+        <div key={p.name} className="flex gap-4 pl-3 text-xs text-muted">
+          <span className="min-w-0 flex-1 break-all">{p.name}</span>
+          <span className="shrink-0 text-right tabular-nums">{p.figures}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -87,7 +98,7 @@ const add = (a: Use, b: { cost: number; week_pct: number | null }): Use => ({
 const size = (u: Use) => u.week ?? u.cost;
 
 /** Who used it in the window, as a tree: each team (an agent and the agents named under it, `handline` and `handline.*`) with its total,
- * and under it each agent with its total and, in one line, the accounts it ran on. A team opens and closes. */
+ * and under it each agent with its total and a row per account it ran on. A team opens and closes. */
 export function ByAgent({ win }: { win: Win }) {
   const s = useStats(win).data;
   const [shut, setShut] = useTabState<string[]>('shut', []);
@@ -155,10 +166,9 @@ export function ByAgent({ win }: { win: Win }) {
                     <div key={a.name} className="pl-5">
                       <Ranked
                         name={nameOf(dir, a.name) === team ? `${team} (itself)` : nameOf(dir, a.name)}
-                        sub={a.accounts
+                        parts={a.accounts
                           .sort((x, y) => size(y.use) - size(x.use))
-                          .map((c) => `${c.account} ${figures(c.use)}`)
-                          .join(' · ')}
+                          .map((c) => ({ name: c.account, figures: figures(c.use) }))}
                         place={<MachinesOf ids={[...a.machines]} />}
                         figures={figures(a)}
                         fill={size(a) / top}
