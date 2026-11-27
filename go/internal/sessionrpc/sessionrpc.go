@@ -34,18 +34,18 @@ type Call struct {
 	By     string // the caller's actor name
 }
 
-// Controls is actions/control.py and daemon/lifecycle.py as the session methods use them (the S3 lifecycle). Each returns whether it did,
+// Controls is the agent lifecycle's start, wake, close, restart and park as the session methods use them (the S3 lifecycle). Each returns whether it did,
 // and what it says; the words of a refusal are the verb's own.
 type Controls interface {
-	// Start is control.start_result: give an agent a worktree and start it there. repo "" is the working directory; base is never "".
+	// Start gives an agent a worktree and starts it there. repo "" is the working directory; base is never "".
 	Start(c Call, agent, repo, base string) (ok bool, said string, err error)
-	// Wake is lifecycle.wake_agent; why is the lifecycle's own words, not yet prefixed with the agent.
+	// Wake wakes the agent; why is the lifecycle's own words, not yet prefixed with the agent.
 	Wake(c Call, agent string) (ok bool, why string, err error)
-	// Close is control.close_result, fresh also dropping the session id.
+	// Close closes the agent's session, fresh also dropping the session id.
 	Close(c Call, agent string, fresh bool) (ok bool, said string, err error)
-	// Restart is control.restart_result.
+	// Restart ends the agent's session and starts it again, fresh in a new conversation; a working agent is refused unless force.
 	Restart(c Call, agent string, fresh, force bool) (ok bool, said string, err error)
-	// Park is control.park_result: record a handoff, park until the window rolls over.
+	// Park records a handoff and parks the agent until the window rolls over.
 	Park(c Call, agent string) (ok bool, said string, err error)
 	// Compact asks for the handoff a full context runs: note, record, a fresh session. It answers before any of it.
 	Compact(c Call, agent string) (ok bool, said string, err error)
@@ -75,7 +75,7 @@ type Env struct {
 	Emit   func(topic, typ string, data any, agent string)
 	// WorkspaceAdded, when set, is told a workspace workspace.create made, by its name: its repo goes to the runners.
 	WorkspaceAdded func(name string)
-	// Move is handoff.force_move: the agent's session to another account now, a closed agent's next wake there, one mid-turn's when the turn
+	// Move moves the agent's session to another account now, a closed agent's next wake there, one mid-turn's when the turn
 	// ends; nil serves no agent.move.
 	Move func(call Call, agent, account string) (ok bool, said string, err error)
 	// MoveNow starts the agent's move, to account or with "" the one it keeps, once its note is in; stop ends a turn under way.

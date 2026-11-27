@@ -20,7 +20,7 @@ type Reading interface{}
 
 // RecoverPorts is what one recovery attempt reaches in the other groups (usage, vendors, accounts, fold).
 type RecoverPorts interface {
-	// UsageRecoverEnabled is load.usage_recover_enabled: whether the recover switch is turned on for the account.
+	// UsageRecoverEnabled is whether the recover switch is turned on for the account.
 	UsageRecoverEnabled(acct string) bool
 	// RenewsByTurn is whether the account's vendor reads usage and a real turn renews its credential; err is an unknown vendor, and
 	// name is the vendor's name for the refusal.
@@ -33,13 +33,13 @@ type RecoverPorts interface {
 	RunModel(prompt, acct, model string) (ok bool, out, errType string)
 	// Stall marks the account unusable for errType until a login or a wake, as a failed agent turn does (team.Accounts.StallAccount).
 	Stall(acct, errType, why string) error
-	// ReadUsage is usage_api.read_detailed with no refresh: the reading, or whether the failure was an auth refusal (401/403).
+	// ReadUsage is one read of the account's usage from its vendor: the reading, or whether the failure was an auth refusal (401/403).
 	ReadUsage(acct string) (reading Reading, authFailed bool)
 	Record(reading Reading)
 	Describe(reading Reading) string
 }
 
-// Recoverer is usage/recover.py: a stale or dead account earns itself back with one real turn. It is the mechanism only; noticing that
+// Recoverer is how a stale or dead account earns itself back with one real turn. It is the mechanism only; noticing that
 // a call is worth making belongs where the poll runs.
 type Recoverer struct {
 	Home  string

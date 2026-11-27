@@ -26,7 +26,7 @@ const (
 	maxDiffChars = 200_000
 )
 
-// git is rpc_worktrees._git: a read-only run, optional locks off.
+// git runs git in path read-only, optional locks off.
 func git(path string, args ...string) (bool, string) {
 	r := gitrun.RunTimeout(path, 20*time.Second, append([]string{"--no-optional-locks"}, args...)...)
 	return r.RC == 0, r.Stdout
@@ -44,7 +44,7 @@ func realpath(p string) string {
 	return p
 }
 
-// repoOf is agents.repo_of: where the agent was told to work.
+// repoOf is where the agent was told to work.
 func (e *Env) repoOf(agent string) string {
 	cfg, err := team.NewRoster(e.Home).Read(agent)
 	if err != nil {
@@ -54,7 +54,7 @@ func (e *Env) repoOf(agent string) string {
 	return s
 }
 
-// repos is rpc_worktrees.repos: the repos the agents were told to work in, by path, each with the setup its new worktrees get.
+// repos is the repos the agents were told to work in, by path, each with the setup its new worktrees get.
 func (e *Env) repos() []any {
 	out := []any{}
 	st := protected.New(e.Home)
@@ -81,7 +81,7 @@ func worktreePath(recorded string) string {
 	return ""
 }
 
-// known is a dict in Python's sense: later writes to a key keep its first place.
+// known is a map that keeps insertion order: a later write to a key keeps its first place.
 type known struct {
 	who   map[string]string
 	order []string
@@ -146,7 +146,7 @@ func countOf(s string) int64 {
 	return n
 }
 
-// changed is rpc_worktrees._changed: the changed files with git's status letter and line counts, up to maxChanged, and how many there are.
+// changed is the changed files with git's status letter and line counts, up to maxChanged, and how many there are.
 func changed(path string) ([]any, int) {
 	ok, status := git(path, "status", "--porcelain=v1", "-z", "-uall")
 	if !ok {
@@ -275,7 +275,7 @@ func (e *Env) worktree(path, owner string, labels map[string]string) (map[string
 	return facts, nil
 }
 
-// throughALink is rpc_worktrees._through_a_link: whether file is, or passes through, a symbolic link under root, or resolves
+// throughALink is whether file is, or passes through, a symbolic link under root, or resolves
 // outside it.
 func throughALink(root, file string) bool {
 	cur := root

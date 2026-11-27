@@ -19,7 +19,7 @@ import (
 	"github.com/handline/handline/go/kit/joined"
 )
 
-// What each API call spent, per account, kept beside the percentages (handline/usage/tokenlog.py): one token_calls row per call, read
+// What each API call spent, per account, kept beside the percentages: one token_calls row per call, read
 // from the conversation logs under the account's own .claude/projects - never anything else under the account directory. Nothing in
 // the picking rules reads these rows.
 
@@ -47,7 +47,7 @@ type Call struct {
 	Tokens  Tokens `json:"tokens"`
 }
 
-// callTS is tokenlog._ts: an ISO-8601 stamp with an offset, in unix seconds; one without an offset is not a time we can place.
+// callTS is an ISO-8601 stamp with an offset, in unix seconds; one without an offset is not a time we can place.
 func callTS(stamp string) (int64, bool) {
 	t, err := time.Parse(time.RFC3339Nano, stamp)
 	if err != nil {
@@ -68,7 +68,7 @@ func tokenCount(v any) (int64, bool) {
 	return int64(f), true
 }
 
-// ParseCall is tokenlog._call: the call a transcript line carries, ok false for any other line.
+// ParseCall is the call a transcript line carries, ok false for any other line.
 func ParseCall(line []byte) (Call, bool) {
 	if !bytes.Contains(line, []byte(`"usage"`)) {
 		return Call{}, false
@@ -119,7 +119,7 @@ func strOf(v any) string {
 	return s
 }
 
-// requestID is str(requestId) for a truthy one.
+// requestID is a call's requestId as text: a string as it is, a nonzero number in its digits, else "".
 func requestID(v any) string {
 	switch x := v.(type) {
 	case string:
@@ -162,7 +162,7 @@ type transcript struct {
 	done      int64
 }
 
-// IngestTokens is tokenlog.ingest: read what the account's transcripts gained since the last call, up to budget bytes, and record it.
+// IngestTokens reads what the account's transcripts gained since the last call, up to budget bytes, and record it.
 // It answers the lines that parsed as a call, which is more than the rows written when one streamed over several. The read positions
 // are kept in the board's meta.
 func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
@@ -328,12 +328,12 @@ func readWhole(path string, off int64, budget int) (chunk []byte, end, skip int)
 	return chunk, len(chunk), 0
 }
 
-// PruneTokens is tokenlog.prune: delete calls older than the retention window and report how many.
+// PruneTokens deletes calls older than the retention window and report how many.
 func (e *Env) PruneTokens(q db.Q) (int64, error) {
 	return exec(q, "DELETE FROM token_calls WHERE ts < ?", int64(e.now())-TokenRetentionDays*86400)
 }
 
-// TokenTotals is tokenlog.totals: the tokens of each class the account spent in (lo, hi].
+// TokenTotals is the tokens of each class the account spent in (lo, hi].
 func TokenTotals(q db.Q, account string, lo, hi int64) (Tokens, error) {
 	var t Tokens
 	err := q.QueryRow("SELECT COALESCE(SUM(inp),0), COALESCE(SUM(cc),0), COALESCE(SUM(cr),0), COALESCE(SUM(out),0), "+

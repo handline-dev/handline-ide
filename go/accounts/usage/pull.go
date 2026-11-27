@@ -14,7 +14,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// The pull side of a session's status (usage/collect.py with vendors/claude_collect.py): what the session's own transcript says about its
+// The pull side of a session's status: what the session's own transcript says about its
 // context, found under the account whose directory the session writes into, and left where the status readers already look.
 
 // ctxSizes is each model's context window, by id prefix: the transcript does not carry it. An unknown model gets no figure, never a guess.

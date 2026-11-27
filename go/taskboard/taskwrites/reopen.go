@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// reopenMethod is task.reopen: a done task sent back to doing (actions.reopen_task) by anyone, with a one-line reason its opener and
+// reopenMethod is task.reopen: a done task sent back to doing by anyone, with a one-line reason its opener and
 // assignee are told. A discarded task comes back as a draft: its requests were closed with it, so it is queued again to be sent.
 func reopenMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {

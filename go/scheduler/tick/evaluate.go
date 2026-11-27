@@ -19,8 +19,8 @@ type Result struct {
 	Actions []string
 }
 
-// Tick is daemon/evaluate.py: what one tick decides for each agent and the passes after them. Its fields are the ports; the unexported
-// ones are the state Python kept in module variables, which a port must keep per process or its log lines differ after the first tick.
+// Tick is what one tick decides for each agent and the passes after them. Its fields are the ports; the unexported ones are
+// state kept across ticks for the life of the process, so its log lines do not repeat after the first tick.
 type Tick struct {
 	Q   db.Q
 	Log func(string)
@@ -92,7 +92,7 @@ func guard(f func()) (err error) {
 			if fl, ok := r.(failure); ok {
 				err = fl.err
 			} else if e, ok := r.(error); ok {
-				err = e // a port that fails by panicking is this agent's failure, as any exception was in Python
+				err = e // a port that fails by panicking is this agent's failure
 			} else {
 				err = fmt.Errorf("panic: %v", r)
 			}

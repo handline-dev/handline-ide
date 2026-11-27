@@ -1,5 +1,5 @@
 // Package ansi reads one screen row with SGR escape codes (what `tmux capture-pane -e` writes) as its text and style runs
-// (handline/infra/ansi.py), for the `styled` terminal format.
+// for the `styled` terminal format.
 //
 // The text is the row without its trailing blanks, as the `text` format has it. A run is [from, to) over the row's code points;
 // blank cells that carry a background count one each past the end of the text. Only SGR is read: every other escape sequence and

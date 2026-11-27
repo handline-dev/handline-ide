@@ -21,8 +21,7 @@ import (
 	"github.com/handline/handline/go/taskboard/requestref"
 )
 
-// chat.messages, chat.transcript, chat.locate and chat.search follow handline/daemon/rpc_chat.py and
-// handline/actions/chatreads.py: the requests between the founder and an agent (or all of an agent's), as pages.
+// chat.messages, chat.transcript, chat.locate and chat.search: the requests between the founder and an agent (or all of an agent's), as pages.
 
 const (
 	chatPage      = 10

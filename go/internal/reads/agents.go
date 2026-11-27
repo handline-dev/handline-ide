@@ -39,7 +39,7 @@ func (e *Env) roleLine(name string) string {
 // noView is the state word of an agent the tick has stored no view for (x-state-words in contract/spec/core.json).
 const noView = "no_terminal"
 
-// viewOf is the stored view of an agent (the Python daemon's tick keeps it in agent_view) with the fields read beside it when x is given (agents.list, agent.get). An agent with no
+// viewOf is the stored view of an agent (agent_view) with the fields read beside it when x is given (agents.list, agent.get). An agent with no
 // stored view yet gets what can be read without the tick's judgement of its screen: no terminal is known for it, so its
 // state is the spec's word for that.
 func (e *Env) viewOf(name string, stored map[string]json.RawMessage, x *viewCtx) (json.RawMessage, error) {
@@ -181,7 +181,7 @@ func (e *Env) AgentRows(views map[string]json.RawMessage) (map[string]map[string
 	return out, nil
 }
 
-// addStatusLine adds what hl team draws of an agent beyond its view (rpc_agents._status_line). The screen word is read back from the
+// addStatusLine adds what hl team draws of an agent beyond its view. The screen word is read back from the
 // view's state, as agent.strip reads it.
 func (e *Env) addStatusLine(roster *team.Roster, name string, view map[string]any) error {
 	row, err := db.GetAgentState(e.DB, name)
@@ -213,7 +213,7 @@ func (e *Env) addStatusLine(roster *team.Roster, name string, view map[string]an
 	return err
 }
 
-// taskWaits is the reason the tick recorded for each open task the agent owns that waits, oldest first (taskholds.agent_waits).
+// taskWaits is the reason the tick recorded for each open task the agent owns that waits, oldest first.
 func (e *Env) taskWaits(name string) ([]any, error) {
 	rows, err := query(e.DB, "SELECT t.id, m.value FROM tasks t JOIN meta m ON m.name = 'taskhold:' || t.id WHERE "+db.ActingSQL("t")+" = ? AND "+
 		db.OpenSQL+" ORDER BY t.id", name)
@@ -321,7 +321,7 @@ func branchOf(path string) string {
 const defaultHoldIdleS = 600
 
 // inputHolders is the spec's InputHolder list: whoever holds the input, else the daemon. A hold idle past the limit
-// (config.yaml's input_hold_idle_s, else 600 seconds) no longer counts; reading does not delete it, as the Python daemon does.
+// (config.yaml's input_hold_idle_s, else 600 seconds) no longer counts; reading does not delete it.
 func (e *Env) inputHolders(name string) ([]any, error) {
 	daemon := []any{map[string]any{"kind": "daemon", "name": "daemon", "since": nil}}
 	r, err := queryOne(e.DB, "SELECT kind, name, since, last_typed FROM input_holders WHERE agent = ?", name)
@@ -392,7 +392,7 @@ func optionsOf(kind string, answerable bool, detail map[string]any) []any {
 	return append(out, cancelOption())
 }
 
-// truthy is Python's bool() of a decoded JSON value.
+// truthy is whether a decoded JSON value is set: not null, false, 0, "" or an empty array or object.
 func truthy(v any) bool {
 	switch x := v.(type) {
 	case nil:
@@ -468,7 +468,7 @@ func promptOf(name string, r row) map[string]any {
 	return p
 }
 
-// promptKind is promptparse.dialog_kind: an exit confirmation is told by an option that exits.
+// promptKind is the kind of dialog a prompt's options make: an exit confirmation is told by an option that exits.
 func promptKind(detail map[string]any) string {
 	var labels []string
 	opts, _ := detail["options"].([]any)
@@ -538,7 +538,7 @@ func timelineEntry(r row) map[string]any {
 	return map[string]any{"id": r.i("id"), "at": ts(r["ts"]), "kind": r.str("kind"), "actor": actor, "text": text, "data": payload}
 }
 
-// pyStr is str(v) for a payload value that counts as set (Python's `or` chain skips null, "", 0, false and empty containers).
+// pyStr is v as text, "" when it is not set (null, "", 0, false, an empty array or object); true is "True", any other array or object its JSON.
 func pyStr(v any) string {
 	switch t := v.(type) {
 	case nil:

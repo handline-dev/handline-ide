@@ -41,7 +41,7 @@ func differentCall(rid string) *Error {
 	return BadRequestError(fmt.Sprintf("request_id %q was used for a different call", rid), "request_id", BadRequest)
 }
 
-// runWrite runs a write once per request id, as handline/daemon/rpc.py _write does over the same tables. The reply
+// runWrite runs a write once per request id. The reply
 // of a success is kept a day; a retry with the same id and params gets it back marked replayed and repeats nothing.
 // Refusals and errors are not kept, so a retry is judged again.
 // sentKey is paramsKey of the params as the call sent them, before their who words were resolved: a retry is the same call though a
@@ -121,8 +121,8 @@ type CommitThen struct{ Err error }
 
 func (c *CommitThen) Error() string { return c.Err.Error() }
 
-// Effect runs the effect of the write in hand in one transaction with the record of its result (write_effects), as
-// handline/daemon/rpc_taskverbs.py does: a retry after a crash between the two finds the record and answers, and repeats
+// Effect runs the effect of the write in hand in one transaction with the record of its result (write_effects):
+// a retry after a crash between the two finds the record and answers, and repeats
 // nothing. fn gets the transaction and returns the result the caller is told; an error rolls everything back.
 func (c *Conn) Effect(fn func(tx *sql.Tx) (map[string]any, error)) (map[string]any, error) {
 	if c.callRID == "" {

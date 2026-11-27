@@ -11,12 +11,12 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// knownModels is agent_settings.known_models: the families usage/prices.py prices by name, which the claude CLI takes as they are.
+// knownModels are the model families usage prices by name, which the claude CLI takes as they are.
 var knownModels = []string{"fable", "mythos", "opus", "sonnet", "haiku"}
 
 var validEfforts = []string{"low", "medium", "high", "xhigh", "max"}
 
-// optionsRole is rpc_options._role_line: the first line of ROLE.md that is not its own title, as one line of at most 200 characters.
+// optionsRole is the first line of ROLE.md that is not its own title, as one line of at most 200 characters.
 func (e *Env) optionsRole(name string) string {
 	b, err := team.AgentInstruction(e.DB, name, db.PartRole)
 	if err != nil {

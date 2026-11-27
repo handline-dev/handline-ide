@@ -10,7 +10,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// Getting a request or an answer to the agent now, rather than at the next daemon tick (team/ask.py push, daemon/messaging.py).
+// Getting a request or an answer to the agent now, rather than at the next daemon tick.
 
 // Push gets the request to the agent now. rid, when it names a message (anything but a task), is typed at once (TellNow), and so is a task
 // marked send-now (a handoff, the founder's answer); any other task goes out with the next batch. Everything here is the daemon's own

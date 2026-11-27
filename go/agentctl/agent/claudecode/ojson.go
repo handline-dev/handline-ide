@@ -9,7 +9,7 @@ import (
 	"unicode/utf16"
 )
 
-// Object is a JSON object that keeps its keys in order, as a Python dict does: the shared settings hold the founder's
+// Object is a JSON object that keeps its keys in insertion order: the shared settings hold the founder's
 // own settings too, and a rewrite must not reorder them.
 type Object struct {
 	keys []string
@@ -47,7 +47,7 @@ func (o *Object) Delete(k string) {
 // Len is how many keys there are.
 func (o *Object) Len() int { return len(o.keys) }
 
-// setDefault is dict.setdefault: the value under k, put there first when there is none.
+// setDefault is the value under k, put there first when there is none.
 func (o *Object) setDefault(k string, v any) any {
 	if cur, ok := o.vals[k]; ok {
 		return cur
@@ -56,7 +56,7 @@ func (o *Object) setDefault(k string, v any) any {
 	return v
 }
 
-// block is parent[key] as an object, replacing anything else with an empty one (claude_hooks._block).
+// block is parent[key] as an object, replacing anything else with an empty one.
 func (o *Object) block(k string) *Object {
 	if b, ok := o.vals[k].(*Object); ok {
 		return b
@@ -120,7 +120,7 @@ func readValue(d *json.Decoder) (any, error) {
 	return nil, fmt.Errorf("unexpected %v", delim)
 }
 
-// Dumps is json.dumps(v) with indent spaces per level (0: on one line with ", " and ": ") and, when ensureASCII, every
+// Dumps is v as JSON text with indent spaces per level (0: on one line with ", " and ": ") and, when ensureASCII, every
 // non-ASCII character escaped. v holds what Decode gives, plus string, bool, nil, int, []string and *Object.
 func Dumps(v any, indent int, ensureASCII bool) string {
 	var b strings.Builder
@@ -192,7 +192,8 @@ func write(b *strings.Builder, v any, indent int, ascii bool, at string) {
 	}
 }
 
-// writeString is a JSON string as Python's json module writes it.
+// writeString writes s as a JSON string: the short escapes, other control characters as \u00XX, and with ascii DEL and
+// every non-ASCII rune as \uXXXX (a surrogate pair above U+FFFF). '/' is not escaped.
 func writeString(b *strings.Builder, s string, ascii bool) {
 	b.WriteByte('"')
 	for _, r := range s {
@@ -228,8 +229,9 @@ func writeString(b *strings.Builder, s string, ascii bool) {
 	b.WriteByte('"')
 }
 
-// floatRepr is Python's repr of a float, as json.dumps writes one: kit's yamlcompat.floatRepr, copied because agentctl
-// imports no other module.
+// floatRepr is the shortest text that reads back as f: a plain decimal with a trailing .0 when whole for exponents -4 to 15,
+// else a mantissa and a signed two-digit exponent (1e+16). It is kit's yamlcompat.floatRepr, copied because agentctl imports no
+// other module.
 func floatRepr(f float64) string {
 	e := strconv.FormatFloat(f, 'e', -1, 64)
 	mant, exps, _ := strings.Cut(e, "e")

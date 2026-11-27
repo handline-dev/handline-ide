@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// Expected values are what handline/infra/ansi.py gives for the same rows.
+// Expected values are the fixed answers for these rows.
 func TestParse(t *testing.T) {
 	cases := []struct{ in, text, spans string }{
 		{"plain  ", "plain", `[]`},

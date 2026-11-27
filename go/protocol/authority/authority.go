@@ -1,5 +1,5 @@
-// Package authority answers who a caller is, on proof only, from the founder's protected store
-// (handline/infra/protected.py, sessiontoken.py). What it reads are the founder's decisions: which process
+// Package authority answers who a caller is, on proof only, from the founder's protected store.
+// What it reads are the founder's decisions: which process
 // is an agent's session and the key the founder's own client holds. No Claude credential is read or stored here.
 package authority
 

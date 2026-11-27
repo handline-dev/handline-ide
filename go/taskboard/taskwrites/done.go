@@ -21,7 +21,7 @@ import (
 
 var shaLike = regexp.MustCompile(`^[0-9a-fA-F]{4,40}$`)
 
-// doneMethod is task.done (actions.mark_task_done): the assignee's, the owner's (who it answers to, the opener unless named) or the founder's call, with exactly one of a merge sha on the repo's default branch, a
+// doneMethod is task.done: the assignee's, the owner's (who it answers to, the opener unless named) or the founder's call, with exactly one of a merge sha on the repo's default branch, a
 // request already answered, or a one-line fact. Done closes the task: a review is the task handed to its reviewer before the done.
 func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
@@ -288,7 +288,7 @@ type DoneResult struct {
 	Keep func() error
 }
 
-// MarkDone is actions.mark_task_done in the caller's transaction: a refusal is the error, nothing is written then. The caller hands the
+// MarkDone marks a task done in the caller's transaction: a refusal is the error, nothing is written then. The caller hands the
 // result to Teller.Done once it has committed.
 func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	tid, sha, words, request := in.Task, in.Sha, in.Words, in.Request

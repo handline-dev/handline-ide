@@ -35,7 +35,7 @@ type Recorder struct {
 // ErrUnreached is Forward's error while the master cannot be reached.
 var ErrUnreached = errors.New("the master cannot be reached now")
 
-// SpoolEvery is how often the spool is looked at while the daemon runs, as the Python daemon does each tick.
+// SpoolEvery is how often the spool is looked at while the daemon runs.
 const SpoolEvery = 2 * time.Second
 
 // Register adds hook.record and subagent.start to the server's table.

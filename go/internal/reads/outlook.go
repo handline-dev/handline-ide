@@ -18,7 +18,7 @@ var outlookHours = map[string]int{"12h": 12, "24h": 24, "3d": 72, "7d": 168, "14
 
 var outlookRanges = "12h, 24h, 3d, 7d, 14d, 30d"
 
-// round is Python's round(v, places): the nearest decimal to the exact binary value.
+// round is v to places decimals: the nearest decimal to the exact binary value.
 func round(v float64, places int) float64 {
 	f, _ := strconv.ParseFloat(strconv.FormatFloat(v, 'f', places, 64), 64)
 	return f
@@ -36,7 +36,7 @@ func points(series []usage.OutlookPoint) []any {
 	return out
 }
 
-// runsOut is rpc_outlook._runs_out: seconds until the window that runs out first does, as the runway's words pick it; nil when there is
+// runsOut is seconds until the window that runs out first does, as the runway's words pick it; nil when there is
 // no reading, no burn to go by, or the window resets first.
 func runsOut(st *usage.AccountStatus, now int64, ld *usage.Load) any {
 	in, _, ok := wallOf(st, now, ld)

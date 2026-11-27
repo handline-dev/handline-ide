@@ -15,7 +15,7 @@ import (
 )
 
 // inboxGet is inbox.get: one request read whole, seen from the caller, held up to wait_s until it settles (landed, or a state
-// that never reached its target). handline/daemon/rpc_inbox_get.py.
+// that never reached its target).
 func (e *Env) inboxGet(c *rpc.Conn, params map[string]any) (any, error) {
 	r, viewer, err := e.settledRequest(c, params)
 	if err != nil {
@@ -69,8 +69,8 @@ func (e *Env) settledRequest(c *rpc.Conn, params map[string]any) (row, string, e
 	}
 }
 
-// requestRead is request.read (hl read): one request whole, as cmd_read in handline/cli/ask.py prints it. The founder reading it is the
-// founder opening it (actions.opened_by_human).
+// requestRead is request.read (hl read): one request whole, as hl read prints it. The founder reading it is the
+// founder opening it.
 func (e *Env) requestRead(c *rpc.Conn, params map[string]any) (any, error) {
 	r, viewer, err := e.settledRequest(c, params)
 	if err != nil {
@@ -124,9 +124,9 @@ func (e *Env) requestRead(c *rpc.Conn, params map[string]any) (any, error) {
 	return out, nil
 }
 
-// parentLine is the start of a request's first line, as delivery.in_reply_to quotes it.
+// parentLine is the start of a request's first line, as a reply quotes its parent.
 func parentLine(body string) string {
-	if i := strings.IndexAny(body, "\n\r\v\f\x1c\x1d\x1e\u0085\u2028\u2029"); i >= 0 { // str.splitlines' breaks
+	if i := strings.IndexAny(body, "\n\r\v\f\x1c\x1d\x1e\u0085\u2028\u2029"); i >= 0 { // every character that breaks a line, the Unicode separators too
 		body = body[:i]
 	}
 	first := []rune(strings.TrimSpace(oneline(body)))

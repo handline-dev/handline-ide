@@ -62,7 +62,7 @@ func (c Caller) Actor() string {
 	return c.Key
 }
 
-// Writer is whose request_ids a write is kept under, as Python's Caller.writer: the actor, except a paired device, which has its own.
+// Writer is whose request_ids a write is kept under: the actor, except a paired device, which has its own.
 func (c Caller) Writer() string {
 	if c.Kind == "device" {
 		return "device:" + c.Info["device"].(string)

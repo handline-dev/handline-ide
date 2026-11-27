@@ -22,7 +22,7 @@ func Agent() string {
 	return v
 }
 
-// CurrentAgent is who is asking (ask.current_agent): $HANDLINE_AGENT, except under a Claude Code that itself runs under
+// CurrentAgent is who is asking: $HANDLINE_AGENT, except under a Claude Code that itself runs under
 // another, which inherited the name without being that agent and is nobody; that refusal is recorded.
 func (c *Client) CurrentAgent() string {
 	agent := Agent()
@@ -36,7 +36,7 @@ func (c *Client) CurrentAgent() string {
 	return agent
 }
 
-// AskingAgent is CurrentAgent, reading a person at their own terminal as the founder (ask.asking_agent): an inherited
+// AskingAgent is CurrentAgent, reading a person at their own terminal as the founder: an inherited
 // name nobody vouches for is no one, and so is a script that lost the variable and has no terminal.
 func (c *Client) AskingAgent() string {
 	if Agent() != "" {
@@ -51,7 +51,7 @@ func (c *Client) AskingAgent() string {
 // Human is the founder's name as a caller.
 const Human = "human"
 
-// WhoRefusal is why a write cannot be made as a caller that cannot be named (cli/ask._who_refusal).
+// WhoRefusal is why a write cannot be made as a caller that cannot be named.
 func WhoRefusal(verb string) string {
 	if a := Agent(); a != "" {
 		return fmt.Sprintf("refused: this runs under a second Claude Code started inside an agent's session, which "+
@@ -61,7 +61,7 @@ func WhoRefusal(verb string) string {
 		"Agents are started by the daemon, which sets it.", verb)
 }
 
-// NoteVerbChain notes a state-changing command and the programs above it (ask.note_verb_chain), so a command whose caller the
+// NoteVerbChain notes a state-changing command and the programs above it, so a command whose caller the
 // ancestry check could not tell apart can still be traced: they ride on the hello of the next call, and the daemon records them.
 // A note no call carries is not made.
 func (c *Client) NoteVerbChain(argv []string) {

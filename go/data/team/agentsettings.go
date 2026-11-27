@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// What an agent's settings are and how they are written (handline/team/agent_settings.py): the one place the chat page's
+// What an agent's settings are and how they are written: the one place the chat page's
 // Settings tab, the Proposals tab (`hl propose settings`) and agent.set all read and write them. The model names the code prices
 // by name, and the idle-close switch (which belongs to the daemon's own settings), are passed in.
 

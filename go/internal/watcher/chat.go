@@ -13,12 +13,12 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// The chat topic's cursors are the Python watcher's, so either side picks up where the other left off.
+// The chat topic's cursors, kept in the database so a restart picks up where the last run left off.
 const (
 	chatTouched = "stream:chat_touched"
 	chatEvents  = "stream:chat_events"
 	chatPrompts = "stream:chat_prompts"
-	chatStarts  = "stream:chat_sessions" // Go's alone: the Python watcher does not tell session items
+	chatStarts  = "stream:chat_sessions" // session starts
 )
 
 const chatTouchedNewest = "SELECT COALESCE(MAX(COALESCE(state_at, ts)), 0) FROM requests"
@@ -162,7 +162,7 @@ func (c *Chat) requests(q *sql.DB, emit Emit) error {
 		if c.done[t.id] == message {
 			continue
 		}
-		if first && t.when.Int64 == last { // said before the restart, or by the Python watcher: seen, not news
+		if first && t.when.Int64 == last { // said before the restart: seen, not news
 			c.done[t.id] = message
 			continue
 		}

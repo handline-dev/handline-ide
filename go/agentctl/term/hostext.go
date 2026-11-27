@@ -1,6 +1,6 @@
 package term
 
-// What the terminal channel asks of a host beyond Backend (handline/session/backends/tmux.py). A host that lacks one of these is
+// What the terminal channel asks of a host beyond Backend. A host that lacks one of these is
 // refused as `unsupported` by the method that needs it; tmux has them all.
 
 // Cursor is where the cursor is in the pane and how much of the pane's bottom is blank, from one read so the two agree.

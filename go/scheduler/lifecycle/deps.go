@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
-// Waits the lifecycle runs on (infra/waits.py and delivery's own).
+// Waits the lifecycle runs on.
 const (
 	WakeSessionTimeoutS = 15
 )
@@ -24,7 +24,7 @@ var TableRetryPauses = []time.Duration{300 * time.Millisecond, 700 * time.Millis
 // WakeBackoffS is the pause after the first, second and later failed wakes of a restart owed.
 var WakeBackoffS = []int64{10, 30, 90}
 
-// Delivery is daemon/delivery.py as the lifecycle uses it; *supervisor.Env satisfies it.
+// Delivery is the delivery layer as the lifecycle uses it; *supervisor.Env satisfies it.
 type Delivery interface {
 	BgHolds(q db.Q, agent string, now int64) (bool, error)
 	IdleSince(q db.Q, agent string) (int64, bool, error)
@@ -42,14 +42,14 @@ type Delivery interface {
 	WaitingPrompt(q db.Q, agent string) (text string, told func(session string) error, ok bool, err error)
 	EnforceEdges(q db.Q, agent string) (bool, error)
 	SessionPresent(agent string) (bool, error)
-	PastDialog(q db.Q, agent string) (string, error) // delivery._past_dialog
+	PastDialog(q db.Q, agent string) (string, error) // gets past a dialog on screen: "", else why not
 }
 
-// HandoffPort is session/handoff.py, daemon/handoff.py and handoff_note.py as the lifecycle uses them.
+// HandoffPort is the handoff record, the handoff note and the prompt cache's clock as the lifecycle uses them.
 type HandoffPort interface {
 	// Capture reads the handoff record of a live session; missing names what could not be read.
 	Capture(q db.Q, agent string) (text string, missing []string, err error)
-	// Record takes and keeps the record (db.set_handoff) for a session; the gaps it could not read. closedSession names the session of a
+	// Record takes and keeps the handoff record for a session; the gaps it could not read. closedSession names the session of a
 	// closed agent, "" for the live one.
 	Record(q db.Q, agent, closedSession string) (gaps []string, err error)
 	MemoryLine(agent string) string
@@ -72,8 +72,7 @@ type HandoffPort interface {
 	ClearNote(q db.Q, agent string)
 }
 
-// Terminal is session/term.py as the lifecycle uses it. *term.Term satisfies the part that has landed; the closing and relaunching
-// calls are G4's.
+// Terminal is the terminal host as the lifecycle uses it: its screen reads, closing a session or its pane, and relaunching.
 type Terminal interface {
 	Available() bool
 	WaitIdle(handle string) bool
@@ -90,7 +89,7 @@ type Terminal interface {
 	DriverScope() func()
 }
 
-// Blocked is session/blocked.py as the lifecycle uses it.
+// Blocked is what the lifecycle does about a session a dialog or a failed close holds up.
 type Blocked interface {
 	NoteCloseFailure(q db.Q, agent string)
 	// PastDialog gets past a dialog on screen; ok is whether it went.
@@ -98,7 +97,7 @@ type Blocked interface {
 	StopWorkAndExit(q db.Q, agent string) bool
 }
 
-// Launch is session/launch.py (the next group of this port): what a wake launches and where it can.
+// Launch is what a wake launches and where it can.
 type Launch interface {
 	// WakeWait is why the account a wake would land on is full, nil when it has room.
 	WakeWait(q db.Q, agent string, row *db.AgentState) *WakeWait
@@ -108,7 +107,7 @@ type Launch interface {
 	// CommandFor is the launch command for a wake; account "" for the agent's own.
 	CommandFor(agent, account, why, by string) (string, error)
 	ChooseAccount(q db.Q, agent string) bool
-	// AccountFor is the account this launch would run on (launch.choose_account), "" for none; resuming goes back to the recorded one.
+	// AccountFor is the account this launch would run on, "" for none; resuming goes back to the recorded one.
 	AccountFor(q db.Q, agent string, resuming bool) string
 	// Placing holds every other placement off until the returned func is called: the choice and its wake_reserved are one step.
 	Placing() func()
@@ -135,7 +134,7 @@ type Launch interface {
 	RoomNow(q db.Q, agent string, skip string) (account, why string)
 }
 
-// Spawner is team/spawn.py.
+// Spawner starts an agent in a worktree.
 type Spawner interface {
 	// WorktreePath is the worktree if it still exists, "" otherwise.
 	WorktreePath(worktree string) string
@@ -145,7 +144,7 @@ type Spawner interface {
 	SpawnWith(agent, repo string, o SpawnOpts) (bool, string, error)
 }
 
-// AgentsPort is team/agents.py, trust.py and measure as the lifecycle reads them.
+// AgentsPort is the team's agents, their folder trust and the usage measure as the lifecycle reads them.
 type AgentsPort interface {
 	RepoOf(agent string) string
 	// ReadConfig fails for an agent row that will not read.
@@ -156,7 +155,7 @@ type AgentsPort interface {
 	VendorName(agent string) string
 }
 
-// SessionStatus is usage/status.py's reading of an agent's session.
+// SessionStatus is the status file's reading of an agent's session.
 type SessionStatus struct {
 	SessionID string
 	CtxPct    any // nil when unknown
@@ -167,7 +166,7 @@ type StatusPort interface {
 	ReadForAgent(agent, account string) SessionStatus
 }
 
-// Observer is session/observe.live_sessions: the agents with a running session and its pid; ok false when the table could not be read.
+// Observer reads the process table: the agents with a running session and its pid; ok false when the table could not be read.
 type Observer interface {
 	LiveSessions() (map[string]int, bool)
 }
@@ -183,7 +182,7 @@ type Desks interface {
 	TakeFrom(agent, repo, base string) (worktreepool.Taken, string, error)
 }
 
-// Manager is daemon/lifecycle.py: closing and waking an agent's session, and the folder-trust prompt a wake can meet.
+// Manager is the session lifecycle: closing and waking an agent's session, and the folder-trust prompt a wake can meet.
 type Manager struct {
 	Q        db.Q
 	Home     string

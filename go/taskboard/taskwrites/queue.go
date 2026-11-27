@@ -18,7 +18,7 @@ import (
 )
 
 // queueMethod is task.queue (approve drafts to run) and task.draft (send queued or doing ones back): anyone's call, all the named tasks
-// changing or none (actions.set_queued_all), each task's opener and assignee told.
+// changing or none, each task's opener and assignee told.
 func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tids, err := taskIDs(p, "tasks")
@@ -135,7 +135,7 @@ type queuedSet struct {
 	closed    []Retired
 }
 
-// setQueued is _queue_state: the checks and the write (nobody works a draft). kept is the memo a draft leaves when it parks a holder with
+// setQueued makes a task queued or a draft: the checks and the write (nobody works a draft). kept is the memo a draft leaves when it parks a holder with
 // work in its worktree.
 func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept string) (queuedSet, error) {
 	t, err := getTask(tx, tid)

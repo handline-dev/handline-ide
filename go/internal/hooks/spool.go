@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
-// The hook spool: where a hook leaves an event when the daemon is down (handline/daemon/spool.py). The daemon reads
+// The hook spool: where a hook leaves an event when the daemon is down. The daemon reads
 // the file and removes it; each line is applied once, by its request id.
 const (
 	spoolName    = "hook-spool.jsonl"
@@ -41,7 +41,7 @@ type spoolLine struct {
 	at                     int64
 }
 
-// parse is a line as the Python ingest reads it: the four keys and a request id, whatever its type, as text.
+// parse reads one spool line: the four keys and a request id, whatever its type, as text.
 func parse(raw string) (spoolLine, error) {
 	d := json.NewDecoder(strings.NewReader(raw))
 	d.UseNumber()
@@ -173,7 +173,7 @@ func keep(work string, rest []string) error {
 	return os.Rename(tmp, work)
 }
 
-// AppendSpool leaves one event in the spool for the daemon (spool.append): one line, written whole under an exclusive
+// AppendSpool leaves one event in the spool for the daemon: one line, written whole under an exclusive
 // lock, so lines from hooks running at once never mix.
 func AppendSpool(home, agent, kind string, data map[string]any, requestID string, at int64) error {
 	line := fmt.Sprintf(`{"agent": %s, "kind": %s, "at": %d, "data": %s, "request_id": %s}`+"\n",

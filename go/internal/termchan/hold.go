@@ -10,7 +10,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// terminal.input, the input holder's alone (handline/daemon/rpc_terminal.py); terminal.resize, the holder's while there is one and any
+// terminal.input, the input holder's alone; terminal.resize, the holder's while there is one and any
 // attached connection's while there is none, never under the floor the screen reader needs; and the holder notice. The size before a
 // holder's first resize is given back when they leave, and the size before the viewers' first when the last attach goes and nobody holds
 // the input.

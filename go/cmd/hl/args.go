@@ -11,8 +11,8 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// parsed is a command line read against one argparse parser: the positionals in order, each option's last value under
-// its long name (every value in each, for argparse's action="append"), and each flag given.
+// parsed is a command line read against one command's options: the positionals in order, each option's last value under
+// its long name (every value in each, for an option that may be given more than once), and each flag given.
 type parsed struct {
 	pos   []string
 	opts  map[string]string
@@ -50,8 +50,8 @@ func (p *parsed) set(name, value string) {
 }
 
 // parse reads args with these options: valued names take the next argument or `--name=value`, flags take none, and
-// alias maps a short name to its long one. ok is false for anything argparse would read some other way or refuse: an
-// unknown or abbreviated option, `--`, `-h`, a valued option with nothing after it. Python then parses it and says so.
+// alias maps a short name to its long one. ok is false for a form it does not take: an unknown or abbreviated option,
+// `--`, `-h`, a valued option with nothing after it. The command then refuses its arguments with exit 2.
 func parse(args []string, valued, flags []string, alias map[string]string) (parsed, bool) {
 	p := parsed{opts: map[string]string{}, each: map[string][]string{}, flags: map[string]bool{}}
 	isValued := map[string]bool{}
@@ -94,10 +94,10 @@ func parse(args []string, valued, flags []string, alias map[string]string) (pars
 	return p, true
 }
 
-// looksLikeOption is what argparse takes for an option: a dash and more, `--` included. "-" alone is a value (stdin).
+// looksLikeOption is whether a is taken for an option: a dash and more, `--` included. "-" alone is a value (stdin).
 func looksLikeOption(a string) bool { return len(a) > 1 && a[0] == '-' }
 
-// The argparse `type`s of cli/task.py, from actions: each is ok false where argparse would refuse.
+// The checks of the task commands' argument values: each is ok false for a value the command refuses.
 
 func taskRef(text string) (int, bool) {
 	t := strings.TrimSpace(text)
@@ -144,7 +144,7 @@ func taskTimeout(text string) (int64, bool) {
 	return secs, err == nil
 }
 
-// integer is argparse's type=int for the plain forms; anything fancier is Python's.
+// integer reads plain decimal digits; a sign, spaces or anything else is not an integer.
 func integer(text string) (int, bool) {
 	if !digits(text) {
 		return 0, false
@@ -172,7 +172,7 @@ func requestArg(text string) (any, bool) {
 
 func digits(s string) bool { return s != "" && strings.Trim(s, "0123456789") == "" }
 
-// textArg is cli/ask._text_arg: inline or a --file, never both; "-" as either reads stdin, and so does neither when
+// textArg is a text argument given inline or with --file, never both; "-" as either reads stdin, and so does neither when
 // stdin is not a terminal. (text, "") or ("", why not).
 func textArg(inline *string, file, label string) (string, string) {
 	if file != "" && inline != nil {
@@ -217,7 +217,7 @@ func readStdin() string {
 	}
 }
 
-// shQuote is Python's shlex.quote.
+// shQuote quotes s for a POSIX shell: as it is when every character is safe, else in single quotes (a ' inside as '"'"').
 func shQuote(s string) string {
 	if s == "" {
 		return "''"
@@ -236,7 +236,7 @@ func shQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-// pyPath is str(pathlib.Path(p)): repeated slashes and "." parts dropped, no trailing slash, "." for nothing.
+// pyPath is p as a clean path: repeated slashes and "." parts dropped, no trailing slash, "." for nothing.
 func pyPath(p string) string {
 	abs := strings.HasPrefix(p, "/")
 	var parts []string
@@ -256,7 +256,7 @@ func pyPath(p string) string {
 }
 
 // badArgs answers a command line its parser does not take: asked for with -h or --help it is printed and exits 0,
-// otherwise it goes to stderr and exits 2, as argparse does.
+// otherwise it goes to stderr and exits 2.
 func badArgs(text string, args []string) int {
 	for _, a := range args {
 		if a == "-h" || a == "--help" {

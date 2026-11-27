@@ -24,7 +24,7 @@ A say is chat. What is written about a task is a comment on it: hl task comment 
 // oneLineMax is the longest body hl say takes on one line without a hint to break it into lines.
 const oneLineMax = 300
 
-// say sends a message that needs no answer and starts no work (cli/say.py cmd_say), through the say method.
+// say sends a message that needs no answer and starts no work, through the say method.
 func say(c *hlclient.Client, args []string) (int, bool) {
 	if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
 		fmt.Println(sayUsage)
@@ -45,7 +45,7 @@ func say(c *hlclient.Client, args []string) (int, bool) {
 	}
 	taskN, hasTask, ok2 := optTask(p, "--task")
 	noTask, hasNoTask := p.opt("--no-task")
-	// A blank the say method refuses as a parameter is what the legacy verb Python sends would read: Python says what it does.
+	// A blank target, body, --no-task or unreadable --parent/--task is refused here with exit 2, not sent to the daemon.
 	blank := func(s string) bool { return strings.TrimSpace(s) == "" }
 	if !ok1 || !ok2 || (hasNoTask && blank(noTask)) || slices.ContainsFunc(p.pos, blank) {
 		return 0, false
@@ -119,7 +119,7 @@ func wantsAnswer(body string) bool {
 	return false
 }
 
-// lostToQuoting is say._LOST: two or more spaces between word characters, the gap a shell leaves where it ran
+// lostToQuoting is whether body has two or more spaces between word characters, the gap a shell leaves where it ran
 // `...` or $(...) inside double quotes.
 func lostToQuoting(body string) bool {
 	r := []rune(body)
@@ -138,5 +138,5 @@ func lostToQuoting(body string) bool {
 	return false
 }
 
-// word is Python's \w on str: a letter, a number or an underscore.
+// word is a regexp \w on Unicode text: a letter, a number or an underscore.
 func word(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsNumber(r) }

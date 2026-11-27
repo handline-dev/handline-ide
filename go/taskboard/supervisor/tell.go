@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// Typing the tell and recording what it left behind (daemon/delivery.py).
+// Typing the tell and recording what it left behind.
 
 // recordTold is what a delivered tell leaves behind, once it is known to have landed.
 func (e *Env) recordTold(q db.Q, agent string, head *db.Request, depth int, session string, aheadOf *db.Request, parked bool) {

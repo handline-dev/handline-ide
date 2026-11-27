@@ -1,7 +1,7 @@
-// Package yamlcompat reads the subset of YAML handline's config files use (handline/infra/yamlcompat.py): nested maps, lists (of maps
-// too), comments, quoted strings, flow collections and PyYAML's YAML 1.1 booleans. What it may not read as PyYAML does is a ConfigError,
+// Package yamlcompat reads the subset of YAML handline's config files use: nested maps, lists (of maps
+// too), comments, quoted strings, flow collections and YAML 1.1 booleans (yes/no, on/off). What it may not read as a YAML 1.1 reader does is a ConfigError,
 // never a guess: anchors, block scalars, merge keys, tabs, several documents, unbalanced flows, sexagesimals, dates, inf and nan, numbers
-// with underscores, double-quote escapes other than \\ and \", and a plain key PyYAML would not read as text. Values are nil, bool,
+// with underscores, double-quote escapes other than \\ and \", and a plain key a YAML 1.1 reader would not read as text. Values are nil, bool,
 // int64, float64, string, []any and map[string]any (a map's key order is not kept; Dump takes pairs in the order to write).
 package yamlcompat
 
@@ -83,7 +83,7 @@ func closesAtEnd(t string) bool {
 }
 
 // unquote is the text of a quoted scalar. Single quotes double a quote to write one; double quotes know only the two
-// escapes Dump writes, since any other is one this parser would read differently from PyYAML.
+// escapes Dump writes, since any other is one this parser would read differently from a full YAML reader.
 func unquote(t string, line int) (string, error) {
 	body := t[1 : len(t)-1]
 	if t[0] == '\'' {
@@ -110,7 +110,7 @@ func unquote(t string, line int) (string, error) {
 	return out.String(), nil
 }
 
-// pyRepr is a string as Python's repr writes it for the plain cases the messages show.
+// pyRepr quotes a string for a message: single quotes (\' and \\ escaped), or double quotes when it holds a ' and no ".
 func pyRepr(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
@@ -464,7 +464,7 @@ type OMap struct {
 
 func newOMap() *OMap { return &OMap{M: map[string]any{}} }
 
-// Set assigns a key; one already there keeps its place, as a Python dict does.
+// Set assigns a key; a new key goes last, one already there keeps its place.
 func (o *OMap) Set(k string, v any) {
 	if _, has := o.M[k]; !has {
 		o.Keys = append(o.Keys, k)
@@ -679,7 +679,8 @@ func readsBackAsOther(text string) bool {
 	return !ok || s != text
 }
 
-// floatRepr is Python's repr of a float.
+// floatRepr is a float in its shortest round-trip digits: plain with at least one decimal (1.0) for exponents -4 to 15,
+// else mantissa and a two-digit signed exponent (1e+16, 1.5e-05).
 func floatRepr(f float64) string {
 	e := strconv.FormatFloat(f, 'e', -1, 64)
 	mant, exps, _ := strings.Cut(e, "e")
@@ -838,7 +839,7 @@ func hasAnyPrefix(s string, prefixes []string) bool {
 // IsFloat is whether a plain scalar reads as a float: it needs a decimal point, so 149628e2 is a string.
 func IsFloat(s string) bool { return floatRe.MatchString(s) }
 
-// FloatRepr is a float as Python's repr writes it.
+// FloatRepr is floatRepr: shortest round-trip digits, 1.0 for a whole number, 1e+16 past 15 digits.
 func FloatRepr(f float64) string { return floatRepr(f) }
 
 // ParsePairs reads a document whose top level is a map and gives its keys in the order the file has them, so a rewrite keeps

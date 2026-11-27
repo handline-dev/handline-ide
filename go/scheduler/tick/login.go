@@ -21,10 +21,10 @@ const RepeatN = 4
 // invalid_request and max_output_tokens are the turn's own. Any other error stalls the account once it repeats RepeatN times.
 var passing = map[string]bool{"rate_limit": true, "server_error": true, "overloaded": true, "invalid_request": true, "max_output_tokens": true}
 
-// Login is daemon/login_expired.py without the screen, for every error that makes an account unusable: the CLI's own StopFailure
+// Login moves agents off an account that cannot be used, for every error that makes an account unusable: the CLI's own StopFailure
 // is the witness, so a structured session needs no terminal. A zero Login does nothing.
 type Login struct {
-	// Stalled is the account's stall (accounts.login_expired): why, the error that stalled it, and whether it is there.
+	// Stalled is the account's stall: why, the error that stalled it, and whether it is there.
 	Stalled func(q db.Q, acct string) (why, errType string, ok bool)
 	// Failed is the StopFailure the agent's last turn ended on at acct that no lift has passed: its error, its details, and its time.
 	Failed func(q db.Q, agent, acct string) (errType, details string, at int64, ok bool)
@@ -39,8 +39,8 @@ type Login struct {
 	Paused func(acct string) string
 }
 
-// loginExpired is login_expired.check: an agent with a live session on a stalled, ended or paused account leaves it, level-triggered on the
-// account's stall or end. True when the agent was dealt with and the tick has nothing more to do for it.
+// loginExpired moves an agent with a live session off a stalled, ended or paused account, level-triggered on the account's stall or
+// end. True when the agent was dealt with and the tick has nothing more to do for it.
 func (t *Tick) loginExpired(agent string, row *db.AgentState, acct string, actions *[]string) bool {
 	l := t.Login
 	if l.Stalled == nil || acct == "" || row == nil || closedAt(row) || !t.Host.SessionAlive(agent) ||

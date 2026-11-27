@@ -16,7 +16,7 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// The runway and the pick (handline/usage/status.py): how long an account's headroom lasts, and which account takes the next agent.
+// The runway and the pick: how long an account's headroom lasts, and which account takes the next agent.
 
 var posInf = math.Inf(1)
 
@@ -68,7 +68,7 @@ func (e *Env) PausedWhy(acct string) string {
 	return "paused - not picked; resume it in the app's settings for " + acct
 }
 
-// EndedWhy is cycle.ended_why: why the account is out for good now, "" while it is not.
+// EndedWhy is why the account is out for good now, "" while it is not.
 func (e *Env) EndedWhy(acct string) string {
 	cfg, now := e.config(), time.Unix(int64(e.now()), 0)
 	end, ok := cfg.EndOf(acct)
@@ -90,7 +90,7 @@ type Runway struct {
 	LongLabel string
 }
 
-// RunwayOf is status.runway: whichever window runs out first, the shortest at the current burn, the week by LongRunwayS. nil when the
+// RunwayOf is whichever window runs out first, the shortest at the current burn, the week by LongRunwayS. nil when the
 // reading is stale or unknown: no figure is better than one drawn from a reading that stopped describing the account.
 func RunwayOf(st *AccountStatus, burn *float64, now float64, ld *Load) *Runway {
 	pct := st.ShortTrusted()
@@ -450,7 +450,7 @@ func pickReason(st *AccountStatus, ld *Load, lasts *float64, picked bool, agent 
 	return fmt.Sprintf("%s; %s %s (resets in %s, %s)", base, st.Long.Label(), weekS, when, paceS) + tag
 }
 
-// PickOpts are pick_account's keyword arguments.
+// PickOpts are what Pick is asked with.
 type PickOpts struct {
 	Candidates []string // nil: every account not known to be logged out
 	// Bootstrap makes a logged-in account with no status file at all pickable as a last resort: nothing else could ever give it one.
@@ -467,7 +467,7 @@ type PickOpts struct {
 	Vendor      string // which vendor to pick for when no agent names one; Agent wins
 }
 
-// Pick is status.pick_account: among the accounts that can take one more agent, the one furthest behind its weekly pace goes first.
+// Pick picks the account for one more agent: among the accounts that can take one more agent, the one furthest behind its weekly pace goes first.
 // Returns the choice ("" when none can, and the caller must refuse: the fail-closed path) and every account's reason, in candidate
 // order.
 func (e *Env) Pick(q db.Q, o PickOpts) (string, []Reason, error) {

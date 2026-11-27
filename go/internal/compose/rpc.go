@@ -122,7 +122,7 @@ func (c controls) status(agent string) lifecycle.SessionStatus {
 	return m.Status.ReadForAgent(agent, m.Agents.CurrentAccount(m.Q, agent))
 }
 
-// Start is control.start_result: a closed agent with a session to resume is woken; any other is spawned, in the worktree it has or a
+// Start starts agent: a closed agent with a session to resume is woken; any other is spawned, in the worktree it has or a
 // new one branched from base.
 func (c controls) Start(call sessionrpc.Call, agent, repo, base string) (bool, string, error) {
 	m := c.lc.Manager
@@ -163,13 +163,13 @@ func (c controls) Compact(call sessionrpc.Call, agent string) (bool, string, err
 	return c.lc.Manager.Compact(agent, c.status(agent), call.By)
 }
 
-// Park is control.park_result: a handoff, then parked until the window rolls over. The handoff is the policy tick's (perform_handoff), which
+// Park is a handoff, then the agent parked until the window rolls over. The handoff is the policy tick's, which
 // this daemon does not run yet.
 func (c controls) Park(_ sessionrpc.Call, agent string) (bool, string, error) {
 	return false, addr.Ref(agent) + ": parking is the policy tick's handoff, which this daemon does not run yet", nil
 }
 
-// viaMover is a call of the lifecycle's mover: handoff.force_move for agent.move, the answer to a switch_offer for agent.switch_now.
+// viaMover is a call of the lifecycle's mover: the forced move for agent.move, the answer to a switch_offer for agent.switch_now.
 func (c controls) viaMover(do func(m *lifecycle.Mover, agent, account, by string) (bool, string, error)) func(sessionrpc.Call, string, string) (bool, string, error) {
 	return func(call sessionrpc.Call, agent, account string) (bool, string, error) {
 		if c.lc.Mover == nil {

@@ -23,7 +23,7 @@ type Retired struct {
 	Verdict           string // what a cancel closed it under, "" for CancelVerdict
 }
 
-// releaseMethod is task.release (actions.release_task): anyone's call, with a one-line reason, to take a doing task back to queued or
+// releaseMethod is task.release: anyone's call, with a one-line reason, to take a doing task back to queued or
 // draft. Its opener and assignee are told.
 func releaseMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {

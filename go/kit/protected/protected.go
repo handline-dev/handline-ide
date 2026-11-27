@@ -1,5 +1,5 @@
-// Package protected is the protected store: what only the founder may say, kept where no agent can write it
-// (handline/infra/protected.py). It lives outside the handline home, under ~/.config/handline/protected, which an agent's
+// Package protected is the protected store: what only the founder may say, kept where no agent can write it.
+// It lives outside the handline home, under ~/.config/handline/protected, which an agent's
 // sandbox does not list as writable; reading is open. It holds decisions, never secrets: no credential belongs here.
 // Put and Delete also refuse when $HANDLINE_AGENT names an agent, so where the sandbox is off the answer is still no from here:
 // a convenience, not the lock; the lock is the location.

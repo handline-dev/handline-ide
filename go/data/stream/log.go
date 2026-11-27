@@ -43,7 +43,7 @@ type Entry struct {
 	Target      map[string]any
 }
 
-// Log is the stream_log table. The id is the cursor; the Python daemon appends to the same table, and the ids serialise the writers.
+// Log is the stream_log table. The id is the cursor, in the order the rows were written.
 type Log struct {
 	DB  *sql.DB
 	Now func() time.Time // nil is time.Now

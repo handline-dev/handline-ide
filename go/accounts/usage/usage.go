@@ -1,7 +1,7 @@
-// Package usage is handline/usage's readers for what the accounts screens draw: config.yaml's per-account settings
-// (usage/load.py), a status file's windows (usage/windows.py, status.read) and the month cycle (usage/cycle.py).
+// Package usage is the readers for what the accounts screens draw: config.yaml's per-account settings,
+// a status file's windows and the month cycle.
 // The writers (burn.go, measure.go, tokenlog.go) are the tick's burn-rate, cold-start and token-log bookkeeping. No credential is read:
-// the one vendor file touched is claude's `.claude.json`, for the subscription's start only, as the Python driver's profile() does.
+// the one vendor file touched is claude's `.claude.json`, for the subscription's start only.
 package usage
 
 import (
@@ -90,7 +90,7 @@ type Window struct {
 	Readable bool
 }
 
-// Status is status.read's reading of one account's status file.
+// Status is the reading of one account's status file.
 type Status struct {
 	Short, Long Window
 	Error       string
@@ -125,7 +125,7 @@ func asInt(v any) *int64 {
 	return &n
 }
 
-// isInt is a JSON number written without a fraction or exponent, which is what Python's json reads as an int.
+// isInt is a JSON number written without a fraction or exponent, as an int; one with either is not an int, even when whole.
 func isInt(v any) (int, bool) {
 	n, ok := v.(json.Number)
 	if !ok || strings.ContainsAny(n.String(), ".eE") {
@@ -146,7 +146,7 @@ func decodeWindows(s string) any {
 	return v
 }
 
-// entries is windows.entries: the record's windows, shortest first.
+// entries is the record's windows, shortest first.
 func entries(raw map[string]any) []map[string]any {
 	got := raw["windows"]
 	if s, ok := got.(string); ok {
@@ -174,7 +174,7 @@ func windowOf(e map[string]any) Window {
 	return Window{Minutes: m, Pct: pct, Reset: asInt(e["resets_at"]), Carried: e["carried"] == true, Readable: readable}
 }
 
-// ReadStatus is status.read for a metered account (every vendor's is): a missing file is no reading, a bad one an error.
+// ReadStatus is the reading of a metered account's status file (every vendor's is): a missing file is no reading, a bad one an error.
 func ReadStatus(home, acct string) Status {
 	st := Status{Short: Window{Readable: true}, Long: Window{Readable: true}}
 	b, err := os.ReadFile(paths.StatusFile(home, acct))

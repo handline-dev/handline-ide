@@ -175,7 +175,7 @@ func (d *discarded) tell(tell Teller, by string) {
 	}
 }
 
-// discardOne throws a task away before it is done (actions.discard_task): refused while a child is open, while it waits on an open
+// discardOne throws a task away before it is done: refused while a child is open, while it waits on an open
 // blocker, or while a request is still out on it - unless the founder discards it, which withdraws the
 // open requests instead. What follows the commit - the says typed, the owner's next task
 // - is the Teller's (discarded.tell). own is a withdraw: only the asker may, since anyone else must say why. batch names the batch this

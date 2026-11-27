@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// blockerRefusal is _blocker_refusal: why blocksOn cannot be waited on, or "".
+// blockerRefusal is why blocksOn cannot be waited on, or "".
 func blockerRefusal(tx *sql.Tx, blocksOn int64) (string, error) {
 	t, err := getTask(tx, blocksOn)
 	switch {
@@ -33,7 +33,7 @@ func (t *task) endWord() string {
 	return "done"
 }
 
-// cyclePath is _cycle_path: the waits from blocksOn back to tid that tid waiting on blocksOn would close into a loop, nil when it would not.
+// cyclePath is the waits from blocksOn back to tid that tid waiting on blocksOn would close into a loop, nil when it would not.
 func cyclePath(tx *sql.Tx, tid, blocksOn int64) ([]int64, error) {
 	seen := map[int64]bool{}
 	var walk func(node int64) ([]int64, error)
@@ -62,7 +62,7 @@ func cyclePath(tx *sql.Tx, tid, blocksOn int64) ([]int64, error) {
 	return walk(blocksOn)
 }
 
-// recordBlock is actions.add_block: tid cannot be worked until blocksOn is done. It answers the refusal, "" when the wait was recorded.
+// recordBlock records that tid cannot be worked until blocksOn is done. It answers the refusal, "" when the wait was recorded.
 func recordBlock(tx *sql.Tx, tid, blocksOn int64, by string) (string, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
@@ -118,7 +118,7 @@ func freeHolder(tx *sql.Tx, tid int64) (string, error) {
 	return t.Acting, db.SetCurrentTask(tx, t.Acting, 0, false)
 }
 
-// unblock is actions.unblock: one waiting edge removed. It answers the refusal, "" when it was.
+// unblock removes one waiting edge. It answers the refusal, "" when it was.
 func unblock(tx *sql.Tx, tid, blocksOn int64, by string) (string, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {

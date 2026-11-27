@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// The founder answering a trust proposal (team/trust.py apply and settle_moot, decisions.py, ask.py _apply_answered). The answer is
+// The founder answering a trust proposal: reading the call, recording it, and applying the proposal. The answer is
 // recorded in the protected store as it is given, and apply acts on that record and the decision task, never on the request row alone.
 
 const trustDecisionsNS = "trust-decisions"
@@ -21,7 +21,7 @@ var (
 	rejectWords  = []string{"reject", "rejected", "no", "deny", "denied", "반려"}
 )
 
-// CallOf is decisions.call_of: approved, rejected or unclear, from the first word of the verdict.
+// CallOf is approved, rejected or unclear, from the first word of the verdict.
 func CallOf(verdict string) string {
 	fields := strings.Fields(verdict)
 	if len(fields) == 0 {
@@ -43,7 +43,7 @@ type TrustProposals struct {
 	Q     db.Q
 }
 
-// OpenProposalOf is trust.open_proposal_of: the open proposal whose decision is request rid (its decision task's card), "" for none.
+// OpenProposalOf is the open proposal whose decision is request rid (its decision task's card), "" for none.
 func (p TrustProposals) OpenProposalOf(rid int64) string {
 	list, err := p.Trust.Listing()
 	if err != nil {
@@ -70,7 +70,7 @@ func (p TrustProposals) OpenProposalOf(rid int64) string {
 	return ""
 }
 
-// Answered is ask._apply_answered: the founder answered proposal pid on card. An approve is applied now and its outcome appended to the
+// Answered acts on the founder's answer to proposal pid on card. An approve is applied now and its outcome appended to the
 // answer the proposer is told (line); one that fails is also reported to the founder (report) and the proposal stays proposed, so
 // `hl trust apply` can still settle it. A reject is only recorded on the proposal's file.
 func (p TrustProposals) Answered(q db.Q, pid string, card *db.Request, verdict string) (line, report string, err error) {
@@ -116,13 +116,13 @@ func (p TrustProposals) Answered(q db.Q, pid string, card *db.Request, verdict s
 	return line, report, db.AddReason(q, card.ID, line)
 }
 
-// recordDecision is decisions.record: the founder's call on proposal pid, answered on decision task tid, and what it was decided on.
+// recordDecision keeps the founder's call on proposal pid, answered on decision task tid, and what it was decided on.
 func (t *Trust) recordDecision(pid string, tid int64, call, subject string) error {
 	return t.Store.Put(trustDecisionsNS, pid, fmt.Sprintf(`{"task": %d, "call": %s, "subject": %s, "at": %d}`,
 		tid, pyjson.PyJSON(call, false, true), pyjson.PyJSON(subject, false, true), time.Now().Unix()))
 }
 
-// decisionRefusal is decisions.refusal: why the recorded answer to decision task tid cannot be relied on, "" when it names this task, a
+// decisionRefusal is why the recorded answer to decision task tid cannot be relied on, "" when it names this task, a
 // decision, and the draft as it is now. A record from before proposals were keyed by task names the card (cardID) instead.
 func (t *Trust) decisionRefusal(pid string, tid int64, subject string, cardID int64) string {
 	got, ok := decodeObject(t.Store.Get(trustDecisionsNS, pid))
@@ -144,7 +144,7 @@ func (t *Trust) decisionRefusal(pid string, tid int64, subject string, cardID in
 	return ""
 }
 
-// answerOf is decisions.answer_of: none (no task to read), open (not answered), discarded (withdrawn, handed back, thrown away or
+// answerOf is where the founder's answer to a proposal stands: none (no task to read), open (not answered), discarded (withdrawn, handed back, thrown away or
 // closed by someone but the founder: nothing was decided) or answered (closed by the founder, or answered and still theirs), with the task
 // and the founder's verdict.
 func answerOf(q db.Q, prop Proposal) (state string, task *db.Task, verdict string, err error) {
@@ -175,7 +175,7 @@ func answerOf(q db.Q, prop Proposal) (state string, task *db.Task, verdict strin
 	return "open", task, "", nil
 }
 
-// Apply is trust.apply: carry out a proposal the founder answered. ok is true only when the root was declared.
+// Apply carries out a proposal the founder answered. ok is true only when the root was declared.
 func (t *Trust) Apply(q db.Q, pid string) (ok bool, said string, err error) {
 	prop, found, err := t.LoadProposal(pid)
 	if err != nil {

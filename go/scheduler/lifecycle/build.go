@@ -302,7 +302,7 @@ func leaveOriginHead(env map[string]string) {
 	env["GIT_CONFIG_COUNT"] = strconv.Itoa(n + 1)
 }
 
-// keepWhatItStartsWith keeps every session a launch starts (db.session_starts): why, whether it resumes the old conversation (then its
+// keepWhatItStartsWith keeps every session a launch starts: why, whether it resumes the old conversation (then its
 // id is the one after --resume), and what it is given. Bookkeeping never blocks a launch.
 func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string, prompt, why, by string) error {
 	sid := resumeID(extra)
@@ -409,7 +409,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 		}
 	}
 	if err := l.keepWhatItStartsWith(site, agent, extra, prompt, why, by); err != nil {
-		return nil, err // Python reads the waiting handoff outside its never-block try
+		return nil, err // only the waiting handoff's read fails a launch; the rest of the bookkeeping warns
 	}
 	if prompt != "" {
 		drv, err := l.Ports.Vendors.ForAgent(agent)

@@ -12,11 +12,11 @@ import (
 	"github.com/handline/handline/go/taskboard/requestref"
 )
 
-// inbox.mark_read (handline/daemon/rpc_inbox.py): the write beside inbox.list.
+// inbox.mark_read: the write beside inbox.list.
 
 const maxIDs = 200
 
-// mailRow is one row of the person's mailbox as the writes need it (actions.mailbox_rows): who it is from and whether it is a decision.
+// mailRow is one row of the person's mailbox as the writes need it: who it is from and whether it is a decision.
 type mailRow struct {
 	id   int64
 	from string

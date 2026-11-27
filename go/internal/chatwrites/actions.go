@@ -16,7 +16,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// The actions the chat page and the mailbox share (handline/actions/requests.py): the founder's decision, a say, the cancel plan and "seen". Each does its
+// The actions the chat page and the mailbox share: the founder's decision, a say, the cancel plan and "seen". Each does its
 // writes on the Q it is given (the caller's transaction) and leaves the telling to the Tell it returns, to run once that transaction has committed.
 
 // Result is what an action wrote. OK false is a refusal and Msg its reason; Keep says its writes stand all the same (a request the routing
@@ -59,7 +59,7 @@ func logf(e *supervisor.Env, format string, args ...any) {
 	}
 }
 
-// decide is tasks.decide: the person's decision on a task they own closes its card with their words, and is their done on the task.
+// decide is the person's decision on a task they own closes its card with their words, and is their done on the task.
 func decide(e *supervisor.Env, tell taskwrites.Teller, q db.Q, tid int64, text string, effect func(q db.Q, message string) error) (*Result, error) {
 	text = strings.TrimSpace(text)
 	t, err := db.GetTask(q, tid)
@@ -171,7 +171,7 @@ func DecideCard(e *supervisor.Env, tell taskwrites.Teller) taskwrites.CardDecide
 	}
 }
 
-// sayWrite is askmod.say as requester: the message is routed and written (a denied one is kept as a row); parent, when set, links it into
+// sayWrite says body from requester to target: the message is routed and written (a denied one is kept as a row); parent, when set, links it into
 // that message's thread. within is more to write in the same transaction, given the message and the new request's id. act, if set, does
 // what follows the commit in place of the usual push to the target.
 func sayWrite(e *supervisor.Env, q db.Q, requester, target, body string, parent int64, within func(q db.Q, note string, rid int64) error, act func(rid int64)) (*Result, error) {

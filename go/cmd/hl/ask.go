@@ -13,13 +13,13 @@ import (
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
-// waitMax is how long the daemon holds one waiting call at most (cli/ask.WAIT_MAX_S); a longer wait asks again. waitDefault is a --wait's own limit.
+// waitMax is how long the daemon holds one waiting call at most; a longer wait asks again. waitDefault is a --wait's own limit.
 const (
 	waitMax     = 600
 	waitDefault = 600
 )
 
-// nameCol is how wide a column of agent names has to be (cli/health._name_col).
+// nameCol is how wide a column of agent names has to be: the longest name and two spaces, 12 at least.
 func nameCol(names []string) int {
 	w := 12
 	for _, n := range names {
@@ -35,7 +35,7 @@ func pad(s string, w int) string {
 	return s
 }
 
-// withdraw takes back a request of the caller's own before it is delivered (cli/ask.cmd_withdraw).
+// withdraw takes back a request of the caller's own before it is delivered.
 func withdraw(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--reason"}, nil, nil)
 	if !ok || len(p.pos) != 1 {
@@ -62,7 +62,7 @@ func withdraw(c *hlclient.Client, args []string) (int, bool) {
 	return said(c.Write("request.withdraw", params)), true
 }
 
-// inbox shows an agent's queue head, or with --all its history; the founder's is the mailbox (cli/ask.cmd_inbox).
+// inbox shows an agent's queue head, or with --all its history; the founder's is the mailbox.
 func inbox(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--timeout"}, []string{"--all", "--wait"}, nil)
 	if !ok || len(p.pos) > 1 {
@@ -177,7 +177,7 @@ func refusedListing() string {
 	return "cannot tell who is asking: HANDLINE_AGENT is unset and this is not an interactive shell, so nothing is listed."
 }
 
-// humanInbox is the founder's mailbox (cli/ask._human_inbox).
+// humanInbox is the founder's mailbox.
 func humanInbox(got map[string]any, showAll bool) {
 	lines := list(got, "lines")
 	if len(lines) == 0 && !showAll {
@@ -217,7 +217,7 @@ func settled(state string) bool {
 	return never || state == "landed"
 }
 
-// read prints one request whole, with its answer (cli/ask.cmd_read).
+// read prints one request whole, with its answer.
 func read(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--timeout"}, []string{"--wait"}, nil)
 	if !ok || len(p.pos) != 1 {
@@ -297,7 +297,7 @@ func read(c *hlclient.Client, args []string) (int, bool) {
 	return 0, true
 }
 
-// teamCmd shows who the caller may ask and what they are doing (cli/team.cmd_team).
+// teamCmd shows who the caller may ask and what they are doing.
 func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--agent"}, nil, nil)
 	if !ok || len(p.pos) != 0 {

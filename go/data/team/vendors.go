@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// The vendors a driver exists for (handline/vendors/__init__.py). Only what the account and agent files need is here: the
+// The vendors a driver exists for. Only what the account and agent files need is here: the
 // name, the folder an account keeps its config in, how a login is told, how it is started.
 const DefaultVendor = "claude"
 
@@ -119,5 +119,5 @@ func CredentialPresent(vendor, configDir string) (present, known bool) {
 	return facts(vendor).CredentialPresent(configDir)
 }
 
-// yamlFloat is a float as Python's json.dumps writes it.
+// yamlFloat is a float in shortest round-trip digits, 1.0 for a whole number (yamlcompat.FloatRepr).
 func yamlFloat(f float64) string { return yamlcompat.FloatRepr(f) }

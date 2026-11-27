@@ -465,7 +465,7 @@ func (e *Env) firstRequest(tid int64) (row, error) {
 const askerSQL = "COALESCE(NULLIF(reporter, ''), CASE WHEN EXISTS (SELECT 1 FROM task_requests l JOIN requests r ON r.id = l.request_id " +
 	"WHERE l.task_id = tasks.id AND +r.requester = '" + actor.OwnerKey + "') THEN '" + actor.OwnerKey + "' ELSE opened_by END)"
 
-// askerOf is actions.task_asker: who a task answers to when it closes. Its reporter when one was set; else the founder, if any request
+// askerOf is who a task answers to when it closes. Its reporter when one was set; else the founder, if any request
 // linked to it came from the founder; else whoever opened it.
 func (e *Env) askerOf(t row) (string, error) {
 	if r := t.str("reporter"); r != "" {
@@ -729,7 +729,7 @@ func recInt(v any) (int64, bool) {
 	return i, err == nil
 }
 
-// taskMismatch is where a task's state and its delivery disagree, or nil, as actions.task_mismatch has it.
+// taskMismatch is where a task's state and its delivery disagree, or nil.
 func taskMismatch(t row, state string) any {
 	if state == "done" || state == "discarded" {
 		return nil
@@ -776,7 +776,7 @@ func waitLine(rec map[string]any, state, busy string) any {
 	return fmt.Sprintf("waiting: %s (for %s)", pyStr(rec["why"]), ago(secs))
 }
 
-// ago is a duration in the largest unit that still says something, as infra/timefmt.ago has it.
+// ago is a duration in the largest unit that still says something: seconds under two minutes, minutes under an hour and a half, hours under a day, then days and hours.
 func ago(secs int64) string {
 	switch {
 	case secs < 120:
@@ -789,7 +789,7 @@ func ago(secs int64) string {
 	return span(secs)
 }
 
-// span is a long time as days and hours, as infra/timefmt.span has it from a day up.
+// span is a long time as days and hours.
 func span(secs int64) string { return fmt.Sprintf("%dd%dh", secs/86400, secs%86400/3600) }
 
 // Tasks is the spec's Task of each of the tasks by id, as the board shows them now, without their bodies (the shape of tasks.list and

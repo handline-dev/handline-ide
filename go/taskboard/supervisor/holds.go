@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// A task waiting for its owner always says why (daemon/taskholds.py). Each tick this reads the facts the delivery paths already weigh as one level
+// A task waiting for its owner always says why. Each tick this reads the facts the delivery paths already weigh as one level
 // and keeps a line per waiting task in meta, for readers in other processes. A reason is a cause (behind another task, blocked, mid-turn, closed,
 // usage limit, dialog, no terminal) or "the owner can take it". Past AbleWarnS in that second state the cause is unnamed: the task's notice
 // target (db.NoticeTo) is told once.
@@ -37,7 +37,7 @@ type holdRec struct {
 	Warned    *int64
 }
 
-// readHold parses the record a Python or Go sweep kept; nil when there is none or it is not an object.
+// readHold parses the record a sweep kept; nil when there is none or it is not an object.
 func readHold(q db.Q, tid int64) *holdRec {
 	raw, found := ok2(db.Meta(q, holdKey(tid)))
 	if !found || raw == "" {
@@ -73,7 +73,7 @@ func readHold(q db.Q, tid int64) *holdRec {
 	return rec
 }
 
-// write is the record as Python's json.dumps writes it, so a Python reader sees the same text.
+// write stores the record as one fixed JSON text: spaced, keys in order, non-ASCII escaped.
 func (r *holdRec) write(q db.Q, tid int64) {
 	yes := map[bool]string{true: "true", false: "false"}
 	parts := []string{fmt.Sprintf(`"why": %s`, pyQuote(r.Why)), fmt.Sprintf(`"on": %s`, pyQuote(r.On)), fmt.Sprintf(`"able": %s`, yes[r.Able]),

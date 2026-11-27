@@ -10,16 +10,10 @@ import (
 	"time"
 )
 
-// A session's prompt-cache clock, read from its transcript (handline/session/cachettl.py).
-//
-// Claude Code writes the cache with a one-hour or a five-minute life, and every response says which: usage.cache_creation splits
-// what it wrote into ephemeral_1h_input_tokens and ephemeral_5m_input_tokens. A subscription is on the hour; once an account draws
-// on usage credits the main conversation drops to five minutes, so reading the TTL off the response follows that by itself. A
-// response that only read the cache wrote nothing and says nothing, so the TTL is the nearest earlier response that did. The clock
-// itself, though, is the last response: every read restarts the life.
-//
-// Only Claude's transcript is read here. For a session whose transcript is not Claude's (or is unreadable) there is no clock, and
-// the callers keep what they did before there was one.
+// A session's prompt-cache clock, read from its Claude transcript. Each response that wrote the cache says its life in
+// usage.cache_creation (ephemeral_1h_input_tokens or ephemeral_5m_input_tokens); a read-only response takes the nearest earlier
+// one's. The clock runs from the last response, since every read restarts the life. With no readable Claude transcript there is no
+// clock, and callers keep what they did without one.
 const (
 	LongTTLS  = 3600
 	ShortTTLS = 300
@@ -83,7 +77,7 @@ func when(stamp any) (float64, bool) {
 		if strings.Contains(layout, "Z07") || layout == time.RFC3339Nano {
 			t, err = time.Parse(layout, s)
 		} else {
-			t, err = time.ParseInLocation(layout, s, time.Local) // a naive time is the local one, as Python reads it
+			t, err = time.ParseInLocation(layout, s, time.Local) // a time with no zone is local time
 		}
 		if err == nil {
 			return float64(t.UnixNano()) / 1e9, true

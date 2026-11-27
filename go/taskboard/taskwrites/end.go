@@ -15,9 +15,9 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// What a task's end does in the tables (handline/actions/tasks.py: _end_task, _clear_blocks_on, _notify_unblocked,
-// _child_result_notice; handline/db/tasks.py and requests.py under them). The says it writes are rows; typing them at their
-// target is the Teller's, once the write has committed.
+// What a task's end does in the tables: it ends the task, clears the blocks on it, tells those it unblocked and tells the
+// parent's owner how the child ended. The says it writes are rows; typing them at their target is the Teller's, once the
+// write has committed.
 
 const noticeFrom = "sys"
 
@@ -32,7 +32,7 @@ type linked struct {
 	QueueOrder                     sql.NullFloat64
 }
 
-// asks is whether the request is work still being asked for (_asks): a say born landed never counts.
+// asks is whether the request is work still being asked for: a say born landed never counts.
 func (r linked) asks() bool {
 	return r.State == "queued" || r.State == "landed" && r.Kind == "task" && r.QueueOrder.Valid
 }
@@ -61,7 +61,7 @@ func openChildren(tx *sql.Tx, tid int64) ([]int64, error) {
 	return db.IDs(tx, "SELECT id FROM tasks WHERE parent_task = ? AND "+openSQL+" ORDER BY priority, id", tid)
 }
 
-// blockers are the open tasks still blocking tid (task_blockers): a done or discarded blocker no longer blocks.
+// blockers are the open tasks still blocking tid: a done or discarded blocker no longer blocks.
 type blocker struct {
 	ID     int64
 	Parent sql.NullInt64
@@ -129,7 +129,7 @@ func linkRequest(tx *sql.Tx, tid, rid int64) error {
 	return refreshSent(tx, tid)
 }
 
-// addSay is db.add_request for a fire-and-forget say from noticeFrom to `to` that starts its own chain. A notice is born landed: nothing
+// addSay writes the request row of a fire-and-forget say from noticeFrom to `to` that starts its own chain. A notice is born landed: nothing
 // is owed on it and nothing wakes its target.
 func addSay(tx *sql.Tx, to, body string, notice bool) (int64, error) {
 	now := time.Now().Unix()
@@ -149,8 +149,8 @@ func addSay(tx *sql.Tx, to, body string, notice bool) (int64, error) {
 	return rid, err
 }
 
-// closeQueuedQuietly is db.close_if_queued(rid, state, None): the request leaves the queue because its task ended; a landed one closes
-// as read.
+// closeQueuedQuietly takes a still-queued request out of the queue with no verdict, because its task ended: it closes as withdrawn,
+// or as read (landed) when it has landed.
 func closeQueuedQuietly(tx *sql.Tx, r linked) (closed bool, err error) {
 	state := "withdrawn"
 	if r.LandedAt.Valid {
@@ -176,7 +176,7 @@ func closeQueuedQuietly(tx *sql.Tx, r linked) (closed bool, err error) {
 	return true, nil
 }
 
-// endTask is _end_task: the task's queued deliveries close quietly, and whoever opened it and `also` are told `text` in one say each,
+// endTask ends a task in the transaction: its queued deliveries close quietly, and whoever opened it and `also` are told `text` in one say each,
 // written in this transaction. The opener's say is typed at once; also's are notices for the digest unless the result is urgent (a done
 // task that says it failed). Whoever only passed the task along (a linked delivery's asker) hears only an urgent result. The founder is told
 // nothing: their result is the request's row on requests.list, and one they ended themselves is already seen.
@@ -255,7 +255,7 @@ func closeDeliveries(tx *sql.Tx, tid int64) ([]linked, error) {
 }
 
 // clearBlocksOn drops every block row naming tid after it was discarded, and for each task left with no open blocker writes the
-// notice for its owner (none for the closer's own task, nor for a draft) (_clear_blocks_on).
+// notice for its owner (none for the closer's own task, nor for a draft).
 func clearBlocksOn(tx *sql.Tx, tid int64, closer, how string) ([]told, []string, error) {
 	deps, err := db.IDs(tx, "SELECT task_id FROM task_blocks WHERE blocks_on = ? ORDER BY task_id", tid)
 	if err != nil {

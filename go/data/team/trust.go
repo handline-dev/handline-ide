@@ -15,7 +15,7 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// Standing consent for folders (handline/team/trust.py): which folders hl may answer the vendor's trust prompt for, on the
+// Standing consent for folders: which folders hl may answer the vendor's trust prompt for, on the
 // founder's own say-so, never inferred from the roster. The declared roots live in the protected store, which no agent can
 // write. The founder's answer to a proposal is applied in trustapply.go.
 
@@ -222,7 +222,7 @@ func (t *Trust) ApproveMCP(folder string) (bool, string) {
 	return true, "approved: " + strings.Join(names, ", ")
 }
 
-// encodeCompactSpaced is json.dumps(list) with Python's default separators: ", " between items.
+// encodeCompactSpaced is a JSON list with ", " between items, each item compact.
 func encodeCompactSpaced(list []any) string {
 	parts := make([]string, len(list))
 	for i, x := range list {

@@ -30,7 +30,7 @@ const (
 	renewalsRows = 20
 )
 
-// CacheClock is cachettl.read: when the prompt cache lapses. TTL is nil when unknown; Left is nil when the clock cannot say.
+// CacheClock is when the prompt cache lapses, read from the transcript. TTL is nil when unknown; Left is nil when the clock cannot say.
 type CacheClock struct {
 	TTL  *int64
 	Left func(now int64) *float64
@@ -38,7 +38,7 @@ type CacheClock struct {
 
 // CostPorts are the foreign calls the cost pilot makes.
 type CostPorts interface {
-	// ReadCache is cachettl.read of the status line's transcript; nil when unreadable.
+	// ReadCache is the cache clock of the status line's transcript; nil when unreadable.
 	ReadCache(transcriptPath string) *CacheClock
 }
 

@@ -1,4 +1,4 @@
-// Package atomicfile writes a file in one step, so a reader sees the old content or the new (handline/infra/atomic.py).
+// Package atomicfile writes a file in one step, so a reader sees the old content or the new.
 package atomicfile
 
 import (

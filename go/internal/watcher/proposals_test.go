@@ -123,7 +123,7 @@ func TestGoAndPythonWriteTheSameProposalEvents(t *testing.T) {
 			putProposal(t, home, "0000000b", "proposed", now-10, 0, "")
 			decided("0000000a", "rejected", now-100, now-5, "")
 			decided("0000000c", "approved", now-90, now-4, "error: no room\n")
-			// one of each kind, raised: the diff and what is asked are the same words as Python's
+			// one of each kind, raised: the diff and what is asked are the same words as recorded
 			for i, f := range []string{ // 0x22 and 0x23 were link and unlink, which are gone
 				0x20: "kind: add\nagent: new\nteam: eng\nmodel: opus\nvendor: codex\n",
 				0x21: "kind: settings\nagent: w\nset.model: opus\nset.effort: high\n",

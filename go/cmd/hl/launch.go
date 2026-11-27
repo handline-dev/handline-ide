@@ -19,12 +19,12 @@ import (
 
 const launchUsage = "usage: hl launch [--force] [--account ACCOUNT] [--prompt-file PROMPT_FILE] [--why WHY] [--by BY] agent [extra ...]"
 
-// launch is `hl launch <agent>` (session/launch.exec_agent), which the daemon types into the agent's own pane: build the session's command line and become it. The daemon
+// launch is `hl launch <agent>`, which the daemon types into the agent's own pane: build the session's command line and become it. The daemon
 // refuses a vendor with no launchable Agent.
 func launch(c *hlclient.Client, args []string) (int, bool) {
 	before, extra := args, []string(nil)
 	for i, a := range args {
-		if a == "--" { // what follows is claude's, as argparse reads it
+		if a == "--" { // what follows is passed on to claude
 			before, extra = args[:i], args[i+1:]
 			break
 		}
@@ -58,7 +58,7 @@ func launch(c *hlclient.Client, args []string) (int, bool) {
 	got, err := slow.Call("session.launch_prepare", params)
 	var refused *hlclient.RPCError
 	if errors.As(err, &refused) && refused.Code == "refused" {
-		fmt.Fprintln(os.Stderr, refused.Message) // Python's SystemExit(message)
+		fmt.Fprintln(os.Stderr, refused.Message) // the refusal as the daemon words it, exit 1
 		return 1, true
 	}
 	if err != nil {
@@ -122,7 +122,7 @@ func launchTerminal() (string, string) {
 }
 
 // tmuxOwnTerminal is the pane this process runs in and its working folder, only when the pane is on our tmux server: a
-// pane id of someone else's tmux means nothing on ours (backends/tmux.own_terminal).
+// pane id of someone else's tmux means nothing on ours.
 func tmuxOwnTerminal() (string, string) {
 	pane, server := os.Getenv("TMUX_PANE"), os.Getenv("TMUX")
 	sock := paths.TmuxSocket(paths.Home())
@@ -131,7 +131,7 @@ func tmuxOwnTerminal() (string, string) {
 	}
 	wd, _ := os.Getwd()
 	if real, err := filepath.EvalSymlinks(wd); err == nil {
-		wd = real // os.getcwd is the folder itself, not $PWD's spelling of it
+		wd = real // the folder itself, not $PWD's spelling of it
 	}
 	return pane, wd
 }

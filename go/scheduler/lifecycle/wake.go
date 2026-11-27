@@ -19,7 +19,7 @@ import (
 
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
-// shlexQuote is shlex.quote.
+// shlexQuote quotes s for a POSIX shell: as it is when every character is safe, else in single quotes.
 func shlexQuote(s string) string {
 	if s == "" {
 		return "''"

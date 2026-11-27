@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// What a cold start costs, from what the daemon watches happen (handline/usage/measure.py): the share of the destination's shortest
+// What a cold start costs, from what the daemon watches happen: the share of the destination's shortest
 // window one new session spends getting from nothing to the end of its first turn. A measurement is taken only when nothing else was
 // spending the account's window at either end, and the first turn is timed whole, so it is an upper bound on the start itself.
 
@@ -30,7 +30,8 @@ type openStart struct {
 	At      int64  `json:"at"`
 }
 
-// BeginColdStart is measure.begin: a session has just been started for agent on acct from nothing.
+// BeginColdStart opens a cold-start measurement: a session has just been started for agent on acct from nothing. Nothing is opened
+// without a trusted reading or while another agent is at work on the account.
 func (e *Env) BeginColdStart(q db.Q, agent, acct string) error {
 	pct := e.Read(acct).ShortTrusted()
 	if pct == nil {
@@ -50,7 +51,7 @@ func (e *Env) BeginColdStart(q db.Q, agent, acct string) error {
 	return db.SetMeta(q, coldKey(agent), string(b))
 }
 
-// SettleColdStart is measure.settle: close a measurement once the agent's first turn has ended. A reading that fell, a missing one or
+// SettleColdStart closes a measurement once the agent's first turn has ended. A reading that fell, a missing one or
 // another agent at work on the account means nothing is recorded.
 func (e *Env) SettleColdStart(q db.Q, agent string) error {
 	raw, _, err := db.Meta(q, coldKey(agent))
@@ -85,7 +86,7 @@ func (e *Env) SettleColdStart(q db.Q, agent string) error {
 	return err
 }
 
-// ColdStartPct is measure.cold_start_pct: the middle of the recent measurements, ok false while there are too few.
+// ColdStartPct is the median of the recent measurements, ok false while there are too few.
 func ColdStartPct(q db.Q) (float64, bool, error) {
 	rows, err := q.Query("SELECT payload FROM events WHERE kind = 'cold_start' ORDER BY id DESC LIMIT ?", ColdKeep)
 	if err != nil {

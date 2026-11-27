@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// start makes a task the caller's current one (actions.task_start): only its owner, only while it is open.
+// start makes a task the caller's current one: only its owner, only while it is open.
 func start(c *rpc.Conn, p map[string]any) (any, error) {
 	tid, err := taskID(p)
 	if err != nil {
@@ -38,7 +38,7 @@ func start(c *rpc.Conn, p map[string]any) (any, error) {
 			return nil, err
 		}
 		now := time.Now().Unix()
-		// db.set_current_task: a task in hand ends the idle spell an agent-level progress note was written in.
+		// A task in hand ends the idle spell an agent-level progress note was written in.
 		if _, err := tx.Exec("INSERT INTO meta(name, value, updated) VALUES(?, NULL, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value, updated=excluded.updated",
 			"progress-agent:"+me, now); err != nil {
 			return nil, err
@@ -79,7 +79,7 @@ func start(c *rpc.Conn, p map[string]any) (any, error) {
 	})
 }
 
-// promoteOwn moves the task's still-queued requests for `me` to the front of what is queued for them (db.promote_to_front).
+// promoteOwn moves the task's still-queued requests for `me` to the front of what is queued for them.
 func promoteOwn(tx *sql.Tx, tid int64, me string) error {
 	ids, err := db.IDs(tx, "SELECT r.id FROM requests r JOIN task_requests l ON l.request_id = r.id "+
 		"WHERE l.task_id = ? AND r.target = ? AND r.delivered_at IS NULL AND "+

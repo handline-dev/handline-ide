@@ -27,7 +27,7 @@ type Edited struct {
 	Freed    []string // the owners whose last blocker the edit cleared, or whose current task it blocked: their turn is reconsidered
 }
 
-// pyRepr is Python's repr of a string: single quotes unless it holds one and no double quote.
+// pyRepr quotes a string for a message: single quotes unless it holds one and no double quote, the quote and \ escaped.
 func pyRepr(s string) string {
 	q := byte('\'')
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
@@ -92,7 +92,7 @@ type change struct {
 }
 
 // undeliverable is why task t cannot be moved to agent to, or "": the move asks to on behalf of whoever asked the old owner, or the
-// tick does as whoever queued it, and with no edge from them to to that ask is denied and the task sits unread (Supervisor.sendMovedTask).
+// tick does as whoever queued it, and with no edge from them to to that ask is denied and the task sits unread (the supervisor's sendMovedTask).
 func undeliverable(tx *sql.Tx, t *task, to, home string) (string, error) {
 	asker := t.QueuedBy.String
 	live, err := db.LiveDelivery(tx, t.ID, t.Acting)
@@ -140,7 +140,7 @@ func waitIsOwnBookkeeping(tx *sql.Tx, home string, tid, other int64) (bool, erro
 	return group != "" && tm.TeamOf(b.Owner) == group, nil
 }
 
-// editTask is actions.edit_task: a task's owner, reporter, title, priority, estimate (0 clears it), timeout and/or body changed by anyone;
+// editTask changes a task's owner, reporter, title, priority, estimate (0 clears it), timeout and/or body changed by anyone;
 // every change is kept as an edit_task event under who made it. It answers the refusal ("" when it edited) and the message.
 func editTask(tx *sql.Tx, tid int64, by string, home string, owner, reporter, title, body, evidence *string, priority, estimate, timeoutS *int64) (string, string, error) {
 	t, err := getTask(tx, tid)
@@ -386,7 +386,7 @@ func saidAs(key string) string {
 	return key
 }
 
-// editMethod is task.edit (rpc_tasks._edit): every part in one transaction, so a later refusal undoes the earlier parts.
+// editMethod is task.edit: every part in one transaction, so a later refusal undoes the earlier parts.
 func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		if err := unserved(p, "relation", "response", "reply", "waits_on"); err != nil {

@@ -1,4 +1,4 @@
-// Package subscriptions is two upkeep sweeps over the accounts, each read from state every tick (handline/daemon/subscriptions.py). A
+// Package subscriptions is two upkeep sweeps over the accounts, each read from state every tick. A
 // month-cycle account whose end date is within `cycle_warn_days` tells the founder once, as a founder task on the board, remembered by account
 // and end date (a later end date is a new subscription). Each account's plan is asked of its vendor again once an hour, one account at a
 // time and off the tick, since `claude auth status` takes up to ten seconds; the plan is recorded on disk for readers that must not run
@@ -26,12 +26,12 @@ const PlanRefreshS = 3600
 // Sender opens a decision for the founder when no agent is on the account.
 const Sender = "daemon"
 
-// Asker is team/ask.py's raise_decision: a task of the founder's on the board, opened by agent; the request's id.
+// Asker raises a decision: a task of the founder's on the board, opened by agent; the request's id.
 type Asker interface {
 	RaiseDecision(q db.Q, agent, text, reason string) (int64, error)
 }
 
-// Tasks is actions.mark_task_done as the founder's own card: the task marked done with this reason.
+// Tasks marks a task done in the founder's name, with this reason.
 type Tasks interface {
 	MarkDoneByFounder(q db.Q, tid int64, reason string) (ok bool, msg string, err error)
 }
@@ -129,7 +129,7 @@ func (e *Env) SweepEndings() error {
 		if end.Sub(now) > ahead || toldDay == day {
 			continue
 		}
-		// Python's float floor division: the hours print with a decimal.
+		// The whole hours left, printed with one decimal ("36.0").
 		hours := strconv.FormatFloat(math.Floor(end.Sub(now).Seconds()/3600), 'f', 1, 64)
 		opener, err := e.opener(acct)
 		if err != nil {

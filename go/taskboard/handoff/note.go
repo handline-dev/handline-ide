@@ -31,8 +31,7 @@ const (
 	// NoteKey is the setting that turns it off.
 	NoteKey = "handoff_note"
 
-	// PromptCacheS is the life of the prompt cache, and ResumeWarmS how long after its last activity a resume still finds it warm
-	// (daemon/states.py).
+	// PromptCacheS is the life of the prompt cache, and ResumeWarmS how long after its last activity a resume still finds it warm.
 	PromptCacheS = 3600
 	ResumeWarmS  = PromptCacheS - 300
 )

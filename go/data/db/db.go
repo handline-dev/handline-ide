@@ -1,5 +1,4 @@
-// Package db is the supervisor's statements on the tables the Python daemon keeps (handline/db): the same SQL, on a
-// database or a transaction. The tables are shared with Python until it is gone, so no statement here reshapes a column.
+// Package db is the daemon's statements on its database tables, each run on a database or a transaction.
 package db
 
 import (
@@ -25,13 +24,13 @@ var Now = defaultNow
 
 func defaultNow() int64 { return time.Now().Unix() }
 
-// KV is one key of an event payload; the order given is the order written, as Python's dict keeps it.
+// KV is one key of an event payload; the keys are written in the order given.
 type KV struct {
 	K string
 	V any
 }
 
-// AddEvent appends an event stamped now and answers its row id (db.add_event without a dedup key).
+// AddEvent appends an event stamped now, with no dedup key, and answers its row id.
 func AddEvent(q Q, agent, kind string, payload ...KV) (int64, error) {
 	return addEvent(q, agent, "", kind, "", 0, payload)
 }
@@ -80,7 +79,7 @@ func addEvent(q Q, agent, account, kind, dedup string, ts int64, payload []KV) (
 	return res.LastInsertId()
 }
 
-// Meta is db.get_meta: the value under name, and whether the row exists (a stored NULL reads as "", true).
+// Meta is the value under name, and whether the row exists (a stored NULL reads as "", true).
 func Meta(q Q, name string) (string, bool, error) {
 	var v sql.NullString
 	err := q.QueryRow("SELECT value FROM meta WHERE name = ?", name).Scan(&v)
@@ -90,7 +89,7 @@ func Meta(q Q, name string) (string, bool, error) {
 	return v.String, err == nil, err
 }
 
-// SetMeta is db.set_meta; an empty value writes NULL, which Python's None does.
+// SetMeta sets a meta row; an empty value writes NULL.
 func SetMeta(q Q, name, value string) error {
 	var v any
 	if value != "" {
@@ -101,7 +100,7 @@ func SetMeta(q Q, name, value string) error {
 	return err
 }
 
-// MetaNames is db.meta_names: the names that start with prefix.
+// MetaNames is the meta names that start with prefix.
 func MetaNames(q Q, prefix string) ([]string, error) {
 	rows, err := q.Query("SELECT name FROM meta WHERE substr(name, 1, ?) = ?", len([]rune(prefix)), prefix)
 	if err != nil {
@@ -119,7 +118,7 @@ func MetaNames(q Q, prefix string) ([]string, error) {
 	return out, rows.Err()
 }
 
-// ClearMeta is db.clear_meta.
+// ClearMeta deletes the meta row under name.
 func ClearMeta(q Q, name string) error {
 	_, err := q.Exec("DELETE FROM meta WHERE name = ?", name)
 	return err
@@ -128,7 +127,7 @@ func ClearMeta(q Q, name string) error {
 // AgentProgressKey is the meta name of an agent's progress note when it has no request or task in hand.
 func AgentProgressKey(agent string) string { return "progress-agent:" + agent }
 
-// Cursor is db.get_cursor: the row id under name, 0 when unset.
+// Cursor is the row id under name, 0 when unset.
 func Cursor(q Q, name string) (int64, error) {
 	var id int64
 	err := q.QueryRow("SELECT row_id FROM cursors WHERE name = ?", name).Scan(&id)
@@ -138,14 +137,14 @@ func Cursor(q Q, name string) (int64, error) {
 	return id, err
 }
 
-// SetCursor is db.set_cursor.
+// SetCursor writes the row id under name, stamped now.
 func SetCursor(q Q, name string, id int64) error {
 	_, err := q.Exec("INSERT INTO cursors(name, row_id, updated) VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET row_id=excluded.row_id, updated=excluded.updated",
 		name, id, Now())
 	return err
 }
 
-// CursorUpdated is db.cursor_updated: when the cursor was last written, and whether it is set.
+// CursorUpdated is when the cursor was last written, and whether it is set.
 func CursorUpdated(q Q, name string) (int64, bool, error) {
 	var at int64
 	err := q.QueryRow("SELECT updated FROM cursors WHERE name = ?", name).Scan(&at)
@@ -174,13 +173,13 @@ func CursorsWithPrefix(q Q, prefix string) (map[string]int64, error) {
 	return out, rows.Err()
 }
 
-// ClearCursor is db.clear_cursor.
+// ClearCursor deletes the cursor under name.
 func ClearCursor(q Q, name string) error {
 	_, err := q.Exec("DELETE FROM cursors WHERE name = ?", name)
 	return err
 }
 
-// MarkToldAhead is db.mark_told_ahead: request rid was told to agent out of turn. The marks of requests not in keep are dropped.
+// MarkToldAhead records that request rid was told to agent out of turn. The marks of requests not in keep are dropped.
 func MarkToldAhead(q Q, agent string, rid int64, keep []int64) error {
 	rows, err := q.Query("SELECT name, row_id FROM cursors WHERE name LIKE ?", "ahead:"+agent+":%")
 	if err != nil {
@@ -213,13 +212,13 @@ func MarkToldAhead(q Q, agent string, rid int64, keep []int64) error {
 
 func aheadKey(agent string, rid int64) string { return "ahead:" + agent + ":" + itoa(rid) }
 
-// ToldAhead is db.told_ahead.
+// ToldAhead is whether request rid is marked as told to agent out of turn (MarkToldAhead).
 func ToldAhead(q Q, agent string, rid int64) (bool, error) {
 	id, err := Cursor(q, aheadKey(agent, rid))
 	return id == rid, err
 }
 
-// ForgetTold is db.forget_told: the head is announced again to whatever session runs next.
+// ForgetTold drops what agent was told, so the head is announced again to whatever session runs next.
 func ForgetTold(q Q, agent string) error {
 	if _, err := q.Exec("DELETE FROM cursors WHERE name = ? OR name LIKE ?", "notify:"+agent, "ahead:"+agent+":%"); err != nil {
 		return err
@@ -228,7 +227,7 @@ func ForgetTold(q Q, agent string) error {
 	return err
 }
 
-// NotifiedSession is db.get_notified_session.
+// NotifiedSession is the session agent's queue head was last typed into, "" when none is recorded.
 func NotifiedSession(q Q, agent string) (string, error) {
 	var s sql.NullString
 	err := q.QueryRow("SELECT notified_session FROM agent_state WHERE agent = ?", agent).Scan(&s)
@@ -238,7 +237,7 @@ func NotifiedSession(q Q, agent string) (string, error) {
 	return s.String, err
 }
 
-// SetNotifiedSession is db.set_notified_session.
+// SetNotifiedSession records the session agent's queue head was typed into; "" writes NULL.
 func SetNotifiedSession(q Q, agent, session string) error {
 	var s any
 	if session != "" {

@@ -26,22 +26,22 @@ const (
 	HandOffRetryS = 600
 )
 
-// Forgotten is delivery.forgotten_resolve with the questions timebox asks about its head: an idle agent whose current head request nobody
+// Forgotten is what an agent holds when it looks like a resolve nobody wrote, with the questions timebox asks about its head: an idle agent whose current head request nobody
 // resolved. Task is the head's task when it is one.
 type Forgotten struct {
 	HeadID    int64
 	Task      *db.Task
 	IdleS     int64
 	Behind    int
-	Blocked   bool // delivery.head_task_blocked
-	Exhausted bool // delivery.nudge_exhausted: the nudge schedule is used up
+	Blocked   bool // the head's task waits on another
+	Exhausted bool // the nudge schedule is used up
 }
 
 // TimeboxPorts are the foreign calls the notices make: the board's actions, delivery's background bookkeeping, and the idle-close settings.
 type TimeboxPorts interface {
-	// TaskDoing is actions.task_state(row) == "doing".
+	// TaskDoing is whether the task's state is doing.
 	TaskDoing(q db.Q, t *db.Task) bool
-	// SendNotice is delivery.type_notice, sent through the session: true when the line was sent.
+	// SendNotice types one line into the agent's open session: true when the line was sent.
 	SendNotice(q db.Q, agent, text string) bool
 	// TellAbout is supervisor.Env.TellAbout: to (an agent, or the founder as a warning) hears text about agent and its task tid.
 	TellAbout(q db.Q, to, agent string, tid int64, text, reason string, now int64) error
@@ -59,7 +59,7 @@ type TimeboxPorts interface {
 	StaleBgVetoS() int64
 	ForgottenResolve(q db.Q, agent string, row *db.AgentState, now int64) *Forgotten
 	NudgeScheduleLen() int
-	// NeverCloses is idle_close.close_timeout_s(agent) == NEVER.
+	// NeverCloses is whether the agent's idle session is set never to close.
 	NeverCloses(agent string) bool
 	BgNoticeS(agent string) int64
 	BgGraceS(agent string) int64
@@ -626,7 +626,7 @@ func (b *Timebox) workedSince(t *Tick, agent string, tid, since int64) bool {
 	return must(db.ActedSince(t.Q, agent, since))
 }
 
-// Sweep is timebox.sweep: the notices in order. Each one's failure stops the rest, as an exception did.
+// Sweep runs the notices in order. Each one's failure stops the rest and is returned.
 func (b *Timebox) Sweep(t *Tick, now int64) error {
 	return guard(func() {
 		b.SweepTaskTimeouts(t, now)

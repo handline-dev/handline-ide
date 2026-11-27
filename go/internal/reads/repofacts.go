@@ -76,7 +76,7 @@ func (e *Env) repoFacts(_ *rpc.Conn, params map[string]any) (any, error) {
 }
 
 // testCommand is the command that runs the folder's tests, by the files at its top: package.json with a test script (by lockfile),
-// go.mod, a pytest or Python project file, a Makefile with a test target. nil when none.
+// go.mod, a pytest config or pyproject/setup file, a Makefile with a test target. nil when none.
 func testCommand(dir string) any {
 	has := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
 	if npmTestScript(filepath.Join(dir, "package.json")) {

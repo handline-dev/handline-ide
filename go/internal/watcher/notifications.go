@@ -47,7 +47,7 @@ func payloadOf(s sql.NullString) map[string]any {
 	return out
 }
 
-// truthy is Python's truth of a decoded JSON value.
+// truthy is whether a decoded JSON value is set: not null, false, 0, "" or an empty array or object.
 func truthy(v any) bool {
 	switch x := v.(type) {
 	case nil:
@@ -161,7 +161,7 @@ func (n *Notifications) Scan(q *sql.DB, emit Emit) error {
 			if acct == "" {
 				acct = e.account.String
 			}
-			// A refused login keeps Python's words (the parity test holds both daemons to them); any other stall says its reason.
+			// A refused login keeps the recorded words (the parity test holds them); any other stall says its reason.
 			title := acct + " needs logging in"
 			if why, _ := payload["error"].(string); why != "" && why != "authentication_failed" {
 				title = acct + " stalled: " + team.StallWord(why)

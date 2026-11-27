@@ -7,7 +7,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// Notice and digest names (db.requests).
+// Notice and digest names.
 const (
 	NoticeRequester = "sys"
 	DigestHead      = "Result digest - "
@@ -76,7 +76,7 @@ func requestRows(q Q, query string, args ...any) ([]*Request, error) {
 	return out, rows.Err()
 }
 
-// GetRequest is db.get_request: nil when there is no such request.
+// GetRequest is the request with id rid, nil when there is no such request.
 func GetRequest(q Q, rid int64) (*Request, error) {
 	r := &Request{}
 	err := q.QueryRow("SELECT "+requestCols+", "+reasonSQL+" FROM requests WHERE id = ?", rid).Scan(append(r.dest(), &r.Reason)...)
@@ -86,16 +86,16 @@ func GetRequest(q Q, rid int64) (*Request, error) {
 	return r, err
 }
 
-// IsStillQueued is db.is_still_queued.
+// IsStillQueued is whether request rid exists and is still queued.
 func IsStillQueued(q Q, rid int64) (bool, error) {
 	r, err := GetRequest(q, rid)
 	return r != nil && r.State == "queued", err
 }
 
-// TellsNow is db.tells_now: told ahead of the queue (a say always, anything else once marked send-now).
+// TellsNow is whether the request is told ahead of the queue (a say always, anything else once marked send-now).
 func (r *Request) TellsNow() bool { return r.Kind.String == "say" || r.SendNow.Valid }
 
-// AddReason is db.add_reason: what a request closed with.
+// AddReason records what a request closed with.
 func AddReason(q Q, rid int64, text string) error {
 	_, err := AddEvent(q, "", "request_reason", KV{"request_id", rid}, KV{"reason", text})
 	return err
@@ -114,9 +114,9 @@ type NewRequest struct {
 	Memo bool
 }
 
-// AddRequest is db.add_request. A notice, or a say to the founder, is born landed. The edge of a request written here is
-// checked (edge_ok 1): the Python in-agent-session case, whose requests wait for the daemon's check, is the hl command's, not
-// the daemon's.
+// AddRequest writes a request and answers its id. A notice, or a say to the founder, is born landed. The edge of a request written here is
+// checked (edge_ok 1): a request made inside an agent's session, which waits for the daemon's check, is written by the hl
+// command, not here.
 func AddRequest(q Q, n NewRequest) (int64, error) {
 	state := n.State
 	if state == "" {
@@ -165,7 +165,7 @@ func AddRequest(q Q, n NewRequest) (int64, error) {
 	return rid, err
 }
 
-// StoredState is db.stored_state: the state a close with this intent leaves ("done" is answered, so landed; "rejected" is landed
+// StoredState is the state a close with this intent leaves ("done" is answered, so landed; "rejected" is landed
 // if it had been delivered, else withdrawn).
 func StoredState(q Q, rid int64, intent string) (string, error) {
 	switch intent {
@@ -188,18 +188,18 @@ func StoredState(q Q, rid int64, intent string) (string, error) {
 // neverReachedTarget are the states a request leaves 'queued' for without reaching its target.
 var neverReachedTarget = []string{"denied", "withdrawn", "replaced"}
 
-// ChainMembers is db.chain_members: the asks of a chain that reached their target.
+// ChainMembers is the asks of a chain that reached their target.
 func ChainMembers(q Q, chainID string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE chain_id = ? AND state NOT IN ("+marks(len(neverReachedTarget))+") ORDER BY id",
 		kindArgs([]any{chainID}, neverReachedTarget)...)
 }
 
-// LeftoverDeliveries is db.leftover_deliveries.
+// LeftoverDeliveries is the queued task deliveries nothing can be done with (leftoverDelivery), oldest first.
 func LeftoverDeliveries(q Q) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE state = 'queued' AND "+leftoverDelivery+" ORDER BY id")
 }
 
-// SettleLeftoverDeliveries is db.settle_leftover_deliveries: close quietly every queued delivery whose tasks have all ended.
+// SettleLeftoverDeliveries closes quietly every queued delivery whose tasks have all ended.
 func SettleLeftoverDeliveries(q Q) ([]int64, error) {
 	rows, err := requestRows(q, "SELECT "+requestCols+" FROM requests WHERE state = 'queued' AND kind = 'task' "+
 		"AND EXISTS (SELECT 1 FROM task_requests l0 WHERE l0.request_id = requests.id) "+
@@ -221,7 +221,7 @@ func SettleLeftoverDeliveries(q Q) ([]int64, error) {
 	return done, nil
 }
 
-// QueuedFor is db.queued_for: what the target has in line, by queue_order.
+// QueuedFor is what the target has in line, by queue_order.
 func QueuedFor(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND (state = 'queued' OR "+heldDelivery+") AND NOT "+leftoverDelivery+" ORDER BY queue_order, id", target)
 }
@@ -231,7 +231,7 @@ func QueuedAwaiting(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE state = 'queued' AND NOT "+leftoverDelivery+" AND target = ? ORDER BY ts", target)
 }
 
-// UndeliveredFor is db.undelivered_for: the queued requests the target has never been shown.
+// UndeliveredFor is the queued requests the target has never been shown.
 func UndeliveredFor(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND state = 'queued' AND NOT "+leftoverDelivery+" AND delivered_at IS NULL ORDER BY queue_order, id", target)
 }
@@ -252,20 +252,20 @@ func firstOf(rows []*Request, err error, keep func(*Request) bool) (*Request, er
 	return live[0], nil
 }
 
-// HeadOfQueue is db.head_of_queue: the one request the target is meant to be working on, or nil. A say is never this. skip is a
+// HeadOfQueue is the one request the target is meant to be working on, or nil. A say is never this. skip is a
 // request id to leave out (0: none).
 func HeadOfQueue(q Q, target string, skip int64) (*Request, error) {
 	rows, err := QueuedFor(q, target)
 	return firstOf(rows, err, func(r *Request) bool { return r.Kind.String != "say" && r.ID != skip })
 }
 
-// TaskHead is db.task_head: the task delivery to tell next, when its edge has been checked.
+// TaskHead is the task delivery to tell next, when its edge has been checked.
 func TaskHead(q Q, target string, skip int64) (*Request, error) {
 	rows, err := QueuedFor(q, target)
 	return firstOf(rows, err, func(r *Request) bool { return r.Kind.String == "task" && r.ID != skip })
 }
 
-// HeadOfQueueOrMarked is db.head_of_queue_or_marked.
+// HeadOfQueueOrMarked is HeadOfQueue, else the first request marked send-now for target, nil when there is neither.
 func HeadOfQueueOrMarked(q Q, target string) (*Request, error) {
 	if h, err := HeadOfQueue(q, target, 0); h != nil || err != nil {
 		return h, err
@@ -277,13 +277,13 @@ func HeadOfQueueOrMarked(q Q, target string) (*Request, error) {
 	return rows[0], nil
 }
 
-// ClearEdge is db.clear_edge.
+// ClearEdge marks request rid's edge checked (edge_ok 1).
 func ClearEdge(q Q, rid int64) error {
 	_, err := q.Exec("UPDATE requests SET edge_ok = 1 WHERE id = ?", rid)
 	return err
 }
 
-// PromoteToFront is db.promote_to_front: ahead of the other undelivered requests queued for its target, never ahead of one delivered.
+// PromoteToFront moves a queued request ahead of the other undelivered requests queued for its target, never ahead of one delivered.
 func PromoteToFront(q Q, rid int64) error {
 	var target string
 	err := q.QueryRow("SELECT target FROM requests WHERE id = ? AND state = 'queued'", rid).Scan(&target)
@@ -305,7 +305,7 @@ func PromoteToFront(q Q, rid int64) error {
 	return err
 }
 
-// UnreachedCount is db.unreached_count: what is still owed the agent because it has not reached it.
+// UnreachedCount is how much is still owed the agent because it has not reached it.
 func UnreachedCount(q Q, agent string) (int, error) {
 	u, err := UndeliveredFor(q, agent)
 	if err != nil {
@@ -318,13 +318,13 @@ func UnreachedCount(q Q, agent string) (int, error) {
 	return len(u) + len(p), nil
 }
 
-// QueueDepth is db.queue_depth.
+// QueueDepth is how many requests target has in line (QueuedFor).
 func QueueDepth(q Q, target string) (int, error) {
 	rows, err := QueuedFor(q, target)
 	return len(rows), err
 }
 
-// OpenAskIDs is db.open_ask_ids_of: what the agent asked that nobody has answered.
+// OpenAskIDs is what the agent asked that nobody has answered.
 func OpenAskIDs(q Q, requester string) ([]int64, error) {
 	return IDs(q, "SELECT id FROM requests WHERE requester = ? AND state = 'queued' ORDER BY id", requester)
 }
@@ -347,7 +347,7 @@ func IDs(q Q, query string, args ...any) ([]int64, error) {
 	return out, rows.Err()
 }
 
-// MarkRead is db.mark_read: the founder has these in front of him, once.
+// MarkRead records that the founder has these in front of him, once.
 func MarkRead(q Q, rids []int64) error {
 	for _, id := range rids {
 		if _, err := q.Exec("UPDATE requests SET read_at = COALESCE(read_at, ?) WHERE id = ? AND target = ?", Now(), id, actor.OwnerKey); err != nil {
@@ -363,7 +363,7 @@ func MarkReadBy(q Q, rid int64, target string) error {
 	return err
 }
 
-// PendingNotices is db.pending_notices: the notices the target has not been shown, oldest first.
+// PendingNotices is the notices the target has not been shown, oldest first.
 func PendingNotices(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND notice >= 1 AND state = 'landed' AND delivered_at IS NULL ORDER BY id", target)
 }
@@ -374,7 +374,7 @@ type NoticeWaiting struct {
 	Since int64
 }
 
-// AgentsWithNotices is db.agents_with_notices.
+// AgentsWithNotices is every agent but the founder with a landed notice not yet shown, by agent, with when its oldest landed.
 func AgentsWithNotices(q Q) ([]NoticeWaiting, error) {
 	rows, err := q.Query("SELECT target, MIN(landed_at) FROM requests WHERE notice >= 1 AND state = 'landed' AND delivered_at IS NULL AND target != ? GROUP BY target ORDER BY target", actor.OwnerKey)
 	if err != nil {
@@ -399,7 +399,7 @@ func UnreadMemosBefore(q Q, before int64) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE "+Held("")+" AND state = 'landed' AND landed_at <= ? ORDER BY id", before)
 }
 
-// MarkNoticesDigested is db.mark_notices_digested.
+// MarkNoticesDigested marks these landed notices delivered, once.
 func MarkNoticesDigested(q Q, rids []int64) error {
 	for _, id := range rids {
 		if _, err := q.Exec("UPDATE requests SET delivered_at = COALESCE(delivered_at, ?) WHERE id = ? AND notice >= 1 AND state = 'landed'", Now(), id); err != nil {
@@ -409,7 +409,7 @@ func MarkNoticesDigested(q Q, rids []int64) error {
 	return nil
 }
 
-// MarkNoticesShown is db.mark_notices_shown: these notices went out inside a typed delivery to session.
+// MarkNoticesShown records that these notices went out inside a typed delivery to session.
 func MarkNoticesShown(q Q, rids []int64, session string) error {
 	for _, id := range rids {
 		if _, err := q.Exec("UPDATE requests SET delivered_at = COALESCE(delivered_at, ?), typed_at = ?, typed_session = ? WHERE id = ? AND notice >= 1 AND state = 'landed'",
@@ -449,7 +449,7 @@ func FounderAuthored(q Q, rid int64) (bool, error) {
 	return v == 1, err
 }
 
-// MarkDelivered is db.mark_delivered: shown to its target, once. False when it was withdrawn or replaced first.
+// MarkDelivered records that a queued request was shown to its target, once. False when it was withdrawn or replaced first.
 func MarkDelivered(q Q, rid int64) (bool, error) {
 	res, err := q.Exec("UPDATE requests SET delivered_at = COALESCE(delivered_at, ?) WHERE id = ? AND state = 'queued'", Now(), rid)
 	if err != nil {
@@ -496,20 +496,20 @@ func holdDelivered(q Q, rid int64, agent string) error {
 	return SetCurrentTask(q, agent, tid, true)
 }
 
-// ClearDelivered is db.clear_delivered: undo MarkDelivered for a request whose typing failed.
+// ClearDelivered undoes MarkDelivered for a request whose typing failed.
 func ClearDelivered(q Q, rid int64) error {
 	_, err := q.Exec("UPDATE requests SET delivered_at = NULL WHERE id = ? AND state = 'queued'", rid)
 	return err
 }
 
-// MarkTyped is db.mark_typed: the send went through into session's terminal; not delivered until MarkLanded. The CLI's echo can land the
+// MarkTyped records that the send went through into session's terminal; not delivered until MarkLanded. The CLI's echo can land the
 // request before the send records its typing: a landed request is stamped only when it has no typing yet.
 func MarkTyped(q Q, rid int64, session string) error {
 	_, err := q.Exec("UPDATE requests SET typed_at = ?, typed_session = ? WHERE id = ? AND (landed_at IS NULL OR typed_at IS NULL)", Now(), nullStr(session), rid)
 	return err
 }
 
-// MarkLanded is db.mark_landed: the receiving session's transcript holds the request.
+// MarkLanded records that the receiving session's transcript holds the request.
 func MarkLanded(q Q, rid int64) error {
 	now := Now()
 	if _, err := q.Exec("UPDATE requests SET landed_at = COALESCE(landed_at, ?) WHERE id = ?", now, rid); err != nil {
@@ -561,18 +561,18 @@ func settleSendLedger(q Q, rid int64) error {
 	return nil
 }
 
-// AwaitingLanding is db.awaiting_landing: requests typed at target that its transcript has not shown yet.
+// AwaitingLanding is the requests typed at target that its transcript has not shown yet.
 func AwaitingLanding(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND state = 'queued' AND typed_at IS NOT NULL AND landed_at IS NULL ORDER BY queue_order, id", target)
 }
 
-// OweAgain is db.owe_again: a typed line the transcript never showed is owed again.
+// OweAgain marks a typed line the transcript never showed as owed again.
 func OweAgain(q Q, rid int64) error {
 	_, err := q.Exec("UPDATE requests SET delivered_at = NULL, typed_at = NULL, typed_session = NULL WHERE id = ? AND state = 'queued' AND landed_at IS NULL", rid)
 	return err
 }
 
-// MarkSendNow is db.mark_send_now: to be told as soon as the target can be typed at. False when delivered, closed or missing.
+// MarkSendNow marks a request to be told as soon as the target can be typed at. False when delivered, closed or missing.
 func MarkSendNow(q Q, rid int64) (bool, error) {
 	res, err := q.Exec("UPDATE requests SET send_now = COALESCE(send_now, ?) WHERE id = ? AND state = 'queued' AND delivered_at IS NULL", Now(), rid)
 	if err != nil {
@@ -582,29 +582,29 @@ func MarkSendNow(q Q, rid int64) (bool, error) {
 	return n > 0, nil
 }
 
-// SendNowPending is db.send_now_pending: marked requests for target not yet shown to it, in the order pressed.
+// SendNowPending is the marked requests for target not yet shown to it, in the order pressed.
 func SendNowPending(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND state = 'queued' AND NOT "+leftoverDelivery+
 		" AND (send_now IS NOT NULL OR kind = 'say') AND delivered_at IS NULL ORDER BY COALESCE(send_now, ts), id", target)
 }
 
-// FounderPending is db.founder_pending: the founder's requests to target not yet shown to it, oldest first.
+// FounderPending is the founder's requests to target not yet shown to it, oldest first.
 func FounderPending(q Q, target string) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND requester = ? AND NOT "+leftoverDelivery+
 		" AND state = 'queued' AND delivered_at IS NULL ORDER BY queue_order, id", target, actor.OwnerKey)
 }
 
-// FollowupsPending is db.followups_pending: requests to target that reply in the thread of its open head.
+// FollowupsPending is the requests to target that reply in the thread of its open head.
 func FollowupsPending(q Q, target string, head int64) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE target = ? AND state = 'queued' AND parent_id = ? AND delivered_at IS NULL ORDER BY queue_order, id", target, head)
 }
 
-// RetireIfUndelivered is db.retire_if_undelivered: a still-queued, undelivered request to a terminal state, atomically.
+// RetireIfUndelivered moves a still-queued, undelivered request to a terminal state, atomically.
 func RetireIfUndelivered(q Q, rid int64, state, verdict string) (bool, error) {
 	return closeWhere(q, rid, state, verdict, " AND delivered_at IS NULL")
 }
 
-// CloseIfQueued is db.close_if_queued (and db.retire_queued): close a request still open, delivered or not, atomically, keeping verdict as
+// CloseIfQueued closes a request still open, delivered or not, atomically, keeping verdict as
 // the reason it closed with; true only if this call closed it.
 func CloseIfQueued(q Q, rid int64, state, verdict string) (bool, error) {
 	return closeWhere(q, rid, state, verdict, "")
@@ -634,7 +634,7 @@ func closeWhere(q Q, rid int64, state, verdict, and string) (bool, error) {
 	return true, RefreshSentOfRequest(q, rid)
 }
 
-// ClosedUnder is db.closed_under: closed out from under its target rather than answered by it.
+// ClosedUnder is whether the request was closed out from under its target rather than answered by it.
 func ClosedUnder(q Q, rid int64) (bool, error) { return RequestHasEvent(q, "closed_under", rid) }
 
 // RequestHasEvent: an event of kind names the request.
@@ -647,7 +647,7 @@ func RequestHasEvent(q Q, kind string, rid int64) (bool, error) {
 	return err == nil, err
 }
 
-// StandingDenial is db.standing_denial: the id of an identical ask already refused inside the window, 0 for none.
+// StandingDenial is the id of an identical ask already refused inside the window, 0 for none.
 func StandingDenial(q Q, requester, target, body, files string, since int64) (int64, error) {
 	var id int64
 	err := q.QueryRow("SELECT id FROM requests WHERE requester = ? AND target = ? AND body = ? AND files IS ? AND state = 'denied' AND ts >= ? ORDER BY id DESC LIMIT 1",

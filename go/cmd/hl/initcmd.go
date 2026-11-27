@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// initCmd is `hl init` (setup.cmd_init): the home set up by hand, which the daemon also does at start. A home already set up is left alone.
+// initCmd is `hl init`: the home set up by hand, which the daemon also does at start. A home already set up is left alone.
 func initCmd(c *hlclient.Client, args []string) (int, bool) {
 	if len(args) != 0 {
 		fmt.Fprintln(os.Stderr, "usage: hl init")

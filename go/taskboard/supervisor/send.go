@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/data/states"
 )
 
-// Seeing and typing at an agent's session (daemon/delivery.py, "sending").
+// Seeing and typing at an agent's session.
 
 const (
 	// SeenFreshS is how old the sweep's reading may be before a send looks again. A tick is 2s, so anything older came from another tick.

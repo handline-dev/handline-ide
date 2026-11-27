@@ -15,7 +15,7 @@ const (
 	dealtShown = 20
 )
 
-// inboxQueue is inbox.queue (hl inbox): whose inbox it is and what the command prints of it, cmd_inbox in handline/cli/ask.py. An
+// inboxQueue is inbox.queue (hl inbox): whose inbox it is and what the command prints of it. An
 // agent's is the head of its queue, with its whole history under all; the founder's is the mailbox folded to a line per agent, with
 // what was already dealt with under all. With wait_s the call holds until something newer than since waits there.
 func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
@@ -68,7 +68,7 @@ func (e *Env) inboxQueue(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 }
 
-// listingRefusal is actions.listing_refusal: why caller may not list whose messages, "" when it may. The founder and the agent itself may.
+// listingRefusal is why caller may not list whose messages, "" when it may. The founder and the agent itself may.
 func (e *Env) listingRefusal(caller, whose string) string {
 	if caller == actor.OwnerKey || caller == whose { // owner-only: the owner may list anyone's
 		return ""
@@ -175,7 +175,7 @@ func (e *Env) heldRequests(whose string) ([]any, error) {
 	return out, nil
 }
 
-// founderQueue is the founder's mailbox as `hl inbox` lists it: actions.messages, a line per agent that stands for everything it sent
+// founderQueue is the founder's mailbox as `hl inbox` lists it: a line per agent that stands for everything it sent
 // and the founder has not seen, a decision keeping its own line.
 func (e *Env) founderQueue(all bool) (any, error) {
 	rows, err := e.mailboxRows()

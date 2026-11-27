@@ -9,8 +9,8 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// The weekly headroom of all accounts together, the last stretch and the next (handline/usage/outlook.py's weekly_outlook), and what the
-// agents cost per day (stats.py's daily_cost). Past points are what usage_samples recorded; the future is a guess, kept apart. Both are
+// The weekly headroom of all accounts together, the last stretch and the next, and what the
+// agents cost per day. Past points are what usage_samples recorded; the future is a guess, kept apart. Both are
 // pure given the rows, the rows being read by SamplesSince and TokenRows.
 
 const (
@@ -28,7 +28,7 @@ type OutlookPoint struct {
 	Left *float64
 }
 
-// Outlook is weekly_outlook's result: measured points and guessed ones, apart.
+// Outlook is WeeklyOutlook's result: measured points and guessed ones, apart.
 type Outlook struct {
 	Past, Future []OutlookPoint
 	Accounts     int
@@ -115,14 +115,14 @@ func pace(series []weekPoint) float64 {
 	return max(0, (last.Used-first.Used)/float64(span))
 }
 
-// WeeklyOutlook is outlook.weekly_outlook. rows are usage_samples rows, oldest first. The value is the headroom left of the week, in
+// WeeklyOutlook is the week's headroom from hours before now to hours after it. rows are usage_samples rows, oldest first. The value is the headroom left of the week, in
 // percent, averaged over the accounts that have a reading, each weighed by w (WeekWeights). ends is when an account that ends stops: looking back it is not counted
 // once it has ended; looking ahead it stays in the average with nothing left after its end, so the line steps down by its share.
 // An account that could not be used (loggedOut; outSince is from when, for one that cannot now) counts as nothing left, then and ahead, so
 // the line falls by its share while it is out and rises when it is back.
 func WeeklyOutlook(rows []sampleRow, now int64, hours int, ends, outSince map[string]float64, w WeekWeights) Outlook {
 	by := map[string][]weekPoint{}
-	var order []string // first appearance, as a Python dict keeps it
+	var order []string // accounts in the order they first appear
 	for _, r := range rows {
 		if wp, ok := weekOf(r); ok {
 			a, _ := r["account"].(string)
@@ -258,11 +258,11 @@ func agentForCwd(cwd string, trees []worktreeOf) string {
 // CallCost is what CallCosts reads from one pass over the calls.
 type CallCost struct {
 	Daily map[string]map[string]float64 // list-price cost per local day and agent
-	Uses  []AgentUse                    // stats.agent_use (agentUses)
+	Uses  []AgentUse                    // each agent's tokens and cost (agentUses)
 	Plan  PlanCosts
 }
 
-// CallCosts is the list-price cost of each agent per local day over (dayLo, hi], stats.agent_use over (useLo, hi] (agentUses), and the
+// CallCosts is the list-price cost of each agent per local day over (dayLo, hi], each agent's use over (useLo, hi] (agentUses), and the
 // plan money of both (planCostsOf, from the samples rows, from at least OutlookMaxAgeS before either, and each account's weekly budget weekUSD), from one read of the calls.
 func CallCosts(q db.Q, self string, dayLo, useLo, hi int64, table []priceEntry, rows []sampleRow, weekUSD map[string]float64) (CallCost, error) {
 	daily := map[string]map[string]float64{}

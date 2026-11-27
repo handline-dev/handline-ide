@@ -14,7 +14,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// Accounts is handline/team/accounts.py: the account directories and what is known of their logins. Credentials are never
+// Accounts is the account directories and what is known of their logins. Credentials are never
 // touched: a login is told by a credential's presence (and, for the keychain, its modification time), never by reading it.
 // Registering an account's shared links, the subscription and identity lookups through the vendor's own commands, and
 // adding or removing an account are in accountsadmin.go.
@@ -104,7 +104,7 @@ var unusable = map[string]bool{"authentication_failed": true, "oauth_org_not_all
 // Unusable is whether a turn that ended on errType says the account itself cannot be used.
 func Unusable(errType string) bool { return unusable[errType] }
 
-// Stalled is the account's stall, when there is one (login_expired.json, Python's name for it). The credential is still there, so its
+// Stalled is the account's stall, when there is one (login_expired.json). The credential is still there, so its
 // presence says nothing; its modification time does: a login writes it anew, and the stall then ends. A vendor that cannot give the
 // time keeps the stall until it is woken.
 func (a Accounts) Stalled(acct string) *Stall {

@@ -18,7 +18,7 @@ import (
 )
 
 // account.set: an account's alias, usage recovery, month cycle, plan fee and pause, in its row; account.wake ends its stall. account.set
-// writes what a retry writes again. settings.trust stays with the Python daemon; account.add and account.remove are in accountadmin.go.
+// writes what a retry writes again. account.add and account.remove are in accountadmin.go.
 
 const labelMax = 40
 

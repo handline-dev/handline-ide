@@ -137,7 +137,7 @@ func (e *Env) SessionChanged(q db.Q, agent string) (r0 bool, err error) {
 	return r0, nil
 }
 
-// PastDialog is pastDialog (delivery._past_dialog) with a failed statement returned as the error.
+// PastDialog is pastDialog with a failed statement returned as the error.
 func (e *Env) PastDialog(q db.Q, agent string) (why string, err error) {
 	defer Catch(&err)
 	return e.pastDialog(q, agent, false), nil

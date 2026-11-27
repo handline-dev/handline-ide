@@ -20,7 +20,7 @@ const (
 
 var handoffBody = regexp.MustCompile(`(?s)\AT(\d+) handed to you by (\S+?): (.*?)\n\n(.*)\z`)
 
-// HandoffParts is (task id, who handed it, title, note) of a task handoff's body (actions.tasks.task_handoff); ok false for any other.
+// HandoffParts is (task id, who handed it, title, note) of the body of the request a task handoff sends; ok false for any other.
 func HandoffParts(body string) (tid int64, by, title, note string, ok bool) {
 	m := handoffBody.FindStringSubmatch(body)
 	if m == nil {

@@ -8,7 +8,7 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// The fail-closed account status (handline/usage/status.py): what a status file says about an account and how far it is trusted. A
+// The fail-closed account status: what a status file says about an account and how far it is trusted. A
 // figure nothing can name is not a full tank, it is a refusal to assign. Reading an unknown as 0 makes every account look fresh.
 
 const (
@@ -18,7 +18,7 @@ const (
 	ClockSkewGraceS = 60
 	// CarryMaxAgeS is how long a carried figure may stand in for a measurement.
 	CarryMaxAgeS = StaleAfterS
-	// WallPct is triggers.WALL_PCT: at these nothing can run at all.
+	// WallPct is the wall: at these nothing can run at all.
 	WallPct    = 100
 	ShortBlock = WallPct
 	LongBlock  = WallPct
@@ -28,7 +28,7 @@ const (
 	UnmeteredWhy = "unmetered - its vendor reports no usage; only agents that name it run there"
 )
 
-// Source marks, in one place (status.SOURCE_MARK, IDLE_MARK).
+// SourceMark is the mark drawn beside a figure for each source, and IdleMark the one for an idle floor, in one place.
 var SourceMark = map[string]string{"live": " ", "carried": "~", "carried_old": "!", "quiet": "*", "unknown": " "}
 
 const IdleMark = "?"
@@ -57,7 +57,7 @@ type AcctWindow struct {
 // Label is the window's length as a person says it: 300 -> 5h, 10080 -> 7d.
 func (w AcctWindow) Label() string { return WindowLabel(w.Minutes) }
 
-// WindowLabel is windows.label.
+// WindowLabel is a window of this many minutes as a person says it: 5h, 7d, 90m, or "?" for none.
 func WindowLabel(minutes int) string {
 	switch {
 	case minutes <= 0:
@@ -70,7 +70,7 @@ func WindowLabel(minutes int) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-// AccountStatus is status.AccountStatus.
+// AccountStatus is what an account's status file says about it and how far it is trusted.
 type AccountStatus struct {
 	Account   string
 	Exists    bool
@@ -436,7 +436,7 @@ func (s *AccountStatus) IdleFloor(active int) (bool, string) {
 		return false, ""
 	}
 	if s.Short.Reset == 0 || float64(s.Short.Reset) <= now {
-		return false, "" // rolled_over's case
+		return false, "" // RolledOver's case
 	}
 	text := s.LastKnown()
 	if text == "" {

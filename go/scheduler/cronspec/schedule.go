@@ -12,12 +12,12 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// The schedules spec (handline/team/schedules.py): read, validated and numbered.
+// The schedules spec: read, validated and numbered.
 
 // Schedule is one {cron, message}, as it is kept.
 type Schedule struct{ Cron, Message string }
 
-// ScheduleError is a `schedules` value that is wrong: what schedules.parse raises as a ValueError.
+// ScheduleError is a `schedules` value that is wrong: a cron that does not parse or a schedule with no message.
 type ScheduleError struct{ Msg string }
 
 func (e *ScheduleError) Error() string { return e.Msg }
@@ -37,7 +37,7 @@ func NextCronAfter(expr string, ts int64) (int64, bool) {
 	return c.nextAfter(ts)
 }
 
-// ParseSchedules validates the list and keeps each cron and message with their spaces squeezed (schedules.parse).
+// ParseSchedules validates the list and keeps each cron and message with their spaces squeezed.
 func ParseSchedules(items []Schedule) ([]Schedule, error) {
 	out := make([]Schedule, 0, len(items))
 	for i, it := range items {
@@ -53,7 +53,7 @@ func ParseSchedules(items []Schedule) ([]Schedule, error) {
 	return out, nil
 }
 
-// pyText is str(v or "") for the values a schedule holds.
+// pyText is a schedule's field as text: "" for none, a string as it is, anything else as JSON.
 func pyText(v any) string {
 	switch s := v.(type) {
 	case nil:
@@ -77,7 +77,8 @@ func isDigits(s string) bool {
 	return true
 }
 
-// pyRepr is repr() of a string: single quotes unless it holds one and no double quote.
+// pyRepr quotes s for an error message: in single quotes unless it holds one and no double quote, with backslashes, line breaks,
+// tabs and the quote escaped.
 func pyRepr(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
@@ -87,12 +88,13 @@ func pyRepr(s string) string {
 	return q + s + q
 }
 
-// badValue is a `schedules` value that is wrong, said as schedules.parse says it. Anything else that fails reading an agent is not one.
+// badValue is a `schedules` value that is wrong, said as ParseSchedules says it. Anything else that fails reading an agent is not one.
 type badValue string
 
 func (b badValue) Error() string { return string(b) }
 
-// jsonError is json.loads's message where the text starts wrong, which is the usual mistake; Go's decoder words the rest.
+// jsonError words a decode failure where the text does not start like a JSON value, the usual mistake, as "Expecting value: line 1
+// column N (char M)"; Go's decoder words the rest.
 func jsonError(text string, err error) string {
 	t := strings.TrimLeft(text, " \t\r\n")
 	literal := strings.HasPrefix(t, "true") || strings.HasPrefix(t, "false") || strings.HasPrefix(t, "null") || strings.HasPrefix(t, "NaN")
@@ -102,7 +104,7 @@ func jsonError(text string, err error) string {
 	return err.Error()
 }
 
-// load is an agent's `schedules` value validated as schedules.load does: a badValue says what is wrong with it, any other
+// load is an agent's `schedules` value, validated: a badValue says what is wrong with it, any other
 // error is an agent row that cannot be read.
 func load(home, agent string) ([]Schedule, error) {
 	cfg, err := team.NewRoster(home).Read(agent)

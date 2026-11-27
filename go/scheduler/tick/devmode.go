@@ -21,7 +21,7 @@ type ExeStamp struct {
 	Size  int64
 }
 
-// DevMode is daemon/devmode.py's restart-on-change, watching the running executable instead of the Python source tree: the daemon
+// DevMode is the restart-on-change, watching the running executable: the daemon
 // execs itself once the binary it started from has been replaced and the new one starts.
 type DevMode struct {
 	Enabled func() bool // config.yaml's dev_mode

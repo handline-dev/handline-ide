@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// realpath is kit's paths.Realpath, copied because agentctl imports no other module of this repo. It is Python's
-// os.path.realpath (3.14, strict=False), part by part: a link is followed where it is met, so `link/..` is the link target's
+// realpath is kit's paths.Realpath, copied because agentctl imports no other module of this repo. It resolves
+// part by part: a link is followed where it is met, so `link/..` is the link target's
 // parent, not the folder the link sits in, and what does not exist is kept as written.
 func realpath(filename string) string {
 	var rest []*string // the unresolved parts, last first; nil marks a resolved link, whose path is the next pop

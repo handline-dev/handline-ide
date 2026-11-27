@@ -1,6 +1,5 @@
-// Package lifecycle is the Python daemon's session lifecycle: the idle-close settings (session/idle_close.py), and starting, parking,
-// waking and recovering sessions (daemon/lifecycle.py, reconciler.py, session/launch.py, team/spawn.py, usage/recover.py). What it
-// does not own it reaches through the small interfaces in deps.go; tests use fakes.
+// Package lifecycle is the daemon's session lifecycle: the idle-close settings, and starting, parking, waking and recovering
+// sessions. What it does not own it reaches through the small interfaces in deps.go; tests use fakes.
 package lifecycle
 
 import (

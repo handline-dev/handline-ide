@@ -619,7 +619,7 @@ func (h *handoffPort) MovePlan(_ db.Q, agent, kind string, starting bool) (strin
 	return dest, why
 }
 
-// BackingOff is daemon/handoff._handoff_backing_off: a handoff that keeps degrading is not retried every tick.
+// BackingOff is whether agent's handoff backs off: a handoff that keeps degrading is not retried every tick.
 func (h *handoffPort) BackingOff(q db.Q, agent string) bool {
 	row, err := db.GetAgentState(q, agent)
 	if err != nil || row == nil || row.ThrottleCount == 0 {

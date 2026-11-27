@@ -7,7 +7,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// Delivering queued requests (daemon/delivery.py): checking the routing edge, picking the head, telling the agent.
+// Delivering queued requests: checking the routing edge, picking the head, telling the agent.
 
 const sayKind = "say"
 

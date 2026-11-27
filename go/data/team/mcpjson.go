@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
-// jobj is a JSON object that keeps its keys in order, as a Python dict does: an mcp_config is rewritten, not reordered.
+// jobj is a JSON object that keeps its keys in order: an mcp_config is rewritten, not reordered.
 type jobj struct {
 	keys []string
 	vals map[string]any
@@ -94,7 +94,7 @@ func readValue(d *json.Decoder) (any, error) {
 	return nil, fmt.Errorf("unexpected %v", delim)
 }
 
-// encodeCompact is json.dumps(v, separators=(",", ":")): ASCII only, keys in order, floats as Python writes them.
+// encodeCompact is compact JSON (no spaces): ASCII only, keys in order, floats as yamlcompat.FloatRepr writes them.
 func encodeCompact(v any) string {
 	var b strings.Builder
 	writeValue(&b, v)
@@ -176,7 +176,7 @@ func writeString(b *strings.Builder, s string) {
 
 var shlexSafe = regexp.MustCompile(`^[\p{L}\p{N}_@%+=:,./-]+$`)
 
-// shlexQuote is shlex.quote.
+// shlexQuote quotes s for a POSIX shell: an empty pair of single quotes for "", s as it is when every rune is safe, else s in single quotes with each ' as '"'"'.
 func shlexQuote(s string) string {
 	if s == "" {
 		return "''"
@@ -187,7 +187,7 @@ func shlexQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-// encodeIndent is json.dumps(v, indent=2): items on their own lines, ": " after a key, ASCII only.
+// encodeIndent is v as JSON indented two spaces: items on their own lines, ": " after a key, ASCII only.
 func encodeIndent(v any) string {
 	var b strings.Builder
 	writeIndented(&b, v, 0)
@@ -235,7 +235,7 @@ func writeIndented(b *strings.Builder, v any, depth int) {
 	}
 }
 
-// encodeSorted is json.dumps(v, sort_keys=True, separators=(",", ":")).
+// encodeSorted is v as compact JSON with no spaces and each object's keys sorted, ASCII only.
 func encodeSorted(v any) string {
 	var b strings.Builder
 	writeSorted(&b, v)

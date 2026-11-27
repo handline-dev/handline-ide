@@ -5,9 +5,8 @@ import (
 	"strings"
 )
 
-// Realpath is Python's os.path.realpath (3.14, strict=False), part by part: a link is followed where it is met, so `link/..`
-// is the link target's parent, not the folder the link sits in, and what does not exist is kept as written. Code that
-// compares paths with what Python compared reads a path through a link the same way.
+// Realpath resolves a path part by part, never failing: a link is followed where it is met, so `link/..` is the link
+// target's parent, not the folder the link sits in, and what does not exist is kept as written.
 func Realpath(filename string) string {
 	var rest []*string // the unresolved parts, last first; nil marks a resolved link, whose path is the next pop
 	push := func(s string) {

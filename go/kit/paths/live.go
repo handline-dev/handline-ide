@@ -10,7 +10,7 @@ import (
 )
 
 // RealUserHome is the user's home from the user database, not $HOME, so a test that sets HOME cannot move what the
-// guard protects (paths._real_user_home). Without cgo, darwin's os/user still asks libc.
+// guard protects. Without cgo, darwin's os/user still asks libc.
 var RealUserHome = func() string {
 	if u, err := user.Current(); err == nil && u.HomeDir != "" {
 		return u.HomeDir
@@ -31,7 +31,7 @@ func IsLive(home string) bool {
 
 // TmuxSocket is the tmux server (tmux -L) the daemon of home keeps its terminals on: TMUX_SOCKET when set, else "handline" for the
 // live home and "handline-" plus a hash of the home for any other. A scratch home never gets "handline", even when TMUX_SOCKET says so:
-// that is the live server, and a scratch daemon on it puts windows among the live agents' (backends/tmux._socket).
+// that is the live server, and a scratch daemon on it puts windows among the live agents'.
 func TmuxSocket(home string) string {
 	sock, _ := Getenv("TMUX_SOCKET")
 	live := IsLive(home)
@@ -57,7 +57,7 @@ func Resolved(p string) string {
 	if abs, err := filepath.Abs(p); err == nil {
 		p = abs
 	}
-	// As Python's resolve(): the part that exists through its links, the rest as written.
+	// The longest part that exists, through its links, then the rest as written.
 	var rest []string
 	for dir := filepath.Clean(p); ; dir = filepath.Dir(dir) {
 		if real, err := filepath.EvalSymlinks(dir); err == nil {

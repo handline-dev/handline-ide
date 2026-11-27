@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// taskCmd is one `hl task` subcommand (cli/task.py): it reads its parsed arguments, and ok false hands the argv to Python.
+// taskCmd is one `hl task` subcommand: it reads its parsed arguments; ok false refuses them with exit 2.
 type taskCmd func(c *hlclient.Client, args []string) (int, bool)
 
 var taskCmds = map[string]taskCmd{
@@ -24,7 +24,7 @@ var taskCmds = map[string]taskCmd{
 	"turn": taskTurnGone, "pass": taskPop("pass"), "back": taskPop("send_back"), "plan": taskPlan,
 }
 
-// taskReads are the subcommands that change nothing, so no verb_chain is recorded for them (parser._TASK_READS).
+// taskReads are the subcommands that change nothing, so no verb_chain is recorded for them.
 var taskReads = []string{"list", "show", "board"}
 
 func task(c *hlclient.Client, args []string) (int, bool) {
@@ -38,7 +38,7 @@ func task(c *hlclient.Client, args []string) (int, bool) {
 	return run(c, args[1:])
 }
 
-// mutating records the verb chain the way parser.main does once the arguments parsed, for every write.
+// mutating records the verb chain once the arguments parsed, for every write.
 func mutating(c *hlclient.Client, sub string) {
 	if !slices.Contains(taskReads, sub) {
 		c.NoteVerbChain([]string{"task", sub})
@@ -54,7 +54,7 @@ func asking(c *hlclient.Client, verb string) bool {
 	return true
 }
 
-// said prints what a write said, and its exit code (cli/client.said).
+// said prints what a write said and answers its exit code.
 func said(ok bool, text string) int {
 	fmt.Println(text)
 	if ok {
@@ -419,7 +419,7 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		return 0, false
 	}
 	var mid int
-	if verb == "edit" || verb == "delete" { // an id Python's int() reads some other way, or refuses, is Python's to say
+	if verb == "edit" || verb == "delete" { // an id that is not plain digits refuses the arguments
 		if len(rest) > 0 {
 			if mid, ok = integer(strings.TrimSpace(rest[0])); !ok {
 				return 0, false
@@ -742,7 +742,7 @@ func taskDone(c *hlclient.Client, args []string) (int, bool) {
 			fmt.Printf("error: %v\n", err)
 			return 1, true
 		}
-		abs := make([]string, len(shots)) // the daemon reads them from its own cwd (os.path.abspath)
+		abs := make([]string, len(shots)) // the daemon would read a relative path from its own cwd
 		for i, s := range shots {
 			if !filepath.IsAbs(s) {
 				s = filepath.Join(wd, s)

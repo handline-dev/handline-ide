@@ -10,11 +10,11 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// What one more agent costs an account and how full the account is (load.py). The costs are dollars (dollars.go) over the account's
+// What one more agent costs an account and how full the account is. The costs are dollars (dollars.go) over the account's
 // factors (factor.go); with nothing measured a typical agent's starting value stands.
 
 const (
-	// TypicalAgentBurnPerS is triggers.TYPICAL_AGENT_BURN_PER_S: the starting value for what one agent costs, percent of the shortest
+	// TypicalAgentBurnPerS is the starting value for what one agent costs, percent of the shortest
 	// window per second.
 	TypicalAgentBurnPerS = 0.75 / 60
 	// MinStretchS is the least stretch worth beginning: below it a start costs more than it gets back.
@@ -30,7 +30,7 @@ const (
 	WakeReserveS = 300
 )
 
-// StretchS is triggers.stretch_s: how long an account lasts before its wall with one more agent on it, at that agent's cost.
+// StretchS is how long an account lasts before its wall with one more agent on it, at that agent's cost.
 func StretchS(headroomPct, fillPerS, agentPerS float64) float64 {
 	rate := max(0.0, fillPerS) + agentPerS
 	if rate > 0 {
@@ -162,7 +162,7 @@ func decodeObject(raw string, out *map[string]any) bool {
 	return ok
 }
 
-// kindOf is burnrate.kind_of: (model, effort) as configured; the model of another vendor than the default is prefixed with it.
+// kindOf is the agent's (model, effort) as configured; the model of another vendor than the default is prefixed with it.
 func (e *Env) kindOf(agent string) (string, string, bool) {
 	cfg, err := e.agentConfig(agent)
 	if err != nil {
@@ -196,7 +196,7 @@ const activeSQL = "SELECT agent, state, closed_at, (SELECT w.account FROM events
 	"AND m.kind = 'moved_account' AND m.id > COALESCE((SELECT MAX(s.id) FROM events s " +
 	"WHERE s.agent = agent_state.agent AND s.kind = 'Stop'), 0))))"
 
-// ActiveByAccount is load.active_by_account: the agents mid-turn, by the account each is running on. An agent just moved counts from
+// ActiveByAccount is the agents mid-turn, by the account each is running on. An agent just moved counts from
 // the move until its next Stop, and a woken one from its wake_reserved event on the account reserved, unless it is seen running.
 func (e *Env) ActiveByAccount(q db.Q) (map[string][]string, error) {
 	rows, err := q.Query(activeSQL, int64(e.now())-WakeReserveS)
@@ -241,7 +241,7 @@ func (e *Env) ActiveByAccount(q db.Q) (map[string][]string, error) {
 	return found, nil
 }
 
-// ActiveAgents is load.active_agents: how many agents are mid-turn on each account, exclude left out.
+// ActiveAgents is how many agents are mid-turn on each account, exclude left out.
 func (e *Env) ActiveAgents(q db.Q, exclude string) (map[string]int, error) {
 	by, err := e.ActiveByAccount(q)
 	if err != nil {
@@ -262,7 +262,7 @@ func (e *Env) ActiveAgents(q db.Q, exclude string) (map[string]int, error) {
 	return out, nil
 }
 
-// ReadAll is load.read_all: every account's load; exclude leaves one agent out of the counts and the burn, the one being placed.
+// ReadAll is every account's load; exclude leaves one agent out of the counts and the burn, the one being placed.
 func (e *Env) ReadAll(q db.Q, exclude string) (map[string]*Load, error) {
 	by, err := e.ActiveByAccount(q)
 	if err != nil {

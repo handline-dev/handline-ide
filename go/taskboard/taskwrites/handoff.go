@@ -73,7 +73,7 @@ func contains(xs []string, x string) bool {
 	return false
 }
 
-// handoffMethod is task.handoff (actions.task_handoff): anyone passes a task along with a note, the history keeping who. The ask to the new owner, the move and the
+// handoffMethod is task.handoff: anyone passes a task along with a note, the history keeping who. The ask to the new owner, the move and the
 // record of the result are one transaction, so a crash between them leaves nothing half done and a retry needs no intent to find its way.
 func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {

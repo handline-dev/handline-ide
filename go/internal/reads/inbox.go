@@ -19,7 +19,7 @@ const (
 const reasonSQL = "(SELECT json_extract(e.payload, '$.reason') FROM events e WHERE e.kind = 'request_reason' AND " +
 	"CASE WHEN json_valid(e.payload) THEN json_extract(e.payload, '$.request_id') END = requests.id ORDER BY e.id DESC LIMIT 1) AS answer"
 
-// shownVerdict is what a screen may print as a request's answer (db.shown_verdict).
+// shownVerdict is what a screen may print as a request's answer, and whether there is one.
 func shownVerdict(r row) (string, bool) {
 	text, has := r["answer"].(string)
 	return text, has

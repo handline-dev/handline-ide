@@ -15,7 +15,7 @@ const (
 	LogBackups  = 5
 )
 
-// RotateLog is copy-truncate rotation (infra/service.rotate_log). launchd holds the log open with O_APPEND for the job's whole life, so
+// RotateLog is copy-truncate rotation. launchd holds the log open with O_APPEND for the job's whole life, so
 // renaming it would not move where the next write lands; truncating it in place does, at the cost of what is written between the copy
 // and the truncate. False when the file is under max.
 func RotateLog(path string, max int64, backups int) (bool, error) {

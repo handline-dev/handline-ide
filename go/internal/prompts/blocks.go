@@ -1,5 +1,4 @@
-// Package prompts is the one prompt an agent's screen shows, kept as a row the bridge reads and answers
-// (handline/actions/prompt_blocks.py, dialogs.py, confirmations.py, ask_question.py, daemon/prompts.py, daemon/rpc_prompts.py).
+// Package prompts is the one prompt an agent's screen shows, kept as a row the bridge reads and answers.
 //
 // The screen watch judges each agent's screen once and keeps a prompt_blocks row for what it shows: a permission prompt, an
 // AskUserQuestion, or a plain dialog, never two at once, in that priority. Answering presses keys only for what a fresh read of
@@ -89,7 +88,7 @@ func scanBlock(r interface{ Scan(...any) error }) (*Block, error) {
 	return &b, nil
 }
 
-// OpenOf is agent's open row (db.open_prompt), refreshed or not; nil when there is none.
+// OpenOf is agent's open prompt row, refreshed or not; nil when there is none.
 func (e *Env) OpenOf(agent string) (*Block, error) {
 	b, err := scanBlock(e.DB.QueryRow("SELECT "+blockCols+" FROM prompt_blocks WHERE agent = ? AND gone_at IS NULL", agent))
 	if err == sql.ErrNoRows {

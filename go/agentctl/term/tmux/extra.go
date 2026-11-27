@@ -23,7 +23,7 @@ func (t Tmux) AttachCommand() []string {
 	return []string{"tmux", "-L", t.Socket, "attach-session", "-t", tmuxSession}
 }
 
-// Focus selects the pane's window, which is what a client attached to the session then shows (handline/session/backends/tmux.py focus).
+// Focus selects the pane's window, which is what a client attached to the session then shows.
 func (t Tmux) Focus(handle string) bool {
 	if !paneRE.MatchString(handle) {
 		return false

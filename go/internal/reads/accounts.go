@@ -28,7 +28,7 @@ func windowView(w usage.Window) any {
 	return map[string]any{"used_pct": float64(*w.Pct), "resets_at": reset, "source": source}
 }
 
-// accountMoves are the newest moved_account events that name the account, as a Python _moves reads them.
+// accountMoves are the newest moved_account events that name the account.
 func (e *Env) accountMoves(acct string) []any {
 	rows, _ := query(e.DB, "SELECT ts, agent, payload FROM events WHERE kind = 'moved_account' ORDER BY id DESC LIMIT 500")
 	out := []any{}
@@ -54,7 +54,7 @@ func (e *Env) accountMoves(acct string) []any {
 	return out
 }
 
-// pyText is str(v or "") for the values a trigger holds.
+// pyText is a value a trigger holds as text: "" for nil, a string as it is, anything else its JSON.
 func pyText(v any) string {
 	switch s := v.(type) {
 	case nil:

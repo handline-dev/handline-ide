@@ -144,7 +144,7 @@ func TestHrListServesTheFoundersNoteOnADecision(t *testing.T) {
 	}
 }
 
-// A proposal's diff is what approving does, in words, one change per line (the spec's Proposal.diff), as rpc_hr._change_lines words it.
+// A proposal's diff is what approving does, in words, one change per line (the spec's Proposal.diff).
 func TestProposalDiffIsOneChangePerLineInTheSpecsWords(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, file, want string }{
@@ -209,7 +209,7 @@ func TestSubjectIsThePythonDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// hr.subject_of of the same file, from handline/team/proposals.py
+	// the recorded subject hash of the same file
 	if got, want := f.subject(), "e2f9f9ce53ee8e601f2721a3586eceb6a20f0057b0408a78cae763ebd5627c69"; got != want {
 		t.Fatalf("%s", got)
 	}

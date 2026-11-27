@@ -1,5 +1,5 @@
-// Package taskwrites serves the write methods of the task board (handline/daemon/rpc_tasks.py, rpc_taskverbs.py and the
-// actions behind them): each makes its change and records its result in one transaction (rpc.Conn.Effect).
+// Package taskwrites serves the write methods of the task board: each makes its change and records its result in one
+// transaction (rpc.Conn.Effect).
 package taskwrites
 
 import (
@@ -21,7 +21,7 @@ import (
 const CancelVerdict = "withdrawn by the founder"
 
 // Register adds the task writes to the server's table.
-// Teller is what follows a write once it has committed: the typed says and the deliveries the Python write did after its commit
+// Teller is what follows a write once it has committed: the typed says and the deliveries after its commit
 // (the supervisor's telling layer). A nil Teller tells nothing.
 type Teller interface {
 	// Background runs fn after the caller returns, as one of the tellings the daemon waits on before it closes.

@@ -157,7 +157,7 @@ func TestKeepingTheSharedSettingsCurrentWritesWhatPythonWrites(t *testing.T) {
 				s := strings.ReplaceAll(strings.ReplaceAll(string(b), real, "{realhome}"), home, "{home}")
 				after = &s
 			}
-			// Where Go departs from Python: the permission hook waits up to an hour for the founder (permission.ask), and the PreToolUse one for a land_check.
+			// The fixtures' hooks time out at 10s; the permission hook waits up to an hour for the founder (permission.ask), and the PreToolUse one for a land_check.
 			want := str(c.After, "<none>")
 			for _, ev := range []string{"PermissionRequest", "PreToolUse"} {
 				want = strings.Replace(want, "hook "+ev+"\",\n            \"timeout\": 10",

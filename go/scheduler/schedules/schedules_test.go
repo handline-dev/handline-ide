@@ -141,7 +141,7 @@ func TestTheCursorsOfAScheduleTheAgentNoLongerHasAreForgotten(t *testing.T) {
 
 func TestACursorWrittenByThePythonDaemonIsContinuedNotResent(t *testing.T) {
 	g := newRig(t)
-	sid := cronspec.SID(g.items[0]) // sha1 of cron and message, the same sid Python names its cursors by
+	sid := cronspec.SID(g.items[0]) // sha1 of cron and message, the sid a stored cursor is named by
 	if err := db.SetCursor(g.q, "schedule_at:bob:"+sid, t0); err != nil {
 		t.Fatal(err)
 	}

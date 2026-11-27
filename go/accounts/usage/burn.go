@@ -19,7 +19,7 @@ const (
 	// RefreshEveryS: the daemon recomputes the dollar pace this often.
 	RefreshEveryS = 600
 
-	// UsageSampleRetentionDays is db.USAGE_SAMPLE_RETENTION_DAYS.
+	// UsageSampleRetentionDays is how many days a usage sample is kept.
 	UsageSampleRetentionDays = 14
 )
 
@@ -84,7 +84,7 @@ func truthy(v any) bool {
 	return ok && f != 0
 }
 
-// sampleWindow is one window of a usage_samples row, as windows.entry spells it.
+// sampleWindow is one window of a usage_samples row, as the row's windows JSON spells it.
 type sampleWindow struct {
 	Minutes    int    `json:"minutes"`
 	UsedPct    *int   `json:"used_percent"`
@@ -95,7 +95,7 @@ type sampleWindow struct {
 	Readable   *bool  `json:"readable,omitempty"`
 }
 
-// RecordSample is db.record_usage_sample: one row of what st actually held, at ts (0 is now). Every figure is written as st has it, an
+// RecordSample writes one usage_samples row of what st actually held, at ts (0 is now). Every figure is written as st has it, an
 // unknown one as NULL, never 0, so a reader reconstructs the status this was taken from. loggedOut is whether the account could not be
 // used then (team.Accounts.GoneSince).
 func (e *Env) RecordSample(q db.Q, acct string, st *AccountStatus, ts int64, loggedOut bool) error {
@@ -131,7 +131,7 @@ func (e *Env) RecordSample(q db.Q, acct string, st *AccountStatus, ts int64, log
 	return err
 }
 
-// PruneSamples is db.prune_usage_samples: delete samples older than the retention window and report how many.
+// PruneSamples deletes samples older than the retention window and report how many.
 func (e *Env) PruneSamples(q db.Q) (int64, error) {
 	return exec(q, "DELETE FROM usage_samples WHERE ts < ?", int64(e.now())-UsageSampleRetentionDays*86400)
 }

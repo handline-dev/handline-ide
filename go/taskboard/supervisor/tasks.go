@@ -17,7 +17,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// The task subset of actions/tasks.py the supervisor calls: the owner's current task and advancing it, the "unblocked" and result notices,
+// The task calls the supervisor makes: the owner's current task and advancing it, the "unblocked" and result notices,
 // memo says. They run after the write that caused them has committed, on the database itself.
 
 // linkDelivery links a task to the request that delivers it, and makes it the owner's current task if it holds none yet.

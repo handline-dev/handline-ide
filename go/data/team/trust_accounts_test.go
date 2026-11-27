@@ -80,7 +80,7 @@ func TestMCPServersAreApprovedByContent(t *testing.T) {
 	if got := MCPServers(filepath.Join(repo, "none")); len(got) != 0 {
 		t.Fatalf("%v", got)
 	}
-	// 16 hex of the sha256 of the entry as sorted, compact JSON, as the Python hashes it
+	// 16 hex of the sha256 of the entry as sorted, compact JSON: fixed expected answers
 	if h := MCPServers(repo)["a"]; h != "cf35b664f0e85cbf" {
 		t.Fatalf("%s", h)
 	}

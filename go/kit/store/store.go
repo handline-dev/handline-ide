@@ -23,7 +23,7 @@ var migrationFiles embed.FS
 
 const (
 	migrateWait   = 60 * time.Second
-	busyTimeoutMS = 10000 // db.connect's timeout=10.0
+	busyTimeoutMS = 10000 // a locked database is waited on up to 10s before the call fails
 	// cacheKiB is each connection's page cache. The default (2 MB) holds a sliver of a database of hundreds of MB, so every read of a list
 	// went back to the file for its pages, a syscall each, and that was most of the daemon's read time.
 	cacheKiB = 65536

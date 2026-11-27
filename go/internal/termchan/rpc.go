@@ -13,8 +13,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// terminal.attach, detach, history, resize and input; input.take, release and ask (handline/daemon/rpc_terminal.py, rpc_input.py,
-// rpc_gates.py). They serve the IDE and the web UI, which no longer read terminals themselves; no hl command serves them.
+// terminal.attach, detach, history, resize and input; input.take, release and ask. They serve the IDE and the web UI, which no longer read terminals themselves; no hl command serves them.
 //
 // attach replies with the snapshot (the frame and one page of history) and then, once that reply is sent, the connection is pushed
 // frame, resize, marker and holder notices until it detaches or hangs up. Many connections watch one terminal with one poller, which

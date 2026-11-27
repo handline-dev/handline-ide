@@ -33,8 +33,7 @@ const (
 // gitTimeout is how long a git command may run; a var so a test can shorten it.
 var gitTimeout = 120 * time.Second
 
-// Host is the terminal host's worktree, terminal and Run calls (session/term.py, the part the daemon's terminal channel has not
-// brought over yet).
+// Host is the terminal host's worktree, terminal and Run calls that the daemon's terminal channel does not carry.
 type Host interface {
 	Available() bool
 	Missing() string
@@ -51,7 +50,7 @@ type Host interface {
 	Dispatch(task, handle, run string) string
 }
 
-// Spawns is team/spawn.py: starting an agent in a desk it takes from its project's worktree pool (Desks). A new desk and a new branch
+// Spawns starts an agent in a desk it takes from its project's worktree pool (Desks). A new desk and a new branch
 // start from the fetched origin/<base>: work lands by push, so the checkout's local <base> may be stale or even another history.
 type Spawns struct {
 	Q        db.Q
@@ -136,7 +135,7 @@ func (s *Spawns) confirmSession(agent string) string {
 }
 
 // git runs git as (exit code, stdout), stdout cleaned at the source so a caller that embeds it in a message it returns need not
-// sanitise it first. The error is git not running at all (not installed, no such directory, timed out), which Python's _run raises.
+// sanitise it first. The error is git not running at all (not installed, no such directory, timed out).
 func git(cwd string, args ...string) (int, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
@@ -201,7 +200,8 @@ func PickBase(repo, base string) (ref, why string, err error) {
 	return "origin/" + base, why, nil
 }
 
-// pyRepr is repr() of a str, as far as the refusals need it.
+// pyRepr quotes s for a refusal: single quotes unless s holds one, then double quotes unless it holds those too, then single
+// quotes with each inner one escaped.
 func pyRepr(s string) string {
 	if !strings.Contains(s, "'") {
 		return "'" + s + "'"

@@ -1,4 +1,4 @@
-// Package usagepoll asks accounts where they stand and keeps their readings fresh (handline/daemon/usage_poll.py, vendors/claude_meter.py).
+// Package usagepoll asks accounts where they stand and keeps their readings fresh.
 // The daemon reads no credential: a short-lived CLI process asks with its own login (the get_usage control request), and a dead token is
 // earned back with one real turn on the same kind of process.
 package usagepoll

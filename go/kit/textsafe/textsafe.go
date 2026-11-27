@@ -1,4 +1,4 @@
-// Package textsafe is what a terminal would obey and how to show text without it (handline/infra/textsafe.py): text that
+// Package textsafe is what a terminal would obey and how to show text without it: text that
 // someone else wrote is drawn with every control taken out, and a stored value holding one is refused, not rewritten.
 // wrap and cwidth are the screens' and are not here.
 package textsafe
@@ -29,7 +29,7 @@ func HasUnsafe(value string) bool {
 	return false
 }
 
-// SplitLines is str.splitlines: a break is any of \n \r \r\n \v \f the FS-US separators, NEL, U+2028 and U+2029.
+// SplitLines is s cut into lines: a break is any of \n \r \r\n \v \f the FS-US separators, NEL, U+2028 and U+2029.
 func SplitLines(s string) []string {
 	var out []string
 	var cur strings.Builder
@@ -115,11 +115,11 @@ func Lines(value string) string {
 	return strings.Join(lines, "\n")
 }
 
-// Space is the characters inside a regexp class that Python's \s matches: Unicode white space, wider than RE2's ASCII \s.
+// Space is white space for inside a regexp class: Unicode white space and \x1c-\x1f, wider than RE2's ASCII \s.
 const Space = `\s\x{1c}-\x{1f}\x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
 
-// IsSpace is Python's str.isspace for one character.
+// IsSpace is whether r is white space: Unicode white space and the separators \x1c-\x1f.
 func IsSpace(r rune) bool { return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f) }
 
-// Strip is Python's str.strip(): white space off both ends.
+// Strip takes white space (IsSpace) off both ends.
 func Strip(s string) string { return strings.TrimFunc(s, IsSpace) }
