@@ -21,17 +21,19 @@ func TestAnAnswerIsKeptWithItsWordsAndWhoGaveIt(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	register(t, e)
-	_, b := ask(t, e, "go vet ./...")
+	call, b := ask(t, e, "go vet ./...")
 	if _, err := answers(e, b.Fingerprint, "allow"); err != nil {
 		t.Fatal(err)
 	}
+	reply(t, call)
 	if label, note, by := answered(t, e, b.Fingerprint); label != "Allowed" || note != "" || by != "casey" {
 		t.Fatalf("permission allow: %q %q %q", label, note, by)
 	}
-	_, b = ask(t, e, "rm -rf build")
+	call, b = ask(t, e, "rm -rf build")
 	if _, err := e.answer(asRon(), map[string]any{"agent": backendKey(e), "prompt": b.Fingerprint, "choice": "deny", "note": " use the script "}); err != nil {
 		t.Fatal(err)
 	}
+	reply(t, call)
 	if label, note, _ := answered(t, e, b.Fingerprint); label != "Denied" || note != "use the script" {
 		t.Fatalf("permission deny: %q %q", label, note)
 	}
