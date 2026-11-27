@@ -19,7 +19,7 @@ import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
 import { PageTab } from '#src/layout/pageTab.tsx';
-import { PaneOpen, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
+import { PaneOpen, goPage, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { useCallback, useContext, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
@@ -82,14 +82,21 @@ export function openFrom({ root, agent, dispatch, nameOf, focus }: Context, from
   dispatch({ type: 'open', opens, title, to: whereTo(root, from, how) });
 }
 
-/** An Empty tab's body: pick what it shows, the pages first, then the tab bar's + list. */
+/** An Empty tab's body: pick what it shows, the pages first, then the tab bar's + list. Town covers the app instead of taking the tab,
+ *  as it does from the sidebar. */
 function EmptyTab({ onPick }: { onPick: (kind: string) => void }) {
   return (
     <div className="m-auto flex flex-col items-center gap-3">
       <p className="text-sm text-muted">Open in this tab</p>
       <div className="flex w-60 flex-col gap-2">
         {[...pages, ...choices.filter((c) => c.kind !== 'tasks')].map((k) => (
-          <Button key={k.kind} variant="soft" size="lg" className="justify-start" onClick={() => onPick(k.kind)}>
+          <Button
+            key={k.kind}
+            variant="soft"
+            size="lg"
+            className="justify-start"
+            onClick={() => (k.kind === 'town' ? goPage(k.kind, k.label) : onPick(k.kind))}
+          >
             {k.icon}
             {k.label}
           </Button>
