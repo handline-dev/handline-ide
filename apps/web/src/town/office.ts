@@ -6,20 +6,32 @@ import type { Ground } from '#src/town/founder.tsx';
 import { groundOf } from '#src/town/ground.ts';
 import type { House } from '#src/town/model.ts';
 import { boxOf, castOf, type Box, type Cast } from '#src/town/people.ts';
-import { DOOR, inFront, roomOf, type Room } from '#src/town/room.ts';
+import { DOOR, inFront, type Room } from '#src/town/room.ts';
+import { fittedRoom } from '#src/town/fit.ts';
 import { drawRoom } from '#src/town/scene3d.ts';
 import { shade, type Picture } from '#src/town/shade.ts';
 import { leavesOf, type Leaves } from '#src/town/door.tsx';
 import type { Stage } from '#src/town/crowd.ts';
 import { doorOf, seatsOf } from '#src/town/moves.ts';
+import { screensOf, type Screen } from '#src/town/monitors.tsx';
 
 let renderer: WebGLRenderer | null = null;
 
 /** The front wall's picture: its image, its pixels (the door swings out of them), the door's box, and for each pixel column the wall's
  *  topmost row (the picture's height where the wall is not); `people` when a seated person reaches into it. */
 export type Front = { url: string; pic: Picture; door: Box | null; top: Int32Array; people: boolean };
-/** `stage`: who sits where, for the people's walks (crowd.ts). */
-export type Drawn = { url: string; w: number; h: number; cast: Cast; ground: Ground; front: Front; leaves: Leaves | null; stage: Stage };
+/** `stage`: who sits where, for the people's walks (crowd.ts); `screens`: the working agents' screens, which move. */
+export type Drawn = {
+  url: string;
+  w: number;
+  h: number;
+  cast: Cast;
+  ground: Ground;
+  front: Front;
+  leaves: Leaves | null;
+  stage: Stage;
+  screens: Screen[];
+};
 
 /** What a drawing shows: its decisions and each person's name and state, so a poll that changes nothing draws nothing. */
 const sigOf = (house: House) =>
@@ -32,7 +44,7 @@ const MOST = 4;
  *  changes, not on each poll. */
 export function useDrawn(house: House): Drawn | null {
   const sig = sigOf(house);
-  const lay = () => ({ sig, house: house.key, room: roomOf(house) });
+  const lay = () => ({ sig, house: house.key, room: fittedRoom(house) });
   const [laid, setLaid] = useState(lay);
   if (laid.sig !== sig) setLaid(lay());
   return useMemo(() => drawOffice(laid), [laid]);
@@ -72,7 +84,11 @@ function drawOffice({ room, sig, house: key }: { room: Room; sig: string; house:
   const cast = castOf(pic, frame, room);
   const top = topsOf(wall);
   // The founder walks round the front wall too, as the people do.
-  const ground = groundOf(pic, { ...frame, solid: [...frame.solid, ...wallFrame.solid] }, room, { speed: 1.4, stride: 0.16 });
+  const screens = screensOf(pic, frame);
+  const ground = {
+    ...groundOf(pic, { ...frame, solid: [...frame.solid, ...wallFrame.solid] }, room, { speed: 1.4, stride: 0.16 }),
+    screens,
+  };
   const drawn = {
     url: urlOf(pic),
     w: pic.w,
@@ -82,6 +98,7 @@ function drawOffice({ room, sig, house: key }: { room: Room; sig: string; house:
     front: { url: urlOf(wall), pic: wall, door: boxOf(wall, wallFrame, DOOR), top, people: cast.figures.some((f) => touches(top, f.box)) },
     // Hinged by the corner, it opens into the room, away from the viewer.
     leaves: leavesOf(room.blocks, DOOR, 'right'),
+    screens,
     stage: {
       seats: seatsOf(room, ground.floor),
       desks: new Map(cast.desks.map((d) => [d.person.key, d.at])),

@@ -3,7 +3,7 @@
 // The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and brings up that
 // agent's chat in the town's windows (Windows.tsx), one on the papers on its desk its tasks, one on the founder's own desk the
 // decisions, one on the empty desk hires an agent; what a tab bar shows stays outlined (Targets.tsx lays these over the picture). Marks over the heads and a line under each name say who is on hold, stopped, asleep,
-// and what each one does (Marks.tsx). The door the founder came in by shuts behind it, and opens when it walks up into it or
+// and what each one does (Marks.tsx). A working agent's screen moves (monitors.tsx). The door the founder came in by shuts behind it, and opens when it walks up into it or
 // the door is clicked, to go back out; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useRef, useState } from 'react';
 import type { House } from '#src/town/model.ts';
@@ -15,6 +15,7 @@ import { DoorSwing, type Way } from '#src/town/door.tsx';
 import { useWalker } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
+import { Monitors } from '#src/town/monitors.tsx';
 import { useCrowd } from '#src/town/crowd.ts';
 import { useGivenWork } from '#src/town/errands.ts';
 import { Bubbles, Label, nameSize, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
@@ -126,6 +127,7 @@ export function Inside({
                     founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
                   }}
                 />
+                <Monitors screens={drawn.screens} />
                 <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} people={house.people} />
                 <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
                   <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />

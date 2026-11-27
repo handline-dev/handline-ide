@@ -17,8 +17,7 @@ const UP = { chair: 0.5, sofa: 0.45 };
 
 export function seatOf(place: Place, floor: Floor): Seat {
   const at: Spot = [place.x, place.z];
-  const chair = place.how === 'desk' || place.how === 'turned';
-  const front: Spot = place.how === 'door' ? at : [place.x, place.z + (chair ? UP.chair : UP.sofa)];
+  const front: Spot = place.how === 'door' ? at : [place.x, place.z + (place.how === 'desk' ? UP.chair : UP.sofa)];
   return { id: seatName(place), at, stand: nearestFree(floor, front) ?? front };
 }
 

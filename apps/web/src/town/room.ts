@@ -47,10 +47,9 @@ export type Block = {
 };
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing (`door`, as one starting does inside the door, and the HQ's
  *  people do); (x, z) on the floor. */
-export type Place = { person: Person; x: number; z: number; how: 'desk' | 'turned' | 'sofa' | 'door'; chair?: string };
-/** A place's name, the same for one desk's chair turned round or not, and different once the desk stands elsewhere. */
-export const seatName = (p: Place) =>
-  `${p.how === 'turned' ? 'desk' : p.how}:${p.x.toFixed(2)},${(p.how === 'turned' ? p.z - TURN : p.z).toFixed(2)}`;
+export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
+/** A place's name, different once the desk or sofa stands elsewhere. */
+export const seatName = (p: Place) => `${p.how}:${p.x.toFixed(2)},${p.z.toFixed(2)}`;
 /** `entry`: where the founder comes in, inside the door. */
 /** `distance`, `pitch` and `personPx`: how far the camera stands, in metres, how steeply it looks down, in radians, and how many
  *  pixels tall a person is drawn (view.ts). */
@@ -80,7 +79,6 @@ export const WALL_H = 1.29;
 export const WALL_T = 0.12;
 export const SLAB = 0.22;
 const PITCH = 0.734; // desks in a bench share an edge
-const TURN = 0.08; // how much nearer the room one turned round in a desk chair sits
 const ROW = 1.75; // from one bench to the next, with room for the names between
 const FIRST = 1.45; // the first bench's front edge
 const SOFA = 0.98;
@@ -99,6 +97,8 @@ export const MY_DESK = 'desk:you';
 export const HIRE_DESK = 'desk:hire';
 /** The tag of the stack of papers on a desk (by the desk's tag): its queued tasks, or the founder's decisions. */
 export const papersOf = (desk: string) => `papers:${desk.slice('desk:'.length)}`;
+/** The tag of a working agent's screen, whose picture moves (monitors.tsx). */
+export const screenOf = (key: string) => `screen:${key}`;
 /** The tag of the door the founder comes in and goes out by; a building's in the city is `door:<its key>`. */
 export const DOOR = 'door';
 const FRONT_PART = 'wall:front';
@@ -108,28 +108,31 @@ export const inFront = (b: Block) => b.part === FRONT_PART || b.tag === DOOR;
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
 
-/** The room for a house: benches of `cols` desks (by default as many as keep the desks about square, from the team's size alone, so the
- *  room is the same whatever space it is shown in) on the left, the founder's desk
- *  beside the door right of them, and a rest room behind a wall on the right, as deep as its sitters need. The HQ has no benches: its
- *  people (the pinned agents) stand together, `cols` to a row, wherever their desks are. */
-export function roomOf(house: House, cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(house.people.length))))): Room {
+/** The room for a house: benches of `cols` desks on the left, the founder's desk beside the door right of them, and a rest room behind a
+ *  wall on the right, as deep as its sitters need; `fit` widens the work room by `w` metres and makes the room at least `d` deep (fit.ts
+ *  shapes it to the picture). The HQ has no benches: its people (the pinned agents) stand together, `cols` to a row. */
+export function roomOf(
+  house: House,
+  cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(house.people.length)))),
+  fit = { w: 0, d: 0 },
+): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
   const hq = house.hq === true;
   // A team's benches hold one desk more than it has agents: the empty one, where the founder hires.
   const rows = Math.max(1, Math.ceil((people.length + (hq ? 0 : 1)) / cols));
-  // Resting while its prompt cache lives, an agent stays at its desk, its chair turned round to face the room; after, it goes to a sofa.
-  const turned = (p: Person) => p.activity === 'resting' && p.cached;
+  // Resting while its prompt cache lives, an agent stays at its desk; after, it goes to a sofa.
+  const seated = (p: Person) => AT_DESK.includes(p.activity) || (p.activity === 'resting' && p.cached);
   const idle = hq ? [] : people.filter((p) => p.activity === 'resting' && !p.cached);
   const sofaRows = Math.max(1, Math.ceil(idle.length / 4));
   const x0 = 0.6;
   const benches = x0 + cols * PITCH;
   // Right of the benches the founder's desk, then the door in the front wall, then the wall that closes off the rest room.
-  const door = benches + 1.2;
+  const door = benches + 1.2 + fit.w;
   const wall = door + 0.85;
   const lounge = wall + WALL_T + 0.45;
   const w = lounge + 2 * SOFA + 0.45;
   const last = hq ? FIRST + (rows - 1) * STAND_ROW : FIRST + (rows - 1) * ROW;
-  const d = FRONT + Math.max(last + 1.35, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55);
+  const d = Math.max(fit.d, FRONT + Math.max(last + 1.35, 1.75 + (sofaRows - 1) * SOFA_ROW + 1.55));
   const places: Place[] = [];
   const { blocks, put } = pen();
   /** A desk at (x, z) with a stack of `n` papers on its back right corner, each a little askew. */
@@ -153,12 +156,11 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(2, Math.ceil(Ma
       const z = FIRST + Math.floor(i / cols) * ROW;
       const chair = `chair:${p.key}`;
       desk(x, z, `desk:${p.key}`, p.queue);
-      F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, LIT.includes(p.activity));
+      F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, LIT.includes(p.activity), p.activity === 'working' ? screenOf(p.key) : undefined);
       F.keyboard(put, x + 0.22, z - 0.08, F.DESK_TOP, 0.34);
       if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
-      F.chair(put, x + 0.225, z + 0.3, chair, turned(p));
-      if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
-      if (turned(p)) places.push({ person: p, x: x + 0.367, z: z + 0.2 + TURN, how: 'turned', chair });
+      F.chair(put, x + 0.225, z + 0.3, chair);
+      if (seated(p)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
     });
     // The desk after the last agent's, where the next agent's would stand: an empty chair at a dark screen. The agents' desks are laid
     // out as if it were not there, so nobody's moves for it; only the room grows a row when the last bench is full.
