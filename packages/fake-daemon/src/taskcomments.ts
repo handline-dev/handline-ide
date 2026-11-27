@@ -2,9 +2,7 @@
 import type { Memo, MemoFile, MemoReader } from '@handline/contract';
 import { refs } from '#src/attachments.ts';
 import { TaskFailure, TaskStore, type Row } from '#src/taskstore.ts';
-
-/** The founder's person key: the live daemon holds a person's turn under it (people.list), not under 'human'. */
-export const FOUNDER = 'p1';
+import { FOUNDER } from '#src/founder.ts';
 
 /** Why task.comment.recipients names an agent. */
 type Why = 'asked' | 'assignee' | 'owner' | 'last_writer';

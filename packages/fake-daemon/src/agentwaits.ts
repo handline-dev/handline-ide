@@ -1,6 +1,7 @@
 // AgentView.waits_on as the daemon reads it from the board.
 import type { AgentView } from '@handline/contract';
 import type { Row } from '#src/taskstore.ts';
+import { FOUNDER } from '#src/founder.ts';
 
 type WaitsOn = NonNullable<AgentView['waits_on']>;
 
@@ -29,7 +30,7 @@ export function waitsOn(rows: readonly Row[], agent: string, current: number | n
     if (!on.length) return null;
     for (const id of on) {
       const b = live.find((r) => r.id === id)!;
-      const holder = b.state === 'draft' && !b.acting ? 'human' : acting(b);
+      const holder = b.state === 'draft' && acting(b) === b.to ? FOUNDER : acting(b);
       if (holder !== agent) add(id, holder);
     }
   }

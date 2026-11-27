@@ -1,5 +1,6 @@
 // The verbs of the daemon's task plan (D3), served only when the fake is asked to.
-import { FOUNDER, TaskComments } from '#src/taskcomments.ts';
+import { TaskComments } from '#src/taskcomments.ts';
+import { FOUNDER } from '#src/founder.ts';
 import { TaskFailure, type Row } from '#src/taskstore.ts';
 
 export class TaskVerbs extends TaskComments {

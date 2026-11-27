@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup } from '#src/helpers.ts';
+import { FOUNDER } from '#src/founder.ts';
 
 test('waits_on names the first task an idle agent’s held tasks all wait on, as the daemon reads it', async () => {
   const { daemon, client } = setup();
@@ -21,10 +22,13 @@ test('waits_on names the first task an idle agent’s held tasks all wait on, as
     { task: 9103, reason: 'x' },
   ];
   assert.deepEqual(await waits(), { task: 9102, holder: 'other', more: 1 });
+  daemon.tasks.find(9102).state = 'draft';
+  daemon.tasks.find(9102).acting = 'other';
+  assert.deepEqual(await waits(), { task: 9102, holder: FOUNDER, more: 1 }, 'a draft with no turn waits for the founder to run it');
   daemon.tasks.find(9102).state = 'done';
   daemon.tasks.find(9103).state = 'done';
-  daemon.tasks.find(9101).acting = 'human';
-  assert.deepEqual(await waits(), { task: 9101, holder: 'human', more: 0 }, "the founder's turn");
+  daemon.tasks.find(9101).acting = FOUNDER;
+  assert.deepEqual(await waits(), { task: 9101, holder: FOUNDER, more: 0 }, "the founder's turn");
   daemon.sessions.get('wt.agent')!.state = 'running';
   assert.equal(await waits(), null, 'working');
 });
