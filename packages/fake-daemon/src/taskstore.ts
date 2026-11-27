@@ -92,6 +92,14 @@ export class TaskStore {
   protected isAgent(name: string): boolean {
     return this.host.sessions.has(name);
   }
+  /** As the daemon: an agent's draft with no turn is delivered to no one. */
+  protected unsentDraft(t: Row): boolean {
+    return t.state === 'draft' && (t.acting ?? t.to) === t.to && this.isAgent(t.to);
+  }
+  /** The agent a person's word on such a draft reaches: its opener, none when a person opened it. */
+  protected draftOpener(t: Row): string | null {
+    return this.unsentDraft(t) && this.isAgent(t.from) ? t.from : null;
+  }
   /** Checks and claims the images a write's text names; an agent names only an image some task's text already shows. */
   protected images(text: string, was: string, field: string, agent: boolean): void {
     const shown = () =>
@@ -158,8 +166,10 @@ export class TaskStore {
     const { body: _b, memos: _m, notes: _n, blockers, clock, estimate: _e, todo: _todo, spend: _spend, pull: _pull, ...t } = row;
     const ended = t.state === 'done' || t.state === 'discarded';
     const fresh = (row.memos ?? []).filter((m) => m.author !== 'human' && m.id > (this.seenUpto.get(row.id) ?? 0));
+    const opener = this.draftOpener(row);
     return {
       ...t,
+      ...(opener ? { acting: opener } : {}),
       unread: fresh.length,
       first_unread: fresh.length ? Math.min(...fresh.map((m) => m.id)) : null,
       blocked_by: blockers.filter((b) => this.open(b.task)).map((b) => b.task),

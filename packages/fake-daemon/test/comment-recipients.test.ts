@@ -50,3 +50,33 @@ test('a comment that names agents is told to them only, one that names no one to
   owner.close();
   s.client.close();
 });
+
+test('the founder’s comment naming no one on an agent’s draft is told to its opener, and the draft shows the opener acting', async () => {
+  const s = setup({ client: 'boss' });
+  await s.client.start();
+  const owner = second(s.daemon, s.net, { client: ARCH });
+  await owner.start();
+  const holder = second(s.daemon, s.net, { client: 'handline.auditor' });
+  await holder.start();
+  const draft = (
+    await owner.call('task.new', { owner: 'handline.auditor', title: 'later', body: 'build it', draft: true, request_id: 'r1' })
+  ).task as number;
+  const who = async (text: string, now = false) =>
+    ((await s.client.call('task.comment.recipients', { task: draft, text, now })).recipients as { agent: string; why: string }[]).map(
+      (r) => `${r.agent}:${r.why}`,
+    );
+  assert.deepEqual(await who('no one named'), [`${ARCH}:owner`]);
+  assert.deepEqual(await who('no one named', true), [`${ARCH}:owner`]);
+  assert.deepEqual(await who('@handline.auditor see this'), ['handline.auditor:asked']); // naming an agent still reaches it
+  assert.equal((await s.client.call('task.get', { task: draft })).acting, ARCH);
+  const mine = (
+    await s.client.call('task.new', { owner: 'handline.auditor', title: 'mine', body: 'build it', draft: true, request_id: 'r2' })
+  ).task as number;
+  assert.deepEqual((await s.client.call('task.comment.recipients', { task: mine, text: 'no one named' })).recipients, []); // a person's own draft: no one
+  s.daemon.tasks.move({ tasks: [draft] }, ['draft'], 'queued');
+  assert.deepEqual(await who('no one named'), ['handline.auditor:assignee']); // queued: the holder again
+  assert.notEqual((await s.client.call('task.get', { task: draft })).acting, ARCH);
+  holder.close();
+  owner.close();
+  s.client.close();
+});

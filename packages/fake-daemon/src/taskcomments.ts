@@ -54,7 +54,7 @@ export class TaskComments extends TaskStore {
    * task.comment.recipients, by the daemon's one rule: a comment naming agents with `@` is told to them only (asked). One naming no one goes
    * to the holder (assignee), and to who the task answers to (owner) when sent now or written by the founder on a task no agent holds; the
    * founder's on a task they hold goes to the last agent that commented. The founder's answer to their turn also reaches the holder below
-   * it, whomever it names. Never the writer.
+   * it, whomever it names. The founder's naming no one on an agent's draft with no turn goes to the agent that opened it only. Never the writer.
    */
   recipients(p: Record<string, unknown>, person: string): { recipients: { agent: string; why: Why }[] } {
     const t = this.find(p.task);
@@ -65,6 +65,10 @@ export class TaskComments extends TaskStore {
     const named = [...String(p.text).matchAll(NAMED)]
       .map((m) => m[1]!.replace(/[.-]+$/, ''))
       .filter((n) => this.isAgent(n) && n !== person);
+    if (named.length === 0 && founder && !back && this.unsentDraft(t)) {
+      const opener = this.draftOpener(t);
+      return { recipients: opener ? [{ agent: opener, why: 'owner' }] : [] };
+    }
     const last =
       named.length === 0 && founder && acting === person
         ? ([...(t.memos ?? [])].reverse().find((m) => m.author !== person && this.isAgent(m.author))?.author ?? '')
