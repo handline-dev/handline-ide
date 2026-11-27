@@ -18,7 +18,7 @@ import (
 	"github.com/handline/handline/go/internal/browser"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/internal/hooks"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/session"
 )
@@ -118,7 +118,7 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Println("{}")
 		return 0, true
 	}
-	fmt.Println(pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{
+	fmt.Println(jsontext.Spaced(map[string]any{"hookSpecificOutput": map[string]any{
 		"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": why}}, true, true))
 	return 0, true
 }
@@ -330,7 +330,7 @@ func askPermission(c *hlclient.Client, tool string, input any) string {
 		decision["updatedPermissions"] = []any{map[string]any{"type": "addRules", "behavior": "allow", "destination": "session",
 			"rules": []any{map[string]any{"toolName": r["tool"], "ruleContent": r["content"]}}}}
 	}
-	return pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PermissionRequest", "decision": decision}}, true, true)
+	return jsontext.Spaced(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PermissionRequest", "decision": decision}}, true, true)
 }
 
 // brokenOff is whether a call ended because the daemon dropped its connection with no reply: closed early, or reset. A refusal, a daemon
@@ -378,7 +378,7 @@ func capture(c *hlclient.Client, agent, event string, raw map[string]any) {
 	res := record(c, agent, event, raw)
 	out := "{}"
 	if nudge, _ := res["nudge"].(string); nudge != "" { // the daemon decides, before it records the Stop; no answer, no nudge
-		out = pyjson.PyJSON(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": nudge}}, true, true)
+		out = jsontext.Spaced(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "Stop", "additionalContext": nudge}}, true, true)
 	}
 	fmt.Println(out)
 }

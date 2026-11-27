@@ -85,7 +85,7 @@ func (f Fake) ReadScreen(handle string, limit int) *term.Screen {
 func (f Fake) Send(handle, text string, enter bool) (bool, string) {
 	p := f.pane(handle)
 	if p == nil {
-		return false, "no fake pane " + term.PyRepr(handle)
+		return false, "no fake pane " + term.Quote(handle)
 	}
 	if enter {
 		text += "\n"
@@ -180,7 +180,7 @@ func (f Fake) CloseTerminal(handle string, _ bool) (bool, string) {
 	delete(f.panes(), handle)
 	fakeMu.Unlock()
 	if p == nil {
-		return false, "no fake pane " + term.PyRepr(handle)
+		return false, "no fake pane " + term.Quote(handle)
 	}
 	p.kill()
 	return true, ""
@@ -196,7 +196,7 @@ func (p *fakePane) kill() {
 func (f Fake) RespawnTerminal(handle string) (bool, string) {
 	p := f.pane(handle)
 	if p == nil {
-		return false, "no fake pane " + term.PyRepr(handle)
+		return false, "no fake pane " + term.Quote(handle)
 	}
 	p.kill()
 	fresh, why := f.start(p.cwd, p.agent)

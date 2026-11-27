@@ -313,7 +313,7 @@ func (t *Trust) SaveProposal(p Proposal) error {
 		os.Remove(f.Name())
 		return err
 	}
-	return os.Rename(f.Name(), filepath.Join(dir, pyStr(p.Get("id"))+".yaml"))
+	return os.Rename(f.Name(), filepath.Join(dir, valueText(p.Get("id"))+".yaml"))
 }
 
 var rootReadRe = regexp.MustCompile(`^\[trust\] add (.+) - asked by (\S+)$`)
@@ -330,7 +330,7 @@ func RootRead(body, requester string) (string, bool) {
 
 // SubjectOf is what the founder is deciding on: the root as it will be matched.
 func SubjectOf(p Proposal) string {
-	root := pyStr(p.Get("root"))
+	root := valueText(p.Get("root"))
 	if r, ok := resolved(root); ok && p.Get("root") != nil {
 		return r
 	}
@@ -377,7 +377,7 @@ func (t *Trust) SettleMoot() ([]string, error) {
 			if err := t.SaveProposal(p); err != nil {
 				return gone, err
 			}
-			gone = append(gone, pyStr(p.Get("id")))
+			gone = append(gone, valueText(p.Get("id")))
 		}
 	}
 	return gone, nil

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // maxTags is the most tags one task carries.
@@ -32,7 +32,7 @@ func TagList(p map[string]any, key string) ([]string, error) {
 		tag := strings.ToLower(strings.TrimSpace(s))
 		if !tagShape.MatchString(tag) {
 			return nil, badParam(fmt.Sprintf("%s is not a tag: up to 32 letters, digits, '.', '_' or '-', starting with a letter or digit",
-				pyjson.PyJSON(it, false, false)), key)
+				jsontext.Spaced(it, false, false)), key)
 		}
 		if !seen[tag] {
 			seen[tag] = true
@@ -96,7 +96,7 @@ func retag(tx *sql.Tx, tid int64, by string, add, remove []string) (string, stri
 			return "", "", err
 		}
 	}
-	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"tags", pyjson.Pairs{{K: "add", V: added}, {K: "remove", V: removed}}}); err != nil {
+	if err := addEvent(tx, by, "edit_task", kv{"task_id", tid}, kv{"tags", jsontext.Pairs{{K: "add", V: added}, {K: "remove", V: removed}}}); err != nil {
 		return "", "", err
 	}
 	return "", fmt.Sprintf("task T%d tags %s", tid, strings.Join(said, " ")), nil

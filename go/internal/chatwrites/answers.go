@@ -54,8 +54,8 @@ func (w *writes) failed(key string, err error) error {
 	return err
 }
 
-// pyRepr is s in single quotes, or Go-quoted when it holds a quote, backslash or line break.
-func pyRepr(s string) string {
+// quote is s in single quotes, or Go-quoted when it holds a quote, backslash or line break.
+func quote(s string) string {
 	if strings.ContainsAny(s, "'\\\n\r\t") {
 		return fmt.Sprintf("%q", s)
 	}
@@ -103,7 +103,7 @@ func (w *writes) answerAdd(c *rpc.Conn, p map[string]any) (any, error) {
 func (w *writes) addAnswer(given map[string]string) (bool, string) {
 	if folder := given["folder"]; folder != "" {
 		if textsafe.HasUnsafe(folder) || !isDir(folder) {
-			return false, fmt.Sprintf("trust %s: not a folder", pyRepr(folder))
+			return false, fmt.Sprintf("trust %s: not a folder", quote(folder))
 		}
 		return team.NewTrust(w.e.Home).Enact(folder, "added in the Home settings")
 	}

@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-func TestInitSetsUpTheHomeOnceAndNeverRunsPython(t *testing.T) {
+func TestInitSetsUpTheHomeOnce(t *testing.T) {
 	r := newRig(t)
 	env := []string{"HOME=" + r.root, "HANDLINE_BIN=/x/hl"}
 	out, errs, code := r.run(env, "init")
-	if code != 0 || errs != "" || strings.Contains(out, "python ") {
+	if code != 0 || errs != "" {
 		t.Fatalf("%q %q %d", out, errs, code)
 	}
 	for _, want := range []string{"installed Handline event hooks\n", "sandbox: agents may write under " + r.home + "\n",

@@ -89,7 +89,7 @@ func SettingsProblem(form map[string]string) string {
 	case model == "":
 		return "model cannot be empty"
 	case textsafe.HasUnsafe(model) || !yamlcompat.IsPlainText(model):
-		return fmt.Sprintf("model %s would not be read back as text", pyQuote(model))
+		return fmt.Sprintf("model %s would not be read back as text", quote(model))
 	case !contains(ValidEffort, form["effort"]):
 		return "effort must be one of " + strings.Join(ValidEffort, ", ")
 	case !contains(Weights, form["weight"]):
@@ -123,7 +123,7 @@ func SettingsProblem(form map[string]string) string {
 	}
 	if repo != "" {
 		if st, err := os.Stat(expand(repo)); textsafe.HasUnsafe(repo) || err != nil || !st.IsDir() {
-			return fmt.Sprintf("repo %s is not a folder", pyQuote(repo))
+			return fmt.Sprintf("repo %s is not a folder", quote(repo))
 		}
 	}
 	return ""

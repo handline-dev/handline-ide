@@ -13,7 +13,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -134,7 +134,7 @@ func discardBatch(c *rpc.Conn, p map[string]any, home string, tell Teller) (any,
 				return nil, err
 			}
 			done = append(done, d)
-			cards = append(cards, pyjson.Pairs{{K: "task_id", V: tid}, {K: "title", V: d.title}, {K: "reason", V: d.reason}, {K: "withdrew", V: d.withdrew}})
+			cards = append(cards, jsontext.Pairs{{K: "task_id", V: tid}, {K: "title", V: d.title}, {K: "reason", V: d.reason}, {K: "withdrew", V: d.withdrew}})
 			lines = append(lines, d.said)
 		}
 		if err := addEvent(tx, by, "discard_batch", kv{"batch", batch}, kv{"tasks", cards}); err != nil {

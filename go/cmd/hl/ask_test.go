@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestWithdrawReadAndInboxAnswerWithoutPython(t *testing.T) {
+func TestWithdrawReadAndInboxAnswer(t *testing.T) {
 	r := newRig(t)
 	calls := r.daemon(map[string]string{
 		"request.withdraw": `{"accepted":true,"said":"#7 withdrawn"}`,
@@ -142,12 +142,12 @@ func TestReadWithdrawAndSayParentSendARefAsTextAndANumberAsANumber(t *testing.T)
 	}
 }
 
-func TestAPortedVerbRefusesWhatItDoesNotParseInsteadOfRunningPython(t *testing.T) {
+func TestAVerbRefusesWhatItDoesNotParse(t *testing.T) {
 	r := newRig(t)
 	r.daemon(nil)
 	for _, args := range [][]string{{"say", "--bogus"}, {"task"}, {"task", "new", "--bogus"}, {"read"}, {"propose", "approve"}, {"team", "extra"}} {
 		out, errs, code := r.run(asAgent, args...)
-		if code != 2 || strings.Contains(out+errs, "python") || !strings.Contains(errs, "arguments not understood") {
+		if code != 2 || !strings.Contains(errs, "arguments not understood") {
 			t.Errorf("%v: %d %q %q", args, code, out, errs)
 		}
 	}

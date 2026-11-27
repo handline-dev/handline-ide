@@ -76,7 +76,7 @@ func readHold(q db.Q, tid int64) *holdRec {
 // write stores the record as one fixed JSON text: spaced, keys in order, non-ASCII escaped.
 func (r *holdRec) write(q db.Q, tid int64) {
 	yes := map[bool]string{true: "true", false: "false"}
-	parts := []string{fmt.Sprintf(`"why": %s`, pyQuote(r.Why)), fmt.Sprintf(`"on": %s`, pyQuote(r.On)), fmt.Sprintf(`"able": %s`, yes[r.Able]),
+	parts := []string{fmt.Sprintf(`"why": %s`, jsonQuote(r.Why)), fmt.Sprintf(`"on": %s`, jsonQuote(r.On)), fmt.Sprintf(`"able": %s`, yes[r.Able]),
 		fmt.Sprintf(`"since": %d`, r.Since)}
 	if r.AbleSince != nil {
 		parts = append(parts, fmt.Sprintf(`"able_since": %d`, *r.AbleSince))
@@ -154,7 +154,7 @@ func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able
 				Why any `json:"why"`
 			}
 			json.Unmarshal([]byte(payload), &p)
-			return fmt.Sprintf("its delivery was refused: %s", pyStr(p.Why)), "owner", false, true
+			return fmt.Sprintf("its delivery was refused: %s", valueText(p.Why)), "owner", false, true
 		}
 		return states.Ready, "owner", true, true
 	}
@@ -190,7 +190,7 @@ func taskNames(ts []*db.Task) string {
 	return strings.Join(parts, ", ")
 }
 
-func pyStr(v any) string {
+func valueText(v any) string {
 	if v == nil {
 		return "None"
 	}

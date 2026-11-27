@@ -392,7 +392,7 @@ func contextProblem(texts [][2]string) string {
 		fn, text := t[0], t[1]
 		switch {
 		case team.InstructionParts[fn] == "":
-			return fmt.Sprintf("only ROLE.md, base.md and rules can be changed this way, not %s", pyRepr(fn))
+			return fmt.Sprintf("only ROLE.md, base.md and rules can be changed this way, not %s", quote(fn))
 		case strings.TrimSpace(text) == "" && fn != "rules": // a team may have no rules
 			return fn + " cannot be empty"
 		case textsafe.HasUnsafe(strings.NewReplacer("\t", "", "\n", "").Replace(text)):
@@ -530,8 +530,8 @@ func (e *Env) doGlobal(p step) (bool, string, error) {
 	return true, fmt.Sprintf("%s set to %s", switchName, value), nil
 }
 
-// pyRepr is s in single quotes, or Go-quoted when it holds a quote, backslash or line break, as a refusal quotes a name.
-func pyRepr(s string) string {
+// quote is s in single quotes, or Go-quoted when it holds a quote, backslash or line break, as a refusal quotes a name.
+func quote(s string) string {
 	if strings.ContainsAny(s, "'\\\n\r\t") {
 		return fmt.Sprintf("%q", s)
 	}

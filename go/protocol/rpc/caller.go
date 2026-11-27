@@ -8,7 +8,7 @@ import (
 
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/peer"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/protocol/authority"
 	"github.com/handline/handline/go/protocol/sessiontoken"
 )
@@ -122,7 +122,7 @@ func (s *Server) noteFounderKey(pid int, client string) {
 		return
 	}
 	chain, terminal := processChain(pid)
-	payload := pyjson.PyJSON(map[string]any{"pid": pid, "chain": chain, "terminal": terminal, "client": client}, false, false)
+	payload := jsontext.Spaced(map[string]any{"pid": pid, "chain": chain, "terminal": terminal, "client": client}, false, false)
 	if _, err := s.DB.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(?, ?, 'founder_key', ?)", time.Now().Unix(), actor.OwnerKey, payload); err != nil && s.Log != nil {
 		s.Log("  founder key: the record of pid %d was not written: %v", pid, err)
 	}

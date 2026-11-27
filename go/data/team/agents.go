@@ -56,9 +56,9 @@ func truthy(v any) bool {
 	return true
 }
 
-// pyStr is a decoded value as text: nil is "None", a bool "True" or "False", a float in shortest round-trip form (1.0 for a whole
+// valueText is a decoded value as text: nil is "None", a bool "True" or "False", a float in shortest round-trip form (1.0 for a whole
 // number), anything else as fmt prints it.
-func pyStr(v any) string {
+func valueText(v any) string {
 	switch x := v.(type) {
 	case nil:
 		return "None"
@@ -75,10 +75,10 @@ func pyStr(v any) string {
 	return fmt.Sprint(v)
 }
 
-// orDefault is cfg's value under k as text (pyStr), def when it is missing or falsy.
+// orDefault is cfg's value under k as text (valueText), def when it is missing or falsy.
 func orDefault(cfg Config, k, def string) string {
 	if v := cfg[k]; truthy(v) {
-		return pyStr(v)
+		return valueText(v)
 	}
 	return def
 }
@@ -139,7 +139,7 @@ func MCPConfigArgs(cfg Config) []string {
 func browserCommand(cfg Config) string {
 	text := "{}"
 	if truthy(cfg["mcp_config"]) {
-		text = pyStr(cfg["mcp_config"])
+		text = valueText(cfg["mcp_config"])
 	}
 	v, err := decodeOrdered(text)
 	if err != nil {
@@ -173,7 +173,7 @@ func jsonText(v any) string {
 	case nil:
 		return "None"
 	case bool:
-		return pyStr(x)
+		return valueText(x)
 	}
 	return fmt.Sprint(v)
 }
@@ -198,7 +198,7 @@ func BrowserMCPConfig(cfg Config, mode string) (string, error) {
 	servers := newJobj()
 	text := "{}"
 	if truthy(cfg["mcp_config"]) {
-		text = pyStr(cfg["mcp_config"])
+		text = valueText(cfg["mcp_config"])
 	}
 	if v, err := decodeOrdered(text); err == nil {
 		if o, ok := v.(*jobj); ok {
@@ -218,7 +218,7 @@ func BrowserMCPConfig(cfg Config, mode string) (string, error) {
 	return encodeCompact(top), nil
 }
 
-func pyQuote(s string) string {
+func quote(s string) string {
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		return `"` + s + `"`
 	}

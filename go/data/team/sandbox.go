@@ -85,22 +85,22 @@ func SandboxEntryProblem(kind, value string) string {
 	switch kind {
 	case SandboxHost:
 		if len(value) > 253 || !sandboxHost.MatchString(value) {
-			return fmt.Sprintf("%s is not a host: a lowercase name such as pypi.org, or *.example.com for its subdomains", pyQuote(value))
+			return fmt.Sprintf("%s is not a host: a lowercase name such as pypi.org, or *.example.com for its subdomains", quote(value))
 		}
 	case SandboxCommand:
 		if len(value) > 300 || !printable.MatchString(value) || strings.TrimSpace(value) != value || strings.HasPrefix(value, "*") {
-			return fmt.Sprintf("%s is not a command: one line of at most 300 ASCII characters, such as pnpm install, that does not start with *", pyQuote(value))
+			return fmt.Sprintf("%s is not a command: one line of at most 300 ASCII characters, such as pnpm install, that does not start with *", quote(value))
 		}
 	case SandboxWrite:
 		if why := sandboxWriteProblem(value); why != "" {
-			return fmt.Sprintf("%s is not a folder: %s", pyQuote(value), why)
+			return fmt.Sprintf("%s is not a folder: %s", quote(value), why)
 		}
 	case SandboxCert:
 		if value != "" {
 			return "a cert entry takes no value"
 		}
 	default:
-		return fmt.Sprintf("%s is not a kind: one of %s", pyQuote(kind), strings.Join(SandboxKinds, ", "))
+		return fmt.Sprintf("%s is not a kind: one of %s", quote(kind), strings.Join(SandboxKinds, ", "))
 	}
 	return ""
 }
@@ -131,7 +131,7 @@ func ParseSandboxEntry(line string) (SandboxEntry, string) {
 	kind, value, _ := strings.Cut(rest, " ")
 	e := SandboxEntry{day, kind, strings.TrimSpace(value)}
 	if _, err := time.Parse(time.DateOnly, day); err != nil || !sandboxDay.MatchString(day) {
-		return e, fmt.Sprintf("%s does not start with the day it was allowed (YYYY-MM-DD kind value)", pyQuote(line))
+		return e, fmt.Sprintf("%s does not start with the day it was allowed (YYYY-MM-DD kind value)", quote(line))
 	}
 	return e, SandboxEntryProblem(kind, e.Value)
 }

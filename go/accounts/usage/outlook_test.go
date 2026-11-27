@@ -16,7 +16,7 @@ func outlookRow(a string, ts int64, short, long int, reset int64) sampleRow {
 }
 
 // The want points are the outlook these rows must give (a: pace 2 points an hour; b: ends in six hours; c: stale).
-func TestWeeklyOutlookMatchesThePython(t *testing.T) {
+func TestWeeklyOutlookMatchesTheFixture(t *testing.T) {
 	now := int64(1_800_000_000)
 	var rows []sampleRow
 	for i := 0; i <= 12; i++ {
