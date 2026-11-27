@@ -24,10 +24,11 @@ import (
 // DetailCap bounds the text drawn beside a state word (the contract's state_detail).
 const DetailCap = 40
 
-// needsTextCap bounds the line needs_you says the decision is, and titleCap its title.
+// titleCap bounds needs_you's title; textCap its text and detail, which the card wraps: generous, but a raw reason cannot grow the view,
+// its log or a push without end.
 const (
-	needsTextCap = 120
-	titleCap     = 40
+	titleCap = 40
+	textCap  = 1000
 )
 
 // Sessions is the structured sessions the daemon owns.
@@ -67,6 +68,8 @@ type NeedsYou struct {
 	Since                     int64
 	// Account is the account a switch_offer offers.
 	Account string
+	// Detail is the daemon's own words behind Text (a launcher's reason), for a Details fold; "" for none.
+	Detail string
 }
 
 // Env is everything a view is made from. The function fields are the facts that live outside the database.
@@ -587,12 +590,15 @@ func needsView(n *NeedsYou) any {
 		return nil
 	}
 	var text any
-	if t := clip(textsafe.Oneline(n.Text), needsTextCap); t != "" {
+	if t := clip(textsafe.Oneline(n.Text), textCap); t != "" {
 		text = t
 	}
 	v := map[string]any{"kind": n.Kind, "since": stamp(n.Since), "title": clip(textsafe.Oneline(n.Title), titleCap), "text": text, "source": n.Source}
 	if n.Account != "" {
 		v["account"] = n.Account
+	}
+	if n.Detail != "" {
+		v["detail"] = clip(textsafe.Oneline(n.Detail), textCap)
 	}
 	return v
 }

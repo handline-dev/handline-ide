@@ -54,9 +54,11 @@ type Controls interface {
 
 // Env is what the methods run on.
 type Env struct {
-	DB       *sql.DB
-	Home     string
-	Controls Controls
+	// RefreshView, when set, stores agent's view now (its needs_you card), not at the next tick.
+	RefreshView func(agent string)
+	DB          *sql.DB
+	Home        string
+	Controls    Controls
 	// InterruptTerminal interrupts a terminal agent's turn (Env.PressEsc of the typing Env); nil serves no session.interrupt.
 	InterruptTerminal func(c *rpc.Conn, agent string) error
 	// Turns closes a turn an Esc ended on screen (turns.Tracker); nil leaves it to the transcript.
@@ -279,6 +281,9 @@ func (e *Env) Unstall(agent string) (cleared bool, said string, err error) {
 	}
 	if err := db.ClearStall(e.DB, agent, "cleared by a human"); err != nil {
 		return false, "", err
+	}
+	if e.RefreshView != nil { // the card goes now, not at the next tick's view
+		e.RefreshView(agent)
 	}
 	return true, agent + ": STALLED -> QUEUED", nil
 }

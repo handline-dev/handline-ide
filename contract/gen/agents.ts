@@ -289,6 +289,8 @@ export type NeedsYou = {
   source: "hook" | "notification" | "session" | "daemon";
   /** The account a switch_offer offers, the one closest to having room, asked again at each change of the view. Absent for any other kind. */
   account?: string;
+  /** The daemon's own words behind text, for a Details fold: a failed start's reason as the launcher gave it (start_failed, no_session). Absent when there are none. */
+  detail?: string;
 };
 
 /** A path the founder let an agent read (x-access). */

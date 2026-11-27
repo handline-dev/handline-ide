@@ -3,6 +3,7 @@ package compose
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/handline/handline/go/agentctl/dialogs"
@@ -70,7 +71,7 @@ func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 		// agent it could not heal. One card for the event, and it goes when the dialog closes or the trouble does. A closed agent has it
 		// too: its starts for waiting work are what failed.
 		if row.State == states.Stalled {
-			if n := stallNeed(row); n != nil {
+			if n := stallNeed(q, row); n != nil {
 				return n
 			}
 		}
@@ -125,9 +126,16 @@ func answeredAt(q db.Q, agent string) int64 {
 
 // stallNeed is the card for a stall the daemon raised itself, one of five kinds: the title and the sentence under it are fixed here, from the
 // stalled row's detail, so the two paths that raise a dialog stall (the launch's and the sender's) say the same thing. nil for a stall it has no card for.
-func stallNeed(row *db.AgentState) *agentview.NeedsYou {
+func stallNeed(q db.Q, row *db.AgentState) *agentview.NeedsYou {
 	need := func(kind, title, text string) *agentview.NeedsYou {
 		return &agentview.NeedsYou{Kind: kind, Source: "daemon", Since: row.Updated, Title: title, Text: text}
+	}
+	// A start that failed says so in plain words; the launcher's own reason goes beside it, for a Details fold.
+	failed := func(kind, title string) *agentview.NeedsYou {
+		why := row.StallFacts()["why"]
+		n := need(kind, title, startFailedText(q, why))
+		n.Detail = why
+		return n
 	}
 	facts := row.StallFacts()
 	switch verdict.ParseStuckKind(row.StallKind.String) {
@@ -146,11 +154,37 @@ func stallNeed(row *db.AgentState) *agentview.NeedsYou {
 	case verdict.StuckSendDialog:
 		return need("dialog", "Stuck at a dialog", "A dialog came up while it was working, so messages can't reach it: "+stallWhy(facts)+".")
 	case verdict.StuckStart:
-		return need("start_failed", "Won't start", fmt.Sprintf("The last %d starts failed: %s.", states.MaxFailedAttempts, stallWhy(facts)))
+		return failed("start_failed", "Won't start")
 	case verdict.StuckWake:
-		return need("no_session", "Woke but didn't start", fmt.Sprintf("It was woken %d times and no session started: %s.", states.MaxFailedAttempts, stallWhy(facts)))
+		return failed("no_session", "Woke but didn't start")
 	}
 	return nil
+}
+
+// onNode finds the runner a launcher's reason names: "node <id> is not linked", "not logged in on node <id>".
+var onNode = regexp.MustCompile(`\bnode ([0-9a-f]{6,})\b`)
+
+// startFailedText is a failed start in a person's words, from the launcher's reason why: its machine offline, its account not logged in
+// there, its terminal gone; any other reason is said as it is. The reason itself goes in the card's detail too.
+func startFailedText(q db.Q, why string) string {
+	machine, on := "its machine", "its machine"
+	if m := onNode.FindStringSubmatch(why); m != nil {
+		var n string
+		if q.QueryRow("SELECT name FROM nodes WHERE id = ?", m[1]).Scan(&n) == nil && n != "" {
+			machine, on = "its machine ("+n+")", n
+		}
+	}
+	switch {
+	case strings.Contains(why, "is not linked to this master"):
+		return fmt.Sprintf("Could not start: %s is offline.", machine)
+	case strings.Contains(why, "is not logged in on node"):
+		return fmt.Sprintf("Could not start: its account is not logged in on %s.", on)
+	case strings.Contains(why, "no server running"), strings.Contains(why, "is not alive"):
+		return "Could not start: its terminal is gone."
+	case why == "":
+		return "Could not start."
+	}
+	return "Could not start: " + strings.TrimSuffix(why, ".") + "."
 }
 
 // stallWhy is the reason the stall was raised with, "an unknown reason" when it was raised without one.

@@ -20,7 +20,7 @@ func (p *Parts) SessionRPC(cfg Config) *sessionrpc.Env {
 	c := controls{p: p, lc: p.LC}
 	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow),
 		MoveNow: c.moveNow, CancelMove: c.cancelMove, Now: cfg.Now, Roster: p.LC.roster,
-		ForceStart: c.ForceStart, Unpass: c.Unpass, StartOwed: c.StartOwed, StartFailed: p.LC.Env.FailedSince, Launch: p.LC.prepareLaunch}
+		ForceStart: c.ForceStart, Unpass: c.Unpass, StartOwed: c.StartOwed, StartFailed: p.LC.Env.FailedSince, Launch: p.LC.prepareLaunch, RefreshView: p.RefreshView}
 }
 
 // prepareLaunch is session.launch_prepare: lifecycle.Launcher.Prepare for the terminal that asked.
