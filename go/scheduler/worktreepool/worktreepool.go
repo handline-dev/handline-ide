@@ -158,7 +158,7 @@ func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err erro
 			return Taken{}, why, nil
 		}
 	}
-	if _, err := p.DB.Exec("UPDATE worktree_folders SET holder = ?, untracked_told = 0, last_agent = ?, last_used = ? WHERE path = ?",
+	if _, err := p.DB.Exec("UPDATE worktree_folders SET holder = ?, last_agent = ?, last_used = ? WHERE path = ?",
 		agent, agent, p.now(), t.Path); err != nil {
 		return t, "", err
 	}
