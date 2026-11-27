@@ -572,7 +572,7 @@ func (b *Timebox) settleHeldAsks(t *Tick) {
 
 // SweepHeldTaskAfterClose: an agent whose session closed while it held a doing task that waits on nothing has no new delivery to wake it, so
 // nothing would ever tell it to act. It is woken once per task with a say that asks it to do the task, hand it on, mark what blocks it or put
-// the founder on it, and carries the notices waiting for it. If the session given the ask closes with nothing done on the task (no memo, no
+// the founder on it, and carries the notices waiting for it. If the session given the ask closes with nothing done on the task (no comment, no
 // turn or command of its own beyond the ask's), the task goes to whom it answers to, so the tasks queued behind it move; until the ask is
 // given (settleHeldAsks) the task stays. An agent that did work is asked anew at a later close.
 func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
@@ -637,10 +637,10 @@ func (b *Timebox) SweepHeldTaskAfterClose(t *Tick, now int64) {
 	}
 }
 
-// workedSince: the agent did something on the task since the stamp - a memo, or beyond the ask's own turn (one prompt, one stop) any turn
+// workedSince: the agent did something on the task since the stamp - a comment, or beyond the ask's own turn (one prompt, one stop) any turn
 // or command of its own.
 func (b *Timebox) workedSince(t *Tick, agent string, tid, since int64) bool {
-	if must(db.MemoCountBy(t.Q, tid, agent, float64(since))) > 0 {
+	if must(db.CommentCountBy(t.Q, tid, agent, float64(since))) > 0 {
 		return true
 	}
 	return must(db.ActedSince(t.Q, agent, since))
