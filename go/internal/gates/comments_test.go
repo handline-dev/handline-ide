@@ -94,7 +94,7 @@ func TestCommentsOnATasksPullRequestReachItsHolderOnceEach(t *testing.T) {
 func commentOf(t *testing.T, sdb *sql.DB, key string) int64 {
 	t.Helper()
 	var mid int64
-	if err := sdb.QueryRow("SELECT memo FROM pr_comments_told WHERE task_id = 2 AND comment = ?", key).Scan(&mid); err != nil {
+	if err := sdb.QueryRow("SELECT task_comment FROM pr_comments_told WHERE task_id = 2 AND comment = ?", key).Scan(&mid); err != nil {
 		t.Fatal(err)
 	}
 	return mid

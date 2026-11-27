@@ -763,7 +763,7 @@ func (e *Env) SweepHeldComments(now int64) (err error) {
 		return nil
 	}
 	for _, r := range rows {
-		key := fmt.Sprintf("memo_lead:%d", r.ID)
+		key := fmt.Sprintf("comment_lead:%d", r.ID)
 		if must(db.Cursor(q, key)) != 0 {
 			continue
 		}

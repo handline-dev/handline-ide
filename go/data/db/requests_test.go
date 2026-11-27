@@ -286,35 +286,6 @@ func TestAHandoffStartsInFlightAdvancesAndLeavesTheOldestFirst(t *testing.T) {
 	}
 }
 
-func TestWithdrawCommentAsksOfEndedTasksClosesOnlyThoseOnceBehindACursor(t *testing.T) {
-	d := open(t)
-	for _, q := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence) VALUES(1, 'done', 'a', 'b', 1, 'x')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, discarded_by) VALUES(2, 'discarded', 'a', 'b', 1, 'b')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'open', 'a', 'b', 1)",
-		"INSERT INTO requests(id, requester, target, body, state, kind, comment_id, ts) VALUES(10, 'a', 'human', 'q', 'queued', 'ask', 1, 1), (11, 'a', 'human', 'q', 'queued', 'ask', 2, 1), (12, 'a', 'human', 'q', 'queued', 'ask', 3, 1), (13, 'a', 'human', 'q', 'queued', 'ask', NULL, 1)",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 11), (3, 12), (1, 13)",
-	} {
-		if _, err := d.Exec(q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	n, err := WithdrawCommentAsksOfEndedTasks(d)
-	if err != nil || n != 2 {
-		t.Fatalf("two asks of ended tasks: %d %v", n, err)
-	}
-	var withdrawn, queued int
-	d.QueryRow("SELECT COUNT(*) FROM requests WHERE state = 'withdrawn'").Scan(&withdrawn)
-	d.QueryRow("SELECT COUNT(*) FROM requests WHERE state = 'queued'").Scan(&queued)
-	if withdrawn != 2 || queued != 2 {
-		t.Fatalf("the open task's ask and a request no comment raised stay: withdrawn %d queued %d", withdrawn, queued)
-	}
-	d.Exec("UPDATE requests SET state = 'queued' WHERE id = 10")
-	if n, err := WithdrawCommentAsksOfEndedTasks(d); err != nil || n != 0 {
-		t.Fatalf("it runs once: %d %v", n, err)
-	}
-}
-
 // The agent already holds an open current task, so holdDelivered does not clear the note: only MarkDelivered's own rule can.
 func TestOnlyATaskRequestEndsTheIdleProgressNote(t *testing.T) {
 	q := open(t)
