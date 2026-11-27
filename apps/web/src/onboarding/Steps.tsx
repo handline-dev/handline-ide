@@ -1,7 +1,7 @@
 import { Spinner } from '#src/ui/Loading.tsx';
 import { baseName } from '#src/format/path.ts';
 // The steps' bodies. Each has one button that does the step; what is true on the machine already shows as done.
-import { Hooks, useRepos, why } from '@handline/app-data';
+import { useRead, useRepos, why } from '@handline/app-data';
 import { Bell, Check, Folder, FolderGit2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { InstallButton, Installing, useInstall, useMissing } from '#src/install/install.tsx';
@@ -204,7 +204,7 @@ export function NotifyStep() {
 
 export function ProjectStep() {
   const nav = useStepNav();
-  const recent = Hooks.useReposRecent();
+  const recent = useRead('repos.recent', {});
   const repos = useRepos().data?.repos ?? [];
   const chosen = usePicked();
   const folders = [

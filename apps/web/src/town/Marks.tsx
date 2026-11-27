@@ -2,7 +2,7 @@
 // it): an hourglass over one on hold, a red warning over one stopped on a fault, Zzz over the desk of one asleep; over one at work the
 // steps done of its task as a bar; and a thought bubble that pops with the new work when it changes. All vector, in picture pixels, so it stays crisp however large the room is drawn, and none of it takes
 // a click. Whoever is walking gets nothing until it sits, as with the bubbles of those waiting for the founder.
-import { Hooks, useTasks } from '@handline/app-data';
+import { useRead, useTasks } from '@handline/app-data';
 import { useMovers, type Crowd } from '#src/town/crowd.ts';
 import { markOf, papersTip, queueOf, stepsOf, type At, type Mark } from '#src/town/marks.ts';
 import type { Person } from '#src/town/model.ts';
@@ -79,7 +79,7 @@ function StateMark({ mark, head }: { mark: Mark; head: At }) {
 
 /** The steps done of `task` as a thin bar with the count beside it, centred over (x, y); nothing while the task has no count. */
 function Steps({ task, x, y }: { task: number; x: number; y: number }) {
-  const steps = stepsOf(Hooks.useTaskGet({ task }, { refetchMs: STEPS_MS }).data?.todo);
+  const steps = stepsOf(useRead('task.get', { task }, { refetchMs: STEPS_MS }).data?.todo);
   if (!steps) return null;
   // One light pill holds the bar and the count, so both read over a lit screen as over the floor.
   const [bar, tall, size, pad] = [13, 2.4, 4.8, 1.6];

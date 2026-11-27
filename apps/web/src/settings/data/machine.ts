@@ -1,16 +1,16 @@
 // Settings > This Mac. Write keys: 'agents_memory_max_gb', 'awake', 'record', 'load_per_core_pct', 'ram_free_min_pct', 'stop:<name>'.
 import { DEFAULT_LIMITS, useRows, type Limits } from '@handline/app-core';
 import type { SettingsChanges } from '@handline/client';
-import { Hooks } from '@handline/app-data';
+import { useRead, useWrite } from '@handline/app-data';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
 export type KeepAwake = 'off' | 'on' | 'working';
 
 export function useMachine() {
-  const status = Hooks.useDaemonStatus();
-  const settings = Hooks.useSettingsGet();
-  const set = Hooks.useSettingsSet();
-  const stopAgent = Hooks.useSessionStop();
+  const status = useRead('daemon.status', {});
+  const settings = useRead('settings.get', {});
+  const set = useWrite('settings.set');
+  const stopAgent = useWrite('session.stop');
   const { pending, run } = useKeyed();
   const resources = status.data?.resources ?? null;
   const values = settings.data?.values;

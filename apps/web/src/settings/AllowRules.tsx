@@ -1,5 +1,5 @@
 // Settings > Agents > an agent: the exact commands the founder always allows it, each with Remove (from its next fresh session).
-import { Hooks, why } from '@handline/app-data';
+import { useRead, useWrite, why } from '@handline/app-data';
 import { X } from 'lucide-react';
 import { day } from '#src/format/time.ts';
 import { Block } from '#src/settings/Meter.tsx';
@@ -12,8 +12,8 @@ export const ruleText = (rule: string) => /^Bash\((.*)\)$/s.exec(rule)?.[1] ?? r
 
 /** Nothing until the agent has one; then the list, each row's x removing it. */
 export function AllowRules({ agent }: { agent: string }) {
-  const rules = Hooks.useAccessList({ agent }).data?.rules ?? [];
-  const remove = Hooks.useAccessRuleRemove(agent);
+  const rules = useRead('access.list', { agent }).data?.rules ?? [];
+  const remove = useWrite('access.rule_remove', agent);
   if (!rules.length) return null;
   return (
     <Block title="Always allowed" note="Commands it runs without asking. A removal holds from its next fresh session.">

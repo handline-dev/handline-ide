@@ -38,9 +38,3 @@ export function keep(agent: string, k: Kept, ms = KEEP_MS): void {
     }, ms),
   });
 }
-export function dropKept(): void {
-  for (const agent of [...kept.keys()]) {
-    const k = reclaim(agent);
-    if (k) dispose(k);
-  }
-}

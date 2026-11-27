@@ -1,7 +1,7 @@
 // The schedules: the messages Handline sends an agent at set times, each with when it is sent next and when it was last sent, which
 // opens that message with the chat's lines around it (chat/Located, as a message search finds does). Read-only: an agent asks for a schedule and the founder allows it. Settings › Schedules
 // lists every agent's; an agent's settings tab lists its own.
-import { Hooks, useNameOf } from '@handline/app-data';
+import { useNameOf, useRead } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { ArrowUpRight } from 'lucide-react';
 import { clockOrDay, useNow } from '#src/format/time.ts';
@@ -32,7 +32,7 @@ export function SchedulesTab() {
 /** The schedules as one card of rows: every agent's, each row naming its agent, or with `agent` that agent's own, which shows nothing
  * until it has one. */
 export function Schedules({ agent }: { agent?: string }) {
-  const data = Hooks.useSchedulesList(agent ? { agent } : {}, { refetchMs: REFRESH_MS }).data;
+  const data = useRead('schedules.list', agent ? { agent } : {}, { refetchMs: REFRESH_MS }).data;
   const nameOf = useNameOf();
   if (!data) return null;
   const { schedules, unreadable, zone } = data;

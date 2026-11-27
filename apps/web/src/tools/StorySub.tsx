@@ -2,7 +2,7 @@ import { Ago } from '#src/ui/Ago.tsx';
 // A story's sub-task opened beside the graph: its place among the others, what it starts after and what starts then, and its Chat,
 // Plan, Code and Result with the founder's verdicts.
 import type { Task, TaskDetail } from '@handline/client';
-import { Hooks, useNameOf, useTasks, useWrite } from '@handline/app-data';
+import { useNameOf, useRead, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { Check, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -36,12 +36,12 @@ export function SubTask({
   at: [number, number];
   onStep: (d: -1 | 1) => void;
 }) {
-  const t = Hooks.useTaskGet({ task: sub.id }).data;
+  const t = useRead('task.get', { task: sub.id }).data;
   const me = useMe();
   const [tab, setTab] = useTabState<Tab | null>(`subtab:${sub.id}`, null);
   const kids = useTasks({ parent: story.id, all: true }).data?.items ?? [];
   // Every hook before the early return: a render after the load must call the same ones.
-  const code = !!Hooks.useTaskChanges({ task: sub.id }).data?.commits.length;
+  const code = !!useRead('task.changes', { task: sub.id }).data?.commits.length;
   const waiting = useLineDrafts(taskPlace(sub.id)).list.length > 0;
   if (!t) return <div className="flex-1" />;
   const open = new Set(story.subtasks.filter((x) => !CLOSED.includes(x.state)).map((x) => x.id));

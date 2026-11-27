@@ -1,8 +1,9 @@
+import type { Methods } from '@handline/client';
 import { count } from '#src/format/count.ts';
 // A task's code: its commits with All changes first, and the files of what is picked, each opening its diff in the look of the agent's
 // Changes. In a tab of its own (code:<id>, CodeTab) and in a story sub-task's Code tab; the task's change size opens the tab (ChangeSize).
 // A line or a file takes a comment; the comments wait as drafts of the task, on every view of its code, and go out once (CommentBar).
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import { useState } from 'react';
 import { diffFiles } from '@handline/app-core';
 import { TaskCommentBar } from '#src/changes/CommentBar.tsx';
@@ -18,7 +19,7 @@ import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 /** Files listed before the rest fold into "Show N more files". */
 const FIRST = 20;
 
-type Changes = NonNullable<ReturnType<typeof Hooks.useTaskChanges>['data']>;
+type Changes = Methods['task.changes']['result'];
 
 const sum = (rows: { added: number; deleted: number }[]) => ({
   added: rows.reduce((n, r) => n + r.added, 0),
@@ -35,7 +36,7 @@ function Lines({ added, deleted }: { added: number; deleted: number }) {
 
 /** The task's change size, "+280 −72 · 26 files", which opens its Code tab by the app's one scheme; nothing while it has no commits. */
 export function ChangeSize({ task }: { task: number }) {
-  const all = Hooks.useTaskChanges({ task }).data;
+  const all = useRead('task.changes', { task }).data;
   const open = useOpenable(codeOf(task));
   if (!all?.commits.length) return null;
   const { added, deleted } = sum(all.files);
@@ -65,8 +66,8 @@ export function CodeTab({ id }: { id: number }) {
 /** Commits on top, the picked one's files under them. */
 export function TaskCode({ task }: { task: number }) {
   const [commit, pick] = useState<string | null>(null);
-  const all = Hooks.useTaskChanges({ task });
-  const one = Hooks.useTaskChanges({ task, commit: commit ?? undefined }, { enabled: !!commit });
+  const all = useRead('task.changes', { task });
+  const one = useRead('task.changes', { task, commit: commit ?? undefined }, { enabled: !!commit });
   if (all.isPending) return <LinesLoading label="Loading the changes" />;
   if (all.isError || !all.data) return <p className="p-4 text-sm text-danger">The changes did not load.</p>;
   const commits = all.data.commits;

@@ -8,11 +8,8 @@ const status = { state: 'waiting', reason: 'paused', text: 'paused', tasks: [7],
 vi.mock('@handline/app-data', () => ({
   useAgents: () => ok({ agents: [{ key: 'a', status }] }),
   useTask: () => ok({ title: 'Do it' }),
-  Hooks: {
-    useDaemonStatus: () => ok({}),
-    useDaemonResume: () => ({ mutateAsync: resume }),
-    useTaskSendNow: () => ({ mutateAsync: resume }),
-  },
+  useRead: () => ok({}),
+  useWrite: () => ({ mutateAsync: resume }),
 }));
 vi.mock('#src/ui/toast.tsx', () => ({ toast: vi.fn() }));
 import { PauseCard } from '#src/chat/PauseCard.tsx';

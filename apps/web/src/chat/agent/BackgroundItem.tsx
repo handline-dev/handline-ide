@@ -1,4 +1,4 @@
-import { Hooks, useWrite } from '@handline/app-data';
+import { useRead, useWrite } from '@handline/app-data';
 import type { AgentJob, AgentView } from '@handline/client';
 import { Bot, Eye, CircleStop, Layers, Terminal } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -35,7 +35,7 @@ export function JobList({ jobs }: { jobs: Job[] }) {
 /** The chip's panel: each job with what it last wrote and, for a shell, its Stop; Stop all at the foot. Read when it opens. */
 function JobPanel({ agent, fallback }: { agent: string; fallback: Job[] }) {
   const now = useNow();
-  const jobs = Hooks.useAgentJobs({ agent }).data?.jobs;
+  const jobs = useRead('agent.jobs', { agent }).data?.jobs;
   const stopAll = useWrite('agent.jobs.stop', agent);
   if (!jobs) return <JobList jobs={fallback} />;
   return (

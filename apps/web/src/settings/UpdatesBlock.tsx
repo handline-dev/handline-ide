@@ -1,6 +1,6 @@
 // The Updates block of Settings > General: the running version, the channel the installed app follows and where it reads it, and the update when one is ready.
 import { UPDATE_CHANNELS, type ShellUpdate, type UpdateChannel as Channel } from '@handline/app-core';
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import { Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
@@ -49,7 +49,7 @@ function line(u: ShellUpdate | null): string {
 
 export function UpdatesBlock() {
   const [app, pick] = useInstalled();
-  const daemon = Hooks.useDaemonStatus().data?.version;
+  const daemon = useRead('daemon.status', {}).data?.version;
   const [u, setU] = useState<ShellUpdate | null>(null);
   useEffect(() => shell()?.onUpdate?.(setU), []);
   const version = app?.version ?? daemon;

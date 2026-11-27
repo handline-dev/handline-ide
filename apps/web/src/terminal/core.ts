@@ -94,9 +94,6 @@ export function paint(term: TermLike, view: ByteTerminalView, e: ByteEvent, done
   } else if (e.type === 'write') term.write(e.data, () => done(e.data.length));
 }
 
-/** Mouse and focus reports xterm sends on its own once the stream turns those modes on; they are not typing. */
-export const isReport = (data: string): boolean => data.startsWith('\x1b[') && 'MIO<'.includes(data[2] ?? '-');
-
 export const DEFAULT_FONT = 13;
 export const MIN_FONT = 9;
 /** A viewer that does not hold the input follows the host's grid: the font is scaled to fit it, down to a floor. */
@@ -126,17 +123,6 @@ export function gridToSend(
 /** The one key the app keeps while a terminal has focus: it hands the keyboard back to the app (Ctrl+Shift+E). */
 export const isEscapeChord = (e: Pick<KeyboardEvent, 'ctrlKey' | 'shiftKey' | 'metaKey' | 'altKey' | 'key'> & { code?: string }): boolean =>
   e.ctrlKey && e.shiftKey && !e.metaKey && !e.altKey && letterOf(e) === 'e';
-
-/** The bytes xterm sends for a named key, so a key chip takes the path typing takes. */
-export const KEY_BYTES: Record<string, string> = {
-  esc: '\x1b',
-  'ctrl-c': '\x03',
-  enter: '\r',
-  up: '\x1b[A',
-  down: '\x1b[B',
-  tab: '\t',
-  'shift-tab': '\x1b[Z',
-};
 
 /** The tooltip of a marker: what the daemon typed, or who did what to the input. */
 export function markerLabel(m: Notifications['marker']): string {

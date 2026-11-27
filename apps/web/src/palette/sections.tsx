@@ -1,7 +1,7 @@
 // What the palette lists for the text typed: with none, what was on screen lately; a task number, that task first; then the places
 // that answer it, then what search finds, grouped by kind with the words found.
 import { chatOfHit, goMatches, hitGroups, SCHEDULE_SENDER, scheduledText, snippetParts, taskNumberOf } from '@handline/app-core';
-import { Hooks, useNameOf, useServes, useTask } from '@handline/app-data';
+import { useNameOf, useRead, useServes, useTask } from '@handline/app-data';
 import type { SearchHit } from '@handline/client';
 import { MessageSquareText } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -129,7 +129,7 @@ export function useSections(query: string): { sections: Section[]; searching: bo
   const settled = useSettled(q, DEBOUNCE_MS);
   const served = useServes('search').served;
   const on = served && worthSearching(settled);
-  const found = Hooks.useSearch({ query: settled, limit: HITS }, { enabled: on });
+  const found = useRead('search', { query: settled, limit: HITS }, { enabled: on });
   const hitEntry = useHitEntry(settled);
   // A number that names no task says so in place of its row.
   const typed = taskNumberOf(q);

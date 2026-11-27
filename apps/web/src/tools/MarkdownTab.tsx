@@ -1,4 +1,4 @@
-import { classify, Hooks, useDocCalls, useServes } from '@handline/app-data';
+import { classify, useDocCalls, useRead, useServes } from '@handline/app-data';
 import { redo, undo } from '@codemirror/commands';
 import type { EditorView } from '@codemirror/view';
 import {
@@ -50,7 +50,7 @@ export function MarkdownTab({ agent, tab, start = '' }: { agent: string; tab: st
   const list = useId();
   const address = useRef<HTMLInputElement>(null);
   const editor = useRef<EditorHandle>(null);
-  const files = Hooks.useFilesList({ agent, query: typed.endsWith('.md') ? typed : `${typed}.md`, limit: 20 });
+  const files = useRead('files.list', { agent, query: typed.endsWith('.md') ? typed : `${typed}.md`, limit: 20 });
   const md = (files.data?.files ?? []).filter((f) => /\.md$/i.test(f.path));
   const calls = useDocCalls(agent);
   // Where writes go, read as they happen: a new file gets its path when it is named.

@@ -1,6 +1,6 @@
 // Settings > Agents: the model and effort a new agent starts with, for Claude Code and for Codex (agents already made keep theirs), and
 // the founder's preferences (removable), and each agent with its review level, opening its page (AgentPage).
-import { Hooks, useAgents, useNameOf, useSettings, useWrite, why } from '@handline/app-data';
+import { useAgents, useNameOf, useRead, useSettings, useWrite, why } from '@handline/app-data';
 import type { SettingsChanges } from '@handline/client';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
@@ -22,7 +22,7 @@ type Key = 'default_model_claude' | 'default_effort_claude' | 'default_model_cod
 
 export function AgentsTab() {
   const settings = useSettings();
-  const options = Hooks.useAgentOptions();
+  const options = useRead('agent.options', {});
   const save = useWrite('settings.set');
   const put = (key: Key, value: string | null) => save.mutate({ changes: { [key]: value } as SettingsChanges });
   const values = settings.data?.values;

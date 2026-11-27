@@ -1,7 +1,7 @@
 // The apps of an agent's "Open in" menu: its folder in VS Code or Terminal, or its Claude Code session in Terminal. The desktop shell
 // opens them (openIn), on a Mac, for a folder that is on this Mac; anywhere else the menu keeps only its copy items.
 import { folderIsHere, OPEN_IN_APPS, type OpenInApp } from '@handline/app-core';
-import { Hooks, useAgentDetail, useAgents } from '@handline/app-data';
+import { useAgentDetail, useAgents, useRead } from '@handline/app-data';
 import { useThisDevice } from '@handline/app-react';
 import { Bot, Code, SquareTerminal } from 'lucide-react';
 import { useSyncExternalStore, type ReactNode } from 'react';
@@ -50,7 +50,7 @@ const daemonHere = daemonOnThisMachine(location.search, location, browserStorage
 export function OpenInItems({ agent, apps }: { agent: string; apps: OpenInApp[] }) {
   const cluster = useCluster();
   const device = useThisDevice();
-  const nodes = Hooks.useNodeStatus().data?.nodes ?? [];
+  const nodes = useRead('node.status', {}).data?.nodes ?? [];
   const agentNode = useAgents().data?.agents.find((a) => a.key === agent)?.node;
   const detail = useAgentDetail(agent).data;
   if (cluster !== '' || !detail?.worktree || !folderIsHere({ daemonHere, device, nodes, agentNode })) return null;

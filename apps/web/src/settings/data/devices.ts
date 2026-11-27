@@ -4,7 +4,7 @@
 import { read, write } from '#src/persist/kv.ts';
 import { createStore } from '#src/persist/store.ts';
 import type { Device, Node } from '@handline/client';
-import { Hooks, useAgents } from '@handline/app-data';
+import { useAgents, useRead, useWrite } from '@handline/app-data';
 import { useHello, useThisDevice } from '@handline/app-react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 import { useCluster } from '#src/connection/clusters.tsx';
@@ -130,16 +130,16 @@ export function deviceRows(
 
 /** The master's own Mac is paused and resumed by the daemon's pause. */
 function useMasterPause() {
-  const pause = Hooks.useDaemonPause();
-  const resume = Hooks.useDaemonResume();
+  const pause = useWrite('daemon.pause');
+  const resume = useWrite('daemon.resume');
   return (on: boolean) => (on ? pause : resume).mutateAsync({});
 }
 
 /** The Mac this app's daemon runs on, for the status bar: node.status and the pause only, not devices.list, whose live topic the daemon
  * serves only on a stream of its own. */
 export function useOwnMac() {
-  const nodes = Hooks.useNodeStatus();
-  const status = Hooks.useDaemonStatus();
+  const nodes = useRead('node.status', {});
+  const status = useRead('daemon.status', {});
   const me = useHello()?.caller.key ?? null;
   const pauseMaster = useMasterPause();
   const { pending, run } = useKeyed();
@@ -150,20 +150,20 @@ export function useOwnMac() {
 }
 
 export function useDevices() {
-  const list = Hooks.useDevicesList();
-  const nodes = Hooks.useNodeStatus();
+  const list = useRead('devices.list', {});
+  const nodes = useRead('node.status', {});
   const agents = useAgents();
-  const status = Hooks.useDaemonStatus();
+  const status = useRead('daemon.status', {});
   const here = useThisDevice() ?? null;
   const me = useHello()?.caller.key ?? null;
-  const revoke = Hooks.useDeviceRevoke();
-  const set = Hooks.useDeviceSet();
-  const update = Hooks.useDeviceUpdate();
-  const makeMaster = Hooks.useDeviceMakeMaster();
+  const revoke = useWrite('device.revoke');
+  const set = useWrite('device.set');
+  const update = useWrite('device.update');
+  const makeMaster = useWrite('device.make_master');
   const cluster = useCluster();
   const pauseMaster = useMasterPause();
-  const settings = Hooks.useSettingsGet();
-  const setSettings = Hooks.useSettingsSet();
+  const settings = useRead('settings.get', {});
+  const setSettings = useWrite('settings.set');
   const { pending, run } = useKeyed();
   const values = settings.data?.values;
   const rows = deviceRows(list.data?.devices ?? [], nodes.data?.nodes ?? [], agents.data?.agents ?? [], {
@@ -215,7 +215,7 @@ export function useDevices() {
 
 /** The device an agent stays on, by its name: online or not, and since when it was last heard. Null on a single Mac, where it says nothing. */
 export function useAgentDevice(agent: string): { name: string; online: boolean; since: string | null } | null {
-  const nodes = Hooks.useNodeStatus().data?.nodes ?? [];
+  const nodes = useRead('node.status', {}).data?.nodes ?? [];
   const at = useAgents().data?.agents.find((a) => a.key === agent)?.node;
   const n = nodes.length > 1 ? nodes.find((x) => x.id === at) : undefined;
   return n ? { name: n.name, online: n.online, since: n.last_seen } : null;
@@ -223,7 +223,7 @@ export function useAgentDevice(agent: string): { name: string; online: boolean; 
 
 /** A machine whose own board was set aside when a newer master outranked it, and the master now; null when none was. */
 export function useSetAside(): { name: string; since: string; master: string; key: string } | null {
-  const nodes = Hooks.useNodeStatus().data?.nodes ?? [];
+  const nodes = useRead('node.status', {}).data?.nodes ?? [];
   const n = nodes.find((x) => x.set_aside);
   if (!n?.set_aside) return null;
   return { name: n.name, since: n.set_aside.since, master: nodes.find((x) => x.master)?.name ?? '', key: `${n.id}@${n.set_aside.since}` };

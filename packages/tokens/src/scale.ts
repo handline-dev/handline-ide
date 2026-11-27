@@ -36,9 +36,6 @@ export const radius = { s: 6, m: 10, l: 16 } as const;
 /** Motion: hover and press (fast), opening and closing (slow), in ms, and one easing. Reduced motion stops the turning and pulsing glyphs. */
 export const motion = { fast: 120, slow: 200, ease: 'cubic-bezier(0.2, 0, 0, 1)' } as const;
 
-/** Heights (CSS px) of the rows a list draws. A skeleton row and the real row both take them, so nothing shifts when data arrives. */
-export const rowHeight = { line: 18, agent: 44, message: 56, task: 48, inbox: 56, account: 72, field: height.l } as const;
-
 /** Sizes of the PC layout (CSS px). */
 export const chrome = {
   'h-tabs': 40,

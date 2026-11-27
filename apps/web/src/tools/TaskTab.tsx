@@ -2,7 +2,7 @@ import { outsideBlockers } from '#src/tools/subtasks.ts';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
-import { Hooks, useNameOf, useTaskHistory, useTaskSeen } from '@handline/app-data';
+import { useNameOf, useRead, useTaskHistory, useTaskSeen } from '@handline/app-data';
 import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvents.tsx';
 import { useMe } from '@handline/app-react';
 import { Hourglass, Play } from 'lucide-react';
@@ -39,7 +39,7 @@ const CLOSED = ['done', 'discarded'];
 /** One task, opened from a T-number: its face as in the chat, a line of facts, why it waits, the brief, sub-tasks and result, then
  * its activity (comments and changes in one list) and a box to comment in, the chat's own. */
 export function TaskTab({ id }: { id: number }) {
-  const q = Hooks.useTaskGet({ task: id });
+  const q = useRead('task.get', { task: id });
   const leases = useLeaseWaits();
   const me = useMe();
   const nameOf = useNameOf();
@@ -216,7 +216,7 @@ export function TaskTab({ id }: { id: number }) {
 
 /** A sub-task's comments as a chat, beside it in the Plan tab. */
 export function TaskChat({ id }: { id: number }) {
-  const t = Hooks.useTaskGet({ task: id }).data;
+  const t = useRead('task.get', { task: id }).data;
   const me = useMe();
   const nameOf = useNameOf();
   const [replyTo, setReplyTo] = useTabState<Reply | null>(`reply:${id}`, null);

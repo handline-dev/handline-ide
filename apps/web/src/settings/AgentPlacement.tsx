@@ -1,6 +1,6 @@
 // Settings > Devices, under the device rows: where each agent's next session starts (node.status placement), with Auto or Manual
 // (agent_placement). Manual adds a device menu per agent; a pin is agent.set device, and Auto in the menu clears it.
-import { Hooks, useNameOf, useWrite } from '@handline/app-data';
+import { useNameOf, useRead, useWrite } from '@handline/app-data';
 import { ChevronDown, PinOff, Weight } from 'lucide-react';
 import { KIND_ICON } from '#src/settings/DeviceControls.tsx';
 import type { DeviceRow } from '#src/settings/data/devices.ts';
@@ -12,7 +12,7 @@ const MODES = ['auto', 'manual'] as const;
 
 /** Nothing on a single Mac, where every agent runs here. `rows` are the device rows above, for each node's icon. */
 export function AgentPlacement({ rows }: { rows: DeviceRow[] }) {
-  const status = Hooks.useNodeStatus().data;
+  const status = useRead('node.status', {}).data;
   const nameOf = useNameOf();
   const settings = useWrite('settings.set');
   const pin = useWrite('agent.set');

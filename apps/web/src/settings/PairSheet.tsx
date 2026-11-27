@@ -8,7 +8,7 @@ import { useDevices } from '#src/settings/data/devices.ts';
 import { usePair, type Pairing } from '#src/settings/data/pair.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ChoiceList } from '#src/ui/ChoiceList.tsx';
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import { Secret } from '#src/ui/Secret.tsx';
 import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -37,7 +37,7 @@ const TAILSCALE = 'Tailscale';
 
 /** The addresses a door listens on, Tailscale's first. */
 function useHosts() {
-  const all = (Hooks.useConnectionAddresses().data?.addresses ?? []).filter((a) => a.listening);
+  const all = (useRead('connection.addresses', {}).data?.addresses ?? []).filter((a) => a.listening);
   // Its IP, or its name when only the name is listening.
   const ts = all.find((a) => a.kind === 'tailscale') ?? all.find((a) => a.kind === 'tailscale_name');
   const rest = all.filter((a) => a.kind !== 'tailscale' && a.kind !== 'tailscale_name');

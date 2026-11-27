@@ -14,7 +14,7 @@ vi.mock('@handline/app-data', () => ({
   useFoundLogins: () => ({ isLoading: false, data: [] }),
   useSettings: () => ok({ values: machine.push }),
   useWrite: () => ({ mutateAsync: vi.fn(), mutate: set, isPending: false }),
-  Hooks: { useReposRecent: () => ok({ folders: [{}, {}] }) },
+  useRead: () => ok({ folders: [{}, {}] }),
   classify: (e: unknown) => e,
   sentence: String,
 }));

@@ -59,12 +59,6 @@ export function useDropTarget({ accepts, dropEffect, onOver, onLeave, onDrop }: 
   };
 }
 
-/** Handlers of several hooks on one element, each called in turn. */
-export function mergeHandlers(...sets: Partial<Handlers>[]): Handlers {
-  const all = (k: keyof Handlers) => (e: DragEvent) => sets.forEach((s) => s[k]?.(e));
-  return { onDragEnter: all('onDragEnter'), onDragOver: all('onDragOver'), onDragLeave: all('onDragLeave'), onDrop: all('onDrop') };
-}
-
 /** A div that takes drops: useDropTarget for places drawn in a list, where a hook per item cannot be called. data-over while held. */
 export function DropArea({ accepts, dropEffect, onOver, onLeave, onDrop, ...props }: DropOptions & ComponentProps<'div'>) {
   const { over, handlers } = useDropTarget({ accepts, dropEffect, onOver, onLeave, onDrop });

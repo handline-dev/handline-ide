@@ -1,6 +1,6 @@
 // The card that opens while the pointer rests on a person or its desk in an office (Targets.tsx): who it is and in which team, its role,
 // its state in words with the app's own mark, what it does now and how far along, what waits behind that, and what it runs on.
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { Face } from '#src/town/face.tsx';
 import { kindOf, stepsOf, waitingOf } from '#src/town/marks.ts';
@@ -8,7 +8,7 @@ import { WORDS, type Person } from '#src/town/model.ts';
 
 /** How far along `task` is and what waits behind it, in one quiet line; nothing when there is neither. */
 function Progress({ task, waiting }: { task: number | null; waiting: string | null }) {
-  const steps = stepsOf(Hooks.useTaskGet({ task: task ?? 0 }, { enabled: task !== null }).data?.todo);
+  const steps = stepsOf(useRead('task.get', { task: task ?? 0 }, { enabled: task !== null }).data?.todo);
   const parts = [steps && `${steps.text} steps`, waiting].filter(Boolean);
   return parts.length ? <p className="text-xs text-muted tabular-nums">{parts.join(' · ')}</p> : null;
 }

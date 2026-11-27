@@ -2,7 +2,7 @@
 // opens the list of those people, with their team and what they are doing; a click on one goes to its office and brings up its chat
 // (goto.ts). A count of none is not shown, but the people at work always are. Last, the work finished today: each task opens in the
 // town's windows.
-import { Hooks, useAgents, useNameOf, useTasks } from '@handline/app-data';
+import { useAgents, useNameOf, useRead, useTasks } from '@handline/app-data';
 import { CircleCheck } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useOpenable } from '#src/layout/openable.tsx';
@@ -19,7 +19,7 @@ import { GROUPS, GROUP_WORDS, doneToday, rollCallOf, type Called, type Finished,
 const NONE: never[] = [];
 
 export function TownStatus() {
-  const workspaces = Hooks.useWorkspacesList().data?.workspaces;
+  const workspaces = useRead('workspaces.list', {}).data?.workspaces;
   const agents = useAgents().data?.agents;
   const now = useNow(60_000);
   const town = useMemo(() => townOf(workspaces ?? NONE, agents ?? NONE, NONE, now), [workspaces, agents, now]);

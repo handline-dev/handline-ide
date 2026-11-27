@@ -1,7 +1,7 @@
 // The clusters this Mac joined (the desktop shell's list), each with a store of its own kept connected beside this Mac's, and the scope
 // that makes a subtree read one of them. This Mac's own cluster is id ''.
 import { Store, type ShellCluster } from '@handline/app-core';
-import { DataProvider, DataScope, Hooks, makeQueryClient } from '@handline/app-data';
+import { DataProvider, DataScope, makeQueryClient, useRead } from '@handline/app-data';
 import { DaemonProvider, useSelected } from '@handline/app-react';
 import { DaemonClient, webSocketTransport } from '@handline/client';
 import {
@@ -62,7 +62,7 @@ export function JoinedClusters({ children }: { children: ReactNode }) {
     });
   }, []);
   // A Mac with no workspace of its own that joined a cluster reads that cluster as home, as a browser on its master does.
-  const ownList = Hooks.useWorkspacesList();
+  const ownList = useRead('workspaces.list', {});
   const own = ownList.data;
   const home = own?.workspaces.length === 0 ? joined[0] : undefined;
   const alias = home?.id ?? '';

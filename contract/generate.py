@@ -313,10 +313,6 @@ def gen_group_md(group: str, part: dict, spec: dict) -> str:
     return "\n".join(o) + "\n"
 
 
-def hook_name(method: str) -> str:
-    return "use" + "".join(w[:1].upper() + w[1:] for w in re.split(r"[._]", method))
-
-
 def event_fields(spec: dict) -> dict[str, list[str]]:
     """The fields each pushed event's data must carry: a schema's required list, or the non-optional names of an inline {a, b?}."""
     schemas = spec["components"]["schemas"]
@@ -335,10 +331,9 @@ def event_fields(spec: dict) -> dict[str, list[str]]:
 
 
 def gen_app_data(spec: dict) -> dict[Path, str]:
-    """packages/app-data/src/generated/: the reads table, one hook per read and per cached write, the enum unions and the event guards."""
+    """packages/app-data/src/generated/: the reads table, the enum unions and the event guards."""
     head = f"// {HEADER}\n"
     reads = [m for m in spec["methods"] if not m["x-write"] and m["x-app-cache"] is not False]
-    writes = [m for m in spec["methods"] if m["x-write"] and m["x-app-write"] is not False and m["x-app-write"]["kind"] != "uncached"]
     table = []
     for m in reads:
         c = m["x-app-cache"]
@@ -350,22 +345,10 @@ def gen_app_data(spec: dict) -> dict[Path, str]:
     r += "/** The reads the app does not cache (x-app-cache false). */\nexport const NOT_CACHED = " + json.dumps([m["name"] for m in spec["methods"] if not m["x-write"] and m["x-app-cache"] is False]) + " as const;\n"
     r += "\n/** The writes the app does not make from a screen (x-app-write false). */\nexport const NOT_WRITTEN = " + json.dumps([m["name"] for m in spec["methods"] if m["x-write"] and m["x-app-write"] is False]) + " as const;\n"
     r += "\n/** What each event's data must carry (the schema's required fields); the bridge reads the topic again for one that does not. */\nexport const EVENT_REQUIRED: Record<string, readonly string[]> = " + json.dumps(event_fields(spec), indent=2) + ";\n"
-    h = head + "// One hook per daemon read and per write the app caches; useRead and useWrite are the layer under them.\n"
-    h += "import type { CallParams } from '@handline/client';\nimport { useRead } from '#src/read.ts';\nimport { useWrite } from '#src/write.ts';\n\n"
-    h += "type ReadOpts = NonNullable<Parameters<typeof useRead>[2]>;\n\n"
-    for m in reads:
-        n = json.dumps(m["name"])
-        if any(p["required"] for p in m["params"]):
-            h += f"export const {hook_name(m['name'])} = (params: CallParams<{n}>, opts?: ReadOpts) => useRead({n}, params, opts);\n"
-        else:
-            h += f"export const {hook_name(m['name'])} = (params: CallParams<{n}> = {{}}, opts?: ReadOpts) => useRead({n}, params, opts);\n"
-    h += "\n"
-    for m in writes:
-        h += f"export const {hook_name(m['name'])} = (target?: string) => useWrite({json.dumps(m['name'])}, target);\n"
     e = head
     for name, words in (("StateWord", spec["x-state-words"]["words"]), ("StatusState", spec["x-status"]["states"]), ("StatusReason", spec["x-status"]["reasons"])):
         e += f"export type {name} = {' | '.join(json.dumps(w) for w in words)};\n"
-    return {APP_GEN / "reads.ts": r, APP_GEN / "hooks.ts": h, APP_GEN / "enums.ts": e}
+    return {APP_GEN / "reads.ts": r, APP_GEN / "enums.ts": e}
 
 
 GO_TYPES = {"string": "string", "integer": "json.Number", "number": "json.Number", "boolean": "bool", "array": "[]any", "object": "map[string]any"}
