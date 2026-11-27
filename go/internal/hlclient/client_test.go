@@ -17,7 +17,6 @@ import (
 
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/contracttest"
-	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/protocol/pairsock"
 )
@@ -324,9 +323,10 @@ func TestAVerbChainNoteRidesOnTheNextHelloOnce(t *testing.T) {
 
 // An agent's session never says the founder key, even where it can read it: one the daemon cannot trace is anonymous, not the founder.
 func TestAnAgentsSessionHoldsNoFounderKey(t *testing.T) {
-	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HANDLINE_HOME", home)
 	t.Setenv("HANDLINE_AGENT", "")
-	if err := protected.New(paths.Home()).Put(founderNS, "key", "k1"); err != nil {
+	if err := protected.New(home).Put(founderNS, "key", "k1"); err != nil {
 		t.Fatal(err)
 	}
 	if New().Key != "k1" {
@@ -340,8 +340,8 @@ func TestAnAgentsSessionHoldsNoFounderKey(t *testing.T) {
 
 // HANDLINE_AGENT holds the agent's name; hl takes it back to the key.
 func TestAgentIsTheKeyOfTheNameInTheEnvironment(t *testing.T) {
-	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
-	home := paths.Home()
+	home := t.TempDir()
+	t.Setenv("HANDLINE_HOME", home)
 	teamtest.Seed(t, home, "shop", "shop/quill")
 	ui := teamtest.Key(t, home, "shop/quill")
 	for env, want := range map[string]string{"quill": ui, "shop/quill": ui, ui: ui, "human": "human", "": "", "nobody": "nobody"} {

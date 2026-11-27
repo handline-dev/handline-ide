@@ -18,7 +18,7 @@ unset HANDLINE_LIVE
 scratch_home="${TMPDIR:-/tmp}/handline-go-home.$(printf %s "$here" | cksum | cut -d' ' -f1)"
 rm -rf "$scratch_home" && mkdir -p "$scratch_home" || exit 1
 trap 'rm -rf "$scratch_home"' EXIT
-export HANDLINE_HOME="$scratch_home" HANDLINE_HOME="$scratch_home"
+export HANDLINE_HOME="$scratch_home"
 # The user home the tests and the daemons they start see: nothing they write lands in the real ~/.config or ~/.claude.
 mkdir -p "$scratch_home/user" && export HANDLINE_TEST_ROOT="$scratch_home/user"
 real_protected="$HOME/.config/handline/protected"
