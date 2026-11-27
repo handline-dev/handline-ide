@@ -1,14 +1,17 @@
 // The people in an office's picture (Inside.tsx): each seated or standing where its place is, or walking to a new one (crowd.ts), and the
 // founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them; the bubbles of those
-// waiting for the founder.
-import { useSyncExternalStore } from 'react';
+// waiting for the founder. One seated moves by what it is doing (motion.ts), from the newest people (MotionsOf), so the room is not drawn
+// again.
+import { use, useSyncExternalStore } from 'react';
 import { talking, useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
 import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/founder.tsx';
 import type { Door } from '#src/town/moves.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
 import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
-import { BUBBLE, PEOPLE_SHEET, SHEET, WALK, WALK_SHEET, walkColumn, type Figure } from '#src/town/people.ts';
+import { BUBBLE, hashOf, PEOPLE_SHEET, SHEET, WALK, WALK_SHEET, walkColumn, type Figure } from '#src/town/people.ts';
 import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
+import { MOTION_CSS, motionStyle, type Motion } from '#src/town/motion.ts';
+import { MotionsOf } from '#src/town/monitors.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 const WALKERS: Sheet = { url: WALK_SHEET, cell: WALK.cell, size: WALK.size };
@@ -18,8 +21,11 @@ const STRIDE = 0.16;
 export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder: Founder; crowd: Crowd; scale: number }) {
   const movers = useMovers(crowd);
   const font = nameSize(scale);
+  const motions = use(MotionsOf);
   const items = [
-    ...drawn.cast.figures.filter((f) => !movers.has(f.person.key)).map((f) => ({ z: f.z, el: <Drawing key={f.person.key} figure={f} /> })),
+    ...drawn.cast.figures
+      .filter((f) => !movers.has(f.person.key))
+      .map((f) => ({ z: f.z, el: <Drawing key={f.person.key} figure={f} motion={motions.get(f.person.key) ?? null} /> })),
     ...[...movers].map(([key, m]) => ({
       z: m.at[1],
       el: <Walking key={key} drawn={drawn} mover={m} label={{ text: m.name, size: font, halo: font * HALO }} />,
@@ -34,6 +40,7 @@ export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder
       <Label key={`name:${n.person.key}`} x={n.x} y={n.y} font={font} text={n.person.name} fill={n.away ? NAME_AWAY : NAME_INK} />
     ));
   return [
+    <style key="motion">{MOTION_CSS}</style>,
     ...items.slice(0, behind).map((i) => i.el),
     ...names,
     <FounderDrawing key="founder" founder={founder} ground={drawn.ground} />,
@@ -133,14 +140,21 @@ export function Label({ x, y, font, text, fill = NAME_INK }: { x: number; y: num
   );
 }
 
-/** A person at the screen's own resolution (smoothly scaled, never snapped to the room's pixels), then the room's nearer pixels over it. */
-function Drawing({ figure: { box, col, row, front } }: { figure: Figure }) {
+/** Seconds into its motion a person starts, the same for the same person, so a room does not move in step. */
+const offsetOf = (key: string) => (hashOf(key) % 1000) / 250;
+
+/** A person at the screen's own resolution (smoothly scaled, never snapped to the room's pixels), moving as `motion` says, then the
+ *  room's nearer pixels over it. */
+function Drawing({ figure: { box, col, row, front, person, neck }, motion }: { figure: Figure; motion: Motion | null }) {
   const [cw, ch] = SHEET.cell;
+  const moves = motion && neck;
   return (
     <g className="pointer-events-none">
-      <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * cw} ${row * ch} ${cw} ${ch}`}>
-        <image href={PEOPLE_SHEET} width={SHEET.size[0]} height={SHEET.size[1]} />
-      </svg>
+      <g className={moves ? 'town-motion' : undefined} style={moves ? motionStyle(motion, neck, offsetOf(person.key)) : undefined}>
+        <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * cw} ${row * ch} ${cw} ${ch}`}>
+          <image href={PEOPLE_SHEET} width={SHEET.size[0]} height={SHEET.size[1]} />
+        </svg>
+      </g>
       {front && <image href={front.url} x={front.x} y={front.y} width={front.w} height={front.h} style={PIXEL} />}
     </g>
   );

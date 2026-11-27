@@ -1,26 +1,30 @@
 // More workspaces for the Town tab, enough to fill a screen: agents at work, resting, asleep, waiting, so each building looks different.
-// The handline office has one of every state an office marks, and a task with a step count and a queue behind it.
+// The handline office has one of every state an office marks, and a task with a step count and a queue behind it. A doing line starts
+// with its tool, as the daemon's does, so the people move by it: reading, writing or running something.
 import type { FakeDaemon } from '#src/daemon.ts';
 import { AGENTS } from '#src/fixtures.ts';
 import { newSession } from '#src/session.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
+/** What those at work in the small teams do, in turn: one of each motion. */
+const WORK = ['Read Look over the open issues', 'Edit Fix the failing check', 'Bash Run the tests', 'Agent Review the change'];
+
 const PEOPLE: [string, 'running' | 'idle' | 'closed' | 'waiting', string?][] = [
-  ['handline', 'running', 'Plan the release notes'],
+  ['handline', 'running', 'Read the notes of the last release'],
   ['handline.ui', 'running', 'Edit the settings sheet'],
-  ['shop', 'running', 'Review the checkout change'],
-  ['shop.web', 'running', 'Build the product page'],
-  ['shop.api', 'running', 'Run the payment tests'],
+  ['shop', 'running', 'Grep Find every caller of the checkout'],
+  ['shop.web', 'running', 'Write Add the product page'],
+  ['shop.api', 'running', 'Bash Run the payment tests'],
   ['shop.design', 'idle'],
   ['shop.copy', 'waiting'],
-  ['harbor', 'running', 'Read the import logs'],
+  ['harbor', 'running', 'Read Look at the import logs'],
   ['harbor.data', 'closed'],
   ['personal', 'idle'],
   ...crowd(),
 ];
 
-/** Fifteen more small teams, enough to fill a screen: a name, its size and how many of it work. */
+/** Fifteen more small teams, enough to fill a screen, and a lab of twenty: a name, its size and how many of it work. */
 function crowd(): typeof PEOPLE {
   const teams: [string, number, number][] = [
     ['billing', 3, 2],
@@ -38,12 +42,13 @@ function crowd(): typeof PEOPLE {
     ['ops', 3, 0],
     ['brand', 2, 1],
     ['pay', 4, 2],
+    ['lab', 20, 16],
   ];
   const roles = ['web', 'api', 'test', 'review', 'deploy'];
   return teams.flatMap(([team, size, work]) =>
     Array.from({ length: size }, (_, k): (typeof PEOPLE)[number] => {
-      const name = k === 0 ? team : `${team}.${roles[k - 1]}`;
-      if (k < work) return [name, 'running', 'Ship the next change'];
+      const name = k === 0 ? team : `${team}.${roles[k - 1] ?? k}`;
+      if (k < work) return [name, 'running', WORK[k % WORK.length]];
       return [name, k === size - 1 && size > 2 ? 'waiting' : 'idle'];
     }),
   );

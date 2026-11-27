@@ -44,8 +44,16 @@ export type Spot = Box & { person: Person; at: [number, number]; face?: 'up' };
 /** A person's name, centred on x with its top at y; `away` under the empty desk of one who is not in the room. */
 export type Name = { person: Person; x: number; y: number; away?: boolean };
 /** A person drawn: its cell of the sheet (`col`, `row`) in `box`, the room's nearer pixels to lay over it as an image in `front`, and how
- *  far into the room it is (`z`), so the founder walks in front of or behind it. */
-export type Figure = { person: Person; col: number; row: number; box: Box; z: number; front?: { url: string } & Box };
+ *  far into the room it is (`z`), so the founder walks in front of or behind it. One at its desk turns on `neck`, at its chair's top. */
+export type Figure = {
+  person: Person;
+  col: number;
+  row: number;
+  box: Box;
+  z: number;
+  front?: { url: string } & Box;
+  neck?: [number, number];
+};
 /** Where a mark over a person goes: the middle of its head's top, or of its chair's when nobody sits at its desk. */
 export type Head = { key: string; x: number; y: number };
 /** `mine`: the founder's desk, with where its name goes. */
@@ -67,7 +75,7 @@ export type Cast = {
 /** What lies flat on the floor, under a standing person's feet. */
 export const FLAT = new Set(['floor', 'baseboard', 'rug', 'road', 'walk', 'grass', 'lane']);
 
-const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
+export const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
 /** A sheet row per person from its key, so it keeps it: the first from there on that no teammate has yet. */
 export function figuresOf(people: Person[]): Map<string, number> {
@@ -197,6 +205,8 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
         chair.y - OVER_CHAIR + tall,
         (i) => frame.meta[pic.id[i]]?.tag === tag || pic.depth[i] < near - 0.05,
       );
+      const figure = cast.figures.at(-1);
+      if (figure) figure.neck = [seen.x + seen.w / 2, seen.y + OVER_CHAIR];
       if (p.activity === 'you') cast.bubbles.push({ key: p.key, x: seen.x + seen.w - 8, y: seen.y - 6, w: BUBBLE_PX, h: BUBBLE_PX });
       cast.names.push({ person: p, x: chair.x + chair.w / 2, y: chair.y + chair.h + 1 });
       continue;
