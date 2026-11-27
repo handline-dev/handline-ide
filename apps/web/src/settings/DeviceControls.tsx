@@ -111,7 +111,17 @@ export function ModeControl({ row, setMode, busy }: { row: DeviceRow; setMode: (
 const again = 'To use it again it has to be paired anew.';
 const youAgain = 'This device included: it shows pairing next, with a code from the master.';
 
-export function confirmRevoke(rows: DeviceRow[], revoke: (id: string) => Promise<unknown>) {
+/** Runs `write` on each row in turn, past any that fail, then says in one toast how many failed and why the first did. */
+export async function eachOf(rows: DeviceRow[], write: (r: DeviceRow) => Promise<unknown>, what: string) {
+  const failed: unknown[] = [];
+  for (const r of rows) await write(r).catch((e: unknown) => failed.push(e));
+  if (!failed.length) return;
+  // All failed: the caller says why where it was asked (the confirm, or a toast).
+  if (failed.length === rows.length) throw failed[0];
+  toast(`${failed.length} of ${rows.length} could not be ${what}: ${String(failed[0])}`, { tone: 'warning' });
+}
+
+export function confirmRevoke(rows: DeviceRow[], revoke: (id: string) => Promise<unknown>, done?: () => void) {
   const one = rows.length === 1 ? rows[0]! : null;
   const here = rows.some((r) => r.here);
   // This device goes last, so the others are revoked before it loses its access.
@@ -122,7 +132,8 @@ export function confirmRevoke(rows: DeviceRow[], revoke: (id: string) => Promise
     confirmText: 'Revoke',
     danger: true,
     run: async () => {
-      for (const r of order) await revoke(r.id);
+      await eachOf(order, (r) => revoke(r.id), 'revoked');
+      done?.();
       // The open connection outlives the token; a reload meets the refusal and shows pairing.
       if (here) location.reload();
     },

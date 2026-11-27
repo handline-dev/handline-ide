@@ -142,7 +142,7 @@ describe('Devices', () => {
     await act(async () => at('bob-mac').querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
     expect(document.querySelector('[aria-label="Selection"]')!.textContent).toContain('2 selected');
     const bar = document.querySelector('[aria-label="Selection"]')!;
-    await act(async () => [...bar.querySelectorAll('button')].find((b) => b.textContent === 'Pause')!.click());
+    await act(async () => [...bar.querySelectorAll('button')].find((b) => b.textContent === 'Pause 1')!.click());
     // bob-mac is another person's: only studio is set.
     expect(setMode.mock.calls.map(([r, m]) => [r.id, m])).toEqual([['studio', 'pause']]);
   });
