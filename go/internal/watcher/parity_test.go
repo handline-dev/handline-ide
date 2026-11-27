@@ -221,7 +221,7 @@ func TestGoAndPythonWriteTheSameRowsForTheSameChatChanges(t *testing.T) {
 			run("INSERT INTO events(ts, agent, kind, payload) VALUES(5, 'bob', 'task_begin', '{\"task_id\":1}')")
 			run(pb, "bob", 6, 6)
 			run("UPDATE prompt_blocks SET gone_at = 9 WHERE id = 1")
-			run("UPDATE agent_view SET view = ? WHERE agent = 'bob'", `{"name":"bob","state":"running","state_since":"x","blocker":"b"}`)
+			run("UPDATE agent_view SET view = ? WHERE agent = 'bob'", `{"name":"bob","state":"running","state_since":"x","state_detail":"b"}`)
 		})
 	if len(py) != len(events) || len(py) < 8 {
 		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))

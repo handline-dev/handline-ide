@@ -135,12 +135,6 @@ func detailLines(t obj, now float64, home string) []string {
 	if given(t, "evidence") {
 		out = append(out, fmt.Sprintf("done %s: %s", stamp(t["done"]), str(t, "evidence")))
 	}
-	if r, ok := t["report"].(obj); ok {
-		out = append(out, fmt.Sprintf("answered %s: %s", stamp(r["at"]), str(r, "evidence")))
-		if a, ok := r["accepted"].(obj); ok {
-			out = append(out, fmt.Sprintf("accepted %s by %s: closes when PR #%d merges", stamp(a["at"]), str(a, "by"), num(t, "pr")))
-		}
-	}
 	if r, ok := t["result"].(obj); ok {
 		out = append(out, resultLines(r, num(t, "id"), home)...)
 	}
