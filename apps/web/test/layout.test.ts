@@ -330,6 +330,13 @@ describe("an agent's own tab", () => {
     expect(labelOf('@b8e953a2/chat:a14', () => 'town')).toBe('town chat');
   });
 
+  it('opens a task from a joined chat in that cluster, whichever workspace is on screen', async () => {
+    const { opensIn } = await import('#src/connection/clusters.tsx');
+    expect(opensIn('b8e953a2', 'task:9720')).toBe('@b8e953a2/task:9720');
+    expect(opensIn('b8e953a2', '@b8e953a2/task:9720')).toBe('@b8e953a2/task:9720');
+    expect(opensIn('', 'task:9720')).toBe('task:9720');
+  });
+
   it('is opened naming the agent it was asked from, so focusing it never leaves it with no agent to draw', async () => {
     const { openFrom } = await import('#src/Workspace.tsx');
     const root = initialChat();

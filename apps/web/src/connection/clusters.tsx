@@ -207,9 +207,12 @@ export const SpaceCluster = createContext('');
 
 /** What a control opens, as a tab of the workspace on screen: one of another cluster carries its cluster (`@<cluster>/<kind>`). */
 export function useOpensHere<T extends string | null>(opens: T): T {
-  const cluster = useCluster();
-  const space = useContext(SpaceCluster);
-  return (opens && cluster !== space ? spaceOf(cluster, opens) : opens) as T;
+  // Always, whatever workspace is on screen: that one follows the focused tab, so a tab left bare would read this Mac's board once it
+  // has the focus itself.
+  return opensIn(useCluster(), opens);
 }
+/** `opens` read from `cluster` ('' this Mac): a joined one's carries `@<cluster>/`, once. */
+export const opensIn = <T extends string | null>(cluster: string, opens: T): T =>
+  (opens && cluster && !splitSpace(opens).cluster ? spaceOf(cluster, opens) : opens) as T;
 
 scopeModals((cluster, node) => <InCluster id={cluster}>{node}</InCluster>);

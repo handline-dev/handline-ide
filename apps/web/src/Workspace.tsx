@@ -5,7 +5,7 @@ import { LocatedTab } from '#src/chat/Located.tsx';
 import { Changes } from '#src/changes/Changes.tsx';
 import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
 import { TaskTab } from '#src/tools/TaskTab.tsx';
-import { SpaceCluster, TabScope, spaceOf, tabIn } from '#src/connection/clusters.tsx';
+import { InCluster, SpaceCluster, TabScope, spaceOf, splitSpace, tabIn } from '#src/connection/clusters.tsx';
 import { PlanTab } from '#src/tools/Story.tsx';
 import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { useTabKeys } from '#src/layout/tabKeys.ts';
@@ -214,6 +214,7 @@ function PaneView({
             tabs={pane.tabs.map((t) => ({
               ...t,
               title: t.opens ? labelOf(t.opens, nameOf) : t.title,
+              ...joinedLabel(t.opens),
               icon: iconFor?.(t.opens) ?? iconOf(t.opens),
               dot: t.id === pane.active ? null : dotOf(t.opens, who),
               // The screen's last Empty tab is what closing leaves: it has no close to offer.
@@ -405,4 +406,20 @@ function useCloseShells(agent: string | null) {
     },
     [mutate],
   );
+}
+
+/** A joined cluster's tab (`@<cluster>/<opens>`) is named with that cluster's agents, as the sidebar names them. */
+function joinedLabel(opens: string | undefined) {
+  const { cluster, agent: inner } = splitSpace(opens ?? '');
+  if (!cluster) return {};
+  return {
+    label: (
+      <InCluster id={cluster}>
+        <JoinedTitle opens={inner} />
+      </InCluster>
+    ),
+  };
+}
+function JoinedTitle({ opens }: { opens: string }) {
+  return <>{labelOf(opens, useNameOf())}</>;
 }
