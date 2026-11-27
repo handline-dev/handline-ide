@@ -438,12 +438,14 @@ export type Watch = {
   until?: "ci" | "closed" | "landed" | "done";
 };
 
-/** A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty. */
+/** A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine (glab's for a GitLab host) and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty. */
 export type TaskPR = {
   number: number;
-  /** The repository it is in (owner/name): the task's pr_repo, else the GitHub origin of the folder the task's holder works in; null when neither is known (unavailable no_repo). */
+  /** The repository it is in (owner/name on GitHub, host/path on another host): the task's pr_repo, else the origin of the folder the task's holder works in; null when neither is known (unavailable no_repo). */
   repo: string | null;
-  /** Its page; null only when the repository is not known. */
+  /** Who reads it, as people name the host: GitHub or GitLab; the host's name when no reader reads it (unavailable unread_host); null when the repository is not known. Absent from a daemon that does not send it. */
+  host?: string | null;
+  /** Its page; null when the repository is not known or is on a host no reader reads. */
   url: string | null;
   /** closed is closed without a merge. null when it could not be read. */
   state: ("open" | "merged" | "closed") | null;
@@ -1010,7 +1012,7 @@ export interface TasksMethods {
   request_id: RequestId;
   /** The pull request the task's work merges in (`hl task edit T<n> --pr <n>`), on an open task. A link only: nothing waits on it; task.wait makes the task wait on one, and names it here too. */
   pr?: number;
-  /** The repository of pr as its host names it (owner/name), given with pr (`--repo`; hl sends the origin of the checkout it runs in). Without it the task keeps no repository for its pull request. */
+  /** The repository of pr as its host names it (owner/name on GitHub, host/path on another host), given with pr (`--repo`; hl sends the origin of the checkout it runs in). Without it the task keeps no repository for its pull request. */
   pr_repo?: string;
 }; result: Accepted };
   "task.plan": { params: {

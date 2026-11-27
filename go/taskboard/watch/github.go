@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
@@ -29,15 +28,18 @@ type GitHub struct {
 	// AuthWait is how long Unready lets `gh auth status` take; 0 is the package's AuthWait.
 	AuthWait time.Duration
 
-	mu   sync.Mutex
-	kept map[string]kept // what was last read, by pull request, by branch and for Unready
+	memo // what was last read, by pull request, by branch and for Unready
 }
 
+func (*GitHub) Name() string     { return "GitHub" }
 func (*GitHub) Untils() []string { return []string{"ci", "closed", "landed", "done"} }
 
-// PullOf is the pull request watch w is about, as its host names it: the repository (owner/name) and the number. ok is false for a watch
-// on anything else: an issue, or another vendor's target.
+// PullOf is the pull request watch w is about, as its host names it: the repository (owner/name on GitHub, host/path on GitLab) and the
+// number. ok is false for a watch on anything else: an issue, or another vendor's target.
 func PullOf(w db.Watch) (repo string, number int64, ok bool) {
+	if w.Vendor == "gitlab" {
+		return splitLab(w.Target)
+	}
 	repo, n, ok := splitTarget(w.Target)
 	if w.Vendor != "github" || w.Until == "done" || !ok {
 		return "", 0, false
@@ -320,8 +322,10 @@ func landedVerdict(p *Pull, since time.Time) (Verdict, string) {
 }
 
 // Lands is whether watch w passes only on a merge, so that its pass can close a task with the commit that merge made (task.wait then
-// done): a pull request waited on until landed.
-func Lands(w db.Watch) bool { return w.Vendor == "github" && w.Until == "landed" }
+// done): a pull request or merge request waited on until landed.
+func Lands(w db.Watch) bool {
+	return (w.Vendor == "github" || w.Vendor == "gitlab") && w.Until == "landed"
+}
 
 var mergedSha = regexp.MustCompile(`^merged ([0-9a-f]{7,64})$`)
 
@@ -358,15 +362,21 @@ func (g *GitHub) gh(ctx context.Context, args ...string) ([]byte, error) {
 	if g.Run != nil {
 		return g.Run(ctx, args...)
 	}
-	cmd := exec.CommandContext(ctx, "gh", args...)
-	cmd.WaitDelay = time.Second // a helper gh started must not hold the read open past its end
+	return runCLI(ctx, "gh", args...)
+}
+
+// runCLI runs a host's CLI and answers its standard output; a failure says the CLI's own words, and a run stopped at its time limit
+// says that, not the signal that ended it.
+func runCLI(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.WaitDelay = time.Second // a helper it started must not hold the read open past its end
 	out, err := cmd.Output()
-	if err != nil && ctx.Err() != nil { // stopped at its time limit: said as that, not as the signal that ended it
-		return nil, fmt.Errorf("gh %s: %w", args[0], ctx.Err())
+	if err != nil && ctx.Err() != nil {
+		return nil, fmt.Errorf("%s %s: %w", name, args[0], ctx.Err())
 	}
 	var exit *exec.ExitError
 	if errors.As(err, &exit) && len(exit.Stderr) > 0 {
-		return nil, fmt.Errorf("gh %s: %s", args[0], strings.TrimSpace(string(exit.Stderr)))
+		return nil, fmt.Errorf("%s %s: %s", name, args[0], strings.TrimSpace(string(exit.Stderr)))
 	}
 	return out, err
 }

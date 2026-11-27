@@ -66,7 +66,7 @@ func (s *Sweep) relayComments(ctx context.Context, vendors map[string]watch.Vend
 		if repo == "" {
 			repo = s.originOf(t.acting)
 		}
-		if repo == "" {
+		if !watch.RepoName(repo) { // none, or on a host other than GitHub, whose comments are not relayed
 			continue
 		}
 		rctx, cancel := context.WithTimeout(ctx, ReadWait)
@@ -171,5 +171,8 @@ func (s *Sweep) originOf(agent string) string {
 	if r.RC != 0 {
 		return ""
 	}
-	return watch.RemoteRepo(r.Stdout)
+	if origin := watch.OriginRepo(r.Stdout); watch.RepoName(origin) {
+		return origin
+	}
+	return ""
 }

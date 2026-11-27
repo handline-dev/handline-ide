@@ -41,7 +41,7 @@ type Vendor interface {
 }
 
 // Vendors are the tools a gate can watch, by the name a watch gives.
-var Vendors = map[string]Vendor{"github": &GitHub{}}
+var Vendors = map[string]Vendor{"github": &GitHub{}, "gitlab": &GitLab{}}
 
 // Parse is a watch made whole without reading anything: the vendor known, the until defaulted, and the target and label as the vendor
 // writes them.

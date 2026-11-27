@@ -40,4 +40,34 @@ export const PULL_SEEDS: Record<string, (d: FakeDaemon) => void> = {
     branch(1688, 901, 'checks_failing', 2);
     branch(1650, 880, 'merged');
   },
+  /** Pull requests off GitHub: a GitLab merge request read through glab, open with its pipeline failed and an approval owed; and a
+   * repository on a host nothing here reads, said plainly. */
+  'other-hosts': (d) => {
+    const repo = 'gitlab.com/handline-dev/handline';
+    Object.assign(d.tasks.find(1684), {
+      pr: 12,
+      pr_repo: repo,
+      pull: pull(12, {
+        repo,
+        host: 'GitLab',
+        url: `https://${repo}/-/merge_requests/12`,
+        review: 'review_required',
+        failing: ['pipeline'],
+      }),
+    });
+    const other = 'git.example.com/team/app';
+    Object.assign(d.tasks.find(1685), {
+      pr: 4,
+      pr_repo: other,
+      pull: pull(4, {
+        repo: other,
+        host: 'git.example.com',
+        url: null,
+        state: null,
+        base: null,
+        head_sha: null,
+        unavailable: { reason: 'unread_host', text: 'Pull requests on git.example.com are not read yet; this repository lands by push.' },
+      }),
+    });
+  },
 };

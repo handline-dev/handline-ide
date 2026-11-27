@@ -79,6 +79,10 @@ test('why a pull request is not shown names the machine whose gh it is, and what
   assert.match(pullUnavailableText({ reason: 'gh_missing', text: 'x' }), /\(gh\) is not installed on the machine Handline runs on/);
   assert.match(pullUnavailableText({ reason: 'gone', text: 'x' }), /no such pull request, or the gh login .* cannot see it/);
   assert.equal(pullUnavailableText({ reason: 'no_repo', text: 'Name it with: hl task edit' }), 'Name it with: hl task edit');
+  assert.equal(
+    pullUnavailableText({ reason: 'unread_host', text: 'Pull requests on git.example are not read yet; this repository lands by push.' }),
+    'Pull requests on git.example are not read yet; this repository lands by push.',
+  );
   assert.equal(pullUnavailableText({ reason: 'failed', text: 'gh pr: HTTP 502' }), 'Not shown: gh pr: HTTP 502');
   assert.equal(
     pullUnavailableText({ reason: 'gh_missing', text: 'x' }, 'Pull requests are not shown'),

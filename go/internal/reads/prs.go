@@ -2,11 +2,9 @@ package reads
 
 import "github.com/handline/handline/go/taskboard/watch"
 
-// githubRepo is owner/repo of a GitHub remote url (https or ssh), "" for anything else.
-func githubRepo(url string) string { return watch.RemoteRepo(url) }
-
-// originRepo is the GitHub repo of the origin of the recorded worktree ("<repo>::<path>" or a path), "" when it has none or is not on GitHub.
-func originRepo(recorded string) string {
+// originOf is the repository of the origin of the recorded worktree ("<repo>::<path>" or a path) as watch.OriginRepo names it: owner/name
+// on GitHub, host/path elsewhere; "" when it has none.
+func originOf(recorded string) string {
 	path := worktreePath(recorded)
 	if path == "" {
 		return ""
@@ -15,5 +13,13 @@ func originRepo(recorded string) string {
 	if !ok {
 		return ""
 	}
-	return githubRepo(out)
+	return watch.OriginRepo(out)
+}
+
+// originRepo is the GitHub repo (owner/name) of the origin of the recorded worktree, "" when it has none or is not on GitHub.
+func originRepo(recorded string) string {
+	if r := originOf(recorded); watch.RepoName(r) {
+		return r
+	}
+	return ""
 }

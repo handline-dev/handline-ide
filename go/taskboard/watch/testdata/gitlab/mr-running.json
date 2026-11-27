@@ -1,0 +1,18 @@
+{
+ "iid": 4591,
+ "state": "opened",
+ "draft": false,
+ "target_branch": "main",
+ "source_branch": "jmc-8665-fail-fast-429",
+ "sha": "80c9ab0db8985bb1b0ce47432c99dfe555f2c002",
+ "merge_commit_sha": null,
+ "squash_commit_sha": null,
+ "detailed_merge_status": "discussions_not_resolved",
+ "web_url": "https://gitlab.com/gitlab-org/cli/-/merge_requests/4591",
+ "updated_at": "2026-11-27T06:49:13.192Z",
+ "head_pipeline": {
+  "status": "running",
+  "sha": "d2f58a7061b7cc3cfa3b699cb52a0e8da03c90a5",
+  "ref": "refs/merge-requests/4591/merge"
+ }
+}

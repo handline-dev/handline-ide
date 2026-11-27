@@ -225,20 +225,20 @@ func (s *Sweep) closingOf(gate int64, w db.Watch, evidence string) (closing, err
 }
 
 // otherRepo is why a watched pull request's merge is not looked for in the folder at repo, "" when it may be: the pull request is in
-// one repository on GitHub and the folder's origin must be that one. A commit of another repository can be on this one's default
-// branch too (a fork, a mirror), and a merge there says nothing of the work here. An origin that is no github.com remote cannot be
-// told to be it. A watch that is not a GitHub pull request names no repository, and is not held to this.
+// one repository and the folder's origin must be that one. A commit of another repository can be on this one's default branch too (a
+// fork, a mirror), and a merge there says nothing of the work here. An origin that is no remote on a host cannot be told to be it. A
+// watch that is not a pull request names no repository, and is not held to this.
 func otherRepo(w db.Watch, repo, acting string) string {
 	pull, _, ok := watch.PullOf(w)
 	if !ok {
 		return ""
 	}
-	origin := watch.RemoteRepo(gitrun.Run(repo, "remote", "get-url", "origin").Stdout)
+	origin := watch.OriginRepo(gitrun.Run(repo, "remote", "get-url", "origin").Stdout)
 	switch {
 	case watch.SameRepo(pull, origin):
 		return ""
 	case origin == "":
-		return fmt.Sprintf("its pull request is in %s, and the origin of %s's repository here is not a github.com remote, so it cannot be told to be that one",
+		return fmt.Sprintf("its pull request is in %s, and the origin of %s's repository here is no remote on a host, so it cannot be told to be that one",
 			pull, addr.Ref(acting))
 	}
 	return fmt.Sprintf("its pull request is in %s, and %s's repository here is %s: a merge in one is not looked for in the other", pull, addr.Ref(acting), origin)

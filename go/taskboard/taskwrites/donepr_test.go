@@ -1,11 +1,14 @@
 package taskwrites
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
 // An agent's done whose words link to one pull request of its own repository's GitHub origin waits for that merge: a gate that closes
@@ -54,6 +57,49 @@ func TestADoneThatLinksItsOwnPullRequestWaitsForItsMerge(t *testing.T) {
 	} {
 		said(t, run(c.who, "task.done", "d"+c.tid, `,"task":`+c.tid+`,"evidence":"`+c.evidence+`"`))
 		if !done(c.tid).Valid {
+			t.Errorf("T%s is not closed now", c.tid)
+		}
+	}
+}
+
+// A done in a repository on GitLab waits on its merge request as on a pull request, when glab is logged in to that host here. On a host
+// no reader reads, a done that links to its request, or to anything on that host, closes now and says the merge is not watched and why.
+func TestADoneOnAnotherHostWaitsOnItsMergeRequestOrSaysItIsNotRead(t *testing.T) {
+	was := watch.Vendors["gitlab"]
+	watch.Vendors["gitlab"] = &watch.GitLab{Run: func(_ context.Context, args ...string) ([]byte, error) {
+		if args[0] == "auth" && args[3] != "gitlab.com" {
+			return nil, errors.New("glab auth: not logged in")
+		}
+		return nil, nil
+	}}
+	t.Cleanup(func() { watch.Vendors["gitlab"] = was })
+	home, lab, corp := t.TempDir(), t.TempDir(), t.TempDir()
+	gitIn(t, lab)("init", "-q")
+	gitIn(t, lab)("remote", "add", "origin", "git@gitlab.com:group/app.git")
+	gitIn(t, corp)("init", "-q")
+	gitIn(t, corp)("remote", "add", "origin", "https://git.corp.example/team/app.git")
+	sdb, _, run := reportEnvIn(t, home,
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(9, 'ship', 'w', 'boss', 1, 'boss'), "+
+			"(10, 'corp', 'mgr', 'boss', 1, 'boss'), (11, 'corp, no link', 'mgr', 'boss', 1, 'boss')")
+	teamtest.Set(t, home, "w", "repo", lab)
+	teamtest.Set(t, home, "mgr", "repo", corp)
+	s := said(t, run("w", "task.done", "d9", `,"task":9,"evidence":"opened https://gitlab.com/Group/app/-/merge_requests/12"`))
+	if !strings.Contains(s, "a merge closes T9 with its commit") {
+		t.Fatal(s)
+	}
+	if n := count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE owner = 'gate' AND watch_closes = 9 AND watch_vendor = 'gitlab' AND "+
+		"watch_target = 'gitlab.com/Group/app!12' AND watch_until = 'landed'"); n != 1 {
+		t.Fatalf("%d gates close T9", n)
+	}
+	for _, c := range []struct{ tid, evidence string }{
+		{"10", "opened https://git.corp.example/team/app/-/merge_requests/3"},
+		{"11", "opened https://git.corp.example/team/app/pulls/3"},
+	} {
+		s := said(t, run("mgr", "task.done", "d"+c.tid, `,"task":`+c.tid+`,"evidence":"`+c.evidence+`"`))
+		if !strings.Contains(s, "its pull request's merge is not watched (Pull requests on git.corp.example are not read yet; this repository lands by push.)") {
+			t.Errorf("T%s: %q", c.tid, s)
+		}
+		if n := count(t, sdb, "SELECT COUNT(*) FROM tasks WHERE id = "+c.tid+" AND done_evidence IS NOT NULL"); n != 1 {
 			t.Errorf("T%s is not closed now", c.tid)
 		}
 	}

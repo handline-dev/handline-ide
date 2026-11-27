@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -40,24 +41,33 @@ func TestARepositoryNameIsNeverAStepOfAPath(t *testing.T) {
 	}
 }
 
-// The repository of a remote is read from a github.com url in each form git writes one, and from nothing else; two names that differ
-// only in case are one repository.
-func TestARemotesRepositoryIsReadOnlyFromAGitHubURL(t *testing.T) {
+// The repository of a remote is owner/name for a github.com url in each form git writes one, host/path for one on any other host, and
+// nothing for a local path or a name that is a step of a path; two names that differ only in case are one repository.
+func TestARemotesRepositoryIsNamedAsItsHostNamesIt(t *testing.T) {
 	for url, want := range map[string]string{
-		"https://github.com/acme/app.git":         "acme/app",
-		"https://github.com/acme/app":             "acme/app",
-		"https://user@github.com/acme/app/":       "acme/app", // local-ref-ok: userinfo in a remote is the case
-		"git@github.com:acme/app.git\n":           "acme/app",
-		"ssh://git@github.com/acme/app":           "acme/app",
-		"https://github.com/../..":                "",
-		"https://github.com/acme/..":              "",
-		"https://github.example.com/acme/app.git": "",
-		"https://example.com/github.com/acme/app": "",
-		"/srv/git/acme/app.git":                   "",
-		"":                                        "",
+		"https://github.com/acme/app.git":          "acme/app",
+		"https://github.com/acme/app":              "acme/app",
+		"https://user@github.com/acme/app/":        "acme/app", // local-ref-ok: userinfo in a remote is the case
+		"git@github.com:acme/app.git\n":            "acme/app",
+		"ssh://git@github.com/acme/app":            "acme/app",
+		"https://GitHub.com/acme/app":              "acme/app",
+		"https://github.com/../..":                 "",
+		"https://github.com/acme/..":               "",
+		"https://github.com/acme":                  "",
+		"https://github.com/acme/app/extra":        "",
+		"https://github.example.com/acme/app.git":  "github.example.com/acme/app",
+		"git@github.com.evil.example:o/r.git":      "github.com.evil.example/o/r",
+		"https://gitlab.com/group/sub/app.git":     "gitlab.com/group/sub/app",
+		"ssh://git@git.corp.example:2222/team/app": "git.corp.example/team/app",
+		"git@gitlab.com:group/app.git":             "gitlab.com/group/app",
+		"https://gitlab.com/group":                 "",
+		"/srv/git/acme/app.git":                    "",
+		"file:///srv/git/acme/app.git":             "",
+		"../app.git":                               "",
+		"":                                         "",
 	} {
-		if got := RemoteRepo(url); got != want {
-			t.Errorf("RemoteRepo(%q) is %q, want %q", url, got, want)
+		if got := OriginRepo(url); got != want {
+			t.Errorf("OriginRepo(%q) is %q, want %q", url, got, want)
 		}
 	}
 	if !SameRepo("Acme/App", "acme/app") || SameRepo("acme/app", "acme/apps") || SameRepo("", "") {
@@ -65,11 +75,15 @@ func TestARemotesRepositoryIsReadOnlyFromAGitHubURL(t *testing.T) {
 	}
 }
 
-// A pull request link is owner/name#N, each once whatever its case, in order; a link to anything else, or a bad name, is none.
+// A pull request link is owner/name#N and a GitLab merge request link host/path!N, each once whatever its case, in the order the text
+// names them; a link to anything else, or a bad name, is none.
 func TestPullLinksAreThePullRequestsATextLinksTo(t *testing.T) {
-	got := PullLinks("see https://github.com/acme/app/pull/12, https://github.com/Acme/App/pull/12/files, " +
-		"https://github.com/acme/web/pull/3 and https://github.com/acme/app/issues/4 or https://github.com/./x/pull/5")
-	if len(got) != 2 || got[0] != "acme/app#12" || got[1] != "acme/web#3" {
+	got := PullLinks("see https://gitlab.example.com/team/sub/app/-/merge_requests/9/diffs, https://github.com/acme/app/pull/12, " +
+		"https://github.com/Acme/App/pull/12/files, https://GitLab.example.com/team/sub/app/-/merge_requests/9 " +
+		"https://github.com/acme/web/pull/3 and https://github.com/acme/app/issues/4 or https://github.com/./x/pull/5 " +
+		"https://gitlab.com/app/-/merge_requests/2 https://gitlab.com/g/app/-/issues/2")
+	want := []string{"gitlab.example.com/team/sub/app!9", "acme/app#12", "acme/web#3"}
+	if !slices.Equal(got, want) {
 		t.Fatalf("%q", got)
 	}
 }

@@ -3,30 +3,26 @@ package main
 import (
 	"fmt"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/handline/handline/go/internal/hlclient"
+	"github.com/handline/handline/go/taskboard/watch"
 )
 
-var githubOrigin = regexp.MustCompile(`github\.com[:/]([A-Za-z0-9._-]+/[A-Za-z0-9._-]+?)(?:\.git)?/?$`)
-
-// originRepo is owner/name of the GitHub origin of the checkout hl runs in, "" when there is none.
+// originRepo is the repository of the origin of the checkout hl runs in, as its pull requests are named (owner/name on GitHub,
+// host/path elsewhere); "" when there is none.
 func originRepo() string {
 	out, err := exec.Command("git", "remote", "get-url", "origin").Output()
 	if err != nil {
 		return ""
 	}
-	if m := githubOrigin.FindStringSubmatch(strings.TrimSpace(string(out))); m != nil {
-		return m[1]
-	}
-	return ""
+	return watch.OriginRepo(string(out))
 }
 
 // taskWait is hl task wait T<n> (--on <vendor>:<target> | --pr <n> [--repo owner/name]) [--until <what>] [--then done] [-t <span>]: one
 // task.wait, which opens a gate on the target, blocks T<n> on it and, when doing, releases it, so its holder takes other work and T<n>
-// comes back to its queue when the gate opens. --pr is github:<origin repo>#<n>; --until defaults to the vendor's first (a PR's CI).
+// comes back to its queue when the gate opens. --pr is github:<origin repo>#<n> (gitlab:<host/path>!<n> off GitHub); --until defaults to the vendor's first (a PR's CI).
 // --then done, with --until landed, has the merge close T<n> with its commit in place of bringing it back.
 func taskWait(c *hlclient.Client, args []string) (int, bool) {
 	p, ok := parse(args, []string{"--on", "--pr", "--repo", "--until", "--then", "--timeout"}, nil, map[string]string{"-t": "--timeout"})
@@ -49,11 +45,11 @@ func taskWait(c *hlclient.Client, args []string) (int, bool) {
 		}
 		if !hasRepo {
 			if repo = originRepo(); repo == "" {
-				fmt.Println("hl task wait: this checkout has no GitHub origin; name the repo with --repo owner/name, or the target with --on")
+				fmt.Println("hl task wait: this checkout has no origin; name the repo with --repo owner/name, or the target with --on")
 				return 1, true
 			}
 		}
-		vendor, target = "github", fmt.Sprintf("%s#%d", repo, pr)
+		vendor, target = watch.PullTarget(repo, pr)
 	}
 	mutating(c, "wait")
 	if !asking(c, "make a task wait") {

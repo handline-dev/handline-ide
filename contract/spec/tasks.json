@@ -1859,7 +1859,7 @@
    },
    "TaskPR": {
     "type": "object",
-    "description": "A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty.",
+    "description": "A task's pull request as its host has it now (task.pr): read with the gh CLI's own login on the daemon's machine (glab's for a GitLab host) and kept about a minute, the same read a gate on it and its branch's verdict use. When it could not be read, unavailable says why and the facts are null or empty.",
     "properties": {
      "number": {
       "type": "integer"
@@ -1873,7 +1873,18 @@
         "type": "null"
        }
       ],
-      "description": "The repository it is in (owner/name): the task's pr_repo, else the GitHub origin of the folder the task's holder works in; null when neither is known (unavailable no_repo)."
+      "description": "The repository it is in (owner/name on GitHub, host/path on another host): the task's pr_repo, else the origin of the folder the task's holder works in; null when neither is known (unavailable no_repo)."
+     },
+     "host": {
+      "oneOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Who reads it, as people name the host: GitHub or GitLab; the host's name when no reader reads it (unavailable unread_host); null when the repository is not known. Absent from a daemon that does not send it."
      },
      "url": {
       "oneOf": [
@@ -1884,7 +1895,7 @@
         "type": "null"
        }
       ],
-      "description": "Its page; null only when the repository is not known."
+      "description": "Its page; null when the repository is not known or is on a host no reader reads."
      },
      "state": {
       "oneOf": [
@@ -5202,7 +5213,7 @@
      "required": false,
      "schema": {
       "type": "string",
-      "description": "The repository of pr as its host names it (owner/name), given with pr (`--repo`; hl sends the origin of the checkout it runs in). Without it the task keeps no repository for its pull request."
+      "description": "The repository of pr as its host names it (owner/name on GitHub, host/path on another host), given with pr (`--repo`; hl sends the origin of the checkout it runs in). Without it the task keeps no repository for its pull request."
      }
     }
    ],

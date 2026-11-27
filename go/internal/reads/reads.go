@@ -93,9 +93,10 @@ type Env struct {
 	// lifts the limit it is at now (0 when it is not); runsOutAt, when it reaches a limit at the current burn (0 when it does not or
 	// is not known); resetsAt, when that limit lifts. nil reads the usage files.
 	AccountWall func(account string, now int64) (blockedUntil, runsOutAt, resetsAt int64)
-	// GitHub reads a pull request for worktrees.list and task.pr; nil is the daemon's own reader (the github vendor a gate reads
+	// GitHub and GitLab read a pull request for worktrees.list and task.pr; nil is the daemon's own reader (the vendor a gate reads
 	// through), so one read of a pull request serves them all.
 	GitHub *watch.GitHub
+	GitLab *watch.GitLab
 	// Person is whose requests, asks and turns the reads are: the calling person (asCaller); "" is the owner.
 	Person  string
 	samples *usage.SampleCache // the outlook's usage_samples, held between reads

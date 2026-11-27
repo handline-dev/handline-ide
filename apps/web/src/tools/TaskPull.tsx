@@ -1,4 +1,4 @@
-// A task's pull request, on the task page: where it stands on GitHub, the checks that failed by name, the review's decision, whether
+// A task's pull request, on the task page: where it stands on its host, the checks that failed by name, the review's decision, whether
 // its merge closes the task, and a link out. Nothing for a task that names none. What could not be read is said in a line, never left
 // as an empty box, and so is a read the daemon did not answer.
 import { pullAgainMs, pullChecks, pullReview, pullState, pullUnavailableText } from '@handline/app-core';
@@ -18,6 +18,7 @@ export function TaskPull({ t }: { t: TaskDetail }) {
   const review = pr ? pullReview(pr) : null;
   const checks = pr ? pullChecks(pr) : [];
   const where = pr?.repo ?? t.pr_repo;
+  const offHost = pr?.unavailable?.reason === 'unread_host' ? pr.unavailable : null;
   return (
     <section aria-label="Pull request" className="flex items-start gap-2 text-sm">
       <GitPullRequest size={14} className="mt-0.5 shrink-0 text-muted" />
@@ -26,6 +27,11 @@ export function TaskPull({ t }: { t: TaskDetail }) {
           <span className="font-medium text-fg">PR #{t.pr}</span>
           {where && <span className="min-w-0 truncate text-muted">{where}</span>}
           {state && <span className={`font-medium ${PULL_TONE[state.tone]}`}>{state.text}</span>}
+          {offHost && (
+            <span className="font-medium text-muted" title={pullUnavailableText(offHost)}>
+              Not tracked
+            </span>
+          )}
           {pr?.state === 'merged' && pr.merge_sha && <span className="font-mono text-xs text-muted">{pr.merge_sha.slice(0, 7)}</span>}
           <span className="flex-1" />
           {pr?.url && (
@@ -35,7 +41,7 @@ export function TaskPull({ t }: { t: TaskDetail }) {
               rel="noreferrer"
               className="flex shrink-0 items-center gap-1 rounded-sm text-accent outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent"
             >
-              Open on GitHub
+              Open on {pr.host ?? 'GitHub'}
               <ExternalLink size={12} />
             </a>
           )}
@@ -52,9 +58,9 @@ export function TaskPull({ t }: { t: TaskDetail }) {
           </p>
         )}
         {pr?.closes_task && pr.state === 'open' && <p className="text-muted">This task closes when it merges.</p>}
-        {pr?.unavailable && <p className="text-muted">{pullUnavailableText(pr.unavailable)}</p>}
+        {pr?.unavailable && !offHost && <p className="text-muted">{pullUnavailableText(pr.unavailable)}</p>}
         {failed && <p className="text-danger">Not read: {failed}</p>}
-        {read.isLoading && <p className="text-muted">Reading it from GitHub…</p>}
+        {read.isLoading && <p className="text-muted">Reading it…</p>}
       </div>
     </section>
   );

@@ -22,13 +22,17 @@ const (
 	branchPRAtOnce = 8
 )
 
-// github is the one reader of a pull request: the daemon's, which the gates read through too, unless the Env was given its own.
-func (e *Env) github() *watch.GitHub {
-	if e.GitHub != nil {
-		return e.GitHub
+// reader is the reader of repo's pull requests (watch.ReaderOf): the daemon's, which the gates read through too, unless the Env was given
+// its own; nil for a host none reads.
+func (e *Env) reader(ctx context.Context, repo string) watch.Reader {
+	gh, gl := e.GitHub, e.GitLab
+	if gh == nil {
+		gh, _ = watch.Vendors["github"].(*watch.GitHub)
 	}
-	g, _ := watch.Vendors["github"].(*watch.GitHub)
-	return g
+	if gl == nil {
+		gl, _ = watch.Vendors["gitlab"].(*watch.GitLab)
+	}
+	return watch.ReaderOf(ctx, repo, gh, gl)
 }
 
 // pullVerdict is the worktrees.list `pr` of a pull request: its number, url and what holds it. A check is failing by its latest run, as
@@ -54,10 +58,9 @@ func pullVerdict(p *watch.Pull) map[string]any {
 }
 
 // attachPRs sets "pr" on each worktree row (as worktrees.list builds them): its branch's pull request, nil for none, for a branch that is
-// its base, for a repo not on GitHub and for a gh that cannot answer. Lookups run a few at a time under one wait. It answers why gh
-// cannot be used on this machine (the reason and the words), "" when it can or when no lookup failed.
+// its base, for a repo on a host no reader reads and for a reader that cannot answer. Lookups run a few at a time under one wait. It
+// answers why gh cannot be used on this machine (the reason and the words), "" when it can or when no lookup failed.
 func (e *Env) attachPRs(rows []map[string]any) (reason, why string) {
-	gh := e.github()
 	ctx, cancel := context.WithTimeout(context.Background(), branchPRWait)
 	defer cancel()
 	var wg sync.WaitGroup
@@ -68,7 +71,7 @@ func (e *Env) attachPRs(rows []map[string]any) (reason, why string) {
 		branch, _ := row["branch"].(string)
 		base, _ := row["base"].(string)
 		path, _ := row["path"].(string)
-		if gh == nil || branch == "" || branch == "HEAD" || branch == base {
+		if branch == "" || branch == "HEAD" || branch == base {
 			continue
 		}
 		wg.Add(1)
@@ -76,13 +79,19 @@ func (e *Env) attachPRs(rows []map[string]any) (reason, why string) {
 		go func() {
 			defer func() { <-slots; wg.Done() }()
 			ok, url := git(path, "remote", "get-url", "origin")
-			repo := githubRepo(url)
+			repo := watch.OriginRepo(url)
 			if !ok || repo == "" {
 				return
 			}
-			pr, err := gh.BranchPull(ctx, repo, branch)
+			r := e.reader(ctx, repo)
+			if r == nil {
+				return
+			}
+			pr, err := r.BranchPull(ctx, repo, branch)
 			if err != nil {
-				failed.Do(func() { reason, why = gh.Unready() })
+				if gh, isGH := r.(*watch.GitHub); isGH {
+					failed.Do(func() { reason, why = gh.Unready() })
+				}
 				return
 			}
 			if pr != nil { // a nil map in the row would not be a JSON null to every encoder
@@ -99,8 +108,8 @@ func unavailable(reason, text string) map[string]any {
 	return map[string]any{"reason": reason, "text": text}
 }
 
-// taskPR is task.pr: the task's pull request as its host has it now, read with this machine's gh login and kept about a minute; null
-// for a task that names none. What could not be read is said (unavailable), never left as an empty card.
+// taskPR is task.pr: the task's pull request as its host has it now, read with this machine's gh login (glab's for a GitLab host) and
+// kept about a minute; null for a task that names none. What could not be read is said (unavailable), never left as an empty card.
 func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 	tid, err := optInt(params, "task")
 	if err != nil || tid == nil {
@@ -118,7 +127,7 @@ func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 	}
 	number, repo := t.i("pr"), t.str("pr_repo")
 	if repo == "" { // a bare number is of the repository the task's holder works in
-		repo = originRepo(e.repoOf(t.str("acting")))
+		repo = originOf(e.repoOf(t.str("acting")))
 	}
 	// an open gate the task still waits on, asked to close it when the pull request merges (task.wait then done)
 	closes, err := queryOne(e.DB, "SELECT g.id FROM tasks g JOIN task_blocks b ON b.blocks_on = g.id AND b.task_id = g.watch_closes AND b.dormant = 0 "+
@@ -127,23 +136,25 @@ func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 		return nil, err
 	}
 	out := map[string]any{"number": number, "repo": nil, "url": nil, "state": nil, "draft": false, "base": nil, "review": nil,
-		"failing": []string{}, "waiting": 0, "passing": 0, "head_sha": nil, "merge_sha": nil, "closes_task": closes != nil, "unavailable": nil}
+		"failing": []string{}, "waiting": 0, "passing": 0, "head_sha": nil, "merge_sha": nil, "closes_task": closes != nil, "unavailable": nil,
+		"host": nil}
 	if repo == "" {
 		out["unavailable"] = unavailable("no_repo", fmt.Sprintf("The repository of this pull request is not known on this machine. "+
 			"Name it with: hl task edit T%d --pr %d --repo owner/name", *tid, number))
 		return out, nil
 	}
-	out["repo"], out["url"] = repo, fmt.Sprintf("https://github.com/%s/pull/%d", repo, number)
-	gh := e.github()
-	if gh == nil {
-		out["unavailable"] = unavailable("failed", "This daemon reads no pull requests.")
-		return out, nil
-	}
+	out["repo"] = repo
 	ctx, cancel := context.WithTimeout(context.Background(), branchPRWait)
 	defer cancel()
-	p, err := gh.Pull(ctx, repo, number)
+	r := e.reader(ctx, repo)
+	if r == nil {
+		out["host"], out["unavailable"] = watch.HostOf(repo), unavailable("unread_host", watch.UnreadHost(watch.HostOf(repo)))
+		return out, nil
+	}
+	out["host"], out["url"] = r.Name(), pullURL(repo, number)
+	p, err := r.Pull(ctx, repo, number)
 	if err != nil {
-		out["unavailable"] = unreadPull(gh, err)
+		out["unavailable"] = unreadPull(r, err)
 		return out, nil
 	}
 	out["url"], out["state"], out["draft"], out["failing"] = p.URL, p.State, p.Draft, append([]string{}, p.Failed()...)
@@ -156,18 +167,29 @@ func (e *Env) taskPR(_ *rpc.Conn, params map[string]any) (any, error) {
 	return out, nil
 }
 
+// pullURL is the page of pull request number of repo on its host.
+func pullURL(repo string, number int64) string {
+	if watch.RepoName(repo) {
+		return fmt.Sprintf("https://github.com/%s/pull/%d", repo, number)
+	}
+	return fmt.Sprintf("https://%s/-/merge_requests/%d", repo, number)
+}
+
 // unreadPull is why a read of a pull request failed, for the card: gh missing or logged out on this machine first, since that is what a
-// person can fix; then a pull request this login cannot see; then a read that ran out of time; then whatever gh said. A gh that is only
-// slow, or a GitHub that is down, is never said to be logged out: Unready answers nothing for those.
-func unreadPull(gh *watch.GitHub, err error) map[string]any {
-	if reason, why := gh.Unready(); reason != "" {
+// person can fix; then a pull request this login cannot see; then a read that ran out of time; then whatever the CLI said. A gh that is
+// only slow, or a GitHub that is down, is never said to be logged out: Unready answers nothing for those.
+func unreadPull(r watch.Reader, err error) map[string]any {
+	if reason, why := r.Unready(); reason != "" {
 		return unavailable(reason, why)
 	}
 	if errors.Is(err, watch.ErrGone) {
-		return unavailable("gone", "GitHub has no such pull request, or this machine's gh login cannot see it.")
+		if _, gh := r.(*watch.GitHub); gh {
+			return unavailable("gone", "GitHub has no such pull request, or this machine's gh login cannot see it.")
+		}
+		return unavailable("failed", fmt.Sprintf("%s has no such merge request, or this machine's glab login cannot see it.", r.Name()))
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return unavailable("failed", fmt.Sprintf("GitHub did not answer within %s.", branchPRWait))
+		return unavailable("failed", fmt.Sprintf("%s did not answer within %s.", r.Name(), branchPRWait))
 	}
 	said := []rune(strings.Join(strings.Fields(textsafe.Oneline(err.Error())), " "))
 	if len(said) > unreadMax {
