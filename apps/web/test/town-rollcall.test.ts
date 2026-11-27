@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
 import type { House, Person } from '#src/town/model.ts';
-import { doneToday, groupWords, rollCallOf } from '#src/town/rollcall.ts';
+import { countsOf, doneToday, groupWords, rollCallOf, teamLine } from '#src/town/rollcall.ts';
 
 const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0, cached: false });
 const house = (key: string, ...people: Person[]): House => ({ key, name: key, lead: null, people, working: 0, decisions: [] });
@@ -15,6 +15,28 @@ describe('the town roll call', () => {
     expect(call.you.map((c) => c.person.key)).toEqual(['copy']);
     expect(call.error.map((c) => c.person.key)).toEqual(['etl']);
     expect(call.held.map((c) => c.person.key)).toEqual(['ops']);
+  });
+  it("counts one team's groups in the strip's order, leaving out a group with nobody", () => {
+    const shop = house(
+      'shop',
+      person('a', 'you'),
+      person('b', 'working'),
+      person('c', 'waking'),
+      person('d', 'held'),
+      person('e', 'asleep'),
+    );
+    expect(countsOf(shop)).toEqual([
+      ['working', 2],
+      ['you', 1],
+      ['held', 1],
+    ]);
+    expect(countsOf(house('quiet', person('f', 'resting')))).toEqual([]);
+  });
+  it("says a team's counts in words, or that nobody is at work", () => {
+    expect(teamLine(house('shop', person('a', 'working'), person('b', 'you'), person('c', 'error')))).toBe(
+      '1 working · 1 waiting for you · 1 stopped',
+    );
+    expect(teamLine(house('quiet', person('f', 'asleep')))).toBe('Nobody at work');
   });
   it('says a count in words', () => {
     expect(groupWords('working', 0)).toBe('0 working');

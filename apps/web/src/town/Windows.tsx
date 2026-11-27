@@ -43,9 +43,10 @@ import {
 const CLOSES = 0.18;
 const SCENE = 'scene';
 
-type Shown = { show: (opens: string, title: string) => void; shows: (opens: string) => boolean };
-const TownShown = createContext<Shown>({ show: () => {}, shows: () => false });
-/** Opens a tab in the town's windows (a person clicked, the founder's desk), and says what a tab bar shows now. */
+/** `narrow`: the town is as narrow as a phone. */
+type Shown = { show: (opens: string, title: string) => void; shows: (opens: string) => boolean; narrow: boolean };
+const TownShown = createContext<Shown>({ show: () => {}, shows: () => false, narrow: false });
+/** Opens a tab in the town's windows (a person clicked, the founder's desk), says what a tab bar shows now and whether it is a phone's. */
 export const useTownShown = () => useContext(TownShown);
 
 /** Narrower than this, the town is a phone's: the dock goes under the picture. */
@@ -202,6 +203,7 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
   const shown: Shown = {
     show: open,
     shows: (opens) => !!paneShowing(w, opens),
+    narrow,
   };
   return (
     <TownShown.Provider value={shown}>
