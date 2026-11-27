@@ -1,19 +1,19 @@
-// Package yamlcompat reads the subset of YAML handline's config files use: nested maps, lists (of maps
-// too), comments, quoted strings, flow collections and YAML 1.1 booleans (yes/no, on/off). What it may not read as a YAML 1.1 reader does is a ConfigError,
-// never a guess: anchors, block scalars, merge keys, tabs, several documents, unbalanced flows, sexagesimals, dates, inf and nan, numbers
-// with underscores, double-quote escapes other than \\ and \", and a plain key a YAML 1.1 reader would not read as text. Values are nil, bool,
-// int64, float64, string, []any and map[string]any (a map's key order is not kept; Dump takes pairs in the order to write).
+// Package yamlcompat reads and writes Handline's config files through yaml.v3. Values are nil, bool, int64, float64, string,
+// []any and map[string]any; a map key must read as text. Dump writes only flat maps, in the order given.
 package yamlcompat
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
-	"unicode/utf8"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/handline/handline/go/kit/textsafe"
 )
@@ -25,89 +25,190 @@ func (e *ConfigError) Error() string { return e.Msg }
 
 func fail(format string, a ...any) error { return &ConfigError{fmt.Sprintf(format, a...)} }
 
-var unsupported = []string{"&", "*", "|", ">", "!!", "<<"}
-
 var (
-	trueWords  = set("true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON")
-	falseWords = set("false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF")
-	nullWords  = set("null", "Null", "NULL", "~")
-	// What Dump quotes: anything a YAML 1.1 reader might take for one of them, in any case, including y and n.
-	yTrue  = set("true", "yes", "on", "y")
-	yFalse = set("false", "no", "off", "n")
-)
-
-func set(xs ...string) map[string]bool {
-	m := map[string]bool{}
-	for _, x := range xs {
-		m[x] = true
-	}
-	return m
-}
-
-var (
-	sexagesimal = regexp.MustCompile(`^[-+]?[0-9][0-9_]*(:[0-5]?[0-9])+(\.[0-9_]*)?$`)
-	hexRe       = regexp.MustCompile(`^[-+]?0x[0-9a-fA-F]+$`)
-	binRe       = regexp.MustCompile(`^[-+]?0b[01]+$`)
-	octRe       = regexp.MustCompile(`^[-+]?0[0-7]+$`)
-	decRe       = regexp.MustCompile(`^[-+]?(0|[1-9][0-9]*)$`)
+	// What Dump quotes: anything a YAML 1.1 reader might take for a boolean or null, in any case.
+	yTrue  = map[string]bool{"true": true, "yes": true, "on": true, "y": true}
+	yFalse = map[string]bool{"false": true, "no": true, "off": true, "n": true}
+	// The YAML 1.1 boolean words a plain scalar reads as, in the three cases a 1.1 reader takes.
+	boolWords = map[string]bool{"yes": true, "Yes": true, "YES": true, "on": true, "On": true, "ON": true,
+		"no": false, "No": false, "NO": false, "off": false, "Off": false, "OFF": false}
+	// Prefixes that are YAML syntax at the start of a plain value: anchors, aliases, tags, block scalars, merge keys.
+	unsupported = []string{"&", "*", "|", ">", "!!", "<<"}
+	leadingZero = regexp.MustCompile(`^[-+]?0[0-9]+$`)
+	bigInt      = regexp.MustCompile(`^[-+]?[0-9]+$`)
 	floatRe     = regexp.MustCompile(`^([-+]?[0-9]+\.[0-9]*|\.[0-9]+)([eE][-+][0-9]+)?$`)
-	pyNumber    = regexp.MustCompile(`^(?:[-+]?0b[01_]+|[-+]?0[0-7_]+|[-+]?(?:0|[1-9][0-9_]*)|[-+]?0x[0-9a-fA-F_]+` +
-		`|[-+]?[0-9][0-9_]*\.[0-9_]*(?:[eE][-+][0-9]+)?|\.[0-9][0-9_]*(?:[eE][-+][0-9]+)?)$`)
-	infNan    = regexp.MustCompile(`^(?:[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$`)
-	timestamp = regexp.MustCompile(`^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}` +
-		`|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}` +
-		`(?:\.[0-9]*)?(?:[ \t]*(?:Z|[-+][0-9]{1,2}(?::[0-9]{2})?))?)$`)
 )
 
-func strip(s string) string { return strings.TrimFunc(s, unicode.IsSpace) }
-
-// closesAtEnd is whether the quote t opens with is first closed by its last character.
-func closesAtEnd(t string) bool {
-	quote := t[0]
-	for i := 1; i < len(t); {
-		ch := t[i]
-		if quote == '"' && ch == '\\' {
-			i += 2
-			continue
-		}
-		if ch == quote {
-			if quote == '\'' && i+1 < len(t) && t[i+1] == '\'' {
-				i += 2
-				continue
-			}
-			return i == len(t)-1
-		}
-		i++
-	}
-	return false
+// Pair is one key and value of a map, in order.
+type Pair struct {
+	Key string
+	Val any
 }
 
-// unquote is the text of a quoted scalar. Single quotes double a quote to write one; double quotes know only the two
-// escapes Dump writes, since any other is one this parser would read differently from a full YAML reader.
-func unquote(t string, line int) (string, error) {
-	body := t[1 : len(t)-1]
-	if t[0] == '\'' {
-		return strings.ReplaceAll(body, "''", "'"), nil
-	}
-	var out strings.Builder
-	for i := 0; i < len(body); {
-		r, w := utf8.DecodeRuneInString(body[i:])
-		if r == '\\' {
-			if i+1 >= len(body) || (body[i+1] != '"' && body[i+1] != '\\') {
-				esc := body[i:]
-				if len(esc) > 2 {
-					_, w2 := utf8.DecodeRuneInString(body[i+1:])
-					esc = body[i : i+1+w2]
-				}
-				return "", fail("line %d: escape %s in %s is not supported; use single quotes", line, msgQuote(esc), msgQuote(t))
-			}
-			i++
-			r, w = utf8.DecodeRuneInString(body[i:])
+// root is the one document of text, nil when it is empty.
+func root(text string) (*yaml.Node, error) {
+	dec := yaml.NewDecoder(strings.NewReader(text))
+	var doc yaml.Node
+	if err := dec.Decode(&doc); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, nil
 		}
-		out.WriteRune(r)
-		i += w
+		return nil, fail("%s", err)
 	}
-	return out.String(), nil
+	var more yaml.Node
+	if err := dec.Decode(&more); !errors.Is(err, io.EOF) {
+		return nil, fail("several documents in one file")
+	}
+	if len(doc.Content) == 0 {
+		return nil, nil
+	}
+	n := doc.Content[0]
+	if err := plainNode(n); err != nil {
+		return nil, err
+	}
+	if n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null" {
+		return nil, nil // `---`, `~` or `null` alone
+	}
+	return n, nil
+}
+
+// Parse reads one YAML document into plain values; an empty one is an empty map.
+func Parse(text string) (any, error) {
+	n, err := root(text)
+	if err != nil || n == nil {
+		return map[string]any{}, err
+	}
+	return value(n)
+}
+
+// ParsePairs reads a document whose top level is a map and gives its keys in the order the file has them, so a rewrite keeps
+// that order. ok is false when the top level is not a map.
+func ParsePairs(text string) (pairs []Pair, ok bool, err error) {
+	n, err := root(text)
+	if err != nil {
+		return nil, false, err
+	}
+	if n == nil {
+		return nil, true, nil
+	}
+	if n.Kind != yaml.MappingNode {
+		return nil, false, nil
+	}
+	err = eachKey(n, func(k string, v any) {
+		for i := range pairs {
+			if pairs[i].Key == k {
+				pairs[i].Val = v
+				return
+			}
+		}
+		pairs = append(pairs, Pair{k, v})
+	})
+	return pairs, err == nil, err
+}
+
+func eachKey(n *yaml.Node, put func(string, any)) error {
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		kn, vn := n.Content[i], n.Content[i+1]
+		if err := plainNode(kn); err != nil {
+			return err
+		}
+		_, isBool := boolWords[kn.Value]
+		if kn.Kind != yaml.ScalarNode || kn.ShortTag() != "!!str" || (isBool && kn.Style == 0) {
+			return fail("line %d: key %s is not read as text; quote it if you mean the text", kn.Line, msgQuote(kn.Value))
+		}
+		v, err := value(vn)
+		if err != nil {
+			return err
+		}
+		put(kn.Value, v)
+	}
+	return nil
+}
+
+// plainNode refuses anchors, aliases and explicit tags, which only some readers agree on.
+func plainNode(n *yaml.Node) error {
+	if n.Kind == yaml.AliasNode || n.Anchor != "" {
+		return fail("line %d: anchors and aliases are not read; write the value out", n.Line)
+	}
+	if n.Style&yaml.TaggedStyle != 0 {
+		return fail("line %d: tag %s is not read; write the value without it", n.Line, msgQuote(n.Tag))
+	}
+	return nil
+}
+
+func value(n *yaml.Node) (any, error) {
+	if err := plainNode(n); err != nil {
+		return nil, err
+	}
+	switch n.Kind {
+	case yaml.SequenceNode:
+		out := make([]any, 0, len(n.Content))
+		for _, c := range n.Content {
+			v, err := value(c)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, v)
+		}
+		return out, nil
+	case yaml.MappingNode:
+		m := map[string]any{}
+		err := eachKey(n, func(k string, v any) { m[k] = v })
+		return m, err
+	}
+	if b, ok := boolWords[n.Value]; ok && n.Style == 0 {
+		return b, nil
+	}
+	switch n.ShortTag() {
+	case "!!null":
+		return nil, nil
+	case "!!bool":
+		var b bool
+		err := n.Decode(&b)
+		return b, wrap(n, err)
+	case "!!int":
+		if leadingZero.MatchString(n.Value) {
+			return octalOrText(n)
+		}
+		var i int64
+		if err := n.Decode(&i); err != nil {
+			return nil, fail("line %d: %s is too large for this reader; quote it if you mean the string", n.Line, msgQuote(n.Value))
+		}
+		return i, nil
+	case "!!float":
+		if leadingZero.MatchString(n.Value) {
+			return octalOrText(n)
+		}
+		if bigInt.MatchString(n.Value) {
+			return nil, fail("line %d: %s is too large for this reader; quote it if you mean the string", n.Line, msgQuote(n.Value))
+		}
+		if !IsFloat(n.Value) {
+			return n.Value, nil // 1e3, .inf: a float needs a decimal point, as Dump writes one
+		}
+		var f float64
+		err := n.Decode(&f)
+		return f, wrap(n, err)
+	}
+	return n.Value, nil
+}
+
+// octalOrText reads a number with a leading zero as YAML 1.1 does: 010 is octal 8; 089 is no number, so it stays text.
+func octalOrText(n *yaml.Node) (any, error) {
+	i, err := strconv.ParseInt(n.Value, 8, 64)
+	switch {
+	case err == nil:
+		return i, nil
+	case errors.Is(err, strconv.ErrRange):
+		return nil, fail("line %d: %s is too large for this reader; quote it if you mean the string", n.Line, msgQuote(n.Value))
+	}
+	return n.Value, nil
+}
+
+func wrap(n *yaml.Node, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fail("line %d: %s", n.Line, err)
 }
 
 // msgQuote quotes a string for a message: single quotes (\' and \\ escaped), or double quotes when it holds a ' and no ".
@@ -123,535 +224,12 @@ func msgQuote(s string) string {
 	return q + s + q
 }
 
-func key(raw string, line int) (string, error) {
-	k := strip(raw)
-	if k != "" && (k[0] == '"' || k[0] == '\'') {
-		if !closesAtEnd(k) {
-			return "", fail("line %d: quoted key is not closed at its end: %s", line, msgQuote(k))
-		}
-		return unquote(k, line)
-	}
-	for _, u := range unsupported {
-		if strings.HasPrefix(k, u) {
-			return "", fail("line %d: key %s starts with %s, which is YAML syntax (an anchor, alias, tag, block scalar or merge key); quote it if you mean the text",
-				line, msgQuote(k), msgQuote(u))
-		}
-	}
-	got, err := scalar(k, line)
-	if err != nil {
-		return "", err
-	}
-	if s, ok := got.(string); !ok || s != k {
-		return "", fail("line %d: key %s is read as %s by PyYAML; quote it if you mean the text", line, msgQuote(k), valueText(got))
-	}
-	return k, nil
-}
-
-func valueText(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return "None"
-	case bool:
-		if x {
-			return "True"
-		}
-		return "False"
-	case string:
-		return msgQuote(x)
-	}
-	return fmt.Sprint(v)
-}
-
-func parseInt(sign, digits string, base int, tok string, line int) (any, error) {
-	n, err := strconv.ParseInt(digits, base, 64)
-	if err != nil {
-		return nil, fail("line %d: %s is too large for this reader; quote it if you mean the string", line, msgQuote(tok))
-	}
-	if sign == "-" {
-		n = -n
-	}
-	return n, nil
-}
-
-func splitSign(t string) (string, string) {
-	if t != "" && (t[0] == '-' || t[0] == '+') {
-		return t[:1], t[1:]
-	}
-	return "", t
-}
-
-func scalar(tok string, line int) (any, error) {
-	t := strip(tok)
-	if t == "" {
-		return nil, nil
-	}
-	if (strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]")) || (strings.HasPrefix(t, "{") && strings.HasSuffix(t, "}")) {
-		return flow(t, line)
-	}
-	if strings.HasPrefix(t, "[") || strings.HasPrefix(t, "{") || strings.HasSuffix(t, "]") || strings.HasSuffix(t, "}") {
-		return nil, fail("line %d: unbalanced flow collection: %s", line, msgQuote(t))
-	}
-	if t[0] == '"' || t[0] == '\'' {
-		if !closesAtEnd(t) {
-			return nil, fail("line %d: quoted scalar is not closed at its end: %s", line, msgQuote(t))
-		}
-		return unquote(t, line)
-	}
-	low := strings.ToLower(t)
-	switch {
-	case nullWords[t]:
-		return nil, nil
-	case trueWords[t]:
-		return true, nil
-	case falseWords[t]:
-		return false, nil
-	}
-	if low == "inf" || low == "-inf" || low == "+inf" || low == "nan" || infNan.MatchString(t) ||
-		(strings.Contains(t, "_") && pyNumber.MatchString(t)) || timestamp.MatchString(t) {
-		return nil, fail("line %d: %s is ambiguous across YAML parsers; quote it if you mean the string", line, msgQuote(t))
-	}
-	if sexagesimal.MatchString(t) {
-		return nil, fail("line %d: %s is a YAML 1.1 sexagesimal; quote it if you mean the string", line, msgQuote(t))
-	}
-	sign, digits := splitSign(t)
-	switch {
-	case hexRe.MatchString(t):
-		return parseInt(sign, digits[2:], 16, t, line)
-	case binRe.MatchString(t):
-		return parseInt(sign, digits[2:], 2, t, line)
-	case octRe.MatchString(t):
-		return parseInt(sign, digits, 8, t, line)
-	case decRe.MatchString(t):
-		return parseInt(sign, digits, 10, t, line)
-	case floatRe.MatchString(t):
-		f, err := strconv.ParseFloat(t, 64)
-		if err != nil {
-			return nil, fail("line %d: %s is not a number this reader takes", line, msgQuote(t))
-		}
-		return f, nil
-	}
-	if strings.ContainsAny(t, "[]{}") {
-		return nil, fail("line %d: unbalanced or stray bracket in value: %s", line, msgQuote(t))
-	}
-	return t, nil
-}
-
-// splitFlow splits a flow collection body on commas at nesting depth 0.
-func splitFlow(body string, line int) ([]string, error) {
-	var parts []string
-	var buf strings.Builder
-	depth, escaped := 0, false
-	var quote rune
-	for _, ch := range body {
-		if quote != 0 {
-			buf.WriteRune(ch)
-			switch {
-			case escaped:
-				escaped = false
-			case ch == '\\' && quote == '"':
-				escaped = true
-			case ch == quote:
-				quote = 0
-			}
-			continue
-		}
-		switch {
-		case ch == '"' || ch == '\'':
-			quote = ch
-			buf.WriteRune(ch)
-		case ch == '[' || ch == '{':
-			depth++
-			buf.WriteRune(ch)
-		case ch == ']' || ch == '}':
-			depth--
-			buf.WriteRune(ch)
-		case ch == ',' && depth == 0:
-			parts = append(parts, buf.String())
-			buf.Reset()
-		default:
-			buf.WriteRune(ch)
-		}
-	}
-	if quote != 0 {
-		return nil, fail("line %d: unterminated quote in flow collection: %s", line, msgQuote(body))
-	}
-	if depth != 0 {
-		return nil, fail("line %d: unbalanced brackets in flow collection: %s", line, msgQuote(body))
-	}
-	if tail := buf.String(); strip(tail) != "" || len(parts) > 0 {
-		parts = append(parts, tail)
-	}
-	for i := range parts {
-		parts[i] = strip(parts[i])
-	}
-	return parts, nil
-}
-
-func flow(t string, line int) (any, error) {
-	inner := t[1 : len(t)-1]
-	items, err := splitFlow(inner, line)
-	if err != nil {
-		return nil, err
-	}
-	if t[0] == '[' {
-		out := []any{}
-		for _, p := range items {
-			if p == "" {
-				continue
-			}
-			v, err := scalar(p, line)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, v)
-		}
-		return out, nil
-	}
-	out := newOMap()
-	for _, item := range items {
-		if item == "" {
-			continue
-		}
-		k, v, ok := splitKey(item)
-		if !ok {
-			return nil, fail("line %d: flow map entry is not 'key: value': %s", line, msgQuote(item))
-		}
-		kk, err := key(k, line)
-		if err != nil {
-			return nil, err
-		}
-		val, err := scalar(strip(v), line)
-		if err != nil {
-			return nil, err
-		}
-		out.Set(kk, val)
-	}
-	return out, nil
-}
-
-// splitKey splits 'key: value' at the first structural colon: one followed by whitespace or at the end. Colons inside quotes never separate.
-func splitKey(item string) (string, string, bool) {
-	var quote byte
-	escaped := false
-	for i := 0; i < len(item); i++ {
-		ch := item[i]
-		if quote != 0 {
-			switch {
-			case escaped:
-				escaped = false
-			case ch == '\\' && quote == '"':
-				escaped = true
-			case ch == quote:
-				quote = 0
-			}
-			continue
-		}
-		if ch == '"' || ch == '\'' {
-			quote = ch
-		} else if ch == ':' && (i+1 == len(item) || item[i+1] == ' ' || item[i+1] == '\t') {
-			return item[:i], item[i+1:], true
-		}
-	}
-	return "", "", false
-}
-
-// stripComment removes a trailing comment: a # starts one only at the start of the line or after whitespace.
-func stripComment(line string) string {
-	var out strings.Builder
-	var quote byte
-	escaped := false
-	for i := 0; i < len(line); i++ {
-		ch := line[i]
-		switch {
-		case quote != 0:
-			out.WriteByte(ch)
-			switch {
-			case escaped:
-				escaped = false
-			case ch == '\\' && quote == '"':
-				escaped = true
-			case ch == quote:
-				quote = 0
-			}
-		case ch == '"' || ch == '\'':
-			quote = ch
-			out.WriteByte(ch)
-		case ch == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
-			return strings.TrimRightFunc(out.String(), unicode.IsSpace)
-		default:
-			out.WriteByte(ch)
-		}
-	}
-	return strings.TrimRightFunc(out.String(), unicode.IsSpace)
-}
-
-type rowT struct {
-	n, indent int
-	body      string
-}
-
-func rowsOf(text string) ([]rowT, error) {
-	var out []rowT
-	emitted := false
-	for i, raw := range textsafe.SplitLines(text) {
-		n := i + 1
-		lead := raw[:len(raw)-len(strings.TrimLeftFunc(raw, unicode.IsSpace))]
-		if strings.Contains(lead, "\t") {
-			return nil, fail("line %d: tab used for indentation; YAML forbids it", n)
-		}
-		if strings.HasPrefix(strings.TrimLeftFunc(raw, unicode.IsSpace), "#") {
-			continue
-		}
-		line := stripComment(raw)
-		stripped := strip(line)
-		if stripped == "" {
-			continue
-		}
-		if strings.HasPrefix(stripped, "---") {
-			if emitted {
-				return nil, fail("line %d: multiple YAML documents; Handline reads exactly one", n)
-			}
-			continue
-		}
-		if stripped == "..." {
-			continue
-		}
-		emitted = true
-		out = append(out, rowT{n, utf8.RuneCountInString(line) - utf8.RuneCountInString(strings.TrimLeftFunc(line, unicode.IsSpace)), stripped})
-	}
-	return out, nil
-}
-
-// outsideQuotes is body with its quoted scalars removed: what is inside quotes is text whatever it holds.
-func outsideQuotes(body string) string {
-	var out strings.Builder
-	var quote rune
-	escaped := false
-	for _, ch := range body {
-		if quote != 0 {
-			switch {
-			case escaped:
-				escaped = false
-			case ch == '\\' && quote == '"':
-				escaped = true
-			case ch == quote:
-				quote = 0
-			}
-		} else if ch == '"' || ch == '\'' {
-			quote = ch
-		} else {
-			out.WriteRune(ch)
-		}
-	}
-	return out.String()
-}
-
-func check(n int, body string) error {
-	outside := outsideQuotes(body)
-	for _, bad := range unsupported {
-		if strings.Contains(outside, bad) {
-			return fail("line %d: bundled YAML parser does not support %s. Simplify the syntax.", n, msgQuote(bad))
-		}
-	}
-	return nil
-}
-
-// OMap is a parsed map with its keys in the order the file has them.
-type OMap struct {
-	Keys []string
-	M    map[string]any
-}
-
-func newOMap() *OMap { return &OMap{M: map[string]any{}} }
-
-// Set assigns a key; a new key goes last, one already there keeps its place.
-func (o *OMap) Set(k string, v any) {
-	if _, has := o.M[k]; !has {
-		o.Keys = append(o.Keys, k)
-	}
-	o.M[k] = v
-}
-
-// Parse reads one YAML document into plain values; an empty one is an empty map.
-func Parse(text string) (any, error) {
-	v, err := ParseOrdered(text)
-	if err != nil {
-		return nil, err
-	}
-	return plain(v), nil
-}
-
-// ParseOrdered is Parse with every map an *OMap, keys in file order.
-func ParseOrdered(text string) (any, error) {
-	rows, err := rowsOf(text)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return newOMap(), nil
-	}
-	v, idx, err := block(rows, 0, rows[0].indent)
-	if err != nil {
-		return nil, err
-	}
-	if idx != len(rows) {
-		return nil, fail("line %d: inconsistent indentation", rows[idx].n)
-	}
-	if v == nil {
-		return newOMap(), nil
-	}
-	return v, nil
-}
-
-func plain(v any) any {
-	switch x := v.(type) {
-	case *OMap:
-		m := make(map[string]any, len(x.M))
-		for k, val := range x.M {
-			m[k] = plain(val)
-		}
-		return m
-	case []any:
-		out := make([]any, len(x))
-		for i, e := range x {
-			out[i] = plain(e)
-		}
-		return out
-	}
-	return v
-}
-
-func isItem(body string) bool { return strings.HasPrefix(body, "- ") || body == "-" }
-
-func block(rows []rowT, i, indent int) (any, int, error) {
-	if i >= len(rows) {
-		return nil, i, nil
-	}
-	if isItem(rows[i].body) {
-		return seq(rows, i, indent)
-	}
-	return mapOf(rows, i, indent)
-}
-
-func seq(rows []rowT, i, indent int) (any, int, error) {
-	out := []any{}
-	for i < len(rows) {
-		n, ind, body := rows[i].n, rows[i].indent, rows[i].body
-		if ind < indent || !isItem(body) {
-			break
-		}
-		if ind > indent {
-			return nil, i, fail("line %d: list item indentation does not line up", n)
-		}
-		rest := ""
-		if strings.HasPrefix(body, "- ") {
-			rest = strip(body[2:])
-		}
-		if strings.HasPrefix(rest, "[") || strings.HasPrefix(rest, "{") {
-			v, err := scalar(rest, n)
-			if err != nil {
-				return nil, i, err
-			}
-			out = append(out, v)
-			i++
-			continue
-		}
-		hasKey := false
-		if rest != "" {
-			_, _, hasKey = splitKey(rest)
-		}
-		switch {
-		case hasKey:
-			// The item is a map: its first line is a map row at the item's own indent, then the more-indented lines under it.
-			synth := []rowT{{n, indent + 2, rest}}
-			j := i + 1
-			for j < len(rows) && rows[j].indent > indent {
-				synth = append(synth, rows[j])
-				j++
-			}
-			item, k, err := mapOf(synth, 0, indent+2)
-			if err != nil {
-				return nil, i, err
-			}
-			if k != len(synth) {
-				return nil, i, fail("line %d: could not parse list item", synth[k].n)
-			}
-			out = append(out, item)
-			i = j
-		case rest != "":
-			if err := check(n, rest); err != nil {
-				return nil, i, err
-			}
-			v, err := scalar(rest, n)
-			if err != nil {
-				return nil, i, err
-			}
-			out = append(out, v)
-			i++
-		default:
-			var child any
-			if i+1 < len(rows) {
-				var err error
-				if child, i, err = block(rows, i+1, rows[i+1].indent); err != nil {
-					return nil, i, err
-				}
-			} else {
-				i++
-			}
-			out = append(out, child)
-		}
-	}
-	return out, i, nil
-}
-
-func mapOf(rows []rowT, i, indent int) (any, int, error) {
-	out := newOMap()
-	for i < len(rows) {
-		n, ind, body := rows[i].n, rows[i].indent, rows[i].body
-		if ind < indent || isItem(body) {
-			break
-		}
-		if ind > indent {
-			return nil, i, fail("line %d: unexpected indentation", n)
-		}
-		k, rest, ok := splitKey(body)
-		if !ok {
-			return nil, i, fail("line %d: expected 'key: value' but found %s", n, msgQuote(body))
-		}
-		kk, err := key(k, n)
-		if err != nil {
-			return nil, i, err
-		}
-		rest = strip(rest)
-		var val any
-		switch {
-		case rest != "":
-			if err := check(n, rest); err != nil {
-				return nil, i, err
-			}
-			if val, err = scalar(rest, n); err != nil {
-				return nil, i, err
-			}
-			i++
-		case i+1 < len(rows) && rows[i+1].indent > indent:
-			if val, i, err = block(rows, i+1, rows[i+1].indent); err != nil {
-				return nil, i, err
-			}
-		case i+1 < len(rows) && rows[i+1].indent == indent && isItem(rows[i+1].body):
-			if val, i, err = seq(rows, i+1, indent); err != nil {
-				return nil, i, err
-			}
-		default:
-			i++
-		}
-		out.Set(kk, val)
-	}
-	return out, i, nil
-}
-
 // IsPlainText is whether name is read back as itself wherever Handline writes one unquoted: as a block key, as a value, as a list
-// item and as a flow key.
+// item and as a flow key. A word a YAML 1.1 reader takes for a boolean or null is not.
 func IsPlainText(name string) bool {
+	if low := strings.ToLower(name); yTrue[low] || yFalse[low] || low == "null" || low == "~" {
+		return false
+	}
 	shapes := []struct {
 		src  string
 		want any
@@ -670,17 +248,8 @@ func IsPlainText(name string) bool {
 	return true
 }
 
-func readsBackAsOther(text string) bool {
-	v, err := scalar(text, 0)
-	if err != nil {
-		return true
-	}
-	s, ok := v.(string)
-	return !ok || s != text
-}
-
-// floatRepr is a float in its shortest round-trip digits: plain with at least one decimal (1.0) for exponents -4 to 15,
-// else mantissa and a two-digit signed exponent (1e+16, 1.5e-05).
+// floatRepr is the shortest decimal that reads back as f, with ".0" when whole; an exponent below -4 or from 16 is written as
+// mantissa, "e", sign and at least two digits (1e+16).
 func floatRepr(f float64) string {
 	e := strconv.FormatFloat(f, 'e', -1, 64)
 	mant, exps, _ := strings.Cut(e, "e")
@@ -699,10 +268,10 @@ func floatRepr(f float64) string {
 	return fmt.Sprintf("%se%s%02d", mant, sign, exp)
 }
 
-// floatText is a float as YAML 1.1 reads it back as a float: an exponent only after a decimal point.
+// floatText is a float as a YAML 1.1 reader also reads back as a float: an exponent only after a decimal point.
 func floatText(f float64) (string, error) {
 	if math.IsNaN(f) || math.IsInf(f, 0) {
-		return "", fail("dump does not write %v: no form both parsers read back", f)
+		return "", fail("dump does not write %v", f)
 	}
 	text := floatRepr(f)
 	mant, exp, has := strings.Cut(text, "e")
@@ -723,12 +292,6 @@ func anyUnsafe(s string) bool {
 		}
 	}
 	return false
-}
-
-// Pair is one key and value of a map Dump writes, in order.
-type Pair struct {
-	Key string
-	Val any
 }
 
 // textList is a list of text with each item quoted for a flow list; ok is false for anything else.
@@ -757,8 +320,9 @@ func normal(v any) any {
 	return v
 }
 
-// Dump serializes a shallow config map back to YAML: a flat map of scalars and one-line lists of text, nothing deeper. Every line is
-// read back through Parse before it is kept, so a value the read path would refuse or change is an error here, at the write.
+// Dump writes a flat map back to YAML: scalars and one-line flow lists of text, nothing deeper. A list stays on one line
+// (`key: [a, b]`) because the desktop app reads network_addresses from config.yaml by that shape. Every line is read back
+// through Parse before it is kept, so a value the read path would refuse or change is an error here, at the write.
 func Dump(data []Pair) (string, error) {
 	var lines []string
 	for _, p := range data {
@@ -782,7 +346,7 @@ func Dump(data []Pair) (string, error) {
 		case nil:
 			candidates = []string{"null"}
 		case bool:
-			candidates = []string{map[bool]string{true: "true", false: "false"}[v]}
+			candidates = []string{strconv.FormatBool(v)}
 		case int64:
 			candidates = []string{strconv.FormatInt(v, 10)}
 		case float64:
@@ -798,9 +362,9 @@ func Dump(data []Pair) (string, error) {
 				return "", fail("dump does not write control characters (key %s)", msgQuote(p.Key))
 			}
 			low := strings.ToLower(s)
-			needs := strip(s) != s || s == "" || yTrue[low] || yFalse[low] || low == "null" || low == "~" ||
-				strings.ContainsRune("-?!%@`=", rune(s[0])) || hasAnyPrefix(s, unsupported) ||
-				strings.ContainsAny(s, `:#[]{},&*|>'"`) || readsBackAsOther(s)
+			needs := strings.TrimFunc(s, unicode.IsSpace) != s || s == "" || yTrue[low] || yFalse[low] || low == "null" ||
+				low == "~" || strings.ContainsRune("-?!%@`=", rune(s[0])) || hasAnyPrefix(s, unsupported) ||
+				strings.ContainsAny(s, `:#[]{},&*|>'"`) || IsFloat(s)
 			if needs {
 				candidates = []string{quoted(s)}
 			} else {
@@ -839,22 +403,5 @@ func hasAnyPrefix(s string, prefixes []string) bool {
 // IsFloat is whether a plain scalar reads as a float: it needs a decimal point, so 149628e2 is a string.
 func IsFloat(s string) bool { return floatRe.MatchString(s) }
 
-// FloatRepr is floatRepr: shortest round-trip digits, 1.0 for a whole number, 1e+16 past 15 digits.
+// FloatRepr is f as floatRepr writes it.
 func FloatRepr(f float64) string { return floatRepr(f) }
-
-// ParsePairs reads a document whose top level is a map and gives its keys in the order the file has them, so a rewrite keeps
-// that order. ok is false when the top level is not a map.
-func ParsePairs(text string) (pairs []Pair, ok bool, err error) {
-	v, err := ParseOrdered(text)
-	if err != nil {
-		return nil, false, err
-	}
-	o, isMap := v.(*OMap)
-	if !isMap {
-		return nil, false, nil
-	}
-	for _, k := range o.Keys {
-		pairs = append(pairs, Pair{k, plain(o.M[k])})
-	}
-	return pairs, true, nil
-}

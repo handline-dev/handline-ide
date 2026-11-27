@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/team"
-	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
 // The schedules spec: read, validated and numbered.
@@ -131,13 +130,7 @@ func load(home, agent string) ([]Schedule, error) {
 	}
 	out := []Schedule{}
 	for i, it := range list {
-		var m map[string]any
-		switch x := it.(type) {
-		case map[string]any:
-			m = x
-		case *yamlcompat.OMap:
-			m = x.M
-		}
+		m, _ := it.(map[string]any)
 		_, hasC := m["cron"]
 		_, hasM := m["message"]
 		if len(m) != 2 || !hasC || !hasM {

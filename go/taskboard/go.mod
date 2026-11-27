@@ -9,6 +9,8 @@ require (
 	github.com/handline/handline/go/protocol v0.0.0
 )
 
+require gopkg.in/yaml.v3 v3.0.1 // indirect
+
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
