@@ -153,6 +153,11 @@ export class TaskStore {
   waitsOn(agent: string, current: number | null) {
     return waitsOn(this.rows, agent, current, (id) => this.open(id));
   }
+  /** The steps done and in all of an open task, as the daemon puts them on its holder's view. */
+  steps(id: number | null) {
+    const todo = id === null || !this.open(id) ? undefined : this.rows.find((r) => r.id === id)?.todo;
+    return todo ? { done: todo.done, total: todo.total } : null;
+  }
   protected open(id: number): boolean {
     const t = this.rows.find((r) => r.id === id);
     return !!t && t.state !== 'done' && t.state !== 'discarded';

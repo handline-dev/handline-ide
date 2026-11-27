@@ -314,6 +314,31 @@
       ],
       "description": "What the agent waits on when it is not working and every task it holds waits: its open tasks that are not drafts, its current task, and those it acts on as a turn. A blocker the agent holds itself is not named: what that one waits on is. null when it is working, holds nothing, or holds a task that does not wait. agent.changed sends it again when a blocker ends, a new one starts, or the agent starts working. Absent from a daemon that does not serve it."
      },
+     "steps": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "done": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "total": {
+          "type": "integer",
+          "minimum": 1
+         }
+        },
+        "required": [
+         "done",
+         "total"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The steps done and in all of `task`, as its holder last gave them with a progress note (Task.todo); null without a task or a count. agent.changed sends it again when the count moves. Absent from a daemon that does not serve it."
+     },
      "wall": {
       "oneOf": [
        {

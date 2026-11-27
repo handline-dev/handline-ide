@@ -3,10 +3,12 @@ package watcher
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
 )
@@ -122,6 +124,15 @@ func TestAgentChangedCarriesTheListedRowWithItsQueueCount(t *testing.T) {
 	a.Scan(d, emit)
 	if v := row(1); v["task_count"] != float64(2) {
 		t.Fatalf("a queued task sends the row again with its count: %v", v)
+	}
+	exec(t, d, "UPDATE agent_view SET view = ? WHERE agent = 'a1'", `{"name":"bob","state":"running","task":{"id":1,"title":"a"}}`)
+	a.Scan(d, emit)
+	if err := db.SetTaskTodo(d, 1, &db.TaskTodo{By: "a1", Done: 2, Total: 5, Current: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	a.Scan(d, emit)
+	if v := row(3); fmt.Sprint(v["steps"]) != "map[done:2 total:5]" {
+		t.Fatalf("a new step count sends the row again with it: %v", v)
 	}
 }
 

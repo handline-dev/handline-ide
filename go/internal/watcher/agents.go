@@ -26,7 +26,7 @@ type Agents struct {
 func (*Agents) Name() string { return "agents" }
 
 // Tables are those an agents.list row is read from that count their changes: the stored view, the roster, and the board its queue
-// count, ready and founder fields come from (events: whether a task has begun), so a task that joins or leaves an agent's queue sends
+// count, ready and founder fields come from (events: whether a task has begun; meta: a task's step count), so a task that joins or leaves an agent's queue sends
 // its row again. What no counted table holds shows at the next change of another: a role or review level (the app reads the list
 // again after it sets one), and the wall and fire, which follow usage and the clock.
 func (*Agents) Tables() []string {

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 )
@@ -42,4 +43,28 @@ func ReadTaskTodo(q Q, tid int64) (*TaskTodo, error) {
 		return nil, nil // a row this code did not write is no count
 	}
 	return &t, nil
+}
+
+// TaskTodos is every count kept, by task, in one read.
+func TaskTodos(q Q) (map[int64]*TaskTodo, error) {
+	rows, err := q.Query("SELECT name, value FROM meta WHERE name >= 'progress-todo:' AND name < 'progress-todo;'") // ';' follows ':'
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]*TaskTodo{}
+	for rows.Next() {
+		var name string
+		var value sql.NullString
+		if err := rows.Scan(&name, &value); err != nil {
+			return nil, err
+		}
+		var tid int64
+		var t TaskTodo
+		if _, err := fmt.Sscanf(name, "progress-todo:%d", &tid); err != nil || json.Unmarshal([]byte(value.String), &t) != nil {
+			continue // a row this code did not write is no count
+		}
+		out[tid] = &t
+	}
+	return out, rows.Err()
 }

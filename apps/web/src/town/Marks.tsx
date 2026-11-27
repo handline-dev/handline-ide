@@ -2,7 +2,7 @@
 // it): an hourglass over one on hold, a red warning over one stopped on a fault, Zzz over the desk of one asleep; over one at work the
 // steps done of its task as a bar; and a thought bubble that pops with the new work when it changes. All vector, in picture pixels, so it stays crisp however large the room is drawn, and none of it takes
 // a click. Whoever is walking gets nothing until it sits, as with the bubbles of those waiting for the founder.
-import { Hooks, useTasks } from '@handline/app-data';
+import { useTasks } from '@handline/app-data';
 import { useMovers, type Crowd } from '#src/town/crowd.ts';
 import { markOf, papersTip, queueOf, stepsOf, type At, type Mark } from '#src/town/marks.ts';
 import type { Person } from '#src/town/model.ts';
@@ -12,8 +12,6 @@ import { POP_MS, usePops, type Pop } from '#src/town/pops.ts';
 
 /** A halo's width for text `size` tall: thinner than the names', whose letters are bolder. */
 const HALO = 2 / 11;
-/** How often a task's steps are read again: a new count comes with no notice of its own. */
-const STEPS_MS = 30_000;
 
 let pen: CanvasRenderingContext2D | null | undefined;
 let family = '';
@@ -77,10 +75,8 @@ function StateMark({ mark, head }: { mark: Mark; head: At }) {
   );
 }
 
-/** The steps done of `task` as a thin bar with the count beside it, centred over (x, y); nothing while the task has no count. */
-function Steps({ task, x, y }: { task: number; x: number; y: number }) {
-  const steps = stepsOf(Hooks.useTaskGet({ task }, { refetchMs: STEPS_MS }).data?.todo);
-  if (!steps) return null;
+/** The steps done of a person's task as a thin bar with the count beside it, centred over (x, y). */
+function Steps({ steps, x, y }: { steps: { text: string; part: number }; x: number; y: number }) {
   // One light pill holds the bar and the count, so both read over a lit screen as over the floor.
   const [bar, tall, size, pad] = [13, 2.4, 4.8, 1.6];
   const [w, h] = [pad + bar + 1.4 + widthOf(steps.text, size, 700) + pad, size + 1.6];
@@ -132,8 +128,9 @@ export function Marks({ drawn, crowd, people, scale }: { drawn: Drawn; crowd: Cr
         const p = byKey.get(h.key);
         const mark = p && markOf(p.activity);
         if (mark) return <StateMark key={h.key} mark={mark} head={h} />;
-        if (p?.activity !== 'working' || !p.task || pops.some((pop) => pop.key === h.key)) return null;
-        return <Steps key={h.key} task={p.task} x={h.x} y={h.y - 3} />;
+        const steps = p?.activity === 'working' && stepsOf(p.steps);
+        if (!steps || pops.some((pop) => pop.key === h.key)) return null;
+        return <Steps key={h.key} steps={steps} x={h.x} y={h.y - 3} />;
       })}
       {pops.map((pop) => {
         const head = seated.find((h) => h.key === pop.key);

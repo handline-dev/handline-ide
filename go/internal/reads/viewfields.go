@@ -1,6 +1,7 @@
 package reads
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -19,7 +20,7 @@ type Wall struct {
 }
 
 // viewFields are the fields of an agent's view that are read from the board, the team files and the lifecycle, not stored with it
-// (AgentView kind, task_role, task_count, ready, waits_on, wall, fire, cache_ignored, config_error). One builder for agents.list, agent.get and the working line.
+// (AgentView kind, task_role, task_count, ready, waits_on, steps, wall, fire, cache_ignored, config_error). One builder for agents.list, agent.get and the working line.
 type viewFields struct {
 	taskCount map[string]int
 	// ready is the agents whose current task is queued and held by no open blocker.
@@ -31,6 +32,8 @@ type viewFields struct {
 	// founderSeen is each agent's for_you_seen cursor.
 	founderSeen map[string]int64
 	waits       map[string]*waitsOn
+	// steps is the step count of each open task given by the agent acting on it, as task.get answers its todo.
+	steps map[int64]map[string]any
 }
 
 // viewFields reads the board once for every agent.
@@ -58,6 +61,9 @@ func (e *Env) viewFields() (*viewFields, error) {
 		return nil, err
 	}
 	if f.waits, err = e.agentWaits(open, b); err != nil {
+		return nil, err
+	}
+	if f.steps, err = e.openSteps(open); err != nil {
 		return nil, err
 	}
 	for _, t := range open {
@@ -150,6 +156,14 @@ func (e *Env) addFields(name string, view map[string]any, x *viewCtx) error {
 	if !working(view) {
 		view["waits_on"] = x.waits[name].wire()
 	}
+	view["steps"] = nil
+	if t, ok := view["task"].(map[string]any); ok {
+		if n, ok := t["id"].(json.Number); ok {
+			if id, err := n.Int64(); err == nil && x.steps[id] != nil {
+				view["steps"] = x.steps[id]
+			}
+		}
+	}
 	if e.Delivery == nil {
 		// No lifecycle here to say: the wall and fire the stored view holds (the Python tick writes them) stand.
 		for _, k := range []string{"wall", "fire"} {
@@ -201,4 +215,19 @@ func screenIdle(word any) bool {
 		return false
 	}
 	return true
+}
+
+// openSteps is the step count of each open task whose count was given by the agent acting on it now.
+func (e *Env) openSteps(open []row) (map[int64]map[string]any, error) {
+	todos, err := db.TaskTodos(e.DB)
+	if err != nil {
+		return nil, err
+	}
+	out := map[int64]map[string]any{}
+	for _, t := range open {
+		if todo := todos[t.i("id")]; todo != nil && todo.By == t.str("acting") {
+			out[t.i("id")] = map[string]any{"done": todo.Done, "total": todo.Total}
+		}
+	}
+	return out, nil
 }
