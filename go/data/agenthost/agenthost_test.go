@@ -74,7 +74,16 @@ func TestATerminalNamesTheDaemonsHomeNotTheEnvironments(t *testing.T) {
 	if _, why := agenthost.Current(home).(term.Host).CreateTerminal("hl launch alice", home, "alice", "alice"); why != "" {
 		t.Fatal(why)
 	}
-	made := calls(t, log)[1]
+	made := ""
+	for _, line := range calls(t, log) { // found by its verb: the keychain probe asks the server first
+		if f := strings.Fields(line); len(f) > 3 && (f[3] == "new-session" || f[3] == "new-window") {
+			made = line
+			break
+		}
+	}
+	if made == "" {
+		t.Fatalf("no window was made: %q", calls(t, log))
+	}
 	sock := strings.Fields(made)[2]
 	for _, want := range []string{"HANDLINE_HOME=" + home, "HANDLINE_TMUX_SOCKET=" + sock} {
 		if !strings.Contains(made, " -e "+want+" ") {
