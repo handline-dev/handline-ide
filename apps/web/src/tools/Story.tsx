@@ -108,7 +108,7 @@ export function PlanFlow({ t }: { t: TaskDetail }) {
           Open graph in new tab
         </button>
         {drafts.length > 0 && (
-          <Button size="sm" variant="primary" onClick={() => run(t.id, drafts, open)}>
+          <Button size="sm" variant="primary" onClick={() => run(drafts, open)}>
             <Play size={12} />
             Run
           </Button>
@@ -283,7 +283,7 @@ function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (
       <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-3 text-xs text-muted">
         <span className="flex-1">A → B: B starts after A is merged</span>
         {drafts.length > 0 && (
-          <Button variant="primary" onClick={() => run(parent, drafts, open)}>
+          <Button variant="primary" onClick={() => run(drafts, open)}>
             <Play size={14} className="mr-1.5" />
             Run
           </Button>

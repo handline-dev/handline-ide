@@ -38,7 +38,7 @@ export function RunButton({ task }: { task: number }) {
   const go = () => {
     if (drafts.length) {
       const open = new Set(kids.filter((x) => !['done', 'discarded'].includes(x.state)).map((x) => x.id));
-      return run(task, drafts, open);
+      return run(drafts, open);
     }
     queue.mutate({ tasks: [task] }, { onError: sayRefusal });
   };

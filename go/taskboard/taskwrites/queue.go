@@ -56,6 +56,13 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 				set[tid] = r
 				done = append(done, tid)
 			}
+			if queued {
+				for _, tid := range done {
+					if err := passRunTurn(tx, tid, by); err != nil {
+						return nil, err
+					}
+				}
+			}
 			return accepted(strings.Join(said, "\n"), nil), nil
 		})
 		if err == nil && tell != nil && len(done) > 0 {
@@ -73,6 +80,31 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 		}
 		return out, err
 	}
+}
+
+// passRunTurn takes by's turn off the parent of draft tid that by just Ran: the Run is their answer. The parent, now waiting on its
+// children, goes back to the one below with no delivery and no message; a child's end brings it back as it does any parent.
+func passRunTurn(tx *sql.Tx, tid int64, by string) error {
+	if !actor.IsPerson(by) {
+		return nil
+	}
+	child, err := getTask(tx, tid)
+	if err != nil || !child.Parent.Valid {
+		return err
+	}
+	pid := child.Parent.Int64
+	t, err := getTask(tx, pid)
+	if err != nil || t == nil || t.ended() || t.Acting != by { // a person acts on a task only by its top turn
+		return err
+	}
+	if ready, err := readyNow(tx, pid); err != nil || ready { // a Ready task waits for OK or Redo
+		return err
+	}
+	if err := db.EndHeld(tx, pid, by); err != nil {
+		return err
+	}
+	_, _, _, err = db.PopTurn(tx, pid, by, db.TurnPass, "", 0, 0)
+	return err
 }
 
 func taskIDs(p map[string]any, key string) ([]int64, error) {
