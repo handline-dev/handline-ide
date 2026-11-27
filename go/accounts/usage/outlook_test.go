@@ -148,7 +148,7 @@ func TestCallCostsKeepsEachCutoff(t *testing.T) {
 	}
 	spent := func(lo, useLo int64) (float64, float64) {
 		t.Helper()
-		c, err := CallCosts(q, lo, useLo, day, nil, nil, nil)
+		c, err := CallCosts(q, "", lo, useLo, day, nil, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

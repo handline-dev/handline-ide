@@ -9,6 +9,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/joined"
 )
 
 const callLine = `{"type":"assistant","requestId":"r1","sessionId":"s1","cwd":"/w","timestamp":"2026-10-08T12:00:00.250Z","message":` +
@@ -52,8 +53,12 @@ func tokenEnv(t *testing.T) (*Env, db.Q, string) {
 	return e, q, dir
 }
 
+// The calls read here are kept as this machine's.
 func TestIngestReadsAFileFromWhereItStoppedAndOnlyWholeLines(t *testing.T) {
 	e, q, dir := tokenEnv(t)
+	if err := os.WriteFile(joined.NodeIDFile(e.Home), []byte("m1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	f := filepath.Join(dir, "s1.jsonl")
 	more := strings.Replace(callLine, `"output_tokens":6`, `"output_tokens":60`, 1)
 	os.WriteFile(f, []byte(callLine+"\n"+more+"\n"+`{"type":"assistant","requ`), 0o644)
@@ -63,6 +68,10 @@ func TestIngestReadsAFileFromWhereItStoppedAndOnlyWholeLines(t *testing.T) {
 	tot, _ := TokenTotals(q, "a", 0, 1<<40)
 	if tot != (Tokens{3, 4, 5, 60, 2, 0}) {
 		t.Fatalf("one request streamed over two lines keeps its largest: %+v", tot)
+	}
+	var node string
+	if err := q.QueryRow("SELECT node FROM token_calls").Scan(&node); err != nil || node != "m1" {
+		t.Fatalf("kept as machine %q (%v)", node, err)
 	}
 	if n, _ := e.IngestTokens(q, "a", BytesPerTick); n != 0 {
 		t.Fatalf("nothing new: %d", n)

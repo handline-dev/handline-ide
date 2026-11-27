@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -506,10 +507,10 @@ func TestARunnersSessionShowsWorkingAndIdleOnTheMaster(t *testing.T) {
 	becomes(turns.Unknown, "after his runner's link ended")
 }
 
-// What a runner's account's transcripts gain reaches the master's token log under that account, charged to nobody here; the same
-// calls sent again count once, and a pass with nothing new sends nothing.
+// What a runner's account's transcripts gain reaches the master's token log under that account, charged to nobody here and kept as
+// that runner's; the same calls sent again count once, and a pass with nothing new sends nothing.
 func TestARunnersAccountUsageCountsOnTheMaster(t *testing.T) {
-	master, _, home, _, r := masterWithRunner(t, nil)
+	master, node, home, _, r := masterWithRunner(t, nil)
 	dir, err := team.AccountConfigDir(home, "alpha")
 	if err != nil {
 		t.Fatal(err)
@@ -533,6 +534,13 @@ func TestARunnersAccountUsageCountsOnTheMaster(t *testing.T) {
 	}
 	if n, out := sum(); n != 1 || out != 20 {
 		t.Fatalf("the master counts %d calls, %d out", n, out)
+	}
+	var spent string
+	if err := master.db.QueryRow("SELECT node FROM token_calls WHERE account = 'alpha'").Scan(&spent); err != nil || spent != node {
+		t.Fatalf("the runner's call is kept as machine %q (%v), want %q", spent, err, node)
+	}
+	if got := master.nodes.LoggedIn()["alpha"]; !slices.Equal(got, []string{node}) {
+		t.Fatalf("alpha is logged in on %v by the runners' heartbeats, want [%s]", got, node)
 	}
 	os.Remove(runner.TokensFile(home)) // the positions lost: the same calls go again
 	if err := r.SendTokens(u); err != nil {

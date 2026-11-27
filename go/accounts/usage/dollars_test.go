@@ -185,7 +185,7 @@ func TestAFreshCallGoesToTheHeldTaskALateOneToNoTaskAndALaterLineNeverMovesIt(t 
 	fresh := Call{Session: "sess-a", Req: "r1", TS: *now - 10, Model: "opus", Tokens: Tokens{CC: 100, CC1h: 40}}
 	late := Call{Session: "sess-a", Req: "r2", TS: *now - ChargeFreshS - 1, Model: "opus"}
 	stranger := Call{Session: "someone-else", Req: "r3", TS: *now, Model: "opus"}
-	if err := saveCalls(q, "gamma", []Call{fresh, late, stranger}, owners, *now); err != nil {
+	if err := saveCalls(q, "gamma", "", []Call{fresh, late, stranger}, owners, *now); err != nil {
 		t.Fatal(err)
 	}
 	if a, task, cc1h := charged(t, q, "r1"); a != "a" || task == nil || *task != 1 || cc1h != 40 {
@@ -199,7 +199,7 @@ func TestAFreshCallGoesToTheHeldTaskALateOneToNoTaskAndALaterLineNeverMovesIt(t 
 	}
 	// The same request's later line, after a moved on to task 3: the call stays where it was charged, its tokens grow.
 	fresh.Tokens.CC1h = 60
-	if err := saveCalls(q, "gamma", []Call{fresh}, map[string]Owner{"sess-a": {Agent: "a", Task: 3}}, *now); err != nil {
+	if err := saveCalls(q, "gamma", "", []Call{fresh}, map[string]Owner{"sess-a": {Agent: "a", Task: 3}}, *now); err != nil {
 		t.Fatal(err)
 	}
 	if a, task, cc1h := charged(t, q, "r1"); a != "a" || *task != 1 || cc1h != 60 {
@@ -216,7 +216,7 @@ func TestATasksSpendFollowsItsHoldersAcrossATaskChangeAndAHandoffAndAParentSumsI
 	put := func(sess, req string, ts int64, owner Owner, millionths int64) {
 		t.Helper()
 		c := Call{Session: sess, Req: req, TS: ts, Model: "claude-haiku-5-5", Tokens: Tokens{Inp: millionths}}
-		if err := saveCalls(q, "gamma", []Call{c}, map[string]Owner{sess: owner}, ts); err != nil {
+		if err := saveCalls(q, "gamma", "", []Call{c}, map[string]Owner{sess: owner}, ts); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -257,7 +257,7 @@ func TestTheDollarPaceIsReadFromTheChargedCallsAtMostEveryTenMinutes(t *testing.
 	e, q, now := ownerEnv(t)
 	for i := int64(0); i <= 4; i++ { // a, opus: 5 calls 300s apart, a dollar each after the first
 		c := Call{Session: "sess-a", Req: string(rune('a' + i)), TS: *now - 1200 + i*300, Model: "claude-haiku-5-5", Tokens: Tokens{Inp: 1_000_000}}
-		if err := saveCalls(q, "gamma", []Call{c}, map[string]Owner{"sess-a": {Agent: "a", Task: 1}}, c.TS); err != nil {
+		if err := saveCalls(q, "gamma", "", []Call{c}, map[string]Owner{"sess-a": {Agent: "a", Task: 1}}, c.TS); err != nil {
 			t.Fatal(err)
 		}
 	}

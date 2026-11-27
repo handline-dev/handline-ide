@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -97,6 +98,24 @@ func (r *Registry) Accounts(node string) map[string]string {
 		if board := h.accounts[a.Name]; board != "" && !a.LoginFailed && a.Dir != "" && filepath.IsLocal(a.Dir) && out[board] == "" {
 			out[board] = filepath.Join(r.Home, a.Dir)
 		}
+	}
+	return out
+}
+
+// LoggedIn is, by board account, the runners whose newest heartbeat names it logged in (its login not refused), by node id.
+func (r *Registry) LoggedIn() map[string][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := map[string][]string{}
+	for node, h := range r.beats {
+		for _, a := range h.beat.Accounts {
+			if board := h.accounts[a.Name]; board != "" && !a.LoginFailed && !slices.Contains(out[board], node) {
+				out[board] = append(out[board], node)
+			}
+		}
+	}
+	for _, nodes := range out {
+		slices.Sort(nodes)
 	}
 	return out
 }

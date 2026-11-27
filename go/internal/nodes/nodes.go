@@ -43,8 +43,8 @@ type Registry struct {
 	Turns *turns.Tracker
 	// Transcript, when set, stores the chat transcript rows a runner read from one of its sessions' transcripts (node.transcript).
 	Transcript func(agent, session string, at int64, rows []transcript.Row)
-	// Tokens, when set, counts the calls a runner read from one of its accounts' transcripts (node.tokens), as usage.Call in JSON.
-	Tokens func(account string, calls json.RawMessage) error
+	// Tokens, when set, counts the calls runner node read from one of its accounts' transcripts (node.tokens), as usage.Call in JSON.
+	Tokens func(node, account string, calls json.RawMessage) error
 	// Copy, when set, is the board's copy the owner's runners mirror (node.copy.files).
 	Copy *Copy
 	// AccountFor, when set, is the board's account for email, "" for none; with add, one is made, named after name (a runner's folder),
@@ -661,7 +661,7 @@ func Register(s *rpc.Server, local func() *rpc.Server, r *Registry) {
 			return nil, rpc.Refused("node "+node+"'s heartbeat names no account folder "+folder+" yet: send its calls after the next", "account", "")
 		}
 		if account != "" && r.Tokens != nil { // an account that is no board account's is counted nowhere here
-			if err := r.Tokens(account, calls); err != nil {
+			if err := r.Tokens(node, account, calls); err != nil {
 				return nil, err
 			}
 		}

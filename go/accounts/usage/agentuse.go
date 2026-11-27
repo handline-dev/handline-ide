@@ -6,9 +6,10 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// AgentUse is stats.AgentUse: one agent's use over a span, all accounts.
+// AgentUse is stats.AgentUse: one agent's use on one machine over a span, all accounts.
 type AgentUse struct {
 	Agent  string
+	Node   string // the machine that spent it, a node id
 	Tokens int64
 	Cost   float64 // USD at list price
 	Share  float64 // of everyone's cost in the span
@@ -23,28 +24,35 @@ type agentTally struct {
 	cost   float64
 }
 
-type callKey struct{ agent, acct string }
+type callKey struct{ agent, node, acct string }
 
-// scanCalls calls each for every call in (lo, hi] with its agent and account, tokens and list-price cost, oldest first so float sums
-// come out the same on every run.
-func scanCalls(q db.Q, lo, hi int64, table []priceEntry, each func(ts int64, k callKey, tokens int64, cost float64)) error {
+// UseKey is an agent's use on one machine.
+type UseKey struct{ Agent, Node string }
+
+// scanCalls calls each for every call in (lo, hi] with its agent, machine and account, tokens and list-price cost, oldest first so float
+// sums come out the same on every run. A call kept with no machine is self's, the master's own.
+func scanCalls(q db.Q, self string, lo, hi int64, table []priceEntry, each func(ts int64, k callKey, tokens int64, cost float64)) error {
 	trees, err := worktrees(q)
 	if err != nil {
 		return err
 	}
-	rows, err := q.Query("SELECT ts, account, cwd, model, inp, cc, cr, out, thinking, cc1h FROM token_calls WHERE ts > ? AND ts <= ? ORDER BY ts, rowid", lo, hi)
+	rows, err := q.Query("SELECT ts, account, node, cwd, model, inp, cc, cr, out, thinking, cc1h FROM token_calls WHERE ts > ? AND ts <= ? ORDER BY ts, rowid",
+		lo, hi)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var ts int64
-		var acct, cwd, model string
+		var acct, node, cwd, model string
 		var t Tokens
-		if err := rows.Scan(&ts, &acct, &cwd, &model, &t.Inp, &t.CC, &t.CR, &t.Out, &t.Thinking, &t.CC1h); err != nil {
+		if err := rows.Scan(&ts, &acct, &node, &cwd, &model, &t.Inp, &t.CC, &t.CR, &t.Out, &t.Thinking, &t.CC1h); err != nil {
 			return err
 		}
-		each(ts, callKey{agentForCwd(cwd, trees), acct}, t.Inp+t.CC+t.CR+t.Out, Cost(model, t, table))
+		if node == "" {
+			node = self
+		}
+		each(ts, callKey{agentForCwd(cwd, trees), node, acct}, t.Inp+t.CC+t.CR+t.Out, Cost(model, t, table))
 	}
 	return rows.Err()
 }
@@ -66,23 +74,30 @@ func (per tally) keys() []callKey {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].agent < keys[j].agent || (keys[i].agent == keys[j].agent && keys[i].acct < keys[j].acct)
+		a, b := keys[i], keys[j]
+		if a.agent != b.agent {
+			return a.agent < b.agent
+		}
+		if a.node != b.node {
+			return a.node < b.node
+		}
+		return a.acct < b.acct
 	})
 	return keys
 }
 
-// tallyCalls is the tokens and list-price cost of the calls in (lo, hi] per agent and account, with its keys in order.
-func tallyCalls(q db.Q, lo, hi int64, table []priceEntry) (tally, []callKey, error) {
+// tallyCalls is the tokens and list-price cost of the calls in (lo, hi] per agent, machine and account, with its keys in order.
+func tallyCalls(q db.Q, self string, lo, hi int64, table []priceEntry) (tally, []callKey, error) {
 	per := tally{}
-	if err := scanCalls(q, lo, hi, table, func(_ int64, k callKey, tokens int64, cost float64) { per.add(k, tokens, cost) }); err != nil {
+	if err := scanCalls(q, self, lo, hi, table, func(_ int64, k callKey, tokens int64, cost float64) { per.add(k, tokens, cost) }); err != nil {
 		return nil, nil, err
 	}
 	return per, per.keys(), nil
 }
 
-// PairUse is one agent's use of one account in a span. Agent is "" for the calls of no agent's worktree.
+// PairUse is one agent's use of one account on one machine in a span. Agent is "" for the calls of no agent's worktree.
 type PairUse struct {
-	Agent, Account string
+	Agent, Node, Account string
 	Tokens         int64
 	Cost           float64 // USD at list price
 	Share          float64 // of the account's cost in the span
@@ -91,9 +106,10 @@ type PairUse struct {
 	WeekPct *float64
 }
 
-// PairUsesOf is stats.get's use: a row per agent and account with a call in (lo, hi], largest cost first, ties by agent then account.
-func PairUsesOf(q db.Q, lo, hi int64, table []priceEntry, weekUsed map[string]float64) ([]PairUse, error) {
-	per, keys, err := tallyCalls(q, lo, hi, table)
+// PairUsesOf is stats.get's use: a row per agent, machine and account with a call in (lo, hi], largest cost first, ties by agent, machine
+// then account. A call kept with no machine is self's.
+func PairUsesOf(q db.Q, self string, lo, hi int64, table []priceEntry, weekUsed map[string]float64) ([]PairUse, error) {
+	per, keys, err := tallyCalls(q, self, lo, hi, table)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +120,7 @@ func PairUsesOf(q db.Q, lo, hi int64, table []priceEntry, weekUsed map[string]fl
 	out := make([]PairUse, 0, len(keys))
 	for _, k := range keys {
 		t := per[k]
-		u := PairUse{Agent: k.agent, Account: k.acct, Tokens: t.tokens, Cost: t.cost}
+		u := PairUse{Agent: k.agent, Node: k.node, Account: k.acct, Tokens: t.tokens, Cost: t.cost}
 		if u.Agent == Unattributed {
 			u.Agent = ""
 		}
@@ -121,7 +137,8 @@ func PairUsesOf(q db.Q, lo, hi int64, table []priceEntry, weekUsed map[string]fl
 	return out, nil
 }
 
-// agentUses is stats.agent_use: each agent's tokens and list-price cost as per tallied them, largest cost first, ties by name. weekUsed is the
+// agentUses is stats.agent_use: each agent's tokens and list-price cost on each machine as per tallied them, largest cost first, ties by
+// name then machine. weekUsed is the
 // points of each account's week used in the span (WeekConsumed): an agent's EstPct is its cost share of each account times that account's
 // points, averaged over the accounts, an estimate because what the plan charges is not what the price list says.
 func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUse {
@@ -129,15 +146,16 @@ func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUs
 	for _, k := range keys {
 		acctCost[k.acct] += per[k].cost
 	}
-	est := map[string]float64{}
-	by := map[string]*AgentUse{}
+	est := map[UseKey]float64{}
+	by := map[UseKey]*AgentUse{}
 	var total float64
 	for _, k := range keys {
 		t := per[k]
-		u := by[k.agent]
+		uk := UseKey{k.agent, k.node}
+		u := by[uk]
 		if u == nil {
-			u = &AgentUse{Agent: k.agent, Fracs: map[string]float64{}}
-			by[k.agent] = u
+			u = &AgentUse{Agent: k.agent, Node: k.node, Fracs: map[string]float64{}}
+			by[uk] = u
 		}
 		u.Tokens += t.tokens
 		u.Cost += t.cost
@@ -147,7 +165,7 @@ func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUs
 		}
 		u.Fracs[k.acct] = t.cost / acctCost[k.acct]
 		if pts, ok := weekUsed[k.acct]; ok {
-			est[k.agent] += t.cost / acctCost[k.acct] * pts / float64(len(weekUsed))
+			est[uk] += t.cost / acctCost[k.acct] * pts / float64(len(weekUsed))
 		}
 	}
 	out := make([]AgentUse, 0, len(by))
@@ -156,25 +174,44 @@ func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUs
 			u.Share = u.Cost / total
 		}
 		if len(weekUsed) > 0 {
-			e := est[u.Agent]
+			e := est[UseKey{u.Agent, u.Node}]
 			u.EstPct = &e
 		}
 		out = append(out, *u)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].Cost > out[j].Cost || (out[i].Cost == out[j].Cost && out[i].Agent < out[j].Agent)
+		a, b := out[i], out[j]
+		if a.Cost != b.Cost {
+			return a.Cost > b.Cost
+		}
+		return a.Agent < b.Agent || (a.Agent == b.Agent && a.Node < b.Node)
 	})
 	return out
 }
 
-// PickUse is the use of a pick of the agents table, an agent. ok is false for a name that used nothing.
+// PickUse is the use of a pick of the agents table, an agent, on every machine together. ok is false for a name that used nothing.
 func PickUse(uses []AgentUse, pick string) (AgentUse, bool) {
+	sum, found := AgentUse{Agent: pick, Fracs: map[string]float64{}}, false
 	for _, u := range uses {
-		if u.Agent == pick {
-			return u, true
+		if u.Agent != pick {
+			continue
+		}
+		found = true
+		sum.Tokens += u.Tokens
+		sum.Cost += u.Cost
+		sum.Share += u.Share
+		if u.EstPct != nil {
+			e := *u.EstPct
+			if sum.EstPct != nil {
+				e += *sum.EstPct
+			}
+			sum.EstPct = &e
+		}
+		for a, f := range u.Fracs {
+			sum.Fracs[a] += f
 		}
 	}
-	return AgentUse{Agent: pick, Fracs: map[string]float64{}}, false
+	return sum, found
 }
 
 // WeekConsumed is outlook.week_consumed: the points of each account's week used between lo and hi, the rises from one sample to the next

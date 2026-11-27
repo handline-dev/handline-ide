@@ -26,6 +26,8 @@ test('stats.get serves a use row per agent and account, and an account rows add 
       new Set(stats.use.filter((u) => u.account === 'alpha' || u.account === 'beta').map((u) => u.agent)).size < stats.use.length,
       'an agent on two accounts has two rows',
     );
+    const auditorBeta = stats.use.filter((u) => u.agent === 'handline.auditor' && u.account === 'beta');
+    assert.deepEqual(auditorBeta.map((u) => u.node).sort(), ['m-fake', 'r-fake'], 'an agent on two machines has a row on each');
   }
   client.close();
 });

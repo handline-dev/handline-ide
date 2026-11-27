@@ -264,11 +264,11 @@ type CallCost struct {
 
 // CallCosts is the list-price cost of each agent per local day over (dayLo, hi], stats.agent_use over (useLo, hi] (agentUses), and the
 // plan money of both (planCostsOf, from the samples rows, from at least OutlookMaxAgeS before either, and each account's weekly budget weekUSD), from one read of the calls.
-func CallCosts(q db.Q, dayLo, useLo, hi int64, table []priceEntry, rows []sampleRow, weekUSD map[string]float64) (CallCost, error) {
+func CallCosts(q db.Q, self string, dayLo, useLo, hi int64, table []priceEntry, rows []sampleRow, weekUSD map[string]float64) (CallCost, error) {
 	daily := map[string]map[string]float64{}
 	days := dayCalls{}
 	per := tally{}
-	err := scanCalls(q, min(dayLo, useLo), hi, table, func(ts int64, k callKey, tokens int64, cost float64) {
+	err := scanCalls(q, self, min(dayLo, useLo), hi, table, func(ts int64, k callKey, tokens int64, cost float64) {
 		if ts > dayLo {
 			day := dayOf(ts)
 			addDay(daily, day, k.agent, cost)

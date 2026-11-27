@@ -13,6 +13,7 @@ import (
 	"github.com/handline/handline/go/accounts/weblogin"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -163,6 +164,33 @@ func TestAccountsListSaysEachAccountsVendor(t *testing.T) {
 	}
 	if vendors["main"] != "claude" || vendors["other"] != "opencode" {
 		t.Fatalf("%v", vendors)
+	}
+}
+
+// An account is on this master's machine while its login here is good, and on each runner whose heartbeat names it logged in.
+func TestAccountsListSaysTheMachinesEachAccountIsLoggedInOn(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	for _, a := range []string{"here", "both", "away"} {
+		if err := os.MkdirAll(teamtest.AccountDir(t, e.Home, a), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(joined.NodeIDFile(e.Home), []byte("m1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.LoginState = func(a string) (bool, bool) { return a != "away", true }
+	e.NodeLoggedIn = func() map[string][]string { return map[string][]string{"both": {"r1", "r2"}, "away": {"r2"}} }
+	got, err := e.accountsList(nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	on := map[string]string{}
+	for _, a := range got.(map[string]any)["accounts"].([]any) {
+		on[a.(map[string]any)["name"].(string)] = fmt.Sprint(a.(map[string]any)["machines"])
+	}
+	if on["here"] != "[m1]" || on["both"] != "[m1 r1 r2]" || on["away"] != "[r2]" {
+		t.Fatalf("%v", on)
 	}
 }
 

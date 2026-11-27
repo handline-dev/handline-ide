@@ -6,12 +6,16 @@ import { budget, planCostPerDay } from '#src/usage-budget.ts';
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;
 export const AGENTS = ['handline.architect', 'handline.auditor', 'handline.term-build'];
+/** The fake's own machine (node.status) and a runner some calls were spent on. */
+export const SELF_NODE = 'm-fake';
+export const RUNNER_NODE = 'r-fake';
 
-/** What the outlook_agent_use fixtures name (--var outlook_agent=grp.one): two agents. */
+/** What the outlook_agent_use fixtures name (--var outlook_agent=grp.one): two agents, grp.one on two machines. */
 const AGENT_USE = [
-  { agent: 'grp.one', tokens: 9000, cost: 3.5, share: 0.7, est_pct: 4.2, fracs: { alpha: 0.7 } },
-  { agent: 'grp.two', tokens: 3000, cost: 1.5, share: 0.3, est_pct: null, fracs: { alpha: 0.3 } },
-];
+  { agent: 'grp.one', node: SELF_NODE, tokens: 6000, cost: 2.5, share: 0.5, est_pct: 3, fracs: { alpha: 0.5 } },
+  { agent: 'grp.one', node: RUNNER_NODE, tokens: 3000, cost: 1, share: 0.2, est_pct: 1.2, fracs: { alpha: 0.2 } },
+  { agent: 'grp.two', node: SELF_NODE, tokens: 3000, cost: 1.5, share: 0.3, est_pct: null, fracs: { alpha: 0.3 } },
+].sort((a, b) => b.cost - a.cost);
 const OVERLAYS: Record<string, number[]> = {
   'grp.one': [0, 1.5, 2.9, 4, 5, 5.5, 6, 6.2, 6.4, 6.6, 6.8, 7, 7.2],
   'grp.two': [0, 0.5, 1.2, 1.5, 1.8, 2, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7],
@@ -79,14 +83,15 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
     },
   ];
 }
-/** [agent, account, tokens, list-price cost]: the architect and auditor share alpha with the founder's own sessions (agent ''), the auditor also used beta, which the architect moved to. */
-const CALLS: [string, string, number, number][] = [
-  [AGENTS[0]!, 'alpha', 9_200_000, 18],
-  [AGENTS[1]!, 'alpha', 3_100_000, 6],
-  ['', 'alpha', 3_000_000, 6],
-  [AGENTS[0]!, 'beta', 1_000_000, 2],
-  [AGENTS[1]!, 'beta', 1_500_000, 3],
-  [AGENTS[2]!, 'gamma', 400_000, 1],
+/** [agent, machine, account, tokens, list-price cost]: the architect and auditor share alpha with the founder's own sessions (agent ''), the auditor also used beta, which the architect moved to, from the runner as well as here. */
+const CALLS: [string, string, string, number, number][] = [
+  [AGENTS[0]!, SELF_NODE, 'alpha', 9_200_000, 18],
+  [AGENTS[1]!, SELF_NODE, 'alpha', 3_100_000, 6],
+  ['', SELF_NODE, 'alpha', 3_000_000, 6],
+  [AGENTS[0]!, SELF_NODE, 'beta', 1_000_000, 2],
+  [AGENTS[1]!, SELF_NODE, 'beta', 900_000, 1.8],
+  [AGENTS[1]!, RUNNER_NODE, 'beta', 600_000, 1.2],
+  [AGENTS[2]!, SELF_NODE, 'gamma', 400_000, 1],
 ];
 /** Points each account's week rose in the window; gamma has no reading. */
 const RISE: Record<string, { '24h': number; '7d': number }> = { alpha: { '24h': 8, '7d': 30 }, beta: { '24h': 3, '7d': 10 } };
@@ -95,13 +100,14 @@ const RISE: Record<string, { '24h': number; '7d': number }> = { alpha: { '24h': 
 function useOf(week: boolean): Stats['use'] {
   const scale = week ? 1 : 0.25;
   const cost = new Map<string, number>();
-  for (const [, account, , c] of CALLS) cost.set(account, (cost.get(account) ?? 0) + c);
-  return CALLS.map(([agent, account, tokens, c]) => {
+  for (const [, , account, , c] of CALLS) cost.set(account, (cost.get(account) ?? 0) + c);
+  return CALLS.map(([agent, node, account, tokens, c]) => {
     const share = c / cost.get(account)!;
     const rise = RISE[account]?.[week ? '7d' : '24h'];
     return {
       agent,
       account,
+      node,
       tokens: Math.round(tokens * scale),
       cost: Math.round(c * scale * 100) / 100,
       share: Math.round(share * 10_000) / 10_000,

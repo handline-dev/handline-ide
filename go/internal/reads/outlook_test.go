@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -412,6 +413,54 @@ func TestStatsUseSplitsEachAccountsRiseByCostPerAgentAndAccount(t *testing.T) {
 	}
 	if got[0].(map[string]any)["cost"].(float64) < got[len(got)-1].(map[string]any)["cost"].(float64) {
 		t.Fatalf("largest cost first: %v", got)
+	}
+}
+
+// Use is split by the machine that spent it: grp.one's b call came from runner r1, its a calls from this master m1, one kept before
+// machines were recorded (no node) and one stamped m1, which are one row. The pick's overlay adds its machines together.
+func TestUseRowsSayTheMachineThatSpentIt(t *testing.T) {
+	t.Parallel()
+	e, clock := outlookWithUse(t)
+	now := clock.Unix()
+	if err := os.WriteFile(joined.NodeIDFile(e.Home), []byte("m1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run(t, e, "UPDATE token_calls SET node = 'r1' WHERE account = 'b'")
+	run(t, e, `INSERT INTO token_calls(account, session, req, ts, model, cwd, side, inp, cc, cr, out, thinking, node)
+		VALUES('a', 's', 'late', ?, 'claude-sonnet-5', '/w/one', 0, 1000000, 0, 0, 0, 0, 'm1')`, now-30)
+	stats, err := e.statsUse(now-86400, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type key struct{ agent, node, acct string }
+	tokens := map[key]any{}
+	for _, r := range stats {
+		m := r.(map[string]any)
+		tokens[key{m["agent"].(string), m["node"].(string), m["account"].(string)}] = m["tokens"]
+	}
+	if len(tokens) != 3 || tokens[key{"grp.one", "m1", "a"}] != int64(4_000_000) || tokens[key{"grp.one", "r1", "b"}] != int64(1_000_000) ||
+		tokens[key{"grp.two", "m1", "a"}] != int64(1_000_000) {
+		t.Fatalf("stats.get use: %v", stats)
+	}
+	pick := "grp.one"
+	got, err := e.outlookAt("24h", 24, clock, &pick)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := got.(map[string]any)
+	type row struct{ agent, node string }
+	rows := map[row]map[string]any{}
+	for _, r := range res["agent_use"].([]any) {
+		m := r.(map[string]any)
+		rows[row{m["agent"].(string), m["node"].(string)}] = m
+	}
+	one, there := rows[row{"grp.one", "m1"}], rows[row{"grp.one", "r1"}]
+	if len(rows) != 3 || one["tokens"] != int64(4_000_000) || there["tokens"] != int64(1_000_000) || one["est_pct"] != 8.0 || there["est_pct"] != 5.0 {
+		t.Fatalf("agent_use: %v", res["agent_use"])
+	}
+	// 4/5 of a's 20 points and all of b's 10, over two accounts.
+	if overlay := res["overlay"].([]any); overlay[len(overlay)-1] != 13.0 {
+		t.Fatalf("overlay: %v", overlay)
 	}
 }
 

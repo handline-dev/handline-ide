@@ -74,6 +74,8 @@ type Env struct {
 	// NodeSetAside is the board a runner set aside when it was master and a newer one outranked it, as its newest heartbeat says
 	// (since, master), nil when it set none aside so; nil shows none.
 	NodeSetAside func(node string) any
+	// NodeLoggedIn is, by account, the runners whose newest heartbeat names it logged in (nodes.Registry.LoggedIn); nil names none.
+	NodeLoggedIn func() map[string][]string
 	// NodeLacks is why an agent cannot start on a machine now (placement.Placer.Lacks), "" when it can; nil shows none.
 	NodeLacks func(agent, node string) string
 	// NodePlacement is where an agent's next session starts and why (placement.Placer.Status); NodeManual whether placement is Manual.

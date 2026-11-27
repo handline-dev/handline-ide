@@ -1,12 +1,14 @@
 package reads
 
 import (
+	"slices"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -98,7 +100,7 @@ func agentUseOf(u usage.AgentUse) map[string]any {
 	for a, f := range u.Fracs {
 		fracs[a] = round(f, 4)
 	}
-	return map[string]any{"agent": u.Agent, "tokens": u.Tokens, "cost": round(u.Cost, 4), "share": round(u.Share, 4), "est_pct": est, "fracs": fracs}
+	return map[string]any{"agent": u.Agent, "node": u.Node, "tokens": u.Tokens, "cost": round(u.Cost, 4), "share": round(u.Share, 4), "est_pct": est, "fracs": fracs}
 }
 
 // overlayOf is the spec's overlay, at two places like left_pct.
@@ -222,19 +224,28 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	weights := usage.WeightsOf(budgets) // the line weighs each account as the budget's total does
 	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince, weights)
 	byAccount, future := outlookByAccount(all, now, hours, ends, outSince, weekUSD, weights)
-	c, err := usage.CallCosts(e.DB, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), all, weekUSD)
+	self := joined.NodeIDOf(e.Home)
+	c, err := usage.CallCosts(e.DB, self, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), all, weekUSD)
 	if err != nil {
 		return nil, err
+	}
+	// A rise with no priced call is on no machine; this daemon's own unattributed row, when there is one, holds it as before.
+	none := usage.UseKey{Agent: usage.Unattributed}
+	ownRow := func(u usage.AgentUse) bool { return u.Agent == none.Agent && u.Node == self }
+	if v, ok := c.Plan.Span[none]; ok && self != "" && slices.ContainsFunc(c.Uses, ownRow) {
+		c.Plan.Span[usage.UseKey{Agent: none.Agent, Node: self}] += v
+		delete(c.Plan.Span, none)
 	}
 	agentUse := []any{}
 	for _, u := range c.Uses {
 		row := agentUseOf(u)
-		row["plan_cost"] = round(c.Plan.Span[u.Agent], 4)
+		k := usage.UseKey{Agent: u.Agent, Node: u.Node}
+		row["plan_cost"] = round(c.Plan.Span[k], 4)
 		agentUse = append(agentUse, row)
-		delete(c.Plan.Span, u.Agent)
+		delete(c.Plan.Span, k)
 	}
-	if v, ok := c.Plan.Span[usage.Unattributed]; ok { // a rise with no priced call: plan money no agent row holds
-		agentUse = append(agentUse, map[string]any{"agent": usage.Unattributed, "tokens": 0, "cost": 0.0, "share": 0.0, "est_pct": nil,
+	if v, ok := c.Plan.Span[none]; ok { // a rise with no priced call: plan money no agent row holds
+		agentUse = append(agentUse, map[string]any{"agent": usage.Unattributed, "node": nil, "tokens": 0, "cost": 0.0, "share": 0.0, "est_pct": nil,
 			"fracs": map[string]any{}, "plan_cost": round(v, 4)})
 	}
 	res := map[string]any{"range": name, "now": ts(now), "accounts": out.Accounts, "past": points(out.Past), "future": points(future),

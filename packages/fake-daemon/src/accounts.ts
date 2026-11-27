@@ -1,6 +1,7 @@
 // The fake daemon's accounts: gauges, who is on each, and the settings the page edits, on the accounts topic.
 import type { Account, Timestamp } from '@handline/contract';
 import { Failure, invalidParams } from '#src/errors.ts';
+import { RUNNER_NODE, SELF_NODE } from '#src/usage.ts';
 
 /** The code a test daemon's login takes as right; any other ends the login failed. */
 export const GOOD_LOGIN_CODE = 'good-code';
@@ -97,6 +98,7 @@ export class FakeAccounts {
       five_hour: null,
       weekly: null,
       agents: [],
+      machines: [],
       moves: [],
       label: a.name,
       vendor: 'claude',
@@ -133,6 +135,7 @@ export class FakeAccounts {
       weekly: { used_pct: 30, resets_at: at(100), source: 'estimated' },
       pace: paceOf(30, 100),
       cycle: { on: true, end: '2026-10-28', end_is_default: false },
+      machines: [RUNNER_NODE],
       plan: 'Pro',
       assignable: false,
       assign_reason: '5h 88% at last reading',
@@ -340,6 +343,8 @@ export class FakeAccounts {
     return {
       ...r,
       agents,
+      // The runners it is logged in on are kept; this machine's own login is its login_state.
+      machines: [...(r.login_state === 'ok' ? [SELF_NODE] : []), ...r.machines],
       // A paused account takes no new agent.
       ...(r.paused
         ? {

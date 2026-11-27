@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -146,8 +147,10 @@ func (e *Env) accounts(withUsage, withRoster, withEmail bool) ([]map[string]any,
 	}
 	names := paths.ListAccounts(e.Home)
 	accts := make([]map[string]any, 0, len(names))
+	machines := e.machines()
 	for _, a := range names {
 		acct := v.of(a)
+		acct["machines"] = machines(a)
 		if withRoster {
 			if err := v.addRoster(acct, a, midTurn); err != nil {
 				return nil, err
@@ -166,6 +169,28 @@ func (e *Env) accounts(withUsage, withRoster, withEmail bool) ([]map[string]any,
 		accts = append(accts, acct)
 	}
 	return accts, nil
+}
+
+// machines is Account.machines of an account: this daemon's own node when the account's login here is good, then the runners whose
+// newest heartbeat names it logged in.
+func (e *Env) machines() func(account string) []string {
+	self := joined.NodeIDOf(e.Home)
+	var runners map[string][]string
+	if e.NodeLoggedIn != nil {
+		runners = e.NodeLoggedIn()
+	}
+	return func(a string) []string {
+		out := []string{}
+		if in, known := e.loginState(a); in && known && self != "" {
+			out = append(out, self)
+		}
+		for _, n := range runners[a] {
+			if n != self {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
 }
 
 // AccountsWithUsage is every account as accounts.list {usage, roster} shows it to anyone but the founder (no email): what the accounts

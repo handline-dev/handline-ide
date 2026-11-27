@@ -16,6 +16,8 @@ export type Account = {
   weekly: Window | null;
   /** The agents on this account (AgentView.account): running on it, or at rest with their prompt cache alive. One past its cache life is on none. */
   agents: Who[];
+  /** The machines this account is logged in on, as node ids (node.status `id`): this daemon's own when its login here is good, then each runner whose last heartbeat names it logged in, by id. */
+  machines: string[];
   moves: {
     at: Timestamp;
     agent: Who;
@@ -140,7 +142,7 @@ export type Stats = {
   tasks_done: number;
   /** The median seconds from a turn put on a person to that person giving it back, over turns given back in the window; null when none was. */
   your_wait_s: number | null;
-  /** Each agent's use of each account in the window, largest cost first; an agent on two accounts has two rows. */
+  /** Each agent's use of each account on each machine in the window, largest cost first; an agent on two accounts or two machines has a row for each. */
   use: AgentAccountUse[];
   moves: number;
   handoffs: number;
@@ -152,11 +154,13 @@ export type Stats = {
   }[];
 };
 
-/** One agent's use of one account. tokens and cost are measured; week_pct is an estimate of the split, not of the account's rise. */
+/** One agent's use of one account on one machine. tokens and cost are measured; week_pct is an estimate of the split, not of the account's rise. */
 export type AgentAccountUse = {
   /** Empty for the calls of no agent's worktree (the founder's own sessions, the usage poll); drawn as Other. */
   agent: string;
   account: string;
+  /** The machine that spent the calls, as a node id (node.status `id`); calls kept from before machines were recorded count as this daemon's. An agent that spent on two machines has a row on each. */
+  node: string;
   /** Input, cache and output tokens. */
   tokens: number;
   /** List price, USD. */
@@ -188,9 +192,11 @@ export type Outlook = {
     week_resets_at: Timestamp | null;
   }[];
   cost_per_day: DayCosts;
-  /** What each agent used over the last `range` (the span of `past`), largest cost first, ties by name; plan money of a week's rise with no priced call comes last as a row of (unattributed) with no tokens. Absent from a daemon that does not send it. */
+  /** What each agent used on each machine over the last `range` (the span of `past`), largest cost first, ties by name then machine; plan money of a week's rise with no priced call comes last as a row of (unattributed) with no tokens. Absent from a daemon that does not send it. */
   agent_use?: {
     agent: string;
+    /** The machine that spent the calls, as a node id (node.status `id`); calls kept from before machines were recorded count as this daemon's. An agent that spent on two machines has a row on each. null on the (unattributed) row of plan money with no priced call, which this daemon's own (unattributed) row takes instead when there is one. */
+    node: string | null;
     /** Tokens the agent used in the span. */
     tokens: number;
     /** Its cost in US dollars at list price in the span, from the token log. */

@@ -6,6 +6,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -17,14 +18,14 @@ func (e *Env) countEvents(kind string, since, until int64) (int64, error) {
 	return r.i("n"), err
 }
 
-// statsUse is stats.get's use: a row per agent and account, the account's weekly rise split by list-price cost.
+// statsUse is stats.get's use: a row per agent, machine and account, the account's weekly rise split by list-price cost.
 func (e *Env) statsUse(since, until int64) ([]any, error) {
 	ue := &usage.Env{Home: e.Home, Now: func() float64 { return float64(until) }}
 	rows, err := usage.SamplesSince(e.DB, since-usage.OutlookMaxAgeS)
 	if err != nil {
 		return nil, err
 	}
-	uses, err := usage.PairUsesOf(e.DB, since, until, usage.PricesFromConfig(ue.CurrentConfig()), usage.WeekConsumed(rows, since, until))
+	uses, err := usage.PairUsesOf(e.DB, joined.NodeIDOf(e.Home), since, until, usage.PricesFromConfig(ue.CurrentConfig()), usage.WeekConsumed(rows, since, until))
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func (e *Env) statsUse(since, until int64) ([]any, error) {
 		if u.WeekPct != nil {
 			week = round(*u.WeekPct, 2)
 		}
-		out = append(out, map[string]any{"agent": u.Agent, "account": u.Account, "tokens": u.Tokens, "cost": round(u.Cost, 4), "share": round(u.Share, 4), "week_pct": week})
+		out = append(out, map[string]any{"agent": u.Agent, "account": u.Account, "node": u.Node, "tokens": u.Tokens, "cost": round(u.Cost, 4), "share": round(u.Share, 4), "week_pct": week})
 	}
 	return out, nil
 }

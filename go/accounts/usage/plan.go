@@ -93,10 +93,11 @@ func TotalOf(bs []AccountBudget) BudgetTotal {
 
 // PlanCosts are the plan money the agents used: per local day and agent, and per agent over the span. An account's plan money in a
 // stretch is the points its week rose (WeekConsumed) times its budget; each agent takes its share of that account's list-price cost in
-// the stretch. Money of an account that rose with no priced call goes to Unattributed.
+// the stretch. Money of an account that rose with no priced call goes to Unattributed. Daily is by agent, Span by agent and machine (the
+// Unattributed one on no machine).
 type PlanCosts struct {
 	Daily map[string]map[string]float64
-	Span  map[string]float64
+	Span  map[UseKey]float64
 }
 
 // dayCalls is the list-price cost of each day's calls by agent and account.
@@ -109,8 +110,9 @@ func (d dayCalls) add(day string, k callKey, cost float64) {
 	d[day].add(k, 0, cost)
 }
 
-// planSplit adds each account's plan money rise x weekUSD/100 to out, split by per's cost shares.
-func planSplit(out map[string]float64, per tally, rise map[string]float64, weekUSD map[string]float64) {
+// planSplit adds each account's plan money rise x weekUSD/100 to out, split by per's cost shares, under each call key's key, and under
+// none when the account had no priced call.
+func planSplit[K comparable](out map[K]float64, per tally, rise map[string]float64, weekUSD map[string]float64, key func(callKey) K, none K) {
 	keys := per.keys()
 	acctCost := map[string]float64{}
 	for _, k := range keys {
@@ -127,12 +129,12 @@ func planSplit(out map[string]float64, per tally, rise map[string]float64, weekU
 			continue
 		}
 		if acctCost[a] == 0 {
-			out[Unattributed] += usd
+			out[none] += usd
 			continue
 		}
 		for _, k := range keys {
 			if k.acct == a {
-				out[k.agent] += usd * per[k].cost / acctCost[a]
+				out[key(k)] += usd * per[k].cost / acctCost[a]
 			}
 		}
 	}
@@ -178,15 +180,15 @@ func rises(rows []sampleRow, dayLo, spanLo, hi int64) (byDay map[string]map[stri
 // planCostsOf is PlanCosts from the calls' costs per day of (dayLo, hi] and over the span from spanLo, the samples, and each account's
 // budget.
 func planCostsOf(days dayCalls, span tally, rows []sampleRow, dayLo, spanLo, hi int64, weekUSD map[string]float64) PlanCosts {
-	out := PlanCosts{Daily: map[string]map[string]float64{}, Span: map[string]float64{}}
+	out := PlanCosts{Daily: map[string]map[string]float64{}, Span: map[UseKey]float64{}}
 	byDay, spanRise := rises(rows, dayLo, spanLo, hi)
 	for day, rise := range byDay {
 		m := map[string]float64{}
-		planSplit(m, days[day], rise, weekUSD)
+		planSplit(m, days[day], rise, weekUSD, func(k callKey) string { return k.agent }, Unattributed)
 		if len(m) > 0 {
 			out.Daily[day] = m
 		}
 	}
-	planSplit(out.Span, span, spanRise, weekUSD)
+	planSplit(out.Span, span, spanRise, weekUSD, func(k callKey) UseKey { return UseKey{k.agent, k.node} }, UseKey{Agent: Unattributed})
 	return out
 }

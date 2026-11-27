@@ -16,6 +16,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/joined"
 )
 
 // What each API call spent, per account, kept beside the percentages (handline/usage/tokenlog.py): one token_calls row per call, read
@@ -134,20 +135,21 @@ func requestID(v any) string {
 // saveCalls files the calls. One request is written as several lines while it streams, the later ones with more output: the row keeps
 // the largest of each. A call is charged to its session's agent and to the task that agent held when it was made (Owner.TaskAt), when
 // it was made lately enough for that to be known; the first line that names an agent decides.
-func saveCalls(q db.Q, acct string, calls []Call, owners map[string]Owner, now int64) error {
+func saveCalls(q db.Q, acct, node string, calls []Call, owners map[string]Owner, now int64) error {
 	for _, c := range calls {
 		o := owners[c.Session]
 		var task any
 		if tid := o.TaskAt(c.TS); tid != 0 && now-c.TS <= ChargeFreshS {
 			task = tid
 		}
-		if _, err := q.Exec("INSERT INTO token_calls(account, session, req, ts, model, cwd, side, inp, cc, cr, out, thinking, cc1h, agent, task_id) "+
-			"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account, session, req) DO UPDATE SET "+
+		if _, err := q.Exec("INSERT INTO token_calls(account, session, req, ts, model, cwd, side, inp, cc, cr, out, thinking, cc1h, agent, task_id, node) "+
+			"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account, session, req) DO UPDATE SET "+
 			"out=MAX(out, excluded.out), thinking=MAX(thinking, excluded.thinking), "+
 			"inp=MAX(inp, excluded.inp), cc=MAX(cc, excluded.cc), cr=MAX(cr, excluded.cr), cc1h=MAX(cc1h, excluded.cc1h), "+
-			"task_id=CASE WHEN agent = '' THEN excluded.task_id ELSE task_id END, agent=CASE WHEN agent = '' THEN excluded.agent ELSE agent END",
+			"task_id=CASE WHEN agent = '' THEN excluded.task_id ELSE task_id END, agent=CASE WHEN agent = '' THEN excluded.agent ELSE agent END, "+
+			"node=CASE WHEN node = '' THEN excluded.node ELSE node END",
 			acct, c.Session, c.Req, c.TS, c.Model, c.Cwd, c.Side,
-			c.Tokens.Inp, c.Tokens.CC, c.Tokens.CR, c.Tokens.Out, c.Tokens.Thinking, c.Tokens.CC1h, o.Agent, task); err != nil {
+			c.Tokens.Inp, c.Tokens.CC, c.Tokens.CR, c.Tokens.Out, c.Tokens.Thinking, c.Tokens.CC1h, o.Agent, task, node); err != nil {
 			return err
 		}
 	}
@@ -176,7 +178,7 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 	if !ok {
 		return 0, nil
 	}
-	if err := e.SaveCalls(q, acct, calls); err != nil {
+	if err := e.SaveCalls(q, acct, joined.NodeIDOf(e.Home), calls); err != nil {
 		return 0, err
 	}
 	b, err := json.Marshal(moved)
@@ -186,8 +188,8 @@ func (e *Env) IngestTokens(q db.Q, acct string, budget int) (int, error) {
 	return len(calls), db.SetMeta(q, offsetsMeta+acct, string(b))
 }
 
-// SaveCalls records calls as the account's, each charged to the agent and task whose session made it.
-func (e *Env) SaveCalls(q db.Q, acct string, calls []Call) error {
+// SaveCalls records calls as the account's, spent on the machine node, each charged to the agent and task whose session made it.
+func (e *Env) SaveCalls(q db.Q, acct, node string, calls []Call) error {
 	if len(calls) == 0 {
 		return nil
 	}
@@ -195,7 +197,7 @@ func (e *Env) SaveCalls(q db.Q, acct string, calls []Call) error {
 	if err != nil {
 		return err
 	}
-	return saveCalls(q, acct, calls, owners, int64(e.now()))
+	return saveCalls(q, acct, node, calls, owners, int64(e.now()))
 }
 
 // NewCalls is what the account's transcripts gained since the read positions kept (by file, relative to its projects tree), up to

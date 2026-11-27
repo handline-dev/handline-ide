@@ -69,6 +69,13 @@
       },
       "description": "The agents on this account (AgentView.account): running on it, or at rest with their prompt cache alive. One past its cache life is on none."
      },
+     "machines": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "The machines this account is logged in on, as node ids (node.status `id`): this daemon's own when its login here is good, then each runner whose last heartbeat names it logged in, by id."
+     },
      "moves": {
       "type": "array",
       "items": {
@@ -522,6 +529,7 @@
      "five_hour",
      "weekly",
      "agents",
+     "machines",
      "moves",
      "label",
      "vendor",
@@ -564,7 +572,7 @@
       "items": {
        "$ref": "#/components/schemas/AgentAccountUse"
       },
-      "description": "Each agent's use of each account in the window, largest cost first; an agent on two accounts has two rows."
+      "description": "Each agent's use of each account on each machine in the window, largest cost first; an agent on two accounts or two machines has a row for each."
      },
      "moves": {
       "type": "integer"
@@ -627,7 +635,7 @@
    },
    "AgentAccountUse": {
     "type": "object",
-    "description": "One agent's use of one account. tokens and cost are measured; week_pct is an estimate of the split, not of the account's rise.",
+    "description": "One agent's use of one account on one machine. tokens and cost are measured; week_pct is an estimate of the split, not of the account's rise.",
     "properties": {
      "agent": {
       "type": "string",
@@ -635,6 +643,10 @@
      },
      "account": {
       "type": "string"
+     },
+     "node": {
+      "type": "string",
+      "description": "The machine that spent the calls, as a node id (node.status `id`); calls kept from before machines were recorded count as this daemon's. An agent that spent on two machines has a row on each."
      },
      "tokens": {
       "type": "integer",
@@ -664,6 +676,7 @@
     "required": [
      "agent",
      "account",
+     "node",
      "tokens",
      "cost",
      "share",
@@ -793,6 +806,17 @@
         "agent": {
          "type": "string"
         },
+        "node": {
+         "oneOf": [
+          {
+           "type": "string"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "description": "The machine that spent the calls, as a node id (node.status `id`); calls kept from before machines were recorded count as this daemon's. An agent that spent on two machines has a row on each. null on the (unattributed) row of plan money with no priced call, which this daemon's own (unattributed) row takes instead when there is one."
+        },
         "tokens": {
          "type": "integer",
          "description": "Tokens the agent used in the span."
@@ -830,6 +854,7 @@
        },
        "required": [
         "agent",
+        "node",
         "tokens",
         "cost",
         "share",
@@ -837,7 +862,7 @@
         "fracs"
        ]
       },
-      "description": "What each agent used over the last `range` (the span of `past`), largest cost first, ties by name; plan money of a week's rise with no priced call comes last as a row of (unattributed) with no tokens. Absent from a daemon that does not send it."
+      "description": "What each agent used on each machine over the last `range` (the span of `past`), largest cost first, ties by name then machine; plan money of a week's rise with no priced call comes last as a row of (unattributed) with no tokens. Absent from a daemon that does not send it."
      },
      "overlay": {
       "type": "array",

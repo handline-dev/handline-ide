@@ -306,12 +306,12 @@ func Start(cfg Config) (*Daemon, error) {
 	d.nodes.Placer, d.nodes.Check = placer, placer.Check
 	d.placer = placer
 	d.nodes.Turns = cfg.Turns
-	d.nodes.Tokens = func(account string, raw json.RawMessage) error {
+	d.nodes.Tokens = func(node, account string, raw json.RawMessage) error {
 		var calls []usage.Call
 		if err := json.Unmarshal(raw, &calls); err != nil {
 			return rpc.BadRequestError("calls are the calls read: "+err.Error(), "calls", rpc.InvalidParams)
 		}
-		return (&usage.Env{Home: cfg.Home}).SaveCalls(db, account, calls)
+		return (&usage.Env{Home: cfg.Home}).SaveCalls(db, account, node, calls)
 	}
 	d.nodes.Transcript = func(agent, session string, at int64, rows []transcript.Row) {
 		if !transcriptRows(cfg.Home) {
@@ -825,6 +825,7 @@ func (d *Daemon) readsEnv() reads.Env {
 	}
 	if d.nodes != nil {
 		renv.NodeOnline = d.nodes.Online
+		renv.NodeLoggedIn = d.nodes.LoggedIn
 		renv.NodeHeard = func(node string) (map[string]any, bool, string, bool) {
 			b, _, ok := d.nodes.Heard(node)
 			l := b.Load

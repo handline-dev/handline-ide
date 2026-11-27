@@ -80,6 +80,7 @@ export const EVENT_REQUIRED: Record<string, readonly string[]> = {
     "five_hour",
     "weekly",
     "agents",
+    "machines",
     "moves",
     "label",
     "vendor",

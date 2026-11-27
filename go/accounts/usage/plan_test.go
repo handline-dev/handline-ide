@@ -81,12 +81,12 @@ func TestPlanMoneyComesFromTheWeeksRiseAndTokenPricesOnlySplitIt(t *testing.T) {
 	weekUSD := map[string]float64{"u": WeekBudget(200), "p": WeekBudget(20)}
 	for _, scale := range []float64{1, 10} {
 		days := dayCalls{}
-		days.add("2026-11-20", callKey{"x", "u"}, 3*scale)
-		days.add("2026-11-20", callKey{"y", "u"}, 1*scale)
-		days.add("2026-11-21", callKey{"x", "u"}, 2*scale)
+		days.add("2026-11-20", callKey{"x", "", "u"}, 3*scale)
+		days.add("2026-11-20", callKey{"y", "", "u"}, 1*scale)
+		days.add("2026-11-21", callKey{"x", "", "u"}, 2*scale)
 		span := tally{}
-		span.add(callKey{"x", "u"}, 0, 5*scale)
-		span.add(callKey{"y", "u"}, 0, 1*scale)
+		span.add(callKey{"x", "", "u"}, 0, 5*scale)
+		span.add(callKey{"y", "", "u"}, 0, 1*scale)
 		got := planCostsOf(days, span, rows, day1-1, day1-1, day2+7200, weekUSD)
 		d1, d2 := got.Daily["2026-11-20"], got.Daily["2026-11-21"]
 		u := WeekBudget(200) / 100
@@ -96,7 +96,7 @@ func TestPlanMoneyComesFromTheWeeksRiseAndTokenPricesOnlySplitIt(t *testing.T) {
 		if !eq6(d2["x"], 5*u) || !eq6(d2[Unattributed], 50*WeekBudget(20)/100) {
 			t.Errorf("x%v day two: %v", scale, d2)
 		}
-		if !eq6(got.Span["x"], 10*u*5/6) || !eq6(got.Span["y"], 10*u/6) || !eq6(got.Span[Unattributed], 50*WeekBudget(20)/100) {
+		if !eq6(got.Span[UseKey{Agent: "x"}], 10*u*5/6) || !eq6(got.Span[UseKey{Agent: "y"}], 10*u/6) || !eq6(got.Span[UseKey{Agent: Unattributed}], 50*WeekBudget(20)/100) {
 			t.Errorf("x%v span: %v", scale, got.Span)
 		}
 	}
