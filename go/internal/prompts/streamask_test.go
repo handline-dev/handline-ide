@@ -3,6 +3,7 @@ package prompts
 import (
 	"context"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -101,10 +102,25 @@ func TestAStreamAskWaitsUntilTheSessionGoesAndThenClosesItsPrompt(t *testing.T) 
 	e := testEnv(t)
 	register(t, e)
 	e.Refresh = 10 * time.Millisecond
+	var tick atomic.Int64 // each read of the clock is a second on, so each refresh moves the row's last_seen
+	base := time.Now().Unix()
+	e.Now = func() time.Time { return time.Unix(base+tick.Add(1), 0) }
 	ctx, cancel := context.WithCancel(context.Background())
-	e.DB.Exec("INSERT INTO events(ts, agent, kind) VALUES(?, ?, 'Stop')", time.Now().Unix()+5, backendKey(e))
-	call, _ := askStream(t, ctx, e, "Bash", map[string]any{"command": "ls"})
-	time.Sleep(100 * time.Millisecond)
+	call, b := askStream(t, ctx, e, "Bash", map[string]any{"command": "ls"})
+	e.DB.Exec("INSERT INTO events(ts, agent, kind) VALUES(?, ?, 'Stop')", base+1000, backendKey(e))
+	seen := func() (n int64) {
+		if err := e.DB.QueryRow("SELECT last_seen FROM prompt_blocks WHERE id = ?", b.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	after := seen()
+	for i := 0; seen() < after+2; i++ { // two refreshes after the Stop: the first has read it
+		if i == 500 {
+			t.Fatal("the prompt stopped being refreshed after a turn event: only its session's end ends a stream ask")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	if left, _ := e.OpenOf(backendKey(e)); left == nil {
 		t.Fatal("a turn event ended a stream ask: only its session's end does")
 	}
