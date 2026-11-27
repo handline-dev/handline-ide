@@ -10,6 +10,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/kit/timefmt"
+	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/scheduler/staymove"
 )
 
@@ -362,6 +363,37 @@ func (v *Mover) PerformHandoff(agent string, t HandoffTrigger, dest string) (ok 
 	return v.performHandoff(agent, t, dest)
 }
 
+func (v *Mover) compactAtTaskEnd(agent string) bool {
+	return v.M.Settings.AgentFlag(agent, settings.CompactAtTaskEndKey, false)
+}
+
+// CompactWaits is whether a context compact that is due waits for the agent's task in progress to close (compact_at_task_end). While
+// it waits, a running turn holds what the daemon would type; a turn that has ended, background work behind its prompt or not, lets it
+// in, since the task may wait on it. An agent with no task in progress compacts at its turn's end; one that always holds a task in
+// progress waits for Claude Code's own compaction.
+func (v *Mover) CompactWaits(agent string) (waits bool, err error) {
+	defer catch(&err)
+	m := v.M
+	if !v.compactAtTaskEnd(agent) {
+		return false, nil
+	}
+	defer m.lockAgent(agent)()
+	tid := must(db.DoingTask(m.Q, agent))
+	if tid == 0 || !m.sessionAlive(agent) {
+		return false, nil
+	}
+	now := m.now()
+	if m.turnRunning(agent) {
+		check(db.MarkCompactDue(m.Q, agent, now, true))
+		check(db.MarkDeferred(m.Q, agent, now))
+		v.log("  %s: context fired - waits for its task (%d) to close; holds what arrives while its turn runs", agent, tid)
+	} else {
+		check(db.MarkCompactDue(m.Q, agent, now, false))
+		check(db.LetDeferredIn(m.Q, agent))
+	}
+	return true, nil
+}
+
 // turnOverAtLimit: a turn that ended on the usage limit and has stayed quiet is over, whatever else says; one that ended on an expired
 // login is over at once. Sooner than that a person or the agent may be mid-turn.
 func (v *Mover) turnOverAtLimit(agent, kind string, now int64) bool {
@@ -390,6 +422,7 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	}
 	if !m.sessionAlive(agent) {
 		v.log("  %s: %s fired but no session is running - not handing off", agent, t.Kind)
+		check(db.ClearDeferred(m.Q, agent))
 		return true, nil
 	}
 	settled := v.turnOverAtLimit(agent, t.Kind, now)
@@ -414,6 +447,9 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 		if !onBg || !v.backgroundWaitOver(agent, t.Kind, bg, now) {
 			v.log("  %s: %s fired - deferring, waits for %s", agent, t.Kind, logged)
 			check(db.MarkDeferred(m.Q, agent, now))
+			if t.Kind == "context" {
+				check(db.MarkCompactDue(m.Q, agent, now, v.compactAtTaskEnd(agent) && m.turnRunning(agent)))
+			}
 			v.deferredSaving(agent, t.Kind, dest, waits)
 			return true, nil
 		}

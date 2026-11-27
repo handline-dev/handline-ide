@@ -474,6 +474,10 @@ export type SettingsValues = {
   cluster_name?: string;
   /** Refuse hl screen (a window captured through the daemon) for every agent. Off: an agent may capture a window. Per agent with `agent`: that agent's own switch, on over a global one that is off. */
   block_screen_capture?: boolean;
+  /** Once the context passes the compact line, nothing more is typed into a running turn: what arrives goes to the fresh session. A task in progress closes (done or handed on) before the compact runs; between turns of that task what arrives is typed as usual. Off: the compact waits for the turn to end and holds what arrives for 10 minutes at most. Per agent with `agent`: that agent's own switch, over the global one. */
+  compact_at_task_end?: boolean;
+  /** A person's Compact now stops the turn under way, then the agent writes its note and starts fresh. Off: it waits for the turn to end. Per agent with `agent`: that agent's own switch, over the global one. */
+  compact_now_stops_turn?: boolean;
   /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. */
   screencapture_via_handline?: boolean;
 };
@@ -582,6 +586,10 @@ export type SettingsChanges = {
   cluster_name?: string;
   /** Refuse hl screen (a window captured through the daemon) for every agent. Off: an agent may capture a window. Per agent with `agent`: that agent's own switch, on over a global one that is off. null removes the key (back to the default). */
   block_screen_capture?: boolean | null;
+  /** Once the context passes the compact line, nothing more is typed into a running turn: what arrives goes to the fresh session. A task in progress closes (done or handed on) before the compact runs; between turns of that task what arrives is typed as usual. Off: the compact waits for the turn to end and holds what arrives for 10 minutes at most. Per agent with `agent`: that agent's own switch, over the global one. null removes the key (back to the default). */
+  compact_at_task_end?: boolean | null;
+  /** A person's Compact now stops the turn under way, then the agent writes its note and starts fresh. Off: it waits for the turn to end. Per agent with `agent`: that agent's own switch, over the global one. null removes the key (back to the default). */
+  compact_now_stops_turn?: boolean | null;
   /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. null removes the key (back to the default). */
   screencapture_via_handline?: boolean | null;
   /** The model a new claude agent gets when it is made without one: an agent.options model alias or a full model id, passed to the CLI as is. One word, not starting with -. Existing agents keep theirs. null removes the key (back to the default). */
@@ -1246,7 +1254,7 @@ export interface CoreMethods {
 }; result: Settings };
   "settings.set": { params: {
   changes: SettingsChanges;
-  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s. Any other key with `agent` is bad_request. */
+  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s, compact_at_task_end, compact_now_stops_turn. Any other key with `agent` is bad_request. */
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };

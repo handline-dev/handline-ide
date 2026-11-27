@@ -783,3 +783,30 @@ func TestAnOfferStandsOnlyWhenNoOtherNeedDoesButSurvivesTheDialogItsWaitHides(t 
 		t.Fatalf("%v", n)
 	}
 }
+
+func TestTheViewSaysSinceWhenADueCompactHasWaitedUntilItRuns(t *testing.T) {
+	r := newRig(t, "a")
+	r.state(t, "a", states.Running, "")
+	waiting := func() any {
+		t.Helper()
+		r.env.RefreshOne("a")
+		return r.stored(t, "a")["compact_waiting_since"]
+	}
+	if w := waiting(); w != nil {
+		t.Fatalf("none due, got %v", w)
+	}
+	for _, at := range []int64{4990, 5020} { // a later tick keeps the first time
+		if err := db.MarkCompactDue(r.env.Q, "a", at, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if w := waiting(); w != stamp(4990) {
+		t.Fatalf("due since 4990, got %v", w)
+	}
+	if err := db.ClearDeferred(r.env.Q, "a"); err != nil {
+		t.Fatal(err)
+	}
+	if w := waiting(); w != nil {
+		t.Fatalf("the compact ran, got %v", w)
+	}
+}

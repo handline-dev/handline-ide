@@ -40,6 +40,7 @@ type world struct {
 	movePlan    string
 	moved       bool
 	performOK   bool
+	compactWait bool
 	onHandoff   func() // runs as a handoff is performed
 	bgWork      bool
 	idleSince   int64
@@ -186,6 +187,7 @@ func (h wHandoff) PerformHandoff(_ db.Q, a string, t Trigger, dest string) bool 
 	}
 	return h.w.performOK
 }
+func (h wHandoff) CompactWaits(db.Q, string) bool              { return h.w.compactWait }
 func (h wHandoff) NoteHold(db.Q, string, int64) bool           { return h.w.hold }
 func (h wHandoff) NoteAtCacheEdge(db.Q, string, int64, Status) { h.w.call("cacheedge") }
 func (h wHandoff) NoteEnabled(string) bool                     { return h.w.noteEnabled }

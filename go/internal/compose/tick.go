@@ -603,6 +603,13 @@ func (h tickHandoff) MoveToRoom(_ db.Q, agent string, t tick.Trigger) bool {
 	moved, _ := h.mv.MoveToRoom(agent, lifecycle.HandoffTrigger{Kind: t.Kind, Reason: t.Reason})
 	return moved
 }
+func (h tickHandoff) CompactWaits(_ db.Q, agent string) bool {
+	waits, err := h.mv.CompactWaits(agent)
+	if err != nil {
+		h.mv.M.Log("  %s: could not tell whether its compact waits for its task: %v", agent, err)
+	}
+	return waits && err == nil
+}
 func (h tickHandoff) PerformHandoff(_ db.Q, agent string, t tick.Trigger, dest string) bool {
 	ok, err := h.mv.PerformHandoff(agent, lifecycle.HandoffTrigger{Kind: t.Kind, Reason: t.Reason}, dest)
 	return ok && err == nil

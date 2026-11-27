@@ -23,6 +23,8 @@ export type AgentView = {
   state_since: Timestamp;
   wall_reason?: string | null;
   background_since?: Timestamp | null;
+  /** Since when a context compact that is due has waited: for the turn under way to end, or with compact_at_task_end for the task in progress to close. null when none is waiting. Absent from a daemon that does not serve it. */
+  compact_waiting_since?: Timestamp | null;
   /** What runs behind the agent's prompt now, oldest first: its background shells and monitors, and its subagents, a foreground one while the turn waits on it. Empty when nothing runs. Absent from a daemon that does not send it. */
   background?: BackgroundJob[];
   /** The TCP ports the agent's processes (those load.get attributes to it) listen on, lowest port first; empty when none. The session's own are left out: its claude or codex process and that process's direct children that are not a shell (MCP and LSP servers), so a server started through its Bash tool stays; so are the daemon's and the panes'. Read every 15 s; a change is an agent.changed. Absent from a daemon that does not send it. */

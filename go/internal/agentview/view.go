@@ -457,6 +457,10 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 	if at, has := must2(e.BgSince(e.Q, agent)); has {
 		bg = stamp(at)
 	}
+	var compactWaiting any
+	if at := must(db.CompactDueSince(e.Q, agent)); at != 0 {
+		compactWaiting = stamp(at)
+	}
 	var cache any
 	warm := false
 	if e.CacheLeft != nil {
@@ -505,8 +509,9 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"name": agent, "role": e.roleLine(agent), "model": model, "effort": effort,
 		"state": state, "state_detail": detail, "state_since": since,
 		"wall_reason": wallBanner(must(e.WallReason(e.Q, agent, row)), st), "background_since": bg,
-		"would_wake": row != nil && must(e.WouldWake(row)),
-		"account":    account, "task": task, "cache_until": cache, "ctx_pct": ctx,
+		"compact_waiting_since": compactWaiting,
+		"would_wake":            row != nil && must(e.WouldWake(row)),
+		"account":               account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
 		"account_switch": must(e.switchView(row, now)), "pending_move": must(e.pendingMove(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
 	}, nil

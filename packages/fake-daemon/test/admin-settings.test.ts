@@ -24,6 +24,8 @@ const KEYS = [
   'push_sound',
   'account_split',
   'block_screen_capture',
+  'compact_at_task_end',
+  'compact_now_stops_turn',
   'screencapture_via_handline',
   'agent_placement',
   'review_flow',

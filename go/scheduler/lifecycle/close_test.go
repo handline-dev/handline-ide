@@ -154,16 +154,17 @@ func TestCompactWritesTheAskForAnOpenAgentMidTurnAndRestartsAClosedOneFresh(t *t
 	m, d, tm := newManager(t)
 	tm.launchOK = true
 	d.waitingMsg, d.tookPrompt = "Restarted.", true
-	if ok, said, _ := m.Compact("ghost", SessionStatus{}, ""); ok || said != "it has never been started" {
+	stop := func() error { t.Fatal("stopped a turn with compact_now_stops_turn off"); return nil }
+	if ok, said, _ := m.Compact("ghost", SessionStatus{}, "", stop); ok || said != "it has never been started" {
 		t.Fatalf("%v %q", ok, said)
 	}
 	db.SetTerminal(m.Q, "a", "t1", "/wt")
 	db.SetAgentState(m.Q, "a", states.Handoff, 0, "")
-	if ok, said, _ := m.Compact("a", SessionStatus{SessionID: "sess-1"}, "boss"); ok || said != "it is mid-handoff" {
+	if ok, said, _ := m.Compact("a", SessionStatus{SessionID: "sess-1"}, "boss", stop); ok || said != "it is mid-handoff" {
 		t.Fatalf("%v %q", ok, said)
 	}
 	db.SetAgentState(m.Q, "a", states.Running, 0, "")
-	if ok, said, err := m.Compact("a", SessionStatus{SessionID: "sess-1"}, "boss"); err != nil || !ok || !strings.Contains(said, "once its turn ends") {
+	if ok, said, err := m.Compact("a", SessionStatus{SessionID: "sess-1"}, "boss", stop); err != nil || !ok || !strings.Contains(said, "once its turn ends") {
 		t.Fatalf("mid-turn is waited for, not refused: %v %q %v", ok, said, err)
 	}
 	if _, p, ok, _ := db.LastEvent(m.Q, "a", states.CompactAskedKind); !ok || p["by"] != "boss" {
@@ -174,7 +175,7 @@ func TestCompactWritesTheAskForAnOpenAgentMidTurnAndRestartsAClosedOneFresh(t *t
 	}
 	db.SetTerminal(m.Q, "c", "t2", "/wt")
 	db.SetClosed(m.Q, "c", "sess-9")
-	if ok, said, err := m.Compact("c", SessionStatus{}, ""); err != nil || !ok {
+	if ok, said, err := m.Compact("c", SessionStatus{}, "", stop); err != nil || !ok {
 		t.Fatalf("%v %q %v", ok, said, err)
 	}
 	if _, _, asked, _ := db.LastEvent(m.Q, "c", states.CompactAskedKind); asked {

@@ -94,6 +94,8 @@ agent" can also be set on one agent's row (the app's agent settings), which then
 | `usage_move_before_pct` | 90 | Share of the five-hour window at which an idle agent with work waiting moves to an account with room. 0 moves only at the wall. |
 | `account_split` | auto | `manual`: the daemon never places or moves an agent; it waits at its account's wall. |
 | `block_screen_capture` | off | On: `hl screen` refuses every agent. Per agent too, on over a global off. |
+| `compact_at_task_end` | off | Once the context passes the compact line, nothing more is typed into a running turn (it goes to the fresh session), and a task in progress closes before the compact runs. Per agent too. |
+| `compact_now_stops_turn` | off | Compact now stops the turn under way instead of waiting for it to end. Per agent too. |
 | `screencapture_via_handline` | off | On: an agent's shell `screencapture` is refused and the way through Handline named: `hl screen` for a window, the browser commands for a web page, the simulator commands for a phone app. |
 | `pace_target_pct` | 98 | Where an account's weekly pace line ends: the share of the week (50 to 100) it may have spent when its week resets. |
 | `pace_burst_pct` | 10 | How many points ahead of that line still counts as on it (0 to 50). The pace line is shown; it holds no start. |

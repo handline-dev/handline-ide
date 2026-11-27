@@ -52,7 +52,7 @@ func (c *controls) Restart(_ Call, a string, f, g bool) (bool, string, error) {
 	return c.rec("restart", a, f, g)
 }
 func (c *controls) Park(_ Call, a string) (bool, string, error) { return c.rec("park", a) }
-func (c *controls) Compact(cl Call, a string) (bool, string, error) {
+func (c *controls) Compact(cl Call, a string, _ func() error) (bool, string, error) {
 	return c.rec("compact", a, cl.By)
 }
 

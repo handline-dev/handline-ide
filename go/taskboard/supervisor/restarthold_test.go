@@ -174,3 +174,25 @@ func TestADeferralPastTheCeilingIsNotReArmedByTheNextTick(t *testing.T) {
 		t.Fatal("a new deferral does not hold")
 	}
 }
+
+// A compact held until it runs (compact_at_task_end) keeps a request out of the running turn past the ceiling; the fresh session gets it.
+func TestAMessageWhileACompactIsHeldStaysQueuedPastTheCeilingAndGoesToTheFreshSession(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	r.must(db.MarkDeferred(r.DB, r.k("bob"), r.now()-db.NoteWaitStaleS-1))
+	r.must(db.MarkCompactDue(r.DB, r.k("bob"), r.now()-db.NoteWaitStaleS-1, true))
+	rid := r.founderSays(r.k("bob"), "are you there?")
+	if got, _ := r.TellNow(r.DB, rid); !strings.Contains(r.named(got), "held while it restarts") {
+		t.Fatalf("told at once: %q", got)
+	}
+	if last := r.term.last(); last != "" {
+		t.Fatalf("typed into the running turn: %q", last)
+	}
+	r.must(db.ClearDeferred(r.DB, r.k("bob")))
+	if got, _ := r.TellNow(r.DB, rid); got != "sent" {
+		t.Fatal(got)
+	}
+	if last := r.term.last(); !strings.HasPrefix(last, arrivedDuringRestart) {
+		t.Fatalf("no arrival line: %q", last)
+	}
+}

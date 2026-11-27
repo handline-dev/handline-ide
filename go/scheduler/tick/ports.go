@@ -97,6 +97,8 @@ type Handoff interface {
 	MoveToRoom(q db.Q, agent string, t Trigger) bool
 	// PerformHandoff runs the handoff for the trigger; dest "" lets it choose where to. False when it degraded or failed.
 	PerformHandoff(q db.Q, agent string, t Trigger, dest string) bool
+	// CompactWaits is whether the context compact the reading fired waits for the agent's task in progress to close.
+	CompactWaits(q db.Q, agent string) bool
 	// NoteHold is whether a close should wait for the agent's handoff note; NoteAtCacheEdge asks for the note while an idle session's
 	// prompt cache nears its end.
 	NoteHold(q db.Q, agent string, now int64) bool

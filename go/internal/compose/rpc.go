@@ -163,8 +163,8 @@ func (c controls) Restart(call sessionrpc.Call, agent string, fresh, force bool)
 	return c.lc.Manager.RestartAgent(agent, c.status(agent), lifecycle.RestartOpts{Fresh: fresh, Force: force, By: call.By, Cause: "restart"})
 }
 
-func (c controls) Compact(call sessionrpc.Call, agent string) (bool, string, error) {
-	return c.lc.Manager.Compact(agent, c.status(agent), call.By)
+func (c controls) Compact(call sessionrpc.Call, agent string, stop func() error) (bool, string, error) {
+	return c.lc.Manager.Compact(agent, c.status(agent), call.By, stop)
 }
 
 // Park is a handoff, then the agent parked until the window rolls over. The handoff is the policy tick's, which

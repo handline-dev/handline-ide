@@ -253,5 +253,10 @@
   "version": 150,
   "name": "agent_move_background_wait",
   "additive": true
+ },
+ {
+  "version": 151,
+  "name": "agent_compact_settings",
+  "additive": true
  }
 ]
