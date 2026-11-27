@@ -1,11 +1,14 @@
 package homefiles
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // Files collected under one home land at the same paths under another, with their modes; a path outside the home is refused before
@@ -91,5 +94,68 @@ func TestALinkLeadsNowhereOutsideTheHome(t *testing.T) {
 	}
 	if _, err := Collect(home, filepath.Join(home, "attachments")+"/../accounts"); err == nil {
 		t.Fatal("a path with .. was collected")
+	}
+}
+
+// Files of any size go as messages each under the link's limit, a big one as pieces that land whole and with its mode, and the
+// deleted paths after them; a piece that reaches past its file's size is refused.
+func TestMessagesStayUnderTheLimitAndTheirPiecesLandWhole(t *testing.T) {
+	home := t.TempDir()
+	os.WriteFile(filepath.Join(home, "gone"), []byte("x"), 0o644)
+	big := bytes.Repeat([]byte("0123456789abcdef"), (3<<20)/16+5)
+	var files []File
+	for i := range 6 {
+		files = append(files, File{Path: fmt.Sprintf("s/f%d", i), Data: bytes.Repeat([]byte{'a' + byte(i)}, 300<<10), Mode: 0o644})
+	}
+	files = append(files, File{Path: "s/big", Data: big, Mode: 0o755})
+	msgs := Messages(files, []string{"gone"})
+	if len(msgs) < 8 {
+		t.Fatalf("%d messages", len(msgs))
+	}
+	for _, m := range msgs {
+		raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": "m1", "method": "runner.files", "params": m})
+		if len(raw) > rpc.MaxLineBytes {
+			t.Fatalf("a message of %d bytes", len(raw))
+		}
+		var back map[string]any
+		d := json.NewDecoder(bytes.NewReader(raw))
+		d.UseNumber()
+		d.Decode(&back)
+		p := back["params"].(map[string]any)
+		got, err := FromWire(p["files"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Apply(home, got, Strings(p["deleted"])); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, "s", "big")); !bytes.Equal(b, big) {
+		t.Fatalf("the big file landed as %d bytes", len(b))
+	}
+	if st, _ := os.Stat(filepath.Join(home, "s", "big")); st.Mode().Perm() != 0o755 {
+		t.Fatalf("its mode: %v", st.Mode())
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, "s", "f5")); len(b) != 300<<10 || b[0] != 'f' {
+		t.Fatal("a small file did not land")
+	}
+	if _, err := os.Stat(filepath.Join(home, "gone")); !os.IsNotExist(err) {
+		t.Fatal("the deleted file stayed")
+	}
+	if _, err := os.Stat(filepath.Join(home, "s", ".big.hl-part")); !os.IsNotExist(err) {
+		t.Fatal("the part file stayed")
+	}
+	var many []File // tiny files whose paths are what counts, some with bytes JSON escapes
+	for i := range 20000 {
+		many = append(many, File{Path: fmt.Sprintf("shared/.claude/skills/node_modules/<&>/%05d", i)})
+	}
+	for _, m := range Messages(many, nil) {
+		if raw, _ := json.Marshal(m); len(raw) > rpc.MaxLineBytes-1024 {
+			t.Fatalf("a message of tiny files of %d bytes", len(raw))
+		}
+	}
+	past := []any{map[string]any{"path": "s/x", "data": "eHg=", "mode": json.Number("420"), "offset": json.Number("5"), "size": json.Number("6")}}
+	if _, err := FromWire(past); err == nil {
+		t.Fatal("a piece past its size was taken")
 	}
 }

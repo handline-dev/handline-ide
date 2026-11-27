@@ -75,8 +75,10 @@ type Registry struct {
 	local   func() *rpc.Server // set once by Register, before any link (so read without the lock): where an agent's name is read as its key
 	mu      sync.Mutex
 	links   map[string]*rpc.Conn
-	homes   map[*rpc.Conn]string // each link's runner's home, once asked
-	streams map[string]*stream   // by id
+	homes   map[*rpc.Conn]string   // each link's runner's home, once asked
+	shared  map[*rpc.Conn]bool     // the links WatchShared has sent the shared items on
+	sending map[string]*sync.Mutex // by node: one send of files at a time, so the pieces of two never mix
+	streams map[string]*stream     // by id
 	next    int
 	beats   map[string]heard           // each runner's newest heartbeat since this master started
 	opening map[string]map[string]bool // by node, the agents whose session Open is opening there now
@@ -108,7 +110,7 @@ func (r *Registry) Now() time.Time {
 }
 
 func New(db *sql.DB, home string) *Registry {
-	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, streams: map[string]*stream{},
+	return &Registry{DB: db, Home: home, links: map[string]*rpc.Conn{}, homes: map[*rpc.Conn]string{}, shared: map[*rpc.Conn]bool{}, sending: map[string]*sync.Mutex{}, streams: map[string]*stream{},
 		beats: map[string]heard{}, updates: map[string]bool{}, appAsks: map[string]string{}, opening: map[string]map[string]bool{}, started: time.Now()}
 }
 
@@ -140,6 +142,7 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 			}
 		}
 		delete(r.homes, c)
+		delete(r.shared, c)
 		var ended []func()
 		for id, s := range r.streams {
 			if s.c == c {

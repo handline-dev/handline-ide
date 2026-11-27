@@ -1,6 +1,8 @@
 package daemon
 
 import (
+	"bytes"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -548,5 +551,54 @@ func TestARunnersAccountUsageCountsOnTheMaster(t *testing.T) {
 	}
 	if n, out := sum(); n != 1 || out != 20 {
 		t.Fatalf("sent twice, the master counts %d calls, %d out", n, out)
+	}
+}
+
+// Shared items far bigger than one message (a skill of many files, one file past the limit) reach a runner in pieces over the link it
+// keeps: none ends the link, which a single message past the limit does, again at each relink.
+func TestSharedItemsPastOneMessageReachARunnerAndItsLinkHolds(t *testing.T) {
+	var mu sync.Mutex
+	ended := 0
+	master, _, rhome, _, _ := masterWithRunnerAs(t, nil, func(c *runner.Config) {
+		log := c.Log
+		c.Log = func(f string, a ...any) {
+			if strings.Contains(f, "the link to the master at %s ended") {
+				mu.Lock()
+				ended++
+				mu.Unlock()
+			}
+			log(f, a...)
+		}
+	})
+	mhome := master.cfg.Home
+	dir := filepath.Join(mhome, "shared", ".claude", "skills", "big")
+	os.MkdirAll(dir, 0o755)
+	want := map[string][]byte{}
+	for i, size := range []int{400 << 10, 400 << 10, 400 << 10, 400 << 10, 3 << 20} {
+		b := make([]byte, size)
+		rand.Read(b)
+		name := fmt.Sprintf("f%d.bin", i)
+		os.WriteFile(filepath.Join(dir, name), b, 0o644)
+		want[name] = b
+	}
+	rdir := strings.Replace(dir, mhome, rhome, 1)
+	for end := time.Now().Add(30 * time.Second); ; time.Sleep(100 * time.Millisecond) {
+		missing := ""
+		for name, b := range want {
+			if got, _ := os.ReadFile(filepath.Join(rdir, name)); !bytes.Equal(got, b) {
+				missing = name
+			}
+		}
+		if missing == "" {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("%s never reached the runner whole", missing)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if ended != 0 {
+		t.Fatalf("the runner's link ended %d times", ended)
 	}
 }

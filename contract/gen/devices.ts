@@ -302,12 +302,13 @@ export interface DevicesMethods {
     env: string[];
     warnings: string[];
     files: { [key: string]: unknown }[];
+    shipped: string[];
     agent_dir: string;
   } };
   "node.agent_files": { params: {
   /** The agent whose session wrote them, as the runner proved it. */
   agent: string;
-  /** Each {path under the agent's folder, data in base64, mode}. */
+  /** Each {path under the agent's folder, data in base64, mode}; a piece of a file too big for one message adds offset and size, the whole file's. */
   files?: { [key: string]: unknown }[];
   /** Paths under the agent's folder it removed. */
   deleted?: string[];
