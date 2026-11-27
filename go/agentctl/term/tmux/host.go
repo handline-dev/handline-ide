@@ -41,6 +41,9 @@ func (t Tmux) CreateTerminal(command, cwd, title, agent string) (string, string)
 			return "", "could not stamp the new window with its agent: " + err
 		}
 	}
+	if command == "" { // the caller types it once it has done what must come first
+		return pane, ""
+	}
 	if ok, why := t.Send(pane, command, true); !ok {
 		t.CloseTerminal(pane, true)
 		return "", "could not type the command into the new window: " + why

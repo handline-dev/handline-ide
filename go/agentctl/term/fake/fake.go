@@ -122,8 +122,8 @@ func (f Fake) WaitIdle(handle string, timeoutMs int, turn func(tail []string) bo
 // CreateTerminal starts a shell in cwd with the daemon's home in its environment and types command at it, as a tmux window does.
 func (f Fake) CreateTerminal(command, cwd, title, agent string) (string, string) {
 	handle, why := f.start(cwd, agent)
-	if handle == "" {
-		return "", why
+	if handle == "" || command == "" {
+		return handle, why
 	}
 	if ok, why := f.Send(handle, command, true); !ok {
 		f.CloseTerminal(handle, true)
