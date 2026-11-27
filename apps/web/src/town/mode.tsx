@@ -2,21 +2,16 @@
 // sidebar's Town and left by Leave in its top strip, which also counts who is at work, waiting, stopped and on hold (StatusBar.tsx). The
 // founder works from inside it: chats float over it, so it needs no tab.
 import { AnimatePresence, motion } from 'framer-motion';
-import { createStore } from '#src/persist/store.ts';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { CONTROLS_STRIP, useWindowLayer } from '#src/layout/windowLayer.tsx';
-import { useBackCloses } from '#src/ui/backCloses.ts';
+import { IconButton } from '#src/ui/IconButton.tsx';
+import { leaveTown, useTownOpen } from '#src/town/history.ts';
 import { TownStatus } from '#src/town/StatusBar.tsx';
 import { TownTab } from '#src/town/Town.tsx';
 import { ShapeButton } from '#src/town/List.tsx';
 
-const open = createStore(false);
-export const openTown = () => open.set(true);
-const closeTown = () => open.set(false);
-export const useTownOpen = open.useValue;
-
 export function TownMode() {
   const shown = useTownOpen();
-  useBackCloses(shown, closeTown);
   return (
     <AnimatePresence>
       {shown && (
@@ -44,6 +39,14 @@ function Frame() {
         className="app-drag layer-drag flex shrink-0 items-center gap-2 border-b border-border pr-2 text-sm"
         style={{ height: CONTROLS_STRIP, paddingLeft: 'calc(16px + var(--lights-w, 0px))' }}
       >
+        <span className="app-no-drag flex items-center gap-0.5">
+          <IconButton label="Back" onClick={() => history.back()}>
+            <ChevronLeft size={16} />
+          </IconButton>
+          <IconButton label="Forward" onClick={() => history.forward()}>
+            <ChevronRight size={16} />
+          </IconButton>
+        </span>
         <span className="font-medium">Town</span>
         {/* On a phone's width the list says each team's counts. */}
         <span className="flex min-w-0 max-sm:hidden">
@@ -51,7 +54,7 @@ function Frame() {
         </span>
         <span className="flex-1" />
         <ShapeButton />
-        <button type="button" onClick={closeTown} className="app-no-drag rounded-md px-1.5 py-0.5 text-muted hover:bg-hover hover:text-fg">
+        <button type="button" onClick={leaveTown} className="app-no-drag rounded-md px-1.5 py-0.5 text-muted hover:bg-hover hover:text-fg">
           Leave
         </button>
       </div>

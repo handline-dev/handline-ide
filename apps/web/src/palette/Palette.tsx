@@ -11,7 +11,7 @@ import type { Entry } from '#src/palette/places.tsx';
 import { useSections } from '#src/palette/sections.tsx';
 import { closePalette, togglePalette, usePaletteOpen } from '#src/palette/store.ts';
 import { useSettingsOpen } from '#src/settings/open.ts';
-import { useTownOpen } from '#src/town/mode.tsx';
+import { useTownOpen } from '#src/town/history.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { MAC } from '#src/ui/keys.ts';
 import { Spinner } from '#src/ui/Loading.tsx';

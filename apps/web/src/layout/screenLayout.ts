@@ -73,7 +73,7 @@ export function carryIn(opens: string, space: string | null): string {
 const PAGES = new Set(pages.map((p) => p.kind));
 
 /** Layout changes that move the person somewhere: each is a step that Back and Forward walk. Closing, splitting, moving and resizing are not. */
-const MOVES = new Set<Action['type']>(['select', 'open', 'show', 'choose', 'navigate']);
+export const MOVES = new Set<Action['type']>(['select', 'open', 'show', 'choose', 'navigate']);
 
 export function useScreenLayout() {
   const [saved, setSaved] = useState(load);
@@ -95,7 +95,9 @@ export function useScreenLayout() {
     if (how === 'restore' || json === last.current) return void (last.current = json);
     last.current = json;
     const nav = { layout: saved.layout };
-    if (how === 'push') history.pushState({ nav }, '');
+    // A move made while the town is open stays in the town (town/history.ts); a modal's mark stays on its own entry.
+    const { modal: _modal, ...kept } = (history.state as { modal?: boolean } | null) ?? {};
+    if (how === 'push') history.pushState({ ...kept, nav }, '');
     else history.replaceState({ ...(history.state as object | null), nav }, ''); // keeps an open modal's mark (ui/backCloses)
   }, [saved]);
   useEffect(() => {

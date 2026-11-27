@@ -5,11 +5,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAgents, useNav, useRead } from '@handline/app-data';
 import { useNow } from '#src/format/time.ts';
-import { useTabState } from '#src/persist/tabState.ts';
+import { usePersisted } from '#src/persist/kv.ts';
 import { useRequests } from '#src/requests/data.ts';
 import { townOf, type House } from '#src/town/model.ts';
 import { TownWindows, useTownShown } from '#src/town/Windows.tsx';
 import { setTownGo, townGo } from '#src/town/goto.ts';
+import { stepTown, useTownHistory } from '#src/town/history.ts';
+import { NONE, type Windows } from '#src/town/windows.ts';
 import { Face } from '#src/town/face.tsx';
 import { figuresOf } from '#src/town/people.ts';
 import { Inside } from '#src/town/Inside.tsx';
@@ -42,7 +44,12 @@ export function TownTab() {
   const town = useMemo(() => townOf(workspaces ?? [], agents ?? [], turn, now), [workspaces, agents, turn, now]);
   const [pane, aspect] = useAspect();
   const city = useMemo(() => cityOf(town.houses, aspect), [town.houses, aspect]);
-  const [picked, setPicked] = useTabState<string | null>('house', null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [windows, setWindows] = usePersisted<Windows>('town-docks', NONE);
+  useTownHistory({ house: picked, windows }, (p) => {
+    setPicked(p.house);
+    setWindows(p.windows);
+  });
   // A person's chat tab shows their face, as drawn in their office.
   const rows = useMemo(() => new Map(town.houses.flatMap((h) => [...figuresOf(h.people)])), [town.houses]);
   const iconFor = (opens: string | undefined) => {
@@ -69,6 +76,7 @@ export function TownTab() {
   // The founder comes back out of a house at its own door; the city first shown starts at the HQ.
   const [left, setLeft] = useState<string | null>(null);
   const enter = (key: string) => {
+    stepTown();
     setLeft(key);
     setPicked(key);
   };
@@ -104,11 +112,19 @@ export function TownTab() {
   }, [town, city]);
 
   return (
-    <TownWindows iconFor={iconFor}>
+    <TownWindows iconFor={iconFor} windows={[windows, setWindows]}>
       <GoTo enter={enter} />
       <ListOr houses={town.houses}>
         {house ? (
-          <Inside key={house.key} house={house} cameIn={left === house.key} onBack={() => setPicked(null)} />
+          <Inside
+            key={house.key}
+            house={house}
+            cameIn={left === house.key}
+            onBack={() => {
+              stepTown();
+              setPicked(null);
+            }}
+          />
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div ref={pane} className="flex min-h-0 flex-1">

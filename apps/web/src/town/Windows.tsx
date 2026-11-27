@@ -21,16 +21,16 @@ import { useOpensOver } from '#src/layout/openTab.tsx';
 import { PANE_PLACE, type At, type PaneDrop } from '#src/layout/paneGrip.tsx';
 import { STOPS, holds, snapRatio, stepStop, type Action, type Pane } from '#src/layout/tree.ts';
 import { spring } from '#src/motion.ts';
-import { usePersisted } from '#src/persist/kv.ts';
 import { DROP_AREA, isTabDrag, readTabDrag, showBox, showZone, sideAt } from '#src/ui/dnd.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { MenuItem } from '#src/ui/Menu.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { FloatWindow } from '#src/town/FloatWindow.tsx';
+import { stepTown } from '#src/town/history.ts';
+import { MOVES as STEPS } from '#src/layout/screenLayout.ts';
 import {
   DOCKS_MOST,
   FLOAT_W,
-  NONE,
   focusIn,
   paneShowing,
   reduceWindows,
@@ -97,8 +97,18 @@ function moveMenu(at: Place, narrow: boolean, go: (to: Place) => void): ReactNod
   ));
 }
 
-export function TownWindows({ iconFor, children }: { iconFor: IconFor; children: ReactNode }) {
-  const [w, setW] = usePersisted<Windows>('town-docks', NONE);
+type SetWindows = (next: Windows | ((v: Windows) => Windows)) => void;
+
+/** `windows`: the town's windows and their setter, kept by the town with where it is (history.ts). */
+export function TownWindows({
+  iconFor,
+  windows: [w, setW],
+  children,
+}: {
+  iconFor: IconFor;
+  windows: readonly [Windows, SetWindows];
+  children: ReactNode;
+}) {
   // The pane last clicked, or the thing last brought up; the keys go to it while it is there, else to the first pane (focusIn).
   const [chosen, setChosen] = useState('');
   const [want, setWant] = useState<string | null>(null);
@@ -115,9 +125,11 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
   // A dock's share while its divider is dragged; it rests at the nearest stop when let go.
   const [drag, setDrag] = useState<{ side: Side; share: number } | null>(null);
   const act = (a: WindowAction) => {
+    const asked = a.type === 'tree' ? a.action : a;
+    // Bringing something up is a step Back returns from, as on the main screen; moving and resizing windows is not.
+    if (a.type === 'show' || STEPS.has(asked.type as Action['type'])) stepTown();
     setW((v) => reduceWindows(v, a));
     // The keys follow what is brought up, and a tab picked by key keeps them in its pane.
-    const asked = a.type === 'tree' ? a.action : a;
     if (asked.type === 'show' || asked.type === 'open') setWant(asked.opens);
     if (asked.type === 'select') setFocus(asked.pane);
   };
