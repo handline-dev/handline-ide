@@ -26,12 +26,12 @@ const CancelVerdict = "withdrawn by the founder"
 type Teller interface {
 	// Background runs fn after the caller returns, as one of the tellings the daemon waits on before it closes.
 	Background(name string, fn func())
-	// MemoChanged tells whom a memo concerns (the agents it names with @, only those; naming no one, the task's holder and who it answers
-	// to) that it was added, edited or deleted (what), with the memo's text: at once when now, else a reader mid-turn hears at the end of its turn.
-	// skip leaves out the agents another delivery already carries the comment to; the memo stays on the task.
-	MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string)
-	// MemoRecipients is who MemoChanged would tell of a comment by `by` with this text, and why, without telling anyone. A missing task is nil, false.
-	MemoRecipients(tid int64, by, text string, now bool) ([]Recipient, bool)
+	// CommentChanged tells whom a comment concerns (the agents it names with @, only those; naming no one, the task's holder and who it answers
+	// to) that it was added, edited or deleted (what), with the comment's text: at once when now, else a reader mid-turn hears at the end of its turn.
+	// skip leaves out the agents another delivery already carries the comment to; the comment stays on the task.
+	CommentChanged(tid, mid int64, by, what, text string, now bool, skip []string)
+	// CommentRecipients is who CommentChanged would tell of a comment by `by` with this text, and why, without telling anyone. A missing task is nil, false.
+	CommentRecipients(tid int64, by, text string, now bool) ([]Recipient, bool)
 	// PassedPause has the agent take the task task.send_now let through at once.
 	PassedPause(agent string)
 	// QueueDelivered sends a queued task to its free owner, or raises the founder's card, and answers what happened.
@@ -69,7 +69,7 @@ type Teller interface {
 	ForTemps(q db.Q, by, agent string) (hold bool, where string)
 }
 
-// Recipient is an agent a comment is told to, and why: asked (named with @), last_writer, assignee or owner (Teller.MemoRecipients).
+// Recipient is an agent a comment is told to, and why: asked (named with @), last_writer, assignee or owner (Teller.CommentRecipients).
 type Recipient struct {
 	Agent string `json:"agent"`
 	Why   string `json:"why"`
@@ -100,10 +100,10 @@ func Register(s *rpc.Server, home string, tell Teller, decide CardDecider) {
 	s.Register("task.release", rpc.Method{Handler: releaseMethod(home, tell)})
 	s.Register("task.wait", rpc.Method{Handler: waitMethod(home, tell)})
 	s.Register("task.merge", rpc.Method{Handler: mergeMethod(home, tell)})
-	s.Register("task.comment.add", rpc.Method{Handler: memoAdd(home, tell)})
-	s.Register("task.comment.edit", rpc.Method{Handler: memoEdit(home, tell)})
-	s.Register("task.comment.delete", rpc.Method{Handler: memoDelete(tell)})
-	s.Register("task.comment.recipients", rpc.Method{Handler: memoRecipients(tell)})
+	s.Register("task.comment.add", rpc.Method{Handler: commentAdd(home, tell)})
+	s.Register("task.comment.edit", rpc.Method{Handler: commentEdit(home, tell)})
+	s.Register("task.comment.delete", rpc.Method{Handler: commentDelete(tell)})
+	s.Register("task.comment.recipients", rpc.Method{Handler: commentRecipients(tell)})
 	s.Register("task.seen", rpc.Method{Handler: seenMethod})
 	s.Register("task.send_now", rpc.Method{Handler: sendNowMethod(tell)})
 }
@@ -124,7 +124,7 @@ func taskID(p map[string]any) (int64, error) {
 	return n, nil
 }
 
-func memoID(p map[string]any) (int64, error) {
+func commentID(p map[string]any) (int64, error) {
 	n, ok := rpc.AsInt(p["comment"])
 	if !ok {
 		return 0, badParam("comment must be a comment's number", "comment")
@@ -164,8 +164,8 @@ func hasTask(tx *sql.Tx, tid int64) (bool, error) {
 	return n > 0, err
 }
 
-// memoOf is the memo `mid` of task `tid`, or not_found.
-func memoOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
+// commentOf is the comment `mid` of task `tid`, or not_found.
+func commentOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
 	var of int64
 	switch err = tx.QueryRow("SELECT task_id, author, body FROM task_comments WHERE id = ?", mid).Scan(&of, &author, &body); {
 	case err == sql.ErrNoRows || (err == nil && of != tid):
@@ -176,7 +176,7 @@ func memoOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
 	return author, body, err
 }
 
-// guard: a memo is anyone's to add; only its author or the founder edits or deletes it.
+// guard: a comment is anyone's to add; only its author or the founder edits or deletes it.
 func guard(by, author string, mid int64) error {
 	if by == actor.OwnerKey || by == author {
 		return nil
@@ -184,9 +184,9 @@ func guard(by, author string, mid int64) error {
 	return refusal(fmt.Sprintf("comment %d is %s's: only its author or the founder edits or deletes it", mid, author))
 }
 
-// The holder of a doing task is not told of a memo change here: the telling is a typed say, the delivery layer's.
+// The holder of a doing task is not told of a comment change here: the telling is a typed say, the delivery layer's.
 
-func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
+func commentAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tid, err := taskID(p)
 		if err != nil {
@@ -250,11 +250,11 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				return nil, err
 			}
 			if hasReply {
-				if _, _, err := memoOf(tx, tid, reply); err != nil {
+				if _, _, err := commentOf(tx, tid, reply); err != nil {
 					return nil, err
 				}
 			}
-			mid, err := db.AddMemo(tx, tid, c.Caller.Actor(), body)
+			mid, err := db.AddComment(tx, tid, c.Caller.Actor(), body)
 			if err != nil {
 				return nil, err
 			}
@@ -263,7 +263,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if err := turnPerson(tx, later); err != nil {
 					return nil, err
 				}
-				if err := db.SetMemoLater(tx, mid, later); err != nil {
+				if err := db.SetCommentLater(tx, mid, later); err != nil {
 					return nil, err
 				}
 			}
@@ -279,7 +279,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				case actor.IsPerson(to):
 					return nil, refusal("a person's comment hands no turn to a person: name an agent")
 				}
-				if err = answerMemoAsks(tx, tid, me); err != nil {
+				if err = answerCommentAsks(tx, tid, me); err != nil {
 					return nil, err
 				}
 				if err = db.AnswerLater(tx, tid, me, mid); err != nil { // their comment answers the later steps for them before it
@@ -318,7 +318,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					}
 				}
 			}
-			if err := store.AttachMemo(tx, mid, files); err != nil {
+			if err := store.AttachComment(tx, mid, files); err != nil {
 				return nil, err
 			}
 			said := fmt.Sprintf("comment %d added to T%d", mid, tid)
@@ -378,7 +378,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					skip = append(skip, popped.To) // the task's return to it carries the comment
 				}
 			}
-			tell.MemoChanged(tid, added, c.Caller.Actor(), "added", told, now, skip)
+			tell.CommentChanged(tid, added, c.Caller.Actor(), "added", told, now, skip)
 		}
 		return out, err
 	}
@@ -417,8 +417,8 @@ func turnParams(p map[string]any, home string) (to, evidence string, err error) 
 	return to, evidence, nil
 }
 
-// memoRecipients is task.comment.recipients: who task.comment.add would tell, by the same rule (Teller.MemoRecipients), nothing written.
-func memoRecipients(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
+// commentRecipients is task.comment.recipients: who task.comment.add would tell, by the same rule (Teller.CommentRecipients), nothing written.
+func commentRecipients(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tid, err := taskID(p)
 		if err != nil {
@@ -437,7 +437,7 @@ func memoRecipients(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 		}
 		out := []Recipient{}
 		if tell != nil {
-			got, found := tell.MemoRecipients(tid, c.Caller.Actor(), body, now)
+			got, found := tell.CommentRecipients(tid, c.Caller.Actor(), body, now)
 			if !found {
 				return nil, refusal(fmt.Sprintf("no task T%d", tid))
 			}
@@ -447,7 +447,7 @@ func memoRecipients(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	}
 }
 
-func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
+func commentEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tid, err := taskID(p)
 		if err != nil {
@@ -457,7 +457,7 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 		if err != nil {
 			return nil, err
 		}
-		mid, err := memoID(p)
+		mid, err := commentID(p)
 		if err != nil {
 			return nil, err
 		}
@@ -468,7 +468,7 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 				}
 				return nil, refusal(fmt.Sprintf("no task T%d", tid))
 			}
-			author, was, err := memoOf(tx, tid, mid)
+			author, was, err := commentOf(tx, tid, mid)
 			if err != nil {
 				return nil, err
 			}
@@ -484,28 +484,28 @@ func memoEdit(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 			if err := claimImages(tx, home, c.Caller.Actor(), body, was, "text"); err != nil {
 				return nil, err
 			}
-			if err := db.EditMemo(tx, mid, c.Caller.Actor(), body); err != nil {
+			if err := db.EditComment(tx, mid, c.Caller.Actor(), body); err != nil {
 				return nil, err
 			}
-			if err := syncMemoAsk(tx, mid, body); err != nil {
+			if err := syncCommentAsk(tx, mid, body); err != nil {
 				return nil, err
 			}
 			return accepted(fmt.Sprintf("comment %d on T%d edited", mid, tid), nil), nil
 		})
 		if err == nil && tell != nil {
-			tell.MemoChanged(tid, mid, c.Caller.Actor(), "edited", body, false, nil)
+			tell.CommentChanged(tid, mid, c.Caller.Actor(), "edited", body, false, nil)
 		}
 		return out, err
 	}
 }
 
-func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
+func commentDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
 		tid, err := taskID(p)
 		if err != nil {
 			return nil, err
 		}
-		mid, err := memoID(p)
+		mid, err := commentID(p)
 		if err != nil {
 			return nil, err
 		}
@@ -516,7 +516,7 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 				}
 				return nil, refusal(fmt.Sprintf("no task T%d", tid))
 			}
-			author, _, err := memoOf(tx, tid, mid)
+			author, _, err := commentOf(tx, tid, mid)
 			if err != nil {
 				return nil, err
 			}
@@ -530,19 +530,19 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 			if hung > 0 {
 				return nil, refusal(fmt.Sprintf("comment %d is what a turn on T%d asks: edit it instead; the turn comes off with its answer", mid, tid))
 			}
-			if err := db.DeleteMemo(tx, mid, c.Caller.Actor()); err != nil {
+			if err := db.DeleteComment(tx, mid, c.Caller.Actor()); err != nil {
 				return nil, err
 			}
-			if _, err := db.CloseMemoAsks(tx, "withdrawn", "comment_id = ?", mid); err != nil {
+			if _, err := db.CloseCommentAsks(tx, "withdrawn", "comment_id = ?", mid); err != nil {
 				return nil, err
 			}
-			if err := attachments.UnlinkMemo(tx, mid); err != nil {
+			if err := attachments.UnlinkComment(tx, mid); err != nil {
 				return nil, err
 			}
 			return accepted(fmt.Sprintf("comment %d deleted from T%d", mid, tid), nil), nil
 		})
 		if err == nil && tell != nil {
-			tell.MemoChanged(tid, mid, c.Caller.Actor(), "deleted", "", false, nil)
+			tell.CommentChanged(tid, mid, c.Caller.Actor(), "deleted", "", false, nil)
 		}
 		return out, err
 	}

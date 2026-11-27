@@ -125,7 +125,7 @@ func TestTheAskOfACommentEndsWithItsTask(t *testing.T) {
 	}
 }
 
-func TestWithdrawUnaddressedMemoAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t *testing.T) {
+func TestWithdrawUnaddressedCommentAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t *testing.T) {
 	t.Parallel()
 	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
@@ -133,7 +133,7 @@ func TestWithdrawUnaddressedMemoAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t
 	}
 	defer db.Close()
 	db.Exec(keyed(db, "INSERT INTO requests(id, requester, target, body, state, kind, comment_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)"))
-	if n, err := WithdrawUnaddressedMemoAsks(db); err != nil || n != 1 {
+	if n, err := WithdrawUnaddressedCommentAsks(db); err != nil || n != 1 {
 		t.Fatalf("one stale ask: %d %v", n, err)
 	}
 	var st1, st2 string
@@ -143,7 +143,7 @@ func TestWithdrawUnaddressedMemoAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t
 		t.Fatalf("%s %s", st1, st2)
 	}
 	db.Exec(keyed(db, "UPDATE requests SET state = 'queued' WHERE id = 2"))
-	if n, _ := WithdrawUnaddressedMemoAsks(db); n != 0 {
+	if n, _ := WithdrawUnaddressedCommentAsks(db); n != 0 {
 		t.Fatalf("once: %d", n)
 	}
 }

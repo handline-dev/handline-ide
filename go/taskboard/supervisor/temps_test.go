@@ -194,8 +194,8 @@ func TestTheAgentsCommentOnItsSeatsTaskReachesTheSeatAsTheFoundersDoes(t *testin
 	seat := temps.hired[0]
 	r.must(db.SetAgentState(r.DB, seat, states.Running, 0, ""))
 	r.term.typed, r.term.modes = nil, nil
-	r.MemoChanged(second, 0, r.k("alice"), "added", "use the new copy", false, nil)
-	r.MemoChanged(second, 0, r.k("human"), "added", "and keep the old link", false, nil)
+	r.CommentChanged(second, 0, r.k("alice"), "added", "use the new copy", false, nil)
+	r.CommentChanged(second, 0, r.k("human"), "added", "and keep the old link", false, nil)
 	got := r.says(seat)
 	if len(got) != 2 || !strings.Contains(got[0], "use the new copy") || !strings.Contains(got[1], "keep the old link") {
 		t.Fatalf("the seat was told %q", got)
@@ -214,7 +214,7 @@ func TestAnIdleSeatsWordsReachItsAgent(t *testing.T) {
 	r.must(r.SweepTaskQueue(r.clock))
 	seat := temps.hired[0]
 	r.must(team.SetHiredFor(r.DB, seat, 0))
-	r.MemoChanged(second, 0, r.k("carol"), "added", "thanks, one more thing", true, nil)
+	r.CommentChanged(second, 0, r.k("carol"), "added", "thanks, one more thing", true, nil)
 	if said := r.says(seat); len(said) != 0 {
 		t.Fatalf("the idle seat was told %q", said)
 	}

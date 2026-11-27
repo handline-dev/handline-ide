@@ -299,13 +299,13 @@ func TestLandingTakesATypedLineAsLandedWhereTheVendorKeepsNoTranscript(t *testin
 	}
 }
 
-func TestAHeldMemoWaitsForTheSameWindowAsAnyNotice(t *testing.T) {
+func TestAHeldCommentWaitsForTheSameWindowAsAnyNotice(t *testing.T) {
 	r := newRig(t)
 	r.agentUp(r.k("bob"))
-	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k(("bob")), Body: "T4 comment by alice: see the log", Kind: "say", Memo: true})
+	db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k(("bob")), Body: "T4 comment by alice: see the log", Kind: "say", Comment: true})
 	r.must(r.SweepDigests(r.clock + 10))
 	if len(r.term.typed) != 0 {
-		t.Fatalf("a memo's tell skipped the window: %q", r.term.typed)
+		t.Fatalf("a comment's tell skipped the window: %q", r.term.typed)
 	}
 	r.must(r.SweepDigests(r.clock + 900))
 	if !strings.Contains(r.term.last(), "T4 comment by alice: see the log") {
@@ -365,22 +365,22 @@ func TestADigestLineCutsAHeldNoticesTitleNeverItsFacts(t *testing.T) {
 	}
 }
 
-// A memo held an hour unread is told once to whoever wrote it, who is the one waiting on it; one the founder wrote tells no one.
-func TestAMemoUnreadAnHourIsToldToItsWriterOnce(t *testing.T) {
+// A comment held an hour unread is told once to whoever wrote it, who is the one waiting on it; one the founder wrote tells no one.
+func TestACommentUnreadAnHourIsToldToItsWriterOnce(t *testing.T) {
 	r := newRig(t)
 	tid := r.newTask(r.k("bob"), r.k("carol"), "job")
 	for i, writer := range []string{r.k("alice"), actor.OwnerKey} {
-		mid, err := db.AddMemo(r.DB, tid, writer, fmt.Sprintf("note %d", i))
+		mid, err := db.AddComment(r.DB, tid, writer, fmt.Sprintf("note %d", i))
 		r.must(err)
-		rid, err := db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k("bob"), Body: fmt.Sprintf("T1 comment %d", i), Kind: "say", Memo: true})
+		rid, err := db.AddRequest(r.DB, db.NewRequest{Requester: db.NoticeRequester, Target: r.k("bob"), Body: fmt.Sprintf("T1 comment %d", i), Kind: "say", Comment: true})
 		r.must(err)
 		_, err = r.DB.Exec("UPDATE requests SET state = 'landed', landed_at = 1 WHERE id = ?", rid)
 		r.must(err)
 		_, err = r.DB.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(?, ?, ?)", mid, r.k("bob"), rid)
 		r.must(err)
 	}
-	r.must(r.SweepHeldMemos(MemoLeadS + 1))
-	r.must(r.SweepHeldMemos(MemoLeadS + 2))
+	r.must(r.SweepHeldComments(CommentLeadS + 1))
+	r.must(r.SweepHeldComments(CommentLeadS + 2))
 	var told int
 	r.DB.QueryRow("SELECT COUNT(*) FROM requests WHERE target = ? AND body LIKE '%has not read this comment in an hour%'", r.k("alice")).Scan(&told)
 	var others int

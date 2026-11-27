@@ -152,13 +152,13 @@ func (e *Env) ReopenConfirmed(q db.Q, row *db.Request) (reopened bool, err error
 // imageLines is the path lines that follow a message's body when an agent is told of it: the images of the message (those its text names,
 // then those it was sent with), then for a task's request those the comments it brings name.
 func (e *Env) imageLines(q db.Q, row *db.Request) string {
-	var memos []string
+	var comments []string
 	if row.Kind.String == "task" {
 		if t := taskOf(q, row); t != nil {
-			memos = must(db.DeliveryMemoTexts(q, t.ID, row.Target, row.ID, db.MemoCap))
+			comments = must(db.DeliveryCommentTexts(q, t.ID, row.Target, row.ID, db.CommentCap))
 		}
 	}
-	return attachments.New(e.Home).MessageLines(q, row.ID, row.Body, memos...)
+	return attachments.New(e.Home).MessageLines(q, row.ID, row.Body, comments...)
 }
 
 // DaemonOp is the operation of a message the daemon wrote in its own words, with no one quoted.

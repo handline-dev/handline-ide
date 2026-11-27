@@ -37,7 +37,7 @@ func (d heldDone) in(tid int64) DoneIn {
 // laterHold is a done or handoff held behind the person its task's open later comments are for.
 type laterHold struct {
 	h    Handover
-	memo int64
+	comment int64
 	text string
 	said string
 	// note is a review's pass note held with it (0 for none), told as a comment of its own
@@ -61,7 +61,7 @@ func holdForLater(tx *sql.Tx, tell Teller, tid int64, by, onPass, evidence, pass
 	if in, err := db.InStack(tx, tid, person); err != nil || in {
 		return nil, err // the person owns it or has a turn below: they are on it already
 	}
-	open, err := db.OpenLaterMemos(tx, tid, person)
+	open, err := db.OpenLaterComments(tx, tid, person)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +76,11 @@ func holdForLater(tx *sql.Tx, tell Teller, tid int64, by, onPass, evidence, pass
 	}
 	fmt.Fprintf(&b, "Pass %s; a comment sends it back to %s.", what, addr.Ref(by))
 	text := b.String()
-	memo, err := db.AddMemo(tx, tid, by, text)
+	comment, err := db.AddComment(tx, tid, by, text)
 	if err != nil {
 		return nil, err
 	}
-	h, asked, err := pushTurnPassing(tx, tell, tid, by, person, text, memo, onPass, evidence, passTo)
+	h, asked, err := pushTurnPassing(tx, tell, tid, by, person, text, comment, onPass, evidence, passTo)
 	if err != nil {
 		return nil, err
 	}
@@ -88,8 +88,8 @@ func holdForLater(tx *sql.Tx, tell Teller, tid int64, by, onPass, evidence, pass
 		return nil, refusal(asked.Msg)
 	}
 	said := fmt.Sprintf("T%d waits on %s first (comment %d lists %d later steps): their pass %s, their comment sends it back to you",
-		tid, addr.Ref(person), memo, len(open), what)
-	return &laterHold{h: h, memo: memo, text: text, said: said}, nil
+		tid, addr.Ref(person), comment, len(open), what)
+	return &laterHold{h: h, comment: comment, text: text, said: said}, nil
 }
 
 // holdDone holds agent by's done of task tid, in as asked, behind its later steps; again when the pass cannot run it in its place.
@@ -131,9 +131,9 @@ func (l *laterHold) tell(tell Teller, tid int64, by string) {
 		return
 	}
 	tell.HandedOver(l.h)
-	tell.MemoChanged(tid, l.memo, by, "added", l.text, false, nil)
+	tell.CommentChanged(tid, l.comment, by, "added", l.text, false, nil)
 	if l.note != 0 {
-		tell.MemoChanged(tid, l.note, l.noteBy, "added", l.noteText, false, nil)
+		tell.CommentChanged(tid, l.note, l.noteBy, "added", l.noteText, false, nil)
 	}
 }
 
@@ -196,14 +196,14 @@ func passNote(tx *sql.Tx, tid int64, by, note string) error {
 	if note == "" {
 		return nil
 	}
-	_, err := db.AddMemo(tx, tid, by, note)
+	_, err := db.AddComment(tx, tid, by, note)
 	return err
 }
 
 // holdReview holds a review turn's pass by `by` behind the task's later steps: the review comes off, and the done of the agent below with
-// the review's evidence waits on their person as that agent's own would. memo is the comment the pass is, 0 for none (note then is
+// the review's evidence waits on their person as that agent's own would. comment is the comment the pass is, 0 for none (note then is
 // written as by's). nil, with nothing changed, when nothing is held.
-func holdReview(tx *sql.Tx, tell Teller, tid int64, by, below, note string, memo int64, top db.Turn) (*laterHold, error) {
+func holdReview(tx *sql.Tx, tell Teller, tid int64, by, below, note string, comment int64, top db.Turn) (*laterHold, error) {
 	if actor.IsPerson(below) {
 		return nil, nil
 	}
@@ -232,14 +232,14 @@ func holdReview(tx *sql.Tx, tell Teller, tid int64, by, below, note string, memo
 	if _, err := tx.Exec("RELEASE held_review"); err != nil {
 		return nil, err
 	}
-	if note != "" && memo == 0 {
-		if hold.note, err = db.AddMemo(tx, tid, by, note); err != nil {
+	if note != "" && comment == 0 {
+		if hold.note, err = db.AddComment(tx, tid, by, note); err != nil {
 			return nil, err
 		}
 		hold.noteText, hold.noteBy = note, by
 	}
 	hold.said = fmt.Sprintf("T%d: the review passed; it waits on %s first for the later steps (comment %d), and their pass closes it",
-		tid, addr.Ref(hold.h.To), hold.memo)
+		tid, addr.Ref(hold.h.To), hold.comment)
 	return hold, nil
 }
 

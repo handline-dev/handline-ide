@@ -11,7 +11,7 @@ import (
 
 var _ taskwrites.Teller = (*Env)(nil)
 
-func TestTheTellerTypesTheMemoSayAndSendsAQueuedTaskToAFreeOwner(t *testing.T) {
+func TestTheTellerTypesTheCommentSayAndSendsAQueuedTaskToAFreeOwner(t *testing.T) {
 	r := newRig(t)
 	r.agentUp(r.k("bob"))
 	tid, _ := db.NewTask(r.DB, "job", r.k(("bob")), r.k(("alice")), 0, db.DefaultPriority, "", 0, "")
@@ -21,7 +21,7 @@ func TestTheTellerTypesTheMemoSayAndSendsAQueuedTaskToAFreeOwner(t *testing.T) {
 		t.Fatal(msg)
 	}
 	r.term.typed = nil
-	r.MemoChanged(tid, 0, r.k(("alice")), "added", "mind the cache", true, nil)
+	r.CommentChanged(tid, 0, r.k(("alice")), "added", "mind the cache", true, nil)
 	if !strings.Contains(r.term.last(), "T1 comment by alice/lead: mind the cache") {
 		t.Fatalf("%q", r.term.last())
 	}
@@ -84,7 +84,7 @@ func TestAFailedStatementAfterTheCommitIsLoggedByTheTeller(t *testing.T) {
 	if msg := r.namedQ(1, r.k(("human")), true); r.named(msg) != "task T1 is queued (human)" || !r.logged("delivering T1 after it was queued failed") {
 		t.Fatalf("%q %v", msg, r.logs)
 	}
-	r.MemoChanged(1, 0, r.k(("alice")), "added", "x", false, nil)
+	r.CommentChanged(1, 0, r.k(("alice")), "added", "x", false, nil)
 	if !r.logged("telling about the comment on T1 failed") {
 		t.Fatalf("%v", r.logs)
 	}

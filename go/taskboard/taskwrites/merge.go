@@ -13,7 +13,7 @@ import (
 )
 
 // mergeMethod is task.merge, anyone's call: each named task's title is added to the kept one's, its requests,
-// sub-tasks, memos and the tasks waiting on it move to the kept task, and it closes as merged into it. All or none. The opener and assignee
+// sub-tasks, comments and the tasks waiting on it move to the kept task, and it closes as merged into it. All or none. The opener and assignee
 // of every task in it are told.
 func mergeMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
@@ -262,7 +262,7 @@ func blockedByCycle(tx *sql.Tx, tid, on int64, seen map[int64]bool) (bool, error
 	return false, nil
 }
 
-// moveTaskLinks moves tid's links: its requests, sub-tasks, memos and the edges naming it go to `into`.
+// moveTaskLinks moves tid's links: its requests, sub-tasks, comments and the edges naming it go to `into`.
 func moveTaskLinks(tx *sql.Tx, tid, into int64) error {
 	for _, q := range []struct {
 		sql  string

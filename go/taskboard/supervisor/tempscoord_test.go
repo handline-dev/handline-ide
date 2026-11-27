@@ -135,7 +135,7 @@ func TestTheFoundersCommentOnASeatsTaskReachesTheSeatOnly(t *testing.T) {
 	seat := temps.hired[0]
 	r.turnCall("alice", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"handed to my temp","request_id":"c1"}`, second))
 	for _, text := range []string{"keep the old link", fmt.Sprintf("<@%s> keep the old link", alice)} {
-		got, found := r.MemoRecipients(second, actor.OwnerKey, text, false)
+		got, found := r.CommentRecipients(second, actor.OwnerKey, text, false)
 		if !found || len(got) != 1 || got[0].Agent != seat {
 			t.Fatalf("%q reaches %+v, want the seat %s alone", text, got, seat)
 		}

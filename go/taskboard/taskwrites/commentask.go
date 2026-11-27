@@ -6,8 +6,8 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// syncMemoAsk keeps an old @human comment's open ask in step with its edit, or withdraws it; a comment raises no new ask.
-func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
+// syncCommentAsk keeps an old @human comment's open ask in step with its edit, or withdraws it; a comment raises no new ask.
+func syncCommentAsk(tx *sql.Tx, mid int64, body string) error {
 	var rid int64
 	err := tx.QueryRow("SELECT id FROM requests WHERE comment_id = ? AND state = 'queued'", mid).Scan(&rid)
 	if err == sql.ErrNoRows {
@@ -20,13 +20,13 @@ func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 		_, err = tx.Exec("UPDATE requests SET body = ? WHERE id = ?", body, rid)
 		return err
 	}
-	_, err = db.CloseMemoAsks(tx, "withdrawn", "comment_id = ?", mid)
+	_, err = db.CloseCommentAsks(tx, "withdrawn", "comment_id = ?", mid)
 	return err
 }
 
-// answerMemoAsks closes the asks to person that comments on task tid raised: they have now written on the task.
-func answerMemoAsks(tx *sql.Tx, tid int64, person string) error {
-	_, err := db.CloseMemoAsks(tx, "landed", "target = ? AND id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", person, tid)
+// answerCommentAsks closes the asks to person that comments on task tid raised: they have now written on the task.
+func answerCommentAsks(tx *sql.Tx, tid int64, person string) error {
+	_, err := db.CloseCommentAsks(tx, "landed", "target = ? AND id IN (SELECT request_id FROM task_requests WHERE task_id = ?)", person, tid)
 	return err
 }
 
@@ -37,8 +37,8 @@ func taskEnded(tx db.Q, tid int64) (bool, error) {
 	return n > 0, err
 }
 
-// WithdrawUnaddressedMemoAsks withdraws, once (behind a cursor), the open asks of comments that do not start with `@human`; it answers how many.
-func WithdrawUnaddressedMemoAsks(q db.Q) (int64, error) {
+// WithdrawUnaddressedCommentAsks withdraws, once (behind a cursor), the open asks of comments that do not start with `@human`; it answers how many.
+func WithdrawUnaddressedCommentAsks(q db.Q) (int64, error) {
 	const key = "memo_asks_unaddressed_withdrawn"
 	if done, err := db.Cursor(q, key); err != nil || done != 0 {
 		return 0, err
@@ -62,7 +62,7 @@ func WithdrawUnaddressedMemoAsks(q db.Q) (int64, error) {
 	rows.Close()
 	var closed int64
 	for _, mid := range stale {
-		n, err := db.CloseMemoAsks(q, "withdrawn", "comment_id = ?", mid)
+		n, err := db.CloseCommentAsks(q, "withdrawn", "comment_id = ?", mid)
 		if err != nil {
 			return 0, err
 		}

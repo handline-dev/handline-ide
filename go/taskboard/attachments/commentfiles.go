@@ -13,17 +13,17 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// A memo's files are copied into the store and linked by id, so they never sit in a worktree.
+// A comment's files are copied into the store and linked by id, so they never sit in a worktree.
 
 const Markdown = "text/markdown"
 
 var byExt = map[string]string{".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".md": Markdown,
 	".mp4": "video/mp4", ".mov": "video/quicktime"}
 
-// videos are the video types a memo carries, checked by their first bytes, by the extension they are stored with.
+// videos are the video types a comment carries, checked by their first bytes, by the extension they are stored with.
 var videos = map[string]string{"video/mp4": "mp4", "video/quicktime": "mov"}
 
-// MaxVideo is the bytes of one video a memo carries.
+// MaxVideo is the bytes of one video a comment carries.
 const MaxVideo = 100 << 20
 
 func ext(mime string) string {
@@ -84,7 +84,7 @@ func FileMime(name string, b []byte) (string, error) {
 	return mime, nil
 }
 
-// Add keeps b unclaimed, so it is swept after UnsentTTL unless a memo links it.
+// Add keeps b unclaimed, so it is swept after UnsentTTL unless a comment links it.
 func (s *Store) Add(name, mime string, b []byte) (Info, error) {
 	if err := s.ensure(); err != nil {
 		return Info{}, err
@@ -193,8 +193,8 @@ func (s *Store) Carry(q db.Q, rid int64, files []Info) error {
 	return s.keep(files, func() error { return Record(q, rid, files) })
 }
 
-func (s *Store) AttachMemo(q db.Q, mid int64, files []Info) error {
-	return s.keep(files, func() error { return LinkMemo(q, mid, files) })
+func (s *Store) AttachComment(q db.Q, mid int64, files []Info) error {
+	return s.keep(files, func() error { return LinkComment(q, mid, files) })
 }
 
 // keep links files with link, then claims them; no files is nothing to do.
@@ -213,24 +213,24 @@ func (s *Store) keep(files []Info, link func() error) error {
 	return err
 }
 
-func memoKey(mid int64) string { return fmt.Sprintf("comment-files:%d", mid) }
+func commentKey(mid int64) string { return fmt.Sprintf("comment-files:%d", mid) }
 
-func LinkMemo(q db.Q, mid int64, infos []Info) error {
+func LinkComment(q db.Q, mid int64, infos []Info) error {
 	b, err := json.Marshal(infos)
 	if err != nil {
 		return err
 	}
-	return db.SetMeta(q, memoKey(mid), string(b))
+	return db.SetMeta(q, commentKey(mid), string(b))
 }
 
-// UnlinkMemo forgets the files of a deleted memo: they are kept KeepFor from their claim, then swept.
-func UnlinkMemo(q db.Q, mid int64) error {
-	_, err := q.Exec("DELETE FROM meta WHERE name = ?", memoKey(mid))
+// UnlinkComment forgets the files of a deleted comment: they are kept KeepFor from their claim, then swept.
+func UnlinkComment(q db.Q, mid int64) error {
+	_, err := q.Exec("DELETE FROM meta WHERE name = ?", commentKey(mid))
 	return err
 }
 
-func MemoFiles(q db.Q, mid int64) ([]Info, error) {
-	v, ok, err := db.Meta(q, memoKey(mid))
+func CommentFiles(q db.Q, mid int64) ([]Info, error) {
+	v, ok, err := db.Meta(q, commentKey(mid))
 	if err != nil || !ok {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func MemoFiles(q db.Q, mid int64) ([]Info, error) {
 	return infos, nil
 }
 
-const memoFilesHeld = `SELECT tm.task_id AS tid, m.value AS text FROM meta m JOIN task_comments tm ON m.name = 'comment-files:' || tm.id`
+const commentFilesHeld = `SELECT tm.task_id AS tid, m.value AS text FROM meta m JOIN task_comments tm ON m.name = 'comment-files:' || tm.id`
 
 // FileMap gives the path only withPath, since only an agent reads files by path.
 func (s *Store) FileMap(in Info, withPath bool) map[string]any {

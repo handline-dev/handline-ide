@@ -69,7 +69,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	// while it waits on the founder they answer, not hand it on; nobody hands a turn to themself; the comment it hangs on stays
 	r.refusedCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p2"}`, held), "waits on you")
 	r.refusedCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"mine","turn":"human","request_id":"p3"}`, held), "to yourself")
-	r.refusedCall(r.k("bob"), "task.comment.delete", fmt.Sprintf(`{"task":%d,"comment":%d,"request_id":"d1"}`, held, turns[0].Memo), "what a turn")
+	r.refusedCall(r.k("bob"), "task.comment.delete", fmt.Sprintf(`{"task":%d,"comment":%d,"request_id":"d1"}`, held, turns[0].Comment), "what a turn")
 	// the founder's comment passes it: bob acts again, told with the comment
 	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now `+strings.Repeat("x", 500)+`","request_id":"c1"}`, held))
 	if r.acting(held) != r.k(("bob")) {
@@ -105,7 +105,7 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	var delivered, told int
 	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND kind = 'task' AND body LIKE '%review the parser%'")).Scan(&delivered))
 	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM comment_tells t JOIN requests q ON q.id = t.request_id WHERE t.reader = 'alice' AND q.kind = 'task' AND q.body LIKE '%review the parser%'")).Scan(&told))
-	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 1 || len(turns) != 1 || turns[0].Memo == 0 || turns[0].OnPass != db.TurnOnPassDone {
+	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 1 || len(turns) != 1 || turns[0].Comment == 0 || turns[0].OnPass != db.TurnOnPassDone {
 		t.Fatalf("delivered %d, told %d, %+v", delivered, told, turns)
 	}
 	var rid int64
@@ -122,10 +122,10 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	if r.acting(tid) != r.k(("bob")) {
 		t.Fatalf("acting %q", r.acting(tid))
 	}
-	var memo string
-	r.must(r.DB.QueryRow(r.sql("SELECT body FROM task_comments WHERE task_id = ? AND author = 'alice'"), tid).Scan(&memo))
-	if memo != "the empty list fails" {
-		t.Fatalf("%q", memo)
+	var comment string
+	r.must(r.DB.QueryRow(r.sql("SELECT body FROM task_comments WHERE task_id = ? AND author = 'alice'"), tid).Scan(&comment))
+	if comment != "the empty list fails" {
+		t.Fatalf("%q", comment)
 	}
 	r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(push, "p2"))
 	r.turnCall(r.k("alice"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"a1"}`, tid))
@@ -369,9 +369,9 @@ func TestASendBackWaitsAtTheFrontAndTheFoundersNoteIsAComment(t *testing.T) {
 		t.Fatal("the founder's comment under an agent's turn is a comment only")
 	}
 	r.turnCall(r.k("human"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","note":"take it back, bob","request_id":"b1"}`, tid))
-	var memos int
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = 'human' AND body = 'take it back, bob'"), tid).Scan(&memos))
-	if memos != 1 {
+	var comments int
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = 'human' AND body = 'take it back, bob'"), tid).Scan(&comments))
+	if comments != 1 {
 		t.Fatal("the founder's send-back note is a comment")
 	}
 	var sendNow sql.NullInt64
@@ -492,7 +492,7 @@ func TestANewCommentMovesTheFoundersTurnToIt(t *testing.T) {
 		t.Fatalf("%q", said)
 	}
 	turns, _ := db.Turns(r.DB, held)
-	if len(turns) != 1 || turns[0].Agent != actor.OwnerKey || turns[0].Ask != "A, B or C? I recommend C" || turns[0].Memo != int64(mid) || turns[0].By != r.k(("bob")) {
+	if len(turns) != 1 || turns[0].Agent != actor.OwnerKey || turns[0].Ask != "A, B or C? I recommend C" || turns[0].Comment != int64(mid) || turns[0].By != r.k(("bob")) {
 		t.Fatalf("%+v", turns)
 	}
 	var from, stored string

@@ -88,7 +88,7 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 		t.Fatal("the request moves")
 	}
 	if count("SELECT COUNT(*) FROM task_comments WHERE task_id = 1") != 1 || count("SELECT parent_task FROM tasks WHERE id = 6") != 1 {
-		t.Fatal("the memo and the sub-task move")
+		t.Fatal("the comment and the sub-task move")
 	}
 	if count("SELECT COUNT(*) FROM task_blocks WHERE task_id = 4 AND blocks_on = 1") != 1 || count("SELECT COUNT(*) FROM task_blocks WHERE blocks_on = 2 OR task_id = 2 OR task_id = 1 AND blocks_on = 1") != 0 {
 		t.Fatal("the wait on T2 becomes a wait on T1, and keep's own wait on T2 is dropped")

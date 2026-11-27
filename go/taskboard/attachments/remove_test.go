@@ -46,7 +46,7 @@ func TestRemoveDeletesTheFileAtOnceAndLeavesATombstone(t *testing.T) {
 		t.Fatalf("an expired image reads gone only: %v", p)
 	}
 	if f := s.FileMap(*img, true); f["gone"] != true || f["removed"] != true || f["path"] != nil {
-		t.Fatalf("a removed memo file reads gone and removed, with no path: %v", f)
+		t.Fatalf("a removed comment file reads gone and removed, with no path: %v", f)
 	}
 
 	if n, already, err := s.Remove(q, img.ID, "founder", false); err != nil || !already || n != 0 {
@@ -57,8 +57,8 @@ func TestRemoveDeletesTheFileAtOnceAndLeavesATombstone(t *testing.T) {
 	}
 }
 
-// Each place adds one and a place that both names and carries the image counts once; request 10 and memo 10 share an id, so the
-// message and memo keys must differ.
+// Each place adds one and a place that both names and carries the image counts once; request 10 and comment 10 share an id, so the
+// message and comment keys must differ.
 func TestNamingCountsEachPlaceOnce(t *testing.T) {
 	_, _, q := testStore(t)
 	id, other := "00000000000000aa", "00000000000000bb"
@@ -85,19 +85,19 @@ func TestNamingCountsEachPlaceOnce(t *testing.T) {
 			_, err := q.Exec("INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(12, 'human', 'w', 'say', 'landed', 1, ?)", ref(other))
 			return err
 		}, 2},
-		{"a memo with the message's id names it", func() error {
+		{"a comment with the message's id names it", func() error {
 			if _, err := q.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'w', 'boss', 1)"); err != nil {
 				return err
 			}
 			_, err := q.Exec("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(10, 1, 'w', ?, 1)", ref(id))
 			return err
 		}, 3},
-		{"the same memo carries it as a file", func() error { return LinkMemo(q, 10, carried) }, 3},
-		{"a memo only carries it", func() error {
+		{"the same comment carries it as a file", func() error { return LinkComment(q, 10, carried) }, 3},
+		{"a comment only carries it", func() error {
 			if _, err := q.Exec("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(20, 1, 'w', 'plain', 1)"); err != nil {
 				return err
 			}
-			return LinkMemo(q, 20, carried)
+			return LinkComment(q, 20, carried)
 		}, 4},
 		{"a send-back note names it", func() error {
 			_, err := q.Exec("INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'boss', 'reject_task', json_object('task_id', 1, 'note', ?))", ref(id))

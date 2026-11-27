@@ -1,4 +1,4 @@
-// Package attachments is the one way an image or file enters the daemon (chat, task texts, memos, screenshots). All state is in files, so a
+// Package attachments is the one way an image or file enters the daemon (chat, task texts, comments, screenshots). All state is in files, so a
 // restart loses nothing and the database has no new table.
 package attachments
 
@@ -56,7 +56,7 @@ type Info struct {
 	Height int `json:"height,omitempty"`
 	// Files is how many files a folder holds.
 	Files int `json:"files,omitempty"`
-	// Poster is the id of the image a video was sent with to show as its thumbnail (posters); a memo's file only.
+	// Poster is the id of the image a video was sent with to show as its thumbnail (posters); a comment's file only.
 	Poster string `json:"poster,omitempty"`
 }
 

@@ -53,7 +53,7 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 				if err != nil {
 					return nil, err
 				}
-				said, notes = append(said, r.msg+r.memo), append(notes, r.notes...)
+				said, notes = append(said, r.msg+r.comment), append(notes, r.notes...)
 				set[tid] = r
 				done = append(done, tid)
 			}
@@ -78,7 +78,7 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 			// is answered with what was kept, which says only that the tasks are queued.
 			delivered := make([]string, len(done))
 			for i, tid := range done {
-				delivered[i] = tell.QueueDelivered(tid, by, queued) + set[tid].memo
+				delivered[i] = tell.QueueDelivered(tid, by, queued) + set[tid].comment
 				if closed := set[tid].closed; len(closed) > 0 {
 					delivered[i] += " - " + strings.Join(tell.Released(tid, draftWhy(tid, by), closed), "; ")
 				}
@@ -110,15 +110,15 @@ func draftWhy(tid int64, by string) string {
 	return fmt.Sprintf("T%d made draft by %s", tid, addr.Ref(by))
 }
 
-// queuedSet is what setQueued did to one task: its message, the phrase naming the memo a park left ("" for none), the notices of it, and
+// queuedSet is what setQueued did to one task: its message, the phrase naming the comment a park left ("" for none), the notices of it, and
 // the delivery requests a draft withdrew.
 type queuedSet struct {
-	msg, memo string
-	notes     []told
-	closed    []Retired
+	msg, comment string
+	notes        []told
+	closed       []Retired
 }
 
-// setQueued makes a task queued or a draft: the checks and the write (nobody works a draft). kept is the memo a draft leaves when it parks a holder with
+// setQueued makes a task queued or a draft: the checks and the write (nobody works a draft). kept is the comment a draft leaves when it parks a holder with
 // work in its worktree.
 func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept string) (queuedSet, error) {
 	t, err := getTask(tx, tid)
@@ -197,18 +197,18 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 	if err := addEvent(tx, by, kind, kv{"task_id", tid}, kv{"after_request", after}); err != nil {
 		return queuedSet{}, err
 	}
-	msg, memo := fmt.Sprintf("task T%d is %s (%s)", tid, word, addr.Ref(by)), ""
+	msg, comment := fmt.Sprintf("task T%d is %s (%s)", tid, word, addr.Ref(by)), ""
 	// back to queued or draft: its time box starts over
 	if _, err := tx.Exec("UPDATE tasks SET timeout_at = NULL, timeout_left = NULL WHERE id = ?", tid); err != nil {
 		return queuedSet{}, err
 	}
 	if parked != "" {
 		if kept != "" {
-			mid, err := db.AddMemo(tx, tid, by, kept)
+			mid, err := db.AddComment(tx, tid, by, kept)
 			if err != nil {
 				return queuedSet{}, err
 			}
-			memo = fmt.Sprintf(", comment %d keeps where %s stopped", mid, parked)
+			comment = fmt.Sprintf(", comment %d keeps where %s stopped", mid, parked)
 		}
 	}
 	// a draft is nobody's turn: it goes back to its owner; Run answers the question its opener put to a person on it
@@ -222,8 +222,8 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 			to = append(to, who)
 		}
 	}
-	notes, err := tellTask(tx, home, by, msg+memo, to...)
-	return queuedSet{msg, memo, notes, closed}, err
+	notes, err := tellTask(tx, home, by, msg+comment, to...)
+	return queuedSet{msg, comment, notes, closed}, err
 }
 
 // withdrawDelivery closes the requests still asking t's owner to work it (stored withdrawn when not yet delivered, else landed with the
@@ -285,7 +285,7 @@ func worksOn(tx *sql.Tx, agent string, tid int64) (bool, error) {
 	return cur.Valid && cur.Int64 == tid, err
 }
 
-// workKept is the memo a draft leaves on tid when the agent working it has something to resume from: commits on its worktree's branch
+// workKept is the comment a draft leaves on tid when the agent working it has something to resume from: commits on its worktree's branch
 // that the repo's default branch lacks (gitrun.Base), made since the task landed, or uncommitted changes. "" when there is none, or no worktree to read.
 func workKept(q *sql.DB, tid int64) (string, error) {
 	var agent, recorded string

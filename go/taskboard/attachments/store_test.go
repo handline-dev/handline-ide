@@ -235,20 +235,20 @@ func TestSweep(t *testing.T) {
 func TestAnImageATaskNamesIsKeptWhileTheTaskIsOpenAndThirtyDaysAfter(t *testing.T) {
 	s, now, q := testStore(t)
 	inBrief := putAll(t, s, q, "b.png", "image/png", pngOf(2, 2), 1000)
-	inMemo := putAll(t, s, q, "m.png", "image/png", pngOf(3, 3), 1000)
+	inComment := putAll(t, s, q, "m.png", "image/png", pngOf(3, 3), 1000)
 	inNote := putAll(t, s, q, "n.png", "image/png", pngOf(4, 4), 1000)
 	for _, stmt := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'w', 'boss', 1)",
 		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'boss', 'w', 'task', 'landed', 1, 'see ![x](attachment:" + inBrief.ID + ")')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10)",
-		"INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'w', 'and ![y](attachment:" + inMemo.ID + ")', 1)",
+		"INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'w', 'and ![y](attachment:" + inComment.ID + ")', 1)",
 		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'boss', 'reject_task', '{"task_id": 1, "note": "no\n![z](attachment:` + inNote.ID + `)"}')`,
 	} {
 		if _, err := q.Exec(stmt); err != nil {
 			t.Fatalf("%s: %v", stmt, err)
 		}
 	}
-	all := []*Info{inBrief, inMemo, inNote}
+	all := []*Info{inBrief, inComment, inNote}
 	sweep := func(after time.Duration, kept bool) {
 		t.Helper()
 		*now = now.Add(after)
@@ -269,7 +269,7 @@ func TestAnImageATaskNamesIsKeptWhileTheTaskIsOpenAndThirtyDaysAfter(t *testing.
 	sweep(2*time.Hour, false)
 }
 
-func TestATaskHoldsOnlyWhatItsBriefMemosAndNotesName(t *testing.T) {
+func TestATaskHoldsOnlyWhatItsBriefCommentsAndNotesName(t *testing.T) {
 	s, _, q := testStore(t)
 	said := putAll(t, s, q, "s.png", "image/png", pngOf(2, 2), 1000)
 	for _, stmt := range []string{
@@ -368,7 +368,7 @@ func TestAMessagesImagesAreItsReferencesThenWhatItWasSentWith(t *testing.T) {
 	}
 	lines := strings.Split(s.MessageLines(q, 7, body, ref(ids[4])), "\n")
 	if len(lines) != 4 || !strings.Contains(lines[2], ids[2]) || !strings.HasPrefix(lines[3], "[image 4: ") {
-		t.Fatalf("lines number the message's images, then the memos': %v", lines)
+		t.Fatalf("lines number the message's images, then the comments': %v", lines)
 	}
 	if _, err := s.CheckMessage(q, ref(ids[5]), "body", nil, true); err == nil {
 		t.Fatal("an agent may not name an image no task or message shows")

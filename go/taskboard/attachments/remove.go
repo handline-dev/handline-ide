@@ -49,7 +49,7 @@ func (s *Store) Remove(q db.Q, id, by string, dry bool) (n int, already bool, er
 	return n, false, nil
 }
 
-// naming is every message (a chat message or a task's brief), memo and handoff or send-back note that names an image or carries it,
+// naming is every message (a chat message or a task's brief), comment and handoff or send-back note that names an image or carries it,
 // each once: ?1 is the reference's LIKE pattern, ?2 the carried id's.
 const naming = `SELECT count(*) FROM (
 	SELECT 'r' || id FROM requests WHERE body LIKE ?1

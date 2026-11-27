@@ -67,13 +67,13 @@ func start(c *rpc.Conn, p map[string]any) (any, error) {
 				back = fmt.Sprintf("; T%d goes back to queued (your `hl progress` note is kept)", held.Int64)
 			}
 		}
-		memos, err := db.MemoSummary(tx, tid, me, 0, db.MemoCap)
+		comments, err := db.CommentSummary(tx, tid, me, 0, db.CommentCap)
 		if err != nil {
 			return nil, err
 		}
 		msg := fmt.Sprintf("T%d is now %s's current task%s", tid, addr.Ref(me), back)
-		if memos != "" {
-			msg += "\n" + memos
+		if comments != "" {
+			msg += "\n" + comments
 		}
 		return accepted(msg, nil), nil
 	})

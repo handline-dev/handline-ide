@@ -17,7 +17,7 @@ import (
 // seatTurn is where a turn `by` puts on task tid goes, and what it is typed: to and ask unchanged, but a seat at work asking a person asks
 // its agent instead, with the line that tells it how to answer. drop is the agent's own turn to take out once the person's is on: the
 // agent passing its seat's question to the person, so the person's answer goes back to the seat.
-func seatTurn(tx *sql.Tx, tid, memo int64, by, to, ask string) (newTo, newAsk, drop string, err error) {
+func seatTurn(tx *sql.Tx, tid, comment int64, by, to, ask string) (newTo, newAsk, drop string, err error) {
 	if !actor.IsPerson(to) || actor.IsPerson(by) {
 		return to, ask, "", nil
 	}
@@ -34,7 +34,7 @@ func seatTurn(tx *sql.Tx, tid, memo int64, by, to, ask string) (newTo, newAsk, d
 		return "", "", "", err
 	}
 	if origin != "" {
-		return origin, SeatAskLine(tid, memo, ask), "", nil
+		return origin, SeatAskLine(tid, comment, ask), "", nil
 	}
 	if len(turns) == 0 {
 		return to, ask, "", nil
@@ -53,12 +53,12 @@ func seatTurn(tx *sql.Tx, tid, memo int64, by, to, ask string) (newTo, newAsk, d
 	return to, ask, by, nil
 }
 
-// SeatAskLine is what an agent is typed when its seat on task tid asks a person in comment memo: how to answer, then the whole question.
-func SeatAskLine(tid, memo int64, question string) string {
+// SeatAskLine is what an agent is typed when its seat on task tid asks a person in comment `comment`: how to answer, then the whole question.
+func SeatAskLine(tid, comment int64, question string) string {
 	return fmt.Sprintf("Your temp on T%d asks the founder (comment %d). Answer on T%d if it follows from the task or the founder's own words: "+
 		"`hl task pass T%d \"<answer>\"` gives it back with your answer. Else put the founder on it with one question that points at comment %d: "+
 		"`hl task comment T%d add \"<question>\" --turn human`; their answer goes to your temp.\n\nComment %d:\n%s",
-		tid, memo, tid, tid, memo, tid, memo, textsafe.Lines(question))
+		tid, comment, tid, tid, comment, tid, comment, textsafe.Lines(question))
 }
 
 // dropRelay takes agent's turn out from under the person's it just put on task tid, so the person's answer goes back to its seat below.
