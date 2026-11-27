@@ -4,10 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"maps"
-	"os"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
@@ -26,19 +23,9 @@ func (*Proposals) Name() string { return "proposals" }
 // (ProposalSignature) watches.
 func (*Proposals) Tables() []string { return []string{"meta"} }
 
-// ProposalSignature is whether the store changed: the proposal files by name and modification time.
+// ProposalSignature is whether the store changed, as reads.ProposalSignature tells it.
 func ProposalSignature(home string) func() string {
-	return func() string {
-		files, _ := filepath.Glob(filepath.Join(home, "proposals", "*.yaml"))
-		slices.Sort(files)
-		var b strings.Builder
-		for _, f := range files {
-			if st, err := os.Stat(f); err == nil {
-				fmt.Fprintf(&b, "%s=%d;", filepath.Base(f), st.ModTime().UnixNano())
-			}
-		}
-		return b.String()
-	}
+	return func() string { return reads.ProposalSignature(home) }
 }
 
 // key is what a change in a proposal is told from: its state, when it settled, its error and a run proposal's run.

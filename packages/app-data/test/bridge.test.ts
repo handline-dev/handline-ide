@@ -119,6 +119,13 @@ describe('tasks and inbox', () => {
     expect(stale(qk.task(D, 7))).toBe(true);
     expect(stale(qk.task(D, 8))).toBe(false);
   });
+  it("a proposal asked on a task reads that task's detail again, and only that task's", () => {
+    qc.setQueryData(qk.task(D, 7), task(7));
+    qc.setQueryData(qk.task(D, 8), task(8));
+    applyEvent(c, ev('proposal.settled', { proposal: { id: 'a', kind: 'run', task: 7 } }, { topic: 'proposals' }));
+    expect(stale(qk.task(D, 7))).toBe(true);
+    expect(stale(qk.task(D, 8))).toBe(false);
+  });
   it("task.changed reads that task's history again, and only that task's", () => {
     qc.setQueryData(qk.taskHistory(D, 7), { task: 7, rows: [] });
     qc.setQueryData(qk.taskHistory(D, 8), { task: 8, rows: [] });

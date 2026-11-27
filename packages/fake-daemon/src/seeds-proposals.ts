@@ -7,7 +7,7 @@ const ARCH = 'handline.architect';
 const AUD = 'handline.auditor';
 
 export const PROPOSAL_SEEDS: Record<string, Seed> = {
-  /** Five proposals: a new agent (team, model), a setting change old -> new, one to reject, a command to run, and a sandbox ask. */
+  /** Proposals: a new agent (team, model), a setting change old -> new, one to reject, a command to run (one asked on a task), and a sandbox ask. */
   proposals: (d) => {
     const book = d.script.proposals;
     book.raise({
@@ -49,6 +49,18 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
         risks: ['privilege', 'network'],
       },
       reason: 'The push needs the keychain, which only you can unlock.',
+    });
+    // A command the architect asked while doing the web UI task: the task's conversation shows it where it was asked.
+    book.raise({
+      id: 910,
+      kind: 'run',
+      agent: ARCH,
+      title: `run in /work, with its output told to <@${ARCH}>`,
+      diff: 'run: gh auth refresh -s workflow\ncwd: /work',
+      run: { command: 'gh auth refresh -s workflow', cwd: '/work', risks: ['network'] },
+      reason: 'The push needs the workflow scope, which only your login can grant.',
+      requested_by: ARCH,
+      task: 1684,
     });
     book.raise({
       id: 909,

@@ -123,6 +123,7 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
     const base = { kind: 'event' as const, at: e.at, who: e.who, memo: e.memo, edited: false };
     switch (e.kind) {
       case 'memo':
+      case 'run':
         return [];
       case 'turn': {
         if (e.memo != null && shown.has(e.memo)) return [];
