@@ -31,6 +31,29 @@ export function Menu({
   );
 }
 
+/** The same menu, opened by its owner rather than by a trigger of its own, lined up with `anchor`. */
+export function MenuAt({
+  anchor,
+  open,
+  onOpenChange,
+  children,
+}: {
+  anchor: RefObject<Element | null>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <M.Root open={open} onOpenChange={onOpenChange}>
+      <M.Portal>
+        <M.Positioner side="bottom" align="center" anchor={anchor} sideOffset={4} collisionPadding={8} className="z-50">
+          <M.Popup className={`${floatingSurface} min-w-40 p-1`}>{children}</M.Popup>
+        </M.Positioner>
+      </M.Portal>
+    </M.Root>
+  );
+}
+
 /** The same menu, opened by right-click (or long press) anywhere in `children`, at the pointer. */
 export function ContextMenu({ items, children }: { items: ReactNode; children: ReactNode }) {
   return (
