@@ -1,10 +1,8 @@
-// A workspace's office, shown in place of the city when its building is clicked: a 3D room drawn as pixel art (room.ts lays it out,
-// scene3d.ts and shade.ts draw it, people.ts seats the people), the same room whatever the pane's size, drawn to fill it.
-// The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and brings up that
-// agent's chat in the town's windows (Windows.tsx), one on the papers on its desk its tasks, one on the founder's own desk the
-// decisions, one on the empty desk hires an agent; what a tab bar shows stays outlined (Targets.tsx lays these over the picture). Marks over the heads and a line under each name say who is on hold, stopped, asleep,
-// and what each one does (Marks.tsx). A working agent's screen moves (monitors.tsx). The door the founder came in by shuts behind it, and opens when it walks up into it or
-// the door is clicked, to go back out; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
+// A workspace's office, shown when its building is clicked: a 3D room drawn as pixel art (room.ts, fit.ts, scene3d.ts, people.ts), drawn
+// to fill the pane. The founder walks in it (founder.tsx): a click on the floor walks there, on a person or desk brings up that agent's
+// chat (Windows.tsx), on its papers its tasks, on the founder's desk the decisions, on the empty desk hires; Targets.tsx lays these over
+// the picture. Marks say who is on hold, stopped or asleep (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
+// founder walks into it or it is clicked; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useRef, useState } from 'react';
 import type { House } from '#src/town/model.ts';
 import { Marks } from '#src/town/Marks.tsx';
@@ -128,7 +126,7 @@ export function Inside({
                   }}
                 />
                 <Monitors screens={drawn.screens} />
-                <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} people={house.people} />
+                <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} />
                 <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
                   <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
                   {drawn.front.door && drawn.leaves && swing && (

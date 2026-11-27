@@ -73,4 +73,17 @@ describe('townOf', () => {
       ['c', false],
     ]);
   });
+
+  it('counts one resting at its prompt while its subagents or background commands run as working', () => {
+    const jobs = (key: string, ...kinds: string[]) =>
+      ({ ...agent(key, key, 'w'), background: kinds.map((kind) => ({ kind })) }) as AgentView;
+    const t = townOf([ws('w', 'core', null)], [jobs('a', 'subagent'), jobs('b', 'shell'), jobs('c', 'monitor'), jobs('d')], []);
+    // A Monitor watch only waits.
+    expect(t.houses[0].people.map((p) => [p.key, p.activity])).toEqual([
+      ['a', 'working'],
+      ['b', 'working'],
+      ['c', 'resting'],
+      ['d', 'resting'],
+    ]);
+  });
 });

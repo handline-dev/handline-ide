@@ -1,11 +1,9 @@
 // The people in an office's picture (Inside.tsx): each seated or standing where its place is, or walking to a new one (crowd.ts), and the
-// founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them, each with what its
-// person is doing (Marks.tsx); the bubbles of those waiting for the founder.
+// founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them; the bubbles of those
+// waiting for the founder.
 import { useSyncExternalStore } from 'react';
 import { talking, useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
 import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/founder.tsx';
-import { DoingLines } from '#src/town/Marks.tsx';
-import type { Person } from '#src/town/model.ts';
 import type { Door } from '#src/town/moves.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
 import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
@@ -17,20 +15,7 @@ const WALKERS: Sheet = { url: WALK_SHEET, cell: WALK.cell, size: WALK.size };
 /** Metres between the two feet frames. */
 const STRIDE = 0.16;
 
-/** `people`: the newest of each, for what it is doing; the drawing keeps them as they were when it was last drawn. */
-export function People({
-  drawn,
-  founder,
-  crowd,
-  scale,
-  people,
-}: {
-  drawn: Drawn;
-  founder: Founder;
-  crowd: Crowd;
-  scale: number;
-  people: readonly Person[];
-}) {
+export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder: Founder; crowd: Crowd; scale: number }) {
   const movers = useMovers(crowd);
   const font = nameSize(scale);
   const items = [
@@ -51,7 +36,6 @@ export function People({
   return [
     ...items.slice(0, behind).map((i) => i.el),
     ...names,
-    <DoingLines key="doing" drawn={drawn} people={people} walking={movers} scale={scale} below={font} />,
     <FounderDrawing key="founder" founder={founder} ground={drawn.ground} />,
     ...items.slice(behind).map((i) => i.el),
   ];
