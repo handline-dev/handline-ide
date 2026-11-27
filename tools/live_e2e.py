@@ -403,6 +403,114 @@ def closed_wake(r: Run, home: Path, other: str) -> None:
               "note": f"sessions {first[-1:] or 'none'} -> {after[-1:] or 'none'}; folder {folder} -> {folder2}; other's folder {worktree_of(home, other)}"})
 
 
+def chat_socket(home: Path, agent: str) -> Path:
+    """Where the agent's Chat holder serves (paths.ChatSocket)."""
+    import hashlib
+    return home / "chat" / (hashlib.sha256(agent.encode()).hexdigest()[:12] + ".sock")
+
+
+def said(a: str, word: str):
+    return lambda ev: ev["type"] == "chat.message" and ev["data"].get("from") == a and word in (ev["data"].get("body") or "")
+
+
+def chat_turns(r: Run, home: Path, root: Path, binary: str, account: dict, tmux: str, group: int, key: str) -> tuple[Run, int]:
+    """Chat mode: the agent's session runs headless under a holder; a task is taken, a founder message sent mid-turn joins that turn,
+    a queued one waits for the turn's end, its hl say reaches the founder, an interrupt stops a turn, and a daemon restart mid-turn
+    loses nothing. Returns the run and the daemon group after the restart."""
+    d, a = r.d, r.agent
+    d.write("agent.set", {"agent": a, "values": {"session_mode": "chat", "mode": "auto"}})
+    t = time.time()
+    try:
+        d.write("session.start", {"agent": a})
+    except Refused as e:
+        if "no session is running in it after" not in str(e):
+            raise
+    if not r.step("ready (idle)", t, agent_changed(a, "idle"), model=True):
+        return r, group
+    sock = chat_socket(home, a)
+    r.record({"step": "the session runs under a Chat holder", "paced_by": "daemon", "result": "pass" if sock.exists() else "FAIL",
+              "seconds": None, "note": str(sock)})
+
+    t = time.time()
+    tid = d.write("task.new", {"owner": a, "title": "Chat mode check", "body": "Reply with the single word TAKEN, then end your turn."}).get("task")
+    r.step("a task is taken and answered", t, said(a, "TAKEN"), model=True)
+    r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": "Run the Bash command `sleep 20`, then reply with the secret word if I have given you one, else the word NONE."})
+    if r.s.wait(t, agent_changed(a, "running"), t + MODEL_S):
+        time.sleep(6)
+        t2 = time.time()
+        req = d.write("chat.send", {"agent": a, "body": "The secret word is PAPAYA.", "delivery": "now"}).get("request")
+        r.step("Now: landed mid-turn", t2, landed(req))
+        r.step("Now: joined the running turn", t2, said(a, "PAPAYA"), model=True)
+    else:
+        r.fail("Now: joined the running turn", "the turn never ran")
+    r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(2)
+
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": "Run the Bash command `sleep 15`, then reply with the single word SLEPT."})
+    if r.s.wait(t, agent_changed(a, "running"), t + MODEL_S):
+        time.sleep(3)
+        t2 = time.time()
+        req = d.write("chat.send", {"agent": a, "body": "Reply with the single word QUEUED.", "delivery": "queue"}).get("request")
+        first = r.s.wait(t2, said(a, "SLEPT"), t2 + MODEL_S)
+        took = r.s.wait(t2, landed(req), t2 + MODEL_S + SLOW_S)
+        ok = bool(first and took and took[0] >= first[0])
+        r.record({"step": "Queue: held until the turn ended", "paced_by": "daemon+model", "result": "pass" if ok else "FAIL",
+                  "seconds": round(took[0] - t2, 2) if took else None,
+                  "note": f"turn reply at {round(first[0] - t2, 2) if first else None}s, landed at {round(took[0] - t2, 2) if took else None}s"})
+        r.step("Queue: answered after", t2, said(a, "QUEUED"), model=True)
+    else:
+        r.fail("Queue: held until the turn ended", "the turn never ran")
+    r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(2)
+
+    nonce = uuid.uuid4().hex[:6]
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": f"Run exactly this Bash command and nothing else: hl say human 'SAID-{nonce}'"})
+    r.step("its hl say reaches the founder", t, said(a, f"SAID-{nonce}"), model=True)
+    r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(2)
+
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": "Write a 1500-word short story about a lighthouse keeper, in plain prose, with no tools."})
+    if r.s.wait(t, agent_changed(a, "running"), t + MODEL_S):
+        time.sleep(3)
+        t2 = time.time()
+        d.write("session.interrupt", {"agent": a})
+        r.step("interrupt: idle after session.interrupt", t2, agent_changed(a, "idle"))
+    else:
+        r.fail("interrupt: idle after session.interrupt", "the turn never ran")
+    time.sleep(3)
+
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": "Run the Bash command `sleep 18`, then run exactly: hl say human 'RESTARTED'"})
+    if not r.s.wait(t, agent_changed(a, "running"), t + MODEL_S):
+        r.fail("restart mid-turn", "the turn never ran")
+        return r, group
+    time.sleep(3)
+    log = root / "daemon.log"  # the restarted daemon writes it anew
+    stop_daemon(group)
+    group = start_daemon(binary, root, home, account, tmux)
+    d = Daemon(home / "daemon.sock", key)
+    s = Stream(home / "daemon.sock", key)
+    r2 = Run(d, s, Answerer(home / "daemon.sock", key, s, a), a)
+    r2.rows = r.rows
+    t2 = time.time()
+    r2.step("restart mid-turn: the turn finished", t - 1, said(a, "RESTARTED"), model=True)
+    ended = False
+    for _ in range(50):
+        ended = f"chat: {a}: turn ended" in log.read_text(errors="replace")
+        if ended:
+            break
+        time.sleep(0.2)
+    r2.record({"step": "restart mid-turn: the new daemon read the turn's end from the holder", "paced_by": "daemon",
+               "result": "pass" if ended else "FAIL", "seconds": round(time.time() - t2, 2), "note": f"daemon log since restart, task {tid}"})
+    return r2, group
+
+
 def scratch(root: Path, account: dict) -> tuple[Path, str]:
     """The test daemon's home under root, with its founder key where the daemon looks for one under a test root, the real shared
     settings, and a git checkout for the agent (a worktree of this repository: see the module doc). The account and the agent are
@@ -543,8 +651,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--daemon", help="the handlined binary to test; by default this checkout's is built")
     ap.add_argument("--json", action="store_true", help="print the table as JSON at the end")
-    ap.add_argument("--scenario", choices=["turns", "wake"], default="turns",
-                    help="turns: a terminal agent's turns timed; wake: a closed agent's message after another agent woke in between")
+    ap.add_argument("--scenario", choices=["turns", "wake", "chat"], default="turns",
+                    help="turns: a terminal agent's turns timed; wake: a closed agent's message after another agent woke in between; "
+                         "chat: a Chat mode agent's task, messages, interrupt and a daemon restart mid-turn")
     ap.add_argument("--keep", action="store_true", help="keep the test root (home, daemon log, worktree) for a look afterwards")
     args = ap.parse_args()
     if os.environ.get("HANDLINE_LIVE") != "1":
@@ -571,6 +680,8 @@ def main() -> int:
         print(f"live-e2e: {AGENT} ({agent}) on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
         if args.scenario == "wake":
             closed_wake(r, home, pool_agents(home, agent))
+        elif args.scenario == "chat":
+            r, daemon = chat_turns(r, home, root, binary, account, tmux, daemon, key)
         else:
             terminal_turns(r, tmux, account["config_dir"], root, daemon)
         print(f"live-e2e: {r.answerer.yeses} permission prompt(s) outside the steps answered yes", flush=True)

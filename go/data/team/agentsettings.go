@@ -19,9 +19,11 @@ import (
 
 var (
 	Editable = []string{"model", "effort", "weight", "repo", "browser",
-		"context_k", "idle_close", "handoff_note", "sandbox", "sandbox_allow", "mode", "device"}
+		"context_k", "idle_close", "handoff_note", "sandbox", "sandbox_allow", "mode", "device", "session_mode"}
 	// Optional fields are not on every form: the settings tab does not draw them yet, so a form without them leaves them be.
-	Optional      = map[string]bool{"sandbox": true, "sandbox_allow": true, "mode": true, "device": true}
+	Optional      = map[string]bool{"sandbox": true, "sandbox_allow": true, "mode": true, "device": true, "session_mode": true}
+	// SessionModes are how an agent's sessions run: in a terminal, or headless with the chat as their only view.
+	SessionModes = []string{"terminal", "chat"}
 	BrowserModes  = []string{"off", "chrome"}
 	BrowserCustom = "custom"
 	Weights       = []string{"light", "heavy"}
@@ -74,7 +76,7 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
 		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": SandboxAllowText(SandboxEntries(cfg)),
-		"device": orDefault(cfg, "device", ""), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg),
+		"device": orDefault(cfg, "device", ""), "session_mode": SessionMode(cfg), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg),
 		"context_k": strconv.FormatInt(ContextTokensOf(cfg)/1000, 10), "handoff_note": note, "idle_close": idle}, nil
 }
 
@@ -105,6 +107,9 @@ func SettingsProblem(form map[string]string) string {
 	}
 	if v, has := form["device"]; has && v != "" && !deviceID.MatchString(v) {
 		return "device is a device's node id, or empty for none"
+	}
+	if v, has := form["session_mode"]; has && v != "" && !contains(SessionModes, v) {
+		return "session_mode must be one of " + strings.Join(SessionModes, ", ")
 	}
 	if v, has := form["mode"]; has && !contains(Modes, v) {
 		return "mode must be one of " + strings.Join(Modes, ", ")
@@ -234,6 +239,9 @@ func (r *Roster) SaveSettings(agent string, changes []Change, idle IdleClose) (b
 		if v, ok := next["device"]; ok {
 			o.Device = strp(v)
 		}
+		if v, ok := next["session_mode"]; ok {
+			o.SessionMode = strp(v)
+		}
 		if v, ok := next["context_k"]; ok {
 			n := int64(mustAtoi(v)) * 1000
 			o.ContextTokens = &n
@@ -353,4 +361,12 @@ func (r *Roster) SetByAgent(db *sql.DB, agent string, values map[string]string, 
 		return false, fmt.Sprintf("%s needs the founder's approval: ask with `hl propose settings %s %s --why \"...\"`", strings.Join(held, ", "), addr.Address(db, speaker, agent), strings.Join(asks, " "))
 	}
 	return r.SetValues(db, agent, values, modelID, idleMinutes, idle)
+}
+
+// SessionMode is how the agent's sessions run, terminal unless it says chat.
+func SessionMode(cfg Config) string {
+	if orDefault(cfg, "session_mode", "") == "chat" {
+		return "chat"
+	}
+	return "terminal"
 }

@@ -20,10 +20,15 @@ type Row struct {
 }
 
 // Record stores what one line of a Claude Code session transcript holds for chat: an assistant entry's text blocks (kind text, each a
-// reply item) and tool calls (tool_use), and a user entry's tool results (tool_result, their output cut to ResultMax). Any other line, and
-// a subagent's, stores nothing.
+// reply item), thinking and tool calls (tool_use), and a user entry's tool results (tool_result, their output cut to ResultMax). A
+// subagent's line is stored only from its own transcript, under parent, the tool call that started it (RecordUnder); its text is no reply.
 func Record(q *sql.DB, agent, session string, line []byte) error {
-	at, rows := Rows(line)
+	return RecordUnder(q, agent, session, "", line)
+}
+
+// RecordUnder is Record for a line of the subagent the tool call parent started; "" is the session's own line.
+func RecordUnder(q *sql.DB, agent, session, parent string, line []byte) error {
+	at, rows := RowsUnder(line, parent)
 	if len(rows) == 0 {
 		return nil
 	}
@@ -32,7 +37,10 @@ func Record(q *sql.DB, agent, session string, line []byte) error {
 
 // Rows is what Record stores of line, and when the line was written; none for a line that holds nothing for chat. A runner reads its
 // sessions' lines with it, and the master writes the rows (Write).
-func Rows(line []byte) (at int64, rows []Row) {
+func Rows(line []byte) (at int64, rows []Row) { return RowsUnder(line, "") }
+
+// RowsUnder is Rows of a subagent's line, each row naming parent, the tool call that started the subagent; "" is Rows.
+func RowsUnder(line []byte, parent string) (at int64, rows []Row) {
 	var e struct {
 		Type      string `json:"type"`
 		Sidechain bool   `json:"isSidechain"`
@@ -41,12 +49,13 @@ func Rows(line []byte) (at int64, rows []Row) {
 			Content json.RawMessage `json:"content"`
 		} `json:"message"`
 	}
-	if json.Unmarshal(line, &e) != nil || e.Sidechain || (e.Type != "assistant" && e.Type != "user") {
+	if json.Unmarshal(line, &e) != nil || e.Sidechain != (parent != "") || (e.Type != "assistant" && e.Type != "user") {
 		return 0, nil
 	}
 	var parts []struct {
 		Type      string          `json:"type"`
 		Text      string          `json:"text"`
+		Thinking  string          `json:"thinking"`
 		ID        string          `json:"id"`
 		Name      string          `json:"name"`
 		Input     map[string]any  `json:"input"`
@@ -61,12 +70,19 @@ func Rows(line []byte) (at int64, rows []Row) {
 		switch {
 		case e.Type == "assistant" && p.Type == "text" && strings.TrimSpace(p.Text) != "":
 			rows = append(rows, Row{"text", map[string]any{"text": p.Text}})
+		case e.Type == "assistant" && p.Type == "thinking" && strings.TrimSpace(p.Thinking) != "":
+			rows = append(rows, Row{"thinking", map[string]any{"text": p.Thinking}})
 		case e.Type == "assistant" && p.Type == "tool_use" && p.ID != "":
 			rows = append(rows, Row{"tool_use", map[string]any{"tool_use": map[string]any{"id": p.ID, "tool": p.Name, "input": p.Input}}})
 		case e.Type == "user" && p.Type == "tool_result" && p.ToolUseID != "":
 			text, dropped := FitOutput(resultText(p.Content), ResultMax)
 			rows = append(rows, Row{"tool_result", map[string]any{"tool_result": map[string]any{
 				"tool_use_id": p.ToolUseID, "ok": !p.IsError, "text": text, "truncated": dropped > 0, "dropped_lines": dropped}}})
+		}
+	}
+	if parent != "" {
+		for _, r := range rows {
+			r.Body["parent"] = parent
 		}
 	}
 	at = time.Now().Unix()
@@ -111,7 +127,7 @@ func Write(q *sql.DB, agent, session string, at int64, rows []Row) (err error) {
 	for _, r := range rows {
 		seq++
 		var item any
-		if r.Kind == "text" {
+		if r.Kind == "text" && r.Body["parent"] == nil {
 			item = ItemID(at, ItemReply, seq*2) // as the structured sessions' writer numbered them
 		}
 		body, err := json.Marshal(r.Body)

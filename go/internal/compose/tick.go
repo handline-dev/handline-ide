@@ -47,6 +47,8 @@ type Tick struct {
 	Startup func()
 	// gates opens the gate tasks on its own clock until its stop closes, which Start does when the loop ends.
 	gates *gates.Sweep
+	// chat reads the Chat agents' holders until its context ends, which Start does when the loop ends; nil without terminals.
+	chat func(ctx context.Context)
 }
 
 // Restarting says the loop ended because the executable changed and started clean: the caller releases the lock and the database, then
@@ -184,7 +186,13 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 			Settle: func() error { return env.SettleInterruptedSends(q) },
 			Reload: func() error { return env.ReloadPending(q) }})
 	}
-	return &Tick{Tick: t, Loop: loop, dev: dev, Startup: startup, gates: &gates.Sweep{DB: q, Home: home, Tell: env, Log: cfg.Log}}
+	tk := &Tick{Tick: t, Loop: loop, dev: dev, Startup: startup, gates: &gates.Sweep{DB: q, Home: home, Tell: env, Log: cfg.Log}}
+	if tc.Terminals && p.chat != nil {
+		tk.chat = func(ctx context.Context) {
+			p.chat.Run(ctx, func() []string { return paths.ListAgents(home) }, time.Second)
+		}
+	}
+	return tk
 }
 
 // startPorts are the steps of the daemon's start.
@@ -224,6 +232,10 @@ func runStartup(log func(string), s startPorts) {
 func (t *Tick) Start() (done <-chan struct{}) {
 	d := make(chan struct{})
 	gatesStop, gatesDone := make(chan struct{}), make(chan struct{})
+	chatCtx, chatStop := context.WithCancel(context.Background())
+	if t.chat != nil {
+		go t.chat(chatCtx)
+	}
 	go func() {
 		defer close(gatesDone)
 		if t.gates != nil {
@@ -237,6 +249,7 @@ func (t *Tick) Start() (done <-chan struct{}) {
 		}
 		t.restarted = t.Loop.Run()
 		close(gatesStop) // the loop ended (a stop or a restart): the gate pass stops too, and done waits for it
+		chatStop()
 		<-gatesDone
 	}()
 	return d

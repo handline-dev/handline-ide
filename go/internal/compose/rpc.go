@@ -36,7 +36,11 @@ func (lc *Lifecycle) prepareLaunch(r sessionrpc.LaunchRequest) (sessionrpc.Launc
 	if err != nil {
 		return sessionrpc.LaunchResult{}, err
 	}
-	return sessionrpc.LaunchResult{Argv: got.Argv, Env: got.Env, Warnings: warnings}, nil
+	res := sessionrpc.LaunchResult{Argv: got.Argv, Env: got.Env, Warnings: warnings}
+	if h := got.Hold; h != nil {
+		res.Hold = &sessionrpc.Hold{Socket: h.Socket, Init: h.Init, Secret: h.Secret}
+	}
+	return res, nil
 }
 
 // runnerLaunch is node.launch: Prepare for hl launch on node, in the terminal the master opened there; its paths are the master's

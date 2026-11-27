@@ -2,6 +2,7 @@
 package paths
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io/fs"
 	"os"
@@ -62,6 +63,12 @@ func Home() string {
 
 func DBFile(home string) string     { return filepath.Join(home, "db.sqlite") }
 func SocketFile(home string) string { return filepath.Join(home, "daemon.sock") }
+
+// ChatSocket is where the holder of agent's Chat session serves its frames: named by a hash, so the path stays short.
+func ChatSocket(home, agent string) string {
+	sum := sha256.Sum256([]byte(agent))
+	return filepath.Join(home, "chat", fmt.Sprintf("%x.sock", sum[:6]))
+}
 
 // Commands is the command, main name first (handline/infra/names.py).
 var Commands = []string{"hl", "handline"}

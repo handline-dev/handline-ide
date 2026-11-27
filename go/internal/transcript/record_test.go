@@ -34,8 +34,27 @@ func TestATranscriptsRepliesToolCallsAndResultsAreStoredAsChatReadsThem(t *testi
 	}
 	var n int
 	r.DB.QueryRow("SELECT count(*) FROM transcript_events WHERE agent = 'bob' AND session = 's1'").Scan(&n)
-	if n != 3 {
-		t.Fatalf("one row each for the text, the call and the result: %d", n)
+	if n != 4 {
+		t.Fatalf("one row each for the text, the thinking, the call and the result: %d", n)
+	}
+}
+
+func TestASubagentsLinesAreStoredUnderTheCallThatStartedItAndItsTextIsNoReply(t *testing.T) {
+	r := newRows(t)
+	sub := `{"type":"assistant","isSidechain":true,"message":{"content":[{"type":"text","text":"found it"},{"type":"tool_use","id":"tu9","name":"Grep","input":{}}]}}`
+	if err := RecordUnder(r.DB, "bob", "s1", "tuTask", []byte(sub)); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordUnder(r.DB, "bob", "s1", "tuTask", []byte(replyLine)); err != nil { // the session's own line is not the subagent's
+		t.Fatal(err)
+	}
+	if replies, _ := Replies(r.DB, "bob", 10); len(replies) != 0 {
+		t.Fatalf("a subagent's text is not a reply: %+v", replies)
+	}
+	var n int
+	r.DB.QueryRow("SELECT count(*) FROM transcript_events WHERE agent = 'bob' AND json_extract(body, '$.parent') = 'tuTask'").Scan(&n)
+	if n != 2 {
+		t.Fatalf("its text and its call, each under the parent: %d", n)
 	}
 }
 

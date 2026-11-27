@@ -35,6 +35,8 @@ type Term struct {
 	Now   func() time.Time
 	// Turns, when set, is asked first whether a session is mid-turn or has background work; where it does not know, the screen is read.
 	Turns Turns
+	// Chat, when set, names the terminals whose session runs headless: no screen of theirs is read and no key reaches them.
+	Chat Chat
 
 	cacheMu sync.Mutex
 	cache   map[string]cachedBlocker // ScreenBlockerCached's reads, by handle
@@ -63,6 +65,9 @@ func (t *Term) driver(handle string) Driver {
 // screen is the rendered screen of handle, or nil when it cannot be read: a source other than the screen is the accumulated
 // stream, whose history is the conversation and not what is drawn now.
 func (t *Term) screen(handle string, limit int) *Screen {
+	if t.headless(handle) {
+		return nil
+	}
 	s := t.Backend.ReadScreen(handle, limit)
 	if s == nil || s.Source != "screen" || s.Tail == nil {
 		return nil
@@ -81,6 +86,9 @@ func (t *Term) ScreenText(handle string) (string, bool) {
 
 // Send types text at handle.
 func (t *Term) Send(handle, text string, enter bool) (bool, string) {
+	if t.headless(handle) {
+		return t.sendHeadless(handle, text, enter)
+	}
 	return t.Backend.Send(handle, text, enter)
 }
 
@@ -257,6 +265,9 @@ func (t *Term) TrustPromptFolder(handle string) string { f, _ := t.trustFolder(h
 // TrustPromptGone is true only when the screen was read and it is not a folder-trust screen: the answer for something that lets
 // go of a stall, which an unreadable screen must not.
 func (t *Term) TrustPromptGone(handle string) bool {
+	if t.headless(handle) {
+		return true
+	}
 	text, ok := t.ScreenText(handle)
 	if !ok {
 		return false
@@ -273,6 +284,9 @@ func (t *Term) TrustPromptGone(handle string) bool {
 func (t *Term) SessionOnScreen(handle string) (session, known bool) {
 	if running, known := t.SessionByHooks(handle); known {
 		return running, true
+	}
+	if t.headless(handle) {
+		return true, true // its holder is up
 	}
 	scr := t.screen(handle, 40)
 	if scr == nil {
@@ -304,6 +318,9 @@ func (t *Term) SessionOnScreen(handle string) (session, known bool) {
 // be read blocks, because the cost of a wrong no is an answer given to a question nobody asked. The composer's own content is never
 // read.
 func (t *Term) ScreenBlocker(handle string) *Blocker {
+	if t.headless(handle) {
+		return nil
+	}
 	scr := t.screen(handle, 40)
 	if scr == nil {
 		return &Blocker{Kind: Unreadable}
@@ -420,6 +437,9 @@ func (t *Term) SessionByHooks(handle string) (running, known bool) {
 // ShellLeft is why a line typed at handle would reach a shell, not a session, "" when it would not: as the hooks and process say when they
 // know, else a shell prompt on the screen.
 func (t *Term) ShellLeft(handle string) string {
+	if t.headless(handle) {
+		return ""
+	}
 	if running, known := t.SessionByHooks(handle); known {
 		if !running {
 			return "the session has ended, a shell is left"
@@ -438,6 +458,9 @@ func (t *Term) WaitIdle(handle string, timeoutMs int) bool {
 		if idle, known := t.Turns.WaitIdle(handle, time.Duration(timeoutMs)*time.Millisecond); known {
 			return idle
 		}
+	}
+	if t.headless(handle) {
+		return false // its hooks have not said, and there is no screen to ask
 	}
 	return t.Backend.WaitIdle(handle, timeoutMs, t.driver(handle).TurnOnScreen)
 }

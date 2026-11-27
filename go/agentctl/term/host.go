@@ -166,6 +166,12 @@ func (t *Term) CloseSession(handle string) (bool, string) {
 	if !t.WaitIdle(handle, IdleTimeoutMs) {
 		return false, "agent is mid-turn; not closing"
 	}
+	if t.headless(handle) {
+		if err := t.Chat.EndInput(handle); err != nil {
+			return false, "could not end the session: " + Cut(err.Error(), 200)
+		}
+		return true, "session ended"
+	}
 	if blocked := t.DialogUp(handle); blocked != nil {
 		return false, blocked.Reason() + "; not ending the session under it"
 	}

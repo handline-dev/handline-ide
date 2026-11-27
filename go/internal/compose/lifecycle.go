@@ -17,6 +17,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/internal/chatterm"
 	"github.com/handline/handline/go/internal/claudetrust"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
@@ -143,6 +144,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	if cfg.Turns != nil {
 		tm.Turns = cfg.Turns
 	}
+	tm.Chat = chatterm.New(home, tm)
 	var onLaunch func(string) // the view is told through the turns tracker, which the tick hands it
 	if cfg.Turns != nil {
 		onLaunch = cfg.Turns.Launched

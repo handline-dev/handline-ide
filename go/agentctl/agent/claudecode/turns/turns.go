@@ -27,7 +27,12 @@ type Tracker struct {
 	Interrupted func(agent string)
 	// Lines is asked once as a turn starts what to tell each whole line its session appends to the transcript; nil tells nothing.
 	Lines func(agent, session string) func(line []byte)
-	Log   func(format string, args ...any)
+	// SubLines is Lines for a subagent's own transcript, parent naming the tool call that started it; nil watches none.
+	SubLines func(agent, session, parent string) func(line []byte)
+
+	subMu   sync.Mutex
+	subRead map[string]int64 // how far each subagent transcript has been told, by path
+	Log     func(format string, args ...any)
 
 	mu       sync.Mutex
 	agents   map[string]*turn
@@ -279,7 +284,22 @@ func runningTasks(v any) []Job {
 // name the file a moment before the session creates it.
 const transcriptRetry, transcriptGiveUp = 500 * time.Millisecond, time.Minute
 
+// watchTranscript watches the session's transcript and, when SubLines is set, its subagents' own; the stop ends both.
 func (t *Tracker) watchTranscript(agent, session, path string) func() {
+	main := t.watchMain(agent, session, path)
+	if t.SubLines == nil {
+		return main
+	}
+	subs := t.watchSubagents(agent, session, path)
+	return func() {
+		if main != nil {
+			main()
+		}
+		subs()
+	}
+}
+
+func (t *Tracker) watchMain(agent, session, path string) func() {
 	var told func([]byte)
 	if t.Lines != nil {
 		told = t.Lines(agent, session)
