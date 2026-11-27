@@ -12,11 +12,6 @@ import { Row } from '#src/sidebar/Row.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 
-/** The unread count as the row's own pill; none at zero, the button staying where it is. */
-function Pill({ n }: { n: number }) {
-  return n > 0 ? <span className="shrink-0 rounded-full bg-accent px-1.5 text-xs font-medium text-accent-fg tabular-nums">{n}</span> : null;
-}
-
 /** At the right of the top bar: pressed while the unread view is on; a click turns it on or off. */
 export function UnreadButton() {
   const { nav, change } = useNav();
@@ -84,22 +79,27 @@ export function UnreadList({ shown, onSelect }: { shown: string[]; onSelect: (na
 
 const noteOf = (a: AgentView) => a.last_to_founder?.text.replace(/\s+/g, ' ').trim();
 
-const WORD: Record<'you' | 'error' | 'working', string> = { you: 'need you', error: 'need attention', working: 'working' };
+const WORD: Record<'you' | 'error' | 'working', string> = { you: 'needs you', error: 'failed', working: 'working' };
 
-/** A folded workspace's marks at the right of its header: needs you, error, working, each with how many, then the unread pill. */
+/** A workspace's marks at the right of its header, in words: "4 working · 1 needs you", then unread; none at zero. */
 export function FoldMarks({ agents }: { agents: AgentView[] }) {
   const marks = foldMarks(agents.map((a) => activityOf(a) as Activity));
   const unread = unreadCount(agents);
   if (!marks.length && !unread) return null;
   return (
-    <span className="ml-auto flex shrink-0 items-center gap-2 text-xs text-muted tabular-nums">
-      {marks.map((m) => (
-        <span key={m.act} title={`${m.n} ${WORD[m.act]}`} className="flex items-center gap-0.5">
-          <ActivityIcon act={m.act} />
-          {m.n}
+    <span className="ml-auto min-w-0 truncate text-xs whitespace-nowrap text-muted tabular-nums">
+      {marks.map((m, i) => (
+        <span key={m.act} className={m.act === 'working' ? '' : m.act === 'error' ? 'text-danger' : 'text-warning'}>
+          {i > 0 && ' · '}
+          {m.n} {WORD[m.act]}
         </span>
       ))}
-      <Pill n={unread} />
+      {unread > 0 && (
+        <span className="text-fg">
+          {marks.length > 0 && ' · '}
+          {unread} unread
+        </span>
+      )}
     </span>
   );
 }

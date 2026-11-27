@@ -1,5 +1,5 @@
 // The app's bottom bar: the status dot and this device (ClusterButton), the week's Usage %, keep-awake, Run · Pause · Off, the bell.
-import { ArchiveX, Check, Coffee, Pause, Unplug } from 'lucide-react';
+import { ArchiveX, Check, Coffee, Gauge, Pause, Unplug } from 'lucide-react';
 import { MODE_WORD, OFF_TEXT, StateWord, refused } from '#src/settings/DeviceControls.tsx';
 import { confirm } from '#src/ui/modal.tsx';
 import { BellButton } from '#src/requests/BellButton.tsx';
@@ -44,7 +44,7 @@ export function StatusRow() {
   return (
     <div
       ref={bar}
-      className={`flex h-7 shrink-0 items-center gap-2 border-t border-border bg-surface px-3 text-xs text-muted ${busy ? 'opacity-60' : ''}`}
+      className={`@container flex h-7 shrink-0 items-center gap-3 border-t border-border bg-surface px-3 text-xs text-muted ${busy ? 'opacity-60' : ''}`}
     >
       <ClusterButton
         bar={bar}
@@ -54,8 +54,9 @@ export function StatusRow() {
       />
       <span className="min-w-0 flex-1 truncate">
         {s.usagePct !== null && (
-          <button type="button" {...usage} className="tabular-nums hover:text-fg">
-            Week {s.usagePct}% used
+          <button type="button" {...usage} className="flex items-center gap-1 tabular-nums hover:text-fg hover:underline">
+            <Gauge size={14} />
+            Week {100 - s.usagePct}% left
           </button>
         )}
       </span>
@@ -112,7 +113,10 @@ function KeepAwakeButton({ s, busy, bar }: { s: ReturnType<typeof useStatusRow>;
       onOpenChange={setOpen}
       trigger={
         <button type="button" aria-label={`Keep awake: ${s.awake}${lit ? ', holding now' : ''}`} disabled={busy}>
-          <Coffee size={14} className={lit ? 'text-fg' : ''} />
+          <span className={`flex items-center gap-1 ${lit ? 'text-fg' : ''}`}>
+            <Coffee size={14} />
+            <span className="hidden @[28rem]:inline">{lit ? 'Awake' : 'Awake off'}</span>
+          </span>
         </button>
       }
     >
@@ -137,6 +141,8 @@ function KeepAwakeButton({ s, busy, bar }: { s: ReturnType<typeof useStatusRow>;
     </Popover>
   );
 }
+
+const STATE: Record<Mode, string> = { run: 'Running', pause: 'Paused', off: 'Off' };
 
 const MODE_LINE: Record<Mode, string> = {
   run: 'Agents start new work here.',
@@ -169,7 +175,10 @@ function ModeButton({ busy, bar }: { busy: boolean; bar: RefObject<HTMLDivElemen
           aria-label={row ? `${row.name}: ${MODE_WORD[row.mode ?? 'run']}` : 'Run, Pause or Off'}
           disabled={busy || !row}
         >
-          <Pause size={14} className={lit ? 'text-warning' : ''} />
+          <span className="flex items-center gap-1">
+            <Pause size={14} className={lit ? 'text-warning' : ''} />
+            <span className="hidden @[28rem]:inline">{STATE[row?.mode ?? 'run']}</span>
+          </span>
         </button>
       }
     >

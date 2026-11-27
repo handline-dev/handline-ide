@@ -179,7 +179,7 @@ export function Section({
   marks,
   children,
 }: {
-  /** Drawn at the header's right while folded: what waits inside. */
+  /** Drawn at the header's right: what waits inside. */
   marks?: ReactNode;
   title: string;
   /** Whose it is, after the title: another cluster's name. */
@@ -207,7 +207,7 @@ export function Section({
     >
       {/* Its buttons show while the pointer is on the heading or one has focus; their room is kept, so nothing moves. */}
       <div className="group @container flex h-7 items-center justify-between gap-2 pl-2">
-        <h2 className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted">
+        <h2 className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted">
           {onFold && (
             <button
               type="button"
@@ -223,7 +223,7 @@ export function Section({
           {opens ? <TitleLink opens={opens} title={title} /> : title}
         </h2>
         {word}
-        {folded && marks}
+        {marks}
         <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">{action}</span>
       </div>
       {!folded && children}

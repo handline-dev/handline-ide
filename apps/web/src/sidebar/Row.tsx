@@ -39,7 +39,7 @@ export function Row({
       aria-current={selected || undefined}
       tabIndex={0}
       {...useOpenable(opens, { here: onShow, menu })}
-      className="group flex cursor-default flex-col rounded-md px-2 py-1 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
+      className="group flex cursor-default flex-col rounded-md px-2 py-0.5 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
         <span className="grid size-4 shrink-0 place-items-center text-muted">{icon}</span>
@@ -58,7 +58,7 @@ export function Row({
           >
             <span className="w-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{note}</span>
-            {unread > 0 && <span className="shrink-0 rounded-full bg-accent px-1.5 font-medium text-accent-fg tabular-nums">{unread}</span>}
+            {unread > 0 && <span className="shrink-0 font-medium text-fg tabular-nums">{unread}</span>}
           </motion.span>
         )}
       </AnimatePresence>
