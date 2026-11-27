@@ -6,7 +6,7 @@ Waiting on the founder or on a reviewer therefore frees the owner's slot, and a 
 ## Model
 
 - `owner` (`tasks.owner`): the agent the task is assigned to, accountable for its cost and history.
-- turns: a stack above it, bottom first, rows `{agent, ask, pushed_by, since, on_pass, evidence, memo}` in `task_turns`, the truth;
+- turns: a stack above it, bottom first, rows `{agent, ask, pushed_by, since, on_pass, evidence, comment}` in `task_turns`, the truth;
   `task_turn_push`, `task_turn_pop` and `task_turn_ask` events are its history, written in the same transaction. At most three
   (`db.MaxTurns`). One agent appears once in the stack and the owner.
 - **acting** (`db.ActingSQL`): the top turn's agent, or the owner when there is none. Every rule that asks who works the task now
@@ -17,7 +17,7 @@ Waiting on the founder or on a reviewer therefore frees the owner's slot, and a 
 ## Writes
 
 - `task.comment.add {task, text, turn, done?}` (`hl task comment T<n> add "<text>" --turn <to> [--done "<evidence>"]`): acting, or the
-  founder, adds the comment and puts `to` on top in one step. The comment is the turn's message (`memo`). With `done`, a pass closes
+  founder, adds the comment and puts `to` on top in one step. The comment is the turn's message (`comment`). With `done`, a pass closes
   the task (`on_pass: "done"`), for review of finished work. Refused: `to` already in the stack or the owner, a fourth turn, an ended task.
 - `task.turn.pop {task, outcome, note?}` (`hl task pass T<n> ["<note>"]`, `hl task back T<n> "<note>"`): by acting or the founder.
   The one below gets the task at the front of its queue, with the note as a comment. A pass of an `on_pass: "done"` turn closes the task

@@ -4218,7 +4218,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "A step only this person can do that the rest of the task does not wait on (Memo.later): posted and shown now, it pushes no turn, tells no one and adds no Requests row, and the agent keeps working. A later comment of this person's on the task answers it. A done or handoff by an agent while any is open writes one comment listing them and puts this person's turn on it: their pass closes the task with the done's evidence, or hands it on as asked; their comment sends it back with their words. Refused with turn or done, and from a person."
+      "description": "A step only this person can do that the rest of the task does not wait on (Comment.later): posted and shown now, it pushes no turn, tells no one and adds no Requests row, and the agent keeps working. A later comment of this person's on the task answers it. A done or handoff by an agent while any is open writes one comment listing them and puts this person's turn on it: their pass closes the task with the done's evidence, or hands it on as asked; their comment sends it back with their words. Refused with turn or done, and from a person."
      }
     },
     {

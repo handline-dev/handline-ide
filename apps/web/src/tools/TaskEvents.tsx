@@ -15,7 +15,7 @@ import { Reference } from '#src/chat/ChatLine.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
 import { MessageImages } from '#src/chat/MessageImages.tsx';
 import { ReadBy } from '#src/tools/ReadBy.tsx';
-import { showMemo } from '#src/tools/TaskTurn.ts';
+import { showComment } from '#src/tools/TaskTurn.ts';
 import { clock } from '#src/format/time.ts';
 import { showHistory } from '#src/tools/TaskDiff.tsx';
 import { Markdown } from '#src/ui/Markdown.tsx';
@@ -207,7 +207,7 @@ export function CommentRow({
               ))}
             {turn && <span className="text-xs font-medium text-warning">{word}</span>}
           </span>
-          {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
+          {i.replyTo != null && <Reference text={quoted} onClick={() => showComment(i.replyTo!)} />}
           {editing ? (
             <EditBox text={i.note} onSave={save} onCancel={() => setEditing(false)} />
           ) : (

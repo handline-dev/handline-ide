@@ -271,7 +271,7 @@ export class TaskComments extends TaskStore {
     if (op === 'add') {
       this.images(String(p.text), '', 'text', agent);
       const id = comments.reduce((n, m) => Math.max(n, m.id), 0) + 1;
-      const files = Array.isArray(p.files) ? p.files.map((f) => this.host.uploads.memoFile(String(f))) : [];
+      const files = Array.isArray(p.files) ? p.files.map((f) => this.host.uploads.commentFile(String(f))) : [];
       if (p.reply !== undefined && !comments.some((m) => m.id === p.reply))
         throw new TaskFailure('refused', `comment ${String(p.reply)} does not exist`);
       comments.push({
@@ -330,7 +330,7 @@ export class TaskComments extends TaskStore {
   }
 
   /** A comment that carries files, as `hl task comment add --file` leaves it. */
-  memoWithFiles(task: number, author: string, text: string, files: CommentFile[]): number {
+  commentWithFiles(task: number, author: string, text: string, files: CommentFile[]): number {
     const id = this.comment({ task, text }, 'add', author);
     const m = this.find(task).comments!.find((x) => x.id === id)!;
     m.files = files;

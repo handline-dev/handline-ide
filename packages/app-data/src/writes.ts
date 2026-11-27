@@ -67,11 +67,11 @@ const newTask = (c: Ctx, p: never): Task => {
 };
 
 // A task's comments live in the task's detail; a comment write changes them, and adds a row to its history.
-const memoKeys = (d: string, p: never) => {
+const commentKeys = (d: string, p: never) => {
   const { task } = as<{ task: number }>(p);
   return [qk.task(d, task), qk.taskHistory(d, task)];
 };
-const changeMemos = (c: Ctx, task: number, f: (l: Comment[]) => Comment[]) =>
+const changeComments = (c: Ctx, task: number, f: (l: Comment[]) => Comment[]) =>
   edit<List<'comments', Comment>>(c.qc, qk.task(c.d, task), listOf('comments', f));
 
 const tasks: Record<string, Patch> = {
@@ -111,7 +111,7 @@ const tasks: Record<string, Patch> = {
     },
   },
   'task.comment.add': {
-    touches: memoKeys,
+    touches: commentKeys,
     patch: (c, p) => {
       const { task, text, reply } = as<{ task: number; text: string; reply?: number }>(p);
       const comment: Comment = {
@@ -122,23 +122,23 @@ const tasks: Record<string, Patch> = {
         text,
         ...(reply === undefined ? {} : { reply_to: reply }),
       };
-      changeMemos(c, task, (l) => [...l, comment]);
+      changeComments(c, task, (l) => [...l, comment]);
     },
     reconcile: (c, p, r) =>
-      changeMemos(c, as<{ task: number }>(p).task, (l) => renumber(l, (m) => m.id < 0, (r as { comment: number }).comment)),
+      changeComments(c, as<{ task: number }>(p).task, (l) => renumber(l, (m) => m.id < 0, (r as { comment: number }).comment)),
   },
   'task.comment.edit': {
-    touches: memoKeys,
+    touches: commentKeys,
     patch: (c, p) => {
       const { task, comment, text } = as<{ task: number; comment: number; text: string }>(p);
-      changeMemos(c, task, (l) => l.map((m) => (m.id === comment ? { ...m, text } : m)));
+      changeComments(c, task, (l) => l.map((m) => (m.id === comment ? { ...m, text } : m)));
     },
   },
   'task.comment.delete': {
-    touches: memoKeys,
+    touches: commentKeys,
     patch: (c, p) => {
       const { task, comment } = as<{ task: number; comment: number }>(p);
-      changeMemos(c, task, (l) => l.filter((m) => m.id !== comment));
+      changeComments(c, task, (l) => l.filter((m) => m.id !== comment));
     },
   },
 };

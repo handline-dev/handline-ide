@@ -73,14 +73,14 @@ export class FakeAttachments {
   }
 
   /** A file a comment carries (an image or Markdown), kept as the daemon keeps one; a test passes the returned id as task.comment.add `files`. */
-  addMemoFile(name: string, mime: CommentFile['mime'], data: Buffer): CommentFile {
+  addCommentFile(name: string, mime: CommentFile['mime'], data: Buffer): CommentFile {
     const file: CommentFile = { id: newId(), kind: mime === 'text/markdown' ? 'markdown' : 'image', name, mime, bytes: data.length };
     this.files.set(file.id, { ...file, mime: mime as Mime, data, sent: true });
     return file;
   }
 
-  /** The CommentFile for an id `addMemoFile` gave. */
-  memoFile(id: string): CommentFile {
+  /** The CommentFile for an id `addCommentFile` gave. */
+  commentFile(id: string): CommentFile {
     const f = this.files.get(id);
     if (!f) throw new Failure('not_found', 'That file is gone.');
     const mime = f.mime as CommentFile['mime'];

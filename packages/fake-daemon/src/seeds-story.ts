@@ -188,10 +188,10 @@ export const STORY_SEEDS: Record<string, Seed> = {
       d.uploads.add('after.jpg', AFTER_JPG),
       d.uploads.add('badge.jpg', AFTER_JPG),
     ];
-    const video = { ...d.uploads.memoFile(d.uploads.add('badge.mp4', DEMO_MP4, 'video/mp4').id), poster: poster.id };
-    const files = [before, after, poster].map((f) => d.uploads.memoFile(f.id)).concat(video);
+    const video = { ...d.uploads.commentFile(d.uploads.add('badge.mp4', DEMO_MP4, 'video/mp4').id), poster: poster.id };
+    const files = [before, after, poster].map((f) => d.uploads.commentFile(f.id)).concat(video);
     const result = 'Done: the count comes from chat.list. Changed from the plan: nothing. Before and after, and the badge counting up.';
-    const comment = d.tasks.memoWithFiles(ready, TERM, result, files);
+    const comment = d.tasks.commentWithFiles(ready, TERM, result, files);
     d.tasks.turnPush(ready, comment, result, TERM);
     d.tasks.find(ready).review = { ready: true, land_by: ARCH, comment, at: iso(5), redo: 0, ok: false };
     // its code: a commit on the agent's branch that names the task

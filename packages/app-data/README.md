@@ -34,7 +34,7 @@ truth and wins over an optimistic value. A `gap` or a reconnect reads every acti
 
 Every UI write goes through `useWrite` (`src/write.ts`) and has a row in the write table (`src/writes.ts`) with its kind:
 
-- **authored**: the person's own data (a message, a task, a memo, a setting). The cache is edited at once and put back if the
+- **authored**: the person's own data (a message, a task, a comment, a setting). The cache is edited at once and put back if the
   daemon refuses; the person's text is kept.
 - **decided**: what only the daemon decides (a session starting, a prompt answered, an approval). The cache is not touched; the
   view shows a pending mark until the event arrives, and the reason if it is refused.

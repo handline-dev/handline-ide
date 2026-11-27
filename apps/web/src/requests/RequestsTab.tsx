@@ -28,7 +28,7 @@ import {
   type Picked,
   type RowAim,
 } from '@handline/app-core';
-import { goToTurnOf, showMemo } from '#src/tools/TaskTurn.ts';
+import { goToTurnOf, showComment } from '#src/tools/TaskTurn.ts';
 import { ServiceRow, useServiceDown } from '#src/requests/ServiceRow.tsx';
 import type { useRequests } from '#src/requests/data.ts';
 import { InCluster } from '#src/connection/clusters.tsx';
@@ -185,7 +185,7 @@ function Requests({ all }: { all: AllRequests }) {
     const { scroll } = requestClick(shown, aim);
     pick();
     if (scroll === 'turn') goToTurnOf(aim.task!);
-    else if (scroll) showMemo(scroll.comment);
+    else if (scroll) showComment(scroll.comment);
   };
   const found = showable.findIndex((x) => keyOf(x) === chosenKey);
   // A shown row that left the list (answered, put off) stays shown; until one is chosen, the first.
