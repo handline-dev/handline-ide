@@ -41,7 +41,7 @@ import {
 import { toast } from '#src/ui/toast.tsx';
 import { isOpen, panes, whereTo, type Action, type Node, type Pane, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
-import { isTabDrag, readTabDrag, slotAt, startTabDrag, zoneAt, showZone, showSlot, DROP_AREA } from '#src/ui/dnd.tsx';
+import { isTabDrag, nearBar, readTabDrag, slotAt, startTabDrag, zoneAt, showZone, showSlot, DROP_AREA } from '#src/ui/dnd.tsx';
 import { SplitButton, SplitView, gripIn } from '#src/layout/paneChrome.tsx';
 import { dotOf } from '#src/layout/TabDot.tsx';
 import { agentOf, carryIn } from '#src/layout/screenLayout.ts';
@@ -203,10 +203,13 @@ function PaneView({
     onOver: (e) => {
       if (!body.current) return;
       onFocus(pane.id); // the pane a tab is carried over is the one in focus
-      showZone(body.current, zoneAt(e, body.current));
+      if (bar.current && nearBar(e, body.current)) showSlot(bar.current, slotAt(e, bar.current).x);
+      else showZone(body.current, zoneAt(e, body.current));
     },
     onDrop: (e) => {
       if (!body.current) return;
+      if (bar.current && nearBar(e, body.current))
+        return dropTo(e, { pane: pane.id, index: slotAt(e, bar.current).index }, { root, agent: whoKey, dispatch, nameOf, focus: onFocus });
       const z = zoneAt(e, body.current);
       dropTo(e, z === 'center' ? { pane: pane.id } : { pane: pane.id, edge: z }, { root, agent: whoKey, dispatch, nameOf, focus: onFocus });
     },

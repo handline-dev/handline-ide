@@ -39,6 +39,11 @@ export function zoneAt(e: Pick<DragEvent, 'clientX' | 'clientY'>, el: HTMLElemen
   return dist < 0.25 ? (side as Zone) : 'center';
 }
 
+/** How far below a tab bar a dragged tab still counts as on the bar, so a small wobble reorders instead of splitting the pane. */
+export const TEAR_OFF = 16;
+/** True while the pointer is in the band of pane body `el` just under its tab bar. */
+export const nearBar = (e: Pick<DragEvent, 'clientY'>, el: HTMLElement) => e.clientY - el.getBoundingClientRect().top < TEAR_OFF;
+
 /** How close to a place's left or right edge a drop docks there; anywhere else on it is open space. */
 export const EDGE = 48;
 /** A place that takes whole tab bars (the town's picture): its left or right edge band, else its middle. */
