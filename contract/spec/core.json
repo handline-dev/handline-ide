@@ -2374,12 +2374,6 @@
       "default": "medium",
       "description": "The effort a new codex agent gets when it is made without one; codex runs xhigh and max as high. Existing agents keep theirs. null puts back the default."
      },
-     "disk_keep_free_gb": {
-      "type": "integer",
-      "minimum": 0,
-      "default": 0,
-      "description": "Free disk to keep on the volume the daemon home is on, in GB; 0 is off, the default. Under it the daemon removes free, unpinned desks of any project, oldest first, never one holding changes, until it is back over it."
-     },
      "worktree_remove_on_sleep": {
       "type": "boolean",
       "default": false,
@@ -2938,6 +2932,18 @@
        }
       ],
       "description": "SettingsValues.worktree_remove_on_sleep. null removes the key (back to the default)."
+     },
+     "agents_memory_max_gb": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "SettingsValues.agents_memory_max_gb. null removes the key (back to the default)."
      },
      "node_reclaim_s": {
       "oneOf": [

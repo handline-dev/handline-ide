@@ -40,11 +40,7 @@
   ],
   "apps/web/src/settings/DevicePage.tsx": ["No agent stays here.", "Not heard from yet."],
   "apps/web/src/settings/DevicesTab.tsx": ["Devices did not load."],
-  "apps/web/src/settings/MachineSections.tsx": [
-    "Disk: keep at least this much free",
-    "The daemon has not reported the machine yet.",
-    "No agent is running."
-  ],
+  "apps/web/src/settings/MachineSections.tsx": ["The daemon has not reported the machine yet.", "No agent is running."],
   "apps/web/src/settings/PairSheet.tsx": [
     "on this Mac and on the device, and sign in to the same account on both.",
     "Open Connect a device again: its Tailscale address is then a choice.",

@@ -2,7 +2,6 @@ package worktreepool
 
 // The founder's machine targets in config.yaml, in GB; 0, the default, is off. Over AgentsMemoryMaxKey of the agents' memory the longest-idle sessions close.
 const (
-	DiskKeepFreeKey    = "disk_keep_free_gb"
 	AgentsMemoryMaxKey = "agents_memory_max_gb"
 )
 

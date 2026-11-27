@@ -150,7 +150,6 @@ func (e *Env) settingsValues() map[string]any {
 		settings.RefsNeedGrantKey:       s.Flag(settings.RefsNeedGrantKey, false),
 		screen.BlockKey:                 s.Flag(screen.BlockKey, false),
 		screen.ViaKey:                   s.Flag(screen.ViaKey, false),
-		worktreepool.DiskKeepFreeKey:    worktreepool.GB(cfg, worktreepool.DiskKeepFreeKey) >> 30,
 		worktreepool.AgentsMemoryMaxKey: worktreepool.GB(cfg, worktreepool.AgentsMemoryMaxKey) >> 30,
 		worktreepool.RemoveOnSleepKey:   s.Flag(worktreepool.RemoveOnSleepKey, false),
 		nodes.BatteryKey:                s.Flag(nodes.BatteryKey, false),

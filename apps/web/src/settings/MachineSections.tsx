@@ -127,18 +127,6 @@ export function MachineSections() {
               <span className="text-muted">of {bytesText(mc.disk_total_bytes)}</span>
             </Row>
             <Target
-              title="Disk: keep at least this much free"
-              note={
-                m.diskKeepFree
-                  ? `Under ${m.diskKeepFree} GB free, Handline removes free, unpinned worktree folders, oldest first, never one holding changes.`
-                  : 'Off: Handline removes no folder for disk space.'
-              }
-              value={m.diskKeepFree}
-              disabled={m.pending !== null}
-              onCommit={(n) => send('disk_keep_free_gb', () => m.setTarget('disk_keep_free_gb', n))}
-            />
-            {why('disk_keep_free_gb')}
-            <Target
               title="Memory: agents use at most"
               note={
                 m.agentsMemoryMax
@@ -147,7 +135,7 @@ export function MachineSections() {
               }
               value={m.agentsMemoryMax}
               disabled={m.pending !== null}
-              onCommit={(n) => send('agents_memory_max_gb', () => m.setTarget('agents_memory_max_gb', n))}
+              onCommit={(n) => send('agents_memory_max_gb', () => m.setMemoryMax(n))}
             />
             {why('agents_memory_max_gb')}
           </div>

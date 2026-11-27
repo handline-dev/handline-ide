@@ -33,7 +33,6 @@ const KEYS = [
   'load_per_core_pct',
   'ram_free_min_pct',
   'disk_free_min_gb',
-  'disk_keep_free_gb',
   'worktree_remove_on_sleep',
   'agents_memory_max_gb',
   'node_battery_switch',
