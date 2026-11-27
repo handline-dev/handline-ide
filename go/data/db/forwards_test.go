@@ -2,7 +2,7 @@ package db
 
 import "testing"
 
-// A resend carries the comment's tell to its reader over one that was withdrawn before it reached them, as LinkMemoTell would.
+// A resend carries the comment's tell to its reader over one that was withdrawn before it reached them, as LinkCommentTell would.
 func TestAResendReplacesAWithdrawnTellOfItsReader(t *testing.T) {
 	q := open(t)
 	for _, s := range []string{

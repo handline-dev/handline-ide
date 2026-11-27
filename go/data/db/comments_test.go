@@ -5,44 +5,44 @@ import (
 	"testing"
 )
 
-func TestMemosAreAddedReadEditedAndDeletedWithAFractionalStamp(t *testing.T) {
+func TestCommentsAreAddedReadEditedAndDeletedWithAFractionalStamp(t *testing.T) {
 	q := open(t)
 	tid := seedTask(t, q, "b", "a")
-	mid, err := AddMemo(q, tid, "a", "first")
+	mid, err := AddComment(q, tid, "a", "first")
 	if err != nil || mid == 0 {
 		t.Fatal(mid, err)
 	}
-	m, err := GetMemo(q, mid)
+	m, err := GetComment(q, mid)
 	if err != nil || m == nil || m.TaskID != tid || m.Author != "a" || m.Body != "first" || m.EditedAt.Valid {
 		t.Fatalf("%+v %v", m, err)
 	}
 	if m.CreatedAt <= 1e9 {
 		t.Fatalf("%v", m.CreatedAt)
 	}
-	if err := EditMemo(q, mid, "w", "second"); err != nil {
+	if err := EditComment(q, mid, "w", "second"); err != nil {
 		t.Fatal(err)
 	}
-	if m, _ := GetMemo(q, mid); m.Body != "second" || !m.EditedAt.Valid || m.EditedAt.Float64 != 1000 {
+	if m, _ := GetComment(q, mid); m.Body != "second" || !m.EditedAt.Valid || m.EditedAt.Float64 != 1000 {
 		t.Fatalf("%+v", m)
 	}
-	if s, _ := MemoSummary(q, tid, "", 0, 500); s == "" {
+	if s, _ := CommentSummary(q, tid, "", 0, 500); s == "" {
 		t.Fatal("a fractional stamp breaks the summary")
 	}
-	if err := DeleteMemo(q, mid, "w"); err != nil {
+	if err := DeleteComment(q, mid, "w"); err != nil {
 		t.Fatal(err)
 	}
-	if m, err := GetMemo(q, mid); m != nil || err != nil {
+	if m, err := GetComment(q, mid); m != nil || err != nil {
 		t.Fatalf("%+v %v", m, err)
 	}
 }
 
-// A memo's add, edit and delete are each an event with who and the text before and after: the task's history keeps a deleted memo's words.
-func TestAMemoChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
+// A comment's add, edit and delete are each an event with who and the text before and after: the task's history keeps a deleted comment's words.
+func TestACommentChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
 	q := open(t)
 	tid := seedTask(t, q, "b", "a")
-	mid, _ := AddMemo(q, tid, "a", "first")
-	EditMemo(q, mid, "b", "second")
-	DeleteMemo(q, mid, "human")
+	mid, _ := AddComment(q, tid, "a", "first")
+	EditComment(q, mid, "b", "second")
+	DeleteComment(q, mid, "human")
 	rows, err := q.Query("SELECT agent, kind, payload FROM events WHERE kind LIKE 'comment_%' ORDER BY id")
 	if err != nil {
 		t.Fatal(err)
@@ -62,8 +62,8 @@ func TestAMemoChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("%q", got)
 	}
-	if err := EditMemo(q, 99, "a", "x"); err != nil {
-		t.Fatal("a missing memo is not an error here: its caller says no memo")
+	if err := EditComment(q, 99, "a", "x"); err != nil {
+		t.Fatal("a missing comment is not an error here: its caller says no comment")
 	}
 }
 
@@ -79,7 +79,7 @@ func TestALaterTellReplacesASayButNotATaskReturnThatMayReachItsReader(t *testing
 	}
 	tell := func(rid int64) int64 {
 		t.Helper()
-		if err := LinkMemoTell(q, 7, "bob", rid); err != nil {
+		if err := LinkCommentTell(q, 7, "bob", rid); err != nil {
 			t.Fatal(err)
 		}
 		var got int64

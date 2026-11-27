@@ -32,7 +32,7 @@ func Digested(a string) string {
 	return "(COALESCE(" + a + "notice, 0) >= 1 AND " + a + "delivered_at IS NOT NULL AND " + a + "typed_at IS NULL)"
 }
 
-// Held is a memo's notice kept for the reader's next digest: neither listed in one yet nor read.
+// Held is a comment's notice kept for the reader's next digest: neither listed in one yet nor read.
 func Held(a string) string {
 	return "(" + a + "notice = 2 AND " + a + "delivered_at IS NULL AND " + a + "read_at IS NULL)"
 }

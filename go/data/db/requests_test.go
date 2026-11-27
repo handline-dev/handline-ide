@@ -286,7 +286,7 @@ func TestAHandoffStartsInFlightAdvancesAndLeavesTheOldestFirst(t *testing.T) {
 	}
 }
 
-func TestWithdrawMemoAsksOfEndedTasksClosesOnlyThoseOnceBehindACursor(t *testing.T) {
+func TestWithdrawCommentAsksOfEndedTasksClosesOnlyThoseOnceBehindACursor(t *testing.T) {
 	d := open(t)
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence) VALUES(1, 'done', 'a', 'b', 1, 'x')",
@@ -299,7 +299,7 @@ func TestWithdrawMemoAsksOfEndedTasksClosesOnlyThoseOnceBehindACursor(t *testing
 			t.Fatal(err)
 		}
 	}
-	n, err := WithdrawMemoAsksOfEndedTasks(d)
+	n, err := WithdrawCommentAsksOfEndedTasks(d)
 	if err != nil || n != 2 {
 		t.Fatalf("two asks of ended tasks: %d %v", n, err)
 	}
@@ -310,7 +310,7 @@ func TestWithdrawMemoAsksOfEndedTasksClosesOnlyThoseOnceBehindACursor(t *testing
 		t.Fatalf("the open task's ask and a request no comment raised stay: withdrawn %d queued %d", withdrawn, queued)
 	}
 	d.Exec("UPDATE requests SET state = 'queued' WHERE id = 10")
-	if n, err := WithdrawMemoAsksOfEndedTasks(d); err != nil || n != 0 {
+	if n, err := WithdrawCommentAsksOfEndedTasks(d); err != nil || n != 0 {
 		t.Fatalf("it runs once: %d %v", n, err)
 	}
 }

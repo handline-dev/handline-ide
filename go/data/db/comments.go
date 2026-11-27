@@ -9,19 +9,19 @@ import (
 	"github.com/handline/handline/go/kit/addr"
 )
 
-// Memo is one task_comments row.
-type Memo struct {
+// Comment is one task_comments row.
+type Comment struct {
 	ID, TaskID   int64
 	Author, Body string
 	CreatedAt    float64
 	EditedAt     sql.NullFloat64
 }
 
-// A memo's add, edit and delete are each kept as an event (comment_add, comment_edit, comment_delete) with the text before and after: they are the
-// task's history (task.history), which keeps a deleted memo's words. q should be the transaction that changes the memo.
+// A comment's add, edit and delete are each kept as an event (comment_add, comment_edit, comment_delete) with the text before and after: they are the
+// task's history (task.history), which keeps a deleted comment's words. q should be the transaction that changes the comment.
 
-// AddMemo adds a task's memo. The stamp is float seconds since the epoch, with the fraction kept.
-func AddMemo(q Q, tid int64, author, body string) (int64, error) {
+// AddComment adds a task's comment. The stamp is float seconds since the epoch, with the fraction kept.
+func AddComment(q Q, tid int64, author, body string) (int64, error) {
 	body, err := storedMentions(q, tid, author, body)
 	if err != nil {
 		return 0, err
@@ -38,9 +38,9 @@ func AddMemo(q Q, tid int64, author, body string) (int64, error) {
 	return mid, err
 }
 
-// GetMemo is the memo with id mid, nil when there is no such memo.
-func GetMemo(q Q, mid int64) (*Memo, error) {
-	m := &Memo{}
+// GetComment is the comment with id mid, nil when there is no such comment.
+func GetComment(q Q, mid int64) (*Comment, error) {
+	m := &Comment{}
 	err := q.QueryRow("SELECT id, task_id, author, body, created_at, edited_at FROM task_comments WHERE id = ?", mid).
 		Scan(&m.ID, &m.TaskID, &m.Author, &m.Body, &m.CreatedAt, &m.EditedAt)
 	if err == sql.ErrNoRows {
@@ -49,9 +49,9 @@ func GetMemo(q Q, mid int64) (*Memo, error) {
 	return m, err
 }
 
-// EditMemo replaces memo mid's text, by by.
-func EditMemo(q Q, mid int64, by, body string) error {
-	m, err := GetMemo(q, mid)
+// EditComment replaces comment mid's text, by by.
+func EditComment(q Q, mid int64, by, body string) error {
+	m, err := GetComment(q, mid)
 	if err != nil || m == nil {
 		return err
 	}
@@ -65,9 +65,9 @@ func EditMemo(q Q, mid int64, by, body string) error {
 	return err
 }
 
-// DeleteMemo removes memo mid, by by.
-func DeleteMemo(q Q, mid int64, by string) error {
-	m, err := GetMemo(q, mid)
+// DeleteComment removes comment mid, by by.
+func DeleteComment(q Q, mid int64, by string) error {
+	m, err := GetComment(q, mid)
 	if err != nil || m == nil {
 		return err
 	}
@@ -78,26 +78,26 @@ func DeleteMemo(q Q, mid int64, by string) error {
 	return err
 }
 
-// LinkMemoTell keeps that request rid told reader of memo mid. A task's return that carried the comment stays its tell: an edit's later
+// LinkCommentTell keeps that request rid told reader of comment mid. A task's return that carried the comment stays its tell: an edit's later
 // tell does not replace it, or the return would show again as a request of its own; one closed before it reached the reader is none.
-func LinkMemoTell(q Q, mid int64, reader string, rid int64) error {
+func LinkCommentTell(q Q, mid int64, reader string, rid int64) error {
 	_, err := q.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES (?, ?, ?)"+keepReturnTell, mid, reader, rid)
 	return err
 }
 
-// CarriesMemo is whether request rid is reader's tell of a comment: the comment is in its body.
-func CarriesMemo(q Q, rid int64, reader string) (bool, error) {
+// CarriesComment is whether request rid is reader's tell of a comment: the comment is in its body.
+func CarriesComment(q Q, rid int64, reader string) (bool, error) {
 	var n int
 	err := q.QueryRow("SELECT COUNT(*) FROM comment_tells WHERE request_id = ? AND reader = ?", rid, reader).Scan(&n)
 	return n > 0, err
 }
 
-// keepReturnTell is LinkMemoTell's rule for a reader already told: a return that reached it stays its tell.
+// keepReturnTell is LinkCommentTell's rule for a reader already told: a return that reached it stays its tell.
 var keepReturnTell = " ON CONFLICT(comment_id, reader) DO UPDATE SET request_id = excluded.request_id WHERE (SELECT kind != 'task' OR " +
 	NeverReached("") + " FROM requests WHERE id = comment_tells.request_id) IS NOT 0"
 
-// MemoCountBy is how many memos author has written on the task since the stamp, inclusive (seconds, as a memo's created_at).
-func MemoCountBy(q Q, tid int64, author string, since float64) (n int64, err error) {
+// CommentCountBy is how many comments author has written on the task since the stamp, inclusive (seconds, as a comment's created_at).
+func CommentCountBy(q Q, tid int64, author string, since float64) (n int64, err error) {
 	err = q.QueryRow("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = ? AND created_at >= ?", tid, author, since).Scan(&n)
 	return n, err
 }
@@ -111,7 +111,7 @@ func ActedSince(q Q, agent string, ts int64) (bool, error) {
 	return other > 0 || prompts > 1 || stops > 1, err
 }
 
-// storedMentions is body as a memo keeps it: each @word that resolves for the author as <@key> (addr.Mentions), so a rename changes no
+// storedMentions is body as a comment keeps it: each @word that resolves for the author as <@key> (addr.Mentions), so a rename changes no
 // stored text. A typed caller's handler may have done it already with the caller's folder; doing it again changes nothing.
 func storedMentions(q Q, tid int64, author, body string) (string, error) {
 	w, err := addr.Of(q, author, "")
@@ -131,8 +131,8 @@ func ToPerson(body string) bool {
 	return actor.IsPerson(addr.Lead(body)) || founderMention.MatchString(body)
 }
 
-// MemoWriter is who wrote the comment that request rid tells its reader about, "" when rid tells no comment.
-func MemoWriter(q Q, rid int64) (string, error) {
+// CommentWriter is who wrote the comment that request rid tells its reader about, "" when rid tells no comment.
+func CommentWriter(q Q, rid int64) (string, error) {
 	var author string
 	err := q.QueryRow("SELECT m.author FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE t.request_id = ? LIMIT 1", rid).Scan(&author)
 	if err == sql.ErrNoRows {

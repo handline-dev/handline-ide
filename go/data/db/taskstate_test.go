@@ -121,10 +121,10 @@ func TestWaitsAndTheCurrentTask(t *testing.T) {
 	}
 }
 
-func TestMemoSummaryAndHandoffRecord(t *testing.T) {
+func TestCommentSummaryAndHandoffRecord(t *testing.T) {
 	q := open(t)
 	tid := seedTask(t, q, "b", "a")
-	if s, _ := MemoSummary(q, tid, "a", 0, 500); s != "" {
+	if s, _ := CommentSummary(q, tid, "a", 0, 500); s != "" {
 		t.Fatal(s)
 	}
 	long := strings.Repeat("x", 300)
@@ -132,24 +132,24 @@ func TestMemoSummaryAndHandoffRecord(t *testing.T) {
 		q.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(?, ?, ?, 1759900000.123)", tid, m[0], m[1])
 	}
 	// after the receiver's own last comment: all of them, uncut, newest last
-	s, _ := MemoSummary(q, tid, "a", 0, 50)
+	s, _ := CommentSummary(q, tid, "a", 0, 50)
 	if !strings.HasPrefix(s, "Comments, newest last (1 earlier: hl task show T1):\ncomment 2 b ") || !strings.Contains(s, long) ||
 		!strings.HasSuffix(s, ": newest") || strings.Count(s, "\n") != 3 {
 		t.Fatalf("%q", s)
 	}
 	// a fresh start: the newest that fit, and always the newest
-	if s, _ := MemoSummary(q, tid, "c", 0, 80); !strings.HasPrefix(s, "Comments, newest last (2 earlier: hl task show T1):\ncomment 3 ") || !strings.HasSuffix(s, ": newest") {
+	if s, _ := CommentSummary(q, tid, "c", 0, 80); !strings.HasPrefix(s, "Comments, newest last (2 earlier: hl task show T1):\ncomment 3 ") || !strings.HasSuffix(s, ": newest") {
 		t.Fatalf("%q", s)
 	}
-	if s, _ := MemoSummary(q, tid, "c", 0, 1); !strings.HasPrefix(s, "Comments, newest last (3 earlier") || strings.Count(s, "\n") != 1 {
+	if s, _ := CommentSummary(q, tid, "c", 0, 1); !strings.HasPrefix(s, "Comments, newest last (3 earlier") || strings.Count(s, "\n") != 1 {
 		t.Fatalf("%q", s)
 	}
-	if s, _ := MemoSummary(q, tid, "human", 0, 500); s != "Comments: 4, none since yours (hl task show T1)" {
+	if s, _ := CommentSummary(q, tid, "human", 0, 500); s != "Comments: 4, none since yours (hl task show T1)" {
 		t.Fatalf("%q", s)
 	}
 	// what the delivery already carries is left out
 	q.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(4, 'a', 9)")
-	if s, _ := MemoSummary(q, tid, "a", 9, 500); strings.Contains(s, ": newest") || !strings.HasSuffix(s, ": older") {
+	if s, _ := CommentSummary(q, tid, "a", 9, 500); strings.Contains(s, ": newest") || !strings.HasSuffix(s, ": older") {
 		t.Fatalf("%q", s)
 	}
 

@@ -110,8 +110,8 @@ type NewRequest struct {
 	State                   string // "": queued
 	Verdict                 string
 	Notice                  bool
-	// Memo makes it a notice that is a memo's tell (notice 2): its writer is told when it goes unread an hour (UnreadMemosBefore).
-	Memo bool
+	// Comment makes it a notice that is a comment's tell (notice 2): its writer is told when it goes unread an hour (UnreadCommentsBefore).
+	Comment bool
 }
 
 // AddRequest writes a request and answers its id. A notice, or a say to the founder, is born landed. The edge of a request written here is
@@ -125,7 +125,7 @@ func AddRequest(q Q, n NewRequest) (int64, error) {
 	now := Now()
 	var landedAt, notice, parent any
 	switch {
-	case n.Memo:
+	case n.Comment:
 		notice = 2
 	case n.Notice:
 		notice = 1
@@ -394,8 +394,8 @@ func AgentsWithNotices(q Q) ([]NoticeWaiting, error) {
 	return out, rows.Err()
 }
 
-// UnreadMemosBefore is every memo's tell that landed at or before `before` and has been neither shown nor read, oldest first.
-func UnreadMemosBefore(q Q, before int64) ([]*Request, error) {
+// UnreadCommentsBefore is every comment's tell that landed at or before `before` and has been neither shown nor read, oldest first.
+func UnreadCommentsBefore(q Q, before int64) ([]*Request, error) {
 	return requestRows(q, "SELECT "+requestCols+" FROM requests WHERE "+Held("")+" AND state = 'landed' AND landed_at <= ? ORDER BY id", before)
 }
 
@@ -699,9 +699,9 @@ func ReopenLanded(q Q, rid int64) (bool, error) {
 	return n > 0, nil
 }
 
-// CloseMemoAsks closes the open asks that task comments raised (requests.comment_id) and that match where, with args: state "landed" is
+// CloseCommentAsks closes the open asks that task comments raised (requests.comment_id) and that match where, with args: state "landed" is
 // answered (read as well), "withdrawn" is taken back. It answers how many it closed.
-func CloseMemoAsks(q Q, state, where string, args ...any) (int64, error) {
+func CloseCommentAsks(q Q, state, where string, args ...any) (int64, error) {
 	res, err := q.Exec("UPDATE requests SET state = ?1, state_at = ?2, landed_at = CASE WHEN ?1 = 'landed' THEN ?2 END, "+
 		"read_at = CASE WHEN ?1 = 'landed' THEN COALESCE(read_at, ?2) ELSE read_at END, queue_order = NULL "+
 		"WHERE comment_id IS NOT NULL AND state = 'queued' AND "+where, append([]any{state, Now()}, args...)...)
@@ -736,13 +736,13 @@ func TakeBackSay(q Q, rid int64) (bool, error) {
 	return n > 0, err
 }
 
-// WithdrawMemoAsksOfEndedTasks closes, once (behind a cursor), the open asks that comments of a done or discarded task raised; it answers how many.
-func WithdrawMemoAsksOfEndedTasks(q Q) (int64, error) {
+// WithdrawCommentAsksOfEndedTasks closes, once (behind a cursor), the open asks that comments of a done or discarded task raised; it answers how many.
+func WithdrawCommentAsksOfEndedTasks(q Q) (int64, error) {
 	const key = "memo_asks_of_ended_tasks_withdrawn"
 	if done, err := Cursor(q, key); err != nil || done != 0 {
 		return 0, err
 	}
-	n, err := CloseMemoAsks(q, "withdrawn", "id IN (SELECT r.request_id FROM task_requests r JOIN tasks t ON t.id = r.task_id "+
+	n, err := CloseCommentAsks(q, "withdrawn", "id IN (SELECT r.request_id FROM task_requests r JOIN tasks t ON t.id = r.task_id "+
 		"WHERE COALESCE(t.done_evidence, '') != '' OR COALESCE(t.discarded_by, '') != '')")
 	if err != nil {
 		return 0, err

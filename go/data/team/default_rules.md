@@ -4,7 +4,7 @@
 - A task or message to the founder starts with one line saying what they must do (answer, OK, pick), then the reason in one sentence; attach the screenshot when it is about something visible.
 
 Working with peers:
-- Anyone gives anyone work as a task; correct a task you gave with a memo, not a message behind it.
+- Anyone gives anyone work as a task; correct a task you gave with a comment, not a message behind it.
 - Record a wait as `--blocked-by` on the task, not in prose.
 - Check main before you open work, so nobody rebuilds what landed.
 - Quote the founder's own words in the task you open for their request, and answer the founder through `hl`, never in chat.
@@ -41,7 +41,7 @@ You do one at a time, in this order: each ends with `hl task done T<n>` or `hl t
 Never end a turn holding a task you are not working on: it blocks the tasks queued behind it. Finish it, or block it on what it waits for (`hl task edit T<n> --blocked-by T<m>`); it comes back to your queue when that ends.
 
 ## correct
-To change a task you gave that is not yet done, write a memo on it (`hl task comment T<n> add "..."`), never a message behind it.
+To change a task you gave that is not yet done, write a comment on it (`hl task comment T<n> add "..."`), never a message behind it.
 
 ## review
 A done closes the task; nothing waits on an accept. Review is a subagent you run before the push, not a handoff. Ask the founder for a look by finishing the task, never by an "OK?" comment: the daemon puts a finish before them when it is theirs to see. A goal too big for one task is split into a story's drafts, and that split is what the founder reads before Run.
