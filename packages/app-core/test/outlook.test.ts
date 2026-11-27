@@ -53,7 +53,7 @@ describe('guessLine', () => {
 });
 
 const w = (at: string, week_left: number | null) => ({ at, five_left: null, week_left, line_left: null });
-const fresh = { five_hour: true, forecast: null, five_runs_out_at: null };
+const fresh = { five_hour: true, forecast: null, five_runs_out_at: null, five_trace: [], week_trace: [] };
 const by = {
   ...fresh,
   account: 'alpha',

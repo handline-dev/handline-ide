@@ -24,14 +24,17 @@ func round(v float64, places int) float64 {
 	return f
 }
 
-func points(series []usage.OutlookPoint) []any {
+func points(series []usage.OutlookPoint) []any { return keyed(series, "left_pct") }
+
+// keyed is series as at and key, the percent left, null where there is none.
+func keyed(series []usage.OutlookPoint, key string) []any {
 	out := make([]any, 0, len(series))
 	for _, p := range series {
 		var left any
 		if p.Left != nil {
 			left = round(*p.Left, 2)
 		}
-		out = append(out, map[string]any{"at": ts(p.At), "left_pct": left})
+		out = append(out, map[string]any{"at": ts(p.At), key: left})
 	}
 	return out
 }
@@ -219,7 +222,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	}
 	weights := usage.WeightsOf(budgets) // the line weighs each account as the budget's total does
 	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince, weights)
-	byAccount, future := outlookByAccount(all, now, hours, ends, outSince, weekUSD, weights)
+	byAccount, future, trace := outlookByAccount(all, now, hours, ends, outSince, weekUSD, weights)
 	self := joined.NodeIDOf(e.Home)
 	c, err := usage.CallCosts(e.DB, self, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), all, weekUSD)
 	if err != nil {
@@ -245,7 +248,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 			"fracs": map[string]any{}, "plan_cost": round(v, 4)})
 	}
 	res := map[string]any{"range": name, "now": ts(now), "accounts": out.Accounts, "past": points(out.Past), "future": points(future),
-		"runway": runway, "by_account": byAccount, "cost_per_day": perDayOf(c.Daily), "agent_use": agentUse,
+		"runway": runway, "by_account": byAccount, "trace": trace, "cost_per_day": perDayOf(c.Daily), "agent_use": agentUse,
 		"budget": budgetOf(budgets), "plan_cost_per_day": planPerDayOf(c.Plan.Daily, usage.ExtraDaily(all, firstDay(clock, hours), now))}
 	if pick != nil {
 		res["overlay"] = overlayOf(rows, c.Uses, *pick, out.Past, weights)
@@ -279,7 +282,7 @@ func budgetOf(bs []usage.AccountBudget) map[string]any {
 
 // outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged by w, each going as
 // usage.HeadroomKeepStale does. rows are the samples from at least a day back; weekUSD is each account's weekly plan budget.
-func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, weekUSD map[string]float64, w usage.WeekWeights) ([]any, []usage.OutlookPoint) {
+func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, weekUSD map[string]float64, w usage.WeekWeights) ([]any, []usage.OutlookPoint, []any) {
 	span := int64(hours) * 3600
 	h := usage.HeadroomKeepStale(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince)
 	byAccount := []any{}
@@ -301,7 +304,8 @@ func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, 
 			runsOut = ts(*a.FiveRunsOut)
 		}
 		byAccount = append(byAccount, map[string]any{"account": a.Account, "past": headroomWindows(a.Past, true), "future": headroomWindows(a.Future, true),
-			"resets": resets, "five_hour": a.HasFive, "forecast": forecast, "five_runs_out_at": runsOut})
+			"resets": resets, "five_hour": a.HasFive, "forecast": forecast, "five_runs_out_at": runsOut,
+			"five_trace": traceOf(a.FiveTrace), "week_trace": traceOf(a.WeekTrace)})
 		for i, p := range a.Future {
 			if len(future) <= i {
 				future = append(future, usage.OutlookPoint{At: p.At})
@@ -321,5 +325,8 @@ func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, 
 			future[i].Left = &avg
 		}
 	}
-	return byAccount, future
+	return byAccount, future, traceOf(usage.MeanTrace(h.Accounts, w, now-span, now))
 }
+
+// traceOf is a trace as stats.outlook sends it: at and left, left null at a break.
+func traceOf(ps []usage.TracePoint) []any { return keyed(ps, "left") }

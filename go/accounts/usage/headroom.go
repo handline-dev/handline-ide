@@ -52,6 +52,9 @@ type AccountHeadroom struct {
 	Forecast *WeekForecast
 	// FiveRunsOut is when the 5-hour window runs out at its pace, nil when it lasts to its reset, is not in use, or there is none.
 	FiveRunsOut *int64
+	// FiveTrace and WeekTrace are its readings from the span's start to now as chart lines (Trace); weekTrace is WeekTrace unthinned.
+	FiveTrace, WeekTrace []TracePoint
+	weekTrace            []TracePoint
 }
 
 // WeekForecast is what a week is guessed to leave unused at its reset At, in percent.
@@ -220,6 +223,13 @@ func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince ma
 			unused, has := lastUsed[p.Reset]
 			recorded(HeadroomReset{At: p.Reset, Window: "7d", Unused: max(0, 100-unused), HasUnused: has})
 		}
+		read := min(now, to) // the traces end at the last moment it could have a reading
+		if ended {
+			read = min(read, int64(end))
+		}
+		h.FiveTrace = trace(f, from, read)
+		h.weekTrace = traceOf(w, from, read)
+		h.WeekTrace = thin(h.weekTrace, from, read, TraceBuckets)
 		lastW := w[len(w)-1]
 		var lastF windowPoint
 		if h.HasFive {

@@ -19,3 +19,18 @@ export function usedPath(points: readonly Point[], from: number, to: number, w: 
   }
   return d;
 }
+
+/** The times of `window`'s resets from `from` to `to` (ms). */
+export const resetMarks = (resets: readonly { at: string; window: string }[] | undefined, window: '5h' | '7d', from: number, to: number) =>
+  (resets ?? []).filter((r) => r.window === window && Date.parse(r.at) >= from && Date.parse(r.at) <= to).map((r) => r.at);
+
+/** The path of a trace in a box `w` by `h` from `from` to `to` (ms), percent left up: 100% at the top; a null breaks it. */
+export function leftPath(points: readonly Point[], from: number, to: number, w: number, h: number): string {
+  return usedPath(
+    points.map((p) => ({ at: p.at, left: p.left === null ? null : 100 - p.left })),
+    from,
+    to,
+    w,
+    h,
+  );
+}

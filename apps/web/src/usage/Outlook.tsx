@@ -2,7 +2,17 @@ import { Segmented } from '#src/ui/Segmented.tsx';
 // The head of Usage, as the legacy page had it: "Week 43% left" and the accounts' week left together, recorded to now and guessed after
 // it (dashed), each account's weekly reset under the axis, and the part lost at the last reset as a bar. Moving over the plot reads a point.
 // Every number is the daemon's (stats.outlook); the drawing is the legacy one in this app's tokens.
-import { axisTicks, budgetLeftWords, creditsMonthWords, dateTime, guessLine, lostAtLastReset, weekResets } from '@handline/app-core';
+import {
+  axisTicks,
+  budgetLeftWords,
+  creditsMonthWords,
+  dateTime,
+  guessLine,
+  leftPath,
+  lostAtLastReset,
+  resetMarks,
+  weekResets,
+} from '@handline/app-core';
 import type { Outlook as Data } from '@handline/client';
 import { useOutlook } from '@handline/app-data';
 import { RotateCcw } from 'lucide-react';
@@ -38,6 +48,7 @@ function focused(o: Data, mine: Mine): { o: Data; lost: Lost } {
     o: {
       ...o,
       past: mine.past.map(left),
+      trace: mine.week_trace,
       future: mine.future.map((p) => ({ at: p.at, left_pct: p.line_left ?? p.week_left })),
       by_account: [mine],
     },
@@ -66,7 +77,15 @@ export function Outlook({ labels, focus, onAll }: { labels: Labels; focus?: stri
       </div>
       {q.isError && <p className="text-sm text-danger">The outlook did not load.</p>}
       {!view && !q.isError && <div className="h-60 animate-pulse rounded-md bg-surface" />}
-      {view && <Plot o={view.o} lost={view.lost} labels={labels} five={mine?.five_hour ? mine : undefined} />}
+      {view &&
+        (mine?.five_hour ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FivePlot five={mine} now={view.o.now} />
+            <Plot o={view.o} lost={view.lost} labels={labels} />
+          </div>
+        ) : (
+          <Plot o={view.o} lost={view.lost} labels={labels} />
+        ))}
     </section>
   );
 }
@@ -91,11 +110,38 @@ function Readout({ o, name }: { o: Data; name?: string }) {
   );
 }
 
-function Plot({ o: full, lost, labels, five }: { o: Data; lost: Lost; labels: Labels; five?: Mine }) {
+/** One account's 5-hour window over the range up to now, each of its resets a dashed line. */
+function FivePlot({ five, now }: { five: Mine; now: string }) {
+  const from = Date.parse(five.past[0]?.at ?? now);
+  const to = Date.parse(now);
+  return (
+    <div className="flex min-w-0 flex-col">
+      <UsedPlot
+        title={`5-hour${five.five_runs_out_at ? ` · runs out at ${resetAt(five.five_runs_out_at)} at this pace` : ''}`}
+        samples={five.five_trace}
+        from={from}
+        to={to}
+        marks={resetMarks(five.resets, '5h', from, to)}
+        tall
+      />
+      <div className="relative mt-2 h-5 text-xs text-muted">
+        {axisTicks(from, to).map((t) => (
+          <span key={t.at} className="absolute -translate-x-1/2" style={{ left: `${((t.at - from) / (to - from || 1)) * 100}%` }}>
+            {t.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Plot({ o: full, lost, labels }: { o: Data; lost: Lost; labels: Labels }) {
   const o = clipAtReset(full);
-  const all = [...o.past, ...o.future].filter((p) => p.left_pct !== null);
-  const t0 = Date.parse((all[0] ?? { at: o.now }).at);
-  const t1 = Date.parse((all.at(-1) ?? { at: o.now }).at);
+  // The range back from now to the end of the guess, readings or not: a span with none stays empty.
+  const t0 = Date.parse((o.past[0] ?? { at: o.now }).at);
+  const ahead = Date.parse((full.future.at(-1) ?? { at: o.now }).at);
+  const reset = lost && Date.parse(lost.at) <= ahead ? Date.parse(lost.at) : 0;
+  const t1 = Math.max(Date.parse((o.future.at(-1) ?? { at: o.now }).at), reset);
   const x = (at: string) => (t1 === t0 ? 0 : ((Date.parse(at) - t0) / (t1 - t0)) * W);
   const pct = (at: string) => (t1 === t0 ? 0 : ((Date.parse(at) - t0) / (t1 - t0)) * 100);
   const y = (p: number) => H - (p / 100) * H;
@@ -126,7 +172,7 @@ function Plot({ o: full, lost, labels, five }: { o: Data; lost: Lost; labels: La
           <svg
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
-            className={`${five ? 'h-34' : 'h-60'} w-full overflow-visible`}
+            className="h-60 w-full overflow-visible"
             role="img"
             aria-label="Week left, recorded and guessed"
           >
@@ -145,7 +191,13 @@ function Plot({ o: full, lost, labels, five }: { o: Data; lost: Lost; labels: La
                 style={thin}
               />
             ))}
-            <path d={path(o.past)} fill="none" stroke="var(--accent)" strokeWidth={2} style={thin} />
+            <path
+              d={o.trace?.length ? leftPath(o.trace, t0, t1, W, H) : path(o.past)}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth={2}
+              style={thin}
+            />
             <path d={path(guessLine(o))} fill="none" stroke="var(--accent)" strokeWidth={2} strokeDasharray="5 4" style={thin} />
             <line x1={x(o.now)} x2={x(o.now)} y1={0} y2={H} stroke="var(--fg)" strokeWidth={2} style={thin} />
             {near && <line x1={x(near.at)} x2={x(near.at)} y1={0} y2={H} stroke="var(--muted)" style={thin} />}
@@ -210,17 +262,6 @@ function Plot({ o: full, lost, labels, five }: { o: Data; lost: Lost; labels: La
           ))}
         </div>
       </div>
-      {five && (
-        <div className="mt-1 pl-10">
-          <UsedPlot
-            title={`5-hour${five.five_runs_out_at ? ` · runs out at ${resetAt(five.five_runs_out_at)} at this pace` : ''}`}
-            samples={five.past.map((p) => ({ at: p.at, left: p.five_left }))}
-            from={t0}
-            to={t1}
-            marks={[]}
-          />
-        </div>
-      )}
     </div>
   );
 }

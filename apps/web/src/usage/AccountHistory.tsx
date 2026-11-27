@@ -1,6 +1,6 @@
-// An opened account's history: its 5-hour usage over the last day and its week usage over 7 days, two graphs side by side, the 100% limit dashed and each week
-// reset marked on the week graph, from the daemon's per-account samples (stats.outlook by_account). An account with no 5-hour window says so instead of a graph.
-import { usedPath } from '@handline/app-core';
+// An opened account's history: its 5-hour usage over the last day and its week usage over 7 days, two graphs side by side, the 100% limit dashed and each
+// reset of the window marked, drawn from the daemon's traces (stats.outlook by_account). An account with no 5-hour window says so instead of a graph.
+import { resetMarks, usedPath } from '@handline/app-core';
 import { useOutlook } from '@handline/app-data';
 
 const W = 280;
@@ -14,12 +14,14 @@ export function UsedPlot({
   from,
   to,
   marks,
+  tall,
 }: {
   title: string;
   samples: Sample[];
   from: number;
   to: number;
   marks: string[];
+  tall?: boolean;
 }) {
   const x = (at: string) => ((Date.parse(at) - from) / Math.max(1, to - from)) * W;
   return (
@@ -28,7 +30,7 @@ export function UsedPlot({
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
-        className="h-20 w-full overflow-visible"
+        className={`${tall ? 'h-60' : 'h-20'} w-full overflow-visible`}
         role="img"
         aria-label={`${title} usage`}
       >
@@ -68,8 +70,7 @@ export function UsedPlot({
   );
 }
 
-/** One window's history of an account over `range`: the daemon's points are 96 over twice the range, so the 5h window reads from a day
- *  (a point each 30 minutes) and shows its fills and resets; over 7 days a point each 3.5 hours would draw them as long ramps. */
+/** One window's history of an account over `range`, its trace as the daemon draws it: the 5h window over a day, the week over 7 days. */
 function History({
   account,
   range,
@@ -92,16 +93,14 @@ function History({
     );
   const from = Date.parse(mine.past[0]!.at);
   const to = Date.parse(mine.past.at(-1)!.at);
-  const resets = (mine.resets ?? [])
-    .filter((r) => r.window === (field === 'five_left' ? '5h' : '7d') && Date.parse(r.at) >= from && Date.parse(r.at) <= to)
-    .map((r) => r.at);
+  const five = field === 'five_left';
   return (
     <UsedPlot
       title={title}
-      samples={mine.past.map((p) => ({ at: p.at, left: p[field] }))}
+      samples={five ? mine.five_trace : mine.week_trace}
       from={from}
       to={to}
-      marks={field === 'week_left' ? resets : []}
+      marks={resetMarks(mine.resets, five ? '5h' : '7d', from, to)}
     />
   );
 }
