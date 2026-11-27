@@ -142,11 +142,6 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 	reason := "switched now by " + by
 	landed, why := v.land(agent, HandoffTrigger{Kind: wait.Cause, Reason: reason}, wait.From, dest, reason, "", true)
 	if !landed {
-		if s := m.noteMove(must(db.GetAgentState(m.Q, agent))); s != nil && s.To == dest {
-			check(db.SetCursor(m.Q, pastFitKey(agent), s.Since))
-			started = true
-			return true, fmt.Sprintf("%s starts on %s once its handoff note is in (%s)", addr.Ref(agent), dest, reason), nil
-		}
 		return false, fmt.Sprintf("%s could not start on %s: %s", addr.Ref(agent), dest, clip(why, 120)), nil
 	}
 	started = true

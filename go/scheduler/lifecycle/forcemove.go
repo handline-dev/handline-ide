@@ -196,10 +196,6 @@ func (v *Mover) moveIdle(agent, dest, by string, row *db.AgentState) (bool, stri
 		return false, err.Error()
 	}
 	landed := must(db.GetAgentState(m.Q, agent))
-	if s := m.noteMove(landed); s != nil && s.To == dest {
-		must(db.AddEvent(m.Q, agent, "forced_move", db.KV{K: "from", V: here}, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))
-		return true, fmt.Sprintf("%s moves %s -> %s once its handoff note is in (forced by %s)", addr.Ref(agent), here, dest, addr.Ref(by))
-	}
 	if landed == nil || landed.Account.String != dest {
 		return false, fmt.Sprintf("%s did not move (mid-turn, or the new session did not start on %s) - it stays on %s", addr.Ref(agent), dest, here)
 	}

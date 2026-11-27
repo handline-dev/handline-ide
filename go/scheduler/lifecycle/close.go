@@ -204,9 +204,6 @@ func (m *Manager) ClosedWakeCause(agent string, row *db.AgentState) (c *WakeCaus
 	if owed := m.restartOwed(agent, row); owed != nil {
 		return &WakeCause{"restart", "a restart that has not started it again"}, nil
 	}
-	if s := m.noteMove(row); s != nil {
-		return &WakeCause{"move", "a move to " + s.To + " once its handoff note is in"}, nil
-	}
 	waiting := 0
 	inHand := must(db.CurrentTaskStillAsking(m.Q, agent))
 	for _, r := range must(db.UndeliveredFor(m.Q, agent)) {
@@ -316,7 +313,7 @@ func (m *Manager) wallCutDue(agent string) bool {
 }
 
 func (m *Manager) waitingFor(agent string) bool {
-	return m.recordDue(agent) || m.wallCutDue(agent) || m.noteMove(must(db.GetAgentState(m.Q, agent))) != nil ||
+	return m.recordDue(agent) || m.wallCutDue(agent) ||
 		must(m.Delivery.EffectiveHead(m.Q, agent)) != nil ||
 		len(must(db.SendNowPending(m.Q, agent))) > 0 || len(must(db.ListPending(m.Q, agent))) > 0
 }

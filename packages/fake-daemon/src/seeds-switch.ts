@@ -10,7 +10,7 @@ const inTwoHours = () => new Date(Date.now() + 2 * 3_600_000).toISOString();
 /** Puts the architect, on alpha at its 5-hour limit, in an account switch. */
 function switching(
   d: FakeDaemon,
-  sw: { phase: 'saving' | 'switching' | 'note' | 'starting' | 'waiting'; to: string | null; until?: string; waits?: string },
+  sw: { phase: 'saving' | 'switching' | 'starting' | 'waiting'; to: string | null; until?: string; waits?: string },
 ): void {
   const s = d.sessions.get(ARCH)!;
   const since = new Date(Date.now() - 20_000).toISOString();
