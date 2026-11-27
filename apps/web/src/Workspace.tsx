@@ -19,12 +19,25 @@ import { useAgents, useNameOf, useWrite } from '@handline/app-data';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
 import { PageTab } from '#src/layout/pageTab.tsx';
-import { PaneOpen, goPage, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
+import { PaneOpen, TabRoute, goPage, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { useCallback, useContext, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
 import { newTabKinds } from '#src/layout/newTabKinds.ts';
-import { agentKind, choices, iconOf, pages, labelOf, opened, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
+import {
+  agentKind,
+  choices,
+  iconOf,
+  pages,
+  labelOf,
+  mountKey,
+  opened,
+  ownedBy,
+  planRoute,
+  shellHandle,
+  shellOf,
+  withAgent,
+} from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { isOpen, panes, whereTo, type Action, type Node, type Pane, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -244,7 +257,7 @@ function PaneView({
         />
       </div>
       <div ref={body} {...{ [PANE_BODY]: pane.id }} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
-        <Boundary key={`${current?.id}:${current?.opens}`} loading={null} failed={brokenView('This tab')}>
+        <Boundary key={`${current?.id}:${mountKey(current?.opens)}`} loading={null} failed={brokenView('This tab')}>
           <TabScope id={current?.id ?? null} cluster={there}>
             <PaneOpen.Provider
               value={(opens, how) => openFrom({ root, agent: whoKey, dispatch, nameOf, focus: onFocus }, pane.id, opens, how)}
@@ -260,7 +273,13 @@ function PaneView({
               )}
               {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {current?.opens?.startsWith('msg:') && <LocatedTab key={current.opens} request={Number(current.opens.slice(4))} />}
-              {current?.opens?.startsWith('plan:') && <PlanTab key={current.opens} id={Number(current.opens.slice(5))} />}
+              {current?.opens?.startsWith('plan:') && (
+                <TabRoute.Provider
+                  value={(opens) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens, title: labelOf(opens) })}
+                >
+                  <PlanTab key={mountKey(current.opens)} {...planRoute(current.opens)} />
+                </TabRoute.Provider>
+              )}
               {current?.opens?.startsWith('code:') && <CodeTab key={current.opens} id={Number(current.opens.slice(5))} />}
               {shown?.startsWith('file:') && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} start={shown.slice(5)} />}
               {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}

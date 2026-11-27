@@ -68,8 +68,15 @@ export const shellHandle = (kind: string) => (kind.startsWith('shell:') ? kind.s
 export const taskOf = (id: number) => `task:${id}`;
 /** A chat message with the lines around it, as a search hit or a schedule's last run opens it (chat/Located): `msg:4521`. */
 export const messageOf = (id: number) => `msg:${id}`;
-/** A task's sub-tasks as a graph (tools/Story): `plan:8503`. */
-export const planOf = (id: number) => `plan:${id}`;
+/** A task's sub-tasks as a graph (tools/Story): `plan:8503`, or `plan:8503/8510` with that sub-task open beside it. */
+export const planOf = (id: number, sub?: number | null) => (sub ? `plan:${id}/${sub}` : `plan:${id}`);
+/** The story and the open sub-task of a `plan:` kind. */
+export const planRoute = (kind: string) => {
+  const [id, sub] = (opened(kind, 'plan') ?? '').split('/');
+  return { id: Number(id), sub: sub ? Number(sub) : null };
+};
+/** A kind as its view is mounted: a plan tab stays mounted while its open sub-task changes. */
+export const mountKey = (kind: string | undefined) => (kind?.startsWith('plan:') ? kind.split('/')[0] : kind);
 /** A task's changes, whole and per commit (tools/TaskCode): `code:8503`. */
 export const codeOf = (id: number) => `code:${id}`;
 export const webOf = (url: string) => `web:${url}`;
@@ -95,7 +102,7 @@ const onThing = (kind: string): { label: string; icon: ReactNode } | null => {
   if (task) return { label: `T${task}`, icon: kinds.tasks.icon };
   if (opened(kind, 'msg')) return { label: 'Message', icon: kinds.chat.icon };
   const plan = opened(kind, 'plan');
-  if (plan) return { label: `Plan · T${plan}`, icon: kinds.plan.icon };
+  if (plan) return { label: `Plan · T${plan.split('/')[0]}`, icon: kinds.plan.icon };
   const code = opened(kind, 'code');
   if (code) return { label: `T${code} Code`, icon: kinds.diff.icon };
   const web = opened(kind, 'web');

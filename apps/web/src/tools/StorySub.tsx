@@ -1,62 +1,71 @@
 import { Ago } from '#src/ui/Ago.tsx';
-// A story's sub-task opened from its node: back to the Plan, the next one for you, and its Plan, Code and Result with the founder's verdicts.
-import type { TaskDetail } from '@handline/client';
-import { Hooks, useNameOf, useWrite } from '@handline/app-data';
+// A story's sub-task opened beside the graph: its place among the others, what it starts after and what starts then, and its Chat,
+// Plan, Code and Result with the founder's verdicts.
+import type { Task, TaskDetail } from '@handline/client';
+import { Hooks, useNameOf, useTasks, useWrite } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { TaskCode } from '#src/tools/TaskCode.tsx';
 import { taskPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
 import { useTabState } from '#src/persist/tabState.ts';
 import { FaceName } from '#src/ui/Face.tsx';
-import { startsAfter, wordOf, type Sub } from '#src/tools/storyWords.ts';
+import { wordOf, type Sub } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
+import { IconButton } from '#src/ui/IconButton.tsx';
+import { look } from '#src/ui/taskLook.tsx';
+import { TaskChat } from '#src/tools/TaskTab.tsx';
 import { sayRefusal } from '#src/ui/refusal.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { note, Result, VerdictButtons } from '#src/tools/Review.tsx';
 
-type Tab = 'plan' | 'code' | 'result';
+type Tab = 'chat' | 'plan' | 'code' | 'result';
 const CLOSED = ['done', 'discarded'];
 
-export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; onPick: (id: number | null) => void }) {
+export function SubTask({
+  sub,
+  story,
+  onPick,
+  at,
+  onStep,
+}: {
+  sub: Sub;
+  story: TaskDetail;
+  onPick: (id: number | null) => void;
+  /** Its place among the story's sub-tasks, 1-based, and how many there are. */
+  at: [number, number];
+  onStep: (d: -1 | 1) => void;
+}) {
   const t = Hooks.useTaskGet({ task: sub.id }).data;
   const me = useMe();
   const [tab, setTab] = useTabState<Tab | null>(`subtab:${sub.id}`, null);
+  const kids = useTasks({ parent: story.id, all: true }).data?.items ?? [];
   // Every hook before the early return: a render after the load must call the same ones.
   const code = !!Hooks.useTaskChanges({ task: sub.id }).data?.commits.length;
   const waiting = useLineDrafts(taskPlace(sub.id)).list.length > 0;
   if (!t) return <div className="flex-1" />;
   const open = new Set(story.subtasks.filter((x) => !CLOSED.includes(x.state)).map((x) => x.id));
   const word = wordOf(t, sub, me, open);
-  // The next sub-task for you after this one, else the next one.
-  const rest = story.subtasks.filter((x) => x.id !== sub.id);
-  const after = [...rest.filter((x) => x.id > sub.id), ...rest.filter((x) => x.id < sub.id)];
-  const next = after.find((x) => x.review?.ready || (x.state === 'draft' && x.plan_state === 'written')) ?? after[0];
   const first: Tab = t.review ? 'result' : 'plan';
   const shown: Tab = tab === 'code' && !code ? first : (tab ?? first);
+  const before = kids.filter((x) => (t.blocked_by ?? []).includes(x.id));
+  const then = kids.filter((x) => (x.blocked_by ?? []).includes(t.id));
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4 text-sm">
-        <button
-          type="button"
-          onClick={() => onPick(null)}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-muted hover:bg-hover/30 hover:text-fg"
-        >
-          <ChevronLeft size={14} />
-          Plan
-        </button>
-        {next && (
-          <button
-            type="button"
-            onClick={() => onPick(next.id)}
-            className="flex min-w-0 items-center gap-1 rounded-md px-2 py-1 text-muted hover:bg-hover/30 hover:text-fg"
-          >
-            <span className="truncate">
-              Next: T{next.id} {next.title}
-            </span>
-            <ChevronRight size={14} className="shrink-0" />
-          </button>
-        )}
+      <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-3 text-sm text-muted">
+        <IconButton label="Previous" disabled={at[0] <= 1} onClick={() => onStep(-1)}>
+          <ChevronLeft size={16} />
+        </IconButton>
+        <span className="tabular-nums">
+          {at[0]} / {at[1]}
+        </span>
+        <IconButton label="Next" disabled={at[0] >= at[1]} onClick={() => onStep(1)}>
+          <ChevronRight size={16} />
+        </IconButton>
+        <span className="ml-auto" />
+        <IconButton label="Close" onClick={() => onPick(null)}>
+          <X size={16} />
+        </IconButton>
       </div>
       <div className="flex shrink-0 flex-col gap-2 px-6 pt-5">
         <h2 className="text-lg font-semibold text-fg">{t.title}</h2>
@@ -65,9 +74,12 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
           <span>· T{t.id}</span>
           <span className={word.kind === 'you' ? 'text-warning' : ''}>· {word.text}</span>
         </p>
+        <Links label="Starts after" tasks={before} onPick={onPick} />
+        <Links label="Then starts" tasks={then} onPick={onPick} />
         <div role="tablist" className="mt-2 flex gap-4 border-b border-border text-sm">
           {(
             [
+              ['chat', 'Chat', true],
               ['plan', 'Plan', true],
               ['code', 'Code', code],
               ['result', 'Result', !!t.review],
@@ -87,7 +99,8 @@ export function SubTask({ sub, story, onPick }: { sub: Sub; story: TaskDetail; o
           ))}
         </div>
       </div>
-      {shown === 'plan' && <PlanTab t={t} open={open} />}
+      {shown === 'chat' && <TaskChat id={t.id} />}
+      {shown === 'plan' && <PlanTab t={t} />}
       {shown === 'code' && (
         <ScrollFade keep={`subcode:${t.id}`} fadeTop={!waiting} className="min-h-0 flex-1">
           <TaskCode task={t.id} />
@@ -176,12 +189,11 @@ function PlanOk({ t }: { t: TaskDetail }) {
   );
 }
 
-function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
+function PlanTab({ t }: { t: TaskDetail }) {
   const nameOf = useNameOf();
   const plan = t.plan;
   const before = new Set(plan && plan.versions.length > 1 ? plan.versions.at(-2)!.text.split('\n') : []);
   const changed = plan && plan.versions.length > 1;
-  const after = startsAfter(t, open);
   return (
     <ScrollFade className="min-h-0 flex-1">
       <div className="flex flex-col gap-4 px-6 py-5 text-sm">
@@ -217,9 +229,6 @@ function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
             {changed && <p className="text-xs text-muted">Lines marked on the left changed since version {plan.version - 1}.</p>}
           </>
         )}
-        <p className="text-muted">
-          Starts after: <span className="text-fg">{after.length ? after.map((n) => `T${n}`).join(', ') : 'nothing, starts at once'}</span>
-        </p>
         {t.core_ask && (
           <p className="text-muted">
             Core logic asked <Ago at={t.core_ask.at} />
@@ -229,5 +238,33 @@ function PlanTab({ t, open }: { t: TaskDetail; open: Set<number> }) {
         )}
       </div>
     </ScrollFade>
+  );
+}
+
+/** A row of linked sub-tasks, each with its state mark; a click opens it here. */
+function Links({ label, tasks, onPick }: { label: string; tasks: Task[]; onPick: (id: number) => void }) {
+  if (!tasks.length) return null;
+  return (
+    <div className="flex items-start gap-3 text-sm">
+      <span className="w-24 shrink-0 text-muted">{label}</span>
+      <span className="flex min-w-0 flex-col items-start gap-1">
+        {tasks.map((x) => {
+          const s = look(x);
+          return (
+            <button
+              key={x.id}
+              type="button"
+              onClick={() => onPick(x.id)}
+              title={`${s.word} · ${x.title}`}
+              className="flex max-w-full min-w-0 items-center gap-1 rounded-sm px-1 text-fg hover:bg-hover/30"
+            >
+              <s.icon size={12} className="shrink-0 text-muted" />
+              <span className="text-muted">T{x.id}</span>
+              <span className="truncate">{x.title}</span>
+            </button>
+          );
+        })}
+      </span>
+    </div>
   );
 }

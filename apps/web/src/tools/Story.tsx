@@ -1,46 +1,90 @@
-// A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with Run in a tab of its own (PlanTab).
+// A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with the open one beside it in a tab of its own (PlanTab).
 import { useSize } from '#src/ui/useSize.ts';
-import { taskGraph, type GraphNode } from '@handline/app-core';
 import { Hooks, useNameOf, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
-import { useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTabState } from '#src/persist/tabState.ts';
 import { planOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
-import { TaskChat } from '#src/tools/TaskTab.tsx';
+import { PlanGraph } from '#src/tools/PlanGraph.tsx';
+import { TabRoute } from '#src/layout/openTab.tsx';
+import { usePersisted } from '#src/persist/kv.ts';
+import { Splitter } from '#src/ui/Splitter.tsx';
+import { useEscape } from '#src/ui/useEscape.ts';
 import { SubTask } from '#src/tools/StorySub.tsx';
 import { useRun } from '#src/tools/RunPlan.tsx';
-import { startsAfter, wordOf, type Sub, type Word } from '#src/tools/storyWords.ts';
+import { startsAfter, wordOf, type Word } from '#src/tools/storyWords.ts';
 import { Button } from '#src/ui/Button.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { look } from '#src/ui/taskLook.tsx';
-import { FaceName } from '#src/ui/Face.tsx';
 
-const BOX = { w: 200, h: 128 };
+const fitDetail = (px: number, size: number) => Math.max(360, Math.min(px, size - 320));
 
-/** A task's sub-tasks as a graph in a tab of its own (plan:<id>), opened from the task's Plan box; a node opens that sub-task beside
- * its own chat. */
-export function PlanTab({ id }: { id: number }) {
+/** A task's sub-tasks as a graph in a tab of its own (plan:<id>); a card opens that sub-task beside the graph (plan:<id>/<sub>), and a
+ * pane too narrow for both keeps the graph alone, as Requests does, its cards opening their tasks the standard way. */
+export function PlanTab({ id, sub: picked }: { id: number; sub: number | null }) {
   const t = Hooks.useTaskGet({ task: id }).data;
-  const [picked, setPicked] = useTabState<number | null>('sub', null);
+  const route = useContext(TabRoute);
+  const [held, setHeld] = useTabState<number | null>('sub', null);
+  const shown = route ? picked : held;
+  const pick = (n: number | null) => (route ? route(planOf(id, n)) : setHeld(n));
+  const box = useRef<HTMLDivElement>(null);
+  const boxWidth = useSize(box, (el) => el.clientWidth, 0);
+  const split = boxWidth >= 48 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const [width, setWidth] = usePersisted('plan-detail-width', 560);
+  const subs = t?.subtasks ?? [];
+  const sub = split ? (subs.find((x) => x.id === shown) ?? null) : null;
+  const order = [...subs].sort((a, b) => a.id - b.id);
+  const at = sub ? order.findIndex((x) => x.id === sub.id) : -1;
+  const step = (d: number) => {
+    const next = order[at + d];
+    if (next) pick(next.id);
+  };
+  useEscape(!!sub, () => pick(null));
+  useArrows(!!sub, step, box);
   if (!t) return <div className="flex-1" />;
-  const sub = t.subtasks.find((x) => x.id === picked) ?? null;
   return (
-    <div className="flex min-h-0 min-w-0 flex-1">
+    <div ref={box} className="flex min-h-0 min-w-0 flex-1">
+      <PlanGraph parent={t.id} subs={subs} open={sub?.id ?? null} onPick={split ? pick : null} />
       {sub && (
-        <div className="flex min-h-0 min-w-0 basis-2/5 flex-col border-r border-border">
-          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4 text-sm font-semibold">
-            <FaceName who={sub.owner} />
-            <span className="font-normal text-muted">on T{sub.id}</span>
+        <>
+          <Splitter
+            axis="x"
+            container={box}
+            percent={((boxWidth - fitDetail(width, boxWidth)) / boxWidth) * 100}
+            onMove={(x, size) => setWidth(fitDetail(size - x, size))}
+            onStep={(d) => setWidth((w) => fitDetail(w - d * 16, boxWidth))}
+            label="Resize the task"
+          />
+          <div className="flex min-h-0 min-w-0 shrink-0 flex-col" style={{ width: fitDetail(width, boxWidth) }}>
+            <SubTask key={sub.id} sub={sub} story={t} onPick={pick} at={[at + 1, order.length]} onStep={step} />
           </div>
-          <TaskChat key={sub.id} id={sub.id} />
-        </div>
+        </>
       )}
-      {sub ? <SubTask key={sub.id} sub={sub} story={t} onPick={setPicked} /> : <Plan parent={t.id} subs={t.subtasks} onPick={setPicked} />}
     </div>
   );
+}
+
+/** Left and right step through the sub-tasks while one is open, unless typing. */
+function useArrows(on: boolean, step: (d: number) => void, box: RefObject<HTMLElement | null>) {
+  const latest = useRef(step);
+  useEffect(() => {
+    latest.current = step;
+  });
+  useEffect(() => {
+    if (!on) return;
+    const key = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && el !== document.body && !box.current?.contains(el)) return;
+      if (el?.closest('input, textarea, select, [role=separator]') || el?.isContentEditable || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowLeft') latest.current(-1);
+      else if (e.key === 'ArrowRight') latest.current(1);
+    };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [on, box]);
 }
 
 const ROW = 64; // a flow box's height and the gap under it
@@ -210,138 +254,4 @@ export function storyChat(activity: ReactNode, box: ReactNode, id: number) {
       {box}
     </>
   );
-}
-
-function Plan({ parent, subs, onPick }: { parent: number; subs: Sub[]; onPick: (id: number) => void }) {
-  const me = useMe();
-  const kids = [...(useTasks({ parent, all: true }).data?.items ?? [])].sort((a, b) => a.id - b.id);
-  const [box, fit] = useFit();
-  const g = taskGraph(kids, { me, closed: true, size: BOX });
-  const k = fit(g.width, g.height);
-  const byId = new Map(kids.map((x) => [x.id, x]));
-  // Only a sub-task not yet done or discarded holds another back.
-  const open = new Set(kids.filter((x) => !['done', 'discarded'].includes(x.state)).map((x) => x.id));
-  const drafts = kids.filter((x) => x.state === 'draft');
-  const { run } = useRun();
-  const subOf = new Map(subs.map((x) => [x.id, x]));
-  const word = (x: Task) => wordOf(x, subOf.get(x.id), me, open);
-  const ready = (x: Task) => word(x).kind === 'you';
-  const waiting = (x: Task) => word(x).kind === 'waiting';
-  const tally = (label: string, f: (x: Task) => boolean) => {
-    const n = kids.filter(f).length;
-    return n ? `${n} ${label}` : null;
-  };
-  const head =
-    drafts.length === kids.length && kids.length > 0
-      ? [
-          'Draft',
-          `${kids.length} tasks`,
-          `${subs.filter((x) => x.plan_state === 'ok').length} of ${kids.length} plans OK`,
-          tally('for you', ready),
-        ]
-      : [
-          `${kids.filter((x) => x.state === 'done').length}/${kids.length} merged`,
-          tally('for you', ready),
-          tally('up next', (x) => x.state === 'queued' && !waiting(x)),
-          tally('working', (x) => x.state === 'doing' && !ready(x) && !waiting(x)),
-          tally('waiting', waiting),
-          tally('draft', (x) => x.state === 'draft'),
-        ];
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <p className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border px-6 text-sm text-muted">
-        <span className="font-semibold text-fg">Plan</span>
-        {head.filter(Boolean).map((w) => (
-          <span key={String(w)}>· {w}</span>
-        ))}
-      </p>
-      <div ref={box} className="flex min-h-0 flex-1 overflow-hidden p-6">
-        <div className="relative mx-auto shrink-0" style={{ width: g.width * k, height: g.height * k }}>
-          <div className="absolute top-0 left-0 origin-top-left" style={{ width: g.width, height: g.height, transform: `scale(${k})` }}>
-            <svg width={g.width} height={g.height} className="absolute inset-0 text-muted" aria-hidden>
-              <defs>
-                <marker id="story-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-                  <path d="M0 0 L8 4 L0 8 z" fill="currentColor" />
-                </marker>
-              </defs>
-              {g.edges.map((e) => (
-                <path
-                  key={`${e.from}-${e.to}`}
-                  d={curve(g.nodes, g.edges, e.from, e.to)}
-                  fill="none"
-                  stroke="currentColor"
-                  markerEnd="url(#story-arrow)"
-                />
-              ))}
-            </svg>
-            {g.nodes.map((n) => (
-              <Node key={n.id} n={n} t={byId.get(n.id)!} word={word(byId.get(n.id)!)} onPick={onPick} />
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-3 text-xs text-muted">
-        <span className="flex-1">A → B: B starts after A is merged</span>
-        {drafts.length > 0 && (
-          <Button variant="primary" onClick={() => run(drafts, open)}>
-            <Play size={14} className="mr-1.5" />
-            Run
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Node({ n, t, word, onPick }: { n: GraphNode; t: Task; word: Word; onPick: (id: number) => void }) {
-  const s = look(t);
-  const draft = t.state === 'draft';
-  const ready = word.kind === 'you';
-  return (
-    <button
-      type="button"
-      onClick={() => onPick(n.id)}
-      style={{ left: n.x, top: n.y, width: n.w, height: n.h }}
-      className={`absolute flex flex-col gap-1 rounded-md border p-3 text-left hover:bg-hover/30 ${draft ? 'border-dashed' : ''} ${ready ? 'border-warning bg-warning/10' : 'border-border bg-bg'}`}
-    >
-      <span className="text-xs text-muted">T{n.id}</span>
-      <span className="line-clamp-2 shrink-0 text-sm font-semibold text-fg">{n.title}</span>
-      <span className="flex items-center gap-1.5 text-xs text-fg">
-        <FaceName who={t.to} />
-      </span>
-      <span className={`mt-auto flex items-center gap-1 text-xs ${ready ? 'text-warning' : 'text-muted'}`}>
-        {!draft && <s.icon size={12} />}
-        {word.text}
-      </span>
-    </button>
-  );
-}
-
-const xOf = (nodes: GraphNode[], id: number) => nodes.find((n) => n.id === id)!.x;
-
-/** An arrow from the bottom of one box to the top of another, as a soft S. */
-function curve(nodes: GraphNode[], edges: { from: number; to: number }[], from: number, to: number): string {
-  const a = nodes.find((n) => n.id === from)!;
-  const b = nodes.find((n) => n.id === to)!;
-  // Each arrow leaves its own point on the bottom and lands on its own point on the top, so no two share a stroke.
-  const spot = (n: GraphNode, list: number[], id: number) => n.x + (n.w * (list.indexOf(id) + 1)) / (list.length + 1);
-  const outs = edges
-    .filter((e) => e.from === from)
-    .map((e) => e.to)
-    .sort((p, q) => xOf(nodes, p) - xOf(nodes, q));
-  const ins = edges
-    .filter((e) => e.to === to)
-    .map((e) => e.from)
-    .sort((p, q) => xOf(nodes, p) - xOf(nodes, q));
-  const [x1, y1, x2, y2] = [spot(a, outs, to), a.y + a.h, spot(b, ins, from), b.y - 2];
-  const m = (y1 + y2) / 2;
-  return `M${x1} ${y1} C${x1} ${m} ${x2} ${m} ${x2} ${y2}`;
-}
-
-/** The graph shrinks to fit its pane, never grows past its own size. */
-function useFit() {
-  const ref = useRef<HTMLDivElement>(null);
-  const room = useSize(ref, (el) => ({ w: el.clientWidth - 48, h: el.clientHeight - 48 }), { w: 0, h: 0 });
-  const fit = (w: number, h: number) => (room.w > 0 && w > 0 ? Math.min(1, room.w / w, room.h / h) : 1);
-  return [ref, fit] as const;
 }

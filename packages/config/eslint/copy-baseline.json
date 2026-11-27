@@ -64,7 +64,7 @@
   "apps/web/src/settings/ToolsTab.tsx": ["The tools did not load."],
   "apps/web/src/sidebar/LoadButton.tsx": ["No agent is running."],
   "apps/web/src/tools/RunPlan.tsx": ["wait."],
-  "apps/web/src/tools/Story.tsx": ["A → B: B starts after A is merged"],
+  "apps/web/src/tools/PlanGraph.tsx": ["A → B: B starts after A is merged"],
   "apps/web/src/tools/StorySub.tsx": ["Lines marked on the left changed since version"],
   "apps/web/src/tools/TaskCode.tsx": ["The changes did not load.", "No commits on this task yet."],
   "apps/web/src/tools/TaskComment.tsx": ["your answer and the turn back · Send it empty to give it back with no answer"],

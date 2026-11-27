@@ -22,6 +22,8 @@ export const SHORTCUT: Partial<Record<Gesture, string>> = { tab: MAC ? '⌘ clic
 
 /** The pane a view sits in opens tabs next to itself; set by the workspace around each pane. */
 export const PaneOpen = createContext<Open | null>(null);
+/** Moves the tab a view is drawn in to `opens` in place (same tab, a Back step); null outside a pane. */
+export const TabRoute = createContext<((opens: string) => void) | null>(null);
 
 // For callers outside any pane (the sidebar): the workspace on screen, set while it is mounted; a layer over it (the town) takes
 // them while it is up.
