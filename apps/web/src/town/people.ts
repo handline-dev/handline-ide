@@ -4,7 +4,7 @@
 // a sofa with a mug; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
 // a sofa's arm) is laid back over it. Each person is one of the sheet's people, teammates different ones while there are enough.
 import type { Person } from '#src/town/model.ts';
-import { HIRE_DESK, MY_DESK, papersOf, type Room } from '#src/town/room.ts';
+import { CHAIR_MID, HIRE_DESK, MY_CHAIR, MY_DESK, papersOf, type Room } from '#src/town/room.ts';
 import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { Vector3 } from 'three';
@@ -34,11 +34,13 @@ const PEOPLE = TALL.walk_down.length;
 export const SCALE = PERSON_PX / SHEET.walk; // a walking figure of median height stands PERSON_PX tall in the room
 type Pose = (typeof POSES)[number];
 
+/** How far a seated person's head stands over its chair's top, in picture pixels: low enough to leave the screen in view. */
+export const OVER_CHAIR = 17;
 /** A box in picture pixels. */
 export type Box = { x: number; y: number; w: number; h: number };
 /** What a click opens an agent's chat from, in picture pixels: its figure, or its desk with its chair; `at` is the floor spot (metres)
- *  the founder walks to first. */
-export type Spot = Box & { person: Person; at: [number, number] };
+ *  the founder walks to first, and `face` which way it then looks: to its right at whoever sits at the desk, by default. */
+export type Spot = Box & { person: Person; at: [number, number]; face?: 'up' };
 /** A person's name, centred on x with its top at y; `away` under the empty desk of one who is not in the room. */
 export type Name = { person: Person; x: number; y: number; away?: boolean };
 /** A person drawn: its cell of the sheet (`col`, `row`) in `box`, the room's nearer pixels to lay over it as an image in `front`, and how
@@ -56,7 +58,8 @@ export type Cast = {
   /** The stacks of papers on agents' desks: their queued tasks. */
   papers: Spot[];
   names: Name[];
-  mine?: Box & { name: [number, number]; at: [number, number] };
+  /** `seat`: its chair, where the founder sits down from `at`. */
+  mine?: Box & { name: [number, number]; at: [number, number]; seat: [number, number] };
   /** The empty desk where the founder hires the next agent, with where its label goes. */
   hire?: Box & { name: [number, number]; at: [number, number] };
 };
@@ -160,11 +163,11 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     return { x: cx - w / 2, y: bottom + SCALE - h, w, h }; // a cell keeps one empty row under its figure
   };
 
-  /** Right beside a desk's chair, at its left where the desks of a bench part, level with whoever sits in it: where the founder stands
-   *  to talk. */
-  const beside = (tag: string): [number, number] => {
+  /** Right beside a desk's chair, at its left (or `right`) where the desks of a bench part, level with whoever sits in it: where the
+   *  founder stands to talk. */
+  const beside = (tag: string, side: 'left' | 'right' = 'left'): [number, number] => {
     const top = room.blocks.find((b) => b.tag === tag && b.part?.startsWith('desk:'));
-    return top ? [top.from[0], top.to[2] + 0.2] : room.entry;
+    return top ? [side === 'left' ? top.from[0] : top.to[0], top.to[2] + 0.2] : room.entry;
   };
 
   for (const place of [...room.places].sort((a, b) => a.z - b.z)) {
@@ -191,7 +194,7 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
       const seen = draw(
         'sit_back',
         chair.x + chair.w / 2,
-        chair.y - 17 + tall,
+        chair.y - OVER_CHAIR + tall,
         (i) => frame.meta[pic.id[i]]?.tag === tag || pic.depth[i] < near - 0.05,
       );
       if (p.activity === 'you') cast.bubbles.push({ key: p.key, x: seen.x + seen.w - 8, y: seen.y - 6, w: BUBBLE_PX, h: BUBBLE_PX });
@@ -208,14 +211,19 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const seen = sofa
       ? draw('sit_mug', fx, fy, (i) => pic.depth[i] < depth - 0.6)
       : draw('walk_down', fx, fy, (i) => !FLAT.has(frame.meta[pic.id[i]]?.kind ?? '') && pic.depth[i] < body);
-    cast.spots.push({ person: p, ...seen, at: sofa ? [place.x, place.z + 0.55] : [place.x - 0.367, place.z] });
+    cast.spots.push({
+      person: p,
+      ...seen,
+      ...(sofa ? { at: [place.x, place.z + 0.55], face: 'up' } : { at: [place.x - CHAIR_MID, place.z] }),
+    });
     cast.names.push({ person: p, x: seen.x + seen.w / 2, y: seen.y + seen.h + 1 });
   }
   for (const person of room.people) {
     const desk = boxOf(pic, frame, `desk:${person.key}`);
     if (desk) cast.desks.push({ ...desk, person, at: beside(`desk:${person.key}`) });
     const papers = boxOf(pic, frame, papersOf(`desk:${person.key}`));
-    if (papers) cast.papers.push({ ...papers, person, at: beside(`desk:${person.key}`) });
+    // Just before its papers, at the desk's right edge, looking at them.
+    if (papers) cast.papers.push({ ...papers, person, at: beside(`desk:${person.key}`, 'right'), face: 'up' });
     // Nobody at this desk: a mark for its agent goes over the empty chair.
     const chair = cast.heads.some((h) => h.key === person.key) ? null : boxOf(pic, frame, `chair:${person.key}`);
     if (chair) cast.heads.push({ key: person.key, x: chair.x + chair.w / 2, y: chair.y });
@@ -225,8 +233,9 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
   const hire = boxOf(pic, frame, HIRE_DESK);
   if (hire) cast.hire = { ...hire, name: [hire.x + hire.w / 2, hire.y + hire.h + 1], at: beside(HIRE_DESK) };
   // The founder's desk opens their decisions whether its papers or the desk itself is clicked.
-  const mine = union(boxOf(pic, frame, MY_DESK), boxOf(pic, frame, papersOf(MY_DESK)));
-  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: beside(MY_DESK) };
+  const mine = union(union(boxOf(pic, frame, MY_DESK), boxOf(pic, frame, MY_CHAIR)), boxOf(pic, frame, papersOf(MY_DESK)));
+  const side = beside(MY_DESK);
+  if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: side, seat: [side[0] + CHAIR_MID, side[1]] };
   return cast;
 }
 

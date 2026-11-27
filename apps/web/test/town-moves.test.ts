@@ -73,6 +73,16 @@ describe('a person whose place changes', () => {
     expect(steps(route.slice(up, down + 1)).every((p) => freeAt(now.floor, p))).toBe(true);
   });
 
+  it("gets up out of a desk chair sideways, into the free gap at the desk's left edge, and sits down the same way", () => {
+    for (const seat of now.seats.values()) {
+      // A sofa's sitter gets up forwards; one standing by the door does not get up.
+      if (Math.abs(seat.stand[1] - seat.at[1]) > 0.1 || seat.stand[0] === seat.at[0]) continue;
+      expect(seat.stand[0]).toBeLessThan(seat.at[0] - 0.2);
+      expect(freeAt(now.floor, seat.stand)).toBe(true);
+    }
+    expect([...now.seats.values()].filter((s) => Math.abs(s.stand[1] - s.at[1]) <= 0.1)).not.toHaveLength(0);
+  });
+
   it('comes in and goes away through the door', () => {
     const c = changesOf(was.seats, now.seats).find((c) => c.key === 'c')!;
     expect(c.from).toBeNull();
