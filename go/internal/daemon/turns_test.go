@@ -104,10 +104,10 @@ func TestEachPersonSeesOnlyTheTurnsThatWaitOnThem(t *testing.T) {
 	if n := counts(kim)["needs_you"]; n != 0 {
 		t.Fatalf("Kim's needs_you counts others' tasks: %v", n)
 	}
-	if _, err := d.db.Exec("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(90, ?, ?, '@human pick one?', 1)", mine, bob); err != nil {
+	if _, err := d.db.Exec("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(90, ?, ?, '@human pick one?', 1)", mine, bob); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := d.db.Exec("INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(90, 'bbbbbbbbbbb1', 1, ?, 'p1', '@human pick one?', 'queued', 90, 1)", bob); err != nil {
+	if _, err := d.db.Exec("INSERT INTO requests(id, ref, ts, requester, target, body, state, comment_id, edge_ok) VALUES(90, 'bbbbbbbbbbb1', 1, ?, 'p1', '@human pick one?', 'queued', 90, 1)", bob); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := d.db.Exec("INSERT INTO task_requests(task_id, request_id) VALUES(?, 90)", mine); err != nil {
@@ -214,7 +214,7 @@ func TestHumanOnATaskIsItsPersonAndAHandleIsItsOwner(t *testing.T) {
 	}
 	add(hers, map[string]any{"text": "@human which one?", "request_id": "ask-hers"})
 	var body string
-	if err := d.db.QueryRow("SELECT body FROM task_memos WHERE task_id = ? ORDER BY id DESC LIMIT 1", hers).Scan(&body); err != nil ||
+	if err := d.db.QueryRow("SELECT body FROM task_comments WHERE task_id = ? ORDER BY id DESC LIMIT 1", hers).Scan(&body); err != nil ||
 		!strings.HasPrefix(body, "<@p2>") {
 		t.Fatalf("@human on Kim's task was kept as %q (%v)", body, err)
 	}

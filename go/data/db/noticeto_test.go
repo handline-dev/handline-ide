@@ -56,7 +56,7 @@ func TestAWatchIsDueOnceAnHourOnAndOnlyWhenTheTaskHasNotMoved(t *testing.T) {
 		t.Fatal(err)
 	}
 	// T2 moves within the hour: a comment.
-	if _, err := q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(2, 'amy', 'on it', 1500)"); err != nil {
+	if _, err := q.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(2, 'amy', 'on it', 1500)"); err != nil {
 		t.Fatal(err)
 	}
 	if due, _ := DueNoticeWatches(q, 1000+NoticeWatchS-1); len(due) != 0 {

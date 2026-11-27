@@ -26,7 +26,7 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 		"UPDATE tasks SET parent_task = 2 WHERE id = 6",
 		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'boss', 'w', 'task', 'queued', 1, 'x')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 10)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 2, 'boss', 'note', 1)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(1, 2, 'boss', 'note', 1)",
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(4, 2, 1), (1, 2, 1), (2, 6, 1)", // 4 waits on 2; keep waits on 2; 2 waits on its child
 		"INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(7, 8, 1)",
 	} {
@@ -87,7 +87,7 @@ func TestMergeFoldsTasksIntoOneAndRefusesWhatWouldLoop(t *testing.T) {
 	if count("SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id = 10") != 1 || count("SELECT COUNT(*) FROM task_requests WHERE task_id = 2") != 0 {
 		t.Fatal("the request moves")
 	}
-	if count("SELECT COUNT(*) FROM task_memos WHERE task_id = 1") != 1 || count("SELECT parent_task FROM tasks WHERE id = 6") != 1 {
+	if count("SELECT COUNT(*) FROM task_comments WHERE task_id = 1") != 1 || count("SELECT parent_task FROM tasks WHERE id = 6") != 1 {
 		t.Fatal("the memo and the sub-task move")
 	}
 	if count("SELECT COUNT(*) FROM task_blocks WHERE task_id = 4 AND blocks_on = 1") != 1 || count("SELECT COUNT(*) FROM task_blocks WHERE blocks_on = 2 OR task_id = 2 OR task_id = 1 AND blocks_on = 1") != 0 {

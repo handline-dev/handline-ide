@@ -137,7 +137,7 @@ func (e *Env) leftBehind(t row, b *board) (bool, int64, error) {
 	if end == 0 {
 		return false, 0, nil
 	}
-	seen, err := queryOne(e.DB, "SELECT 1 AS n FROM cursors WHERE name = ? AND row_id >= COALESCE((SELECT MAX(id) FROM task_memos WHERE task_id = ?), 0)",
+	seen, err := queryOne(e.DB, "SELECT 1 AS n FROM cursors WHERE name = ? AND row_id >= COALESCE((SELECT MAX(id) FROM task_comments WHERE task_id = ?), 0)",
 		db.SeenKey(e.person(), id), id)
 	if err != nil || seen != nil {
 		return false, 0, err

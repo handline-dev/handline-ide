@@ -190,7 +190,7 @@ func (e *Env) requestNodes(since int64) (map[int64][]requestNode, error) {
 		"SELECT s.root, t.id, "+db.ActingSQL("t")+" AS acting, COALESCE(t.pr, 0) AS pr, (t.done_evidence IS NULL AND t.discarded_by IS NULL) AS open, "+
 		"EXISTS(SELECT 1 FROM task_blocks b JOIN tasks w ON w.id = b.blocks_on WHERE b.task_id = t.id AND b.dormant = 0 AND w.done_evidence IS NULL AND w.discarded_by IS NULL) AS blocked, "+
 		"COALESCE(t.timeout_at, 0) AS due, MAX(t.created_at, COALESCE(t.done_at, 0), COALESCE(t.edited_at, 0), COALESCE(t.discarded_at, 0), "+
-		"COALESCE((SELECT MAX(m.created_at) FROM task_memos m WHERE m.task_id = t.id), 0)) AS at "+
+		"COALESCE((SELECT MAX(m.created_at) FROM task_comments m WHERE m.task_id = t.id), 0)) AS at "+
 		"FROM sub s JOIN tasks t ON t.id = s.id WHERE t.discarded_by IS NULL OR t.discarded_at >= ? ORDER BY t.id", e.person(), e.person(), since)
 	if err != nil {
 		return nil, err

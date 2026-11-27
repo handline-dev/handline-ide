@@ -15,10 +15,10 @@ func TestDecidedOrderPagesByTheNewestDecision(t *testing.T) {
 	e := testEnv(t)
 	for id := 1; id <= 5; id++ {
 		run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(%d, 't', 'bob', 'bob', 1)", id))
-		run(t, e, fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(%d, %d, 'p1', 'yes', 1)", id, id))
+		run(t, e, fmt.Sprintf("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(%d, %d, 'p1', 'yes', 1)", id, id))
 	}
 	pop := func(ts, task int) {
-		run(t, e, fmt.Sprintf(`INSERT INTO events(ts, agent, kind, payload) VALUES(%d, 'p1', 'task_turn_pop', '{"task_id": %d, "agent": "p1", "to": "bob", "memo": %d}')`,
+		run(t, e, fmt.Sprintf(`INSERT INTO events(ts, agent, kind, payload) VALUES(%d, 'p1', 'task_turn_pop', '{"task_id": %d, "agent": "p1", "to": "bob", "comment": %d}')`,
 			ts, task, task))
 	}
 	// Decided in the order 5, 1, 4, 3, 2, with T2 a second time last; T3 and T2's last decision share a second, so the event's order, not

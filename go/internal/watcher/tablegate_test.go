@@ -46,7 +46,7 @@ func gate(t *testing.T) (*sql.DB, *sql.Conn, *Watcher, func(all bool)) {
 
 func TestADetectorRunsOnlyWhenATableItNamesChanged(t *testing.T) {
 	d, _, w, look := gate(t)
-	tasks := &counted{tables: []string{"tasks", "task_memos"}}
+	tasks := &counted{tables: []string{"tasks", "task_comments"}}
 	reqs := &counted{tables: []string{"requests"}}
 	w.Detectors = []Detector{tabledCounted{tasks}, tabledCounted{reqs}}
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'bob', 'p1', 1)")
@@ -64,13 +64,13 @@ func TestADetectorRunsOnlyWhenATableItNamesChanged(t *testing.T) {
 	if tasks.runs != 1 || reqs.runs != 1 {
 		t.Fatalf("a commit nothing reads ran %d and %d", tasks.runs, reqs.runs)
 	}
-	exec(t, d, "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'bob', 'n', 1)")
+	exec(t, d, "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'bob', 'n', 1)")
 	look(false)
 	if tasks.runs != 2 || reqs.runs != 1 {
 		t.Fatalf("a memo ran %d and %d, want 2 and 1", tasks.runs, reqs.runs)
 	}
-	exec(t, d, "UPDATE task_memos SET body = 'x'")
-	exec(t, d, "DELETE FROM task_memos")
+	exec(t, d, "UPDATE task_comments SET body = 'x'")
+	exec(t, d, "DELETE FROM task_comments")
 	look(false)
 	if tasks.runs != 3 {
 		t.Fatalf("an update and a delete in one look ran %d, want 3", tasks.runs)
@@ -150,7 +150,7 @@ func (f *failsOnce) Tables() []string { return f.tables }
 // A scan that failed is run again at the next look, as on every commit before the counts.
 func TestAScanThatFailedIsRunAgainAtTheNextLook(t *testing.T) {
 	_, _, w, look := gate(t)
-	byTable, byFile := &failsOnce{tables: []string{"task_memos"}}, &failsOnce{}
+	byTable, byFile := &failsOnce{tables: []string{"task_comments"}}, &failsOnce{}
 	w.Detectors = []Detector{byTable, byFile}
 	look(true)
 	look(false)
@@ -188,7 +188,7 @@ func TestEveryCountedTableMovesItsOwnCountOnInsertUpdateAndDelete(t *testing.T) 
 		{"session_starts", "INSERT INTO session_starts(agent, ts, session_id, cause, resumed, text, prompt) VALUES('a', 1, 's', 'c', 0, 't', 'p')",
 			"UPDATE session_starts SET ts = 2", "DELETE FROM session_starts"},
 		{"task_blocks", "INSERT INTO task_blocks(task_id, blocks_on, created_at) VALUES(1, 2, 1)", "UPDATE task_blocks SET dormant = 1", "DELETE FROM task_blocks"},
-		{"task_memos", "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'a', 'n', 1)", "UPDATE task_memos SET body = 'o'", "DELETE FROM task_memos"},
+		{"task_comments", "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'a', 'n', 1)", "UPDATE task_comments SET body = 'o'", "DELETE FROM task_comments"},
 		{"task_requests", "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1)", "UPDATE task_requests SET request_id = 2", "DELETE FROM task_requests"},
 		{"task_tags", "INSERT INTO task_tags(task_id, tag) VALUES(1, 'a')", "UPDATE task_tags SET tag = 'b'", "DELETE FROM task_tags"},
 		{"tasks", "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'c', 'bob', 'p1', 1)", "UPDATE tasks SET title = 'd' WHERE id = 3", "DELETE FROM tasks WHERE id = 3"},

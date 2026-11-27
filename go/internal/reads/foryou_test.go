@@ -19,8 +19,8 @@ func seedForYou(t *testing.T, e *Env) []string {
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'look at it', 'w', 'boss', 20, 'boss')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'draft', 'p1', 'boss', 25)",
 		"INSERT INTO task_tags(task_id, tag) VALUES(2, 'review')",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 2, 'w', '@human is it right?', 30)",
-		"INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 30, 'w', 'p1', '@human is it right?', 'queued', 7, 1)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 2, 'w', '@human is it right?', 30)",
+		"INSERT INTO requests(id, ref, ts, requester, target, body, state, comment_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 30, 'w', 'p1', '@human is it right?', 'queued', 7, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 70)",
 		// an ask on no task, and a say (nothing asked)
 		"INSERT INTO requests(id, ref, ts, requester, target, body, state, kind, edge_ok) VALUES(71, 'aaaaaaaaaaa8', 40, 'w', 'p1', 'which colour?', 'queued', 'ask', 1)",

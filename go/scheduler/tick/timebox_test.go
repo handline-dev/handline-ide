@@ -749,7 +749,7 @@ func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t
 		"a second stop": func(tk *Tick) { db.AddEventAt(tk.Q, 1030, "a", "Stop"); db.AddEventAt(tk.Q, 1040, "a", "Stop") },
 		"a memo at the second of the ask": func(tk *Tick) {
 			must(db.AddMemo(tk.Q, tid, "a", "x"))
-			tk.Q.Exec("UPDATE task_memos SET created_at = 1000")
+			tk.Q.Exec("UPDATE task_comments SET created_at = 1000")
 		},
 	} {
 		tk, b, p, _ := heldAfterAsk(t, "boss")

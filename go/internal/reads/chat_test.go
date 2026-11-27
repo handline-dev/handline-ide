@@ -655,9 +655,9 @@ func TestTheChatLeavesOutAReturnThatToldAComment(t *testing.T) {
 		"(2, 2, 'p1', '"+bob+"', 'T2 is your turn again: human passed it: b', 'landed', 'task'), (3, 3, 'p1', '"+bob+"', 'plain', 'landed', 'say'), "+
 		"(4, 4, 'p1', '"+bob+"', 'T3 is your turn again: human passed it: c', 'landed', 'task'), (5, 5, 'sys', '"+bob+"', 'T1 comment by the founder', 'landed', 'say')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', '"+bob+"', 'p1', 1)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 1), (9, 1, 'p1', 'also', 5)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 1), (9, 1, 'p1', 'also', 5)",
 		// 8 is a comment since deleted: its return shows again; 9's tell is a board line, which stays
-		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, '"+bob+"', 1), (8, '"+bob+"', 4), (9, '"+bob+"', 5)")
+		"INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(7, '"+bob+"', 1), (8, '"+bob+"', 4), (9, '"+bob+"', 5)")
 	got, err := e.chatMessages(nil, map[string]any{"agent": bob, "scope": "all"})
 	if err != nil {
 		t.Fatal(err)

@@ -43,7 +43,7 @@ func TaskReview(q Q, tid int64) (*Review, error) {
 		return nil, err
 	}
 	last := ready[len(ready)-1]
-	r := &Review{LandBy: payloadStr(last.payload, "land_by"), Memo: payloadNum(last.payload, "memo"), At: last.at, By: last.agent}
+	r := &Review{LandBy: payloadStr(last.payload, "land_by"), Memo: payloadNum(last.payload, "comment"), At: last.at, By: last.agent}
 	verdicts, err := taskEvents(q, VerdictKind, tid)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func ReadyDue(q Q, tid int64, reviewFlow bool) (bool, error) {
 // AddReady records that the task is Ready for the founder, by its assignee, waiting to go to landBy, its result in comment memo; more
 // is the assignee's check report.
 func AddReady(q Q, tid int64, by, landBy string, memo int64, more ...KV) error {
-	_, err := AddEvent(q, by, ReadyKind, append([]KV{{"task_id", tid}, {"land_by", landBy}, {"memo", memo}}, more...)...)
+	_, err := AddEvent(q, by, ReadyKind, append([]KV{{"task_id", tid}, {"land_by", landBy}, {"comment", memo}}, more...)...)
 	return err
 }
 
@@ -117,7 +117,7 @@ func MaySkipCount(q Q, agent, work, model string, after int64) (int, error) {
 func AddVerdict(q Q, tid int64, by, verdict string, memo int64) error {
 	payload := []KV{{"task_id", tid}, {"verdict", verdict}}
 	if memo != 0 {
-		payload = append(payload, KV{"memo", memo})
+		payload = append(payload, KV{"comment", memo})
 	}
 	_, err := AddEvent(q, by, VerdictKind, payload...)
 	return err

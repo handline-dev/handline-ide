@@ -55,7 +55,7 @@ func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 	var req sql.NullInt64
 	var rid, top int64
 	var memoTask sql.NullInt64
-	const memoTaskSQL = "(SELECT m.task_id FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE t.request_id = r.id AND t.reader = ?1 " +
+	const memoTaskSQL = "(SELECT m.task_id FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE t.request_id = r.id AND t.reader = ?1 " +
 		"AND m.author = ?2 ORDER BY m.id DESC LIMIT 1)"
 	err := q.QueryRow("SELECT r.id, "+memoTaskSQL+" FROM requests r WHERE r.target = ?1 AND r.landed_at >= "+turnStart+
 		" AND ((r.requester = ?2 AND r.kind = 'say' AND r.founder_auth >= 1) OR "+memoTaskSQL+" IS NOT NULL) ORDER BY r.landed_at DESC, r.id DESC LIMIT 1",

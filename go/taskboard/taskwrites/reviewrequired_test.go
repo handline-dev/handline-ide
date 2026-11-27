@@ -51,7 +51,7 @@ func TestReviewRequiredHoldsADoneWithCommitsUntilAnotherAgentComments(t *testing
 		}
 		var id int64
 		if memo {
-			res, err := d.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(?, ?, 'looks right', 1)", task, agent)
+			res, err := d.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(?, ?, 'looks right', 1)", task, agent)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,7 +72,7 @@ func TestReviewRequiredHoldsADoneWithCommitsUntilAnotherAgentComments(t *testing
 		t.Fatal(err)
 	}
 	review(1, rev, true)
-	if _, err := d.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, ?, 'how to', 1)", lab); err != nil {
+	if _, err := d.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, ?, 'how to', 1)", lab); err != nil {
 		t.Fatal(err)
 	}
 	review(1, lab, false)

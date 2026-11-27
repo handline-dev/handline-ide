@@ -19,7 +19,7 @@ type Requests struct {
 func (*Requests) Name() string { return "requests" }
 
 func (*Requests) Tables() []string {
-	return []string{"cursors", "events", "meta", "people", "requests", "task_blocks", "task_memos", "task_requests", "task_turns", "tasks"}
+	return []string{"cursors", "events", "meta", "people", "requests", "task_blocks", "task_comments", "task_requests", "task_turns", "tasks"}
 }
 
 func (r *Requests) Scan(_ *sql.DB, emit Emit) error {

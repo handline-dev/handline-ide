@@ -34,7 +34,7 @@ type mailbox struct {
 	kind string
 	body string
 	gate bool
-	memo int64 // the comment that raised this ask (requests.memo_id); 0 for any other
+	memo int64 // the comment that raised this ask (requests.comment_id); 0 for any other
 	// kept is a say already read, still listed for readSayKeepS.
 	kept bool
 }
@@ -63,7 +63,7 @@ func (e *Env) mailboxRowsKept(kept bool) ([]mailbox, error) {
 		where = "(" + founderOpen + " OR (kind = 'say' AND state = 'landed' AND read_at IS NOT NULL AND read_at >= ?))"
 		args = append(args, time.Now().Unix()-readSayKeepS)
 	}
-	rows, err := query(e.DB, "SELECT id, ref, ts, requester, kind, body, read_at, COALESCE(memo_id, 0) AS memo FROM requests WHERE target = ? AND "+where+" ORDER BY id", args...)
+	rows, err := query(e.DB, "SELECT id, ref, ts, requester, kind, body, read_at, COALESCE(comment_id, 0) AS memo FROM requests WHERE target = ? AND "+where+" ORDER BY id", args...)
 	if err != nil {
 		return nil, err
 	}

@@ -192,7 +192,7 @@ func TestAnAskFromACommentIsReadAwayOnlyByNamingIt(t *testing.T) {
 		}
 		rid = r.request("alice", "human", text)
 		dbpkg.LinkRequest(r.db, tid, rid)
-		r.db.Exec("UPDATE requests SET memo_id = ? WHERE id = ?", mid, rid)
+		r.db.Exec("UPDATE requests SET comment_id = ? WHERE id = ?", mid, rid)
 		return rid, mid
 	}
 	a1, _ := ask("@human which?")
@@ -228,14 +228,14 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 		}
 		rid := r.request(agent, "human", "@human?")
 		dbpkg.LinkRequest(r.db, tid, rid)
-		r.db.Exec("UPDATE requests SET memo_id = ? WHERE id = ?", mid, rid)
+		r.db.Exec("UPDATE requests SET comment_id = ? WHERE id = ?", mid, rid)
 		return rid
 	}
 	open := func(rid int64) bool {
 		return r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'queued'", rid) == 1
 	}
 	first, second, other := ask("alice"), ask("alice"), ask("bob")
-	firstMemo := r.count("SELECT memo_id FROM requests WHERE id = ?", first)
+	firstMemo := r.count("SELECT comment_id FROM requests WHERE id = ?", first)
 	r.result(r.one(s, "chat.send", `{"agent":"alice","body":"unrelated","request_id":"f1"}`))
 	r.result(r.one(s, "chat.send", `{"agent":"alice","body":"!ls","request_id":"f2"}`))
 	if !open(first) || !open(second) || !open(other) {
@@ -245,7 +245,7 @@ func TestAFounderMessageToAnAgentClosesAMemoAskOnlyAsAReplyToIt(t *testing.T) {
 	if open(first) || r.count("SELECT COUNT(*) FROM requests WHERE id = ? AND state = 'landed'", first) != 1 {
 		t.Fatal("a reply to the ask answers it")
 	}
-	if r.count("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, actor.OwnerKey, firstMemo) != 1 {
+	if r.count("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = ? AND body = 'yes' AND reply_to = ?", tid, actor.OwnerKey, firstMemo) != 1 {
 		t.Fatal("a chat reply under the ask is the founder's comment on the task")
 	}
 	if !open(second) || !open(other) {

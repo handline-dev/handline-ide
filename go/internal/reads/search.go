@@ -78,7 +78,7 @@ const searchTasksSQL = "SELECT id, title, created_at, brief, done_evidence FROM 
 	"(SELECT r.body FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE l.task_id = t.id AND " + briefSQL + ") AS brief FROM tasks t) " +
 	`WHERE title LIKE ? ESCAPE '\' OR brief LIKE ? ESCAPE '\' OR done_evidence LIKE ? ESCAPE '\' ORDER BY id DESC LIMIT ?`
 
-const searchCommentsSQL = "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id " +
+const searchCommentsSQL = "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_comments m JOIN tasks t ON t.id = m.task_id " +
 	`WHERE m.body LIKE ? ESCAPE '\' ORDER BY m.id DESC LIMIT ?`
 
 // searchMessagesSQL is the requests a chat draws that hold the text: not one taken back or never delivered, not a notice a digest

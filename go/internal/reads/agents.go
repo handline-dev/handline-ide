@@ -528,14 +528,15 @@ func timelineEntry(r row) map[string]any {
 	if a, ok := payload["actor"].(map[string]any); ok {
 		actor = a
 	}
-	text := r.str("kind")
+	kind := wireEvent(r.str("kind"), payload)
+	text := kind
 	for _, k := range []string{"text", "detail", "method"} {
 		if s := setText(payload[k]); s != "" {
 			text = s
 			break
 		}
 	}
-	return map[string]any{"id": r.i("id"), "at": ts(r["ts"]), "kind": r.str("kind"), "actor": actor, "text": text, "data": payload}
+	return map[string]any{"id": r.i("id"), "at": ts(r["ts"]), "kind": kind, "actor": actor, "text": text, "data": payload}
 }
 
 // setText is v as text, "" when it is not set (null, "", 0, false, an empty array or object); true is "True", any other array or object its JSON.

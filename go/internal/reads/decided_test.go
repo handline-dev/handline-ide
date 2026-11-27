@@ -14,18 +14,18 @@ func TestATaskCarriesMyRequestAndTheFoundersNewestDecision(t *testing.T) {
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request, done_evidence, done_at) VALUES(1, 'mine', 'bob', 'p1', 1, 1, 'ok', 300)")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, request) VALUES(2, 'under mine', 'bob', 'bob', 1, 1), (3, 'own', 'bob', 'bob', 1, NULL)")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(9, 1, 'p1', 'old answer', 40), (10, 1, 'bob', 'A or B?', 90), "+
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(9, 1, 'p1', 'old answer', 40), (10, 1, 'bob', 'A or B?', 90), "+
 		"(11, 1, 'p1', 'A', 200), (12, 2, 'bob', 'done', 60)")
 	ev := func(ts int, kind, agent, payload string) {
 		run(t, e, fmt.Sprintf("INSERT INTO events(ts, agent, kind, payload) VALUES(%d, '%s', '%s', '%s')", ts, agent, kind, payload))
 	}
 	ev(30, "task_turn_push", "bob", `{"task_id": 1, "to": "p1", "ask": "old ask"}`)
-	ev(50, "task_turn_pop", "p1", `{"task_id": 1, "agent": "p1", "to": "bob", "memo": 9}`)
-	ev(100, "task_turn_push", "bob", `{"task_id": 1, "to": "p1", "ask": "", "memo": 10}`)
-	ev(200, "task_turn_pop", "p1", `{"task_id": 1, "agent": "p1", "to": "bob", "memo": 11}`)
-	ev(210, "task_turn_pop", "bob", `{"task_id": 2, "agent": "bob", "to": "p1", "memo": 12}`) // an agent's pass is no decision
-	ev(220, "task_turn_pop", "p1", `{"task_id": 3, "agent": "p1", "to": "bob"}`)              // nor one with no comment
-	ev(230, "task_turn_pop", "p1", `{"task_id": 3, "agent": "bob", "to": "amy", "memo": 12}`) // nor the founder giving back bob's turn
+	ev(50, "task_turn_pop", "p1", `{"task_id": 1, "agent": "p1", "to": "bob", "comment": 9}`)
+	ev(100, "task_turn_push", "bob", `{"task_id": 1, "to": "p1", "ask": "", "comment": 10}`)
+	ev(200, "task_turn_pop", "p1", `{"task_id": 1, "agent": "p1", "to": "bob", "comment": 11}`)
+	ev(210, "task_turn_pop", "bob", `{"task_id": 2, "agent": "bob", "to": "p1", "comment": 12}`) // an agent's pass is no decision
+	ev(220, "task_turn_pop", "p1", `{"task_id": 3, "agent": "p1", "to": "bob"}`)                 // nor one with no comment
+	ev(230, "task_turn_pop", "p1", `{"task_id": 3, "agent": "bob", "to": "amy", "comment": 12}`) // nor the founder giving back bob's turn
 	got, err := e.Tasks([]int64{1, 2, 3})
 	if err != nil {
 		t.Fatal(err)

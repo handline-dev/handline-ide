@@ -76,7 +76,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		}
 	}
 	for _, r := range reqs {
-		if carried[r.i("id")] || r.i("notice") == 2 || r.set("memo_id") { // a memo's tell, or the ask a memo to the founder opened, repeats the memo row
+		if carried[r.i("id")] || r.i("notice") == 2 || r.set("comment_id") { // a memo's tell, or the ask a memo to the founder opened, repeats the memo row
 			continue
 		}
 		if r.str("requester") == db.NoticeRequester && r.str("kind") == "say" { // the board's notice to an agent belongs to its chat
@@ -116,7 +116,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 			add(at, ev.str("agent"), "reject", note, nil, nil, true)
 		case "task_turn_push":
 			var memo any // the comment the turn was handed over with
-			if m, _ := rpc.AsInt(p["memo"]); m != 0 {
+			if m, _ := rpc.AsInt(p["comment"]); m != 0 {
 				memo = m
 			}
 			add(at, fmt.Sprintf("%s → %s", ev.str("agent"), text(p["to"])), "turn", text(p["ask"]), memo, nil, false)

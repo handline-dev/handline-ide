@@ -27,7 +27,7 @@ func reviewMissing(tx *sql.Tx, by string, t *task) (string, error) {
 		return "", err
 	}
 	reviewers, err := column(tx, "SELECT json_extract(payload, '$.agent') FROM events WHERE kind = 'task_turn_pop' AND json_valid(payload) "+
-		"AND json_extract(payload, '$.task_id') = ? AND json_extract(payload, '$.memo') IS NOT NULL", t.ID)
+		"AND json_extract(payload, '$.task_id') = ? AND json_extract(payload, '$.comment') IS NOT NULL", t.ID)
 	if err != nil {
 		return "", err
 	}

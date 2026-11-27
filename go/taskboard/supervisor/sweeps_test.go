@@ -375,7 +375,7 @@ func TestAMemoUnreadAnHourIsToldToItsWriterOnce(t *testing.T) {
 		r.must(err)
 		_, err = r.DB.Exec("UPDATE requests SET state = 'landed', landed_at = 1 WHERE id = ?", rid)
 		r.must(err)
-		_, err = r.DB.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(?, ?, ?)", mid, r.k("bob"), rid)
+		_, err = r.DB.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(?, ?, ?)", mid, r.k("bob"), rid)
 		r.must(err)
 	}
 	r.must(r.SweepHeldMemos(MemoLeadS + 1))

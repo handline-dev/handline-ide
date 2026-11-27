@@ -104,7 +104,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	}
 	var n int
 	var body string
-	db.QueryRow(keyed(db, "SELECT COUNT(*), MAX(body) FROM task_memos")).Scan(&n, &body)
+	db.QueryRow(keyed(db, "SELECT COUNT(*), MAX(body) FROM task_comments")).Scan(&n, &body)
 	if n != 1 || body != "second" {
 		t.Fatalf("%d %q", n, body)
 	}
@@ -116,7 +116,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	if got := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"b2"}}`); got[0]["result"] == nil {
 		t.Fatalf("the author deletes: %v", got[0])
 	}
-	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_memos")).Scan(&n)
+	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_comments")).Scan(&n)
 	if n != 0 {
 		t.Fatal("the memo is still there")
 	}
@@ -180,7 +180,7 @@ func TestStartMakesATaskTheOwnersCurrentOneAndPutsItsRequestFirst(t *testing.T) 
 		"INSERT INTO agent_state(agent, state, updated, current_task) VALUES('worker', 'IDLE', 1, 1)",
 		"INSERT INTO requests(id, requester, target, body, state, kind, queue_order, ts) VALUES(10, 'manager', 'worker', 'a', 'queued', 'task', 10, 1), (11, 'manager', 'worker', 'b', 'queued', 'task', 11, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 11)",
-		"INSERT INTO task_memos(task_id, author, body, created_at) VALUES(2, 'manager', 'mind the lock', 1700000000)",
+		"INSERT INTO task_comments(task_id, author, body, created_at) VALUES(2, 'manager', 'mind the lock', 1700000000)",
 	} {
 		if _, err := db.Exec(keyed(db, q)); err != nil {
 			t.Fatalf("%v: %s", err, q)

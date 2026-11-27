@@ -129,7 +129,7 @@ func TestMemoSummaryAndHandoffRecord(t *testing.T) {
 	}
 	long := strings.Repeat("x", 300)
 	for _, m := range [][2]string{{"a", "first\nline"}, {"b", long}, {"human", "older"}, {"human", "newest"}} {
-		q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(?, ?, ?, 1759900000.123)", tid, m[0], m[1])
+		q.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(?, ?, ?, 1759900000.123)", tid, m[0], m[1])
 	}
 	// after the receiver's own last comment: all of them, uncut, newest last
 	s, _ := MemoSummary(q, tid, "a", 0, 50)
@@ -148,7 +148,7 @@ func TestMemoSummaryAndHandoffRecord(t *testing.T) {
 		t.Fatalf("%q", s)
 	}
 	// what the delivery already carries is left out
-	q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(4, 'a', 9)")
+	q.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(4, 'a', 9)")
 	if s, _ := MemoSummary(q, tid, "a", 9, 500); strings.Contains(s, ": newest") || !strings.HasSuffix(s, ": older") {
 		t.Fatalf("%q", s)
 	}

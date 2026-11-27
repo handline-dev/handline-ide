@@ -30,7 +30,7 @@ func task(t *testing.T, q db.Q, title string) int64 {
 // comment writes a comment by author on tid said at ts.
 func comment(t *testing.T, q db.Q, tid int64, author, body string, ts int64) int64 {
 	t.Helper()
-	res, err := q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES (?, ?, ?, ?)", tid, author, body, float64(ts)+0.25)
+	res, err := q.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES (?, ?, ?, ?)", tid, author, body, float64(ts)+0.25)
 	if err != nil {
 		t.Fatal(err)
 	}

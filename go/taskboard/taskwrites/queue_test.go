@@ -230,7 +230,7 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 			t.Fatal(err)
 		}
 		tx.QueryRow("SELECT timeout_at FROM tasks WHERE id = ?", tid).Scan(&timeout)
-		rows, _ := tx.Query("SELECT body FROM task_memos WHERE task_id = ?", tid)
+		rows, _ := tx.Query("SELECT body FROM task_comments WHERE task_id = ?", tid)
 		for rows.Next() {
 			var b string
 			rows.Scan(&b)
@@ -291,7 +291,7 @@ func TestTheFoundersRunEndsTheirTurnOnTheParentQuietly(t *testing.T) {
 			count(t, sdb, "SELECT COUNT(*) FROM agent_state WHERE agent = 'worker' AND current_task = 1") != 0 {
 			t.Fatalf("run %v: the founder's turn stays on the parent, or its holder was handed it", run)
 		}
-		if n := count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'worker'") + count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 1"); n != 0 || len(f.handed) != 0 || len(f.memos) != 0 {
+		if n := count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'worker'") + count(t, sdb, "SELECT COUNT(*) FROM task_comments WHERE task_id = 1"); n != 0 || len(f.handed) != 0 || len(f.memos) != 0 {
 			t.Fatalf("run %v: the parent's holder was told: %d rows, handed %v, memos %v", run, n, f.handed, f.memos)
 		}
 		for _, n := range f.notified {

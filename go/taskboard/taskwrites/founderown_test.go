@@ -20,13 +20,13 @@ func TestAnAgentsGiveToTheFounderIsTheFoundersTurn(t *testing.T) {
 			count(t, db, "SELECT COUNT(*) FROM task_turns WHERE task_id = 1 AND agent = 'p1' AND pushed_by = 'worker'") != 1 {
 			t.Fatalf("give %d: the task stays the worker's under the founder's turn", i)
 		}
-		if i == 0 && count(t, db, "SELECT COUNT(*) FROM task_turns u JOIN task_memos m ON m.id = u.memo WHERE u.ask = '' AND m.author = 'worker' AND m.body = 'ship now?'") != 1 {
+		if i == 0 && count(t, db, "SELECT COUNT(*) FROM task_turns u JOIN task_comments m ON m.id = u.comment WHERE u.ask = '' AND m.author = 'worker' AND m.body = 'ship now?'") != 1 {
 			t.Fatal("the handoff's note is a comment the turn hangs on")
 		}
 		// handed again, the founder's turn moves to the new note: nothing is handed over a second time
 		tell := &fakeTeller{}
 		again := call(t, mk("worker", tell), `{"jsonrpc":"2.0","id":3,"method":"task.handoff","params":{"task":1,"to":"human","note":"or later?","request_id":"h2"}}`)
-		if again[0]["error"] != nil || len(tell.handed) != 0 || count(t, db, "SELECT COUNT(*) FROM task_turns u JOIN task_memos m ON m.id = u.memo WHERE m.body = 'or later?'") != 1 {
+		if again[0]["error"] != nil || len(tell.handed) != 0 || count(t, db, "SELECT COUNT(*) FROM task_turns u JOIN task_comments m ON m.id = u.comment WHERE m.body = 'or later?'") != 1 {
 			t.Fatalf("give %d: %v, handed %v", i, again[0], tell.handed)
 		}
 		other := call(t, mk("manager", &fakeTeller{}), `{"jsonrpc":"2.0","id":4,"method":"task.handoff","params":{"task":1,"to":"human","note":"x","request_id":"h4"}}`)

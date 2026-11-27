@@ -16,7 +16,7 @@ import (
 
 // unreadSQL counts, per task, the comments by others than the person (?2) above their marker (?3 is its prefix) or the floor (?1),
 // whichever is higher.
-const unreadSQL = "SELECT m.task_id AS task, COUNT(*) AS n, MIN(m.id) AS first, MAX(m.created_at) AS last FROM task_memos m " +
+const unreadSQL = "SELECT m.task_id AS task, COUNT(*) AS n, MIN(m.id) AS first, MAX(m.created_at) AS last FROM task_comments m " +
 	"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?2 AND m.id > MAX(?1, COALESCE(c.row_id, 0)) "
 
 type unread struct{ n, first, last int64 }
@@ -144,7 +144,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 			line = it["title"]
 			ask = "ask"
 			if memo, _ := strconv.ParseInt(id, 10, 64); memo != 0 {
-				if r, err := queryOne(e.DB, "SELECT task_id FROM task_memos WHERE id = ?", memo); err != nil {
+				if r, err := queryOne(e.DB, "SELECT task_id FROM task_comments WHERE id = ?", memo); err != nil {
 					return nil, err
 				} else if r != nil {
 					tid = r.i("task_id")
@@ -229,9 +229,9 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 		answer = append(answer, out)
 	}
 	// Notes (the bell's dot, not its count): comments that open with a person, unread on their task and in their author's chat, on a task no row above has.
-	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id "+
+	notes, err := query(e.DB, "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_comments m JOIN tasks t ON t.id = m.task_id "+
 		"LEFT JOIN cursors c ON c.name = ?3 || m.task_id WHERE m.author != ?1 AND m.body LIKE '<@p%' AND m.id > MAX(?2, COALESCE(c.row_id, 0)) "+
-		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.memo_id = m.id AND r.target = ?1 AND r.read_at IS NOT NULL) "+
+		"AND COALESCE(t.discarded_by, '') = '' AND NOT EXISTS (SELECT 1 FROM requests r WHERE r.comment_id = m.id AND r.target = ?1 AND r.read_at IS NOT NULL) "+
 		"AND COALESCE((SELECT r.ts FROM requests r JOIN cursors s ON r.id = s.row_id WHERE s.name = 'for_you_seen:' || m.author), 0) < m.created_at "+
 		"ORDER BY m.id DESC", e.person(), e.seenFloor(), db.SeenPrefixOf(e.person()))
 	if err != nil {
@@ -331,7 +331,7 @@ func (e *Env) requestsPending(_ *rpc.Conn, _ map[string]any) (any, error) {
 
 // askOfDraft is a run row's ask: the first line of the newest comment that opens with the founder on the task, else on its parent; nil when none.
 func (e *Env) askOfDraft(tid int64) (any, error) {
-	memos, err := query(e.DB, "SELECT m.body FROM task_memos m WHERE m.task_id = ?1 OR m.task_id = (SELECT parent_task FROM tasks WHERE id = ?1) "+
+	memos, err := query(e.DB, "SELECT m.body FROM task_comments m WHERE m.task_id = ?1 OR m.task_id = (SELECT parent_task FROM tasks WHERE id = ?1) "+
 		"ORDER BY m.task_id = ?1 DESC, m.id DESC", tid)
 	if err != nil {
 		return nil, err

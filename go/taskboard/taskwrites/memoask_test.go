@@ -15,8 +15,8 @@ import (
 func oldAsk(t *testing.T, db *sql.DB, tid, mid int64, body string) {
 	t.Helper()
 	for _, q := range []string{
-		fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(%d, %d, 'worker', %q, 1)", mid, tid, body),
-		fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(%d, 'worker', 'p1', %q, 'queued', 'ask', %d, 1)", 100+mid, body, mid),
+		fmt.Sprintf("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(%d, %d, 'worker', %q, 1)", mid, tid, body),
+		fmt.Sprintf("INSERT INTO requests(id, requester, target, body, state, kind, comment_id, ts) VALUES(%d, 'worker', 'p1', %q, 'queued', 'ask', %d, 1)", 100+mid, body, mid),
 		fmt.Sprintf("INSERT INTO task_requests(task_id, request_id) VALUES(%d, %d)", tid, 100+mid),
 	} {
 		if _, err := db.Exec(keyed(db, q)); err != nil {
@@ -64,7 +64,7 @@ func TestAnOldCommentsAskFollowsItsComment(t *testing.T) {
 	n := 0
 	rid := func() string { n++; return fmt.Sprintf("r%d", n) }
 	state := func(mid int64) (s, body string) {
-		db.QueryRow("SELECT state, body FROM requests WHERE memo_id = ?", mid).Scan(&s, &body)
+		db.QueryRow("SELECT state, body FROM requests WHERE comment_id = ?", mid).Scan(&s, &body)
 		return s, body
 	}
 	edit := func(mid int64, text string) {
@@ -118,7 +118,7 @@ func TestTheAskOfACommentEndsWithItsTask(t *testing.T) {
 			t.Fatalf("%s: %v", c.method, r[0])
 		}
 		var state string
-		db.QueryRow("SELECT state FROM requests WHERE memo_id = ?", c.task).Scan(&state)
+		db.QueryRow("SELECT state FROM requests WHERE comment_id = ?", c.task).Scan(&state)
 		if state != "withdrawn" {
 			t.Fatalf("%s left the ask %q, not withdrawn", c.method, state)
 		}
@@ -132,7 +132,7 @@ func TestWithdrawUnaddressedMemoAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t
 		t.Fatal(err)
 	}
 	defer db.Close()
-	db.Exec(keyed(db, "INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)"))
+	db.Exec(keyed(db, "INSERT INTO requests(id, requester, target, body, state, kind, comment_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)"))
 	if n, err := WithdrawUnaddressedMemoAsks(db); err != nil || n != 1 {
 		t.Fatalf("one stale ask: %d %v", n, err)
 	}

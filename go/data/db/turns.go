@@ -33,7 +33,7 @@ type Turn struct {
 
 // TurnAskSQL is the ask of the task_turns row named alias: its comment's text, else the ask stored with it.
 func TurnAskSQL(alias string) string {
-	return "COALESCE((SELECT body FROM task_memos WHERE id = " + alias + ".memo), " + alias + ".ask)"
+	return "COALESCE((SELECT body FROM task_comments WHERE id = " + alias + ".comment), " + alias + ".ask)"
 }
 
 // ActingSQL is the agent acting on the task row named alias: its top turn's, else its owner.
@@ -43,7 +43,7 @@ func ActingSQL(alias string) string {
 
 // Turns is task tid's stack, bottom first.
 func Turns(q Q, tid int64) ([]Turn, error) {
-	rows, err := q.Query("SELECT agent, "+TurnAskSQL("u")+", pushed_by, since, COALESCE(on_pass, ''), COALESCE(evidence, ''), COALESCE(memo, 0) "+
+	rows, err := q.Query("SELECT agent, "+TurnAskSQL("u")+", pushed_by, since, COALESCE(on_pass, ''), COALESCE(evidence, ''), COALESCE(comment, 0) "+
 		"FROM task_turns u WHERE task_id = ? ORDER BY pos", tid)
 	if err != nil {
 		return nil, err
@@ -81,12 +81,12 @@ func PushTurn(q Q, tid int64, t Turn) error {
 	if t.Memo != 0 {
 		ask = ""
 	}
-	if _, err := q.Exec("INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, on_pass, evidence, memo) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+	if _, err := q.Exec("INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, on_pass, evidence, comment) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		tid, n+1, t.Agent, ask, t.By, t.Since, nullStr(t.OnPass), nullStr(t.Evidence), nullInt(t.Memo, t.Memo != 0)); err != nil {
 		return err
 	}
 	_, err := AddEvent(q, t.By, "task_turn_push", KV{K: "task_id", V: tid}, KV{K: "to", V: t.Agent}, KV{K: "ask", V: ask},
-		KV{K: "on_pass", V: t.OnPass}, KV{K: "depth", V: n + 1}, KV{K: "memo", V: t.Memo})
+		KV{K: "on_pass", V: t.OnPass}, KV{K: "depth", V: n + 1}, KV{K: "comment", V: t.Memo})
 	return err
 }
 
@@ -102,11 +102,11 @@ func ReaskTopTurn(q Q, tid int64, by, ask string, memo int64) (bool, error) {
 	if memo != 0 {
 		stored = ""
 	}
-	if _, err := q.Exec("UPDATE task_turns SET ask = ?, memo = ? WHERE task_id = ? AND pos = ?", stored, nullInt(memo, memo != 0), tid, len(turns)); err != nil {
+	if _, err := q.Exec("UPDATE task_turns SET ask = ?, comment = ? WHERE task_id = ? AND pos = ?", stored, nullInt(memo, memo != 0), tid, len(turns)); err != nil {
 		return false, err
 	}
 	_, err = AddEvent(q, by, "task_turn_ask", KV{K: "task_id", V: tid}, KV{K: "agent", V: top.Agent}, KV{K: "from", V: top.Ask}, KV{K: "ask", V: ask},
-		KV{K: "memo", V: memo})
+		KV{K: "comment", V: memo})
 	return err == nil, err
 }
 
@@ -129,7 +129,7 @@ func PopTurn(q Q, tid int64, by, outcome, note string, rid, memo int64) (top Tur
 		kv = append(kv, KV{K: "request_id", V: rid})
 	}
 	if memo != 0 {
-		kv = append(kv, KV{K: "memo", V: memo})
+		kv = append(kv, KV{K: "comment", V: memo})
 	}
 	_, err = AddEvent(q, by, "task_turn_pop", kv...)
 	return top, acting, true, err

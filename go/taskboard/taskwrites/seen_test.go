@@ -18,7 +18,7 @@ func TestSeenMovesTheMarkerForwardOnlyAndReadsAwayNeitherASayNorAQuestion(t *tes
 	d, mk := discardEnv(t)
 	exec(t, d,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'worker', 'manager', 1)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(3, 1, 'worker', 'a', 1), (8, 1, 'worker', 'b', 2)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(3, 1, 'worker', 'a', 1), (8, 1, 'worker', 'b', 2)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES"+
 			"(21, 1, 'worker', 'p1', 'decide @human', 'queued', 'ask', 1)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(22, 1, 'worker', 'p1', 'a reply', 'landed', 'say', 1)",

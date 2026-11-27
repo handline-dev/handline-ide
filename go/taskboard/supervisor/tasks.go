@@ -697,7 +697,7 @@ func (e *Env) memoReaders(row *db.Task, by string, named []string, back bool) []
 
 // lastWriter is the registered agent other than by that last commented on task tid, "" for none.
 func (e *Env) lastWriter(q db.Q, tid int64, by string) string {
-	rows := must(q.Query("SELECT author FROM task_memos WHERE task_id = ? AND author != ? ORDER BY id DESC", tid, by))
+	rows := must(q.Query("SELECT author FROM task_comments WHERE task_id = ? AND author != ? ORDER BY id DESC", tid, by))
 	defer rows.Close()
 	agents := e.agents()
 	for rows.Next() {

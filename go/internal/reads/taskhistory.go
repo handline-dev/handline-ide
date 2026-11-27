@@ -10,7 +10,7 @@ import (
 // historyKinds are the events a task's writes keep, in the same transaction as the change: they are the task's history.
 var historyKinds = []string{"task_new", "task_begin", "edit_task", "block_task", "unblock_task", "queue_task", "draft_task", "task_start",
 	"task_handoff", "task_report", "accept_task", "reject_task", "mark_task_done", "discard_task", "close_task", "reopen_task", "release_task", "merge_task",
-	"memo_add", "memo_edit", "memo_delete"}
+	"comment_add", "comment_edit", "comment_delete"}
 
 // editFields is how an edit_task event's keys read as fields, in the order a row lists them: the owner column is who works the task (its
 // assignee), the reporter who answers for it (its owner).
@@ -97,8 +97,8 @@ func (e *Env) taskHistory(c *rpc.Conn, params map[string]any) (any, error) {
 			add("blocked_by", fmt.Sprintf("T%d", int64(seconds(p["blocks_on"]))), "")
 		case "merge_task":
 			add("merged_into", "", fmt.Sprintf("T%d", int64(seconds(p["into"]))))
-		case "memo_add", "memo_edit", "memo_delete":
-			add("memo", text(p["was"]), text(p["now"]))["memo"] = int64(seconds(p["memo"]))
+		case "comment_add", "comment_edit", "comment_delete":
+			add("memo", text(p["was"]), text(p["now"]))["memo"] = int64(seconds(p["comment"]))
 		}
 		now, ok := historyState(kind, p)
 		if ok {

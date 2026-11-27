@@ -21,7 +21,7 @@ type mailRow struct {
 	id   int64
 	from string
 	gate bool
-	memo bool // an ask a task comment raised (requests.memo_id): read away only by naming it
+	memo bool // an ask a task comment raised (requests.comment_id): read away only by naming it
 }
 
 func mailbox(q db.Q) ([]mailRow, error) {
@@ -33,7 +33,7 @@ func mailbox(q db.Q) ([]mailRow, error) {
 	for _, g := range gates {
 		isGate[g] = true
 	}
-	rows, err := q.Query("SELECT id, requester, memo_id IS NOT NULL FROM requests WHERE target = ? AND "+db.FounderOpen("")+" ORDER BY id", actor.OwnerKey)
+	rows, err := q.Query("SELECT id, requester, comment_id IS NOT NULL FROM requests WHERE target = ? AND "+db.FounderOpen("")+" ORDER BY id", actor.OwnerKey)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 // (a reply to the comment) and closes the ask. Any other request is left as it is.
 func (w *writes) answerAsk(tx *sql.Tx, res *Result, me string, rid int64, body string) (*Result, error) {
 	var tid, memo sql.NullInt64
-	if err := tx.QueryRow("SELECT memo_id, (SELECT MIN(task_id) FROM task_requests WHERE request_id = id) FROM requests WHERE id = ?", rid).Scan(&memo, &tid); err != nil {
+	if err := tx.QueryRow("SELECT comment_id, (SELECT MIN(task_id) FROM task_requests WHERE request_id = id) FROM requests WHERE id = ?", rid).Scan(&memo, &tid); err != nil {
 		return nil, err
 	}
 	if !memo.Valid || !tid.Valid {
@@ -241,7 +241,7 @@ func (w *writes) answerAsk(tx *sql.Tx, res *Result, me string, rid int64, body s
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec("UPDATE task_memos SET reply_to = ? WHERE id = ?", memo.Int64, mid); err != nil {
+	if _, err := tx.Exec("UPDATE task_comments SET reply_to = ? WHERE id = ?", memo.Int64, mid); err != nil {
 		return nil, err
 	}
 	if err := closeMemoAsk(tx, rid); err != nil {

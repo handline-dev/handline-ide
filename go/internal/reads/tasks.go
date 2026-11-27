@@ -587,17 +587,17 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 
 // decisionSQL is, on a task_turn_pop event row the founder wrote, whether it is a decision: a turn of his own given back with a comment. A pass
 // that closes the task (on_pass done) carries no comment, so it is none.
-const decisionSQL = "json_valid(payload) AND json_extract(payload, '$.agent') = '" + actor.OwnerKey + "' AND COALESCE(json_extract(payload, '$.memo'), 0) != 0"
+const decisionSQL = "json_valid(payload) AND json_extract(payload, '$.agent') = '" + actor.OwnerKey + "' AND COALESCE(json_extract(payload, '$.comment'), 0) != 0"
 
 // decidedOf is the founder's newest decision on task tid (Task.decided): when, the ask of the turn the founder was given (its own text, else
 // the comment pushed with it), and the comment the founder gave it back with, as each reads now; nil for none.
 func (e *Env) decidedOf(tid int64) (any, error) {
-	pop, err := queryOne(e.DB, "SELECT id, ts, (SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) AS answer FROM events "+
+	pop, err := queryOne(e.DB, "SELECT id, ts, (SELECT body FROM task_comments WHERE id = json_extract(payload, '$.comment')) AS answer FROM events "+
 		"WHERE kind = 'task_turn_pop' AND "+eventTask+" = ? AND agent = ? AND "+decisionSQL+" ORDER BY id DESC LIMIT 1", tid, actor.OwnerKey)
 	if err != nil || pop == nil {
 		return nil, err
 	}
-	push, err := queryOne(e.DB, "SELECT json_extract(payload, '$.ask') AS ask, (SELECT body FROM task_memos WHERE id = json_extract(payload, '$.memo')) "+
+	push, err := queryOne(e.DB, "SELECT json_extract(payload, '$.ask') AS ask, (SELECT body FROM task_comments WHERE id = json_extract(payload, '$.comment')) "+
 		"AS memo_body FROM events WHERE kind IN ('task_turn_push', 'task_turn_ask') AND "+eventTask+" = ? AND id < ? AND "+
 		"? IN (json_extract(payload, '$.to'), json_extract(payload, '$.agent')) ORDER BY id DESC LIMIT 1", tid, pop.i("id"), actor.OwnerKey)
 	if err != nil {
@@ -911,13 +911,14 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 		if actor.IsPerson(ev.str("agent")) {
 			kind = "user"
 		}
+		data := decodeObject(ev.str("payload"))
 		evs = append(evs, map[string]any{
-			"topic": "tasks", "type": ev.str("kind"), "at": ts(ev["ts"]),
+			"topic": "tasks", "type": wireEvent(ev.str("kind"), data), "at": ts(ev["ts"]),
 			"actor": map[string]any{"kind": kind, "name": ev.str("agent")}, "agent": t.str("owner"), "title": nil,
-			"target": map[string]any{"screen": "tasks", "id": fmt.Sprint(*tid)}, "data": decodeObject(ev.str("payload"))})
+			"target": map[string]any{"screen": "tasks", "id": fmt.Sprint(*tid)}, "data": data})
 	}
 	task["events"] = evs
-	memos, err := query(e.DB, "SELECT * FROM task_memos WHERE task_id = ? ORDER BY id", *tid)
+	memos, err := query(e.DB, "SELECT * FROM task_comments WHERE task_id = ? ORDER BY id", *tid)
 	if err != nil {
 		return nil, err
 	}
@@ -1090,7 +1091,7 @@ func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store,
 // a held one when the agent opens it with hl read (MarkReadBy).
 func memoReaders(q db.Q, mid int64) ([]any, error) {
 	rows, err := query(q, "SELECT t.reader, t.request_id, r.read_at, r.delivered_at, r.typed_at, r.landed_at, r.send_now, r.notice "+
-		"FROM memo_tells t JOIN requests r ON r.id = t.request_id WHERE t.memo_id = ? AND NOT "+db.NeverReached("r.")+" ORDER BY t.rowid", mid)
+		"FROM comment_tells t JOIN requests r ON r.id = t.request_id WHERE t.comment_id = ? AND NOT "+db.NeverReached("r.")+" ORDER BY t.rowid", mid)
 	if err != nil {
 		return nil, err
 	}

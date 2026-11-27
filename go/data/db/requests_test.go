@@ -245,7 +245,7 @@ func TestWithdrawMemoAsksOfEndedTasksClosesOnlyThoseOnceBehindACursor(t *testing
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence) VALUES(1, 'done', 'a', 'b', 1, 'x')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, discarded_by) VALUES(2, 'discarded', 'a', 'b', 1, 'b')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(3, 'open', 'a', 'b', 1)",
-		"INSERT INTO requests(id, requester, target, body, state, kind, memo_id, ts) VALUES(10, 'a', 'human', 'q', 'queued', 'ask', 1, 1), (11, 'a', 'human', 'q', 'queued', 'ask', 2, 1), (12, 'a', 'human', 'q', 'queued', 'ask', 3, 1), (13, 'a', 'human', 'q', 'queued', 'ask', NULL, 1)",
+		"INSERT INTO requests(id, requester, target, body, state, kind, comment_id, ts) VALUES(10, 'a', 'human', 'q', 'queued', 'ask', 1, 1), (11, 'a', 'human', 'q', 'queued', 'ask', 2, 1), (12, 'a', 'human', 'q', 'queued', 'ask', 3, 1), (13, 'a', 'human', 'q', 'queued', 'ask', NULL, 1)",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10), (2, 11), (3, 12), (1, 13)",
 	} {
 		if _, err := d.Exec(q); err != nil {

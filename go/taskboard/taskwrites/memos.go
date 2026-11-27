@@ -167,7 +167,7 @@ func hasTask(tx *sql.Tx, tid int64) (bool, error) {
 // memoOf is the memo `mid` of task `tid`, or not_found.
 func memoOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
 	var of int64
-	switch err = tx.QueryRow("SELECT task_id, author, body FROM task_memos WHERE id = ?", mid).Scan(&of, &author, &body); {
+	switch err = tx.QueryRow("SELECT task_id, author, body FROM task_comments WHERE id = ?", mid).Scan(&of, &author, &body); {
 	case err == sql.ErrNoRows || (err == nil && of != tid):
 		e := rpc.NotFoundError(fmt.Sprintf("T%d has no comment %d", tid, mid))
 		e.Data = map[string]any{"what": "memo", "name": fmt.Sprint(mid)}
@@ -248,7 +248,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 			}
 			added = mid
 			if hasReply {
-				if _, err := tx.Exec("UPDATE task_memos SET reply_to = ? WHERE id = ?", reply, mid); err != nil {
+				if _, err := tx.Exec("UPDATE task_comments SET reply_to = ? WHERE id = ?", reply, mid); err != nil {
 					return nil, err
 				}
 			}
@@ -490,7 +490,7 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 				return nil, err
 			}
 			var hung int
-			if err := tx.QueryRow("SELECT COUNT(*) FROM task_turns WHERE memo = ?", mid).Scan(&hung); err != nil {
+			if err := tx.QueryRow("SELECT COUNT(*) FROM task_turns WHERE comment = ?", mid).Scan(&hung); err != nil {
 				return nil, err
 			}
 			if hung > 0 {
@@ -499,7 +499,7 @@ func memoDelete(tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 			if err := db.DeleteMemo(tx, mid, c.Caller.Actor()); err != nil {
 				return nil, err
 			}
-			if _, err := db.CloseMemoAsks(tx, "withdrawn", "memo_id = ?", mid); err != nil {
+			if _, err := db.CloseMemoAsks(tx, "withdrawn", "comment_id = ?", mid); err != nil {
 				return nil, err
 			}
 			if err := attachments.UnlinkMemo(tx, mid); err != nil {

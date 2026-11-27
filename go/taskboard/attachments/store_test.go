@@ -241,7 +241,7 @@ func TestAnImageATaskNamesIsKeptWhileTheTaskIsOpenAndThirtyDaysAfter(t *testing.
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'w', 'boss', 1)",
 		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'boss', 'w', 'task', 'landed', 1, 'see ![x](attachment:" + inBrief.ID + ")')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10)",
-		"INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'w', 'and ![y](attachment:" + inMemo.ID + ")', 1)",
+		"INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'w', 'and ![y](attachment:" + inMemo.ID + ")', 1)",
 		`INSERT INTO events(ts, agent, kind, payload) VALUES(1, 'boss', 'reject_task', '{"task_id": 1, "note": "no\n![z](attachment:` + inNote.ID + `)"}')`,
 	} {
 		if _, err := q.Exec(stmt); err != nil {
