@@ -59,8 +59,11 @@ func (b *Browser) ours() bool {
 	return err == nil && strings.Contains(string(out), "--user-data-dir="+profile(b.Dir))
 }
 
+// answerWithin is how long a browser that runs has to answer: a busy one is slow, not gone, and is not started again.
+const answerWithin = 10 * time.Second
+
 func (b *Browser) answers() bool {
-	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(fmt.Sprintf("http://127.0.0.1:%d/json/version", b.Port))
+	resp, err := (&http.Client{Timeout: answerWithin}).Get(fmt.Sprintf("http://127.0.0.1:%d/json/version", b.Port))
 	if err != nil {
 		return false
 	}
