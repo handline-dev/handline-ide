@@ -96,7 +96,10 @@ export function ByAgent({ win }: { win: Win }) {
     const name = u.agent || NO_AGENT;
     const a = agents.get(name) ?? { name, cost: 0, week: null, accounts: [] };
     Object.assign(a, add(a, u));
-    a.accounts.push({ account: u.account, use: add({ cost: 0, week: null }, u) });
+    // use has a row per machine: an account the agent spent on from two machines is one entry with both summed.
+    const held = a.accounts.find((x) => x.account === u.account);
+    if (held) held.use = add(held.use, u);
+    else a.accounts.push({ account: u.account, use: add({ cost: 0, week: null }, u) });
     agents.set(name, a);
   }
   // A team is the agent's workspace, by name; an agent the lists do not hold yet stands as its own.
