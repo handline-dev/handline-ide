@@ -1,21 +1,6 @@
 {
  "components": {
   "schemas": {
-   "Block": {
-    "type": "object",
-    "properties": {
-     "kind": {
-      "type": "string"
-     },
-     "since": {
-      "$ref": "#/components/schemas/Timestamp"
-     }
-    },
-    "required": [
-     "kind",
-     "since"
-    ]
-   },
    "AgentView": {
     "type": "object",
     "properties": {
@@ -70,16 +55,6 @@
      "state_since": {
       "$ref": "#/components/schemas/Timestamp"
      },
-     "block": {
-      "oneOf": [
-       {
-        "$ref": "#/components/schemas/Block"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
      "wall_reason": {
       "oneOf": [
        {
@@ -116,17 +91,6 @@
      },
      "would_wake": {
       "type": "boolean"
-     },
-     "blocker": {
-      "oneOf": [
-       {
-        "type": "string",
-        "description": "Headline of what blocks it."
-       },
-       {
-        "type": "null"
-       }
-      ]
      },
      "account": {
       "oneOf": [

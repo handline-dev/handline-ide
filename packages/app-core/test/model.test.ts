@@ -20,10 +20,10 @@ const agent = (name: string, over: Partial<AgentView> = {}): AgentView =>
     ...over,
   }) as AgentView;
 
-test('the dot follows the daemon state, with a dialog or block taking over', () => {
+test('the dot follows the daemon state, with a dialog taking over and a stall blocked', () => {
   assert.equal(dotOf(agent('a', { state: 'running' })), 'running');
   assert.equal(dotOf(agent('a', { state: 'running', has_dialog: true })), 'waiting');
-  assert.equal(dotOf(agent('a', { block: { kind: 'wall', since: '' } })), 'blocked');
+  assert.equal(dotOf(agent('a', { state: 'stalled' })), 'blocked');
   assert.equal(dotOf(agent('a', { state: 'no_terminal' })), 'none');
   assert.equal(dotOf(agent('a', { state: 'parked' })), 'parked');
   assert.equal(dotOf(agent('a', { state: 'something_new' })), 'idle');
@@ -96,9 +96,8 @@ test('a card offers a permission yes and no only, a dialog its always options on
   assert.deepEqual(keys(card('question'), false), ['1', '2', '3']);
 });
 
-test('a warning mark says why: the blocker, else the wall, else the state detail, else nothing', () => {
-  assert.equal(whyOf({ blocker: ' T7 is not done ', wall_reason: 'usage', state_detail: 'x' }), 'T7 is not done');
-  assert.equal(whyOf({ blocker: null, wall_reason: 'the account is out of usage', state_detail: 'x' }), 'the account is out of usage');
+test('a warning mark says why: the wall, else the state detail, else nothing', () => {
+  assert.equal(whyOf({ wall_reason: ' the account is out of usage ', state_detail: 'x' }), 'the account is out of usage');
   assert.equal(whyOf({ state_detail: 'waits for the build' }), 'waits for the build');
   assert.equal(whyOf({ state_detail: '' }), null);
 });

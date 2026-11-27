@@ -64,8 +64,8 @@ def seed_states(home: Path, fakes: bool) -> dict[str, str]:
     con = sqlite3.connect(home / "db.sqlite", timeout=5)
     for w, n in [*names.items(), ("idle", NEVER_STARTED)]:
         view = {"name": n, "role": "seeded by conformance_fds", "model": None, "effort": None, "state": w, "state_detail": "",
-                "state_since": None, "block": None, "wall_reason": None, "background_since": None, "would_wake": False,
-                "blocker": None, "account": None, "task": None, "cache_until": None, "has_dialog": w == "waiting",
+                "state_since": None, "wall_reason": None, "background_since": None, "would_wake": False,
+                "account": None, "task": None, "cache_until": None, "has_dialog": w == "waiting",
                 "parent": None, "needs_you": None}
         con.execute("INSERT OR REPLACE INTO agent_view(agent, view, updated) VALUES(?, ?, 0)", (n, json.dumps(view)))
     seed_doing(con)
@@ -205,7 +205,7 @@ def seed_retro(con: sqlite3.Connection) -> None:
 
 def seed_doing(con: sqlite3.Connection) -> None:
     view = {"name": DOING_AGENT, "role": "seeded by conformance_fds", "model": None, "effort": None, "state": "running", "state_detail": "",
-            "state_since": None, "block": None, "wall_reason": None, "background_since": None, "would_wake": False, "blocker": None,
+            "state_since": None, "wall_reason": None, "background_since": None, "would_wake": False,
             "account": None, "task": None, "cache_until": None, "has_dialog": False, "parent": None, "needs_you": None,
             "doing": {"text": "Bash sleep 30", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}}
     con.execute("INSERT OR REPLACE INTO agent_view(agent, view, updated) VALUES(?, ?, 0)", (DOING_AGENT, json.dumps(view)))

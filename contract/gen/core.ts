@@ -1442,7 +1442,7 @@ export interface Notifications {
 }
 
 /** The state words the daemon sends; an open set, so a client keeps a fallback. */
-export const STATE_WORDS = ["running", "idle", "queued", "starting", "parked", "waiting", "stalled", "blocked", "no_terminal"] as const;
+export const STATE_WORDS = ["running", "idle", "queued", "starting", "parked", "waiting", "stalled", "no_terminal"] as const;
 
 /** x-status: the state and reason every agent and task carries; open sets for a client, which shows `text` for a word it does not know. */
 export const STATUS_STATES = ["preparing", "starting", "running", "waiting", "stopped", "idle", "off", "done"] as const;
