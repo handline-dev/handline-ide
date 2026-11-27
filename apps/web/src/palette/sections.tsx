@@ -10,7 +10,7 @@ import { iconOf, messageOf, opened, taskOf } from '#src/layout/kinds.tsx';
 import { goPage } from '#src/layout/openTab.tsx';
 import { tabEntry, usePages, usePlaces, type Entry } from '#src/palette/places.tsx';
 import { useRecent } from '#src/palette/store.ts';
-import { showMemo } from '#src/tools/TaskTurn.ts';
+import { showComment } from '#src/tools/TaskTurn.ts';
 import { useRefs } from '#src/ui/refs.tsx';
 
 export type Section = { title: string; entries: Entry[]; /** Said under the rows: nothing found, more to find. */ note?: string };
@@ -56,10 +56,10 @@ function Snippet({ text, query }: { text: string; query: string }) {
 }
 
 /** Brings a comment into view once its task's page has drawn it. */
-function showMemoWhenDrawn(comment: number) {
+function showCommentWhenDrawn(comment: number) {
   let tries = 0;
   const look = () => {
-    if (document.querySelector(`[data-comment="${comment}"]`)) return showMemo(comment);
+    if (document.querySelector(`[data-comment="${comment}"]`)) return showComment(comment);
     if (++tries < 40) setTimeout(look, 100);
   };
   setTimeout(look, 100);
@@ -102,7 +102,7 @@ function useHitEntry(query: string): (hit: SearchHit, i: number) => Entry {
         icon: <MessageSquareText size={14} />,
         hint: who,
         note,
-        then: () => showMemoWhenDrawn(hit.comment!),
+        then: () => showCommentWhenDrawn(hit.comment!),
       };
     // A message that delivers a task is that task's card in the chat: it opens the task. Any other opens with the lines around it.
     const opens = hit.task ? taskOf(hit.task) : messageOf(hit.request!);

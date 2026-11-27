@@ -16,7 +16,7 @@ OpenRPC-shaped. Source of contract/protocol.md and contract/protocol.ts: regener
 
 ## Handshake and versions
 
-The first call is hello. Compatibility: adding a method or field never changes protocol; removing or changing one does, and the daemon then serves old and new side by side for one release. Clients ignore unknown fields and unknown enum-like strings (state words, kinds, event types). A client that does not know the daemon's protocol refuses to run and says what fixes it: Open the Handline app.
+The first call is hello. Compatibility: adding a method or field never changes protocol. A method or field read only by clients built from the daemon's own checkout (the desktop app, hl) changes together with them in one commit and keeps protocol; a runner on another build takes no work until it moves to the master's build. Removing or changing one a separately shipped client reads (the phone app) changes protocol, and the daemon then serves old and new side by side for one release. Clients ignore unknown fields and unknown enum-like strings (state words, kinds, event types). A client that does not know the daemon's protocol refuses to run and says what fixes it: Open the Handline app.
 
 ## Roles
 

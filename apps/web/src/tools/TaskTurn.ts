@@ -48,7 +48,7 @@ export function goToTurn(task: number) {
 }
 
 /** Brings a comment into view and marks it for a moment. */
-export function showMemo(id: number) {
+export function showComment(id: number) {
   const el = document.querySelector(`[data-comment="${id}"]`);
   if (!el) return;
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
