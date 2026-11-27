@@ -38,7 +38,7 @@ const tmuxSession = "handline"
 // command.
 func (t Tmux) SendBytes(handle string, data []byte) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + term.PyRepr(handle)
+		return false, "not a tmux pane: " + term.Quote(handle)
 	}
 	for i := 0; i < len(data); i += 256 {
 		end := min(i+256, len(data))
@@ -157,7 +157,7 @@ func (t Tmux) Size(handle string) (int, int, bool) {
 
 func (t Tmux) Resize(handle string, cols, rows int) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + term.PyRepr(handle)
+		return false, "not a tmux pane: " + term.Quote(handle)
 	}
 	code, _, err := t.tmux(tmuxTimeout, "", "resize-window", "-t", handle, "-x", strconv.Itoa(cols), "-y", strconv.Itoa(rows))
 	if code == 0 {

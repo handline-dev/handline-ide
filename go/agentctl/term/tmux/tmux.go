@@ -107,7 +107,7 @@ func (t Tmux) ReadScreen(handle string, limit int) *term.Screen {
 
 func (t Tmux) Send(handle, text string, enter bool) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + term.PyRepr(handle)
+		return false, "not a tmux pane: " + term.Quote(handle)
 	}
 	if text != "" {
 		var code int

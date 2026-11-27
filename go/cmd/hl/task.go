@@ -706,7 +706,7 @@ func taskDone(c *hlclient.Client, args []string) (int, bool) {
 	// A sha is checked against the repo this is typed in unless --repo names another.
 	repo, _ := p.opt("--repo")
 	if repo != "" {
-		repo = pyPath(repo)
+		repo = cleanPath(repo)
 	} else {
 		wd, err := unix.Getwd()
 		if err != nil {

@@ -236,8 +236,8 @@ func shQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
-// pyPath is p as a clean path: repeated slashes and "." parts dropped, no trailing slash, "." for nothing.
-func pyPath(p string) string {
+// cleanPath is p as a clean path: repeated slashes and "." parts dropped, no trailing slash, "." for nothing.
+func cleanPath(p string) string {
 	abs := strings.HasPrefix(p, "/")
 	var parts []string
 	for _, part := range strings.Split(p, "/") {

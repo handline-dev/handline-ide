@@ -108,7 +108,7 @@ func TestAFileOnlyChangeWakesTheLoop(t *testing.T) {
 	}
 }
 
-func TestGoAndPythonWriteTheSameProposalEvents(t *testing.T) {
+func TestProposalEventsMatchTheRecordedRows(t *testing.T) {
 	home := t.TempDir()
 	now := int64(1_790_000_000) // fixed: the recorded rows carry the times
 	decided := func(id, state string, created, at int64, extra string) {
@@ -138,12 +138,12 @@ func TestGoAndPythonWriteTheSameProposalEvents(t *testing.T) {
 			}
 		})
 	if len(py) != len(events) || len(py) != 9 {
-		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
+		t.Fatalf("recorded %d rows, go wrote %d", len(py), len(events))
 	}
 	for i, e := range events {
 		sameRow(t, i, py[i], e)
 		if !same(py[i]["data"], e.Data) {
-			t.Errorf("row %d data: python %v, go %s", i, py[i]["data"], e.Data)
+			t.Errorf("row %d data: want %v, got %s", i, py[i]["data"], e.Data)
 		}
 	}
 }

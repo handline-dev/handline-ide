@@ -229,7 +229,7 @@ func (t Tmux) newPane(cwd, title, shellCmd string) (string, string) {
 	pane := strings.TrimSpace(out)
 	if code != 0 || !paneRE.MatchString(pane) {
 		if err == "" {
-			err = "tmux gave no pane id (" + term.PyRepr(term.Cut(pane, 80)) + ")"
+			err = "tmux gave no pane id (" + term.Quote(term.Cut(pane, 80)) + ")"
 		}
 		return "", err
 	}
@@ -238,7 +238,7 @@ func (t Tmux) newPane(cwd, title, shellCmd string) (string, string) {
 
 func (t Tmux) CloseTerminal(handle string, tab bool) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + term.PyRepr(handle)
+		return false, "not a tmux pane: " + term.Quote(handle)
 	}
 	kill := "kill-pane"
 	if tab {
@@ -250,7 +250,7 @@ func (t Tmux) CloseTerminal(handle string, tab bool) (bool, string) {
 
 func (t Tmux) RespawnTerminal(handle string) (bool, string) {
 	if !paneRE.MatchString(handle) {
-		return false, "not a tmux pane: " + term.PyRepr(handle)
+		return false, "not a tmux pane: " + term.Quote(handle)
 	}
 	code, _, err := t.tmux(tmuxTimeout, "", "respawn-pane", "-k", "-t", handle)
 	return code == 0, err

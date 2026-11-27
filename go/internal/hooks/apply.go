@@ -13,9 +13,9 @@ import (
 
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/rowstate"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/policy"
-	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -226,7 +226,7 @@ func apply(tx *sql.Tx, home, agent, event string, raw map[string]any, at int64, 
 	}
 	var body any
 	if len(payload) > 0 {
-		body = pyjson.PyJSON(payload, false, false)
+		body = jsontext.Spaced(payload, false, false)
 	}
 	var acct any
 	if account.Valid && account.String != "" {

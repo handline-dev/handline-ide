@@ -28,9 +28,9 @@ func fail(format string, a ...any) error { return &ConfigError{fmt.Sprintf(forma
 var unsupported = []string{"&", "*", "|", ">", "!!", "<<"}
 
 var (
-	pyTrue  = set("true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON")
-	pyFalse = set("false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF")
-	pyNull  = set("null", "Null", "NULL", "~")
+	trueWords  = set("true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON")
+	falseWords = set("false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF")
+	nullWords  = set("null", "Null", "NULL", "~")
 	// What Dump quotes: anything a YAML 1.1 reader might take for one of them, in any case, including y and n.
 	yTrue  = set("true", "yes", "on", "y")
 	yFalse = set("false", "no", "off", "n")
@@ -99,7 +99,7 @@ func unquote(t string, line int) (string, error) {
 					_, w2 := utf8.DecodeRuneInString(body[i+1:])
 					esc = body[i : i+1+w2]
 				}
-				return "", fail("line %d: escape %s in %s is not supported; use single quotes", line, pyRepr(esc), pyRepr(t))
+				return "", fail("line %d: escape %s in %s is not supported; use single quotes", line, msgQuote(esc), msgQuote(t))
 			}
 			i++
 			r, w = utf8.DecodeRuneInString(body[i:])
@@ -110,8 +110,8 @@ func unquote(t string, line int) (string, error) {
 	return out.String(), nil
 }
 
-// pyRepr quotes a string for a message: single quotes (\' and \\ escaped), or double quotes when it holds a ' and no ".
-func pyRepr(s string) string {
+// msgQuote quotes a string for a message: single quotes (\' and \\ escaped), or double quotes when it holds a ' and no ".
+func msgQuote(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		q = `"`
@@ -127,14 +127,14 @@ func key(raw string, line int) (string, error) {
 	k := strip(raw)
 	if k != "" && (k[0] == '"' || k[0] == '\'') {
 		if !closesAtEnd(k) {
-			return "", fail("line %d: quoted key is not closed at its end: %s", line, pyRepr(k))
+			return "", fail("line %d: quoted key is not closed at its end: %s", line, msgQuote(k))
 		}
 		return unquote(k, line)
 	}
 	for _, u := range unsupported {
 		if strings.HasPrefix(k, u) {
 			return "", fail("line %d: key %s starts with %s, which is YAML syntax (an anchor, alias, tag, block scalar or merge key); quote it if you mean the text",
-				line, pyRepr(k), pyRepr(u))
+				line, msgQuote(k), msgQuote(u))
 		}
 	}
 	got, err := scalar(k, line)
@@ -142,12 +142,12 @@ func key(raw string, line int) (string, error) {
 		return "", err
 	}
 	if s, ok := got.(string); !ok || s != k {
-		return "", fail("line %d: key %s is read as %s by PyYAML; quote it if you mean the text", line, pyRepr(k), pyValue(got))
+		return "", fail("line %d: key %s is read as %s by PyYAML; quote it if you mean the text", line, msgQuote(k), valueText(got))
 	}
 	return k, nil
 }
 
-func pyValue(v any) string {
+func valueText(v any) string {
 	switch x := v.(type) {
 	case nil:
 		return "None"
@@ -157,7 +157,7 @@ func pyValue(v any) string {
 		}
 		return "False"
 	case string:
-		return pyRepr(x)
+		return msgQuote(x)
 	}
 	return fmt.Sprint(v)
 }
@@ -165,7 +165,7 @@ func pyValue(v any) string {
 func parseInt(sign, digits string, base int, tok string, line int) (any, error) {
 	n, err := strconv.ParseInt(digits, base, 64)
 	if err != nil {
-		return nil, fail("line %d: %s is too large for this reader; quote it if you mean the string", line, pyRepr(tok))
+		return nil, fail("line %d: %s is too large for this reader; quote it if you mean the string", line, msgQuote(tok))
 	}
 	if sign == "-" {
 		n = -n
@@ -189,29 +189,29 @@ func scalar(tok string, line int) (any, error) {
 		return flow(t, line)
 	}
 	if strings.HasPrefix(t, "[") || strings.HasPrefix(t, "{") || strings.HasSuffix(t, "]") || strings.HasSuffix(t, "}") {
-		return nil, fail("line %d: unbalanced flow collection: %s", line, pyRepr(t))
+		return nil, fail("line %d: unbalanced flow collection: %s", line, msgQuote(t))
 	}
 	if t[0] == '"' || t[0] == '\'' {
 		if !closesAtEnd(t) {
-			return nil, fail("line %d: quoted scalar is not closed at its end: %s", line, pyRepr(t))
+			return nil, fail("line %d: quoted scalar is not closed at its end: %s", line, msgQuote(t))
 		}
 		return unquote(t, line)
 	}
 	low := strings.ToLower(t)
 	switch {
-	case pyNull[t]:
+	case nullWords[t]:
 		return nil, nil
-	case pyTrue[t]:
+	case trueWords[t]:
 		return true, nil
-	case pyFalse[t]:
+	case falseWords[t]:
 		return false, nil
 	}
 	if low == "inf" || low == "-inf" || low == "+inf" || low == "nan" || infNan.MatchString(t) ||
 		(strings.Contains(t, "_") && pyNumber.MatchString(t)) || timestamp.MatchString(t) {
-		return nil, fail("line %d: %s is ambiguous across YAML parsers; quote it if you mean the string", line, pyRepr(t))
+		return nil, fail("line %d: %s is ambiguous across YAML parsers; quote it if you mean the string", line, msgQuote(t))
 	}
 	if sexagesimal.MatchString(t) {
-		return nil, fail("line %d: %s is a YAML 1.1 sexagesimal; quote it if you mean the string", line, pyRepr(t))
+		return nil, fail("line %d: %s is a YAML 1.1 sexagesimal; quote it if you mean the string", line, msgQuote(t))
 	}
 	sign, digits := splitSign(t)
 	switch {
@@ -226,12 +226,12 @@ func scalar(tok string, line int) (any, error) {
 	case floatRe.MatchString(t):
 		f, err := strconv.ParseFloat(t, 64)
 		if err != nil {
-			return nil, fail("line %d: %s is not a number this reader takes", line, pyRepr(t))
+			return nil, fail("line %d: %s is not a number this reader takes", line, msgQuote(t))
 		}
 		return f, nil
 	}
 	if strings.ContainsAny(t, "[]{}") {
-		return nil, fail("line %d: unbalanced or stray bracket in value: %s", line, pyRepr(t))
+		return nil, fail("line %d: unbalanced or stray bracket in value: %s", line, msgQuote(t))
 	}
 	return t, nil
 }
@@ -273,10 +273,10 @@ func splitFlow(body string, line int) ([]string, error) {
 		}
 	}
 	if quote != 0 {
-		return nil, fail("line %d: unterminated quote in flow collection: %s", line, pyRepr(body))
+		return nil, fail("line %d: unterminated quote in flow collection: %s", line, msgQuote(body))
 	}
 	if depth != 0 {
-		return nil, fail("line %d: unbalanced brackets in flow collection: %s", line, pyRepr(body))
+		return nil, fail("line %d: unbalanced brackets in flow collection: %s", line, msgQuote(body))
 	}
 	if tail := buf.String(); strip(tail) != "" || len(parts) > 0 {
 		parts = append(parts, tail)
@@ -314,7 +314,7 @@ func flow(t string, line int) (any, error) {
 		}
 		k, v, ok := splitKey(item)
 		if !ok {
-			return nil, fail("line %d: flow map entry is not 'key: value': %s", line, pyRepr(item))
+			return nil, fail("line %d: flow map entry is not 'key: value': %s", line, msgQuote(item))
 		}
 		kk, err := key(k, line)
 		if err != nil {
@@ -450,7 +450,7 @@ func check(n int, body string) error {
 	outside := outsideQuotes(body)
 	for _, bad := range unsupported {
 		if strings.Contains(outside, bad) {
-			return fail("line %d: bundled YAML parser does not support %s. Simplify the syntax.", n, pyRepr(bad))
+			return fail("line %d: bundled YAML parser does not support %s. Simplify the syntax.", n, msgQuote(bad))
 		}
 	}
 	return nil
@@ -616,7 +616,7 @@ func mapOf(rows []rowT, i, indent int) (any, int, error) {
 		}
 		k, rest, ok := splitKey(body)
 		if !ok {
-			return nil, i, fail("line %d: expected 'key: value' but found %s", n, pyRepr(body))
+			return nil, i, fail("line %d: expected 'key: value' but found %s", n, msgQuote(body))
 		}
 		kk, err := key(k, n)
 		if err != nil {
@@ -767,7 +767,7 @@ func Dump(data []Pair) (string, error) {
 		switch value.(type) {
 		case map[string]any, []any:
 			if !isList {
-				return "", fail("dump does not write nested values (key %s)", pyRepr(p.Key))
+				return "", fail("dump does not write nested values (key %s)", msgQuote(p.Key))
 			}
 		}
 		var candidates []string
@@ -775,7 +775,7 @@ func Dump(data []Pair) (string, error) {
 		case []any:
 			for _, s := range list {
 				if anyUnsafe(s) {
-					return "", fail("dump does not write control characters (key %s)", pyRepr(p.Key))
+					return "", fail("dump does not write control characters (key %s)", msgQuote(p.Key))
 				}
 			}
 			candidates = []string{"[" + strings.Join(list, ", ") + "]"}
@@ -795,7 +795,7 @@ func Dump(data []Pair) (string, error) {
 			s := fmt.Sprint(v)
 			value = s
 			if anyUnsafe(s) {
-				return "", fail("dump does not write control characters (key %s)", pyRepr(p.Key))
+				return "", fail("dump does not write control characters (key %s)", msgQuote(p.Key))
 			}
 			low := strings.ToLower(s)
 			needs := strip(s) != s || s == "" || yTrue[low] || yFalse[low] || low == "null" || low == "~" ||
@@ -821,7 +821,7 @@ func Dump(data []Pair) (string, error) {
 			}
 		}
 		if !wrote {
-			return "", fail("dump cannot write %s: the parser does not read %s back as %v", pyRepr(p.Key), pyRepr(candidates[len(candidates)-1]), value)
+			return "", fail("dump cannot write %s: the parser does not read %s back as %v", msgQuote(p.Key), msgQuote(candidates[len(candidates)-1]), value)
 		}
 	}
 	return strings.Join(lines, "\n") + "\n", nil

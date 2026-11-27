@@ -8,7 +8,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // The board's facts, read in the transaction of the write that needs them.
@@ -118,7 +118,7 @@ func addEvent(tx *sql.Tx, agent, kind string, payload ...kv) error {
 	if len(payload) > 0 {
 		parts := make([]string, len(payload))
 		for i, e := range payload {
-			parts[i] = pyjson.PyJSON(e.K, false, false) + ": " + pyjson.PyJSON(e.V, false, false)
+			parts[i] = jsontext.Spaced(e.K, false, false) + ": " + jsontext.Spaced(e.V, false, false)
 		}
 		p = "{" + strings.Join(parts, ", ") + "}"
 	}

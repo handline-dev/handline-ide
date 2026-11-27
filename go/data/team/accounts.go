@@ -124,7 +124,7 @@ func (a Accounts) Stalled(acct string) *Stall {
 		a.ClearStall(acct)
 		return nil
 	}
-	return &Stall{Why: pyStr(data.Why), Error: data.Error, At: *data.At}
+	return &Stall{Why: valueText(data.Why), Error: data.Error, At: *data.At}
 }
 
 // LoggedInSince is whether the account's credential changed after the refusal that happened in epoch second at: a login made since
@@ -231,7 +231,7 @@ func (a Accounts) RecordedSubscriptionType(acct string) (string, bool) {
 		return "", false
 	}
 	if v := data["subscriptionType"]; truthy(v) {
-		return pyStr(v), true
+		return valueText(v), true
 	}
 	return "", false
 }

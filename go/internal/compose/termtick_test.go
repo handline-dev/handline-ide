@@ -328,7 +328,7 @@ func TestARefusalOlderThanTheAccountsLastLoginMarksNothing(t *testing.T) {
 	}
 }
 
-func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
+func TestARefusalTheLegacyCursorAlreadyLiftedIsNotStalledAgain(t *testing.T) {
 	p, tk, _ := loginRig(t)
 	d := p.db
 	authFailed(t, p, "a1")

@@ -13,7 +13,7 @@ import (
 
 	"github.com/handline/handline/go/kit/atomicfile"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 const (
@@ -127,7 +127,7 @@ func indented(v any, at string) string {
 		slices.Sort(keys)
 		parts := make([]string, len(keys))
 		for i, k := range keys {
-			parts[i] = in + pyjson.PyJSON(k, false, true) + ": " + indented(x[k], in)
+			parts[i] = in + jsontext.Spaced(k, false, true) + ": " + indented(x[k], in)
 		}
 		return "{\n" + strings.Join(parts, ",\n") + "\n" + at + "}"
 	case []any:
@@ -140,5 +140,5 @@ func indented(v any, at string) string {
 		}
 		return "[\n" + strings.Join(parts, ",\n") + "\n" + at + "]"
 	}
-	return pyjson.PyJSON(v, true, true)
+	return jsontext.Spaced(v, true, true)
 }

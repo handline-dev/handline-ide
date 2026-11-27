@@ -1,4 +1,4 @@
-package pyjson
+package jsontext
 
 import (
 	"encoding/json"
@@ -17,15 +17,15 @@ type Pair struct {
 	V any
 }
 
-// PyJSON is v as spaced JSON (", " and ": " between items, a map's keys sorted when sortKeys, non-ASCII escaped as
+// Spaced is v as spaced JSON (", " and ": " between items, a map's keys sorted when sortKeys, non-ASCII escaped as
 // \uXXXX when ensureASCII): one fixed text for a value, so a hash or comparison of it is stable. v holds nil, bool, string, json.Number, int, int64, float64, []string, []any, map[string]any.
-func PyJSON(v any, sortKeys, ensureASCII bool) string {
+func Spaced(v any, sortKeys, ensureASCII bool) string {
 	var b strings.Builder
-	pyWrite(&b, v, sortKeys, ensureASCII)
+	write(&b, v, sortKeys, ensureASCII)
 	return b.String()
 }
 
-func pyWrite(b *strings.Builder, v any, sortKeys, ascii bool) {
+func write(b *strings.Builder, v any, sortKeys, ascii bool) {
 	switch t := v.(type) {
 	case nil:
 		b.WriteString("null")
@@ -36,7 +36,7 @@ func pyWrite(b *strings.Builder, v any, sortKeys, ascii bool) {
 			b.WriteString("false")
 		}
 	case string:
-		pyString(b, t, ascii)
+		writeString(b, t, ascii)
 	case json.Number:
 		b.WriteString(string(t))
 	case int:
@@ -51,14 +51,14 @@ func pyWrite(b *strings.Builder, v any, sortKeys, ascii bool) {
 		for i, x := range t {
 			items[i] = x
 		}
-		pyWrite(b, items, sortKeys, ascii)
+		write(b, items, sortKeys, ascii)
 	case []any:
 		b.WriteByte('[')
 		for i, x := range t {
 			if i > 0 {
 				b.WriteString(", ")
 			}
-			pyWrite(b, x, sortKeys, ascii)
+			write(b, x, sortKeys, ascii)
 		}
 		b.WriteByte(']')
 	case Pairs:
@@ -67,9 +67,9 @@ func pyWrite(b *strings.Builder, v any, sortKeys, ascii bool) {
 			if i > 0 {
 				b.WriteString(", ")
 			}
-			pyString(b, e.K, ascii)
+			writeString(b, e.K, ascii)
 			b.WriteString(": ")
-			pyWrite(b, e.V, sortKeys, ascii)
+			write(b, e.V, sortKeys, ascii)
 		}
 		b.WriteByte('}')
 	case map[string]any:
@@ -85,17 +85,17 @@ func pyWrite(b *strings.Builder, v any, sortKeys, ascii bool) {
 			if i > 0 {
 				b.WriteString(", ")
 			}
-			pyString(b, k, ascii)
+			writeString(b, k, ascii)
 			b.WriteString(": ")
-			pyWrite(b, t[k], sortKeys, ascii)
+			write(b, t[k], sortKeys, ascii)
 		}
 		b.WriteByte('}')
 	default:
-		pyString(b, fmt.Sprint(t), ascii)
+		writeString(b, fmt.Sprint(t), ascii)
 	}
 }
 
-func pyString(b *strings.Builder, s string, ascii bool) {
+func writeString(b *strings.Builder, s string, ascii bool) {
 	b.WriteByte('"')
 	for _, r := range s {
 		switch {

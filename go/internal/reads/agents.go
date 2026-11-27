@@ -530,7 +530,7 @@ func timelineEntry(r row) map[string]any {
 	}
 	text := r.str("kind")
 	for _, k := range []string{"text", "detail", "method"} {
-		if s := pyStr(payload[k]); s != "" {
+		if s := setText(payload[k]); s != "" {
 			text = s
 			break
 		}
@@ -538,8 +538,8 @@ func timelineEntry(r row) map[string]any {
 	return map[string]any{"id": r.i("id"), "at": ts(r["ts"]), "kind": r.str("kind"), "actor": actor, "text": text, "data": payload}
 }
 
-// pyStr is v as text, "" when it is not set (null, "", 0, false, an empty array or object); true is "True", any other array or object its JSON.
-func pyStr(v any) string {
+// setText is v as text, "" when it is not set (null, "", 0, false, an empty array or object); true is "True", any other array or object its JSON.
+func setText(v any) string {
 	switch t := v.(type) {
 	case nil:
 		return ""

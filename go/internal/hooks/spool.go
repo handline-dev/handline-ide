@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // The hook spool: where a hook leaves an event when the daemon is down. The daemon reads
@@ -177,7 +177,7 @@ func keep(work string, rest []string) error {
 // lock, so lines from hooks running at once never mix.
 func AppendSpool(home, agent, kind string, data map[string]any, requestID string, at int64) error {
 	line := fmt.Sprintf(`{"agent": %s, "kind": %s, "at": %d, "data": %s, "request_id": %s}`+"\n",
-		pyjson.PyJSON(agent, false, true), pyjson.PyJSON(kind, false, true), at, pyjson.PyJSON(data, false, true), pyjson.PyJSON(requestID, false, true))
+		jsontext.Spaced(agent, false, true), jsontext.Spaced(kind, false, true), at, jsontext.Spaced(data, false, true), jsontext.Spaced(requestID, false, true))
 	f, err := os.OpenFile(spoolPath(home), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0o600)
 	if err != nil {
 		return err

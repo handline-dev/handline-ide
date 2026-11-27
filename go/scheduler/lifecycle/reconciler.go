@@ -230,7 +230,7 @@ func (r *Reconciler) Reconcile() ([]string, error) {
 		if err != nil {
 			return actions, err
 		}
-		actions = append(actions, fmt.Sprintf("%s: %s -> %s (wake_at was %s)", agent, row.State, next, pyOptInt(row.WakeAt.Int64, row.WakeAt.Valid)))
+		actions = append(actions, fmt.Sprintf("%s: %s -> %s (wake_at was %s)", agent, row.State, next, intOrNone(row.WakeAt.Int64, row.WakeAt.Valid)))
 	}
 
 	// Agents we know about but have no state row for.
@@ -261,7 +261,7 @@ func (r *Reconciler) Reconcile() ([]string, error) {
 	return actions, nil
 }
 
-func pyOptInt(n int64, ok bool) string {
+func intOrNone(n int64, ok bool) string {
 	if !ok {
 		return "None"
 	}

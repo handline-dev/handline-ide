@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/hooks"
 	"github.com/handline/handline/go/kit/actor"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/access"
 )
@@ -279,7 +279,7 @@ func (e *Env) permissionAsk(c *rpc.Conn, params map[string]any) (any, error) {
 	return map[string]any{"behavior": "deny", "message": msg}, nil
 }
 
-func jsonText(v any) string { return pyjson.PyJSON(v, true, true) }
+func jsonText(v any) string { return jsontext.Spaced(v, true, true) }
 
 // closeOrphans closes agent's open hook questions no call of this daemon waits on: their call went with a daemon that stopped without
 // closing them. One not kept fresh for StaleS only, so a question between its row and its wait is left be.

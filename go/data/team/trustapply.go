@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
@@ -59,12 +59,12 @@ func (p TrustProposals) OpenProposalOf(rid int64) string {
 		}
 		if task, ok := prop.Get("task").(int64); ok && task != 0 {
 			if task == tid {
-				return pyStr(prop.Get("id"))
+				return valueText(prop.Get("id"))
 			}
 			continue
 		}
 		if n, ok := prop.Get("request").(int64); ok && n == rid {
-			return pyStr(prop.Get("id"))
+			return valueText(prop.Get("id"))
 		}
 	}
 	return ""
@@ -119,7 +119,7 @@ func (p TrustProposals) Answered(q db.Q, pid string, card *db.Request, verdict s
 // recordDecision keeps the founder's call on proposal pid, answered on decision task tid, and what it was decided on.
 func (t *Trust) recordDecision(pid string, tid int64, call, subject string) error {
 	return t.Store.Put(trustDecisionsNS, pid, fmt.Sprintf(`{"task": %d, "call": %s, "subject": %s, "at": %d}`,
-		tid, pyjson.PyJSON(call, false, true), pyjson.PyJSON(subject, false, true), time.Now().Unix()))
+		tid, jsontext.Spaced(call, false, true), jsontext.Spaced(subject, false, true), time.Now().Unix()))
 }
 
 // decisionRefusal is why the recorded answer to decision task tid cannot be relied on, "" when it names this task, a
@@ -234,10 +234,10 @@ func (t *Trust) Apply(q db.Q, pid string) (ok bool, said string, err error) {
 		}
 		return false, fmt.Sprintf("proposal %s was rejected: %s", pid, firstRunes(strings.TrimSpace(verdict), 120)), nil
 	case "unclear":
-		return false, fmt.Sprintf("T%d was answered %s, which is not a decision.", task.ID, pyQuote(firstRunes(textsafe.Oneline(strings.TrimSpace(verdict)), 60))), nil
+		return false, fmt.Sprintf("T%d was answered %s, which is not a decision.", task.ID, quote(firstRunes(textsafe.Oneline(strings.TrimSpace(verdict)), 60))), nil
 	}
 	// What gets added is exactly what the founder read: the path on the card's first line, which the proposal file cannot edit.
-	root := pyStr(prop.Get("root"))
+	root := valueText(prop.Get("root"))
 	read, readOK := "", false
 	if card != nil {
 		read, readOK = RootRead(card.Body, card.Requester)

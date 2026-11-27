@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// PyRepr quotes s for the messages that quote one: in single quotes, or double when s has a ' and no ",
+// Quote quotes s for the messages that quote one: in single quotes, or double when s has a ' and no ",
 // with backslash, \n, \r, \t and the quote escaped and other control characters and DEL as \xNN.
-func PyRepr(s string) string {
+func Quote(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {
 		q = `"`
@@ -38,15 +38,15 @@ func PyRepr(s string) string {
 	return b.String()
 }
 
-func pyList(keys []string) string {
+func quoteList(keys []string) string {
 	parts := make([]string, len(keys))
 	for i, k := range keys {
-		parts[i] = PyRepr(k)
+		parts[i] = Quote(k)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-func pyInts(xs []int) string {
+func intList(xs []int) string {
 	parts := make([]string, len(xs))
 	for i, x := range xs {
 		parts[i] = strconv.Itoa(x)

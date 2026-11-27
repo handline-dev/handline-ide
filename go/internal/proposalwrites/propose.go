@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -312,7 +312,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 	for _, fn := range fns {
 		v := sets[fn]
 		if kind == "context" { // a proposal file holds no line break: the context is kept as one line of JSON, non-ASCII escaped
-			v = pyjson.PyJSON(v, false, true)
+			v = jsontext.Spaced(v, false, true)
 		}
 		prop.set("set."+fn, v)
 		if old, ok := was[fn]; ok {

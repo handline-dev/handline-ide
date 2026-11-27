@@ -417,7 +417,7 @@ func TestAttachingTwiceToOneTerminalAndFormatKeepsTheSecond(t *testing.T) {
 	}
 }
 
-func TestWidthFollowsPythonsRuleForEmojiAndCombiningMarks(t *testing.T) {
+func TestWidthOfEmojiAndCombiningMarks(t *testing.T) {
 	for r, want := range map[rune]int{'a': 1, '日': 2, '✅': 2, '❌': 2, '⚡': 2, '☕': 2, '⌚': 2, '🚀': 2, '🟢': 2, '́': 0, '‍': 1, '✓': 1} {
 		if got := width(r); got != want {
 			t.Errorf("width(%q) = %d, want %d", r, got, want)

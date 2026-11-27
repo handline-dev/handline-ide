@@ -14,9 +14,9 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/jsontext"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/protected"
-	"github.com/handline/handline/go/kit/pyjson"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -66,7 +66,7 @@ const decisionsNS = "proposal-decisions"
 
 // recordDecision keeps the founder's answer where no agent can write it; `call` is "approved" or "rejected" and subject what it was decided on.
 func (e *Env) recordDecision(pid, call, subject string) error {
-	text := fmt.Sprintf(`{"task": 0, "call": %s, "subject": %s, "at": %d}`, pyjson.PyJSON(call, false, true), pyjson.PyJSON(subject, false, true), time.Now().Unix())
+	text := fmt.Sprintf(`{"task": 0, "call": %s, "subject": %s, "at": %d}`, jsontext.Spaced(call, false, true), jsontext.Spaced(subject, false, true), time.Now().Unix())
 	return protected.New(e.Home).Put(decisionsNS, pid, text)
 }
 

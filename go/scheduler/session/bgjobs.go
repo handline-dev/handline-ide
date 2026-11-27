@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/data/db"
-	"github.com/handline/handline/go/kit/pyjson"
+	"github.com/handline/handline/go/kit/jsontext"
 )
 
 // Which background commands an agent has running, and for how long. The footer says only how many ("2 shells"). The Bash hook,
@@ -42,7 +42,7 @@ func (e *Env) NoteBackground(agent string, raw map[string]any) error {
 	if s, ok := raw["tool_response"].(string); ok {
 		text = s
 	} else {
-		text = pyjson.PyJSON(raw["tool_response"], false, false)
+		text = jsontext.Spaced(raw["tool_response"], false, false)
 	}
 	var job, output any
 	if m := outputRE.FindStringSubmatch(text); m != nil {

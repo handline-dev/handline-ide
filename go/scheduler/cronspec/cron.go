@@ -28,7 +28,7 @@ func cronField(text string, lo, hi int, name string) (map[int]bool, error) {
 		if slash {
 			n, _ := strconv.Atoi(rest)
 			if !isDigits(rest) || n < 1 {
-				return nil, fmt.Errorf("%s: a step is a positive number, not %s", name, pyRepr(rest))
+				return nil, fmt.Errorf("%s: a step is a positive number, not %s", name, quote(rest))
 			}
 			step = n
 		}
@@ -39,7 +39,7 @@ func cronField(text string, lo, hi int, name string) (map[int]bool, error) {
 		case strings.Contains(body, "-"):
 			x, y, _ := strings.Cut(body, "-")
 			if !isDigits(x) || !isDigits(y) {
-				return nil, fmt.Errorf("%s: %s is not a range", name, pyRepr(part))
+				return nil, fmt.Errorf("%s: %s is not a range", name, quote(part))
 			}
 			a, _ = strconv.Atoi(x)
 			b, _ = strconv.Atoi(y)
@@ -50,10 +50,10 @@ func cronField(text string, lo, hi int, name string) (map[int]bool, error) {
 				b = hi
 			}
 		default:
-			return nil, fmt.Errorf("%s: %s is not a number, a range or *", name, pyRepr(part))
+			return nil, fmt.Errorf("%s: %s is not a number, a range or *", name, quote(part))
 		}
 		if a < lo || b > hi || a > b {
-			return nil, fmt.Errorf("%s: %s is outside %d-%d", name, pyRepr(part), lo, hi)
+			return nil, fmt.Errorf("%s: %s is outside %d-%d", name, quote(part), lo, hi)
 		}
 		for i := a; i <= b; i += step {
 			out[i] = true
