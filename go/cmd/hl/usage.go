@@ -41,7 +41,6 @@ var usages = map[string][2]string{
 	"task comment": {`hl task comment T<n> add "<text>" [--turn <agent|human> [--done "<evidence>"]] [--reply <id>] [--attach FILE] [--now]   |   list   |   edit <id> "<text>"   |   delete <id>` +
 		` (--turn hands the task to them with this comment, your turn waiting below; --done: their pass closes the task; "@human ..." first is news for the founder, no turn)`,
 		`hl task comment T12 add "Ship to beta now, or after the fix? I recommend now." --turn human`},
-	"task memo":        {`hl task memo T<n> ... (the old name of hl task comment)`, `hl task comment T12 add "The fix also needs the phone"`},
 	"task begin":       {`hl task begin "<title>" --chat <msg> [--why W] [--priority 1-5] [--expects report|decision]`, `hl task begin "Answer the founder" --chat msg_1a2b3c4`},
 	"task start":       {`hl task start T<n>`, `hl task start T12`},
 	"task reopen":      {`hl task reopen T<n> "<why>"`, `hl task reopen T12 "the badge still overlaps on the phone"`},

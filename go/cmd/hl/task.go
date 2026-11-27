@@ -18,7 +18,7 @@ type taskCmd func(c *hlclient.Client, args []string) (int, bool)
 
 var taskCmds = map[string]taskCmd{
 	"new": taskNew, "begin": taskBegin, "handoff": taskHandoff, "start": taskStart, "note": taskNote,
-	"comment": taskMemo, "memo": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
+	"comment": taskMemo, "show": taskShow, "list": taskList, "queue": taskQueue(true), "draft": taskQueue(false),
 	"edit": taskEdit, "merge": taskMerge, "done": taskDone, "reopen": taskReopen, "release": taskRelease,
 	"discard": taskDiscard, "board": taskBoard, "wait": taskWait, "request": taskRequest,
 	"turn": taskTurnGone, "pass": taskPop("pass"), "back": taskPop("send_back"), "plan": taskPlan,
