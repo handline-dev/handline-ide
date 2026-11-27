@@ -24,7 +24,7 @@ export function Popover({
   /** Held by the caller, to close it from inside (a choice made). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** The bar it opens flush on: its bottom on the bar's top edge, its aligned side on the window's edge, with no gap. */
+  /** The bar it opens from: it floats a gap above the bar, inset from the window's edge. */
   corner?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
@@ -35,16 +35,14 @@ export function Popover({
         <P.Positioner
           side={side}
           align={align}
-          sideOffset={corner ? 0 : 4}
-          collisionPadding={corner ? 0 : 8}
+          sideOffset={corner ? 12 : 4}
+          collisionPadding={8}
           anchor={corner}
           // In the corner it never flips: at page zoom the bar ends a fraction of a pixel past the window, which would flip it to the left.
           collisionAvoidance={corner ? { side: 'none', align: 'shift', fallbackAxisSide: 'none' } : undefined}
           className="z-50"
         >
-          <P.Popup
-            className={`${floatingSurface} p-3 text-sm ${corner ? `max-h-(--available-height) overflow-y-auto rounded-b-none border-b-0 ${align === 'start' ? 'rounded-tl-none border-l-0' : 'rounded-tr-none border-r-0'}` : ''}`}
-          >
+          <P.Popup className={`${floatingSurface} p-3 text-sm ${corner ? 'max-h-(--available-height) overflow-y-auto' : ''}`}>
             {children}
           </P.Popup>
         </P.Positioner>

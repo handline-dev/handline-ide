@@ -14,6 +14,7 @@ import { useStatusRow, type Level } from '#src/sidebar/status.ts';
 import { ClusterButton } from '#src/sidebar/ClusterButton.tsx';
 import { useConnection } from '@handline/app-react';
 import { useMasterName } from '#src/connection/master.tsx';
+import { useOpenable } from '#src/layout/openable.tsx';
 
 const AWAKE: { mode: KeepAwake; label: string; line: string }[] = [
   { mode: 'off', label: 'Off', line: 'The Mac sleeps as usual.' },
@@ -39,6 +40,7 @@ export function StatusRow() {
   const s = useStatusRow();
   const busy = s.pending !== null;
   const bar = useRef<HTMLDivElement>(null);
+  const usage = useOpenable('usage');
   return (
     <div
       ref={bar}
@@ -50,7 +52,13 @@ export function StatusRow() {
         host={s.host}
         lead={<span aria-label={s.level} className={`size-2 shrink-0 rounded-full ${s.paused ? 'bg-warning' : DOT[s.level]}`} />}
       />
-      <span className="min-w-0 flex-1 truncate tabular-nums">{s.usagePct !== null && `Week ${s.usagePct}% used`}</span>
+      <span className="min-w-0 flex-1 truncate">
+        {s.usagePct !== null && (
+          <button type="button" {...usage} className="tabular-nums hover:text-fg">
+            Week {s.usagePct}% used
+          </button>
+        )}
+      </span>
       <MasterGone />
       <SetAside />
       <LoadButton bar={bar} />
@@ -115,7 +123,7 @@ function KeepAwakeButton({ s, busy, bar }: { s: ReturnType<typeof useStatusRow>;
             key={a.mode}
             type="button"
             onClick={() => void s.setAwake(a.mode).catch(() => {})}
-            className="flex gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover/30"
+            className={`flex gap-2 rounded-md px-2 py-1.5 text-left ${s.awake === a.mode ? 'bg-selected' : 'hover:bg-hover/30'}`}
           >
             <Check size={14} className={`mt-0.5 shrink-0 ${s.awake === a.mode ? '' : 'invisible'}`} />
             <span className="flex flex-col">
@@ -179,7 +187,7 @@ function ModeButton({ busy, bar }: { busy: boolean; bar: RefObject<HTMLDivElemen
               aria-checked={row.mode === m}
               disabled={!row.mine || q.pending !== null || (row.master && m === 'off')}
               onClick={() => pick(m)}
-              className="flex gap-2 rounded-md px-2 py-1.5 text-left enabled:hover:bg-hover/30 disabled:opacity-40"
+              className={`flex gap-2 rounded-md px-2 py-1.5 text-left disabled:opacity-40 ${row.mode === m ? 'bg-selected' : 'enabled:hover:bg-hover/30'}`}
             >
               <Check size={14} className={`mt-0.5 shrink-0 ${row.mode === m ? '' : 'invisible'}`} />
               <span className="flex flex-col">
