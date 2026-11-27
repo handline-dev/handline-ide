@@ -166,9 +166,8 @@ agent from the daemon's database; this file does not repeat them.
   the log) or a typecheck (`Failed: ...#typecheck`).
 - Go: `go test ./...` in go/ skips the nested modules (each `go/*/go.mod`); `tools/test-go.sh` tests each, and a
   nested module cannot import the daemon's module (go/). Never `go clean` the shared build cache; on `could not import ... go-build ...
-  no such file`, rerun with a private `GOCACHE`. Agent sessions export `HANDLINE_HOME` (the live home): run tests and
-  `tools/check.sh` with `env -u HANDLINE_HOME`, since a test run on a branch with a new migration once migrated the live
-  database and the running daemon refused to start. Timing knobs tests change live on Env, not package vars.
+  no such file`, rerun with a private `GOCACHE`. A Go test binary that links `go/kit/paths` drops an inherited
+  `HANDLINE_HOME` that names the live home, so a test there gets a home only from its own `t.Setenv` or fixture. Timing knobs tests change live on Env, not package vars.
 - Tests: a mutant that does not build or times out is not a kill. A change that shares a component tests each line
   that wires it. Before deleting a bound a mutant survived, send it extreme values (MaxInt64, negative). A stub script
   written per run is slow on its first exec under load (macOS checks it): check one in instead.
