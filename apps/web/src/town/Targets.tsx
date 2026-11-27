@@ -123,7 +123,7 @@ export function Targets({
     width: (b.w + 2 * pad) * scale,
     height: (b.h + 2 * pad) * scale,
   });
-  const personAt = (s: Box & { person: Person; at: [number, number] }, id: string) => {
+  const personAt = (s: Box & { person: Person; at: [number, number]; face?: 'up' }, id: string) => {
     const person = house.people.find((p) => p.key === s.person.key) ?? s.person;
     const opens = chatOf(person.key);
     return (
@@ -136,7 +136,7 @@ export function Targets({
         shown={shows(opens)}
         quiet={walking}
         onShow={() => {
-          founder.go(s.at);
+          founder.go(s.at, () => founder.turn(s.face ?? 'right'));
           show(opens, person.name);
         }}
       />
@@ -151,7 +151,7 @@ export function Targets({
           style={at(mine)}
           className={look(shows(DESK.opens))}
           onClick={() => {
-            founder.go(mine.at);
+            founder.sit(mine.seat, mine.at);
             show(DESK.opens, DESK.title);
           }}
         />
@@ -165,7 +165,7 @@ export function Targets({
           style={at(p)}
           className={look(shows(`tasks|${p.person.key}`))}
           onClick={() => {
-            founder.go(p.at);
+            founder.go(p.at, () => founder.turn('up'));
             show(`tasks|${p.person.key}`, `Tasks · ${p.person.name}`);
           }}
         />
@@ -178,7 +178,7 @@ export function Targets({
           style={at(hire)}
           className={look(false)}
           onClick={() => {
-            founder.go(hire.at);
+            founder.go(hire.at, () => founder.turn('right'));
             void newAgent(workspace);
           }}
         />

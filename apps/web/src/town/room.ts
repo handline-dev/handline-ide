@@ -79,6 +79,8 @@ export const WALL_H = 1.29;
 export const WALL_T = 0.12;
 export const SLAB = 0.22;
 const PITCH = 0.734; // desks in a bench share an edge
+/** From a desk's left edge to the middle of its chair, where its sitter is. */
+export const CHAIR_MID = 0.367;
 const ROW = 1.75; // from one bench to the next, with room for the names between
 const FIRST = 1.45; // the first bench's front edge
 const SOFA = 0.98;
@@ -93,6 +95,8 @@ const SHEET_T = 0.022; // one paper of a stack
 const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
 /** The founder's desk's tag; it holds the founder's decisions. */
 export const MY_DESK = 'desk:you';
+/** The founder's chair's tag. */
+export const MY_CHAIR = 'chair:you';
 /** The tag of the empty desk a team's office keeps for the next agent, and of its chair: a click there hires one. */
 export const HIRE_DESK = 'desk:hire';
 /** The tag of the stack of papers on a desk (by the desk's tag): its queued tasks, or the founder's decisions. */
@@ -160,7 +164,7 @@ export function roomOf(
       F.keyboard(put, x + 0.22, z - 0.08, F.DESK_TOP, 0.34);
       if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
       F.chair(put, x + 0.225, z + 0.3, chair);
-      if (seated(p)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
+      if (seated(p)) places.push({ person: p, x: x + CHAIR_MID, z: z + 0.2, how: 'desk', chair });
     });
     // The desk after the last agent's, where the next agent's would stand: an empty chair at a dark screen. The agents' desks are laid
     // out as if it were not there, so nobody's moves for it; only the room grows a row when the last bench is full.
@@ -176,7 +180,7 @@ export function roomOf(
   desk(mine.x, mine.z, MY_DESK, house.decisions.length);
   F.screen(put, mine.x + 0.17, mine.z - 0.2, F.DESK_TOP, false);
   F.keyboard(put, mine.x + 0.22, mine.z - 0.08, F.DESK_TOP);
-  F.chair(put, mine.x + 0.225, mine.z + 0.3, MY_DESK);
+  F.chair(put, mine.x + 0.225, mine.z + 0.3, MY_CHAIR);
 
   // The rest room: rows of two sofas, a rug and a coffee table in front of each; four sit on a row. A coffee corner on its back wall.
   for (let r = 0; r < sofaRows; r++) {

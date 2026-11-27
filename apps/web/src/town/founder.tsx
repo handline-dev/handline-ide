@@ -7,13 +7,14 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
+import { MY_CHAIR } from '#src/town/room.ts';
 import { freeAt, nearestFree, pathTo, reach, step, type Floor, type Spot } from '#src/town/walk.ts';
 
 export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
 const CELL = [144, 228] as const;
 const SIZE = [1296, 228] as const;
 
-type Facing = 'down' | 'up' | 'left' | 'right';
+export type Facing = 'down' | 'up' | 'left' | 'right';
 const COL: Record<Facing, number> = { down: 0, up: 3, left: 6, right: 6 };
 /** The walk: standing, left foot, standing, right foot; each facing has those three frames in a row. */
 const WALK = [0, 1, 0, 2] as const;
@@ -35,8 +36,9 @@ export type Walk = { floor: Floor; entry: Spot; speed: number; stride: number };
 /** An office's ground: its walk, its pixels and objects, and where a floor spot or a point lands in the picture. */
 export type Ground = Walk & {
   pic: Picture;
-  /** By the picture's object ids: what never covers the founder, as the floor and a door it walks through. */
+  /** By the picture's object ids: what never covers the founder, as the floor and a door it walks through; and each one's tag. */
   under: boolean[];
+  tags: (string | undefined)[];
   toPixel: (x: number, y: number, z: number) => [number, number];
   /** The floor spot drawn at picture pixel (px, py). */
   toFloor: (px: number, py: number) => Spot;
@@ -46,12 +48,16 @@ export type Ground = Walk & {
   /** The screens that move (an office's working ones), laid over a walker they stand in front of as they move. */
   screens?: Screen[];
 };
-export type Walker = { at: Spot; facing: Facing; walked: number; moving: boolean };
+/** `seated`: in a desk chair, facing the desk. */
+export type Walker = { at: Spot; facing: Facing; walked: number; moving: boolean; seated?: boolean };
 /** The founder's walk in one place: `go` walks to a spot and then does `then`; `put` stands it at a spot at once, facing away, as before
- *  a door; `get` and `subscribe` follow where it is. */
+ *  a door; `turn` turns it where it stands; `sit` walks it to `side`, beside a desk chair, and sideways into the chair at `seat`, from
+ *  where it gets up to `side` again when it walks on; `get` and `subscribe` follow where it is. */
 export type Founder = {
   go: (to: Spot, then?: () => void) => void;
   put: (to: Spot) => void;
+  turn: (facing: Facing) => void;
+  sit: (seat: Spot, side: Spot) => void;
   get: () => Walker | null;
   subscribe: (l: () => void) => () => void;
 };
@@ -78,12 +84,18 @@ function walkerOf() {
     me: null as Walker | null,
     ground: null as Walk | null,
     plan: null as { path: Spot[]; then?: () => void } | null,
+    /** Where the founder gets up to from the chair it sits in. */
+    side: null as Spot | null,
     held: new Set<string>(),
     running: false,
     frame: 0,
     last: 0,
   };
   const emit = () => all.forEach((l) => l());
+  /** Where one off free floor (in a chair, or half out of it) gets out to: beside the chair it sat down from, when that is the one it is
+   *  in, else the nearest free spot. */
+  const outOf = (floor: Floor, at: Spot): Spot =>
+    s.side && Math.hypot(s.side[0] - at[0], s.side[1] - at[1]) < 0.6 ? s.side : (nearestFree(floor, at) ?? at);
   const stop = () => {
     cancelAnimationFrame(s.frame);
     s.frame = 0;
@@ -97,8 +109,11 @@ function walkerOf() {
     s.last = now;
     const dirs = [...s.held].map((k) => KEYS[k]);
     const dir: Spot = [dirs.reduce((n, d) => n + d[0], 0), dirs.reduce((n, d) => n + d[1], 0)];
-    let next = m;
-    if (dir[0] || dir[1]) {
+    // Pushed by a key in or by a chair, off free floor, the founder first gets out beside it.
+    const off = !freeAt(g.floor, m.at);
+    if (off && (dir[0] || dir[1]) && !s.plan) s.plan = { path: [outOf(g.floor, m.at)] };
+    let next: Walker;
+    if ((dir[0] || dir[1]) && !off) {
       s.plan = null;
       const at = step(g.floor, m.at, dir, reach(g.speed, dt, s.running));
       if (at === m.at) bump.current?.(m.at, dir, founder);
@@ -114,13 +129,18 @@ function walkerOf() {
     } else {
       const then = s.plan?.then;
       s.plan = null;
-      if (m.moving) next = { ...m, moving: false };
+      // A key still held walks on next frame: one that got the founder up out of a chair. What comes after the walk sees it stopped,
+      // and what it changes is not undone here.
+      if (m.moving) {
+        s.me = { ...m, moving: !!(dir[0] || dir[1]) };
+        emit();
+      }
       then?.();
+      if (s.me?.moving && !s.frame) s.frame = requestAnimationFrame(tick);
+      return;
     }
-    if (next !== m) {
-      s.me = next;
-      emit();
-    }
+    s.me = next;
+    emit();
     if (next.moving) s.frame = requestAnimationFrame(tick);
   };
   const wake = () => {
@@ -131,15 +151,38 @@ function walkerOf() {
   const founder: Founder = {
     go: (to, then) => {
       if (!s.ground || !s.me) return;
-      const path = pathTo(s.ground.floor, s.me.at, to);
-      s.plan = path ? { path, then } : null;
+      // From a chair, or on the way into or out of one, out to its side first: the chair is not free floor.
+      const from = freeAt(s.ground.floor, s.me.at) ? s.me.at : outOf(s.ground.floor, s.me.at);
+      const path = pathTo(s.ground.floor, from, to);
+      s.plan = path ? { path: from === s.me.at ? path : [from, ...path], then } : null;
       wake();
     },
     put: (to) => {
       if (!s.ground || !s.me) return;
       s.plan = null;
-      s.me = { ...s.me, at: nearestFree(s.ground.floor, to) ?? s.me.at, facing: 'up', moving: false };
+      s.me = { ...s.me, at: nearestFree(s.ground.floor, to) ?? s.me.at, facing: 'up', moving: false, seated: false };
       emit();
+    },
+    turn: (facing) => {
+      if (!s.me || s.me.moving || s.me.seated) return;
+      s.me = { ...s.me, facing };
+      emit();
+    },
+    sit: (seat, side) => {
+      if (s.me?.seated && s.me.at[0] === seat[0] && s.me.at[1] === seat[1]) return;
+      founder.go(side, () => {
+        // From here on, a walk out of the chair goes back out this side.
+        s.side = side;
+        s.plan = {
+          path: [seat],
+          then: () => {
+            if (!s.me) return;
+            s.me = { ...s.me, facing: 'up', seated: true };
+            emit();
+          },
+        };
+        wake();
+      });
     },
     get: () => s.me,
     subscribe: (l) => (all.add(l), () => void all.delete(l)),
@@ -159,8 +202,11 @@ function walkerOf() {
     const entry = ground.entry.join(',');
     const k = kept.get(where);
     let me = k?.entry === entry ? (was && s.me ? s.me : k.me) : standing(ground.entry);
-    // The room laid out again (another team size) may have put furniture where the founder stood.
-    if (!freeAt(ground.floor, me.at)) me = { ...me, at: nearestFree(ground.floor, me.at) ?? ground.entry };
+    // The room laid out again (another team size) may have put furniture where the founder stood; one seated in the same room stays.
+    const same = was && sameFloor(was.floor, ground.floor);
+    if (me.seated && !same) me = { ...me, seated: false };
+    if (!freeAt(ground.floor, me.at) && !me.seated) me = { ...me, at: nearestFree(ground.floor, me.at) ?? ground.entry };
+    if (!same) s.side = null;
     s.me = me;
     kept.set(where, { entry, me });
     emit();
@@ -224,6 +270,8 @@ export function useFounder<T extends string | number | boolean | null>(f: Founde
 const useMe = (f: Founder) => useSyncExternalStore(f.subscribe, f.get);
 
 const FOUNDER: Sheet = { url: FOUNDER_SHEET, cell: CELL, size: SIZE };
+/** Seated in its chair: its head starts this far down its cell, and nothing of it under the seat, this high. */
+const SITTING = { chair: MY_CHAIR, head: 24 / 228, seat: 0.25 };
 
 /** The founder's box on the picture standing at (x, z) on `ground`. */
 export const founderBox = (ground: Ground, at: Spot): Box => boxOn(ground, FOUNDER, at);
@@ -236,6 +284,7 @@ export function FounderDrawing({ founder, ground, label }: { founder: Founder; g
   const col = COL[me.facing] + (me.moving ? WALK[Math.floor(me.walked / ground.stride) % 4] : 0);
   return (
     <WalkingFigure
+      sit={me.seated ? SITTING : undefined}
       ground={ground}
       sheet={FOUNDER}
       at={me.at}

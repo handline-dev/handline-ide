@@ -1,24 +1,26 @@
 // How the people of an office get from one place to another: each has a seat (where it is drawn: a desk chair, a sofa, by the door) and a
-// free spot on the floor it gets up to; when its seat changes it walks up from the old one, along the floor and down into the new one.
+// free spot on the floor it gets up to, beside a desk chair; when its seat changes it walks up from the old one, along the floor and down into the new one.
 // One coming in or going away walks through the door. Nobody ever gets from one place to another by a jump.
-import { seatName, type Place, type Room } from '#src/town/room.ts';
+import { CHAIR_MID, seatName, type Place, type Room } from '#src/town/room.ts';
 import { nearestFree, pathTo, type Floor, type Spot } from '#src/town/walk.ts';
 
 /** Where a person is: `id` names the place (room.ts seatName); `at` is where its figure is on the floor, `stand`
- *  the free floor it gets up to. */
+ *  the free floor it gets up to and sits down from. */
 export type Seat = { id: string; at: Spot; stand: Spot };
 /** The door from inside: `inside` the floor just within it, `out` the doorway, where one coming or going is behind the door. */
 export type Door = { inside: Spot; out: Spot };
 /** A person whose seat changed: from where to where, null for out of the door. */
 export type Change = { key: string; from: Seat | null; to: Seat | null };
 
-/** How far in front of a seat one stands up: behind a desk chair, clear of a sofa's front. */
-const UP = { chair: 0.5, sofa: 0.45 };
+/** How far in front of a sofa one stands up, clear of its front. */
+const SOFA_UP = 0.45;
 
+/** A seat and where one gets up to from it: out of a desk chair sideways, into the gap at the desk's left edge between two chairs; off a
+ *  sofa forwards. */
 export function seatOf(place: Place, floor: Floor): Seat {
   const at: Spot = [place.x, place.z];
-  const front: Spot = place.how === 'door' ? at : [place.x, place.z + (place.how === 'desk' ? UP.chair : UP.sofa)];
-  return { id: seatName(place), at, stand: nearestFree(floor, front) ?? front };
+  const up: Spot = place.how === 'door' ? at : place.how === 'desk' ? [place.x - CHAIR_MID, place.z] : [place.x, place.z + SOFA_UP];
+  return { id: seatName(place), at, stand: nearestFree(floor, up) ?? up };
 }
 
 /** Each placed person's seat, by key. */

@@ -22,6 +22,7 @@ export function groundOf(pic: Picture, frame: Frame, room: Room, walk: { speed: 
     pic,
     // A door swings away from the picture's pixels of it (door.tsx), so those never cover the founder walking through it.
     under: frame.meta.map((m) => FLAT.has(m.kind) || m.tag?.split(':')[0] === DOOR),
+    tags: frame.meta.map((m) => m.tag),
     floor: floorOf(room.w, room.d, frame.solid, walk.grid),
     entry: room.entry,
     speed: walk.speed,

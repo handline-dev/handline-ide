@@ -1,9 +1,10 @@
 // A person's face for a tab: the head of their front-facing figure on the town's people sheet (people.ts), as their office draws them.
 import { PEOPLE_SHEET, SHEET } from '#src/town/people.ts';
 
-/** The sheet's column of the figure walking toward the viewer, and the square round its head in a cell. */
+/** The sheet's column of the figure walking toward the viewer, and the square round its face in a cell: brow to chin, so even a face
+ *  under a big head of dark hair reads at a tab's size. */
 const FRONT = 2;
-const HEAD = { x: 32, y: 6, size: 76 };
+const HEAD = { x: 28, y: 36, size: 84 };
 /** The square round the whole head, hair and chin, of every figure: for a face drawn large enough to show it. */
 const WHOLE = { x: 12, y: 4, size: 116 };
 
