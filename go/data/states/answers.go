@@ -53,6 +53,25 @@ func AnswerVerb(q db.Q, head *db.Request) (string, error) {
 			return "", err
 		}
 		if t != nil {
+			turns, err := db.Turns(q, t.ID)
+			if err != nil {
+				return "", err
+			}
+			if n := len(turns); n > 0 && turns[n-1].Agent == head.Target { // a turn on a task someone else holds: pass or send back
+				back := fmt.Sprintf("`hl task back T%d \"<why>\"` sends it back", t.ID)
+				if turns[n-1].OnPass == db.TurnOnPassDone {
+					return fmt.Sprintf("`hl task pass T%d` closes it as done, %s", t.ID, back), nil
+				}
+				to := ""
+				if n > 1 {
+					to = " to " + addr.Ref(turns[n-2].Agent)
+				} else if st, err := db.TaskState(q, t); err != nil {
+					return "", err
+				} else if st != "draft" { // an agent's draft rests on its opener's reach, not its owner
+					to = " to " + addr.Ref(t.Owner)
+				}
+				return fmt.Sprintf("`hl task pass T%d \"<answer>\"` gives it back%s, %s", t.ID, to, back), nil
+			}
 			return fmt.Sprintf("you own T%d now: hand it on with `hl task handoff T%d <agent> \"<note>\"`, or `hl task done T%d` if you are its last step", t.ID, t.ID, t.ID), nil
 		}
 	}

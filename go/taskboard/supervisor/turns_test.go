@@ -101,12 +101,20 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	if r.acting(tid) != r.k(("alice")) {
 		t.Fatalf("acting %q", r.acting(tid))
 	}
-	// the turn's delivery carries the comment: alice is not told it a second time
+	// the turn's delivery carries the comment as its tell: alice is not told it a second time
 	var delivered, told int
 	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND kind = 'task' AND body LIKE '%review the parser%'")).Scan(&delivered))
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM comment_tells WHERE reader = 'alice'")).Scan(&told))
-	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 0 || len(turns) != 1 || turns[0].Memo == 0 || turns[0].OnPass != db.TurnOnPassDone {
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM comment_tells t JOIN requests q ON q.id = t.request_id WHERE t.reader = 'alice' AND q.kind = 'task' AND q.body LIKE '%review the parser%'")).Scan(&told))
+	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 1 || len(turns) != 1 || turns[0].Memo == 0 || turns[0].OnPass != db.TurnOnPassDone {
 		t.Fatalf("delivered %d, told %d, %+v", delivered, told, turns)
+	}
+	var rid int64
+	r.must(r.DB.QueryRow(r.sql("SELECT id FROM requests WHERE target = 'alice' AND kind = 'task' ORDER BY id DESC LIMIT 1")).Scan(&rid))
+	if got := tellText(r.DB, mustReq(r, rid), 1, nil, false, nil, ""); strings.Count(got, "review the parser") != 1 {
+		t.Fatalf("the comment is not in alice's delivery once:\n%s", got)
+	}
+	if v, err := states.AnswerVerb(r.DB, mustReq(r, rid)); err != nil || !strings.Contains(v, "closes it as done") || !strings.Contains(v, "hl task back") {
+		t.Fatalf("the review's footer is %q, %v", v, err)
 	}
 	r.refusedCall(r.k("bob"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"pass","request_id":"x1"}`, tid), "<@alice>'s turn")
 	r.refusedCall(r.k("alice"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","request_id":"x2"}`, tid), "says why")

@@ -81,7 +81,7 @@ func TestASeatAsksItsAgentAndTheFoundersAnswerGoesBackToTheSeat(t *testing.T) {
 	var body string
 	r.must(r.DB.QueryRow(`SELECT q.body FROM requests q JOIN task_requests l ON l.request_id = q.id WHERE q.target = ? AND l.task_id = ? ORDER BY q.id DESC LIMIT 1`,
 		alice, second).Scan(&body))
-	if !strings.Contains(body, fmt.Sprintf("Your temp on T%d asks: Blue or red?", second)) || !strings.Contains(body, "--turn human") {
+	if !strings.Contains(body, fmt.Sprintf("Your temp on T%d asks the founder (comment 1)", second)) || !strings.HasSuffix(body, "Comment 1:\nBlue or red?") || !strings.Contains(body, "--turn human") {
 		t.Fatalf("alice was asked %q", body)
 	}
 	r.turnCall("alice", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"Blue or red for the badge? I recommend blue","turn":"human","request_id":"c2"}`, second))
@@ -171,5 +171,34 @@ func TestASeatsReplyToTheFounderGoesToTheFounder(t *testing.T) {
 	r.must(r.DB.QueryRow("SELECT target FROM requests WHERE body = 'half done'").Scan(&target))
 	if target != actor.OwnerKey {
 		t.Fatalf("the reply went to %s", target)
+	}
+}
+
+// A seat's long question reaches its agent whole, after how to answer it, and the footer names pass and back, not a handoff; the seat is
+// told its question goes to its agent first.
+func TestASeatsLongQuestionReachesItsAgentWholeWithPassAndBack(t *testing.T) {
+	r, temps, _, second := tempRig(t, false)
+	alice := r.k("alice")
+	r.must(r.SweepTaskQueue(r.clock))
+	seat := temps.hired[0]
+	_, err := r.DB.Exec("UPDATE tasks SET title = ? WHERE id = ?", strings.Repeat("t", 190), second)
+	r.must(err)
+	question := strings.Repeat("q", 300) + "\n" + strings.Repeat("r", 299) + "END"
+	out := r.turnCall(seat, "task.comment.add", fmt.Sprintf(`{"task":%d,"text":%q,"turn":"human","request_id":"c1"}`, second, question))
+	said, _ := out["result"].(map[string]any)["said"].(string)
+	if !strings.Contains(r.named(said), "goes first to") || !strings.Contains(said, "the agent you stand in for") {
+		t.Fatalf("the seat was told %q", said)
+	}
+	var rid int64
+	r.must(r.DB.QueryRow(`SELECT q.id FROM requests q JOIN task_requests l ON l.request_id = q.id WHERE q.target = ? AND l.task_id = ? ORDER BY q.id DESC LIMIT 1`,
+		alice, second).Scan(&rid))
+	got := tellText(r.DB, mustReq(r, rid), 1, nil, false, nil, "")
+	for _, want := range []string{"rEND", fmt.Sprintf("`hl task pass T%d", second), "--turn human", fmt.Sprintf("`hl task back T%d", second)} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("alice's delivery lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "hl task handoff") || strings.Count(got, "rrrrEND") != 1 {
+		t.Fatalf("alice's delivery names a handoff or repeats the question:\n%s", got)
 	}
 }
