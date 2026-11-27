@@ -29,9 +29,26 @@ export function useHoldLine(agent: string) {
   const login = useNeedsLogin(a, act);
   const refs = useRefs();
   const asked = !!useAgentDetail(agent).data?.prompt; // the prompt card says it
-  const line = a && !restarting(a) && (holdLine(a) ?? jobsLine(a, act)); // a restart shows in the turn's row already
+  const line = a && !restarting(a) && (act === 'waking' ? wakingLine(a) : (holdLine(a) ?? jobsLine(a, act))); // a restart shows in the turn's row already
   if (!a || !act || !line || login || asked || a.needs_you?.source === 'daemon') return null;
   return { act, line: refs(line) };
+}
+
+/** A closed agent a message woke, until the message is typed: who, and the daemon's step. */
+const wakingLine = (a: Parameters<typeof holdLine>[0] & { name: string }) => [`Waking ${a.name}…`, holdLine(a)].filter(Boolean).join(' · ');
+
+/** Over a task's comment box while its holder wakes for the comment: the chat foot's mark and words. */
+export function WakeLine({ agent }: { agent: string }) {
+  const hold = useHoldLine(agent);
+  if (hold?.act !== 'waking') return null;
+  return (
+    <span role="status" className="flex items-center gap-2 text-xs text-muted">
+      <span className="grid size-4 shrink-0 place-items-center">
+        <ActivityIcon act="waking" />
+      </span>
+      <span className="min-w-0 truncate">{hold.line}</span>
+    </span>
+  );
 }
 
 /** The chat foot's row, always there so nothing moves: while the turn runs, the dots with the restart, the held task and its minutes,

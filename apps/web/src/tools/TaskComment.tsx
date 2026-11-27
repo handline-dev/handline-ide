@@ -7,6 +7,7 @@ import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from '
 import { useState } from 'react';
 import type { Attachments } from '#src/chat/attachments.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
+import { WakeLine } from '#src/chat/agent/HoldBar.tsx';
 import type { Command } from '#src/chat/Suggest.tsx';
 import { AssignPicker } from '#src/tools/TaskFields.tsx';
 import { openAsks } from '#src/tools/TaskWaiting.tsx';
@@ -213,20 +214,20 @@ export function CommentBox({
               <CornerDownRight size={14} className="shrink-0" />
               Sending gives <Who k={turn.by} /> your answer and the turn back · Send it empty to give it back with no answer
             </span>
+          ) : !picked ? (
+            t.to && <WakeLine agent={t.to} />
           ) : (
-            picked && (
-              <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
-                <CornerDownRight size={14} className="ml-1 shrink-0" />
-                <span className="min-w-0 flex-1 truncate">
-                  {`Replying to ${nameOf(picked.author)}: ${renderRefs(dir, picked.text.replaceAll(`<@${me}>`, ''))
-                    .replace(/\s+/g, ' ')
-                    .trim()}`}
-                </span>
-                <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
-                  <X size={14} />
-                </IconButton>
-              </div>
-            )
+            <div role="status" className="-ml-2 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+              <CornerDownRight size={14} className="ml-1 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">
+                {`Replying to ${nameOf(picked.author)}: ${renderRefs(dir, picked.text.replaceAll(`<@${me}>`, ''))
+                  .replace(/\s+/g, ' ')
+                  .trim()}`}
+              </span>
+              <IconButton className="size-6!" label="Drop the reply" onClick={onDrop}>
+                <X size={14} />
+              </IconButton>
+            </div>
           )
         }
         placeholder={
