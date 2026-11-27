@@ -17,6 +17,7 @@ import { Monitors } from '#src/town/monitors.tsx';
 import { useCrowd } from '#src/town/crowd.ts';
 import { fadeOf, useMore } from '#src/town/pan.ts';
 import { useGivenWork } from '#src/town/errands.ts';
+import { useCheers } from '#src/town/cheers.ts';
 import { Bubbles, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
@@ -64,6 +65,8 @@ export function Inside({
   const crowd = useCrowd(drawn?.stage ?? null);
   // One teammate giving another work walks over to it, talks and walks back.
   useGivenWork((from, to) => crowd.errand(from, to));
+  // One whose task is finished celebrates a few seconds.
+  const cheers = useCheers();
   // The front wall goes see-through while a person reaches into it.
   const seeThrough = useSeeThrough(drawn, founder, crowd);
   // The door opens for whoever comes near it once it is free, and shuts when nobody is near.
@@ -127,7 +130,7 @@ export function Inside({
                   }}
                 />
                 <Monitors screens={drawn.screens} />
-                <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} />
+                <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} cheers={cheers} />
                 <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
                   <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
                   {drawn.front.door && drawn.leaves && swing && (
@@ -149,7 +152,7 @@ export function Inside({
                   )}
                 </g>
                 <Bubbles drawn={drawn} crowd={crowd} />
-                <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} />
+                <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} cheers={cheers} />
               </svg>
               <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} />
             </div>

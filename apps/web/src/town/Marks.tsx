@@ -9,6 +9,8 @@ import type { Person } from '#src/town/model.ts';
 import type { Drawn } from '#src/town/office.ts';
 import { NAME_HALO, NAME_INK, NAME_MUTED, STEP_DONE, STEP_LEFT } from '#src/town/palette.ts';
 import { POP_MS, usePops, type Pop } from '#src/town/pops.ts';
+import { useElapsed, type Cheering } from '#src/town/cheers.ts';
+import { Cheer, CHEER_CSS } from '#src/town/Cheer.tsx';
 
 /** A halo's width for text `size` tall: thinner than the names', whose letters are bolder. */
 const HALO = 2 / 11;
@@ -98,12 +100,14 @@ const POP_CSS = '@keyframes town-pop{0%{opacity:0;translate:0 1.5px}5%{opacity:1
 
 /** A thought bubble saying `pop.text` over the head at `head`, kept inside a picture `w` wide; it fades as its time ends. */
 function Thought({ pop, head, w, scale }: { pop: Pop; head: At; w: number; scale: number }) {
+  // Drawn late (after a cheer, or once its person sits), it fades on time.
+  const skip = useElapsed(pop.at);
   const size = Math.min(10 / scale, 6);
   const [bw, bh] = [widthOf(pop.text, size, 600) + size * 1.2, size * 1.7];
   const x = Math.min(Math.max(head.x - bw / 2, 2), Math.max(2, w - bw - 2));
   const y = Math.max(1, head.y - 8 - bh);
   return (
-    <g className="pointer-events-none" style={{ animation: `town-pop ${POP_MS}ms ease-out forwards` }}>
+    <g className="pointer-events-none" style={{ animation: `town-pop ${POP_MS}ms ease-out ${-skip}ms forwards` }}>
       <circle cx={head.x + 0.5} cy={head.y - 2.6} r={0.9} fill={NAME_HALO} stroke={NAME_INK} strokeWidth={0.6} />
       <circle cx={head.x + 1.4} cy={head.y - 5.6} r={1.5} fill={NAME_HALO} stroke={NAME_INK} strokeWidth={0.7} />
       <rect x={x} y={y} width={bw} height={bh} rx={bh / 2} fill={NAME_HALO} stroke={NAME_INK} strokeWidth={0.8} />
@@ -115,16 +119,31 @@ function Thought({ pop, head, w, scale }: { pop: Pop; head: At; w: number; scale
 }
 
 /** Over the people of an office, once they sit: the mark of each one on hold, stopped or asleep, the steps of the task of each one at
- *  work, and a thought bubble where work just changed (in place of the steps while it shows). `people` is the newest. */
-export function Marks({ drawn, crowd, people, scale }: { drawn: Drawn; crowd: Crowd; people: readonly Person[]; scale: number }) {
+ *  work, a thought bubble where work just changed (in place of the steps while it shows), and a cheer over each one that just finished
+ *  a task (in place of everything else). `people` is the newest. */
+export function Marks({
+  drawn,
+  crowd,
+  people,
+  scale,
+  cheers,
+}: {
+  drawn: Drawn;
+  crowd: Crowd;
+  people: readonly Person[];
+  scale: number;
+  cheers: Cheering;
+}) {
   const movers = useMovers(crowd);
   const pops = usePops(people);
   const byKey = new Map(people.map((p) => [p.key, p]));
   const seated = drawn.cast.heads.filter((h) => !movers.has(h.key));
   return (
     <>
-      <style>{POP_CSS}</style>
+      <style>{POP_CSS + CHEER_CSS}</style>
       {seated.map((h) => {
+        const cheer = cheers.get(h.key);
+        if (cheer) return <Cheer key={`${h.key}:${cheer}`} x={h.x} y={h.y} began={cheer} />;
         const p = byKey.get(h.key);
         const mark = p && markOf(p.activity);
         if (mark) return <StateMark key={h.key} mark={mark} head={h} />;
@@ -133,7 +152,7 @@ export function Marks({ drawn, crowd, people, scale }: { drawn: Drawn; crowd: Cr
         return <Steps key={h.key} steps={steps} x={h.x} y={h.y - 3} />;
       })}
       {pops.map((pop) => {
-        const head = seated.find((h) => h.key === pop.key);
+        const head = !cheers.has(pop.key) && seated.find((h) => h.key === pop.key);
         return head && <Thought key={`${pop.key}:${pop.at}`} pop={pop} head={head} w={drawn.w} scale={scale} />;
       })}
     </>

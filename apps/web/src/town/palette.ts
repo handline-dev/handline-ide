@@ -16,6 +16,8 @@ export const NAME_AWAY = css([146, 130, 116]);
 /** The steps done of a task, on the bar over its agent's head, and the steps left. */
 export const STEP_LEFT = css([222, 210, 194]);
 export const STEP_DONE = css([72, 150, 92]);
+/** The confetti thrown for a finished task: the steps' green and four bright ones. */
+export const CONFETTI = [STEP_DONE, css([240, 176, 48]), css([226, 84, 96]), css([84, 148, 232]), css([168, 104, 216])];
 /** The window of an agent stopped on a fault: a dim red glow, not the warm yellow of one at work. */
 export const STOPPED_GLOW: RGB = [208, 72, 64];
 /** The legend's marks: a lit and a dark window, the window of one stopped, and a building nobody works in. */

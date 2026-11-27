@@ -6,9 +6,7 @@ import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { depthByRow, frontPixels, OVER_CHAIR, type Box } from '#src/town/people.ts';
 import type { Spot } from '#src/town/walk.ts';
 import { Monitors } from '#src/town/monitors.tsx';
-
-/** A sheet of walking frames: its image, one cell's size and the whole size, in sheet pixels. */
-export type Sheet = { url: string; cell: readonly [number, number]; size: readonly [number, number] };
+import type { Sheet, Sitting } from '#src/town/look.ts';
 
 /** The topmost picture row of the object tagged `tag`; null when the picture does not show it. */
 function topOf(ground: Ground, tag: string): number | null {
@@ -44,7 +42,7 @@ export function WalkingFigure({
   row: number;
   flip: boolean;
   label?: { text: string; size: number; halo: number };
-  sit?: { chair: string; head: number; seat: number };
+  sit?: Sitting;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [x, z] = at;

@@ -1,8 +1,8 @@
 // What takes a click or a hover in an office's picture (Inside.tsx), laid over it as page elements at the same boxes, in picture pixels
 // times the picture's scale: the founder's desk (the decisions), each person and its desk (a card on hover, its chat on a click, the
-// app's own agent menu on a right-click), the papers on a desk (its tasks), the empty desk (hires an agent), and the door (out). Page
-// elements, not shapes in the picture, so a card and the app's menu can hang on them. A click first walks the founder there; what
-// a tab bar shows stays outlined. Clicks between the targets fall through to the floor.
+// app's own agent menu on a right-click), the papers on a desk (its tasks), the empty desk (hires an agent), the door (out) and the
+// founder itself (its look). Page elements, not shapes in the picture, so a card and the app's menu can hang on them. A click first
+// walks the founder there; what a tab bar shows stays outlined. Clicks between the targets fall through to the floor.
 import { PreviewCard as P } from '@base-ui/react/preview-card';
 import { useAgents, useRead } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
@@ -19,6 +19,7 @@ import type { Drawn } from '#src/town/office.ts';
 import { figuresOf, type Box } from '#src/town/people.ts';
 import { PersonCard } from '#src/town/PersonCard.tsx';
 import { useTownShown } from '#src/town/Windows.tsx';
+import { MyLook } from '#src/town/MyLook.tsx';
 
 /** What the founder's own desk opens: the decisions waiting for them. */
 export const DESK = { opens: 'requests', title: 'Requests' };
@@ -144,6 +145,8 @@ export function Targets({
   };
   return (
     <div className="pointer-events-none absolute inset-0">
+      {/* First, so a person, desk or papers the founder stands over still take the click. */}
+      <MyLook founder={founder} ground={drawn.ground} scale={scale} />
       {mine && (
         <button
           type="button"

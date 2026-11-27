@@ -11,6 +11,7 @@ import { HQ, SITE, type City } from '#src/town/city.ts';
 import { CityControls } from '#src/town/CityControls.tsx';
 import { useDrawn } from '#src/town/cityPicture.ts';
 import { Find } from '#src/town/Find.tsx';
+import { MyLook } from '#src/town/MyLook.tsx';
 import type { Found } from '#src/town/find.ts';
 import { FounderDrawing, useFounder, useWalker, type Founder } from '#src/town/founder.tsx';
 import type { House } from '#src/town/model.ts';
@@ -180,6 +181,7 @@ export function CityView({
           <FounderDrawing founder={founder} ground={walk} label={scale < 1 ? undefined : 'You'} />
           {scale < 1 && <YouTag founder={founder} ground={walk} scale={scale} />}
         </svg>
+        <MyLook founder={founder} ground={walk} scale={scale} />
       </Placed>
       <Find
         field={field}

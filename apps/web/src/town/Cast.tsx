@@ -8,19 +8,37 @@ import type { Door } from '#src/town/moves.ts';
 import { lineUp } from '#src/town/names.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
 import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
-import { BUBBLE, PEOPLE_SHEET, SHEET, WALK, WALK_SHEET, walkColumn, type Figure } from '#src/town/people.ts';
-import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
+import { BUBBLE, PEOPLE_SHEET, SHEET, walkColumn, type Figure } from '#src/town/people.ts';
+import { boxOn, WalkingFigure } from '#src/town/walking.tsx';
+import { WALKERS } from '#src/town/look.ts';
+import { useElapsed, type Cheering } from '#src/town/cheers.ts';
+import { hop } from '#src/town/Cheer.tsx';
+import { useLookIndex } from '#src/town/look.ts';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
-const WALKERS: Sheet = { url: WALK_SHEET, cell: WALK.cell, size: WALK.size };
 /** Metres between the two feet frames. */
 const STRIDE = 0.16;
 
-export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder: Founder; crowd: Crowd; scale: number }) {
+export function People({
+  drawn,
+  founder,
+  crowd,
+  scale,
+  cheers,
+}: {
+  drawn: Drawn;
+  founder: Founder;
+  crowd: Crowd;
+  scale: number;
+  /** Those celebrating a finished task, who hop where they are. */
+  cheers: Cheering;
+}) {
   const movers = useMovers(crowd);
   const font = nameSize(scale);
   const items = [
-    ...drawn.cast.figures.filter((f) => !movers.has(f.person.key)).map((f) => ({ z: f.z, el: <Drawing key={f.person.key} figure={f} /> })),
+    ...drawn.cast.figures
+      .filter((f) => !movers.has(f.person.key))
+      .map((f) => ({ z: f.z, el: <Drawing key={f.person.key} figure={f} cheer={cheers.get(f.person.key)} /> })),
     ...[...movers].map(([key, m]) => ({
       z: m.at[1],
       el: <Walking key={key} drawn={drawn} mover={m} label={{ text: m.name, size: font, halo: font * HALO }} />,
@@ -97,6 +115,8 @@ export function Bubbles({ drawn, crowd }: { drawn: Drawn; crowd: Crowd }) {
 
 /** Whether anyone, the founder or a person walking, reaches into the front wall, which then goes see-through. */
 export function useSeeThrough(drawn: Drawn | null, founder: Founder, crowd: Crowd): boolean {
+  // The founder's box is its look's: another look is looked at again.
+  useLookIndex();
   const me = useFounder(founder, (me) => !!drawn && !!me && touches(drawn.front.top, founderBox(drawn.ground, me.at)));
   const them = useSyncExternalStore(crowd.subscribe, () =>
     [...crowd.get().values()].some((m) => !!drawn && touches(drawn.front.top, boxOn(drawn.ground, WALKERS, m.at))),
@@ -152,14 +172,18 @@ export function Label({ x, y, font, text, fill = NAME_INK }: { x: number; y: num
   );
 }
 
-/** A person at the screen's own resolution (smoothly scaled, never snapped to the room's pixels), then the room's nearer pixels over it. */
-function Drawing({ figure: { box, col, row, front } }: { figure: Figure }) {
+/** A person at the screen's own resolution (smoothly scaled, never snapped to the room's pixels), then the room's nearer pixels over it;
+ *  hopping while it cheers (`cheer`: when that began), its chair staying put. */
+function Drawing({ figure: { box, col, row, front }, cheer }: { figure: Figure; cheer?: number }) {
   const [cw, ch] = SHEET.cell;
+  const skip = useElapsed(cheer);
   return (
     <g className="pointer-events-none">
-      <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * cw} ${row * ch} ${cw} ${ch}`}>
-        <image href={PEOPLE_SHEET} width={SHEET.size[0]} height={SHEET.size[1]} />
-      </svg>
+      <g style={cheer ? hop(skip) : undefined}>
+        <svg x={box.x} y={box.y} width={box.w} height={box.h} viewBox={`${col * cw} ${row * ch} ${cw} ${ch}`}>
+          <image href={PEOPLE_SHEET} width={SHEET.size[0]} height={SHEET.size[1]} />
+        </svg>
+      </g>
       {front && <image href={front.url} x={front.x} y={front.y} width={front.w} height={front.h} style={PIXEL} />}
     </g>
   );

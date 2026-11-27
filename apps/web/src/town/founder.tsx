@@ -1,4 +1,4 @@
-// The founder, from public/town/founder.png: standing, left foot and right foot, facing down, up and left (right is left mirrored). In the city and in
+// The founder, in the look picked for it (look.ts): standing, left foot and right foot, facing down, up and left (right is left mirrored). In the city and in
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it, running while Shift is held; in an office the
 // room's nearer pixels are laid over it, as over the seated people. Its place lives outside React: only what draws it, or picks something
 // by it, follows it.
@@ -6,13 +6,9 @@ import type { Screen } from '#src/town/monitors.tsx';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
-import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
-import { MY_CHAIR } from '#src/town/room.ts';
+import { boxOn, WalkingFigure } from '#src/town/walking.tsx';
+import { LOOKS, lookNow, useLook } from '#src/town/look.ts';
 import { freeAt, nearestFree, pathTo, reach, step, type Floor, type Spot } from '#src/town/walk.ts';
-
-export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
-const CELL = [144, 228] as const;
-const SIZE = [1296, 228] as const;
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 const COL: Record<Facing, number> = { down: 0, up: 3, left: 6, right: 6 };
@@ -271,27 +267,24 @@ export function useFounder<T extends string | number | boolean | null>(f: Founde
 
 const useMe = (f: Founder) => useSyncExternalStore(f.subscribe, f.get);
 
-const FOUNDER: Sheet = { url: FOUNDER_SHEET, cell: CELL, size: SIZE };
-/** Seated in its chair: its head starts this far down its cell, and nothing of it under the seat, this high. */
-const SITTING = { chair: MY_CHAIR, head: 24 / 228, seat: 0.25 };
-
 /** The founder's box on the picture standing at (x, z) on `ground`. */
-export const founderBox = (ground: Ground, at: Spot): Box => boxOn(ground, FOUNDER, at);
+export const founderBox = (ground: Ground, at: Spot): Box => boxOn(ground, LOOKS[lookNow()].sheet, at);
 
 /** The founder in an office or the city, in the frame for its facing and stride, with whatever stands nearer laid over it. `label` is
  *  drawn under the feet, as each agent's name is. */
 export function FounderDrawing({ founder, ground, label }: { founder: Founder; ground: Ground; label?: string }) {
   const me = useMe(founder);
+  const look = useLook();
   if (!me) return null;
   const col = COL[me.facing] + (me.moving ? WALK[Math.floor(me.walked / ground.stride) % 4] : 0);
   return (
     <WalkingFigure
-      sit={me.seated ? SITTING : undefined}
+      sit={me.seated ? look.sit : undefined}
       ground={ground}
-      sheet={FOUNDER}
+      sheet={look.sheet}
       at={me.at}
       col={col}
-      row={0}
+      row={look.row}
       flip={me.facing === 'right'}
       label={label ? { text: label, size: 8, halo: 2.5 } : undefined}
     />
