@@ -11,9 +11,9 @@ import (
 // The instructions a launch gives an agent that people write: its role and standing context, and its workspace's rules. Each is kept as
 // versions in the instructions table, newest in force, with who wrote it and who OK'd it; nothing edits them on disk.
 const (
-	PartRole  = "role"  // an agent's role (was ROLE.md)
-	PartBase  = "base"  // an agent's standing context (was base.md)
-	PartRules = "rules" // a workspace's rules (was its base.md)
+	PartRole  = "role"  // an agent's role
+	PartBase  = "base"  // an agent's standing context
+	PartRules = "rules" // a workspace's rules
 )
 
 // Instruction is one version of an instruction.

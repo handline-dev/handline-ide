@@ -37,7 +37,7 @@ const MACHINE = '';
 
 export class FakeRules {
   private rows = new Map<string, Map<Key, Row>>();
-  /** Each workspace's rules text size in bytes, by key; 0 when unset, as for a workspace with no base.md. */
+  /** Each workspace's rules text size in bytes, by key; 0 when unset, as for a workspace with no rules. */
   readonly textBytes = new Map<string, number>();
   private host: Host;
 

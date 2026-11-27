@@ -34,11 +34,12 @@ once and tells the agent that asked. `hl propose list` shows proposals and what 
 
 ## Role, standing context and team rules
 
-An agent's role (ROLE.md) and standing context (base.md), and its workspace's rules, live in the daemon's
+An agent's role and standing context, and its workspace's rules, live in the daemon's
 database, one version per change with who wrote it, who OK'd it and when. Nothing edits them on disk: an
 agent proposes a whole new text with `hl propose context <agent> --role-file F`, `--base-file F` or
-`--rules-file F` (its workspace's rules), and the founder decides it. A running agent restarts with the
-new text at its next idle moment, and the chat's Restarted line says what changed and by whom.
+`--rules-file F` (its workspace's rules), and the founder decides it. A running agent gets a new role or standing
+context at its next fresh start, and is told changed team rules at once; the chat's Restarted line says
+what changed and by whom.
 
 Keep each small, because it is sent with every session:
 

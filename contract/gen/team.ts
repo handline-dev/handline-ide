@@ -9,14 +9,6 @@ export type TeamAgent = {
   /** The word the caller uses for this agent: its name in the caller's workspace, another workspace's lead by that workspace's name, any other agent as name (workspace). */
   name: string;
   role: string;
-  role_file: {
-    path: string;
-    updated: Timestamp | null;
-  };
-  base_file: {
-    path: string;
-    updated: Timestamp | null;
-  };
 };
 
 export type Proposal = {
@@ -72,7 +64,7 @@ export type Proposal = {
     agent: string;
     /** This step's lines of Proposal.diff. */
     diff: string;
-    /** Context only: the file it replaces, ROLE.md, base.md or rules. */
+    /** Context only: the instruction it replaces, role, base or rules. */
     file?: string;
     /** Context only: the file's whole text in force now, "" for none yet. Set only while the proposal waits (open, applying, apply_failed) and the agent exists; a client diffs it against `after`. */
     before?: string;
@@ -115,7 +107,7 @@ export type ProposalArgs = {
   members?: string[];
   /** team: repo by member. */
   repos?: { [key: string]: string };
-  /** settings: agent setting keys as AgentSettingValues names them. context: whole new file texts keyed `ROLE.md` or `base.md`; empty text or control characters other than tab and newline is bad_request. sandbox: `kind` (host, command, write or cert) and `value` (empty for cert), checked as agent.set checks an entry of sandbox_allow; one the agent has already is bad_request. */
+  /** settings: agent setting keys as AgentSettingValues names them. context: whole new texts keyed `role`, `base` or `rules`; empty text or control characters other than tab and newline is bad_request. sandbox: `kind` (host, command, write or cert) and `value` (empty for cert), checked as agent.set checks an entry of sandbox_allow; one the agent has already is bad_request. */
   sets?: { [key: string]: string };
   /** bundle: the steps, at most 40, each judged against the roster the earlier ones leave. name is then ignored (send the count, `3 changes`). */
   changes?: { [key: string]: unknown }[];
@@ -264,7 +256,7 @@ export interface TeamMethods {
   agent?: string;
 }; result: {
     rules: WorkspaceRule[];
-    /** The size of the workspace's rules text (its base.md) in bytes, 0 when it has none. Only with a workspace. */
+    /** The size of the workspace's rules text in bytes, 0 when it has none. Only with a workspace. */
     text_bytes?: number;
     /** The most bytes the rules text should hold. Only with a workspace. */
     limit_bytes?: number;

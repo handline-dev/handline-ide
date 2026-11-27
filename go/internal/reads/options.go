@@ -16,7 +16,7 @@ var knownModels = []string{"fable", "mythos", "opus", "sonnet", "haiku"}
 
 var validEfforts = []string{"low", "medium", "high", "xhigh", "max"}
 
-// optionsRole is rpc_options._role_line: the first line of ROLE.md that is not its own title, as one line of at most 200 characters.
+// optionsRole is rpc_options._role_line: the first line of the role that is not its own title, as one line of at most 200 characters.
 func (e *Env) optionsRole(name string) string {
 	b, err := team.AgentInstruction(e.DB, name, db.PartRole)
 	if err != nil {

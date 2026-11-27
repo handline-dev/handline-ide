@@ -22,7 +22,7 @@ import (
 	"github.com/handline/handline/go/scheduler/settings"
 )
 
-// roleLine is the first line of the agent's ROLE.md that is not blank and not a heading, as one line.
+// roleLine is the first line of the agent's role that is not blank and not a heading, as one line.
 func (e *Env) roleLine(name string) string {
 	b, err := team.AgentInstruction(e.DB, name, db.PartRole)
 	if err != nil {

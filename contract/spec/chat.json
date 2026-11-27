@@ -1125,7 +1125,7 @@
     "properties": {
      "part": {
       "type": "string",
-      "description": "Which part, as `changed` names it: `team rules`, `team instructions`, `ROLE.md` or `base.md`. Open set."
+      "description": "Which part, as `changed` names it: `team rules`, `team instructions`, `role` or `standing context`. Open set."
      },
      "added": {
       "type": "array",

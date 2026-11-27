@@ -16,8 +16,8 @@ const rulesPart = "team rules"
 // RulesNote is the changed lines of the agent's team rules since the launch row records (all of them when it kept no text), and the
 // record that says it was told, for KeepRulesTold once the note is sent.
 func (l *Launcher) RulesNote(agent string, row *db.AgentState) (note, record string, err error) {
-	var rec map[string]json.RawMessage
-	if json.Unmarshal([]byte(row.LaunchParts.String), &rec) != nil || rec == nil {
+	rec := db.LaunchPartsOf(row.LaunchParts.String)
+	if rec == nil {
 		return "", "", nil
 	}
 	rules := l.Ports.TeamRules(agent) // read once: the hash and the text are of the same version

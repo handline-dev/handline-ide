@@ -114,7 +114,7 @@ type LaunchPorts struct {
 	CurrentAccount func(q db.Q, agent string) string
 	// WaitingFor is lifecycle.waiting_for: whether anything is waiting to be told to the agent.
 	WaitingFor func(q db.Q, agent string) bool
-	// TeamRules is the rules of each team the agent is in (team.Rules): its base.md text and its kept rules.
+	// TeamRules is the rules of each team the agent is in (team.Rules): its rules text and its kept rules.
 	TeamRules func(agent string) []string
 	// Held is the agent's workspace's tools_deny and mode_max; nil: none.
 	Held func(agent string) team.Held
@@ -992,8 +992,7 @@ func (l *Launcher) staticPreamble(agent string) (string, error) {
 	if line := l.yourTeam(agent); line != "" {
 		parts = append(parts, line)
 	}
-	// The headings name the files they came from, so that moving them into the database changed no session's fingerprint.
-	for _, f := range [][2]string{{db.PartRole, "# Your role (ROLE.md)"}, {db.PartBase, "# Your standing context (base.md)"}} {
+	for _, f := range [][2]string{{db.PartRole, "# Your role"}, {db.PartBase, "# Your standing context"}} {
 		if text := l.instruction(agent, f[0]); text != "" {
 			parts = append(parts, f[1]+"\n"+text)
 		}
@@ -1001,7 +1000,7 @@ func (l *Launcher) staticPreamble(agent string) (string, error) {
 	return strings.Join(parts, "\n\n"), nil
 }
 
-// ContextFor is ROLE.md + base.md + the team rules + its founder's preferences + the agent's lessons + the handoff waiting for it + the
+// ContextFor is the role + the standing context + the team rules + its founder's preferences + the agent's lessons + the handoff waiting for it + the
 // daemon's own record of where the agent was, as one system-prompt appendix.
 func (l *Launcher) ContextFor(agent string) (string, error) {
 	static, err := l.staticPreamble(agent)
@@ -1094,7 +1093,7 @@ func (l *Launcher) where(agent, text string) (string, error) {
 }
 
 // yourTeam is the agent's workspace peers and its contact, read from the roster, and the hl commands that reach them. Every agent of
-// a workspace is told the same: no one reports to anyone. Generated rather than written into each ROLE.md: a role that named its
+// a workspace is told the same: no one reports to anyone. Generated rather than written into each role: a role that named its
 // colleagues by hand kept naming them after they were retired and renamed. How a team works together is its rules file (team.Rules).
 func (l *Launcher) yourTeam(agent string) string {
 	f, ok := l.teamFacts(agent)
@@ -1236,7 +1235,7 @@ const LaunchedInstructions = "instructions"
 // LaunchedValues is beside the setting hashes too: the settings whose value a person can read, for saying what a later launch changed.
 const LaunchedValues = "values"
 
-// LaunchedTexts is beside the setting hashes too: the text of ROLE.md, base.md and the team instructions, for saying which lines a later
+// LaunchedTexts is beside the setting hashes too: the text of the role, the standing context and the team instructions, for saying which lines a later
 // launch adds and removes. The team rules text is under LaunchedRules, which RulesNote also rewrites once a session is told.
 const LaunchedTexts = "texts"
 
@@ -1248,7 +1247,7 @@ const textBytesMax = 256 << 10
 
 // partOrder is the order the parts are written in, as the Python dict keeps it.
 // Renaming a part restarts no one: a name the earlier record lacks is skipped.
-var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", rulesPart}
+var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", db.LaunchedRole, db.LaunchedBase, "team instructions", rulesPart}
 
 // FingerprintParts is what a launch reads from the settings a person edits, one short hash each, named for the person. Recorded at
 // launch (LaunchRecord), and compared by the daemon to name what a running session has not picked up. Not here: what Build reads
@@ -1268,7 +1267,7 @@ func (l *Launcher) PartsSince(agent string) (map[string]string, error) {
 	}
 	var old map[string]json.RawMessage
 	if row != nil {
-		_ = json.Unmarshal([]byte(row.LaunchParts.String), &old)
+		old = db.LaunchPartsOf(row.LaunchParts.String)
 	}
 	texts, rules := l.texts(agent)
 	return l.partsSince(agent, old, texts, rules)
@@ -1340,8 +1339,8 @@ func (l *Launcher) partsOf(agent string, texts map[string]string, rules []string
 		"browser":           h(browser),
 		"permissions":       h(perm),
 		"sandbox":           sandbox,
-		"ROLE.md":           h(texts["ROLE.md"]),
-		"base.md":           h(texts["base.md"]),
+		db.LaunchedRole:     h(texts[db.LaunchedRole]),
+		db.LaunchedBase:     h(texts[db.LaunchedBase]),
 		"team instructions": h(l.teamMaterial(agent)),
 		rulesPart:           rulesHash(rules),
 	}, nil
@@ -1362,10 +1361,10 @@ func (l *Launcher) keptGrants(agent string) (string, error) {
 	return strings.Join(kept, "\x1f"), nil
 }
 
-// texts are ROLE.md, base.md, the team instructions and the team rules as the next launch gives them, and the rules as read.
+// texts are the role, the standing context, the team instructions and the team rules as the next launch gives them, and the rules as read.
 func (l *Launcher) texts(agent string) (map[string]string, []string) {
 	rules := l.Ports.TeamRules(agent)
-	return map[string]string{"ROLE.md": l.instruction(agent, db.PartRole), "base.md": l.instruction(agent, db.PartBase), "team instructions": l.yourTeam(agent),
+	return map[string]string{db.LaunchedRole: l.instruction(agent, db.PartRole), db.LaunchedBase: l.instruction(agent, db.PartBase), "team instructions": l.yourTeam(agent),
 		rulesPart: strings.Join(rules, "\n\n")}, rules
 }
 
@@ -1377,7 +1376,7 @@ func (l *Launcher) instruction(agent, part string) string {
 
 // PromptParts are the parts a launch gives in the appended system prompt. claude --resume keeps the system prompt its conversation began
 // with, so a resume does not pick them up: they reach a session only at a fresh start.
-var PromptParts = []string{"ROLE.md", "base.md", "team instructions"}
+var PromptParts = []string{db.LaunchedRole, db.LaunchedBase, "team instructions"}
 
 // LaunchRecord is the parts as JSON, in order, with the launch's own stamp, as `launch_parts` keeps them.
 func (l *Launcher) LaunchRecord(agent string) (string, error) { return l.launchRecord(agent, "") }
@@ -1397,8 +1396,7 @@ func (l *Launcher) launchRecord(agent, was string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var old map[string]json.RawMessage
-	if was != "" && json.Unmarshal([]byte(was), &old) == nil && old != nil {
+	if old := db.LaunchPartsOf(was); old != nil {
 		oldTexts := launchedTexts(old)
 		kept := false
 		for _, k := range append(slices.Clone(PromptParts), rulesPart) { // the rules too: a session is told of them, by message
@@ -1463,7 +1461,7 @@ type LineChange struct {
 }
 
 // whatChanged says what this launch's settings change from the session recorded before it, in launch order and in the words a person
-// reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (workspaces/w1/base.md)". Nothing for no earlier record.
+// reads: "model changed (opus-5-5 -> sonnet-5-5), team rules changed (w1)". Nothing for no earlier record.
 // A record from before the values were kept names the setting alone. lines are the changed text parts line by line, for each whose
 // earlier text the record kept.
 func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
@@ -1471,8 +1469,8 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 	if err != nil || row == nil {
 		return "", nil, err
 	}
-	var old map[string]json.RawMessage
-	if json.Unmarshal([]byte(row.LaunchParts.String), &old) != nil {
+	old := db.LaunchPartsOf(row.LaunchParts.String)
+	if old == nil {
 		return "", nil, nil
 	}
 	var was map[string]string
@@ -1544,7 +1542,7 @@ func (l *Launcher) whatChanged(agent string) (string, []LineChange, error) {
 // for team instructions a newer build wrote, or who set a setting; "on disk" for model, effort or browser no one set through Handline.
 func (l *Launcher) changedBy(agent, part string, old map[string]json.RawMessage) string {
 	switch part {
-	case "ROLE.md", "base.md", rulesPart:
+	case db.LaunchedRole, db.LaunchedBase, rulesPart:
 		return l.versionsBy(agent, part, old)
 	case "model", "effort", "browser": // kept in agent.yaml alone
 		if by, _, _ := db.Meta(l.Q, db.SettingsByMeta(agent)); by != "" {
@@ -1574,10 +1572,7 @@ func (l *Launcher) versionsBy(agent, part string, old map[string]json.RawMessage
 	if err != nil {
 		return ""
 	}
-	instr := team.InstructionParts[part]
-	if part == rulesPart {
-		instr = db.PartRules
-	}
+	instr := map[string]string{db.LaunchedRole: db.PartRole, db.LaunchedBase: db.PartBase, rulesPart: db.PartRules}[part]
 	var who []string
 	for _, o := range owners {
 		vs, err := db.InstructionsAfter(l.Q, o, instr, seen)

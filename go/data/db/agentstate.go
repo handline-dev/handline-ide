@@ -264,6 +264,42 @@ func SetLaunchParts(q Q, agent, parts string) error {
 	return err
 }
 
+// The names a launch record (launch_parts) gives an agent's role and standing context.
+const (
+	LaunchedRole = "role"
+	LaunchedBase = "standing context"
+)
+
+// oldLaunchedNames are the names records written before the instructions moved into the database gave those parts.
+var oldLaunchedNames = map[string]string{"ROLE.md": LaunchedRole, "base.md": LaunchedBase}
+
+// LaunchPartsOf is a launch record by part, nil when s is not one. A part under its old name, and its kept text, read as today's.
+func LaunchPartsOf(s string) map[string]json.RawMessage {
+	var rec map[string]json.RawMessage
+	if json.Unmarshal([]byte(s), &rec) != nil || rec == nil {
+		return nil
+	}
+	rename := func(m map[string]json.RawMessage) bool {
+		moved := false
+		for old, now := range oldLaunchedNames {
+			if v, ok := m[old]; ok {
+				if _, has := m[now]; !has {
+					m[now] = v
+				}
+				delete(m, old)
+				moved = true
+			}
+		}
+		return moved
+	}
+	rename(rec)
+	var texts map[string]json.RawMessage
+	if json.Unmarshal(rec["texts"], &texts) == nil && rename(texts) {
+		rec["texts"], _ = json.Marshal(texts)
+	}
+	return rec
+}
+
 // ReplaceLaunchParts puts parts in place of was as the agent's launch record; a record that is no longer was is left as it is.
 func ReplaceLaunchParts(q Q, agent, was, parts string) error {
 	_, err := q.Exec("UPDATE agent_state SET launch_parts = ?, updated = ? WHERE agent = ? AND launch_parts = ?", parts, Now(), agent, was)

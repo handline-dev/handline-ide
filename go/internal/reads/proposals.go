@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -177,8 +178,8 @@ func (e *Env) changes(p proposal) []any {
 			if json.Unmarshal([]byte(vals[file]), &after) == nil {
 				c["after"] = strings.TrimSpace(after) // as SetInstruction keeps it
 			}
-			if part := team.InstructionParts[file]; key != "" && part != "" {
-				if before, ok := e.instructionNow(key, part); ok {
+			if key != "" && slices.Contains(team.InstructionParts, file) {
+				if before, ok := e.instructionNow(key, file); ok {
 					c["before"] = before
 				}
 			}

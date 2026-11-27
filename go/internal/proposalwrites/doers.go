@@ -386,13 +386,13 @@ func (e *Env) SetByAgent(agent string, values map[string]string, speaker string)
 
 func contextProblem(texts [][2]string) string {
 	if len(texts) == 0 {
-		return "name ROLE.md, base.md or rules, with the whole new text"
+		return "name role, base or rules, with the whole new text"
 	}
 	for _, t := range texts {
 		fn, text := t[0], t[1]
 		switch {
-		case team.InstructionParts[fn] == "":
-			return fmt.Sprintf("only ROLE.md, base.md and rules can be changed this way, not %s", pyRepr(fn))
+		case !slices.Contains(team.InstructionParts, fn):
+			return fmt.Sprintf("only role, base and rules can be changed this way, not %s", pyRepr(fn))
 		case strings.TrimSpace(text) == "" && fn != "rules": // a team may have no rules
 			return fn + " cannot be empty"
 		case textsafe.HasUnsafe(strings.NewReplacer("\t", "", "\n", "").Replace(text)):
@@ -426,11 +426,11 @@ func (e *Env) doContext(p step) (bool, string, error) {
 	names := make([]string, len(texts))
 	for i, t := range texts {
 		// The proposer wrote it and the founder OK'd it: only the founder decides a proposal (decide).
-		owner, err := db.InstructionOwner(p.tx, key, team.InstructionParts[t[0]])
+		owner, err := db.InstructionOwner(p.tx, key, t[0])
 		if err != nil {
 			return false, "", err
 		}
-		if _, err := db.SetInstruction(p.tx, owner, team.InstructionParts[t[0]], t[1], p.str("requested_by"), actor.OwnerKey, time.Now().Unix()); err != nil {
+		if _, err := db.SetInstruction(p.tx, owner, t[0], t[1], p.str("requested_by"), actor.OwnerKey, time.Now().Unix()); err != nil {
 			return false, "", err
 		}
 		names[i] = t[0]

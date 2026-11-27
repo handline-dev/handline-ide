@@ -33,7 +33,7 @@ test('the proposal-context seed lists a context change with its file before and 
   const { proposals } = await client.call('proposal.list', {});
   const [ctx, bundle] = proposals;
   const role = ctx!.changes![0]!;
-  assert.equal(role.file, 'ROLE.md');
+  assert.equal(role.file, 'role');
   assert.ok(role.before && role.after && role.before !== role.after);
   assert.deepEqual(
     bundle!.changes!.map((c) => c.kind),

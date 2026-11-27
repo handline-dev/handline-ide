@@ -65,7 +65,7 @@ func TestWorkspaceRulesListsTheRulesInForceAndWhereEachComesFrom(t *testing.T) {
 	shop := `{"rules":[{"key":"agent_cap","value":0,"on":false,"source":"workspace","set_by":"p1","set_at":2},` +
 		`{"key":"tools_deny","value":["WebFetch"],"on":true,"source":"machine","set_by":"p1","set_at":1}],"limit_bytes":2048,"text_bytes":%d}`
 	if s := got(map[string]any{"workspace": "shop"}); !sameJSON(s, fmt.Sprintf(shop, 0)) {
-		t.Errorf("no base.md is no text: %s", s)
+		t.Errorf("no standing context is no text: %s", s)
 	}
 	if _, err := db.SetInstruction(e.DB, "w5", db.PartRules, "Keep messages short. ", "p1", "", 1); err != nil {
 		t.Fatal(err)

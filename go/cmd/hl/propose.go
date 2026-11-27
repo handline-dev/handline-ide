@@ -123,7 +123,7 @@ func proposalPropose(c *hlclient.Client, kind string, args []string) (int, bool)
 	}
 	if kind == "context" {
 		sets := map[string]any{}
-		for _, f := range [][2]string{{"ROLE.md", "--role-file"}, {"base.md", "--base-file"}, {"rules", "--rules-file"}} {
+		for _, f := range [][2]string{{"role", "--role-file"}, {"base", "--base-file"}, {"rules", "--rules-file"}} {
 			if path, ok := p.opt(f[1]); ok && path != "" {
 				path = expandHome(path)
 				b, err := os.ReadFile(path)

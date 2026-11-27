@@ -96,15 +96,13 @@ export const PROPOSAL_HANDLERS: Record<string, (h: Call) => unknown> = {
   },
 };
 
-/** team.get as the app reads it: every agent with its role and files, the owner, and no other workspaces. The fake names
+/** team.get as the app reads it: every agent with its role, the owner, and no other workspaces. The fake names
  * agents by their name, so an agent's key is its name. */
-export function teamOf(sessions: Session[], at: string) {
+export function teamOf(sessions: Session[]) {
   const agents = sessions.map((s) => ({
     key: s.fx.name,
     name: s.fx.name,
     role: s.fx.role,
-    role_file: { path: `${s.fx.worktree}/ROLE.md`, updated: at },
-    base_file: { path: `${s.fx.worktree}/base.md`, updated: null },
   }));
   return { agents, people: [{ key: 'p1', name: 'human' }], workspaces: [] };
 }
