@@ -12,9 +12,9 @@ export const RUNNER_NODE = 'n-d-studio'; // the devices seed's lent Studio, so n
 
 /** What the outlook_agent_use fixtures name (--var outlook_agent=grp.one): two agents, grp.one on two machines. */
 const AGENT_USE = [
-  { agent: 'grp.one', node: SELF_NODE, tokens: 6000, cost: 2.5, share: 0.5, est_pct: 3, fracs: { alpha: 0.5 } },
-  { agent: 'grp.one', node: RUNNER_NODE, tokens: 3000, cost: 1, share: 0.2, est_pct: 1.2, fracs: { alpha: 0.2 } },
-  { agent: 'grp.two', node: SELF_NODE, tokens: 3000, cost: 1.5, share: 0.3, est_pct: null, fracs: { alpha: 0.3 } },
+  { agent: 'grp.one', node: SELF_NODE, tokens: 6000, cost: 2.5, share: 0.5, fracs: { alpha: 0.5 } },
+  { agent: 'grp.one', node: RUNNER_NODE, tokens: 3000, cost: 1, share: 0.2, fracs: { alpha: 0.2 } },
+  { agent: 'grp.two', node: SELF_NODE, tokens: 3000, cost: 1.5, share: 0.3, fracs: { alpha: 0.3 } },
 ].sort((a, b) => b.cost - a.cost);
 const OVERLAYS: Record<string, number[]> = {
   'grp.one': [0, 1.5, 2.9, 4, 5, 5.5, 6, 6.2, 6.4, 6.6, 6.8, 7, 7.2],

@@ -203,8 +203,6 @@ export type Outlook = {
     cost: number;
     /** Its cost as a fraction (0 to 1) of everyone's cost in the span; 0 when nothing was spent. */
     share: number;
-    /** An estimate of the points of the combined week the agent used in the span: its cost share of each account times the points that account used, averaged over the accounts. An estimate, because what the plan charges is not what the price list says. Null when no account has a reading. */
-    est_pct: number | null;
     /** Its cost share of each account in the span, by account name (a fraction, 0 to 1). An account on which nothing at all was spent is absent; one on which others spent but none of this agent's tokens was priced is 0. */
     fracs: { [key: string]: number };
     /** Its plan money in the span, US dollars: each account's week rise in the span times that account's weekly budget, split by its cost share of that account (`fracs`). Token prices only split it; they never size it. */
