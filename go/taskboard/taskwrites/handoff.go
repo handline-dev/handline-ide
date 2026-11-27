@@ -129,8 +129,10 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			level  string
 			model  string
 			judged string // the kind of work whose level judged the finish
+			hold   *laterHold
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			hold = nil
 			if err := claimImages(tx, home, me, said, "", "note"); err != nil {
 				return nil, err
 			}
@@ -181,6 +183,14 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 					}
 				}
 			} else {
+				if !actor.IsPerson(me) { // open later steps go to their person first, and their pass hands it on with this note
+					if hold, err = holdHandoff(tx, tell, tid, me, to, said, agents); err != nil {
+						return nil, err
+					}
+					if hold != nil {
+						return accepted(hold.said, nil), nil
+					}
+				}
 				h, asked, err = handOff(tx, tell, tid, me, to, said, agents, false)
 			}
 			if err != nil {
@@ -211,6 +221,10 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 		}
 		if err != nil {
 			return nil, err
+		}
+		if hold != nil {
+			hold.tell(tell, tid, me)
+			return out, nil
 		}
 		if !asked.Reask {
 			h.After = asked.After

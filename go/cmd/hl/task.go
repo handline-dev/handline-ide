@@ -407,7 +407,7 @@ func taskNote(c *hlclient.Client, args []string) (int, bool) {
 }
 
 func taskMemo(c *hlclient.Client, args []string) (int, bool) {
-	p, ok := parse(args, []string{"--file", "--attach", "--reply", "--turn", "--done"}, []string{"--now"}, nil)
+	p, ok := parse(args, []string{"--file", "--attach", "--reply", "--turn", "--done", "--later"}, []string{"--now"}, nil)
 	if !ok || len(p.pos) < 2 {
 		return 0, false
 	}
@@ -459,6 +459,11 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Println("--done goes with --turn <agent>: a review whose pass closes the task")
 		return 1, true
 	}
+	later, hasLater := p.opt("--later")
+	if hasLater && (verb != "add" || hasTurn || hasDone) {
+		fmt.Println("--later goes with add, and with no --turn or --done: it asks nothing until your done or handoff")
+		return 1, true
+	}
 	file, _ := p.opt("--file")
 	dash := len(rest) > 0 && rest[len(rest)-1] == "-"
 	if (verb == "add" || verb == "edit") && (file != "" || dash) {
@@ -495,6 +500,9 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		}
 		if hasDone {
 			params["done"] = evidence
+		}
+		if hasLater {
+			params["later"] = later
 		}
 		if len(attach) > 0 {
 			params["files"] = absPaths(attach)

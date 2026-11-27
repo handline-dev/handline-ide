@@ -918,7 +918,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 			"target": map[string]any{"screen": "tasks", "id": fmt.Sprint(*tid)}, "data": data})
 	}
 	task["events"] = evs
-	memos, err := query(e.DB, "SELECT * FROM task_comments WHERE task_id = ? ORDER BY id", *tid)
+	memos, err := query(e.DB, "SELECT m.*, "+db.LaterOpenSQL("m")+" AS later_open FROM task_comments m WHERE m.task_id = ? ORDER BY m.id", *tid)
 	if err != nil {
 		return nil, err
 	}
@@ -1059,6 +1059,9 @@ func memoJSON(q db.Q, m row, parts func(string) []any, store *attachments.Store,
 	}
 	if to := memoTo(m.str("body")); to != "" {
 		memo["to"] = to
+	}
+	if m.set("later") {
+		memo["later"], memo["later_open"] = m.str("later"), m.i("later_open") == 1
 	}
 	if p := parts(m.str("body")); p != nil {
 		memo["parts"] = p

@@ -95,7 +95,9 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 		var done *DoneResult
 		var decided func()
 		var gw gateWait
+		var hold *laterHold
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
+			hold = nil
 			if request != nil {
 				var err error
 				*request, err = requestref.Resolve(tx, p["request"], requestref.Viewer(c), "request")
@@ -104,6 +106,29 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 				}
 				if err != nil {
 					return nil, err
+				}
+			}
+			if !actor.IsPerson(by) { // open later steps go to their person first; their pass runs this done again as by
+				t, err := getTask(tx, tid)
+				if err != nil {
+					return nil, err
+				}
+				if t != nil && !t.ended() {
+					if err := mayCloseRefusal(tx, by, t); err != nil {
+						return nil, err
+					}
+					if err := waitsRefusal(tx, by, t, sha != "" || in.Commit != ""); err != nil {
+						return nil, err
+					}
+					if sha != "" && in.looked.full == "" {
+						return nil, refusal(in.looked.refusal)
+					}
+					if hold, err = holdDone(tx, tell, tid, by, in, w != nil || len(in.Shots) > 0); err != nil {
+						return nil, err
+					}
+					if hold != nil {
+						return accepted(hold.said, nil), nil
+					}
 				}
 			}
 			if w != nil {
@@ -146,6 +171,10 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 			}
 			return accepted(res.Said, nil), nil
 		})
+		if err == nil && hold != nil {
+			hold.tell(tell, tid, by)
+			return out, nil
+		}
 		if err == nil && w != nil {
 			gw.tell(tell, tid)
 			return out, nil

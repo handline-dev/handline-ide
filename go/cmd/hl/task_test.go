@@ -74,6 +74,7 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"", []string{"task", "comment", "T3", "add", "hi", "--reply", "7"}, []string{`task.comment.add {"reply":7,"task":3,"text":"hi"}`}},
 		{"", []string{"task", "comment", "T3", "add", "A or B?", "--turn", "human"}, []string{`task.comment.add {"task":3,"text":"A or B?","turn":"human"}`}},
 		{"", []string{"task", "comment", "T3", "add", "review", "--turn", "a.two", "--done", "PR 9"}, []string{`task.comment.add {"done":"PR 9","task":3,"text":"review","turn":"a.two"}`}},
+		{"", []string{"task", "comment", "T3", "add", "log in on the mini", "--later", "human"}, []string{`task.comment.add {"later":"human","task":3,"text":"log in on the mini"}`}},
 		{"", []string{"task", "queue", "T1", "T2"}, []string{`task.queue {"tasks":[1]}`, `task.queue {"tasks":[2]}`}},
 		{"", []string{"task", "draft", "T1"}, []string{`task.draft {"tasks":[1]}`}},
 		{"", []string{"task", "edit", "T3", "--title", "t", "--priority", "3", "--timeout", "2h", "--unblock", "T4"},
