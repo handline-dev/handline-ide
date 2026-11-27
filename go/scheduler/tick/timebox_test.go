@@ -16,6 +16,7 @@ import (
 // tbPorts scripts the timebox's foreign calls and keeps the notices it sent.
 type tbPorts struct {
 	TimeboxPorts
+	cpu        map[string]float64 // each job's CPU time by its name; absent is not read
 	doing      map[int64]bool
 	sendOK     bool
 	sent       []string // "who: text", typed at once
@@ -61,8 +62,14 @@ func (p *tbPorts) BgNoticeS(string) int64                      { return p.notice
 func (p *tbPorts) BgGraceS(string) int64                       { return p.graceS }
 func (p *tbPorts) BgCheckS(string) int64                       { return p.checkS }
 func (p *tbPorts) BgJobs(db.Q, string, int, int64) []BgJob     { return p.jobs }
-func (p *tbPorts) NudgeScheduleLen() int                       { return 3 }
-func (p *tbPorts) BlockerAlarm() (bool, int64, int64)          { return p.alarmOn, 100, 400 }
+func (p *tbPorts) JobsCPU(_ db.Q, _ string, jobs []BgJob) []BgJob {
+	for i, j := range jobs {
+		jobs[i].CPU, jobs[i].CPUKnown = p.cpu[j.Name]
+	}
+	return jobs
+}
+func (p *tbPorts) NudgeScheduleLen() int              { return 3 }
+func (p *tbPorts) BlockerAlarm() (bool, int64, int64) { return p.alarmOn, 100, 400 }
 func (p *tbPorts) ForgottenResolve(db.Q, string, *db.AgentState, int64) *Forgotten {
 	return p.forgotten
 }
@@ -462,6 +469,26 @@ func TestTheBackgroundCheckWaitsForAJobToRunTheIntervalInADaysOldStretch(t *test
 	b.SweepBackgroundCheck(tk, now+180)
 	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "running for 10m: 1. tools/check.sh") {
 		t.Fatalf("the job at 10 min: %v", p.sent)
+	}
+}
+
+// Each job is named as a person reads it, with how long it has run and, where it was read, the CPU time it used: a hung job reads as one.
+func TestTheBackgroundCheckSaysEachJobsRunAndCPUTime(t *testing.T) {
+	tk, w, b, p := timebox(t)
+	w.bgWork = true
+	setState(t, tk, "a", states.Idle, 0)
+	line := `W=/x; xcodebuild test -project $W/a.xcodeproj > $L 2>&1`
+	p.since, p.haveSince, p.checkS = 100, true, 600
+	p.jobs = []BgJob{{Name: "shell: " + line, Words: "xcodebuild test", Started: 100}, {Name: "shell: vite dev", Started: 200}}
+	p.cpu = map[string]float64{"shell: " + line: 4.2}
+	b.SweepBackgroundCheck(tk, 100+45*60)
+	if len(p.sent) != 1 || !strings.Contains(p.sent[0], "1. xcodebuild test: 45m, 4s of CPU; 2. shell: vite dev: 43m.") {
+		t.Fatalf("%v", p.sent)
+	}
+	var names string
+	tk.Q.QueryRow("SELECT json_extract(payload, '$.names') FROM events WHERE kind = 'background_checked'").Scan(&names)
+	if !strings.Contains(names, "xcodebuild test -project") {
+		t.Fatalf("the check keeps each job by its whole line: %s", names)
 	}
 }
 

@@ -54,6 +54,20 @@ func TestSettingsReadTheAgentsOwnThenTheGlobalThenTheDefault(t *testing.T) {
 	}
 }
 
+// The move's wait on background work is off unless set: the agent's own wins, its 0 too, over the global.
+func TestTheMovesBackgroundWaitIsOffUnlessSetAndAnAgentsZeroTurnsItOff(t *testing.T) {
+	if s := settingsWith(t, ""); s.MoveBackgroundWaitS("ann") != 0 {
+		t.Fatal("on by default")
+	}
+	s := settingsWith(t, "move_background_wait_s: 900\n", "move_background_wait_s", 0)
+	if s.MoveBackgroundWaitS("ann") != 0 || s.MoveBackgroundWaitS("bob") != 900 {
+		t.Fatal(s.MoveBackgroundWaitS("ann"), s.MoveBackgroundWaitS("bob"))
+	}
+	if s := settingsWith(t, "", "move_background_wait_s", 300); s.MoveBackgroundWaitS("ann") != 300 {
+		t.Fatal("the agent's own")
+	}
+}
+
 func TestPercentOrIsAWholePercentOrTheDefault(t *testing.T) {
 	s := settingsWith(t, "zero: 0\nfull: 100\nover: 101\nneg: -1\nword: x\n")
 	for key, want := range map[string]int{"zero": 0, "full": 100, "over": 90, "neg": 90, "word": 90, "absent": 90} {

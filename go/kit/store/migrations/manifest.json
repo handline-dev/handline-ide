@@ -238,5 +238,10 @@
   "version": 147,
   "name": "drop_unused_schema",
   "additive": false
+ },
+ {
+  "version": 148,
+  "name": "agent_move_background_wait",
+  "additive": true
  }
 ]

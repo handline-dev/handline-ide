@@ -13,6 +13,7 @@ export const DEFAULTS: Settings['values'] = {
   bg_notice_s: 1800,
   bg_grace_s: 300,
   bg_check_s: 600,
+  move_background_wait_s: 0,
   notice_digest_s: 300,
   token_prices: {},
   input_hold_idle_s: 600,

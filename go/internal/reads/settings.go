@@ -28,7 +28,8 @@ import (
 )
 
 // perAgent is rpc_settings.PER_AGENT: the settings an agent's row may override.
-var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", "bg_grace_s", "bg_check_s", "notice_digest_s", handoff.PromptKey, usage.SplitKey, screen.BlockKey}
+var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", "bg_grace_s", "bg_check_s", "notice_digest_s", handoff.PromptKey, usage.SplitKey, screen.BlockKey,
+	settings.MoveBackgroundWaitKey}
 
 // hooksWanted is the events our hook is installed for: claudecode.Wanted, which a test keeps equal.
 var hooksWanted = []string{"SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "PostCompact", "UserPromptSubmit",
@@ -124,6 +125,7 @@ func (e *Env) settingsValues() map[string]any {
 		"bg_notice_s": s.ConfigSeconds("bg_notice_s", bgNotice), "bg_grace_s": s.ConfigSeconds("bg_grace_s", settings.BgGraceS),
 		"bg_check_s": s.ConfigSeconds("bg_check_s", settings.BgCheckS), "notice_digest_s": s.ConfigSeconds("notice_digest_s", settings.NoticeDigestS),
 		"token_prices":                 prices,
+		settings.MoveBackgroundWaitKey: s.MoveBackgroundWaitS(""),
 		"input_hold_idle_s":            s.ConfigSeconds("input_hold_idle_s", defaultHoldIdleS),
 		settings.AttentionWaitKey:      s.ConfigSeconds(settings.AttentionWaitKey, settings.AttentionWaitS),
 		settings.AttentionQuietKey:     s.ConfigSeconds(settings.AttentionQuietKey, settings.AttentionQuietS),

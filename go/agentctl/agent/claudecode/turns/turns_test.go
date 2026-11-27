@@ -167,11 +167,13 @@ func TestStopSaysWhetherBackgroundWorkStillRuns(t *testing.T) {
 	tr.Hook("amy", "Stop", map[string]any{"background_tasks": []any{
 		map[string]any{"id": "b1", "type": "shell", "status": "running", "description": "sleep 60"},
 		map[string]any{"id": "b2", "type": "shell", "status": "completed", "description": "ls"},
+		map[string]any{"id": "b3", "type": "shell", "status": "running", "command": "cd x && vite dev"},
 	}}, 11)
-	if running, known := tr.Background("%1"); running != "1 background task" || !known {
+	if running, known := tr.Background("%1"); running != "2 background tasks" || !known {
 		t.Fatalf("%q %v", running, known)
 	}
-	if got := tr.Running("amy"); len(got) != 1 || got[0] != (Job{ID: "b1", Name: "shell: sleep 60", Type: "shell"}) {
+	if got := tr.Running("amy"); len(got) != 2 || got[0] != (Job{ID: "b1", Name: "shell: sleep 60", Type: "shell"}) ||
+		got[1] != (Job{ID: "b3", Name: "shell: cd x && vite dev", Type: "shell", Command: "cd x && vite dev"}) {
 		t.Fatalf("named %q", got)
 	}
 	// The shell ending while idle: a prompt, then a Stop with nothing left.

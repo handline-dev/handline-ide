@@ -3,12 +3,14 @@ package lifecycle
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/kit/timefmt"
 )
 
 func moveByKey(agent string) string { return "move_by:" + agent }
@@ -45,6 +47,12 @@ func (v *Mover) MoveNow(agent, dest, by string, stop func() error) (ok bool, sai
 	defer m.lockAgent(agent)()
 	row := must(db.GetAgentState(m.Q, agent))
 	s := must(db.LiveSwitch(m.Q, row, m.now()))
+	if s != nil && s.Phase == db.SwitchSaving && wallTrigger(s.Cause) && strings.HasPrefix(s.Waits, BackgroundWaits) &&
+		row.State != states.Handoff && row.State != states.Stalled && m.TermRun.IdleWithBackground(agent) &&
+		must(db.InFlightFor(m.Q, agent)) == nil {
+		ok, said = v.moveOffBackground(agent, dest, by, s, row)
+		return ok, said, nil
+	}
 	if dest == "" {
 		if !s.Pending() {
 			return false, addr.Ref(agent) + " has no move waiting; name the account to move it to", nil
@@ -69,6 +77,32 @@ func (v *Mover) MoveNow(agent, dest, by string, stop func() error) (ok bool, sai
 	}
 	v.reserve(agent, dest, by, db.SwitchStopping)
 	return true, fmt.Sprintf("%s moves to %s once its handoff note is in (by %s)", addr.Ref(agent), dest, addr.Ref(by)), nil
+}
+
+// moveOffBackground is MoveNow on a wall move that waits on the agent's background work: the move goes at once, to dest or with dest ""
+// where the daemon's own plan takes it, and its close ends the work, as past the background wait setting but with no note asked: a person's order is
+// not held for one. The next session is told what was stopped.
+func (v *Mover) moveOffBackground(agent, dest, by string, s *db.AccountSwitch, row *db.AgentState) (bool, string) {
+	m := v.M
+	if dest != "" {
+		if why := v.moveRefused(agent, dest, row); why != "" {
+			return false, why
+		}
+	}
+	there, why := v.closePlan(agent, s.Cause, dest)
+	if there == "" {
+		return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), s.From, why)
+	}
+	bg, now := v.E.BackgroundWork(m.Q, agent), m.now()
+	waited := now - v.backgroundWaitSince(agent, now)
+	v.log("  %s: move now by %s past background work (%s) after %s: %s", agent, by, bg.Words, timefmt.Ago(waited), bg.Lines)
+	v.perform(agent, HandoffTrigger{Kind: s.Cause, Reason: fmt.Sprintf("moved now by %s past background work: %s -> %s", by, s.From, there)}, dest)
+	if landed := must(db.GetAgentState(m.Q, agent)); landed != nil && landed.Account.Valid && landed.Account.String != s.From {
+		must(db.AddEventAt(m.Q, now, agent, MovedPastBackgroundKind, db.KV{K: "kind", V: s.Cause}, db.KV{K: "jobs", V: bg.Words},
+			db.KV{K: "waited_s", V: waited}, db.KV{K: "by", V: by}))
+		return true, fmt.Sprintf("%s moved %s -> %s (by %s); its background work was stopped", addr.Ref(agent), s.From, landed.Account.String, addr.Ref(by))
+	}
+	return false, fmt.Sprintf("%s did not move: its session did not close, or the new one did not start on %s - it stays on %s", addr.Ref(agent), there, s.From)
 }
 
 // CancelMove is agent.move_cancel: the move the agent keeps for its turn's end is dropped. Too late once move_now has stopped the turn.

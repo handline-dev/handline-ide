@@ -10,7 +10,7 @@ module of this repo; the daemon at `go/` requires it with a `replace` to this fo
 | `store` | Opens the daemon's sqlite database and brings its schema up (the base and later steps, with their manifest) |
 | `actor`, `addr`, `names` | The keys that name a who (`p1`, `a17`) and the owner at first start; the words people type turned into keys and back; the rules for workspace names, agent names and handles |
 | `joined` | The master a home joined (`hl device join`), kept in the protected store |
-| `yamlcompat`, `textsafe`, `timefmt`, `words` | YAML as Python wrote it, text with no terminal controls, times as shown, a place (3rd) and a list (a, b and c) as a sentence says them |
+| `yamlcompat`, `textsafe`, `timefmt`, `words` | YAML as Python wrote it, text with no terminal controls, times as shown, a place (3rd), a list (a, b and c) and a shell line (xcodebuild test) as a sentence says them |
 | `policy`, `pyjson` | How long things are kept or wait, in one place; JSON written as Python's json.dumps writes it |
 | `storetest`, `testfiles` | A migrated database for a test, the schema built once per test binary; a tree of files for a test |
 | `atomicfile`, `lock`, `wslock`, `gitrun`, `peer`, `testkill`, `version` | Atomic writes, file locks, a workspace's shared or sole hold, git runs, who is on the other end of a unix socket, tearing down what a test starts, the build's sha |

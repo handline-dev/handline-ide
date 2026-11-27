@@ -58,7 +58,7 @@ const PromptMin = 20
 
 var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": flag_,
 	"ignore_cache_expiry": flag_, "dev_mode": flag_, "bg_notice_s": int1, "bg_grace_s": int1, "bg_check_s": int1, "notice_digest_s": int1,
-	"input_hold_idle_s": int1, handoff.PromptKey: line,
+	"input_hold_idle_s": int1, handoff.PromptKey: line, settings.MoveBackgroundWaitKey: int0,
 	settings.AttentionWaitKey: int1, settings.AttentionQuietKey: int1, settings.AttentionSentBackKey: int1,
 	settings.BlockerAlarmKey: flag_, settings.BlockerAlarmHoldKey: int1, settings.BlockerAlarmOpenerKey: int1, settings.ReviewFlowKey: flag_,
 	team.LandedDeadlineKey: int1,
@@ -76,7 +76,7 @@ var settingKinds = map[string]string{"park_timeout_s": int0, "handoff_note": fla
 	team.DefaultModelKey("codex"): model, team.DefaultEffortKey("codex"): effort}
 
 var perAgent = map[string]bool{"park_timeout_s": true, "ignore_cache_expiry": true, "bg_notice_s": true, "bg_grace_s": true, "bg_check_s": true,
-	"notice_digest_s": true, handoff.PromptKey: true, usage.SplitKey: true, screen.BlockKey: true}
+	"notice_digest_s": true, handoff.PromptKey: true, usage.SplitKey: true, screen.BlockKey: true, settings.MoveBackgroundWaitKey: true}
 
 // joinLines is a handoff prompt as one line: the line breaks typed in the box become one space, and the ends are trimmed.
 func joinLines(s string) string {

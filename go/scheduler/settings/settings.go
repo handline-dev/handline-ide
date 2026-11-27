@@ -18,6 +18,19 @@ const Never = 0
 // ClearPastBackgroundKey lets a context clear go ahead once the turn has ended with only background work running. Off by default.
 const ClearPastBackgroundKey = "context_clear_past_background"
 
+// MoveBackgroundWaitKey is how long a usage move waits on the agent's background work before it goes past it, ending the work. Absent
+// or 0, the default, it waits as long as the work runs.
+const MoveBackgroundWaitKey = "move_background_wait_s"
+
+// MoveBackgroundWaitS is MoveBackgroundWaitKey: the agent's own, 0 included, then config.yaml's; 0 is no limit.
+func (s *Settings) MoveBackgroundWaitS(agent string) int64 {
+	if n, ok := nonNegative(s.agentConfig(agent)[MoveBackgroundWaitKey]); ok {
+		return n
+	}
+	n, _ := nonNegative(s.config()[MoveBackgroundWaitKey])
+	return n
+}
+
 // ClusterNameKey is the cluster's name, kept on the board (meta): two random words given at the first start without one, changed by
 // the owner.
 const ClusterNameKey = "cluster_name"

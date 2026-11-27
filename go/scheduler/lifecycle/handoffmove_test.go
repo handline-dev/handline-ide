@@ -54,10 +54,11 @@ func (l *moveLaunch) CommandFor(agent, account, why, by string) (string, error) 
 func (l *moveLaunch) RoomOn(db.Q, string, *db.AgentState, string) string { return l.roomOn }
 
 type moveRig struct {
-	m  *Manager
-	l  *moveLaunch
-	v  *Mover
-	bg string
+	m      *Manager
+	l      *moveLaunch
+	v      *Mover
+	bg     string // the background work as a person reads it
+	bgLine string // as it was started, "" for bg
 }
 
 // newMoveRigOn is the mover over a manager that is already set up.
@@ -69,7 +70,7 @@ func newMoveRigOn(m *Manager, l *moveLaunch) *moveRig {
 		ColdStartPct:    func(db.Q) *float64 { return nil },
 		AtLimit:         func(db.Q, string) (int64, bool) { return 0, false },
 		NoteHold:        func(db.Q, string, string, int64) bool { return false },
-		BackgroundWork:  func(db.Q, string) string { return rig.bg },
+		BackgroundWork:  rig.background,
 		LimitDialogOpen: func(string) bool { return false },
 		ContextUse:      func(db.Q, string) (int, int) { return 190000, 200000 },
 		MeasureForget:   func(db.Q, string) {},
@@ -77,6 +78,13 @@ func newMoveRigOn(m *Manager, l *moveLaunch) *moveRig {
 		WakeAfter:       func(_ string, short, _, now int64) int64 { return now + 1000 },
 	}}
 	return rig
+}
+
+func (g *moveRig) background(db.Q, string) Background {
+	if g.bgLine != "" {
+		return Background{Words: g.bg, Lines: g.bgLine}
+	}
+	return Background{Words: g.bg, Lines: g.bg}
 }
 
 func (g *moveRig) row(t *testing.T) *db.AgentState {

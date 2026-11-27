@@ -173,8 +173,25 @@ func MarkDeferred(q Q, agent string, now int64) error {
 	return SetCursor(q, deferredKey(agent), now)
 }
 
-// ClearDeferred ends the wait MarkDeferred kept: the handoff opened its row, or its trigger no longer fires.
-func ClearDeferred(q Q, agent string) error { return ClearCursor(q, deferredKey(agent)) }
+// ClearDeferred ends the wait MarkDeferred kept, and MarkBackgroundWait's with it: the handoff opened its row, or its trigger no longer fires.
+func ClearDeferred(q Q, agent string) error {
+	if err := ClearCursor(q, deferredKey(agent)); err != nil {
+		return err
+	}
+	return ClearCursor(q, bgWaitKey(agent))
+}
+
+func bgWaitKey(agent string) string { return "handoff_bg_wait:" + agent }
+
+// MarkBackgroundWait keeps that a deferred handoff waits on the agent's background work, since now, and returns that first time: a later
+// call keeps it until ClearDeferred, through the turns the agent takes meanwhile.
+func MarkBackgroundWait(q Q, agent string, now int64) (int64, error) {
+	since, err := Cursor(q, bgWaitKey(agent))
+	if err != nil || since != 0 {
+		return since, err
+	}
+	return now, SetCursor(q, bgWaitKey(agent), now)
+}
 
 func noteWaitKey(agent string) string { return "handoff_note_wait:" + agent }
 

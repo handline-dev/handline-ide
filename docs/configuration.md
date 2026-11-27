@@ -84,6 +84,7 @@ agent" can also be set on one agent's row (the app's agent settings), which then
 | `bg_notice_s` | the park timeout | Per agent. How long an agent with background work may show nothing before it is told to finish or stop it. |
 | `bg_grace_s` | 300 | Per agent. After that notice, how long before the work is stopped if the agent shows nothing more. |
 | `bg_check_s` | 600 | Per agent. How often an agent with background work is asked which of it to stop. |
+| `move_background_wait_s` | 0 | Per agent. How long a usage move waits on the agent's background work before it goes past it, which ends the work; the agent's note says what ran. 0 waits as long as the work runs. |
 | `notice_digest_s` | 300 | Per agent. Notices to an agent are held this long after the first, then typed once as a digest. |
 | `input_hold_idle_s` | 600 | A person who holds an agent's terminal loses the hold after this long without typing. |
 | `attention_wait_s` | 3600 | A request shows attention waiting once a task of it has waited on cap, wall or owner this long. |
