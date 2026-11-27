@@ -21,6 +21,11 @@ function switching(
 export const SWITCH_SEEDS: Record<string, Seed> = {
   /** The architect's account switch at each phase: what the working line draws from limit to the new session. */
   'switch-saving': (d) => switching(d, { phase: 'saving', to: null, waits: 'background: shell: vite dev' }),
+  /** A due compact that has waited 34 minutes for the architect's turn to end. */
+  'compact-waiting': (d) => {
+    const s = d.sessions.get(ARCH)!;
+    s.fx.view = { ...s.fx.view, compact_waiting_since: new Date(Date.now() - 34 * 60_000).toISOString() };
+  },
   'switch-switching': (d) => switching(d, { phase: 'switching', to: 'beta' }),
   'switch-starting': (d) => switching(d, { phase: 'starting', to: 'beta' }),
   'switch-waiting': (d) => switching(d, { phase: 'waiting', to: null, until: inTwoHours() }),

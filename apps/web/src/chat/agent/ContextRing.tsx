@@ -1,4 +1,5 @@
-import { useAgentDetail, useAgentStrip, useServes, useWrite } from '@handline/app-data';
+import { ago } from '@handline/app-core';
+import { useAgentDetail, useAgentStrip, useAgents, useServes, useWrite } from '@handline/app-data';
 import { FoldVertical } from 'lucide-react';
 import { useState } from 'react';
 import { CardAction, MenuFact } from '#src/chat/agent/menuParts.tsx';
@@ -19,6 +20,7 @@ export function ContextRing({ agent }: { agent: string }) {
   const compactNow = useCompactNow(agent);
   const now = useNow(30_000);
   const compacting = useCompacting(agent);
+  const waiting = useAgents().data?.agents.find((a) => a.key === agent)?.compact_waiting_since ?? null;
   if (!detail) return null;
   const used = strip?.ctx_used ?? null;
   const limit = strip?.ctx_limit ?? null;
@@ -58,7 +60,9 @@ export function ContextRing({ agent }: { agent: string }) {
       }
     >
       <div className="flex min-w-64 flex-col gap-2 px-2 pt-1 pb-2">
-        {over && <p className="text-xs text-warning">Compacts when this turn ends</p>}
+        {(over || waiting) && (
+          <p className="text-xs text-warning">{`Compacts when this turn ends${waiting ? ` · waited ${ago(waiting, now)}` : ''}`}</p>
+        )}
         {used != null && <ContextLine used={used} point={point} limit={limit} over={over} />}
       </div>
       {cache != null && cache > 0 && <MenuFact name="Prompt cache">{`${cache}m left`}</MenuFact>}
