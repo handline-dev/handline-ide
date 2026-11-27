@@ -22,14 +22,14 @@ const ME = 'human';
 
 type Seed = (d: FakeDaemon) => void;
 
-const stall = (d: FakeDaemon, kind: 'start_failed' | 'no_session' | 'trust', title: string, text: string) => {
+const stall = (d: FakeDaemon, kind: 'start_failed' | 'no_session' | 'trust', title: string, text: string, detail?: string) => {
   const s = d.sessions.get(ARCH)!;
   s.state = 'stalled';
   const since = new Date(Date.now() - 5 * 60_000).toISOString();
   s.fx.view = {
     ...s.fx.view,
     status: { state: 'blocked', reason: 'stalled', text: `${title}: ${text}`, until: null, since, tasks: [] },
-    needs_you: { kind, since, title, text, source: 'daemon' },
+    needs_you: { kind, since, title, text, source: 'daemon', ...(detail ? { detail } : {}) },
   };
 };
 
@@ -327,7 +327,8 @@ export const SEEDS: Record<string, Seed> = {
       d,
       'start_failed',
       "Won't start",
-      'The last 3 starts failed: the claude binary exited with status 1 before it printed its prompt, after the vendor folder-trust screen timed out while the account was switching to beta, and the retry found the worktree locked by another process.',
+      'Could not start: its machine (MacBook Air) is offline.',
+      'launch on runner macbook-air: dial tcp 10.0.0.12:7420: connect: host is down',
     );
     stallNotice(d, ARCH);
   },
@@ -337,7 +338,13 @@ export const SEEDS: Record<string, Seed> = {
     d.knobs.hold('agent.unstall');
   },
   'stall-wake': (d) =>
-    stall(d, 'no_session', "Woke but didn't start", 'It was woken 3 times and no session started: the terminal never came up.'),
+    stall(
+      d,
+      'no_session',
+      "Woke but didn't start",
+      'Could not start: no session came up after 3 wakes.',
+      'terminal %91 exited before claude printed its prompt',
+    ),
   'stall-trust': (d) =>
     stall(
       d,
