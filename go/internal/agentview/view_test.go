@@ -1,7 +1,6 @@
 package agentview
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/handline/handline/go/agentctl/dialogs"
-	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -674,30 +672,21 @@ func TestAnAgentsViewListsTheServersItsProcessesListenOn(t *testing.T) {
 func TestTheLimitDialogTheDaemonHandlesIsNobodysToAnswer(t *testing.T) {
 	session := &NeedsYou{Kind: "usage", Source: "session", Since: 4000, Title: "Usage limit: choose what to do"}
 	daemon := &NeedsYou{Kind: "stuck", Source: "daemon", Since: 4000, Title: "Stuck after restarts"}
-	modal := func(r *rig, a, kind string) {
-		if err := db.BlockOpen(r.env.Q, a, cmp.Or(kind, term.Modal), "Stop and wait", "", 1, 1, "close", "t"); err != nil {
-			t.Fatal(err)
-		}
-	}
 	for _, c := range []struct {
-		name          string
-		need          *NeedsYou
-		prompt, block bool
-		blockKind     string
-		state         string
-		owned         bool
-		quiet, asked  bool
+		name         string
+		need         *NeedsYou
+		prompt       bool
+		state        string
+		owned        bool
+		quiet, asked bool
 	}{
 		{name: "a session's need, handled", need: session, state: states.Running, owned: true, quiet: true, asked: true},
 		{name: "a prompt row, handled", prompt: true, state: states.Running, owned: true, quiet: true, asked: true},
-		{name: "a modal block, handled", block: true, state: states.Running, owned: true, quiet: true, asked: true},
 		{name: "a need the daemon does not handle", need: session, state: states.Running, asked: true},
 		{name: "a prompt row it does not handle", prompt: true, state: states.Running, asked: true},
-		{name: "a modal block it does not handle", block: true, state: states.Running, asked: true},
 		{name: "a stalled agent is out of its hands", need: session, state: states.Stalled, owned: true},
 		{name: "the daemon's own card stays", need: daemon, state: states.Running, owned: true},
 		{name: "the daemon's own card stays over a prompt it hides", need: daemon, prompt: true, state: states.Running, owned: true, asked: true},
-		{name: "a block no dialog makes, the screen is not read", block: true, blockKind: "login", state: states.Running, owned: true},
 		{name: "nothing raised, the screen is not read", state: states.Running, owned: true, quiet: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -707,15 +696,12 @@ func TestTheLimitDialogTheDaemonHandlesIsNobodysToAnswer(t *testing.T) {
 			if c.prompt {
 				r.pr.open["a"] = &prompts.Block{Kind: "dialog", Title: "Stop and wait"}
 			}
-			if c.block {
-				modal(r, "a", c.blockKind)
-			}
 			r.env.NeedsYou = func(string) *NeedsYou { return c.need }
 			asked := false
 			r.env.LimitDialogOwned = func(string) bool { asked = true; return c.owned }
 			r.env.RefreshOne("a")
 			v := r.stored(t, "a")
-			quiet := v["has_dialog"] == false && v["needs_you"] == nil && v["block"] == nil && v["blocker"] == nil && v["state"] != "waiting"
+			quiet := v["has_dialog"] == false && v["needs_you"] == nil && v["state"] != "waiting"
 			if quiet != c.quiet || asked != c.asked {
 				t.Fatalf("quiet %v asked %v: %v", quiet, asked, v)
 			}

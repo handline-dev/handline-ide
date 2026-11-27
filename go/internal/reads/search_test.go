@@ -55,7 +55,7 @@ func TestSearchFindsTasksCommentsAndTheMessagesAChatDraws(t *testing.T) {
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'Rename the Checkout screen', '" + bob + "', 'p1', 100)",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(2, 'Second', '" + bob + "', 'p1', 200)",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence) VALUES(3, 'Third', '" + bob + "', 'p1', 300, 'abc1234 checkout landed')",
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at, report) VALUES(4, 'Fourth', '" + bob + "', 'p1', 400, 'the checkout holds')",
+		"INSERT INTO tasks(id, title, owner, opened_by, created_at, done_evidence) VALUES(4, 'Fourth', '" + bob + "', 'p1', 400, 'the checkout holds')",
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(5, 'Nothing here', '" + bob + "', 'p1', 500)",
 		// task 6 was opened by bob, and the first request linked to it is the person's: not its brief (supervisor.briefOf), so a message
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(6, 'Sixth', '" + bob + "', '" + bob + "', 600)",

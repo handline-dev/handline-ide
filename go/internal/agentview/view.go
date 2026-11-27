@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/agentctl/dialogs"
-	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/agentctl/verdict"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
@@ -19,7 +18,6 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/timefmt"
 	"github.com/handline/handline/go/scheduler/procload"
-	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
@@ -413,9 +411,8 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		needs = e.needs(agent)
 	}
 	prompt := must(e.OpenBlockOf(agent))
-	blockRow := must(db.BlockGet(e.Q, agent))
-	if e.ownsLimitDialog(agent, row, needs, prompt, blockRow) {
-		prompt, blockRow = nil, nil
+	if e.ownsLimitDialog(agent, row, needs, prompt) {
+		prompt = nil
 		if needs != nil && needs.Source != "daemon" {
 			needs = nil
 		}
@@ -451,11 +448,6 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		if m, f, ok := e.Config(agent); ok {
 			model, effort = m, f
 		}
-	}
-	var block, blocker any
-	if b := blockRow; b != nil && now >= b.ShowAt {
-		block = map[string]any{"kind": b.Kind, "since": stamp(b.Since)}
-		blocker = clip(textsafe.Oneline(session.Headline(b.Kind, b.Detail)), DetailCap)
 	}
 	var since any
 	if row != nil {
@@ -512,9 +504,9 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 	return map[string]any{
 		"name": agent, "role": e.roleLine(agent), "model": model, "effort": effort,
 		"state": state, "state_detail": detail, "state_since": since,
-		"block": block, "wall_reason": wallBanner(must(e.WallReason(e.Q, agent, row)), st), "background_since": bg,
+		"wall_reason": wallBanner(must(e.WallReason(e.Q, agent, row)), st), "background_since": bg,
 		"would_wake": row != nil && must(e.WouldWake(row)),
-		"blocker":    blocker, "account": account, "task": task, "cache_until": cache, "ctx_pct": ctx,
+		"account":    account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
 		"account_switch": must(e.switchView(row, now)), "pending_move": must(e.pendingMove(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
 	}, nil
@@ -522,11 +514,11 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 
 // ownsLimitDialog is whether what would say a person must answer is only the usage-limit dialog the daemon is handling. The screen is read
 // only when something says a dialog is up. A stalled agent is out of the daemon's hands, and a modal is the one block a dialog makes.
-func (e *Env) ownsLimitDialog(agent string, row *db.AgentState, needs *NeedsYou, prompt *prompts.Block, b *db.Block) bool {
+func (e *Env) ownsLimitDialog(agent string, row *db.AgentState, needs *NeedsYou, prompt *prompts.Block) bool {
 	if e.LimitDialogOwned == nil || row == nil || row.State == states.Stalled {
 		return false
 	}
-	raised := prompt != nil || (needs != nil && needs.Source != "daemon") || (b != nil && b.Kind == term.Modal)
+	raised := prompt != nil || (needs != nil && needs.Source != "daemon")
 	return raised && e.LimitDialogOwned(agent)
 }
 

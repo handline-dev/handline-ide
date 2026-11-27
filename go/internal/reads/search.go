@@ -74,9 +74,9 @@ func snippetOf(text, query string) string {
 // holds no query, so that part needs no saying here.
 const briefSQL = "l.rowid = (SELECT MIN(f.rowid) FROM task_requests f WHERE f.task_id = l.task_id) AND r.requester = t.opened_by"
 
-const searchTasksSQL = "SELECT id, title, created_at, brief, done_evidence, report FROM (SELECT t.id, t.title, t.created_at, t.done_evidence, t.report, " +
+const searchTasksSQL = "SELECT id, title, created_at, brief, done_evidence FROM (SELECT t.id, t.title, t.created_at, t.done_evidence, " +
 	"(SELECT r.body FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE l.task_id = t.id AND " + briefSQL + ") AS brief FROM tasks t) " +
-	`WHERE title LIKE ? ESCAPE '\' OR brief LIKE ? ESCAPE '\' OR done_evidence LIKE ? ESCAPE '\' OR report LIKE ? ESCAPE '\' ORDER BY id DESC LIMIT ?`
+	`WHERE title LIKE ? ESCAPE '\' OR brief LIKE ? ESCAPE '\' OR done_evidence LIKE ? ESCAPE '\' ORDER BY id DESC LIMIT ?`
 
 const searchCommentsSQL = "SELECT m.id, m.task_id, m.author, m.body, m.created_at, t.title FROM task_memos m JOIN tasks t ON t.id = m.task_id " +
 	`WHERE m.body LIKE ? ESCAPE '\' ORDER BY m.id DESC LIMIT ?`
@@ -116,7 +116,7 @@ func (e *Env) search(_ *rpc.Conn, params map[string]any) (any, error) {
 		}
 		return rs
 	}
-	tasks, err := query(e.DB, searchTasksSQL, like, like, like, like, limit+1)
+	tasks, err := query(e.DB, searchTasksSQL, like, like, like, limit+1)
 	if err != nil {
 		return nil, err
 	}
@@ -154,10 +154,8 @@ func taskHit(t row, text string) map[string]any {
 	case holds(found, text):
 	case holds(t.str("brief"), text):
 		field, found = "brief", t.str("brief")
-	case holds(t.str("done_evidence"), text):
-		field, found = "result", t.str("done_evidence")
 	default:
-		field, found = "result", t.str("report")
+		field, found = "result", t.str("done_evidence")
 	}
 	return map[string]any{"kind": "task", "at": ts(t["created_at"]), "snippet": snippetOf(found, text), "field": field,
 		"task": t.i("id"), "title": t.str("title")}

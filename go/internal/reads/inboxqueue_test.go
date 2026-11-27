@@ -178,7 +178,6 @@ func TestInboxQueueOfTheFounderPrintsAsHlInboxDid(t *testing.T) {
 		"(5, 50, 'bob', 'p1', 'approve the plan', 'queued', 'task', 1, NULL, NULL), (6, 60, 'p1', 'cy', 'do it', 'landed', 'ask', 1, NULL, 60), "+
 		"(7, 70, 'cy', 'p1', 'done as asked', 'landed', 'say', 1, NULL, 70), (8, 80, 'p1', 'cy', 'and this', 'withdrawn', 'ask', 1, NULL, NULL), "+
 		"(9, 90, 'bob', 'p1', 'old question', 'landed', 'ask', 1, NULL, 90), (10, 95, 'dee', 'p1', 'no kind', 'queued', NULL, 1, NULL, NULL)")
-	run(t, e, "UPDATE requests SET settles = 6 WHERE id = 7")
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'decide', 'p1', 'bob', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 5)")
 	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('for_you_seen:amy', 1, 1)")

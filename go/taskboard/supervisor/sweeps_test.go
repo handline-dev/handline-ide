@@ -147,10 +147,6 @@ func TestAgentReasonNamesTheFirstGateInTheOrderItIsMet(t *testing.T) {
 	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); !strings.Contains(r.named(why), "mid-turn") {
 		t.Fatal(why)
 	}
-	db.BlockOpen(r.DB, r.k(("bob")), "dialog", "trust?", "w", 1, 1, "tick", "t")
-	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); why != "dialog: trust?" {
-		t.Fatal(why)
-	}
 	r.NoteFailure(r.k("bob"), "the wake failed")
 	if why, _ := r.agentReason(r.DB, r.k(("bob")), r.clock); why != "the wake failed" {
 		t.Fatal(why)
