@@ -9,7 +9,7 @@ import { useNameOf, useWrite } from '@handline/app-data';
 import { Button } from '#src/ui/Button.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { confirm } from '#src/ui/modal.tsx';
-import { Check, CircleDot, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
+import { Check, CircleDot, Clock, Hand, Pencil, Send, Trash2, Undo2, UserRound } from 'lucide-react';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { Reference } from '#src/chat/ChatLine.tsx';
 import { Actions, CopyButton } from '#src/chat/MessageActions.tsx';
@@ -206,6 +206,12 @@ export function CommentRow({
                 <span className="text-xs text-muted">edited</span>
               ))}
             {turn && <span className="text-xs font-medium text-warning">{word}</span>}
+            {i.later && !turn && (
+              <span className="flex items-center gap-1 text-xs text-warning">
+                <Clock size={12} />
+                Later
+              </span>
+            )}
           </span>
           {i.replyTo != null && <Reference text={quoted} onClick={() => showMemo(i.replyTo!)} />}
           {editing ? (

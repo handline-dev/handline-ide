@@ -122,3 +122,12 @@ test('a run row becomes a run item carrying its proposal; one without a proposal
   assert.equal(a[0]!.kind, 'run');
   assert.equal(a[0]!.proposal?.id, 910);
 });
+
+test('a later comment is marked while open and reads as plain once answered', () => {
+  type M = Parameters<typeof activityOf>[0][number];
+  const m = (id: number, later_open: boolean) =>
+    ({ id, task: 1, author: 'a1', at: '2026-01-01T00:00:01Z', text: 'x', later: 'human', later_open }) as M;
+  const [open, answered] = activityOf([m(1, true), m(2, false)], []);
+  assert.equal(open!.later, true);
+  assert.equal(answered!.later, undefined);
+});

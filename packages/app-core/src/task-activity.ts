@@ -27,6 +27,8 @@ export interface ActivityItem {
   turnTo?: string;
   /** For a comment that opens with a person: that person, as the daemon read it (Comment.to); a word to them that passes no turn. */
   to?: string;
+  /** A later step for the person that is still open (Comment.later_open). */
+  later?: boolean;
   /** On a run: the command the agent asked the founder to run, as proposal.list shows it. */
   proposal?: Entry['proposal'];
 }
@@ -116,6 +118,7 @@ export function activityOf(comments: TaskDetail['comments'], timeline: readonly 
           return { id: f.id, name: f.name, mime: f.mime, size: f.bytes, ...(v ? { video: { id: v.id, name: v.name } } : {}) };
         }),
       edited: !!m.edited_at,
+      ...(m.later && m.later_open ? { later: true } : {}),
       ...(m.to ? { to: m.to } : {}),
       ...passedWith(m.id),
     };
