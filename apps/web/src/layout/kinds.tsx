@@ -125,6 +125,9 @@ export const choices = ['newshell', 'diff', 'tasks', 'markdown', 'web'].map((kin
 
 /** `nameOf` writes out the agent key a chat tab carries (useNameOf). */
 export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k): string => {
+  // A joined cluster's tab, `@<cluster>/<opens>`, is labelled as the tab it opens.
+  const joined = /^@[^/]+\/(.+)$/.exec(kind);
+  if (joined) return labelOf(joined[1]!, nameOf);
   const own = ownedBy(kind);
   if (own) return `${labelOf(own.kind, nameOf)} · ${nameOf(own.agent)}`;
   const key = chatName(kind);
@@ -137,6 +140,8 @@ export const labelOf = (kind: string, nameOf: (key: string) => string = (k) => k
 /** An Empty tab (no kind) shows +. */
 export const iconOf = (kind?: string): ReactNode => {
   if (!kind) return <Plus size={14} />;
+  const joined = /^@[^/]+\/(.+)$/.exec(kind);
+  if (joined) return iconOf(joined[1]);
   const own = ownedBy(kind);
   if (own) return iconOf(own.kind);
   if (opened(kind, 'agent')) return kinds.settings.icon;

@@ -326,6 +326,8 @@ describe("an agent's own tab", () => {
     // Tasks never carries one, but a desk's papers in the town open one agent's.
     expect(ownedBy('tasks|a5')).toEqual({ kind: 'tasks', agent: 'a5' });
     expect(labelOf('tasks|a5', () => 'town')).toBe('Tasks · town');
+    // A joined cluster's tab reads as the tab it opens, never as its raw key.
+    expect(labelOf('@b8e953a2/chat:a14', () => 'town')).toBe('town chat');
   });
 
   it('is opened naming the agent it was asked from, so focusing it never leaves it with no agent to draw', async () => {

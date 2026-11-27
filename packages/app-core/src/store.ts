@@ -108,7 +108,7 @@ export class Store {
   private onEvent(e: WireEvent): void {
     this.notices.takeEvent(e);
     if (e.type === 'agent.removed' && e.agent && this.page?.agent === e.agent) {
-      this.notices.push('fail', `${e.agent} was removed`);
+      this.notices.push('fail', 'This agent was removed');
       void this.closeAgent();
     }
     if (e.agent && e.type === 'agent.control') {
