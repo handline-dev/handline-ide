@@ -59,17 +59,16 @@ test('the box is locked while saving, switching, writing the note and starting, 
     'Preparing to change accounts… · after shell: vite dev ends',
   );
   assert.equal(switchWords({ phase: 'switching', to: 'beta' }), 'Switching to beta…');
-  assert.equal(switchWords({ phase: 'note', to: 'beta' }), 'Switching to beta… · writing its handoff note');
   assert.equal(switchWords({ phase: 'waiting', to: null }), null);
 });
 
-test("a move's four steps: the phase's step is now, those before done, those after next", () => {
-  const m = moveSteps({ phase: 'note', from: 'alpha', to: 'sigma' })!;
+test("a move's three steps: the phase's step is now, those before done, those after next", () => {
+  const m = moveSteps({ phase: 'switching', from: 'alpha', to: 'sigma' })!;
   assert.equal(m.title, 'Moving to sigma');
-  assert.equal(m.at, 2);
+  assert.equal(m.at, 1);
   assert.deepEqual(
     m.steps.map((s) => `${s.state}:${s.name}`),
-    ['done:Finish turn', 'done:Close on alpha', 'now:Write handoff note', 'next:Start on sigma'],
+    ['done:Finish turn', 'now:Close on alpha', 'next:Start on sigma'],
   );
   assert.equal(
     moveSteps({ phase: 'saving', from: 'alpha', to: null, waits: 'the turn to end' })!.steps[0].name,

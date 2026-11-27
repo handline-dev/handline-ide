@@ -3,13 +3,12 @@
 import type { Window } from '@handline/client';
 import { clockTime, dateTime, shortSpan } from '#src/time.ts';
 
-export type SwitchPhase = 'saving' | 'switching' | 'note' | 'starting' | 'waiting';
+export type SwitchPhase = 'saving' | 'switching' | 'starting' | 'waiting';
 
 /** The words the message box shows while it is locked for a switch; a wait does not lock it. */
 export function switchWords(s: { phase: SwitchPhase; to: string | null; waits?: string | null }): string | null {
   if (s.phase === 'saving') return s.waits ? `Preparing to change accounts… · ${waitsWords(s.waits)}` : 'Preparing to change accounts…';
   if (s.phase === 'switching') return `Switching to ${s.to ?? 'another account'}…`;
-  if (s.phase === 'note') return `Switching to ${s.to ?? 'another account'}… · writing its handoff note`;
   if (s.phase === 'starting') return `Starting on ${s.to ?? 'the new account'}…`;
   return null;
 }
@@ -17,9 +16,9 @@ export function switchWords(s: { phase: SwitchPhase; to: string | null; waits?: 
 /** One step of a move: done, under way (the current one) or still to come. */
 export type MoveStep = { name: string; state: 'done' | 'now' | 'next' };
 
-const ORDER = ['saving', 'switching', 'note', 'starting'] as const;
+const ORDER = ['saving', 'switching', 'starting'] as const;
 
-/** A move's four steps, in the order the daemon goes through them; null for a wait, which is not a move. The current step is the one
+/** A move's three steps, in the order the daemon goes through them; null for a wait, which is not a move. The current step is the one
  * its phase names, so a long step shows where it is and never looks stopped. */
 export function moveSteps(s: { phase: SwitchPhase; from: string; to: string | null; waits?: string | null }): {
   title: string;
@@ -31,7 +30,6 @@ export function moveSteps(s: { phase: SwitchPhase; from: string; to: string | nu
   const names = [
     s.waits ? `Finish turn ${waitsWords(s.waits)}` : 'Finish turn',
     `Close on ${s.from}`,
-    'Write handoff note',
     `Start on ${s.to ?? 'the new account'}`,
   ];
   return {
