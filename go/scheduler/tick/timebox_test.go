@@ -685,8 +685,8 @@ func TestATaskStillHeldAfterTheAskIsHandedOn(t *testing.T) {
 	}); len(p.handed) != 0 {
 		t.Fatalf("handed although it did not close again after the ask: %v", p.handed)
 	}
-	if p := run(t, func(tk *Tick, tid int64) { must(db.AddMemo(tk.Q, tid, "a", "working on it")) }); len(p.handed) != 0 {
-		t.Fatalf("handed although it wrote a memo since the ask: %v", p.handed)
+	if p := run(t, func(tk *Tick, tid int64) { must(db.AddComment(tk.Q, tid, "a", "working on it")) }); len(p.handed) != 0 {
+		t.Fatalf("handed although it wrote a comment since the ask: %v", p.handed)
 	}
 }
 
@@ -774,8 +774,8 @@ func TestAHolderThatWorkedAfterTheAskIsNotHandedOnAndIsAskedAnewAtItsNextClose(t
 	for name, add := range map[string]func(tk *Tick){
 		"a commit":      func(tk *Tick) { db.AddEventAt(tk.Q, 1100, "a", "commit") },
 		"a second stop": func(tk *Tick) { db.AddEventAt(tk.Q, 1030, "a", "Stop"); db.AddEventAt(tk.Q, 1040, "a", "Stop") },
-		"a memo at the second of the ask": func(tk *Tick) {
-			must(db.AddMemo(tk.Q, tid, "a", "x"))
+		"a comment at the second of the ask": func(tk *Tick) {
+			must(db.AddComment(tk.Q, tid, "a", "x"))
 			tk.Q.Exec("UPDATE task_comments SET created_at = 1000")
 		},
 	} {
