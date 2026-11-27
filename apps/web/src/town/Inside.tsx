@@ -15,8 +15,9 @@ import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
 import { Monitors } from '#src/town/monitors.tsx';
 import { useCrowd } from '#src/town/crowd.ts';
+import { fadeOf, useMore } from '#src/town/pan.ts';
 import { useGivenWork } from '#src/town/errands.ts';
-import { Bubbles, Label, nameSize, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
+import { Bubbles, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 /** How much of the front wall shows while a person reaches into it. */
@@ -48,9 +49,9 @@ export function Inside({
 }) {
   const { show } = useTownShown();
   const [pane, [pw, ph]] = useSize();
-  // The same room whatever the space: a smaller pane shows it smaller.
+  // The same room whatever the space: a smaller pane shows it smaller, but never so small that names shrink; a bigger room scrolls.
   const drawn = useDrawn(house);
-  const scale = drawn ? Math.min(pw / drawn.w, ph / drawn.h) : 1;
+  const scale = drawn ? Math.max(READABLE, Math.min(pw / drawn.w, ph / drawn.h)) : 1;
   // The door, pushed open into the room as the founder comes in, shuts behind it; walking down into it pushes it open out, toward the
   // viewer, and then goes back out to the city. One of the people (`crowd`) coming or going holds it open while in the doorway.
   const [swing, setSwing] = useState<{ way: Way; from?: FloorSpot; out?: boolean; crowd?: boolean } | null>(
@@ -74,7 +75,7 @@ export function Inside({
     setSwing({ way: 'open', from: leaving, out: true });
   } else if (through && (!swing || (swing.crowd && swing.way === 'shut'))) setSwing({ way: 'open', out: through === 'out', crowd: true });
   else if (!through && swing?.crowd && swing.way === 'open') setSwing({ way: 'shut', out: swing.out, crowd: true });
-  const font = nameSize(scale);
+  const more = useMore(pane, drawn && `${pw}x${ph}x${drawn.w * scale}x${drawn.h * scale}`);
   const decisions = house.decisions.length;
 
   /** Walks out of the door: up to it, then, once nobody else swings it, it opens and the founder goes back to the city. */
@@ -104,9 +105,9 @@ export function Inside({
         </button>
       </div>
       <div className="relative flex min-h-0 flex-1 p-4">
-        <div ref={pane} className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
+        <div ref={pane} className="flex min-h-0 min-w-0 flex-1 overflow-auto" style={fadeOf(more)}>
           {drawn && pw > 0 && (
-            <div className="relative shrink-0" style={{ width: drawn.w * scale, height: drawn.h * scale }}>
+            <div className="relative m-auto shrink-0" style={{ width: drawn.w * scale, height: drawn.h * scale }}>
               <svg
                 width={drawn.w * scale}
                 height={drawn.h * scale}
@@ -149,11 +150,6 @@ export function Inside({
                 </g>
                 <Bubbles drawn={drawn} crowd={crowd} />
                 <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} />
-                {drawn.cast.mine && <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} text="You" />}
-                {/* In the accent colour: something to do, not somebody. */}
-                {drawn.cast.hire && (
-                  <Label x={drawn.cast.hire.name[0]} y={drawn.cast.hire.name[1]} font={font} text="+ Hire" fill="var(--accent)" />
-                )}
               </svg>
               <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} />
             </div>

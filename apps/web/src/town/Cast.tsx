@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import { talking, useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
 import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/founder.tsx';
 import type { Door } from '#src/town/moves.ts';
+import { lineUp } from '#src/town/names.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
 import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { BUBBLE, PEOPLE_SHEET, SHEET, WALK, WALK_SHEET, walkColumn, type Figure } from '#src/town/people.ts';
@@ -27,12 +28,19 @@ export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder
   ].sort((a, b) => a.z - b.z);
   // Those up to `behind` are behind the founder. One list, each keyed, so nobody is drawn anew as the founder walks past.
   const behind = useFounder(founder, (me) => (me ? items.filter((i) => i.z <= me.at[1]).length : 0));
-  const names = drawn.cast.names
-    .filter((n) => !movers.has(n.person.key))
+  const { hire, mine } = drawn.cast;
+  const labels = [
     // The name under an empty desk is quieter: its agent is away.
-    .map((n) => (
-      <Label key={`name:${n.person.key}`} x={n.x} y={n.y} font={font} text={n.person.name} fill={n.away ? NAME_AWAY : NAME_INK} />
-    ));
+    ...drawn.cast.names
+      .filter((n) => !movers.has(n.person.key))
+      .map((n) => ({ item: { key: `name:${n.person.key}`, fill: n.away ? NAME_AWAY : NAME_INK }, x: n.x, y: n.y, text: n.person.name })),
+    // In the accent colour: something to do, not somebody.
+    ...(hire ? [{ item: { key: 'hire', fill: 'var(--accent)' }, x: hire.name[0], y: hire.name[1], text: '+ Hire' }] : []),
+    ...(mine ? [{ item: { key: 'you', fill: NAME_INK }, x: mine.name[0], y: mine.name[1], text: 'You' }] : []),
+  ];
+  const names = lineUp(labels, font, (t) => textWidth(t, font)).map((l) => (
+    <Label key={l.item.key} x={l.x} y={l.y} font={font} text={l.text} fill={l.item.fill} />
+  ));
   return [
     ...items.slice(0, behind).map((i) => i.el),
     ...names,
@@ -108,8 +116,19 @@ export function useThroughDoor(crowd: Crowd, door: Door | undefined): 'in' | 'ou
   });
 }
 
-/** A name's size in picture pixels: 11px on screen, smaller once the room is drawn too small for names that size to sit apart. */
-export const nameSize = (scale: number) => Math.min(11 / scale, 6.5);
+/** A name's size in picture pixels: 11px on screen. */
+export const nameSize = (scale: number) => 11 / scale;
+/** The least an office is drawn at, so its names are never more than 6.5 picture pixels, what a bench's desks have room for. */
+export const READABLE = 11 / 6.5;
+let measurer: { ctx: CanvasRenderingContext2D | null; family: string } | null = null;
+/** How wide a name is drawn at `font` picture pixels. */
+function textWidth(text: string, font: number): number {
+  measurer ??= { ctx: document.createElement('canvas').getContext('2d'), family: getComputedStyle(document.body).fontFamily };
+  if (!measurer.ctx) return text.length * font * 0.62;
+  measurer.ctx.font = `600 ${font}px ${measurer.family}`;
+  return measurer.ctx.measureText(text).width;
+}
+
 /** A name's halo, for its size. */
 const HALO = 2.5 / 11;
 

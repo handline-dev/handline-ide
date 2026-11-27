@@ -6,6 +6,20 @@ import { newSession } from '#src/session.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
+/** What the people of a big team are doing, different from desk to desk so a room's lines can be told apart. */
+const DOINGS = [
+  'Plan the next release',
+  'Fix the login redirect',
+  'Write tests for the cart',
+  'Review the search change',
+  'Update the deploy script',
+  'Answer the support thread',
+  'Draw the onboarding screens',
+  'Speed up the image upload',
+  'Check the billing report',
+  'Translate the help pages',
+];
+
 const PEOPLE: [string, 'running' | 'idle' | 'closed' | 'waiting', string?][] = [
   ['handline', 'running', 'Plan the release notes'],
   ['handline.ui', 'running', 'Edit the settings sheet'],
@@ -20,7 +34,8 @@ const PEOPLE: [string, 'running' | 'idle' | 'closed' | 'waiting', string?][] = [
   ...crowd(),
 ];
 
-/** Fifteen more small teams, enough to fill a screen: a name, its size and how many of it work. */
+/** Fifteen more small teams, enough to fill a screen, and three big ones whose offices gain rows of desks: a name, its size and how
+ *  many of it work. */
 function crowd(): typeof PEOPLE {
   const teams: [string, number, number][] = [
     ['billing', 3, 2],
@@ -38,12 +53,17 @@ function crowd(): typeof PEOPLE {
     ['ops', 3, 0],
     ['brand', 2, 1],
     ['pay', 4, 2],
+    ['lab', 8, 6],
+    ['studio', 12, 9],
+    ['factory', 24, 18],
   ];
-  const roles = ['web', 'api', 'test', 'review', 'deploy'];
+  const roles = ['web', 'api', 'test', 'review', 'deploy', 'docs', 'data', 'infra', 'design', 'copy', 'ops', 'qa'];
+  const more = ['perf', 'sec', 'mobile', 'search-index', 'ads', 'auth-gateway', 'payments-2', 'ml', 'growth', 'brand', 'legal-review'];
+  const words = [...roles, ...more];
   return teams.flatMap(([team, size, work]) =>
     Array.from({ length: size }, (_, k): (typeof PEOPLE)[number] => {
-      const name = k === 0 ? team : `${team}.${roles[k - 1]}`;
-      if (k < work) return [name, 'running', 'Ship the next change'];
+      const name = k === 0 ? team : `${team}.${words[k - 1]}`;
+      if (k < work) return [name, 'running', size > 6 ? DOINGS[k % DOINGS.length] : 'Ship the next change'];
       return [name, k === size - 1 && size > 2 ? 'waiting' : 'idle'];
     }),
   );
