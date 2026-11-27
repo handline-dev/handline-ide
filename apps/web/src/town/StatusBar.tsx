@@ -41,7 +41,7 @@ const CHIP =
   'flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted hover:bg-hover hover:text-fg disabled:pointer-events-none data-[popup-open]:bg-hover data-[popup-open]:text-fg';
 const ROW = 'flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-hover';
 
-/** A count of the strip: its mark, its number and its words ("3 working"), the words left out on a phone's width; a click lists `rows`. */
+/** A count of the strip: its mark, its number and its words ("3 working"); a click lists `rows`. */
 function Chip({ mark, n, words, children }: { mark: ReactNode; n: number; words: string; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
   const said = `${n} ${words}`;
@@ -50,7 +50,7 @@ function Chip({ mark, n, words, children }: { mark: ReactNode; n: number; words:
       {mark}
       <span>
         {n}
-        <span className="max-sm:hidden"> {words}</span>
+        <span> {words}</span>
       </span>
     </button>
   );

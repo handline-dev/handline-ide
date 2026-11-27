@@ -7,6 +7,7 @@ import { CONTROLS_STRIP, useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { useBackCloses } from '#src/ui/backCloses.ts';
 import { TownStatus } from '#src/town/StatusBar.tsx';
 import { TownTab } from '#src/town/Town.tsx';
+import { ShapeButton } from '#src/town/List.tsx';
 
 const open = createStore(false);
 export const openTown = () => open.set(true);
@@ -44,8 +45,12 @@ function Frame() {
         style={{ height: CONTROLS_STRIP, paddingLeft: 'calc(16px + var(--lights-w, 0px))' }}
       >
         <span className="font-medium">Town</span>
-        <TownStatus />
+        {/* On a phone's width the list says each team's counts. */}
+        <span className="flex min-w-0 max-sm:hidden">
+          <TownStatus />
+        </span>
         <span className="flex-1" />
+        <ShapeButton />
         <button type="button" onClick={closeTown} className="app-no-drag rounded-md px-1.5 py-0.5 text-muted hover:bg-hover hover:text-fg">
           Leave
         </button>

@@ -16,6 +16,7 @@ import { Inside } from '#src/town/Inside.tsx';
 import { CityView, type Sign } from '#src/town/CityView.tsx';
 import { cityOf, HQ, seatsOf } from '#src/town/city.ts';
 import { SWATCH } from '#src/town/palette.ts';
+import { TownList, usePictureShown } from '#src/town/List.tsx';
 
 const MAX_CARS = 8;
 const statusOf = (h: House) => (h.working ? `${h.working} of ${h.people.length} at work` : 'Lights off');
@@ -105,18 +106,27 @@ export function TownTab() {
   return (
     <TownWindows iconFor={iconFor}>
       <GoTo enter={enter} />
-      {house ? (
-        <Inside key={house.key} house={house} cameIn={left === house.key} onBack={() => setPicked(null)} />
-      ) : (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div ref={pane} className="flex min-h-0 flex-1">
-            <CityView city={city} cars={Math.min(working, MAX_CARS)} signs={signs} houses={town.houses} left={left} onEnter={enterFor} />
+      <ListOr houses={town.houses}>
+        {house ? (
+          <Inside key={house.key} house={house} cameIn={left === house.key} onBack={() => setPicked(null)} />
+        ) : (
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div ref={pane} className="flex min-h-0 flex-1">
+              <CityView city={city} cars={Math.min(working, MAX_CARS)} signs={signs} houses={town.houses} left={left} onEnter={enterFor} />
+            </div>
+            <Legend />
           </div>
-          <Legend />
-        </div>
-      )}
+        )}
+      </ListOr>
     </TownWindows>
   );
+}
+
+/** On a phone's width, the list in place of the picture until the picture is asked for. */
+function ListOr({ houses, children }: { houses: readonly House[]; children: ReactNode }) {
+  const { narrow } = useTownShown();
+  const picture = usePictureShown();
+  return narrow && !picture ? <TownList houses={houses} /> : children;
 }
 
 /** Takes the top strip's picks (goto.ts): into the house, and the person's chat in the town's windows. */
@@ -132,6 +142,8 @@ function GoTo({ enter }: { enter: (key: string) => void }) {
 /** What the windows and badges mean, under the city: in full where the pane is wide, in a word or two where it is narrow, so it never
  *  takes more than two rows. */
 function Legend() {
+  // A phone's width has the list, which says it all in words; the picture there goes without a key.
+  if (useTownShown().narrow) return null;
   const square = (background: string) => <span className="size-3 rounded-sm" style={{ background }} />;
   const pin = (fill: string, text: string) => (
     <span

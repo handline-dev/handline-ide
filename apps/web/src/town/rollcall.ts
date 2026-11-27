@@ -41,3 +41,15 @@ export function doneToday<T extends Finished>(tasks: readonly T[], now: number):
   const at = (t: T) => (t.done ? Date.parse(t.done) : NaN);
   return tasks.filter((t) => t.state === 'done' && at(t) >= midnight).sort((a, b) => at(b) - at(a));
 }
+
+/** A team's counts, for its row in the town's list: each group with anyone in it, in the strip's order. */
+export function countsOf(house: House): [Group, number][] {
+  const call = rollCallOf([house]);
+  return GROUPS.map((g): [Group, number] => [g, call[g].length]).filter(([, n]) => n > 0);
+}
+
+/** What a team is doing, in words: "3 working · 1 waiting for you"; nobody busy, "Nobody at work". */
+export const teamLine = (house: House): string =>
+  countsOf(house)
+    .map(([g, n]) => groupWords(g, n))
+    .join(' · ') || 'Nobody at work';
