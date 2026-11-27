@@ -20,6 +20,7 @@ import (
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/protocol/rpc"
 )
 
 // joinedMaster is the master home joined.
@@ -347,6 +348,8 @@ func TestARunnersReadingsHoldItsAccountsToTheirWalls(t *testing.T) {
 	}
 	usage.Record(mhome, *at("main", now-60, 10))
 	meter.readings = map[string]*usage.Reading{"alpha": at("alpha", now-10, 50), "beta": at("beta", now-10, 99)}
+	spent, limit := 3.5, 50.0
+	meter.readings["beta"].Extra = &usage.Extra{On: true, Cap: &limit, Spent: &spent, Currency: "USD"}
 	for range 3 {
 		r.MeterOne(t.Context())
 	}
@@ -359,6 +362,9 @@ func TestARunnersReadingsHoldItsAccountsToTheirWalls(t *testing.T) {
 	}
 	if got := env.Read("beta").ShortTrusted(); got == nil || *got != 99 {
 		t.Fatalf("beta, logged in on the runner only, reads %v", got)
+	}
+	if x := extraInOutlook(t, master, "beta"); x == nil || x["on"] != true || x["spent"] != 3.5 || x["cap"] != 50.0 || x["currency"] != "USD" {
+		t.Fatalf("beta's extra usage, read on the runner, is not in the budget: %v", x)
 	}
 	accts := master.nodes.Accounts(node)
 	if _, ok := accts["gone"]; ok || len(accts) != 2 || meter.turns != 1 {
@@ -375,6 +381,23 @@ func TestARunnersReadingsHoldItsAccountsToTheirWalls(t *testing.T) {
 	if got := *env.Read("main").ShortTrusted(); got != 20 {
 		t.Fatalf("an older reading from the runner replaced the master's: %d%%", got)
 	}
+}
+
+// extraInOutlook is the account's extra usage in stats.outlook's budget; nil when unknown.
+func extraInOutlook(t *testing.T, d *Daemon, acct string) map[string]any {
+	t.Helper()
+	got, err := d.local.Dispatch(rpc.Caller{Kind: "person", Key: "p1", Role: "owner"}, "t", "", "stats.outlook", map[string]any{"range": "24h"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range got.(map[string]any)["budget"].(map[string]any)["accounts"].([]any) {
+		if m := a.(map[string]any); m["account"] == acct {
+			x, _ := m["extra"].(map[string]any)
+			return x
+		}
+	}
+	t.Fatalf("no budget row for %s", acct)
+	return nil
 }
 
 // loginAs logs the claude config dir in as email, as .claude.json says it.

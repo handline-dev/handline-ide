@@ -141,5 +141,8 @@ func (r *Runner) reading(name, email string) (*BeatReading, bool) {
 	for _, w := range m.reading.Windows {
 		out.Windows = append(out.Windows, BeatWindow{Minutes: w.Minutes, Pct: w.Pct, Reset: w.Reset})
 	}
+	if x := m.reading.Extra; x != nil {
+		out.Extra = &BeatExtra{On: x.On, Cap: x.Cap, Spent: x.Spent, Currency: x.Currency}
+	}
 	return out, m.loginFailed
 }

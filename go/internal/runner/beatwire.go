@@ -70,10 +70,19 @@ type BeatAccount struct {
 }
 
 // BeatReading is a usage reading (usage.Reading): how long ago it was read, by this machine's clock (the master's may differ), and each
-// window's percent used and reset.
+// window's percent used and reset, and its extra usage; Extra nil is unknown.
 type BeatReading struct {
 	AgeS    int64        `json:"age_s"`
 	Windows []BeatWindow `json:"windows"`
+	Extra   *BeatExtra   `json:"extra,omitempty"`
+}
+
+// BeatExtra is a reading's extra usage (usage.Extra); Cap or Spent nil is not named, Currency "" none named.
+type BeatExtra struct {
+	On       bool     `json:"on"`
+	Cap      *float64 `json:"cap"`
+	Spent    *float64 `json:"spent"`
+	Currency string   `json:"currency,omitempty"`
 }
 
 // BeatWindow is one window of a BeatReading; Pct nil is not read, Reset 0 unknown.

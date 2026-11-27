@@ -301,6 +301,9 @@ func Start(cfg Config) (*Daemon, error) {
 		for _, w := range b.Windows {
 			r.Windows = append(r.Windows, usage.ReadingWindow{Minutes: w.Minutes, Pct: w.Pct, Reset: w.Reset})
 		}
+		if x := b.Extra; x != nil {
+			r.Extra = &usage.Extra{On: x.On, Cap: x.Cap, Spent: x.Spent, Currency: x.Currency}
+		}
 		usage.RecordNewer(cfg.Home, r)
 	}
 	d.projects = &projects.Syncer{DB: db, Reg: d.nodes, Log: cfg.Log, Stop: d.stop}

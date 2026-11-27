@@ -86,22 +86,20 @@ func TestExtraSpentAddsEachCurrencyApart(t *testing.T) {
 	}
 }
 
-// A runner's reading names no extra usage, so it keeps what the master's reading left; the master's own reading with none clears it.
-func TestARunnersReadingKeepsTheExtraUsageHeld(t *testing.T) {
+// Another machine's reading is the authority for extra usage as for its windows: one that names none makes it unknown.
+func TestARunnersReadingCarriesItsExtraUsage(t *testing.T) {
 	e, _, _ := burnEnv(t)
 	if err := os.MkdirAll(filepath.Dir(paths.StatusFile(e.Home, "a")), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	r := Reading{Account: "a", At: clock - 60, Windows: []ReadingWindow{{Minutes: 10080, Pct: pct(40)}},
 		Extra: &Extra{On: true, Spent: f64(3), Currency: "USD"}}
-	Record(e.Home, r)
-	r.At, r.Extra = clock-30, nil
-	if !RecordNewer(e.Home, r) || e.Read("a").Extra == nil {
-		t.Fatalf("the runner's reading dropped it: %v", e.Read("a").Extra)
+	if !RecordNewer(e.Home, r) || e.Read("a").Extra == nil || *e.Read("a").Extra.Spent != 3 {
+		t.Fatalf("the runner's extra usage was not kept: %v", e.Read("a").Extra)
 	}
-	r.At = clock
-	if Record(e.Home, r); e.Read("a").Extra != nil {
-		t.Fatal("the master's answer named none: unknown")
+	r.At, r.Extra = clock, nil
+	if RecordNewer(e.Home, r); e.Read("a").Extra != nil {
+		t.Fatal("the runner's answer named none: unknown")
 	}
 }
 
