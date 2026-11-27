@@ -34,7 +34,7 @@ export function RunAsk({ p, who, at }: { p: Proposal; who: string; at: string })
         <span className="flex flex-wrap items-baseline gap-x-2 text-sm">
           <Name who={who} className="font-medium" />
           <span className="text-xs text-muted">
-            Asks you to run ·{' '}
+            {end ? 'Asked you to run' : 'Asks you to run'} ·{' '}
             <time dateTime={at} title={clock(at)}>
               <Ago at={at} />
             </time>
@@ -49,11 +49,13 @@ export function RunAsk({ p, who, at }: { p: Proposal; who: string; at: string })
 function Ended({ end, command }: { end: RunOutcome; command: string }) {
   const Mark = MARK[end.mark];
   return (
-    <p className="flex min-w-0 items-center gap-2 text-sm">
-      <Mark size={14} className={`shrink-0 ${TONE[end.mark]}`} />
-      <span className="shrink-0 text-fg">{end.word}</span>
-      <code className="min-w-0 font-mono text-xs [overflow-wrap:anywhere] text-muted">{command}</code>
-    </p>
+    <div className="flex min-w-0 flex-col gap-1 text-sm">
+      <span className="flex items-center gap-2">
+        <Mark size={14} className={`shrink-0 ${TONE[end.mark]}`} />
+        <span className="text-fg">{end.word}</span>
+      </span>
+      <pre className="min-w-0 pl-5.5 font-mono text-xs leading-5 break-words whitespace-pre-wrap text-muted">{commandSteps(command)}</pre>
+    </div>
   );
 }
 
