@@ -1215,11 +1215,8 @@ func (e *Env) working(agent string) (map[string]any, error) {
 // workingFrom is an agent's view as the spec's Working.
 func workingFrom(view map[string]any) map[string]any {
 	var line any
-	for _, k := range []string{"blocker", "state_detail"} {
-		if truthy(view[k]) {
-			line = view[k]
-			break
-		}
+	if truthy(view["state_detail"]) {
+		line = view["state_detail"]
 	}
 	st, _ := view["status"].(map[string]any)
 	turn := strings.EqualFold(pyStr(view["state"]), "running") && pyStr(st["reason"]) != "background" // at its prompt: no turn to stop
