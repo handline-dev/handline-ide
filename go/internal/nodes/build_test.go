@@ -32,7 +32,7 @@ func buildOf(t *testing.T) *Build {
 func TestTheMastersBuildIsOfferedOnAutoOrUpdate(t *testing.T) {
 	r := registry(t)
 	now := time.Now()
-	r.Clock = func() time.Time { return now }
+	r.SetClock(func() time.Time { return now })
 	for _, q := range []string{"INSERT OR IGNORE INTO people(id, display_name, role, created_at) VALUES(1, 'Ron', 'owner', 0), (2, 'Kim', 'member', 0)",
 		"UPDATE nodes SET person = 1 WHERE id = 'n1'"} {
 		if _, err := r.DB.Exec(q); err != nil {
@@ -86,7 +86,7 @@ func TestTheMastersBuildIsOfferedOnAutoOrUpdate(t *testing.T) {
 func TestTheAppsReadyVersionIsInstalledOnAutoOrUpdate(t *testing.T) {
 	r := registry(t)
 	now := time.Now()
-	r.Clock = func() time.Time { return now }
+	r.SetClock(func() time.Time { return now })
 	for _, q := range []string{"INSERT OR IGNORE INTO people(id, display_name, role, created_at) VALUES(1, 'Ron', 'owner', 0), (2, 'Kim', 'member', 0)",
 		"UPDATE nodes SET person = 2 WHERE id = 'n1'"} {
 		if _, err := r.DB.Exec(q); err != nil {

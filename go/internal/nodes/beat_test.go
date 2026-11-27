@@ -55,7 +55,7 @@ func TestOffMachineIsTheMachineSetToOff(t *testing.T) {
 func TestARevokedRunnersSessionsAreTakenBackAtOnce(t *testing.T) {
 	r := registry(t)
 	now := time.Now()
-	r.Clock = func() time.Time { return now }
+	r.SetClock(func() time.Time { return now })
 	r.beats["n1"] = heard{at: now, beat: runner.Beat{Version: "v1", Sessions: []runner.BeatSession{{Agent: "bob", Handle: "%1", Branch: "work"}}}}
 	if why := r.Takes("n1"); why != "" {
 		t.Fatalf("a runner heard now on the master's version on run: %q", why)
@@ -76,7 +76,7 @@ func TestARevokedRunnersSessionsAreTakenBackAtOnce(t *testing.T) {
 func TestTakesNeedsAHeartbeatTheVersionAndRun(t *testing.T) {
 	r := registry(t)
 	now := time.Now()
-	r.Clock = func() time.Time { return now }
+	r.SetClock(func() time.Time { return now })
 	if why := r.Takes("n1"); !strings.Contains(why, "offline") {
 		t.Fatalf("never heard: %q", why)
 	}

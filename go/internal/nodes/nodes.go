@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
@@ -82,7 +83,7 @@ type Registry struct {
 	updates map[string]bool            // the nodes whose Update was asked (AskUpdate), until one runs the master's build
 	appAsks map[string]string          // the app version each node's Update asked it to install, until its app has none ready
 	started time.Time
-	Clock   func() time.Time // the time heartbeats are judged by; nil is time.Now
+	clock   atomic.Pointer[func() time.Time] // the time heartbeats are judged by (SetClock); unset is time.Now
 
 	refOnce sync.Once
 	refRE   *regexp.Regexp // a path under the attachments folder
@@ -95,9 +96,13 @@ type stream struct {
 	ended func()
 }
 
-func (r *Registry) now() time.Time {
-	if r.Clock != nil {
-		return r.Clock()
+// SetClock sets the time heartbeats are judged by; a test may set it while the registry is serving.
+func (r *Registry) SetClock(f func() time.Time) { r.clock.Store(&f) }
+
+// Now is the time heartbeats are judged by.
+func (r *Registry) Now() time.Time {
+	if f := r.clock.Load(); f != nil {
+		return (*f)()
 	}
 	return time.Now()
 }
@@ -112,7 +117,7 @@ func (r *Registry) Link(node string, c *rpc.Conn) {
 	r.mu.Lock()
 	r.links[node] = c
 	h := r.beats[node]
-	h.at = r.now() // its hello is heard from it; its version is what its next heartbeat says
+	h.at = r.Now() // its hello is heard from it; its version is what its next heartbeat says
 	h.beat.Version = ""
 	r.beats[node] = h
 	r.mu.Unlock()

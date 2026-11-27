@@ -79,7 +79,7 @@ func pushedWorktree(t *testing.T, dir string) (origin, worktree, pushed string) 
 func TestAStoppedRunnerIsOfflineThenItsSessionIsTakenBackAndItsLeftoversRescued(t *testing.T) {
 	master, node, home, _, r := masterWithRunner(t, nil)
 	clock := &fakeClock{at: time.Now()}
-	master.nodes.Clock = clock.now
+	master.nodes.SetClock(clock.now)
 	bob := teamtest.Key(t, master.cfg.Home, "bob")
 	for _, q := range []string{
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'one', '" + bob + "', 'p1', 1, 'p1')",

@@ -51,7 +51,7 @@ func two(t *testing.T) (*Placer, func(node string, free int64, sessions int, pro
 	reg := nodes.New(d, t.TempDir())
 	reg.Self, reg.Version = "m0", "v1"
 	now := time.Now()
-	reg.Clock = func() time.Time { return now }
+	reg.SetClock(func() time.Time { return now })
 	hear := func(node string, free int64, sessions int, programs ...string) {
 		b := runner.Beat{Version: "v1", Load: runner.Load{RAMFree: free}, Has: runner.Has{CLIs: []string{"claude"}, Programs: programs}}
 		for i := 0; i < sessions; i++ {
