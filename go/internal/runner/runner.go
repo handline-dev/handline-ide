@@ -521,7 +521,9 @@ func (r *Runner) open(agent, folder, command string) (any, error) {
 	if had { // one session an agent: the one before it no longer proves itself the agent's
 		r.close(agent, old.Handle)
 	}
-	handle, why := r.cfg.Term.CreateTerminal(command, folder, agent, agent)
+	// The pane is opened empty and recorded as the agent's before its command is typed: the command is hl launch, whose first call here
+	// must find its pane already the agent's, however busy the machine.
+	handle, why := r.cfg.Term.CreateTerminal("", folder, agent, agent)
 	if handle == "" {
 		return nil, fmt.Errorf("could not open a terminal for %s: %s", agent, why)
 	}
@@ -529,6 +531,11 @@ func (r *Runner) open(agent, folder, command string) (any, error) {
 	if pid == 0 || !r.cfg.Tokens.Record(agent, pid) {
 		r.cfg.Term.CloseTerminal(handle, true)
 		return nil, fmt.Errorf("the session of %s could not be recorded, so it is not opened", agent)
+	}
+	if ok, why := r.cfg.Term.Send(handle, command, true); !ok {
+		r.cfg.Tokens.Forget(agent, pid)
+		r.cfg.Term.CloseTerminal(handle, true)
+		return nil, fmt.Errorf("could not type the launch into %s's terminal: %s", agent, why)
 	}
 	r.mu.Lock()
 	r.sessions[agent] = session{Handle: handle, Pid: pid, Folder: folder}

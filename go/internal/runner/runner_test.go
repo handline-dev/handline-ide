@@ -15,7 +15,9 @@ type fakeTerm struct {
 }
 
 func (f *fakeTerm) CreateTerminal(command, cwd, title, agent string) (string, string) {
-	f.typed = append(f.typed, command)
+	if command != "" {
+		f.typed = append(f.typed, command)
+	}
 	return "%1", ""
 }
 func (f *fakeTerm) CloseTerminal(h string, _ bool) (bool, string) {
@@ -93,5 +95,38 @@ func TestTheMastersCallsReachTheTerminalAndOnlyOverTheLink(t *testing.T) {
 	_, err = r.Local().Dispatch(r.Local().AgentCaller("bob"), "hl", "", "say", nil)
 	if e, ok := err.(*rpc.Error); !ok || e.Data["gate"] != "master" {
 		t.Fatalf("a call with no link to the master: %v", err)
+	}
+}
+
+// orderTerm notes whether the agent's pane was already recorded when the launch was typed.
+type orderTerm struct {
+	*fakeTerm
+	tok              *fakeTokens
+	recordedAtLaunch bool
+}
+
+func (o *orderTerm) Send(h, text string, enter bool) (bool, string) {
+	if text == "hl launch bob" {
+		o.recordedAtLaunch = o.tok.kept["bob"] != 0
+	}
+	return o.fakeTerm.Send(h, text, enter)
+}
+
+// The launch's first call here must find its pane already the agent's, however busy the machine: the pane is recorded before the launch
+// is typed into it.
+func TestARunnersPaneIsTheAgentsBeforeItsLaunchIsTyped(t *testing.T) {
+	home := t.TempDir()
+	tok := &fakeTokens{kept: map[string]int{}}
+	tm := &orderTerm{fakeTerm: &fakeTerm{}, tok: tok}
+	r, err := Start(Config{Home: home, Term: tm, Tokens: tok, Auth: fakeAuth{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if _, err := r.serve("runner.terminal.open", map[string]any{"agent": "bob", "folder": home, "command": "hl launch bob"}); err != nil {
+		t.Fatal(err)
+	}
+	if !tm.recordedAtLaunch || strings.Join(tm.typed, ",") != "hl launch bob" {
+		t.Fatalf("recorded when typed: %v; typed %v", tm.recordedAtLaunch, tm.typed)
 	}
 }
