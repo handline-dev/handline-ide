@@ -90,6 +90,7 @@ export function pullUnavailableText(u: PullUnavailable, what = 'Not shown'): str
     case 'gone':
       return `${what}: GitHub has no such pull request, or the gh login on the machine Handline runs on cannot see it.`;
     case 'no_repo':
+    case 'unread_host':
       return u.text;
     default:
       return `${what}: ${u.text}`;

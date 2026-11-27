@@ -1,0 +1,28 @@
+[
+ {
+  "iid": 4593,
+  "state": "closed",
+  "draft": false,
+  "target_branch": "main",
+  "source_branch": "docs-cli-imperative-short-descriptions",
+  "sha": "fafa97420649aab531c0f3c77aab3ddc1f23247d",
+  "merge_commit_sha": null,
+  "squash_commit_sha": null,
+  "detailed_merge_status": "not_open",
+  "web_url": "https://gitlab.com/gitlab-org/cli/-/merge_requests/4593",
+  "updated_at": "2026-11-27T06:48:11.888Z"
+ },
+ {
+  "iid": 4589,
+  "state": "merged",
+  "draft": false,
+  "target_branch": "main",
+  "source_branch": "8770-df-fallback-git-docs",
+  "sha": "e43fbcf3bdf946abfb4952b7523f403297f74f35",
+  "merge_commit_sha": "352c0a797711f2a1a00d940b40fff70eeea248ea",
+  "squash_commit_sha": "8b006a6d8b4d2c7c6f4841b0a2f494be8e23a3d1",
+  "detailed_merge_status": "not_open",
+  "web_url": "https://gitlab.com/gitlab-org/cli/-/merge_requests/4589",
+  "updated_at": "2026-11-27T06:20:43.239Z"
+ }
+]

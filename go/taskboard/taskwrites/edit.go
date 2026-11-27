@@ -321,20 +321,25 @@ func prParam(p map[string]any) (pr int64, repo string, err error) {
 	}
 	if p["pr_repo"] != nil {
 		s, ok := p["pr_repo"].(string)
-		if !ok || !watch.RepoName(s) || pr == 0 { // owner/name as GitHub names a repository, never a step of a path
-			return 0, "", badParam("pr_repo is the repository of pr as owner/name, given with pr", "pr_repo")
+		if !ok || !watch.PullRepo(s) || pr == 0 { // owner/name as GitHub names a repository, host/path elsewhere, never a step of a path
+			return 0, "", badParam("pr_repo is the repository of pr as owner/name, or host/path off GitHub, given with pr", "pr_repo")
 		}
 		repo = s
 	}
 	return pr, repo, nil
 }
 
-// prWords is a task's pull request in words: "#418", or "owner/name#418" when its repository is known; "" for none.
+// prWords is a task's pull request in words: "#418", or "owner/name#418" (a GitLab "host/path!418") when its repository is known; ""
+// for none.
 func prWords(repo string, pr sql.NullInt64) string {
 	if !pr.Valid {
 		return ""
 	}
-	return fmt.Sprintf("%s#%d", repo, pr.Int64)
+	if repo != "" {
+		_, target := watch.PullTarget(repo, pr.Int64)
+		return target
+	}
+	return fmt.Sprintf("#%d", pr.Int64)
 }
 
 // setPR names the pull request an open task's work merges in (task.edit pr), in repo when the caller says which ("" forgets the one

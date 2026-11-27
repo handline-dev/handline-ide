@@ -192,7 +192,7 @@ func TestATasksPullRequestIsReadAsGitHubHasItNow(t *testing.T) {
 	e.GitHub = gh.reader()
 	want := map[string]any{"number": int64(7), "repo": "acme/app", "url": "https://github.com/acme/app/pull/7", "state": "open", "draft": false,
 		"base": "main", "review": "changes_requested", "failing": []string{"build"}, "waiting": 1, "passing": 2,
-		"head_sha": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e", "merge_sha": nil, "closes_task": false, "unavailable": nil}
+		"head_sha": "1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e", "merge_sha": nil, "closes_task": false, "unavailable": nil, "host": "GitHub"}
 	if got := taskPRRead(t, e, 1); !reflect.DeepEqual(got, want) {
 		t.Fatalf("\n got %v\nwant %v", got, want)
 	}
@@ -306,5 +306,57 @@ func TestAGatesReadOfAPullRequestServesTheCard(t *testing.T) {
 	}
 	if _, _, err := e.GitHub.Check(context.Background(), "acme/app#7", "ci", since); err != nil || gh.asked["pr view"] != 2 {
 		t.Fatalf("a gate reads afresh: %v, gh asked %d times", err, gh.asked["pr view"])
+	}
+}
+
+// A pull request in a repository on another host is read by that host's reader: a GitLab host glab is logged in to reads as a merge
+// request, its page and host named; a host no reader reads says so plainly, with no read and no link, and the branch shows no chip.
+func TestAPullRequestOnAnotherHostIsReadByItsHostOrSaidUnread(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	root, _ := filepath.EvalSymlinks(t.TempDir())
+	git := gitIn(t)
+	addAgent(t, e, "alice", "")
+	for i, origin := range []string{"git@gitlab.com:group/app.git", "https://git.corp.example/team/app.git"} {
+		repo := filepath.Join(root, fmt.Sprint(i))
+		os.MkdirAll(repo, 0o755)
+		git(repo, "init", "-q", "-b", "main")
+		git(repo, "remote", "add", "origin", origin)
+		if i == 0 {
+			teamtest.Set(t, e.Home, "alice", "repo", repo)
+		}
+	}
+	alice := teamtest.Key(t, e.Home, "alice")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, pr) VALUES(1, 'ship', '"+alice+"', 'p1', 1, 'p1', 4)")
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, pr, pr_repo) VALUES(2, 'ship', 'bob', 'p1', 1, 'p1', 4, 'git.corp.example/team/app')")
+	var asked []string
+	e.GitLab = &watch.GitLab{Run: func(_ context.Context, args ...string) ([]byte, error) {
+		asked = append(asked, strings.Join(args, " "))
+		switch {
+		case args[0] == "auth" && args[3] == "gitlab.com":
+			return nil, nil
+		case args[0] == "auth":
+			return nil, errors.New("glab auth: not logged in")
+		case strings.HasSuffix(args[3], "/approvals"):
+			return []byte(`{"approvals_left":1,"approved_by":[]}`), nil
+		}
+		return []byte(`{"iid":4,"state":"opened","target_branch":"main","sha":"abc","detailed_merge_status":"not_approved",` +
+			`"web_url":"https://gitlab.com/group/app/-/merge_requests/4","head_pipeline":{"status":"failed"}}`), nil
+	}}
+	got := taskPRRead(t, e, 1)
+	if got["repo"] != "gitlab.com/group/app" || got["host"] != "GitLab" || got["state"] != "open" || got["review"] != "review_required" ||
+		!reflect.DeepEqual(got["failing"], []string{"pipeline"}) || got["url"] != "https://gitlab.com/group/app/-/merge_requests/4" || got["unavailable"] != nil {
+		t.Fatalf("%v", got)
+	}
+	got = taskPRRead(t, e, 2)
+	why, _ := got["unavailable"].(map[string]any)
+	if why["reason"] != "unread_host" || why["text"] != "Pull requests on git.corp.example are not read yet; this repository lands by push." ||
+		got["host"] != "git.corp.example" || got["url"] != nil || got["state"] != nil {
+		t.Fatalf("%v", got)
+	}
+	for _, a := range asked {
+		if strings.HasPrefix(a, "api --hostname git.corp.example") {
+			t.Fatalf("an unread host is not asked: %q", asked)
+		}
 	}
 }

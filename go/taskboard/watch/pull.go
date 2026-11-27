@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -141,29 +142,37 @@ type kept struct {
 	until time.Time
 }
 
-func (g *GitHub) held(key string) (kept, bool) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	k, ok := g.kept[key]
-	return k, ok && g.now().Before(k.until)
+// memo holds what a reader last read, by pull request, by branch and by login asked about.
+type memo struct {
+	mu   sync.Mutex
+	kept map[string]kept
 }
 
-func (g *GitHub) keep(key string, p *Pull, err error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.kept == nil {
-		g.kept = map[string]kept{}
+func (m *memo) held(now time.Time, key string) (kept, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k, ok := m.kept[key]
+	return k, ok && now.Before(k.until)
+}
+
+func (m *memo) keep(now time.Time, key string, p *Pull, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.kept == nil {
+		m.kept = map[string]kept{}
 	}
-	now := g.now()
 	// What nobody asked about again goes: an answer two more lives past its own is dropped, so the map holds only the pull requests and
 	// branches still being looked at.
-	for k, old := range g.kept {
+	for k, old := range m.kept {
 		if now.Sub(old.until) > 2*PullTTL {
-			delete(g.kept, k)
+			delete(m.kept, k)
 		}
 	}
-	g.kept[key] = kept{pull: p, err: err, until: now.Add(PullTTL)}
+	m.kept[key] = kept{pull: p, err: err, until: now.Add(PullTTL)}
 }
+
+func (g *GitHub) held(key string) (kept, bool)        { return g.memo.held(g.now(), key) }
+func (g *GitHub) keep(key string, p *Pull, err error) { g.memo.keep(g.now(), key, p, err) }
 
 // pullKey is where a pull request's read is kept; a branch's answer is kept under its repository and name, which hold no "\x01".
 func pullKey(repo string, number int64) string { return repo + "\x01" + strconv.FormatInt(number, 10) }

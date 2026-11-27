@@ -8,7 +8,7 @@ import (
 // A merge closes a task only when the pull request is in the repository the task's holder works in: the watch names o/r on GitHub, and
 // the origin of the holder's folder must be that repository. A commit merged in another repository can be on this one's default branch
 // too (a fork, a mirror), and says nothing of the work here: the task is given back with both names. So is one whose origin is no
-// github.com remote, which cannot be told to be it. Names that differ only in case are one repository. The clone holds the merge in
+// remote on a host, which cannot be told to be it, and one on another host (a GitLab project of the same name). Names that differ only in case are one repository. The clone holds the merge in
 // every case here, so only the repository decides.
 func TestAMergeInAnotherRepositoryDoesNotCloseTheTask(t *testing.T) {
 	rig := func(origin string) (*landRig, string) {
@@ -31,7 +31,8 @@ func TestAMergeInAnotherRepositoryDoesNotCloseTheTask(t *testing.T) {
 	for origin, why := range map[string]string{
 		"https://github.com/other/r.git": "repository here is other/r: a merge in one is not looked for in the other",
 		"git@github.com:o/r-fork.git":    "repository here is o/r-fork: a merge in one is not looked for in the other",
-		"":                               "repository here is not a github.com remote, so it cannot be told to be that one",
+		"":                               "repository here is no remote on a host, so it cannot be told to be that one",
+		"git@gitlab.com:o/r.git":         "repository here is gitlab.com/o/r: a merge in one is not looked for in the other",
 	} {
 		r, sha := rig(origin)
 		e, _, _, blockers := r.task(2)

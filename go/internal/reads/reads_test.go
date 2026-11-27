@@ -3,6 +3,7 @@ package reads
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,9 +34,11 @@ func testEnv(t *testing.T) *Env {
 		_, err := os.Stat(filepath.Join(teamtest.AccountDir(t, home, acct), ".credentials.json"))
 		return err == nil, true
 	}
-	// No test asks GitHub: gh is never run, and a branch has no pull request, unless the test gives its own GitHub.
+	// No test asks GitHub: gh is never run, and a branch has no pull request, unless the test gives its own GitHub. glab is logged in to
+	// no host, unless the test gives its own GitLab.
 	none := func(context.Context, ...string) ([]byte, error) { return []byte("[]"), nil }
-	return &Env{DB: db, Home: home, Started: time.Now(), LoginState: login, GitHub: &watch.GitHub{Run: none}}
+	noLab := func(context.Context, ...string) ([]byte, error) { return nil, errors.New("glab auth: not logged in") }
+	return &Env{DB: db, Home: home, Started: time.Now(), LoginState: login, GitHub: &watch.GitHub{Run: none}, GitLab: &watch.GitLab{Run: noLab}}
 }
 
 func addAgent(t *testing.T, e *Env, name, role string) {

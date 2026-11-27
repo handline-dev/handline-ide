@@ -83,13 +83,12 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 		// git is asked about the sha and the commit here, before the write: the transaction below holds no git process.
 		in.Sha, in.Words, in.Request, in.Repo = sha, words, request, repo
 		in = in.Looked()
-		w, err := mergeWatch(c.Server().DB, home, by, tid, in)
+		w, unwatched, err := mergeWatch(c.Server().DB, home, by, tid, in)
 		if err != nil {
 			return nil, err
 		}
-		unwatched := ""
 		if w != nil {
-			if err := watchReady(w); err != nil { // GitHub is not set up here: the done closes now, and says so
+			if err := watchReady(w); err != nil { // its host's CLI is not set up here: the done closes now, and says so
 				unwatched, w = err.Error(), nil
 			}
 		}

@@ -1,0 +1,13 @@
+{
+ "iid": 4584,
+ "state": "opened",
+ "draft": false,
+ "target_branch": "8721-dnf-2-login",
+ "source_branch": "8721-dnf-3-refresh",
+ "sha": "8478a0e966120f9e243079aa861000714494b15b",
+ "merge_commit_sha": null,
+ "squash_commit_sha": null,
+ "detailed_merge_status": "requested_changes",
+ "web_url": "https://gitlab.com/gitlab-org/cli/-/merge_requests/4584",
+ "updated_at": "2026-11-26T12:06:36.427Z"
+}

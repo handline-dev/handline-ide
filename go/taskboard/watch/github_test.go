@@ -149,7 +149,7 @@ func TestAWatchIsParsedWithoutReadingAndReadyAsksTheVendor(t *testing.T) {
 	defer func(was Vendor) { Vendors["github"] = was }(Vendors["github"])
 	Vendors["github"] = g
 	for _, c := range []struct{ vendor, target, until, err string }{
-		{"gitlab", "g/p!1", "", `no vendor "gitlab"`},
+		{"jira", "g/p!1", "", `no vendor "jira"`},
 		{"github", "o/r#7", "merged", `github waits for ci, closed, landed, done, not "merged"`},
 		{"github", "o/r", "", "owner/name#N"},
 	} {
