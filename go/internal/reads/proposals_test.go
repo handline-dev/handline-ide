@@ -159,6 +159,7 @@ func TestProposalDiffIsOneChangePerLineInTheSpecsWords(t *testing.T) {
 			"i2.kind: settings\ni2.agent: bob\ni2.set.effort: max\ni2.was.effort: high\n",
 			addr.Ref("ann") + " effort: low -> max\n" + addr.Ref("bob") + " effort: high -> max"},
 		{"settings with nothing set", "kind: settings\nagent: w\n", "change the settings of w"},
+		{"an agent by key is a mention", "kind: settings\nagent: a7\n", "change the settings of <@a7>"},
 		{"team", "kind: team\nagent: eng\nrepo: r\nmembers: \"a,b\"\n", "create team eng (working in r) with members a, b"},
 		{"context", "kind: context\nagent: w\nset.ROLE.md: \"\\\"x\\\"\"\n", "replace ROLE.md of w"},
 		{"rename", "kind: rename\nagent: a\nto: b\n", "rename a to b"},

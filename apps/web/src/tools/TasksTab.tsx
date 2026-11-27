@@ -14,6 +14,7 @@ import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
 import { HereWord } from '#src/connection/ClusterWord.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Page } from '#src/ui/Page.tsx';
+import { useRefs } from '#src/ui/refs.tsx';
 import { ScrollFade } from '#src/ui/ScrollFade.tsx';
 import { failedLine, look } from '#src/ui/taskLook.tsx';
 import { toast } from '#src/ui/toast.tsx';
@@ -227,12 +228,14 @@ function Row({ t, ruled, owner, kids, word }: { t: Task; ruled: boolean; owner?:
   const back = useGiveBack();
   const s = look(t);
   const lease = useLeaseWaits().get(t.id);
+  const refs = useRefs();
+  const words = waitWords(t, kids);
   const held: ReactNode = lease ? (
     <>
       <LeaseIcon kind={lease.kind} /> {lease.text}
     </>
   ) : (
-    waitWords(t, kids)
+    words && refs(words)
   );
   const yours = foundersTurn(t, me);
   // The assignee is left out while the list is already that agent's.

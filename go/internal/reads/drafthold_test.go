@@ -107,23 +107,23 @@ func TestAFounderTurnCarriesWhatWaitsBehindIt(t *testing.T) {
 func TestADraftItsAgentLeftBehindShowsUntilSeen(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
-	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'left', 'bob', 'bob', 100)")
-	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(90, 'bob', 'mark_task_done', '{"task_id": 7}')`)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'left', 'a7', 'a7', 100)")
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(90, 'a7', 'mark_task_done', '{"task_id": 7}')`)
 	if got := runRows(t, e); got != "" {
 		t.Fatalf("its agent has not moved on yet: %q", got)
 	}
-	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(150, 'bob', 'task_handoff', '{"task_id": 8}')`)
+	run(t, e, `INSERT INTO events(ts, agent, kind, payload) VALUES(150, 'a7', 'task_handoff', '{"task_id": 8}')`)
 	if got := runRows(t, e); got != "1:[]" {
 		t.Fatalf("left behind once its agent handed a task on: %q", got)
 	}
-	if got := statusText(t, e, 1); !strings.Contains(got, "bob left it for you to run") {
+	if got := statusText(t, e, 1); !strings.Contains(got, "<@a7> left it for you to run") {
 		t.Fatalf("the status says who left it: %s", got)
 	}
 	run(t, e, "INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p1:1', 0, 1)")
 	if got := runRows(t, e); got != "" {
 		t.Fatalf("seen, it leaves: %q", got)
 	}
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(5, 1, 'bob', 'more', 200)")
+	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(5, 1, 'a7', 'more', 200)")
 	if got := runRows(t, e); got != "1:[]" {
 		t.Fatalf("a later comment brings it back: %q", got)
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/gates"
 	"github.com/handline/handline/go/internal/housekeeping"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/dangling"
 	"github.com/handline/handline/go/scheduler/lifecycle"
@@ -521,7 +522,7 @@ func (l tickLifecycle) StartOrWakeNeeded(_ db.Q, agent string, row *db.AgentStat
 func (l tickLifecycle) StartForWork(_ db.Q, agent string) string {
 	said, err := l.m.StartForWork(agent)
 	if err != nil {
-		return agent + ": could not start for work: " + err.Error()
+		return addr.Ref(agent) + ": could not start for work: " + err.Error()
 	}
 	return said
 }
