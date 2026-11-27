@@ -37,5 +37,11 @@ export const CLUSTER_SEEDS: Record<string, Seed> = {
       acting: ME,
     });
     d.inbox.add({ kind: 'decision', agent: 'shop.backend', title: 'Rotate the payment API key', body: ask, task: 41 });
+    d.admin.prefs.pin(['shop.web']);
+  },
+  /** A Mac joined to a cluster with no workspace of its own (HANDLINE_FAKE_SEEDS=empty-board beside --cluster). */
+  'empty-board': (d) => {
+    d.sessions.clear();
+    d.inbox.clear();
   },
 };

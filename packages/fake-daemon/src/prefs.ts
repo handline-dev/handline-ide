@@ -28,6 +28,11 @@ export class FakePrefs {
 
   private get = (): Prefs => ({ nav: { ...this.nav } });
 
+  /** A seed's pins. */
+  pin(agents: string[]): void {
+    this.store({ pins: agents });
+  }
+
   /** A retired agent leaves the pins and the order. */
   forget(agent: string): void {
     const drop = (names: string[]) => names.filter((n) => n !== agent);

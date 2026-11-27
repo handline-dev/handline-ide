@@ -1,10 +1,20 @@
 // The clusters this Mac joined (the desktop shell's list), each with a store of its own kept connected beside this Mac's, and the scope
 // that makes a subtree read one of them. This Mac's own cluster is id ''.
 import { Store, type ShellCluster } from '@handline/app-core';
-import { DataProvider, DataScope, makeQueryClient } from '@handline/app-data';
+import { DataProvider, DataScope, Hooks, makeQueryClient } from '@handline/app-data';
 import { DaemonProvider, useSelected } from '@handline/app-react';
 import { DaemonClient, webSocketTransport } from '@handline/client';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import { shell } from '#src/shell.ts';
 import { TabId } from '#src/persist/tabState.ts';
 import { pressedIn, scopeModals } from '#src/ui/modal.tsx';
@@ -22,6 +32,15 @@ export const useJoined = () => useContext(JoinedContext);
 export const useJoinedReady = () => useContext(ReadyContext);
 /** The cluster the subtree reads: '' for this Mac's own. */
 export const useCluster = () => useContext(HereContext);
+
+/** The joined cluster that stands as home on a Mac whose own board has no workspace: its `@<id>/` keys read as home's. */
+let homeAlias = '';
+const aliasSubs = new Set<() => void>();
+function setHomeAlias(id: string) {
+  homeAlias = id;
+  for (const f of aliasSubs) f();
+}
+const onAlias = (f: () => void) => (aliasSubs.add(f), () => void aliasSubs.delete(f));
 
 /** Keeps a store connected for each joined cluster (its DataProvider keeps its cache current) and gives the list to the tree. */
 export function JoinedClusters({ children }: { children: ReactNode }) {
@@ -42,9 +61,19 @@ export function JoinedClusters({ children }: { children: ReactNode }) {
       setReady(true);
     });
   }, []);
+  // A Mac with no workspace of its own that joined a cluster reads that cluster as home, as a browser on its master does.
+  const ownList = Hooks.useWorkspacesList();
+  const own = ownList.data;
+  const home = own?.workspaces.length === 0 ? joined[0] : undefined;
+  const alias = home?.id ?? '';
+  const applied = useSyncExternalStore(onAlias, () => homeAlias);
+  useLayoutEffect(() => setHomeAlias(alias), [alias]);
+  const listed = home ? joined.filter((j) => j !== home) : joined;
+  // Nothing draws before the shell's list and this Mac's workspaces are known, so it never starts on the wrong daemon.
+  const decided = ready && (!joined.length || own !== undefined || ownList.isError) && applied === alias;
   return (
-    <ReadyContext.Provider value={ready}>
-      <JoinedContext.Provider value={joined}>
+    <ReadyContext.Provider value={ready && decided}>
+      <JoinedContext.Provider value={listed}>
         {/* Every press says its cluster, this Mac's here and a joined one's in its InCluster (later in the capture), for the modal it opens. */}
         <div className="contents" onPointerDownCapture={() => pressedIn('')} onKeyDownCapture={() => pressedIn('')}>
           {joined.map((j) => (
@@ -52,7 +81,15 @@ export function JoinedClusters({ children }: { children: ReactNode }) {
               <DataProvider daemonId={j.daemon} client={j.queries} />
             </DaemonProvider>
           ))}
-          {children}
+          {!decided ? null : home ? (
+            <DaemonProvider store={home.store} connect={false}>
+              <DataScope daemonId={home.daemon} client={home.queries}>
+                {children}
+              </DataScope>
+            </DaemonProvider>
+          ) : (
+            children
+          )}
         </div>
       </JoinedContext.Provider>
     </ReadyContext.Provider>
@@ -101,7 +138,7 @@ export const spaceOf = (cluster: string, agent: string) => (cluster ? `@${cluste
 /** The cluster and the agent a workspace key names. */
 export function splitSpace(space: string): { cluster: string; agent: string } {
   const m = /^@([^/]+)\/(.*)$/.exec(space);
-  return m ? { cluster: m[1]!, agent: m[2]! } : { cluster: '', agent: space };
+  return m && m[1] !== homeAlias ? { cluster: m[1]!, agent: m[2]! } : { cluster: '', agent: m ? m[2]! : space };
 }
 
 export type Of<T> = { cluster: string; data: T };
