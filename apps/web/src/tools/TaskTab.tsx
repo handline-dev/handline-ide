@@ -1,6 +1,6 @@
 import { outsideBlockers } from '#src/tools/subtasks.ts';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
-import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
+import { LeaseChip } from '#src/tools/LeaseChip.tsx';
 import { activityOf, foundersTurn, taskOutcome, isPerson, turnChain, isSystem, type ActivityItem } from '@handline/app-core';
 import { useNameOf, useRead, useTaskHistory, useTaskSeen } from '@handline/app-data';
 import { CommentRow, EventRow, ReadyTurn, type Turn } from '#src/tools/TaskEvents.tsx';
@@ -81,7 +81,7 @@ export function TaskTab({ id }: { id: number }) {
   const open = !CLOSED.includes(t.state);
   const s = look(t);
   // Blockers have their own rows: "blocked by T<n>" over them would name each twice.
-  const why = lease?.text ?? (t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason));
+  const why = lease ? null : t.blockers.length ? null : (t.waiting?.text ?? t.block_reason ?? t.hold_reason);
   const mine = open && foundersTurn(t, me);
   const chain = turnChain(t, me, nameOf);
   const turn = t.turns?.at(-1);
@@ -159,9 +159,14 @@ export function TaskTab({ id }: { id: number }) {
                     <Linked text={t.status.text} />
                   </p>
                 )}
+                {open && !mine && lease && (
+                  <p className="text-sm text-muted">
+                    <LeaseChip wait={lease} task={t.id} />
+                  </p>
+                )}
                 {open && !mine && why && (
                   <p className="flex items-start gap-2 text-sm text-muted">
-                    {lease ? <LeaseIcon kind={lease.kind} size={14} /> : <Hourglass size={14} className="mt-0.5 shrink-0" />}
+                    <Hourglass size={14} className="mt-0.5 shrink-0" />
                     <Linked text={why} />
                   </p>
                 )}

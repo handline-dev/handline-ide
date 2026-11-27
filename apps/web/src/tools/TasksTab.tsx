@@ -1,7 +1,7 @@
 import { count } from '#src/format/count.ts';
 import { ListLoading } from '#src/ui/Loading.tsx';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
-import { LeaseIcon } from '#src/tools/LeaseIcon.tsx';
+import { LeaseChip } from '#src/tools/LeaseChip.tsx';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Fragment, type ReactNode } from 'react';
 import type { Task } from '@handline/client';
@@ -230,13 +230,7 @@ function Row({ t, ruled, owner, kids, word }: { t: Task; ruled: boolean; owner?:
   const lease = useLeaseWaits().get(t.id);
   const refs = useRefs();
   const words = waitWords(t, kids);
-  const held: ReactNode = lease ? (
-    <>
-      <LeaseIcon kind={lease.kind} /> {lease.text}
-    </>
-  ) : (
-    words && refs(words)
-  );
+  const held: ReactNode = lease ? <LeaseChip wait={lease} task={t.id} /> : words && refs(words);
   const yours = foundersTurn(t, me);
   // The assignee is left out while the list is already that agent's.
   const chain = turnChain(t, me, nameOf);
