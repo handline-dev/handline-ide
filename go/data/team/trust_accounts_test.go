@@ -224,18 +224,12 @@ func TestEnvForSetsTheAccountAndDropsAnotherAccountsConfigDir(t *testing.T) {
 	}
 }
 
-func TestEnvFromDropsTheOldPrefixAndKeepsHandlines(t *testing.T) {
+func TestEnvFromSetsHandlinesOwnAndKeepsTheRest(t *testing.T) {
 	home := newHome(t)
 	a := Accounts{Home: home}
 	account(t, home, "alpha")
-	base := map[string]string{"OCP_AGENT": "aud", "OCP_HOME": "/old/home", "OCP_ACCOUNT": "beta", "OCP_TMUX_SOCKET": "/old/sock",
-		"HANDLINE_TMUX_SOCKET": "/new/sock", "HANDLINE_LIVE_ACCOUNTS": "delta", "PATH": "/bin"}
+	base := map[string]string{"HANDLINE_AGENT": "aud", "HANDLINE_TMUX_SOCKET": "/new/sock", "HANDLINE_LIVE_ACCOUNTS": "delta", "PATH": "/bin"}
 	env := a.EnvFrom(base, "alpha", "aud/c")
-	for k := range env {
-		if strings.HasPrefix(k, "OCP_") {
-			t.Errorf("%s was carried into the new session", k)
-		}
-	}
 	want := map[string]string{"HANDLINE_HOME": home, "HANDLINE_ACCOUNT": "alpha", "HANDLINE_AGENT": "aud/c",
 		"HANDLINE_TMUX_SOCKET": "/new/sock", "HANDLINE_LIVE_ACCOUNTS": "delta", "PATH": "/bin"}
 	for k, v := range want {
@@ -243,7 +237,7 @@ func TestEnvFromDropsTheOldPrefixAndKeepsHandlines(t *testing.T) {
 			t.Errorf("%s = %q, want %q", k, env[k], v)
 		}
 	}
-	if base["OCP_AGENT"] != "aud" {
+	if base["HANDLINE_AGENT"] != "aud" {
 		t.Fatal("the caller's environment was changed")
 	}
 }

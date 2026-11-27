@@ -18,12 +18,11 @@ import (
 
 // The words a stall carries, which the sweep finds it by when the world refutes it.
 const (
-	TrustStall     = "folder-trust prompt"
-	TrustDecision  = "[trust stall]"
-	DialogStall    = "start-up dialog"
-	DialogDecision = "[dialog stall]"
-	StartStall     = "starts for waiting work failed"
-	WakeStall      = "wakes started no session"
+	TrustStall    = "folder-trust prompt"
+	TrustDecision = "[trust stall]"
+	DialogStall   = "start-up dialog"
+	StartStall    = "starts for waiting work failed"
+	WakeStall     = "wakes started no session"
 )
 
 // TrustStallPrefixes are what the decisions a trust stall raised start with.
@@ -269,7 +268,7 @@ func pyOptInt(n int64, ok bool) string {
 	return fmt.Sprint(n)
 }
 
-// closeStall resolves the decisions a lifted stall raised, then the stall: decision first, row second, so a lift whose close failed
+// closeStall resolves the decisions a lifted stall raised (those whose body starts with one of prefixes), then the stall: decision first, row second, so a lift whose close failed
 // does not strand the decision, and a kept stall is retried on the next tick.
 func (r *Reconciler) closeStall(agent string, actions *[]string, prefixes []string, what string) error {
 	for _, prefix := range prefixes {
@@ -384,7 +383,7 @@ func (r *Reconciler) Sweep(actions *[]string) error {
 		if alive && stalledAs(row, verdict.StuckDialog) {
 			seenB := r.Ports.Term.ScreenBlocker(handle)
 			if seenB == nil || seenB.Kind == term.Backgrounded {
-				if err := r.closeStall(agent, actions, []string{DialogDecision}, DialogStall); err != nil {
+				if err := r.closeStall(agent, actions, nil, DialogStall); err != nil {
 					return err
 				}
 			}

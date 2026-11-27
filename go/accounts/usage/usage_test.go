@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,7 +9,7 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 )
 
-func TestStatusReadsBothShapes(t *testing.T) {
+func TestStatusReadsTheWindows(t *testing.T) {
 	home := t.TempDir()
 	write := func(acct, body string) {
 		dir := teamtest.AccountDir(t, home, acct)
@@ -20,15 +21,14 @@ func TestStatusReadsBothShapes(t *testing.T) {
 		}
 	}
 	write("new", `{"windows":[{"minutes":10080,"used_percent":41.2,"resets_at":9},{"minutes":300,"used_percent":12,"carried":true}]}`)
-	write("old", `{"pct_5h":28.999999999999996,"reset_5h":5,"rl_carried":1,"pct_7d":null}`)
 	write("bad", `[1]`)
+	write("old-shape", `{"pct_5h":29,"reset_5h":5}`)
 	n := ReadStatus(home, "new")
 	if n.Short.Minutes != 300 || *n.Short.Pct != 12 || !n.Short.Carried || *n.Long.Pct != 42 || *n.Long.Reset != 9 {
 		t.Fatalf("new shape: %+v", n)
 	}
-	o := ReadStatus(home, "old")
-	if *o.Short.Pct != 29 || !o.Short.Carried || o.Long.Pct != nil {
-		t.Fatalf("legacy shape: %+v", o)
+	if o := ReadStatus(home, "old-shape"); o.Short.Pct != nil || o.Long.Pct != nil {
+		t.Fatalf("a record with no windows is no reading: %+v", o)
 	}
 	if ReadStatus(home, "bad").Error == "" || ReadStatus(home, "none").Short.Pct != nil {
 		t.Fatal("a bad file is an error and a missing one no reading")
@@ -50,3 +50,5 @@ func TestLabelsAndEnd(t *testing.T) {
 		t.Fatalf("off keeps the date but has no end: %q", got)
 	}
 }
+
+func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }

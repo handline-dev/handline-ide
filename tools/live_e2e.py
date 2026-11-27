@@ -477,9 +477,7 @@ def start_daemon(binary: str, root: Path, home: Path, account: dict, tmux: str) 
     """The test daemon as production runs it (terminal agents, the tick, hook-driven turns), in a process group of its own so its
     sessions go with it; returns that group. Like launchd's daemon it has no parent: an agent's hl counts the Claude Codes
     above it, and the one running this run must not be one."""
-    # OCP_* is the old name of HANDLINE_*, still in the environment of a session started before the rename: its OCP_HOME names the real home,
-    # the agent's hooks refuse the two homes, and the agent never reports idle.
-    env = {k: v for k, v in os.environ.items() if k not in ("HANDLINE_AGENT", "HANDLINE_HOME") and not k.startswith("OCP_")}
+    env = {k: v for k, v in os.environ.items() if k not in ("HANDLINE_AGENT", "HANDLINE_HOME")}
     env |= {"HANDLINE_TEST_ROOT": str(root), "HANDLINE_LIVE_ACCOUNTS": account["home"]}
     # A tmux server of the run's own, named so the run can stop it: the live one is never touched, and a stopped daemon leaves its own.
     env |= {"HANDLINE_TMUX_SOCKET": tmux}

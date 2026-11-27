@@ -461,12 +461,6 @@ func (a Accounts) EnvFrom(base map[string]string, acct, agent string) map[string
 	}
 	// An inherited OPENCODE_CONFIG_CONTENT is another session's whole config; OPENCODE_CONFIG_DIR stays.
 	delete(env, "OPENCODE_CONFIG_CONTENT")
-	// OCP_* is the old prefix, carried by sessions started before the rename: an old hook reading it would name another home.
-	for k := range env {
-		if strings.HasPrefix(k, "OCP_") {
-			delete(env, k)
-		}
-	}
 	// Started inside a Claude Code session (CLAUDECODE), every CLAUDE* variable is the host's: its child-session marker turns
 	// transcript saving off, so the session writes no sessions/<pid>.json. The config dir is set below.
 	if _, inside := env["CLAUDECODE"]; inside {

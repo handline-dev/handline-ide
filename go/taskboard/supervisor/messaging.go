@@ -156,11 +156,11 @@ func (e *Env) DeliverPending(q db.Q, agent string) (sent bool, err error) {
 	return ok, nil
 }
 
-// MigrateOldMessages runs at daemon start: a say the Python daemon told with no ledger of its own is settled, and a request it told but never
-// marked typed is typed then. A say the daemon has yet to tell, or whose send the session ledger tracks, is not an old say: it is owed, and
-// the tick tells it (TellUndelivered) or the ledger settles it (confirmed, lost or unknown). Settling those at every start lost the
-// messages sent minutes before a restart.
-func (e *Env) MigrateOldMessages(q db.Q) (err error) {
+// SettleInterruptedSends runs at daemon start, for what a daemon that stopped mid-send left: a say marked delivered whose send has no
+// record (it stopped between the mark and the send's ledger row) is settled, and a request delivered but never marked typed is typed then.
+// A say the daemon has yet to tell, or whose send the session ledger tracks, is owed: the tick tells it (TellUndelivered) or the ledger
+// settles it (confirmed, lost or unknown). Settling those at every start lost the messages sent minutes before a restart.
+func (e *Env) SettleInterruptedSends(q db.Q) (err error) {
 	defer Catch(&err)
 	ids := must(db.IDs(q, "SELECT r.id FROM requests r WHERE r.state = 'queued' AND r.kind = 'say' AND r.target != ? AND r.delivered_at IS NOT NULL "+
 		"AND NOT EXISTS (SELECT 1 FROM operations o WHERE o.kind = 'send' AND o.agent = r.target AND o.id LIKE 'send:' || r.target || ':request:%' "+

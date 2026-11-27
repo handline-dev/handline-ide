@@ -348,16 +348,16 @@ func TestTheTickRunsTheNoticeSweepAsALevelOfPersistedState(t *testing.T) {
 	}
 }
 
-func TestTheStartRunsReconcileMigrateStartWaitingReloadInThatOrder(t *testing.T) {
+func TestTheStartRunsReconcileSettleStartWaitingReloadInThatOrder(t *testing.T) {
 	var calls []string
 	ports := startPorts{
 		Reconcile:    func() ([]string, error) { calls = append(calls, "reconcile"); return nil, nil },
-		Migrate:      func() error { calls = append(calls, "migrate"); return nil },
+		Settle:       func() error { calls = append(calls, "settle"); return nil },
 		StartWaiting: func() []string { calls = append(calls, "start-waiting"); return nil },
 		Reload:       func() error { calls = append(calls, "reload"); return nil },
 	}
 	runStartup(func(string) {}, ports)
-	if got := strings.Join(calls, ","); got != "reconcile,migrate,start-waiting,reload" {
+	if got := strings.Join(calls, ","); got != "reconcile,settle,start-waiting,reload" {
 		t.Fatalf("%s", got)
 	}
 }
@@ -369,7 +369,7 @@ func TestAReconcileThatFailsEndsTheStartBeforeAnyAgentIsStarted(t *testing.T) {
 			calls = append(calls, "reconcile")
 			return []string{"x: resumed"}, fmt.Errorf("database is locked")
 		},
-		Migrate:      func() error { calls = append(calls, "migrate"); return nil },
+		Settle:       func() error { calls = append(calls, "settle"); return nil },
 		StartWaiting: func() []string { calls = append(calls, "start-waiting"); return nil },
 		Reload:       func() error { calls = append(calls, "reload"); return nil },
 	}

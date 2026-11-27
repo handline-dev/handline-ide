@@ -135,19 +135,6 @@ func isInt(v any) (int, bool) {
 	return int(i), err == nil
 }
 
-var legacy = []struct {
-	minutes                       int
-	pct, reset, at, carried, lost string
-}{{300, "pct_5h", "reset_5h", "rl_at", "rl_carried", "rl_lost"}, {10080, "pct_7d", "reset_7d", "rl7_at", "rl7_carried", "rl7_lost"}}
-
-func truthyOne(v any) bool {
-	if b, ok := v.(bool); ok {
-		return b
-	}
-	n, ok := v.(json.Number)
-	return ok && n.String() == "1"
-}
-
 // decodeWindows is a windows column as entries reads it: its JSON with integers as json.Number, nil when it is not one JSON value.
 func decodeWindows(s string) any {
 	d := json.NewDecoder(strings.NewReader(s))
@@ -159,7 +146,7 @@ func decodeWindows(s string) any {
 	return v
 }
 
-// entries is windows.entries: the record's windows, shortest first, whichever shape it was written in.
+// entries is windows.entries: the record's windows, shortest first.
 func entries(raw map[string]any) []map[string]any {
 	got, has := raw["windows"]
 	if s, ok := got.(string); ok {
@@ -177,28 +164,8 @@ func entries(raw map[string]any) []map[string]any {
 		sort.SliceStable(out, func(i, j int) bool { a, _ := isInt(out[i]["minutes"]); b, _ := isInt(out[j]["minutes"]); return a < b })
 		return out
 	}
-	any_ := false
-	for _, l := range legacy {
-		if _, ok := raw[l.pct]; ok {
-			any_ = true
-		}
-	}
-	if !any_ {
-		return nil
-	}
-	var out []map[string]any
-	for _, l := range legacy {
-		e := map[string]any{"minutes": json.Number(itoa(l.minutes)), "used_percent": raw[l.pct], "resets_at": raw[l.reset],
-			"observed_at": raw[l.at], "carried": truthyOne(raw[l.carried]), "lost": truthyOne(raw[l.lost])}
-		if _, ok := raw[l.pct]; !ok || raw[l.pct+"_readable"] == false || raw[l.pct+"_readable"] == json.Number("0") {
-			e["readable"] = false
-		}
-		out = append(out, e)
-	}
-	return out
+	return nil
 }
-
-func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
 
 func windowOf(e map[string]any) Window {
 	pct := asPct(e["used_percent"])

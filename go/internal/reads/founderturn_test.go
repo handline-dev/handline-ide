@@ -91,18 +91,6 @@ func TestAnOldDeliveryDoesNotEndARefusal(t *testing.T) {
 	}
 }
 
-// A board line linked to a task, from an older daemon, does not say the task waits on the founder.
-func TestAnOldBoardLineDoesNotWaitOnTheFounder(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'p1', 1, 'p1')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'p1', 'T7 unblocked', 'landed', 'say', 1, 1)",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
-	if c := pending(t, e)["counts"].(map[string]any); c["needs_you"] != 0 {
-		t.Fatalf("%v", c)
-	}
-}
-
 // A message never seen to arrive is a warning until it is seen to, is withdrawn, or a later message of the founder's to that agent is written.
 func TestALostMessageIsAWarningUntilItsStateSaysItIsOver(t *testing.T) {
 	t.Parallel()
@@ -304,39 +292,6 @@ func TestATaskHoldingSeveralItemsIsOneRowTheStrongestNames(t *testing.T) {
 		if r["kind"] != c.kind || r["source"] != c.source || r["id"] != c.id || r["agent"] != c.agent || r["ask"] != "which one <@p1>?" || w["kind"] != "undelivered" {
 			t.Fatalf("%s: %v", name, r)
 		}
-	}
-}
-
-// The board's old lines to the founder are hidden from their inbox, and new requests are told in no line at all.
-func TestTheBoardsOldLinesAreHiddenFromTheFoundersInbox(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, landed_at, edge_ok) VALUES"+
-		"(5, 1, '"+db.NoticeRequester+"', 'p1', 'T1 done', 'landed', 'say', 1, 1), (6, 1, 'bob', 'p1', 'a reply', 'landed', 'say', 1, 1)")
-	rows, err := e.mailboxRows()
-	if err != nil || len(rows) != 1 || rows[0].id != 6 {
-		t.Fatalf("%+v %v", rows, err)
-	}
-	q, err := e.founderQueue(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range q.(map[string]any)["dealt"].([]any) {
-		if d.(map[string]any)["id"] == int64(5) {
-			t.Fatalf("hl inbox --all lists a board line as dealt: %v", d)
-		}
-	}
-}
-
-// A queued board line linked to a task does not make its request wait on the founder.
-func TestAnOldBoardLineDoesNotMakeARequestWait(t *testing.T) {
-	t.Parallel()
-	e := testEnv(t)
-	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'bob', 'p1', 1, 'p1')",
-		"INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(5, 1, '"+db.NoticeRequester+"', 'p1', 'T7 unblocked', 'queued', 'task', 1)",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(7, 5)")
-	if r := requestRowOf(t, e, 7); r == nil || r["status"] == reqWaitingOnYou {
-		t.Fatalf("%v", r)
 	}
 }
 

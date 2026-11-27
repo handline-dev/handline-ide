@@ -202,9 +202,9 @@ func (e *Env) requestNodes(since int64) (map[int64][]requestNode, error) {
 	return out, nil
 }
 
-// cardTasks is the tasks with a decision card waiting on the founder: a queued request to them, not a board line.
+// cardTasks is the tasks with a decision card waiting on the founder: a queued request to them.
 func (e *Env) cardTasks() (map[int64]bool, error) {
-	rows, err := query(e.DB, "SELECT DISTINCT l.task_id FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE r.target = ? AND r.state = 'queued' AND "+notBoard, e.person())
+	rows, err := query(e.DB, "SELECT DISTINCT l.task_id FROM task_requests l JOIN requests r ON r.id = l.request_id WHERE r.target = ? AND r.state = 'queued'", e.person())
 	if err != nil {
 		return nil, err
 	}
