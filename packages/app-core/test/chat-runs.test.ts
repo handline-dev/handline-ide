@@ -93,6 +93,12 @@ test('a session a move started draws nothing: its move line says it', () => {
   assert.equal(drawsNothing(item(1, { text: '', session: { cause: 'context_full' } } as Partial<TranscriptItem>), A, 'human'), false);
 });
 
+test('a task the person gave draws no line of its words; their own message keeps them', () => {
+  const tasks = [{ id: 7, title: 'Back and Forward' }];
+  assert.equal(drawsNothing(msg(1, { from: 'human', to: A, kind: 'task', tasks, body: 'Make it work' }), A, 'human'), true);
+  assert.equal(drawsNothing(msg(2, { from: 'human', to: A, body: 'Make it work' }), A, 'human'), false);
+});
+
 test('a message typed on a schedule is drawn, by its own words; the rest of what the daemon sends is not', () => {
   const scheduled = msg(1, { from: 'schedule', to: A, body: '[schedule 30 9 * * 1-5] Read the open requests.' });
   assert.equal(drawsNothing(scheduled, A, 'human'), false);
