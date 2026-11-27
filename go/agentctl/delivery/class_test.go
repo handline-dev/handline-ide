@@ -18,7 +18,7 @@ func TestOnlyWhatIsAimedOrHasFailedIsTypedAtOnce(t *testing.T) {
 		want          Class
 	}{
 		{Result, false, false, ClassBatch}, {Result, true, false, ClassNow}, {Result, false, true, ClassNow},
-		{TaskChange, false, false, ClassBatch}, {TaskChange, false, true, ClassBatch}, {Memo, false, false, ClassBatch}, {Memo, true, false, ClassNow},
+		{TaskChange, false, false, ClassBatch}, {TaskChange, false, true, ClassBatch}, {Comment, false, false, ClassBatch}, {Comment, true, false, ClassNow},
 	} {
 		if got := ClassOf(c.kind, c.aimed, c.failed); got != c.want {
 			t.Errorf("%+v: %v", c, got)

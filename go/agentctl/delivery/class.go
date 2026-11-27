@@ -23,11 +23,11 @@ type Kind int
 const (
 	Result     Kind = iota // a task's or a child's result, to someone who did not ask for it
 	TaskChange             // a task's field or queue change, to whoever watches it
-	Memo                   // a memo or comment on a task, to a reader
+	Comment                // a comment on a task, to a reader
 )
 
 // ClassOf is the one rule for which of the board's messages wait for a digest. aimed: the message is for this target to act on (the one
-// who asked for the result, a holder or an @mention of a memo, a memo told now). failed: a result that says it failed, is blocked or FATAL,
+// who asked for the result, a holder or an @mention of a comment, a comment told now). failed: a result that says it failed, is blocked or FATAL,
 // which is not information but something gone wrong.
 func ClassOf(kind Kind, aimed, failed bool) Class {
 	if aimed || kind == Result && failed {
