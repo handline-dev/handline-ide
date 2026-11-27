@@ -120,7 +120,7 @@ func (b *board) holds(t row) bool {
 // busy says which other task t's acting agent holds now, as "<agent> is on T<n>"; empty when it holds none or holds t.
 func (b *board) busy(t row) string {
 	if cur, has := b.current[actingOf(t)]; has && cur != t.i("id") {
-		return fmt.Sprintf("%s is on T%d", actingOf(t), cur)
+		return fmt.Sprintf("%s is on T%d", addr.Ref(actingOf(t)), cur)
 	}
 	return ""
 }

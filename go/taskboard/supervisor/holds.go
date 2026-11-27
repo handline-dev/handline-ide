@@ -101,10 +101,10 @@ func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
 		return why, false
 	}
 	if row != nil && e.Waits.WaitingOnPrompt(q, row) {
-		return agent + " is waiting on a permission prompt", false
+		return addr.Ref(agent) + " is waiting on a permission prompt", false
 	}
 	if e.clearOwed(q, agent) != 0 {
-		return agent + " owes a context clear first (background work is still running)", false
+		return addr.Ref(agent) + " owes a context clear first (background work is still running)", false
 	}
 	if why, contestable, ok := e.HeldReason(agent, now); ok {
 		// The state says idle and the screen says otherwise: that misread is exactly this.

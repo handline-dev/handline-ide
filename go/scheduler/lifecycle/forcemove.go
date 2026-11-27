@@ -47,7 +47,7 @@ func (v *Mover) MoveNow(agent, dest, by string, stop func() error) (ok bool, sai
 	s := must(db.LiveSwitch(m.Q, row, m.now()))
 	if dest == "" {
 		if !s.Pending() {
-			return false, agent + " has no move waiting; name the account to move it to", nil
+			return false, addr.Ref(agent) + " has no move waiting; name the account to move it to", nil
 		}
 		dest = s.To
 	}
@@ -79,7 +79,7 @@ func (v *Mover) CancelMove(agent string) (ok bool, said string, err error) {
 	s := must(db.LiveSwitch(m.Q, must(db.GetAgentState(m.Q, agent)), m.now()))
 	switch {
 	case !s.Pending():
-		return false, agent + " has no move waiting", nil
+		return false, addr.Ref(agent) + " has no move waiting", nil
 	case s.Phase == db.SwitchStopping:
 		return false, fmt.Sprintf("too late: %s's turn was stopped for the move to %s and its note is being written", addr.Ref(agent), s.To), nil
 	}
@@ -171,7 +171,7 @@ func (v *Mover) moveRefused(agent, dest string, row *db.AgentState) string {
 	case m.Agents.CurrentAccount(m.Q, agent) == dest:
 		return fmt.Sprintf("%s is already on %s", addr.Ref(agent), dest)
 	case row == nil || !(isClosed(row) || m.sessionAlive(agent)):
-		return agent + " has no session to move"
+		return addr.Ref(agent) + " has no session to move"
 	case row.State == states.Handoff || row.State == states.Stalled:
 		return fmt.Sprintf("%s is %s", addr.Ref(agent), row.State)
 	}

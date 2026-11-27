@@ -254,7 +254,7 @@ func (f flat) title() string {
 	if f.text("kind") == "bundle" {
 		return fmt.Sprintf("bundle %d changes", len(f.items()))
 	}
-	return f.text("kind") + " " + f.text("agent")
+	return f.text("kind") + " " + addr.Ref(f.text("agent"))
 }
 
 // changeLines is what approving one change does, in words, a line for each thing it changes.
@@ -262,7 +262,7 @@ func changeLines(it flat) []string {
 	kind, agent, to := it.text("kind"), it.text("agent"), it.text("to")
 	switch kind {
 	case "add":
-		line := "register " + agent
+		line := "register " + addr.Ref(agent)
 		for _, k := range []string{"team", "repo", "model", "effort", "vendor"} {
 			if it.truthy(k) {
 				line += ", " + k + " " + it.text(k)
@@ -281,7 +281,7 @@ func changeLines(it flat) []string {
 	case "settings":
 		keys, vals := it.sets()
 		if len(keys) == 0 {
-			return []string{"change the settings of " + agent}
+			return []string{"change the settings of " + addr.Ref(agent)}
 		}
 		out := make([]string, len(keys))
 		withWas := slices.ContainsFunc(it.keys, func(k string) bool { return strings.HasPrefix(k, "was.") })
@@ -300,7 +300,7 @@ func changeLines(it flat) []string {
 	case "context":
 		keys, _ := it.sets()
 		if len(keys) == 0 {
-			return []string{"replace the standing context of " + agent}
+			return []string{"replace the standing context of " + addr.Ref(agent)}
 		}
 		out := make([]string, len(keys))
 		for i, k := range keys {
@@ -327,7 +327,7 @@ func changeLines(it flat) []string {
 		command, cwd := it.runCommand()
 		return []string{fmt.Sprintf("run in %s, with its output told to %s: %s", cwd, addr.Ref(agent), command)}
 	}
-	return []string{kind + " " + agent}
+	return []string{kind + " " + addr.Ref(agent)}
 }
 
 // diff is what approving does, in words, one change per line (the spec's Proposal.diff; not a unified diff): the changes of a bundle in the

@@ -276,10 +276,11 @@ function linkOf(s: string): string | null {
 
 export function Linked({ text }: { text: string }) {
   const agentOf = useAgentByName();
+  const shown = renderRefs(useDirectory(), text);
   // One span, so it is one item in a flex row.
   return (
     <span>
-      {text.split(LINKS).map((p, i) => {
+      {shown.split(LINKS).map((p, i) => {
         // An @name of an agent, written out in the text, is its mention; any other @word stays as written.
         const agent = i % 2 && p.startsWith('@') ? agentOf(p.slice(1)) : null;
         if (agent) return <Mention key={i} who={agent} />;

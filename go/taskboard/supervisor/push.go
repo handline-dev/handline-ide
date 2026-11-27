@@ -53,11 +53,11 @@ func (e *Env) PushHere(q db.Q, target string, rid int64) (out string) {
 		said = append(said, fmt.Sprintf("%s: %s", addr.Ref(target), why))
 	}
 	if sentQ := must(e.DeliverQueued(q, target)); sentQ {
-		said = append(said, "delivered to "+target)
+		said = append(said, "delivered to "+addr.Ref(target))
 	} else if len(said) == 0 {
 		why, _ := e.Stuck.DeliveryBlock(q, target)
 		if why == "" {
-			why = target + " has it; it will read it when it is free"
+			why = addr.Ref(target) + " has it; it will read it when it is free"
 		}
 		said = append(said, why)
 	}

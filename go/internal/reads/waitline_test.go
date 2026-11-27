@@ -12,8 +12,8 @@ func TestAQueuedTasksWaitLineNamesTheTaskItsOwnerIsOn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, parent_task) VALUES"+
-		"(1, 'on it', 'bob', 'p1', 1, 'p1', NULL), (2, 'next', 'bob', 'p1', 1, 'p1', 3), (3, 'parent', 'cy', 'p1', 1, 'p1', NULL)")
-	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('bob', 'BUSY', 1, 1)")
+		"(1, 'on it', 'a7', 'p1', 1, 'p1', NULL), (2, 'next', 'a7', 'p1', 1, 'p1', 3), (3, 'parent', 'cy', 'p1', 1, 'p1', NULL)")
+	run(t, e, "INSERT INTO agent_state(agent, state, updated, current_task) VALUES('a7', 'BUSY', 1, 1)")
 	get := func(id int) map[string]any {
 		t.Helper()
 		got, err := e.taskGet(nil, map[string]any{"task": json.Number(strconv.Itoa(id))})
@@ -22,9 +22,9 @@ func TestAQueuedTasksWaitLineNamesTheTaskItsOwnerIsOn(t *testing.T) {
 		}
 		return got.(map[string]any)
 	}
-	const busy = "waiting: bob is on T1; starts when it finishes"
+	const busy = "waiting: <@a7> is on T1; starts when it finishes"
 	if got := get(2)["hold_reason"]; got != busy {
-		t.Errorf("queued behind bob's task: %v", got)
+		t.Errorf("queued behind a7's task: %v", got)
 	}
 	if subs := get(3)["subtasks"].([]any); len(subs) != 1 || subs[0].(map[string]any)["hold_reason"] != busy {
 		t.Errorf("the parent's sub-task row: %v", subs)

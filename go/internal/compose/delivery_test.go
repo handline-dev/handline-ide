@@ -14,6 +14,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/store"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -246,7 +247,7 @@ func TestAWakeHeldByItsWorkspacesCapIsACapAndNoAccountsWall(t *testing.T) {
 	if got, err := p.Delivery().Trigger(d, alice, row, "a1"); err != nil || !strings.HasPrefix(got.Reason, "waiting for a slot in workspace alice") {
 		t.Fatalf("%+v %v", got, err)
 	}
-	if ok, said, _ := (controls{p: p, lc: lc}).ForceStart(alice); ok || !strings.HasPrefix(said, "A force start does not pass "+alice+"'s workspace rule: waiting for a slot") {
+	if ok, said, _ := (controls{p: p, lc: lc}).ForceStart(alice); ok || !strings.HasPrefix(said, "A force start does not pass "+addr.Ref(alice)+"'s workspace rule: waiting for a slot") {
 		t.Fatalf("%v %q", ok, said)
 	}
 }

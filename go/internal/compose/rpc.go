@@ -80,7 +80,7 @@ func (c controls) ForceStart(agent string) (bool, string, error) {
 		return false, "", err
 	}
 	if w := c.lc.Launch.WorkspaceWait(m.Q, agent); w != nil {
-		return false, "A force start does not pass " + agent + "'s workspace rule: " + lifecycle.DescribeWakeWait(w) + ".", nil
+		return false, "A force start does not pass " + addr.Ref(agent) + "'s workspace rule: " + lifecycle.DescribeWakeWait(w) + ".", nil
 	}
 	if owed == "" && !c.lc.Launch.Ports.WaitingFor(m.Q, agent) {
 		return false, "Nothing to start: " + addr.Ref(agent) + " has no work waiting.", nil
@@ -166,14 +166,14 @@ func (c controls) Compact(call sessionrpc.Call, agent string) (bool, string, err
 // Park is control.park_result: a handoff, then parked until the window rolls over. The handoff is the policy tick's (perform_handoff), which
 // this daemon does not run yet.
 func (c controls) Park(_ sessionrpc.Call, agent string) (bool, string, error) {
-	return false, agent + ": parking is the policy tick's handoff, which this daemon does not run yet", nil
+	return false, addr.Ref(agent) + ": parking is the policy tick's handoff, which this daemon does not run yet", nil
 }
 
 // viaMover is a call of the lifecycle's mover: handoff.force_move for agent.move, the answer to a switch_offer for agent.switch_now.
 func (c controls) viaMover(do func(m *lifecycle.Mover, agent, account, by string) (bool, string, error)) func(sessionrpc.Call, string, string) (bool, string, error) {
 	return func(call sessionrpc.Call, agent, account string) (bool, string, error) {
 		if c.lc.Mover == nil {
-			return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+			return false, addr.Ref(agent) + ": the move is the handoff's, which this daemon has not built", nil
 		}
 		return do(c.lc.Mover, agent, account, call.By)
 	}
@@ -182,7 +182,7 @@ func (c controls) viaMover(do func(m *lifecycle.Mover, agent, account, by string
 // moveNow is agent.move_now over the lifecycle's mover.
 func (c controls) moveNow(call sessionrpc.Call, agent, account string, stop func() error) (bool, string, error) {
 	if c.lc.Mover == nil {
-		return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+		return false, addr.Ref(agent) + ": the move is the handoff's, which this daemon has not built", nil
 	}
 	return c.lc.Mover.MoveNow(agent, account, call.By, stop)
 }
@@ -190,7 +190,7 @@ func (c controls) moveNow(call sessionrpc.Call, agent, account string, stop func
 // cancelMove is agent.move_cancel over the lifecycle's mover.
 func (c controls) cancelMove(_ sessionrpc.Call, agent string) (bool, string, error) {
 	if c.lc.Mover == nil {
-		return false, agent + ": the move is the handoff's, which this daemon has not built", nil
+		return false, addr.Ref(agent) + ": the move is the handoff's, which this daemon has not built", nil
 	}
 	return c.lc.Mover.CancelMove(agent)
 }

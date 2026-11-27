@@ -186,7 +186,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 	row := must(db.GetAgentState(m.Q, agent))
 	if m.ResumableWithoutTerminal(row) {
 		// The caller wakes it, opening the terminal and resuming the session; starting it here would lose that.
-		return agent + ": closed with a session to resume - a wake brings it back", nil
+		return addr.Ref(agent) + ": closed with a session to resume - a wake brings it back", nil
 	}
 	repo := m.Agents.RepoOf(agent)
 	if repo == "" {
@@ -200,7 +200,7 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 		return fmt.Sprintf("%s: not started - %s", addr.Ref(agent), why), nil
 	}
 	if w := m.Launch.WorkspaceWait(m.Q, agent); w != nil {
-		return fmt.Sprintf("%s: not started - %s", agent, DescribeWakeWait(w)), nil
+		return fmt.Sprintf("%s: not started - %s", addr.Ref(agent), DescribeWakeWait(w)), nil
 	}
 	// With no room `hl launch` would refuse in the new terminal, and the refusal would count against the agent though it is the accounts
 	// that are full.
@@ -211,11 +211,11 @@ func (m *Manager) StartForWork(agent string) (said string, err error) {
 	// lost the race finds the terminal the winner opened.
 	release, mine := m.Typing.TakeTerminal(agent)
 	if !mine {
-		return agent + ": a start or wake is under way - not starting twice", nil
+		return addr.Ref(agent) + ": a start or wake is under way - not starting twice", nil
 	}
 	defer release()
 	if row = must(db.GetAgentState(m.Q, agent)); m.hasSession(row) || m.ResumableWithoutTerminal(row) {
-		return agent + ": started already - not starting twice", nil
+		return addr.Ref(agent) + ": started already - not starting twice", nil
 	}
 	if row != nil && row.WakeFailures >= states.MaxFailedAttempts {
 		if row.State == states.Stalled {

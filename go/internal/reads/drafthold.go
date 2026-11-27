@@ -7,6 +7,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/addr"
 )
 
 // waitEdge is one open task waiting on another: through a live block, or a parent on its open child; at is when that wait began.
@@ -204,7 +205,7 @@ func (e *Env) draftCallOf(t row, b *board) (draftCall, bool, error) {
 // text is a draft's Task.status text for its call.
 func (c draftCall) text() string {
 	if len(c.held) == 0 {
-		return c.opener + " left it for you to run"
+		return addr.Ref(c.opener) + " left it for you to run"
 	}
 	return "waits for you to run it: " + taskList(c.held) + " wait on it"
 }

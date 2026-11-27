@@ -8,6 +8,7 @@ import (
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/session"
 	"github.com/handline/handline/go/scheduler/settings"
@@ -112,7 +113,7 @@ type lifecycleStarter struct{ m *lifecycle.Manager }
 func (l lifecycleStarter) StartForWork(_ db.Q, agent string) string {
 	said, err := l.m.StartForWork(agent)
 	if err != nil {
-		return fmt.Sprintf("%s: could not start for work: %v", agent, err)
+		return fmt.Sprintf("%s: could not start for work: %v", addr.Ref(agent), err)
 	}
 	return said
 }
