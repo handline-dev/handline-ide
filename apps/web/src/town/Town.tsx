@@ -2,7 +2,7 @@
 // Every workspace is a building with a window per agent, lit while it works; a building nobody works in goes grey, and a car drives for
 // each agent at work, up to a few. The founder's glass HQ holds every decision and the pinned agents. Walking into a building goes inside
 // its office (Inside.tsx).
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Hooks, useAgents, useNav } from '@handline/app-data';
 import { useNow } from '#src/format/time.ts';
 import { useTabState } from '#src/persist/tabState.ts';
@@ -77,6 +77,15 @@ export function TownTab() {
     if (who) townGo(key, who);
     else enter(key);
   };
+  // A team just made: once it is in the list, the founder goes into its office and its lead's chat comes up.
+  const [made, setMade] = useState<string | null>(null);
+  const fresh = made ? town.houses.find((h) => h.name === made) : undefined;
+  const went = useRef<string | null>(null);
+  useEffect(() => {
+    if (!fresh || went.current === fresh.key) return;
+    went.current = fresh.key;
+    townGo(fresh.key, fresh.lead ?? undefined);
+  }, [fresh]);
   const signs = useMemo(() => {
     const out: Record<string, Sign> = {
       [HQ]: {
@@ -110,7 +119,15 @@ export function TownTab() {
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div ref={pane} className="flex min-h-0 flex-1">
-            <CityView city={city} cars={Math.min(working, MAX_CARS)} signs={signs} houses={town.houses} left={left} onEnter={enterFor} />
+            <CityView
+              city={city}
+              cars={Math.min(working, MAX_CARS)}
+              signs={signs}
+              houses={town.houses}
+              left={left}
+              onEnter={enterFor}
+              onMade={setMade}
+            />
           </div>
           <Legend />
         </div>

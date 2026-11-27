@@ -1,6 +1,6 @@
 import { baseName } from '#src/format/path.ts';
-import { useWrite, why } from '@handline/app-data';
-import { FolderOpen, GitBranch } from 'lucide-react';
+import { Hooks, useWrite, why } from '@handline/app-data';
+import { Code, FolderOpen, GitBranch, Megaphone, MessageCircle, PenLine, Plus, Search } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { OperationProgress } from '#src/ui/OperationProgress.tsx';
@@ -9,91 +9,48 @@ import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { shell } from '#src/shell.ts';
 import { workspaceNameOf } from '#src/onboarding/firstTask.ts';
 import { NeedsGit } from '#src/install/install.tsx';
-import { Expert } from '#src/ui/Expert.tsx';
+import { toast } from '#src/ui/toast.tsx';
+import { freeName, STARTERS } from '#src/newTeam.ts';
 
 /** A folder's workspace name, from its last part, as onboarding names it. */
 export const nameOf = (folder: string) => workspaceNameOf(baseName(folder));
 
-/** Where no folder picker is (a browser): the folder typed, its name shown as it will be. */
-function Form({ close }: { close: Close<string> }) {
-  const create = useWrite('workspace.create');
+/** Where no folder picker is (a browser): the folder typed. */
+function Typed({ go, close }: { go: (folder: string) => void; close: Close<string> }) {
   const [folder, setFolder] = useState('');
-  const [started, setStarted] = useState<string | null>(null);
-  if (started)
-    return (
-      <OperationProgress operation={started} failed="The workspace was not made." onDone={() => close(started)} close={() => close()} />
-    );
   const ready = !!folder.trim();
   return (
     <form
       className="flex flex-col gap-3 pb-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready)
-          create.mutate(
-            { name: nameOf(folder.trim()), folder: folder.trim() },
-            { onSuccess: (r) => setStarted((r as { operation: string }).operation) },
-          );
+        if (ready) go(folder.trim());
       }}
     >
       <Field label="Folder">
         <Input autoFocus value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="/path/to/folder" />
       </Field>
-      {!!create.error && <p className="text-sm text-danger">{why(create.error)}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button onClick={() => close()}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={!ready || create.isPending}>
-          {create.isPending ? 'Creating…' : 'Create'}
+        <Button type="submit" variant="primary" disabled={!ready}>
+          Create
         </Button>
       </div>
     </form>
   );
 }
 
-/** Add workspace with the folder picked: the workspace it makes, named after the folder as in onboarding, and Create. */
-function Picked({ folder, close }: { folder: string; close: Close<string> }) {
-  const create = useWrite('workspace.create');
-  const [started, setStarted] = useState<string | null>(null);
-  if (started)
-    return (
-      <OperationProgress operation={started} failed="The workspace was not made." onDone={() => close(started)} close={() => close()} />
-    );
-  return (
-    <div className="flex flex-col gap-3 pb-4">
-      <p>
-        <span className="font-medium">{nameOf(folder)}</span> <span className="text-muted">· {folder}</span>
-      </p>
-      {!!create.error && <p className="text-sm text-danger">{why(create.error)}</p>}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button onClick={() => close()}>Cancel</Button>
-        <Button
-          variant="primary"
-          autoFocus
-          disabled={create.isPending}
-          onClick={() =>
-            create.mutate({ name: nameOf(folder), folder }, { onSuccess: (r) => setStarted((r as { operation: string }).operation) })
-          }
-        >
-          {create.isPending ? 'Creating…' : 'Create'}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Clone: the repository's address; the daemon clones it under the Handline folder, then the workspace is made on it. */
-function Clone({ close }: { close: Close<string> }) {
+/** Clone: the repository's address; the daemon clones it under the Handline folder, and the team is made on it. */
+function Clone({ go, close }: { go: (folder: string) => void; close: Close<string> }) {
   const clone = useWrite('folder.clone');
   const [url, setUrl] = useState('');
-  const [folder, setFolder] = useState<string | null>(null);
-  if (folder) return <Picked folder={folder} close={close} />;
   const ready = !!url.trim() && !clone.isPending;
   return (
     <form
       className="flex flex-col gap-3 pb-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready) clone.mutate({ url: url.trim() }, { onSuccess: (r) => setFolder((r as { path: string }).path) });
+        if (ready) clone.mutate({ url: url.trim() }, { onSuccess: (r) => go((r as { path: string }).path) });
       }}
     >
       <Field label="Repository address">
@@ -110,13 +67,22 @@ function Clone({ close }: { close: Close<string> }) {
   );
 }
 
-/** One way to start, as a tile: its icon large, its words under it. */
-function Choice({ icon, word, onClick }: { icon: ReactNode; word: string; onClick: () => void }) {
+const ICONS: Record<string, ReactNode> = {
+  Empty: <Plus size={26} />,
+  Coding: <Code size={26} />,
+  Writing: <PenLine size={26} />,
+  Research: <Search size={26} />,
+  Support: <MessageCircle size={26} />,
+  Marketing: <Megaphone size={26} />,
+};
+
+/** A way to bring in a project, as a row: its icon, then its words. */
+function Way({ icon, word, onClick }: { icon: ReactNode; word: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex h-28 flex-col items-center justify-center gap-3 rounded-lg border border-border text-sm hover:bg-hover/30"
+      className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border text-sm hover:bg-hover/30"
     >
       <span className="text-muted">{icon}</span>
       {word}
@@ -124,72 +90,75 @@ function Choice({ icon, word, onClick }: { icon: ReactNode; word: string; onClic
   );
 }
 
-/** Add workspace: open a folder (picked, or typed where no picker is) or clone a repository. */
+type Step = 'choose' | 'type' | 'clone' | { name: string; operation: string };
+
+/** A new team: a tile makes one at once, named after it; or a project brought in, named after its folder. Nothing is asked. */
 function Start({ close }: { close: Close<string> }) {
-  const [step, setStep] = useState<'choose' | 'type' | 'clone' | { folder: string }>('choose');
+  const [step, setStep] = useState<Step>('choose');
+  const taken = (Hooks.useWorkspacesList().data?.workspaces ?? []).map((w) => w.name);
+  const create = useWrite('workspace.create');
+  /** Makes the team `base` names (on `folder`, else in a new folder the daemon makes) at once. */
+  const make = (base: string, folder?: string) => {
+    if (create.isPending) return;
+    const name = freeName(base, taken);
+    create.mutate(folder ? { name, folder } : { name }, {
+      onSuccess: (r) => setStep({ name, operation: (r as { operation: string }).operation }),
+      onError: (e) => toast(why(e), { tone: 'warning' }),
+    });
+  };
   const choose = shell()?.pickFolder;
-  if (step === 'type') return <Form close={close} />;
-  if (step === 'clone') return <Clone close={close} />;
-  if (typeof step === 'object') return <Picked folder={step.folder} close={close} />;
+  const fromFolder = (folder: string) => make(nameOf(folder), folder);
+  if (step === 'type') return <Typed go={fromFolder} close={close} />;
+  if (step === 'clone')
+    return (
+      <NeedsGit>
+        <Clone go={fromFolder} close={close} />
+      </NeedsGit>
+    );
+  if (typeof step === 'object')
+    return (
+      <OperationProgress operation={step.operation} failed="The team was not made." onDone={() => close(step.name)} close={() => close()} />
+    );
   const open = () =>
     choose
       ? void choose().then(
-          (r) => r.ok && r.path && setStep({ folder: r.path }),
+          (r) => r.ok && r.path && fromFolder(r.path),
           () => undefined,
         )
       : setStep('type');
   return (
-    <Plain close={close}>
-      {/* A folder of one's own: under Expert, since with none the daemon makes one. */}
-      <Expert>
-        <div className="grid grid-cols-2 gap-3">
-          <Choice icon={<FolderOpen size={28} />} word="Open a folder" onClick={open} />
-          <Choice icon={<GitBranch size={28} />} word="Clone a repository" onClick={() => setStep('clone')} />
-        </div>
-      </Expert>
-    </Plain>
-  );
-}
-
-/** A workspace with nothing to answer: a name if one is typed, and the daemon makes its folder under the Handline folder. */
-function Plain({ close, children }: { close: Close<string>; children: ReactNode }) {
-  const create = useWrite('workspace.create');
-  const [name, setName] = useState('');
-  const [started, setStarted] = useState<string | null>(null);
-  if (started)
-    return (
-      <OperationProgress operation={started} failed="The workspace was not made." onDone={() => close(started)} close={() => close()} />
-    );
-  return (
-    <form
-      className="flex flex-col gap-3 pb-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!create.isPending)
-          create.mutate(name.trim() ? { name: name.trim() } : {}, { onSuccess: (r) => setStarted((r as { operation: string }).operation) });
-      }}
-    >
-      <Field label="Name">
-        <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="workspace" />
-      </Field>
-      {!!create.error && <p className="text-sm text-danger">{why(create.error)}</p>}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button onClick={() => close()}>Cancel</Button>
-        <Button type="submit" variant="primary" disabled={create.isPending}>
-          {create.isPending ? 'Creating…' : 'Create'}
-        </Button>
+    <div className="flex flex-col gap-3 pb-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {STARTERS.map((s) => (
+          <button
+            key={s.word}
+            type="button"
+            onClick={() => make(s.name)}
+            className="flex h-24 flex-col items-center justify-center gap-2 rounded-lg border border-border text-sm hover:bg-hover/30"
+          >
+            <span className="text-muted">{ICONS[s.word]}</span>
+            {s.word}
+          </button>
+        ))}
       </div>
-      {children}
-    </form>
+      <div className="flex items-center gap-3 py-1 text-xs text-muted">
+        <span className="h-px flex-1 bg-border" />
+        or
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Way icon={<FolderOpen size={16} />} word="Open a folder" onClick={open} />
+        <Way icon={<GitBranch size={16} />} word="Clone a repository" onClick={() => setStep('clone')} />
+      </div>
+    </div>
   );
 }
 
-export function newWorkspace() {
-  void openModal<string>((close) => (
-    <ModalFrame title="Add workspace" onClose={() => close()}>
-      <NeedsGit>
-        <Start close={close} />
-      </NeedsGit>
+/** A new team, from the sidebar or the town (`title` says it in the words of each); resolves with its name once it is made. */
+export function newWorkspace(title = 'Add workspace'): Promise<string | undefined> {
+  return openModal<string>((close) => (
+    <ModalFrame title={title} onClose={() => close()}>
+      <Start close={close} />
     </ModalFrame>
   ));
 }
