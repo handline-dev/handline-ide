@@ -7,9 +7,10 @@ test("a task's timeline carries the command its agent asked while doing it, and 
   const { client, daemon } = setup();
   applySeeds(daemon, 'proposals');
   await client.start();
-  const runRow = async () => (await client.call('task.get', { task: 1684 })).timeline.find((r) => r.kind === 'run');
+  const runRow = async () =>
+    (await client.call('task.get', { task: 1684 })).timeline.find((r) => r.kind === 'run' && r.proposal?.id === 910);
   const asked = await runRow();
-  assert.equal(asked?.text, 'gh auth refresh -s workflow');
+  assert.equal(asked?.text, 'gh auth refresh -s workflow && git push origin HEAD:main');
   assert.equal(asked?.proposal?.state, 'open');
   const { proposals } = await client.call('proposal.list', {});
   const subject = proposals.find((p) => p.id === 910)!.subject;

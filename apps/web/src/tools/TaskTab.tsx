@@ -1,3 +1,4 @@
+import { RunAsk } from '#src/chat/RunAsk.tsx';
 import { outsideBlockers } from '#src/tools/subtasks.ts';
 import { useLeaseWaits } from '#src/tools/leaseWait.ts';
 import { LeaseChip } from '#src/tools/LeaseChip.tsx';
@@ -329,7 +330,9 @@ function Activity({
     <Section title={bare ? null : 'Activity'}>
       <div className="flex flex-col">
         {items.map((i) =>
-          i.kind === 'comment' ? (
+          i.kind === 'run' && i.proposal ? (
+            <RunAsk key={keyOf(i)} p={i.proposal} who={i.who} at={i.at} />
+          ) : i.kind === 'comment' ? (
             <CommentRow
               key={keyOf(i)}
               i={i}
