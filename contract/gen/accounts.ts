@@ -249,6 +249,16 @@ export type Outlook = {
     } | null;
     /** When its 5-hour window runs out at its use over the last day, counted on from its last reading; null when it lasts to its reset, is not in use, its reading is stale, or it has no 5-hour window. */
     five_runs_out_at: Timestamp | null;
+    /** Its 5h window from the span's start to now as a chart line, drawn as given with straight lines between points: its readings thinned to a chart's width without losing an edge, each reset as two points at its time (the level before, then 100) so it draws as a vertical drop; left null breaks the line where no reading came. Empty for an account with no 5-hour window. */
+    five_trace: {
+      at: Timestamp;
+      left: number | null;
+    }[];
+    /** Its weekly window as `five_trace` draws the 5h one. */
+    week_trace: {
+      at: Timestamp;
+      left: number | null;
+    }[];
   }[];
   plan_cost_per_day?: PlanDayCosts;
   /** The week in plan money: each account's monthly fee turned into a weekly budget, of which its week's percent used is spent. Absent from a daemon that does not send it. */
@@ -284,6 +294,11 @@ export type Outlook = {
     /** Extra usage spent this billing month by the accounts whose reading names an amount, per currency (USD: dollars). Never part of spent_usd. */
     extra_spent: { [key: string]: number };
   };
+  /** The accounts' weekly windows together, weighed as `past` is, from the span's start to now as a chart line drawn as `by_account` five_trace is: one account's reset is a vertical step of its weight's share. */
+  trace: {
+    at: Timestamp;
+    left: number | null;
+  }[];
 };
 
 /** The cost of one founder's task: its wall time, and the tokens spent inside the doing windows of every task in its subtree, per agent. */

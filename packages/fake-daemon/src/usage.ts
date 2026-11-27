@@ -38,6 +38,15 @@ function fiveResets(from: number, to: number): { at: Timestamp; window: '5h' }[]
   return out;
 }
 
+/** A 5h window's trace from `from` to `to`: its sawtooth, each refill a vertical drop at the boundary, as the daemon draws a reset. */
+function fiveTrace(from: number, to: number, low: number, high: number): { at: Timestamp; left: number }[] {
+  const out = [{ at: new Date(from).toISOString(), left: fiveLeft(from, low, high) }];
+  for (let t = Math.floor(from / FIVE) * FIVE + FIVE; t <= to; t += FIVE)
+    out.push({ at: new Date(t).toISOString(), left: 100 - high }, { at: new Date(t).toISOString(), left: 100 - low });
+  out.push({ at: new Date(to).toISOString(), left: fiveLeft(to, low, high) });
+  return out;
+}
+
 /** stats.outlook's by_account: alpha a little above the average, beta below it, so the two average to about `left_pct`; alpha's week resets as its account row says. Each past point also has its 5h left (alpha works harder than beta) and the 5h resets of the past are listed, so an account's history graph draws both windows. The fake does not pace, so there is no line, and it guesses no 5h future. alpha's week is guessed to leave 12% ($5.54 of an Ultra week) at its reset; beta's 5h window runs out in 25 minutes, before the reset an hour away that its account row carries, as its runway says, and its week reset is not known. kappa (the usage-stale seed's account with no 5h reading) is an Ultra: its week and no 5h window. */
 function byAccount(past: Outlook['past'], future: Outlook['future'], now: number, head: number): Outlook['by_account'] {
   const points = (pts: Outlook['past'], d: number, five?: [number, number]) =>
@@ -48,11 +57,15 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
       line_left: null,
     }));
   const reset = now + 70 * HOUR; // the same reset alpha's account row carries
+  const week = (pts: ReturnType<typeof points>) => pts.map((p) => ({ at: p.at, left: p.week_left }));
+  const from = past.length ? Date.parse(past[0]!.at) : now;
   const byTime = (a: { at: Timestamp }, b: { at: Timestamp }) => Date.parse(a.at) - Date.parse(b.at);
   return [
     {
       account: 'alpha',
       past: points(past, 5, [10, 80]),
+      five_trace: fiveTrace(from, now, 10, 80),
+      week_trace: week(points(past, 5)),
       future: points(future, 5),
       five_hour: true,
       forecast: { at: new Date(reset).toISOString(), unused_pct: 12, unused_usd: 5.54 },
@@ -66,6 +79,8 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
     {
       account: 'beta',
       past: points(past, -5, [0, 35]),
+      five_trace: fiveTrace(from, now, 0, 35),
+      week_trace: week(points(past, -5)),
       future: points(future, -5),
       resets: fiveResets(now - head, now),
       five_hour: true,
@@ -75,6 +90,8 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
     {
       account: 'kappa',
       past: points(past, 0),
+      five_trace: [],
+      week_trace: week(points(past, 0)),
       future: points(future, 0),
       resets: [],
       five_hour: false,
@@ -177,6 +194,7 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     accounts: 2,
     past,
     future,
+    trace: past.map((p) => ({ at: p.at, left: p.left_pct })),
     runway: [
       { account: 'alpha', runs_out_in_seconds: null, week_resets_at: at(now + 70 * HOUR) },
       { account: 'beta', runs_out_in_seconds: BETA_RUNS_OUT_S, week_resets_at: null },

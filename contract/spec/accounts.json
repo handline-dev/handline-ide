@@ -1064,6 +1064,62 @@
           }
          ],
          "description": "When its 5-hour window runs out at its use over the last day, counted on from its last reading; null when it lasts to its reset, is not in use, its reading is stale, or it has no 5-hour window."
+        },
+        "five_trace": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "Percent left."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           }
+          },
+          "required": [
+           "at",
+           "left"
+          ]
+         },
+         "description": "Its 5h window from the span's start to now as a chart line, drawn as given with straight lines between points: its readings thinned to a chart's width without losing an edge, each reset as two points at its time (the level before, then 100) so it draws as a vertical drop; left null breaks the line where no reading came. Empty for an account with no 5-hour window."
+        },
+        "week_trace": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+           "at": {
+            "$ref": "#/components/schemas/Timestamp"
+           },
+           "left": {
+            "oneOf": [
+             {
+              "type": "number",
+              "description": "Percent left."
+             },
+             {
+              "type": "null"
+             }
+            ]
+           }
+          },
+          "required": [
+           "at",
+           "left"
+          ]
+         },
+         "description": "Its weekly window as `five_trace` draws the 5h one."
         }
        },
        "required": [
@@ -1073,7 +1129,9 @@
         "resets",
         "five_hour",
         "forecast",
-        "five_runs_out_at"
+        "five_runs_out_at",
+        "five_trace",
+        "week_trace"
        ]
       },
       "description": "Each account that has a reading in the span, by name: its windows and its pace line, for a chart per account. Absent from a daemon that does not send it."
@@ -1216,6 +1274,34 @@
        "extra_spent"
       ],
       "description": "The week in plan money: each account's monthly fee turned into a weekly budget, of which its week's percent used is spent. Absent from a daemon that does not send it."
+     },
+     "trace": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "properties": {
+        "at": {
+         "$ref": "#/components/schemas/Timestamp"
+        },
+        "left": {
+         "oneOf": [
+          {
+           "type": "number",
+           "description": "Percent left."
+          },
+          {
+           "type": "null"
+          }
+         ]
+        }
+       },
+       "required": [
+        "at",
+        "left"
+       ]
+      },
+      "description": "The accounts' weekly windows together, weighed as `past` is, from the span's start to now as a chart line drawn as `by_account` five_trace is: one account's reset is a vertical step of its weight's share."
      }
     },
     "required": [
@@ -1225,7 +1311,8 @@
      "past",
      "future",
      "runway",
-     "cost_per_day"
+     "cost_per_day",
+     "trace"
     ]
    },
    "Retro": {
