@@ -1,0 +1,112 @@
+{
+  "apps/web/src/Gallery.tsx": ["팝오버 본문. 바깥 클릭이나 Esc로 닫힙니다.", "Esc/backdrop ask first (canClose)."],
+  "apps/web/src/NewAgent.tsx": ["Helps with anything in this workspace."],
+  "apps/web/src/Sidebar.tsx": ["Agents did not load."],
+  "apps/web/src/changes/Changes.tsx": [
+    "This agent has no worktree.",
+    "The diff did not load.",
+    "No changes.",
+    "The diff is longer than this; the rest is cut off."
+  ],
+  "apps/web/src/changes/CommentBar.tsx": ["; one that does not go waits in the chat to be tried again"],
+  "apps/web/src/changes/DiffRows.tsx": ["Comment on this line · Shift-click or drag for more lines"],
+  "apps/web/src/chat/Chat.tsx": ["Chat did not load."],
+  "apps/web/src/chat/Located.tsx": ["Earlier messages are in the chat.", "Later messages are in the chat."],
+  "apps/web/src/chat/PromptCard.tsx": ["The prompt changed, so nothing was sent."],
+  "apps/web/src/chat/ProposalCard.tsx": [": removed lines in red, added in green"],
+  "apps/web/src/chat/agent/AccountItem.tsx": ["Near its limit: moves to another account soon"],
+  "apps/web/src/connection/Pair.tsx": ["This browser is no longer paired.", "and paste the code or the link here."],
+  "apps/web/src/install/install.tsx": ["git is needed for a project."],
+  "apps/web/src/onboarding/AgentStep.tsx": [
+    "Or describe it, e.g. Add a /health endpoint",
+    "Log in to an AI tool first (step 1).",
+    "The agent did not start. Try again."
+  ],
+  "apps/web/src/onboarding/Onboarding.tsx": ["About 2 minutes. Stop any time.", "Everything here is also in Settings, with more options."],
+  "apps/web/src/onboarding/Steps.tsx": [
+    "Other accounts and API keys are in Settings › Accounts.",
+    "Pick which ones, and sounds, in Settings › Notifications.",
+    "No git folders found nearby."
+  ],
+  "apps/web/src/palette/Palette.tsx": ["Go to a place, a task number, or search", "Go to, a task number, or search"],
+  "apps/web/src/requests/ProposalView.tsx": ["This proposal is not listed."],
+  "apps/web/src/requests/RequestsTab.tsx": ["Requests did not load.", "No task to show."],
+  "apps/web/src/requests/RowMenu.tsx": ["Nothing to do to all of these"],
+  "apps/web/src/settings/AgentContext.tsx": ["Nothing yet."],
+  "apps/web/src/settings/AgentPage.tsx": [
+    "Who it is, what it remembers and learned, and what it may do.",
+    "A level is how many of its finished tasks of that kind wait for your OK or Redo; the others merge once the check and tests pass.",
+    "OKs in a row at first look offer one step less, and any Redo puts it back to Every. Contract and data work is always looked at."
+  ],
+  "apps/web/src/settings/DevicePage.tsx": ["No agent stays here.", "Not heard from yet."],
+  "apps/web/src/settings/DevicesTab.tsx": ["Devices did not load."],
+  "apps/web/src/settings/MachineSections.tsx": [
+    "Disk: keep at least this much free",
+    "The daemon has not reported the machine yet.",
+    "No agent is running."
+  ],
+  "apps/web/src/settings/PairSheet.tsx": [
+    "on this Mac and on the device, and sign in to the same account on both.",
+    "Open Connect a device again: its Tailscale address is then a choice.",
+    "Which address should the device connect to?",
+    "This code expired."
+  ],
+  "apps/web/src/settings/ProjectWorktrees.tsx": [
+    "Delete an agent's worktree when it sleeps",
+    "Delete an agent's worktree when it sleeps",
+    "No folders yet: the first agent to start work here makes one."
+  ],
+  "apps/web/src/settings/SandboxBlock.tsx": [
+    "Nothing beyond package registries. When its work needs more, it asks you, and what you allow shows here."
+  ],
+  "apps/web/src/settings/Schedules.tsx": [
+    "None yet. An agent asks for a schedule, and it starts when you allow it.",
+    "'s schedules cannot be read, so none of them is sent:",
+    "stops working."
+  ],
+  "apps/web/src/settings/SharedRuns.tsx": ["None."],
+  "apps/web/src/settings/ToolsTab.tsx": ["The tools did not load."],
+  "apps/web/src/sidebar/LoadButton.tsx": ["No agent is running."],
+  "apps/web/src/tools/RunPlan.tsx": ["wait."],
+  "apps/web/src/tools/Story.tsx": ["A → B: B starts after A is merged"],
+  "apps/web/src/tools/StorySub.tsx": ["Lines marked on the left changed since version"],
+  "apps/web/src/tools/TaskCode.tsx": ["The changes did not load.", "No commits on this task yet."],
+  "apps/web/src/tools/TaskComment.tsx": ["your answer and the turn back · Send it empty to give it back with no answer"],
+  "apps/web/src/tools/TaskDiff.tsx": ["Pick two different versions."],
+  "apps/web/src/tools/TaskFields.tsx": ["No one matches."],
+  "apps/web/src/tools/TaskPull.tsx": ["This task closes when it merges."],
+  "apps/web/src/tools/TaskSpend.tsx": [
+    "What the model calls of this task and its sub-tasks cost at list price. A subscription is not billed for them."
+  ],
+  "apps/web/src/tools/TaskTab.tsx": ["did not load.", "No comments yet."],
+  "apps/web/src/tools/TasksTab.tsx": ["Tasks did not load.", "No tasks here."],
+  "apps/web/src/tools/TextTab.tsx": ["This text is no longer kept in this browser."],
+  "apps/web/src/tools/WebTab.tsx": ["Screenshot to mark up and send to the chat", "Type an address to open a page."],
+  "apps/web/src/town/Find.tsx": ["No team or person matches."],
+  "apps/web/src/town/PersonCard.tsx": ["Click to chat · right-click for more"],
+  "apps/web/src/ui/Boundary.tsx": ["stopped working."],
+  "apps/web/src/usage/AccountHistory.tsx": ["This account has no 5-hour limit."],
+  "apps/web/src/usage/AccountParts.tsx": ["to confirm.", ". Move them off first."],
+  "apps/web/src/usage/AccountsTab.tsx": [
+    "Accounts did not load.",
+    "Finish in the browser tab that opened",
+    ", then paste the code it shows here."
+  ],
+  "apps/web/src/usage/Outlook.tsx": ["The outlook did not load."],
+  "apps/web/src/usage/StopTime.tsx": [
+    "A guess from its use over the last day: the 5-hour window fills before it resets, and the agents on this account wait for the reset."
+  ],
+  "apps/web/src/usage/Usage.tsx": ["Accounts did not load."],
+  "apps/web/src/usage/UsageViews.tsx": [
+    "Nothing used in this window.",
+    "Your Claude sessions outside any agent, and the usage poll",
+    "Each agent counts under the model it runs on now.",
+    "Removed agents, moved worktrees, or Claude used outside Handline."
+  ],
+  "apps/web/src/viewer/VideoPlayer.tsx": ["The video did not load."],
+  "apps/web/src/workspace/WorkspacePage.tsx": [
+    "Nothing waits on you here.",
+    "an arrow: waits on · a dot: said something to you, unread",
+    "This workspace is gone."
+  ]
+}

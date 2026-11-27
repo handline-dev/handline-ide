@@ -1,4 +1,4 @@
-import { react, RELATIVE_CALL, test } from '@handline/config/eslint';
+import { copyRule, react, RELATIVE_CALL, test } from '@handline/config/eslint';
 
 // Colors come only from the theme roles in src/styles.css. Tailwind no longer has a palette, so a
 // palette class silently draws nothing; these rules turn that and every other way in into an error.
@@ -38,4 +38,7 @@ const rules = (layout) => ({
   },
 });
 
-export default [...react(import.meta.dirname), rules(false), rules(true), ...test];
+// Screen text is a label, never a sentence (docs/copy.md); the strings that already are one are listed in the config package's copy-baseline.json.
+const copy = { files: ['src/**/*.tsx'], plugins: { handline: { rules: { copy: copyRule } } }, rules: { 'handline/copy': 'error' } };
+
+export default [...react(import.meta.dirname), rules(false), rules(true), copy, ...test];

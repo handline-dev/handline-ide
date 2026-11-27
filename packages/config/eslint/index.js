@@ -1,5 +1,6 @@
 export { base } from '#eslint/base.js';
 export { react } from '#eslint/react.js';
 export { test } from '#eslint/test.js';
+export { copyRule } from '#eslint/copy.js';
 export { limits } from '#eslint/limits.js';
 export { RELATIVE_CALL } from '#eslint/boundaries.js';

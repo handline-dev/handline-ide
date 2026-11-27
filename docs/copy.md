@@ -3,10 +3,14 @@
 Every string in the PC and phone apps is read by a busy person. The rules below apply to it, whether the app writes it or the
 daemon sends it for the app to show.
 
-1. **Say what happened, then what to do next.** "Waiting: the computer is busy right now. It starts by itself when it calms down, or
-   Start now." A string that names a problem and no next step is unfinished. When there is nothing to do, say that it fixes
-   itself.
-2. **One sentence where one works.** Cut the clause that repeats the title, the icon or the state word beside it.
+1. **No sentences on screen.** A state is a word or a short label, a next step is the button itself, a detail is a short bullet.
+   Layout, icons and position carry the meaning; words only where they cannot. "Waiting · machine busy" with a **Start now**
+   button, not "Waiting: the computer is busy right now. It starts by itself when it calms down, or Start now." A string that
+   names a problem and shows no next step is unfinished.
+2. **Cut what the layout already says.** Drop the clause that repeats the title, the icon or the state word beside it. Lint
+   fails a string that ends with a period or runs past six words; a line that truly needs one carries `copy-ok` in a comment.
+   Strings that already were sentences are listed in `packages/config/eslint/copy-baseline.json`, which only shrinks: fix the
+   string and delete its line.
 3. **Plain words.** No hook names, state codes or internal nouns (`UserPromptSubmit`, `apply_failed`, `PARKED`, rpc, gate,
    tick, verb). Write numbers as people use them: "2.8 per core", not "load 2.84 per core, limit 1.50".
 4. **No raw machinery in front of the person.** No file paths, ids (a task is "T612 · title", never an id alone), error
@@ -15,7 +19,7 @@ daemon sends it for the app to show.
 5. **No contradictions.** The headline and the detail must agree. Never "Not applied: the change is applied". If the
    detail comes from somewhere else, the app checks it fits the headline or leaves it out.
 6. **No filler.** No "Please note", "Successfully", "Oops", "Something went wrong", "Are you sure?". Say what will
-   happen instead: "Delete T612? Its comments go too."
+   happen instead: "Delete T612 · comments go too"
 7. **One word for one thing, everywhere.** Use these words and only these:
 
    | Word        | Means                                                                                           | Not                                      |
