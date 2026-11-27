@@ -1,5 +1,5 @@
 // A person's face for a tab: the head of their front-facing figure on the town's people sheet (people.ts), as their office draws them.
-import { PEOPLE_SHEET, SHEET } from '#src/town/people.ts';
+import { PEOPLE_SHEET, SHEET } from '#src/town/sheet.ts';
 
 /** The sheet's column of the figure walking toward the viewer, and the square round its face in a cell: brow to chin, so even a face
  *  under a big head of dark hair reads at a tab's size. */

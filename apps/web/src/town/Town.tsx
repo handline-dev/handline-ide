@@ -13,7 +13,7 @@ import { setTownGo, townGo } from '#src/town/goto.ts';
 import { stepTown, useTownHistory } from '#src/town/history.ts';
 import { NONE, type Windows } from '#src/town/windows.ts';
 import { Face } from '#src/town/face.tsx';
-import { figuresOf } from '#src/town/people.ts';
+import { figuresOf } from '#src/town/sheet.ts';
 import { Inside } from '#src/town/Inside.tsx';
 import { CityView, type Sign } from '#src/town/CityView.tsx';
 import { cityOf, HQ, seatsOf } from '#src/town/city.ts';

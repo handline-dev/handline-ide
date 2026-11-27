@@ -9,12 +9,10 @@ import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { Vector3 } from 'three';
 import { PERSON_PX } from '#src/town/view.ts';
+import { figuresOf, SHEET } from '#src/town/sheet.ts';
 
-export const PEOPLE_SHEET = `${import.meta.env.BASE_URL}town/people.png`;
 export const BUBBLE = `${import.meta.env.BASE_URL}town/bubble.png`;
 export const BUBBLE_PX = 19;
-/** The sheet's cells, and each person's figure height per pose in sheet pixels (from the script that cut the sheet). */
-export const SHEET = { cell: [140, 232], size: [420, 1392], walk: 220 } as const;
 /** The walking sheet, public/town/people-walk.png: a row per person, in the order of the sitting sheet, and nine columns: down, up and
  *  left, each standing, left foot, right foot (right is left mirrored). Every cell keeps one empty row under the feet. */
 export const WALK_SHEET = `${import.meta.env.BASE_URL}town/people-walk.png`;
@@ -25,12 +23,12 @@ const WALK_STEPS = [0, 1, 0, 2] as const;
 /** The column of the walking sheet for a facing and how far the person has walked, in strides: standing, left, standing, right. */
 export const walkColumn = (facing: Facing, strides: number): number => WALK_COL[facing] + WALK_STEPS[((Math.floor(strides) % 4) + 4) % 4];
 const POSES = ['sit_back', 'sit_mug', 'walk_down'] as const;
+/** Each person's figure height per pose in sheet pixels (from the script that cut the sheet). */
 const TALL: Record<Pose, number[]> = {
   sit_back: [195, 226, 194, 227, 195, 201],
   sit_mug: [208, 226, 206, 222, 208, 202],
   walk_down: [220, 226, 220, 230, 220, 211],
 };
-const PEOPLE = TALL.walk_down.length;
 export const SCALE = PERSON_PX / SHEET.walk; // a walking figure of median height stands PERSON_PX tall in the room
 type Pose = (typeof POSES)[number];
 
@@ -81,21 +79,6 @@ const JOIN_SPAN = [12, 128] as const;
 
 /** What lies flat on the floor, under a standing person's feet. */
 export const FLAT = new Set(['floor', 'baseboard', 'rug', 'road', 'walk', 'grass', 'lane']);
-
-export const hashOf = (key: string) => [...key].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
-
-/** A sheet row per person from its key, so it keeps it: the first from there on that no teammate has yet. */
-export function figuresOf(people: Person[]): Map<string, number> {
-  const taken = new Set<number>();
-  return new Map(
-    people.map((p) => {
-      const start = hashOf(p.key) % PEOPLE;
-      const figure = Array.from({ length: PEOPLE }, (_, i) => (start + i) % PEOPLE).find((f) => !taken.has(f)) ?? start;
-      taken.add(figure);
-      return [p.key, figure];
-    }),
-  );
-}
 
 /** The pixels a room object covers, by its tag, as a box. */
 /** Every tagged object's box, in one pass over the picture. */

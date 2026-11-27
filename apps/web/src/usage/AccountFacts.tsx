@@ -1,3 +1,4 @@
+import { Mark } from '#src/ui/Face.tsx';
 import { creditsLine, foldSeats, unusedLine, type FoldedAgent } from '@handline/app-core';
 import { useNameOf, useOutlook, useRead } from '@handline/app-data';
 import { activityOf } from '#src/layout/agentList.ts';
@@ -94,10 +95,9 @@ export function AccountFacts({
 /** At most this many circles in the stack, a +N one included. */
 const SHOWN = 6;
 
-/** The agents on an account as initial circles, one per agent (its temps folded in, their count on the circle), filled while one works,
+/** The agents on an account as Town faces, one per agent (its temps folded in, their count on the circle), ringed while one works,
  * and how many sessions work over them. */
 function AgentsBar({ account: a }: { account: Account }) {
-  const nameOf = useNameOf();
   const all = useRead('agents.list', {}).data?.agents ?? []; // temps too: they run on the account under their agent's name
   const views = new Map(all.map((x) => [x.key, x]));
   const busy = (k: string) => {
@@ -120,13 +120,8 @@ function AgentsBar({ account: a }: { account: Account }) {
         // On hover, every agent on it by name, each opening its chat.
         <div className="group/agents relative flex">
           {shown.map((f) => (
-            <span
-              key={f.key}
-              className={`relative -mr-1 grid size-6 place-items-center rounded-full border-2 border-bg text-xs font-medium uppercase ${
-                f.working ? 'bg-accent text-accent-fg' : 'bg-hover text-muted'
-              }`}
-            >
-              {nameOf(f.key).slice(0, 1)}
+            <span key={f.key} className={`relative -mr-1 rounded-full ring-2 ${f.working ? 'ring-accent' : 'ring-bg'}`}>
+              <Mark who={f.key} />
               {f.sessions > 1 && (
                 <span className="absolute -top-2 -right-1.5 z-10 grid h-4 min-w-4 place-items-center rounded-full border border-bg bg-fg px-0.5 text-xs leading-none font-normal text-bg tabular-nums">
                   {f.sessions}
@@ -162,6 +157,7 @@ function AgentLink({ agent }: { agent: FoldedAgent }) {
   return (
     <li>
       <button type="button" {...open} className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs text-fg hover:bg-hover">
+        <Mark who={agent.key} size={16} />
         <span className="min-w-0 flex-1 truncate">{useNameOf()(agent.key)}</span>
         {doing(agent) && <span className="text-muted tabular-nums">{doing(agent)}</span>}
       </button>
