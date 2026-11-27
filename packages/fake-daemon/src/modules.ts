@@ -12,6 +12,7 @@ import type { Knobs } from '#src/knobs.ts';
 import { invalidParams } from '#src/errors.ts';
 import type { FakeRequests } from '#src/requests.ts';
 import type { FakeSchedules } from '#src/schedules.ts';
+import { screenCall } from '#src/screen.ts';
 import type { Script } from '#src/script.ts';
 import { accountsReply, view, type Session } from '#src/session.ts';
 import type { FakeTasks } from '#src/tasks.ts';
@@ -23,6 +24,7 @@ import type { FakeRules } from '#src/workspacerules.ts';
 /** What the areas need of the daemon that hosts them. */
 export interface ModuleHost {
   readonly sessions: Map<string, Session>;
+  iso(): string;
   readonly knobs: Knobs;
   readonly accounts: FakeAccounts;
   readonly admin: FakeAdmin;
@@ -80,6 +82,7 @@ const AREAS: Area[] = [
   (d, c, method, p, ok) => (d.spaces.owns(method) ? { value: d.spaces.call(method, p, ok, d.actor(c)) } : null),
   (d, c, method, p, ok) => (d.rules.owns(method) ? { value: d.rules.call(method, p, ok, d.actor(c)) } : null),
   (d, c, method, p, ok) => (d.context.owns(method) ? { value: d.context.call(method, p, ok, d.actor(c)) } : null),
+  (d, _c, method) => screenCall(method, d.iso()),
   (d, _c, method, p) => (d.schedules.owns(method) ? { value: d.schedules.call(p) } : null),
   (d, _c, method, p, ok) => (d.requests.owns(method) ? { value: d.requests.call(method, p, ok) } : null),
   (d, _c, method, p, ok) => (method === 'attachment.remove' ? { value: removeAttachment(d, p, ok) } : null),

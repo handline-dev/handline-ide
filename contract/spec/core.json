@@ -6201,6 +6201,146 @@
    "x-app-cache": false
   },
   {
+   "name": "screen.history",
+   "summary": "The window captures agents made with hl screen, newest first: who, which task, the app and window, and how it ended. Read from the screen.capture events.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "limit",
+     "required": false,
+     "schema": {
+      "type": "integer",
+      "description": "Default 100, at most 500."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "captures": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "id": {
+          "type": "integer",
+          "description": "The event's id; screen.picture reads its picture by it."
+         },
+         "at": {
+          "$ref": "#/components/schemas/Timestamp"
+         },
+         "agent": {
+          "type": "string"
+         },
+         "task": {
+          "type": "integer",
+          "description": "The task the agent held, 0 for none."
+         },
+         "app": {
+          "type": "string"
+         },
+         "title": {
+          "type": "string"
+         },
+         "ok": {
+          "type": "boolean"
+         },
+         "status": {
+          "type": "string",
+          "description": "ok, refused or failed."
+         },
+         "reason": {
+          "type": "string"
+         },
+         "has_picture": {
+          "type": "boolean",
+          "description": "The file is still on disk."
+         }
+        },
+        "required": [
+         "id",
+         "at",
+         "agent",
+         "task",
+         "app",
+         "title",
+         "ok",
+         "status",
+         "reason",
+         "has_picture"
+        ]
+       }
+      }
+     },
+     "required": [
+      "captures"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": {
+    "resource": "screen-history",
+    "feed": null
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
+   "name": "screen.picture",
+   "summary": "The PNG of one capture, by the id screen.history gave, as base64. Only a file under the home's shots folder; larger than 8 MiB is refused.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "id",
+     "required": true,
+     "schema": {
+      "type": "integer"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "mime": {
+       "type": "string"
+      },
+      "data": {
+       "type": "string",
+       "contentEncoding": "base64"
+      }
+     },
+     "required": [
+      "mime",
+      "data"
+     ]
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ]
+  },
+  {
    "name": "screen.policy",
    "summary": "Whether the PreToolUse guard refuses a shell screencapture (the setting screencapture_via_handline).",
    "paramStructure": "by-name",

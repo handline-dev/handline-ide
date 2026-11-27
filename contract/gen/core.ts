@@ -1272,6 +1272,33 @@ export interface CoreMethods {
     title: string;
     window: number;
   } };
+  "screen.history": { params: {
+  /** Default 100, at most 500. */
+  limit?: number;
+}; result: {
+    captures: {
+      /** The event's id; screen.picture reads its picture by it. */
+      id: number;
+      at: Timestamp;
+      agent: string;
+      /** The task the agent held, 0 for none. */
+      task: number;
+      app: string;
+      title: string;
+      ok: boolean;
+      /** ok, refused or failed. */
+      status: string;
+      reason: string;
+      /** The file is still on disk. */
+      has_picture: boolean;
+    }[];
+  } };
+  "screen.picture": { params: {
+  id: number;
+}; result: {
+    mime: string;
+    data: string;
+  } };
   "screen.policy": { params: {
   agent: Who;
 }; result: {
@@ -1308,11 +1335,13 @@ export const CORE_METHODS: { [K in keyof CoreMethods]: { role: Role; callers: Ro
   "warning.dismiss": { role: "owner", callers: null, write: true, since: 1 },
   "screen.list": { role: "agent", callers: ["agent"], write: false, since: 1 },
   "screen.shot": { role: "agent", callers: ["agent"], write: false, since: 1 },
+  "screen.history": { role: "member", callers: null, write: false, since: 1 },
+  "screen.picture": { role: "member", callers: null, write: false, since: 1 },
   "screen.policy": { role: "agent", callers: ["agent"], write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "search" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get" | "screen.list" | "screen.shot" | "screen.policy"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubscribe" | "daemon.status" | "lease.take" | "lease.release" | "lease.extend" | "lease.get" | "run.list" | "load.get" | "events.feed" | "search" | "operation.get" | "prefs.get" | "connection.addresses" | "settings.get" | "screen.list" | "screen.shot" | "screen.history" | "screen.picture" | "screen.policy"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "hello": false,
   "whoami": false,
   "subscribe": false,
@@ -1332,6 +1361,8 @@ export const CORE_APP_CACHE: { [K in "hello" | "whoami" | "subscribe" | "unsubsc
   "settings.get": {"resource": "settings", "feed": null},
   "screen.list": false,
   "screen.shot": false,
+  "screen.history": {"resource": "screen-history", "feed": null},
+  "screen.picture": false,
   "screen.policy": false,
 };
 

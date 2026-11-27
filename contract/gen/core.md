@@ -33,6 +33,8 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `warning.dismiss` | owner | yes | `id`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: dismiss a warning |
 | `screen.list` | agent (only agent) |  | `agent` | `{windows}` | `refused`, `bad_request` | not_self | not cached |
 | `screen.shot` | agent (only agent) |  | `agent`, `app?`, `window?` | `{path, app, title, window}` | `refused`, `bad_request` | not_self | not cached |
+| `screen.history` | member |  | `limit?` | `{captures}` | `bad_request` |  | `screen-history`, snapshot |
+| `screen.picture` | member |  | `id` | `{mime, data}` | `not_found`, `refused`, `bad_request` |  | not cached |
 | `screen.policy` | agent (only agent) |  | `agent` | `{via}` | `refused`, `bad_request` | not_self | not cached |
 
 ### `hello`
@@ -146,6 +148,14 @@ The on-screen windows, front to back: app, title and id. Refused while Block scr
 ### `screen.shot`
 
 Capture one window to a PNG under the home's shots folder for the agent, in the daemon, so macOS asks for screen recording only for Handline. The app's front window, or the window given. Each call leaves one screen.capture event (agent, task held, app, title, path, ok, status). Refused while Block screen capture is on; when macOS denies the capture the refusal says where to turn Handline on.
+
+### `screen.history`
+
+The window captures agents made with hl screen, newest first: who, which task, the app and window, and how it ended. Read from the screen.capture events.
+
+### `screen.picture`
+
+The PNG of one capture, by the id screen.history gave, as base64. Only a file under the home's shots folder; larger than 8 MiB is refused.
 
 ### `screen.policy`
 

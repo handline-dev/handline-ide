@@ -8,6 +8,7 @@ export const SECTIONS = [
   'agents',
   'schedules',
   'tools',
+  'captures',
   'notifications',
   'projects',
   'devices',

@@ -1,10 +1,12 @@
-// Package screen serves screen.list, screen.shot and screen.policy: an agent captures one window through the daemon, never from its own
+// Package screen serves screen.list, screen.shot, screen.policy, screen.history and screen.picture: an agent captures one window through the daemon, never from its own
 // shell, so macOS asks for screen recording once, for Handline, and each capture is kept as an event.
 package screen
 
 import (
 	"bytes"
+	"cmp"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -124,6 +126,8 @@ func (e *Env) Register(s *rpc.Server) {
 	}})
 	s.Register("screen.list", rpc.Method{Read: true, Handler: e.list})
 	s.Register("screen.shot", rpc.Method{Read: true, Handler: e.shot})
+	s.Register("screen.history", rpc.Method{Read: true, Handler: e.history})
+	s.Register("screen.picture", rpc.Method{Read: true, Handler: e.picture})
 }
 
 func (e *Env) list(c *rpc.Conn, p map[string]any) (any, error) {
@@ -217,4 +221,99 @@ func (e *Env) shot(c *rpc.Conn, p map[string]any) (any, error) {
 	}
 	note(*w, path, "ok", "")
 	return map[string]any{"path": path, "app": w.App, "title": w.Title, "window": w.ID}, nil
+}
+
+const maxPicture = 8 << 20
+
+type capture struct {
+	ID         int64  `json:"id"`
+	At         string `json:"at"`
+	Agent      string `json:"agent"`
+	Task       int64  `json:"task"`
+	App        string `json:"app"`
+	Title      string `json:"title"`
+	OK         bool   `json:"ok"`
+	Status     string `json:"status"`
+	Reason     string `json:"reason"`
+	HasPicture bool   `json:"has_picture"`
+}
+
+func (e *Env) history(c *rpc.Conn, p map[string]any) (any, error) {
+	limit := 100
+	if n, ok := rpc.AsInt(p["limit"]); ok && n > 0 {
+		limit = min(int(n), 500)
+	}
+	rows, err := e.DB.Query(`SELECT id, ts, agent, COALESCE(payload, '{}') FROM events WHERE kind = ? ORDER BY id DESC LIMIT ?`, Event, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []capture{}
+	for rows.Next() {
+		var (
+			ts       int64
+			agent, s string
+			cp       capture
+		)
+		if err := rows.Scan(&cp.ID, &ts, &agent, &s); err != nil {
+			return nil, err
+		}
+		var v struct {
+			Agent  string `json:"agent"`
+			Task   int64  `json:"task"`
+			App    string `json:"app"`
+			Title  string `json:"title"`
+			Path   string `json:"path"`
+			OK     bool   `json:"ok"`
+			Status string `json:"status"`
+			Reason string `json:"reason"`
+		}
+		if json.Unmarshal([]byte(s), &v) != nil {
+			continue
+		}
+		cp.At, cp.Agent = time.Unix(ts, 0).UTC().Format(time.RFC3339), cmp.Or(v.Agent, agent)
+		cp.Task, cp.App, cp.Title, cp.OK, cp.Status, cp.Reason = v.Task, v.App, v.Title, v.OK, v.Status, v.Reason
+		_, serr := os.Stat(e.shotPath(v.Path))
+		cp.HasPicture = v.OK && v.Path != "" && serr == nil
+		out = append(out, cp)
+	}
+	return map[string]any{"captures": out}, rows.Err()
+}
+
+// shotPath is the file a recorded path names when it lies under the shots folder, else "".
+func (e *Env) shotPath(path string) string {
+	root := filepath.Join(e.Home, "shots") + string(filepath.Separator)
+	if path == "" || !strings.HasPrefix(filepath.Clean(path), root) {
+		return ""
+	}
+	return filepath.Clean(path)
+}
+
+func (e *Env) picture(c *rpc.Conn, p map[string]any) (any, error) {
+	id, ok := rpc.AsInt(p["id"])
+	if !ok {
+		return nil, rpc.BadRequestError("id is a capture id", "id", rpc.InvalidParams)
+	}
+	var s string
+	if err := e.DB.QueryRow(`SELECT COALESCE(payload, '{}') FROM events WHERE id = ? AND kind = ?`, id, Event).Scan(&s); err != nil {
+		return nil, rpc.NotFoundError("no such capture")
+	}
+	var v struct {
+		Path string `json:"path"`
+	}
+	_ = json.Unmarshal([]byte(s), &v)
+	path := e.shotPath(v.Path)
+	if path == "" {
+		return nil, rpc.NotFoundError("that capture left no picture")
+	}
+	if st, err := os.Stat(path); err != nil {
+		return nil, rpc.NotFoundError("the picture is gone")
+	} else if st.Size() > maxPicture {
+		return nil, rpc.Refused("the picture is larger than 8 MiB", "", "")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, rpc.NotFoundError("the picture is gone")
+	}
+	return map[string]any{"mime": "image/png", "data": base64.StdEncoding.EncodeToString(b)}, nil
 }

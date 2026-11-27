@@ -2,6 +2,8 @@ package screen
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,5 +127,45 @@ func TestPolicyFollowsTheSetting(t *testing.T) {
 	on, _ := env(t, true, "screencapture_via_handline: true\n")
 	if off.Via() || !on.Via() {
 		t.Fatal("via")
+	}
+}
+
+func TestHistoryListsCapturesNewestFirstAndPictureReadsOnlyTheirFile(t *testing.T) {
+	e, _ := env(t, true, "")
+	if _, err := shot(e, map[string]any{"agent": "a1", "app": "Finder"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := shot(e, map[string]any{"agent": "a1", "app": "Nope"}); err == nil {
+		t.Fatal("no window should fail")
+	}
+	got, err := e.history(&rpc.Conn{}, map[string]any{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := got.(map[string]any)["captures"].([]capture)
+	if len(cs) != 2 || cs[0].Status != "failed" || cs[0].HasPicture || cs[1].Status != "ok" || !cs[1].HasPicture || cs[1].App != "Finder" || cs[1].Agent != "a1" {
+		t.Fatalf("captures %+v", cs)
+	}
+	pic, err := e.picture(&rpc.Conn{}, map[string]any{"id": json.Number(fmt.Sprint(cs[1].ID))})
+	if err != nil || pic.(map[string]any)["data"] != "cG5n" {
+		t.Fatalf("picture %v %v", pic, err)
+	}
+	if _, err := e.picture(&rpc.Conn{}, map[string]any{"id": json.Number(fmt.Sprint(cs[0].ID))}); err == nil {
+		t.Fatal("a failed capture has no picture")
+	}
+	outside := filepath.Join(t.TempDir(), "x.png")
+	os.WriteFile(outside, []byte("secret"), 0o644)
+	if _, err := e.DB.Exec(`UPDATE events SET payload = replace(payload, ?, ?) WHERE id = ?`, cs[1].Title, "", cs[1].ID); err != nil {
+		t.Fatal(err)
+	}
+	var s string
+	e.DB.QueryRow(`SELECT payload FROM events WHERE id = ?`, cs[1].ID).Scan(&s)
+	var v map[string]any
+	json.Unmarshal([]byte(s), &v)
+	v["path"] = outside
+	b, _ := json.Marshal(v)
+	e.DB.Exec(`UPDATE events SET payload = ? WHERE id = ?`, string(b), cs[1].ID)
+	if _, err := e.picture(&rpc.Conn{}, map[string]any{"id": json.Number(fmt.Sprint(cs[1].ID))}); err == nil {
+		t.Fatal("a path outside the shots folder must not be read")
 	}
 }
