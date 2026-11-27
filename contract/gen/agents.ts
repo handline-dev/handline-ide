@@ -91,6 +91,11 @@ export type AgentView = {
     /** How many other tasks they wait on. */
     more: number;
   } | null;
+  /** The steps done and in all of `task`, as its holder last gave them with a progress note (Task.todo); null without a task or a count. agent.changed sends it again when the count moves. Absent from a daemon that does not serve it. */
+  steps?: {
+    done: number;
+    total: number;
+  } | null;
   /** What holds back a wake that is due (the screens' wall cell): the account that would wake it. Null when would_wake is false or nothing holds it back. Absent from a daemon that does not serve it yet. */
   wall?: {
     /** The account whose window the wake waits on. */

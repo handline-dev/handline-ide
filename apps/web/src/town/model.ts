@@ -14,7 +14,8 @@ export const WORDS: Record<Activity, string> = {
   resting: 'Idle',
 };
 
-/** `queue`: the tasks it owns that are not done; `cached`: its prompt cache still holds its conversation; `task`: the task it holds now;
+/** `queue`: the tasks it owns that are not done; `cached`: its prompt cache still holds its conversation; `task`: the task it holds now,
+ *  and `steps` the steps done and in all of it, null without a count;
  *  `why`: why it waits or stopped, in the daemon's words. For its card: `team`, its workspace's name; `role`, the first line of its role
  *  (empty for none); its `model` and `effort`; `ctx`, the whole percent of its context window in use, null when not known. */
 export type Person = {
@@ -25,6 +26,7 @@ export type Person = {
   queue: number;
   cached: boolean;
   task?: number | null;
+  steps?: { done: number; total: number } | null;
   why?: string | null;
   team?: string;
   role?: string;
@@ -60,6 +62,7 @@ const personOf = (a: AgentView, now: number, team: string): Person => ({
   queue: a.task_count ?? 0,
   cached: !!a.cache_until && Date.parse(a.cache_until) > now,
   task: a.task?.id ?? null,
+  steps: a.steps ?? null,
   why: holdLine(a),
   team,
   role: a.role?.trim() ?? '',

@@ -106,6 +106,7 @@ export const scrolledOff = (s: Session): number => Math.max(0, s.lines.length - 
 export interface TaskCounter {
   taskCount(agent: string, current: number | null): number;
   waitsOn(agent: string, current: number | null): AgentView['waits_on'];
+  steps(current: number | null): AgentView['steps'];
 }
 
 /** The agent's view, with task_count as the daemon counts it unless the fixture pins one. */
@@ -137,6 +138,7 @@ export function view(s: Session, tasks: TaskCounter): AgentView {
     ...(s.structured && { structured: true }),
     task_count: tasks.taskCount(s.fx.name, s.fx.task?.id ?? null),
     waits_on: s.state === 'running' ? null : tasks.waitsOn(s.fx.name, s.fx.task?.id ?? null),
+    steps: tasks.steps(s.fx.task?.id ?? null),
     ...s.fx.view,
   };
 }

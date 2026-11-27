@@ -29,19 +29,24 @@ describe('townOf', () => {
     const t = townOf(
       [ws('w', 'core', null)],
       [
-        on('a', { state: 'running', task: { id: 7, title: 'Plan the notes' }, doing: { text: 'Bash runs the tests', at: '' } }),
+        on('a', {
+          state: 'running',
+          task: { id: 7, title: 'Plan the notes' },
+          steps: { done: 3, total: 7 },
+          doing: { text: 'Bash runs the tests', at: '' },
+        }),
         on('b', { status: status('waiting', 'wall', 'usage limit, back at 14:00') }),
         on('c', { status: status('stopped', 'stalled', 'Start failed') }),
         on('d', { status: status('off', '', '') }),
       ],
       [],
     );
-    expect(t.houses[0].people.map((p) => [p.key, p.activity, p.doing, p.task, p.why])).toEqual([
-      // The task's title names the work, over the tool call of the moment.
-      ['a', 'working', 'Plan the notes', 7, null],
-      ['b', 'held', null, null, 'Usage limit, back at 14:00'],
-      ['c', 'error', null, null, 'Start failed'],
-      ['d', 'asleep', null, null, null],
+    expect(t.houses[0].people.map((p) => [p.key, p.activity, p.doing, p.task, p.steps, p.why])).toEqual([
+      // The task's title names the work, over the tool call of the moment; its steps come with the list.
+      ['a', 'working', 'Plan the notes', 7, { done: 3, total: 7 }, null],
+      ['b', 'held', null, null, null, 'Usage limit, back at 14:00'],
+      ['c', 'error', null, null, null, 'Start failed'],
+      ['d', 'asleep', null, null, null, null],
     ]);
   });
 
