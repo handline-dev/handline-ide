@@ -268,7 +268,7 @@ type RemoveRefused struct{ Why string }
 
 func (e *RemoveRefused) Error() string { return e.Why }
 
-// Remove logs the account out and takes it off the roster (accounts.remove_account), the confirmation having been asked already. run runs
+// Remove logs the account out and takes it off the roster, the confirmation having been asked already. run runs
 // the vendor's logout and answers its exit code (-1 when it could not run). Refused while an agent is on the account and when the logout
 // fails. The vendor removes its own credential first; then the directory is deleted (the conversations stay in the database). Answers
 // the line to say.

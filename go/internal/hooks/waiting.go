@@ -13,8 +13,8 @@ import (
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
-// An agent stopped at a permission prompt only the founder can answer has one small file, home/waiting/<agent>.json
-// (handline/session/waiting.py): written when the prompt is seen, taken away when it is answered.
+// An agent stopped at a permission prompt only the founder can answer has one small file, home/waiting/<agent>.json:
+// written when the prompt is seen, taken away when it is answered.
 
 const shownChars = 120
 
@@ -98,8 +98,8 @@ func noteWait(home, agent, tool string, toolInput any, afterEventID int64) {
 // clearWait: the prompt is answered.
 func clearWait(home, agent string) { os.Remove(waitFile(home, agent)) }
 
-// ReadWait is the agent's wait file as written by noteWait, or nil when there is none, it is not an object or it has no `since`
-// (handline/session/waiting.read). Numbers come back as float64; WaitID reads the event id out.
+// ReadWait is the agent's wait file as written by noteWait, or nil when there is none, it is not an object or it has no `since`.
+// Numbers come back as float64; WaitID reads the event id out.
 func ReadWait(home, agent string) map[string]any {
 	b, err := os.ReadFile(waitFile(home, agent))
 	if err != nil {

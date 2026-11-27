@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// answer.add (handline/daemon/rpc_answers.py): the founder's standing answers, kept in the protected store.
+// answer.add: the founder's standing answers, kept in the protected store.
 //
 // The stores are files, so an effect and its write_effects record cannot be one transaction. A retry is told apart instead: the call leaves
 // an intent (a cursor named for its caller and request_id) before it writes and clears it once it has recorded its answer, so a retry that
@@ -54,7 +54,7 @@ func (w *writes) failed(key string, err error) error {
 	return err
 }
 
-// pyRepr is a string as Python's repr writes the common case.
+// pyRepr is s in single quotes, or Go-quoted when it holds a quote, backslash or line break.
 func pyRepr(s string) string {
 	if strings.ContainsAny(s, "'\\\n\r\t") {
 		return fmt.Sprintf("%q", s)

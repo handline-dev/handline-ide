@@ -87,7 +87,7 @@ func TestHookLetsThroughWithEmptyJSON(t *testing.T) {
 	}
 }
 
-// Every hook event is the Go hl's: none reaches Python, whatever the switch says.
+// Every hook event is answered by hl itself, with exit 0, whatever the switch says.
 func TestHookIsGoForEveryEventAndNeverPython(t *testing.T) {
 	r := hookRig(t, false)
 	r.daemon(nil)
@@ -97,7 +97,7 @@ func TestHookIsGoForEveryEventAndNeverPython(t *testing.T) {
 			t.Errorf("%v: %q %d", args, out, code)
 		}
 	}
-	// The event the payload names wins, as in Python.
+	// The event the payload names wins over the argument.
 	guarded := preToolUse("Bash", map[string]any{"command": "hl say worker \"`whoami`\""})
 	if out, _, _ := r.runIn(guarded, asAgent, "hook", "PostToolUse"); !strings.Contains(out, `"permissionDecision": "deny"`) {
 		t.Errorf("the payload's PreToolUse was not guarded: %q", out)

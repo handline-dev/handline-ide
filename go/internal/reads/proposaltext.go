@@ -23,7 +23,7 @@ type flat struct {
 
 func (f flat) get(k string) any { return f.m[k] }
 
-// text is a field as Python's str() shows it, "" for a missing one.
+// text is a field as text: booleans as "True" and "False", "" for a missing one.
 func (f flat) text(k string) string {
 	switch v := f.m[k].(type) {
 	case nil:
@@ -40,7 +40,7 @@ func (f flat) text(k string) string {
 	}
 }
 
-// truthy is Python's truth of a field.
+// truthy is whether a field is set: not missing, "", false or 0.
 func (f flat) truthy(k string) bool {
 	switch v := f.m[k].(type) {
 	case nil:
@@ -62,7 +62,7 @@ var (
 	pyFals = map[string]bool{"false": true, "False": true, "FALSE": true, "no": true, "No": true, "NO": true, "off": true, "Off": true, "OFF": true}
 )
 
-// parseFlat reads one flat `key: scalar` file the way handline/infra/yamlcompat.py does for what dump writes:
+// parseFlat reads one flat `key: scalar` file as yamlcompat's dump writes it:
 // plain, single- or double-quoted scalars, integers, booleans and null. Anything else is an error, and the file is skipped.
 func parseFlat(text string) (flat, error) {
 	f := flat{m: map[string]any{}}
@@ -356,7 +356,7 @@ func (f flat) steps() []flat {
 	return items
 }
 
-// subject is decisions.digest of the fields that change what applying the proposal does: what proposal.decide checks back.
+// subject is a digest of the fields that change what applying the proposal does: what proposal.decide checks back.
 func (f flat) subject() string {
 	fields := map[string]any{}
 	for _, k := range []string{"kind", "agent", "to", "team", "repo", "model", "effort", "vendor",

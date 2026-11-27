@@ -151,7 +151,7 @@ func (e *Env) addFields(name string, view map[string]any, x *viewCtx) error {
 		view["waits_on"] = x.waits[name].wire()
 	}
 	if e.Delivery == nil {
-		// No lifecycle here to say: the wall and fire the stored view holds (the Python tick writes them) stand.
+		// No lifecycle here to say: the wall and fire the stored view holds stand.
 		for _, k := range []string{"wall", "fire"} {
 			if _, has := view[k]; !has {
 				view[k] = nil
@@ -193,7 +193,7 @@ func (e *Env) addWall(name string, view map[string]any, row *db.AgentState) erro
 	return nil
 }
 
-// screenIdle is whether a stored wire word is the screen word IDLE, as agentview.screen_word reads it back: idle, no_terminal and any
+// screenIdle is whether a stored wire word is the screen word IDLE, as screenWord reads it back: idle, no_terminal and any
 // word not named here.
 func screenIdle(word any) bool {
 	switch word {

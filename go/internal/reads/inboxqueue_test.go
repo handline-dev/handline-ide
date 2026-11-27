@@ -83,8 +83,8 @@ func drawn(q map[string]any, all bool) string {
 	return b.String()
 }
 
-// printsAs holds the reply, drawn, to what the Python hl inbox printed of the same rows when it still read the database itself
-// (testdata/inboxqueue, written from this test while the two agreed). UPDATE_GOLDEN=1 rewrites the files.
+// printsAs holds the reply, drawn, to the recorded output of hl inbox for the same rows
+// (testdata/inboxqueue). UPDATE_GOLDEN=1 rewrites the files.
 func printsAs(t *testing.T, e *Env, whose, name string) {
 	t.Helper()
 	for _, all := range []bool{false, true} {

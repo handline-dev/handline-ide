@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// A queued task nobody has been sent is delivered as soon as its owner is free (daemon/taskqueue.py).
+// A queued task nobody has been sent is delivered as soon as its owner is free.
 //
 // Delivering the next task is done at the edges (AdvanceCurrentTask after a done, a close, an unblock, a queue); an edge that finds the owner
 // busy, or that never fires, leaves the task waiting for good. This reads the same picker as a level every tick, so a waiting task reaches its
@@ -20,7 +20,7 @@ import (
 // QueueRetryS: a delivery that landed nothing (every candidate refused) is tried again after this long. One that landed is not throttled.
 const QueueRetryS = 60
 
-// SweepTaskQueue is taskqueue.sweep.
+// SweepTaskQueue is the per-tick pass that gets each free owner its waiting queued task.
 func (e *Env) SweepTaskQueue(now int64) (err error) {
 	defer Catch(&err)
 	q := db.Q(e.DB)

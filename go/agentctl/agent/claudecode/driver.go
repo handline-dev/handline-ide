@@ -1,4 +1,4 @@
-// Package claude is the Claude Code vendor as a launch uses it (handline/vendors/claude.py and claude_hooks.py): the
+// Package claude is the Claude Code vendor as a launch uses it: the
 // command line a terminal agent is started with, and the shared settings file that carries Handline's hooks.
 package claudecode
 

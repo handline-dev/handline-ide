@@ -1,6 +1,6 @@
 package termchan
 
-// Generated from Python 16.0.0's unicodedata: the code points with a combining class (width 0) and the East Asian W/F ones (width 2), as
+// Generated from the Unicode 16.0.0 data: the code points with a combining class (width 0) and the East Asian W/F ones (width 2), as
 // inclusive lo, hi pairs.
 var combining = []rune{
 	0x300, 0x34E,

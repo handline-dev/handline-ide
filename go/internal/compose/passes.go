@@ -21,7 +21,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// passes are the guarded passes the tick makes after its per-agent turns, in daemon/evaluate.py's order: the timebox, the notices, the stuck waits,
+// passes are the guarded passes the tick makes after its per-agent turns, in this order: the timebox, the notices, the stuck waits,
 // the settings a launch read, and last the healing of stuck agents. A structured session records no launch parts yet, so applying changed
 // settings finds nothing recorded and restarts nobody until it does.
 func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {

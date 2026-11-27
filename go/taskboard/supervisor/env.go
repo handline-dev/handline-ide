@@ -12,13 +12,13 @@ import (
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
-// Bounds the telling layer waits by (infra/waits.py).
+// Bounds the telling layer waits by.
 const (
 	EndWaitS = 60
 )
 
-// Env is what the telling layer runs on: the database, the home, a log and the ports. The process memory the Python modules kept in
-// module globals (what the sweep saw, the hold reasons, the text last typed) lives here.
+// Env is what the telling layer runs on: the database, the home, a log and the ports. The process memory
+// (what the sweep saw, the hold reasons, the text last typed) lives here.
 type Env struct {
 	DB   *sql.DB
 	Home string
@@ -129,7 +129,7 @@ func (e *Env) NoteSeen(seen map[string]Seen) {
 	e.mu.Unlock()
 }
 
-// agents is the registered agents (paths.list_agents).
+// agents is the registered agents.
 func (e *Env) agents() []string { return paths.ListAgents(e.Home) }
 
 func (e *Env) registered(name string) bool {
@@ -141,7 +141,7 @@ func (e *Env) registered(name string) bool {
 	return false
 }
 
-// dbFailure carries a database error up through the ported code, which reads like the Python it follows; Catch turns it back.
+// dbFailure carries a database error up as a panic, so a statement needs no error return at each step; Catch turns it back.
 type dbFailure struct{ err error }
 
 // Catch is deferred by every exported method that touches the database: *err gets the failure a statement raised.
@@ -172,7 +172,7 @@ func ok2[T any](v T, found bool, err error) (T, bool) {
 	return v, found
 }
 
-// stateOf is db.get_agent_state with the failure raised.
+// stateOf is the agent's state row; a failed read panics, for Catch to return.
 func stateOf(q db.Q, agent string) *db.AgentState { return must(db.GetAgentState(q, agent)) }
 
 // guard is deferred by what runs after a commit, where a failed statement is logged and said, not raised: the row is written and the tick is the net.
@@ -189,5 +189,5 @@ func (e *Env) guard(what string, out *string) {
 
 func sortStrings(xs []string) { sort.Strings(xs) }
 
-// pyQuote is a string as Python's json.dumps writes it (non-ASCII escaped).
+// pyQuote is s as a JSON string, non-ASCII escaped as \uXXXX.
 func pyQuote(s string) string { return pyjson.PyJSON(s, false, true) }

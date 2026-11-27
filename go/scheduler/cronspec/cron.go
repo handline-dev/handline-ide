@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// cronExpr is a five-field cron expression in local time, as handline/infra/cron.py reads it: `*`, `*/n`, `a`, `a-b`, `a-b/n` and
+// cronExpr is a five-field cron expression in local time: `*`, `*/n`, `a`, `a-b`, `a-b/n` and
 // comma lists. Day-of-week is 0-6 with Sunday 0 (7 is Sunday too); when both day fields are restricted a day matches if either does.
 type cronExpr struct {
 	fields         [5]map[int]bool
@@ -93,7 +93,7 @@ func (c *cronExpr) dayOK(t time.Time) bool {
 }
 
 // nextAfter is the first minute after ts the expression names, as a timestamp, or false within eight years. Stepping is by wall-clock
-// fields, as Python's naive datetimes do.
+// fields, with no time zone offset.
 func (c *cronExpr) nextAfter(ts int64) (int64, bool) {
 	at := func(y int, m time.Month, d, h, mi int) time.Time { return time.Date(y, m, d, h, mi, 0, 0, time.Local) }
 	t := time.Unix(ts, 0).In(time.Local)

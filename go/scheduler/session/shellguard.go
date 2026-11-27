@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// space is Python's \s: Unicode white space, wider than RE2's ASCII one.
+// space is white space for inside a regexp class: Unicode white space and \x1c-\x1f, wider than RE2's ASCII \s.
 const space = `\s\x{1c}-\x{1f}\x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}`
 
 var hlRE = regexp.MustCompile(`(?:^|[` + space + `;&|(])(?:[^` + space + `]*/)?(?:` + strings.Join(paths.Commands, "|") + `)[` + space + `]`)

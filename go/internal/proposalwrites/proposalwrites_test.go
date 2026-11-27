@@ -252,7 +252,7 @@ func (r *rig) decideHeld(id int64, subject, rid string) func() map[string]any {
 	return r.behind("proposal.decide", fmt.Sprintf(`{"proposal":%d,"decision":"approve","request_id":%q,"subject":%q}`, id, rid, subject), r.anyHeld)
 }
 
-// propose writes a proposal file as hr.py would and returns it with its wire id.
+// propose writes a proposal file as proposal.propose would and returns it with its wire id.
 func (r *rig) propose(id string, fields ...string) (*Prop, int64) {
 	r.t.Helper()
 	p := &Prop{}

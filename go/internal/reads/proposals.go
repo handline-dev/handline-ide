@@ -30,7 +30,7 @@ const (
 var proposalKinds = map[string]bool{"add": true, "retire": true, "rename": true,
 	"team": true, "settings": true, "context": true, "schedule": true, "global": true, "bundle": true, "run": true, "sandbox": true}
 
-// proposalState is the wire word for a proposal file's state, as handline/team/proposals.py card() draws them: "proposed" waits for the
+// proposalState is the wire word for a proposal file's state: "proposed" waits for the
 // founder, "approved" is decided but did not go through, "applying" waits for running turns to end, "applied" is done. "enacting" and "failed"
 // are a human's own change, and are not served.
 var proposalState = map[string]string{"proposed": "open", "approved": "apply_failed", "applying": "applying", "applied": "approved",
@@ -293,7 +293,7 @@ func (e *Env) ProposalList() []map[string]any {
 	seen := map[int64]int{}
 	for _, p := range ps {
 		v := e.proposalView(p)
-		if at, dup := seen[p.wireID]; dup { // two files with one id: the later one stands, as a dict keyed by id has it
+		if at, dup := seen[p.wireID]; dup { // two files with one id: the later one stands, in the earlier one's place
 			out[at] = v
 			continue
 		}

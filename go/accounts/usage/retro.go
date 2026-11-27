@@ -14,7 +14,7 @@ type WindowUse struct {
 	Cost   float64
 }
 
-// WindowUses is stats.retro's tokens: for each window, the calls in (Lo, Hi] whose directory is in the window's agent's worktree.
+// WindowUses is, for each window, the calls in (Lo, Hi] whose directory is in the window's agent's worktree.
 func WindowUses(q db.Q, ws []DoingWindow, table []priceEntry) ([]WindowUse, error) {
 	trees, err := worktrees(q)
 	if err != nil {

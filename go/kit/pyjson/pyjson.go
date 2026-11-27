@@ -8,7 +8,7 @@ import (
 	"unicode/utf16"
 )
 
-// Pairs is an object whose keys go out in the order given, as a Python dict's insertion order does.
+// Pairs is an object whose keys go out in the order given.
 type Pairs []Pair
 
 // Pair is one key and value of Pairs.
@@ -17,9 +17,8 @@ type Pair struct {
 	V any
 }
 
-// PyJSON is v as Python's json.dumps writes it (", " and ": " between items, keys in the order given by sortKeys,
-// non-ASCII escaped when ensureASCII): text the Python daemon reads back and compares as it wrote it, such as a
-// write's params in rpc_replies. v holds nil, bool, string, json.Number, int, int64, float64, []string, []any, map[string]any.
+// PyJSON is v as spaced JSON (", " and ": " between items, a map's keys sorted when sortKeys, non-ASCII escaped as
+// \uXXXX when ensureASCII): one fixed text for a value, so a hash or comparison of it is stable. v holds nil, bool, string, json.Number, int, int64, float64, []string, []any, map[string]any.
 func PyJSON(v any, sortKeys, ensureASCII bool) string {
 	var b strings.Builder
 	pyWrite(&b, v, sortKeys, ensureASCII)

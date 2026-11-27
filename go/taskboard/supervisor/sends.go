@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// `ask` and `say` as the daemon's own verbs (daemon/sends.py): the daemon runs the same checks and the same Ask/Say the CLI used to, writes the
+// `ask` and `say` as the daemon's own verbs: the daemon runs the same checks and the same Ask/Say the CLI used to, writes the
 // row, returns its id at once, and then - on a goroutine of its own, so the caller never waits for a wake - types the notice. Who is asking
 // travels in the call (the requester, and the speaker, the caller's own name): the daemon has no environment to read it from.
 

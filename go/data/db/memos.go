@@ -20,7 +20,7 @@ type Memo struct {
 // A memo's add, edit and delete are each kept as an event (memo_add, memo_edit, memo_delete) with the text before and after: they are the
 // task's history (task.history), which keeps a deleted memo's words. q should be the transaction that changes the memo.
 
-// AddMemo is db.add_memo. The stamp is a float, as Python's time.time() writes it.
+// AddMemo adds a task's memo. The stamp is float seconds since the epoch, with the fraction kept.
 func AddMemo(q Q, tid int64, author, body string) (int64, error) {
 	body, err := storedMentions(q, tid, author, body)
 	if err != nil {
@@ -38,7 +38,7 @@ func AddMemo(q Q, tid int64, author, body string) (int64, error) {
 	return mid, err
 }
 
-// GetMemo is db.get_memo: nil when there is no such memo.
+// GetMemo is the memo with id mid, nil when there is no such memo.
 func GetMemo(q Q, mid int64) (*Memo, error) {
 	m := &Memo{}
 	err := q.QueryRow("SELECT id, task_id, author, body, created_at, edited_at FROM task_memos WHERE id = ?", mid).
@@ -49,7 +49,7 @@ func GetMemo(q Q, mid int64) (*Memo, error) {
 	return m, err
 }
 
-// EditMemo is db.edit_memo: by replaces memo mid's text.
+// EditMemo replaces memo mid's text, by by.
 func EditMemo(q Q, mid int64, by, body string) error {
 	m, err := GetMemo(q, mid)
 	if err != nil || m == nil {
@@ -65,7 +65,7 @@ func EditMemo(q Q, mid int64, by, body string) error {
 	return err
 }
 
-// DeleteMemo is db.delete_memo: by removes memo mid.
+// DeleteMemo removes memo mid, by by.
 func DeleteMemo(q Q, mid int64, by string) error {
 	m, err := GetMemo(q, mid)
 	if err != nil || m == nil {

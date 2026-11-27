@@ -2,13 +2,13 @@ package usage
 
 import "time"
 
-// CycleOn is cycle.enabled.
+// CycleOn is whether the account is on a month cycle.
 func (c Config) CycleOn(acct string) bool { return c["month_cycle_"+acct] == true }
 
-// EndIsDefault is cycle.end_is_default: no end date was typed.
+// EndIsDefault is whether no end date was typed for the account.
 func (c Config) EndIsDefault(acct string) bool { return c["sub_end_"+acct] == nil }
 
-// EndDate is cycle.end_date: the last day the account can be used as YYYY-MM-DD, or "" when none was typed. A month cycle with no typed
+// EndDate is the last day the account can be used as YYYY-MM-DD, or "" when none was typed. A month cycle with no typed
 // day has no end: the subscription may have been renewed, and the account counts as ended only once its login drops.
 func (c Config) EndDate(acct string) string {
 	v := c["sub_end_"+acct]
@@ -42,7 +42,7 @@ func DayEnd(day string) (time.Time, bool) {
 	return time.Date(d.Year(), d.Month(), d.Day()+1, 0, 0, 0, 0, time.Local), true
 }
 
-// EndOf is cycle.end_of: when the account stops being usable; ok is false when it is not on a cycle or no end day was typed. A typed
+// EndOf is when the account stops being usable; ok is false when it is not on a cycle or no end day was typed. A typed
 // end day is usable through all of it, so the moment is the start of the next.
 func (c Config) EndOf(acct string) (time.Time, bool) {
 	day := c.EndDate(acct)
@@ -55,7 +55,7 @@ func (c Config) EndOf(acct string) (time.Time, bool) {
 // DefaultWarnDays is how many days ahead the founder is told an account ends.
 const DefaultWarnDays = 3
 
-// WarnDays is cycle.warn_days: a whole number of days at or above zero, else the default.
+// WarnDays is how many days ahead an account's end is told: a whole number of days at or above zero, else the default.
 func (c Config) WarnDays() int {
 	switch n := c["cycle_warn_days"].(type) {
 	case int:

@@ -1,8 +1,8 @@
-// Package supervisor is the Python daemon's telling layer: ask routing, sends, messaging, landing, delivery, the task queue,
-// holds and the notice digest (team/ask.py, daemon/{sends,messaging,landing,delivery,taskqueue,taskholds,noticedigest}.py).
+// Package supervisor is the daemon's telling layer: ask routing, sends, messaging, landing, delivery, the task queue,
+// holds and the notice digest.
 //
-// It reaches everything it does not own through the ports below, one small interface each, so the groups that own them (G2
-// usage, G3b observe/blocked/waiting, G4 terminal channel, G6 lifecycle, G7 handoff, G8 evaluate) only have to satisfy them.
+// It reaches everything it does not own through the ports below, one small interface each, so the packages that own them
+// (usage, the process table and screen reads, the terminal channel, the lifecycle, the handoff, the evaluation) only have to satisfy them.
 // Tests use fakes.
 package supervisor
 
@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 )
 
-// Terminal is session/term.py as the telling layer uses it: the terminal host's screen reads. Nothing is typed at a terminal; a terminal
+// Terminal is the terminal host as the telling layer uses it: the terminal host's screen reads. Nothing is typed at a terminal; a terminal
 // agent is told through the peer inbox.
 type Terminal interface {
 	Available() bool
@@ -20,7 +20,7 @@ type Terminal interface {
 	BackgroundWork(handle string) (running string, known bool)
 }
 
-// Observer is session/observe.py: what the process table says.
+// Observer is what the process table says.
 type Observer interface {
 	// LiveSessions is the agents with a running session; ok is false when the table could not be read.
 	LiveSessions() (sessions map[string]bool, ok bool)
@@ -33,13 +33,13 @@ type Dialogs interface {
 	DecisionAfterS() int64 // how long a dialog stands before the founder is told
 }
 
-// Waits is session/waiting.py and session/events.py: whether the agent's screen is on a permission prompt, and whether its last turn ended on the limit.
+// Waits is whether the agent's screen is on a permission prompt, and whether its last turn ended on the limit.
 type Waits interface {
 	WaitingOnPrompt(q db.Q, row *db.AgentState) bool
 	AtLimit(q db.Q, agent string) bool
 }
 
-// Idle is session/idle_close.py and bgjobs.py: the timeouts config.yaml and the agent's own settings give.
+// Idle is the idle-close and background-job timeouts config.yaml and the agent's own settings give.
 type Idle interface {
 	NoticeDigestS(agent string) int64
 	CloseTimeoutS(agent string) int64
@@ -49,7 +49,7 @@ type Idle interface {
 	FooterCount(running string) int // the background jobs a footer reports
 }
 
-// Sessions is usage/status.py and session/handoff.py as delivery reads them: which session an agent is in, and where its transcript is.
+// Sessions is the status file and the handoff record as delivery reads them: which session an agent is in, and where its transcript is.
 type Sessions interface {
 	// LiveSession is the id of the session the agent is in now, "" when unknown.
 	LiveSession(q db.Q, agent string) string
@@ -65,7 +65,7 @@ type Sessions interface {
 	CacheLeft(agent string, now int64) (left int64, ok bool)
 }
 
-// Lifecycle is daemon/lifecycle.py (G6): starting and waking an agent's session.
+// Lifecycle is the session lifecycle: starting and waking an agent's session.
 type Lifecycle interface {
 	// StartForWork starts an agent that has no terminal because work is waiting; the words for the log.
 	StartForWork(q db.Q, agent string) string
@@ -75,12 +75,12 @@ type Lifecycle interface {
 	AccountWait(q db.Q, agent string) (string, error)
 }
 
-// Evaluate is daemon/evaluate.py (G8): the state an agent returns to once nothing it asked is outstanding.
+// Evaluate sets the state an agent returns to once nothing it asked is outstanding.
 type Evaluate interface {
 	QueuedOrIdle(q db.Q, agent, why string) error
 }
 
-// Proposals is team/trust.py and decisions.py: the founder answering a trust proposal. Required: a reply or a resolve with no Proposals
+// Proposals is the founder answering a trust proposal. Required: a reply or a resolve with no Proposals
 // port closes nothing, since it cannot tell a proposal's card from any other.
 type Proposals interface {
 	// OpenProposalOf is the id of the open trust proposal a request is the card of, "" for none.
@@ -90,7 +90,7 @@ type Proposals interface {
 	Answered(q db.Q, pid string, card *db.Request, verdict string) (line, report string, err error)
 }
 
-// Stuck is actions/stuck.py (_delivery_block): why work is not reaching an agent, in the daemon's own words.
+// Stuck says why work is not reaching an agent, in the daemon's own words.
 type Stuck interface {
 	// DeliveryBlock is (why, whether it resolves itself); "" when nothing is in the way.
 	DeliveryBlock(q db.Q, agent string) (why string, clears bool)

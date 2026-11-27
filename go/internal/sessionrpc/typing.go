@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// input.take and release, and session.input, keys and type: what a person at a terminal does (handline/daemon/rpc_input.py, rpc_typing.py).
+// input.take and release, and session.input, keys and type: what a person at a terminal does.
 // Every typing call takes the agent's terminal lock for as long as it types, so the tick types nothing beside it, and passes the gates in
 // order: terminal lock, input holder, and for input the usage wall and an open dialog. keys and type pass neither of the last two, as a
 // person pressing a key has looked at the screen. The one who types counts as typing for the idle hold.

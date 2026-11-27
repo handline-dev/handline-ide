@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-// What an open prompt says about itself, read from its screen text alone (handline/session/promptparse.py): a permission prompt's
+// What an open prompt says about itself, read from its screen text alone: a permission prompt's
 // tool, command and reason, and which dialog an unnumbered-title dialog is. A field the screen does not state is absent, never a guess.
 // Measured on contract/prompts/: the title names the tool ("Bash command"), the command follows (boxed with "│" or bare), then a
 // description; a boxed run after it is the reason the call is not allowed outright. Only a title seen in a capture is read; a prompt

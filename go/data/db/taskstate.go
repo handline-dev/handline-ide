@@ -13,9 +13,9 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// What a task is, read off the rows (actions/tasks.py: task_state and the facts it is built from). The one copy the supervisor uses.
+// What a task is, read off the rows: its state and the facts it is built from. The one copy the supervisor uses.
 
-// Asks is actions._asks: a linked request that is work still being asked for. A report to the founder is a say, born landed, so
+// Asks is whether a linked request that is work still being asked for. A report to the founder is a say, born landed, so
 // linking one never makes a task doing.
 func Asks(r *Request) bool {
 	return r.State == "queued" || (r.State == Landed && r.Kind.String == "task" && r.QueueOrder.Valid)
@@ -27,7 +27,7 @@ func SinceRelease(task string) string {
 		"json_extract(r.payload, '$.task_id') = " + task + "), 0)"
 }
 
-// Begun is actions._begun: begun by task_begin or task_self_start, and not released since.
+// Begun is whether the task was begun by task_begin or task_self_start, and not released since.
 func Begun(q Q, tid int64) (bool, error) {
 	var one int
 	err := q.QueryRow("SELECT 1 FROM events WHERE kind IN ('task_begin', 'task_self_start') AND "+eventTask+" = ?"+SinceRelease("?")+" LIMIT 1", tid, tid).Scan(&one)
@@ -37,7 +37,7 @@ func Begun(q Q, tid int64) (bool, error) {
 	return err == nil, err
 }
 
-// ReadsDoing is actions.reads_doing: the task has been sent to its owner, or it was begun on a founder message (TaskFacts.Asked).
+// ReadsDoing is whether the task has been sent to its owner, or it was begun on a founder message (TaskFacts.Asked).
 func ReadsDoing(q Q, tid int64) (bool, error) {
 	t, err := GetTask(q, tid)
 	if err != nil || t == nil {
@@ -47,7 +47,7 @@ func ReadsDoing(q Q, tid int64) (bool, error) {
 	return verdict.TaskFacts{Begun: begun, Sent: t.SentAt.Valid}.Asked(), err
 }
 
-// HoldsCurrent is actions.holds_current: the task may be delivered (wayFree).
+// HoldsCurrent is whether the task may be delivered: the founder's or a gate's, its agent's current one, or its agent's way is free (wayFree).
 func HoldsCurrent(q Q, t *Task) (bool, error) {
 	if t.Acting == actor.OwnerKey || t.Acting == Gate {
 		return true, nil
@@ -105,7 +105,7 @@ func IsDoing(q Q, tid int64) (bool, error) {
 	return st == "doing", err
 }
 
-// TaskState is actions.task_state, decided by verdict.TaskState from this task's facts. A fact the verdict cannot use is not read: an
+// TaskState is the task's state, decided by verdict.TaskState from this task's facts. A fact the verdict cannot use is not read: an
 // ended task reads no events, and one not asked for no holder or blockers.
 func TaskState(q Q, t *Task) (string, error) {
 	f := verdict.TaskFacts{Discarded: t.DiscardedBy.String != "", Done: t.DoneEvidence.String != "", Sent: t.SentAt.Valid,
@@ -145,7 +145,7 @@ func pauseHolds(q Q, t *Task, begun bool) (bool, error) {
 	return p != nil, err
 }
 
-// ChildBlockerOf is actions.child_blocker_of: the open child task of someone else that blocks tid, nil for none.
+// ChildBlockerOf is the open child task of someone else that blocks tid, nil for none.
 func ChildBlockerOf(q Q, tid int64) (*Task, error) {
 	t, err := GetTask(q, tid)
 	if err != nil || t == nil {
@@ -193,7 +193,7 @@ func currentOpen(q Q, agent string) (*Task, error) {
 	return t, nil
 }
 
-// ChildWait is actions.child_wait: what the agent waits on when its current task is held by a child of its own ("waiting for T<n> (owner)").
+// ChildWait is what the agent waits on when its current task is held by a child of its own ("waiting for T<n> (owner)").
 func ChildWait(q Q, agent string) (string, error) {
 	t, err := currentOpen(q, agent)
 	if err != nil || t == nil {
@@ -206,7 +206,7 @@ func ChildWait(q Q, agent string) (string, error) {
 	return "waiting for T" + itoa(child.ID) + " (" + addr.Ref(child.Acting) + ")", nil
 }
 
-// BlockWait is actions.block_wait: what the agent is held up by when its current task is blocked ("blocked by T<n> (owner), ...").
+// BlockWait is what the agent is held up by when its current task is blocked ("blocked by T<n> (owner), ...").
 func BlockWait(q Q, agent string) (string, error) {
 	t, err := currentOpen(q, agent)
 	if err != nil || t == nil {
@@ -223,7 +223,7 @@ func BlockWait(q Q, agent string) (string, error) {
 	return "blocked by " + strings.Join(parts, ", "), nil
 }
 
-// CurrentTaskStillAsking is actions._current_task_still_asking: the agent's current task still has its own request out, the one thing left
+// CurrentTaskStillAsking is whether the agent's current task still has its own request out, the one thing left
 // to deliver. A begun task always does, until it is done; one that waits (TaskWaits) never does, so its owner moves on.
 func CurrentTaskStillAsking(q Q, agent string) (bool, error) {
 	t, err := currentOpen(q, agent)
@@ -239,7 +239,7 @@ func CurrentTaskStillAsking(q Q, agent string) (bool, error) {
 	return t.SentAt.Valid, nil
 }
 
-// NewestRequest is actions._newest_request: the after_request a reset event carries.
+// NewestRequest is the newest request's id, 0 for none: the after_request a reset event carries.
 func NewestRequest(q Q) (int64, error) {
 	var n int64
 	err := q.QueryRow("SELECT COALESCE(MAX(id), 0) FROM requests").Scan(&n)
@@ -255,7 +255,7 @@ type WaitingTask struct {
 	Req  *Request
 }
 
-// WaitingTasks is actions._waiting_tasks: the agent's open tasks that could become current, by priority then age. Skips one blocked,
+// WaitingTasks is the agent's open tasks that could become current, by priority then age. Skips one blocked,
 // still a draft, or with nothing of its own left to deliver. Blocked counts a task waiting on a child of its own (TaskWaits).
 func WaitingTasks(q Q, agent string) ([]WaitingTask, error) {
 	open, err := OpenTasks(q)
@@ -309,7 +309,7 @@ func WaitingTasks(q Q, agent string) ([]WaitingTask, error) {
 	return out, nil
 }
 
-// ResetAfter is actions._reset_after: the highest request id a reset event on the task has covered.
+// ResetAfter is the highest request id a reset event on the task has covered.
 func ResetAfter(q Q, tid int64) (int64, error) {
 	args := make([]any, 0, len(resetEvents)+1)
 	for _, k := range resetEvents {
@@ -393,7 +393,7 @@ func memosShown(q Q, tid int64, receiver string, told int64, cap int) ([]shownMe
 	for rows.Next() {
 		var id int64
 		var author, body string
-		var created float64 // a memo's stamp carries a fraction: Python writes time.time()
+		var created float64 // a memo's stamp is float seconds, with a fraction
 		var edited sql.NullFloat64
 		if err := rows.Scan(&id, &author, &body, &created, &edited); err != nil {
 			return nil, 0, err

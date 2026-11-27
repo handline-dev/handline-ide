@@ -6,7 +6,7 @@ import (
 	"github.com/handline/handline/go/data/db"
 )
 
-// AgentUse is stats.AgentUse: one agent's use on one machine over a span, all accounts.
+// AgentUse is one agent's use on one machine over a span, all accounts.
 type AgentUse struct {
 	Agent  string
 	Node   string // the machine that spent it, a node id
@@ -98,15 +98,15 @@ func tallyCalls(q db.Q, self string, lo, hi int64, table []priceEntry) (tally, [
 // PairUse is one agent's use of one account on one machine in a span. Agent is "" for the calls of no agent's worktree.
 type PairUse struct {
 	Agent, Node, Account string
-	Tokens         int64
-	Cost           float64 // USD at list price
-	Share          float64 // of the account's cost in the span
+	Tokens               int64
+	Cost                 float64 // USD at list price
+	Share                float64 // of the account's cost in the span
 	// WeekPct is the points of the account's week it used: Share times the account's rise (WeekConsumed), so an account's rows add up to
 	// its rise. nil when the account has no reading in the span or its calls had no list price to split by.
 	WeekPct *float64
 }
 
-// PairUsesOf is stats.get's use: a row per agent, machine and account with a call in (lo, hi], largest cost first, ties by agent, machine
+// PairUsesOf is a row per agent, machine and account with a call in (lo, hi], largest cost first, ties by agent, machine
 // then account. A call kept with no machine is self's.
 func PairUsesOf(q db.Q, self string, lo, hi int64, table []priceEntry, weekUsed map[string]float64) ([]PairUse, error) {
 	per, keys, err := tallyCalls(q, self, lo, hi, table)
@@ -137,7 +137,7 @@ func PairUsesOf(q db.Q, self string, lo, hi int64, table []priceEntry, weekUsed 
 	return out, nil
 }
 
-// agentUses is stats.agent_use: each agent's tokens and list-price cost on each machine as per tallied them, largest cost first, ties by
+// agentUses is each agent's tokens and list-price cost on each machine as per tallied them, largest cost first, ties by
 // name then machine. weekUsed is the
 // points of each account's week used in the span (WeekConsumed): an agent's EstPct is its cost share of each account times that account's
 // points, averaged over the accounts, an estimate because what the plan charges is not what the price list says.
@@ -214,7 +214,7 @@ func PickUse(uses []AgentUse, pick string) (AgentUse, bool) {
 	return sum, found
 }
 
-// WeekConsumed is outlook.week_consumed: the points of each account's week used between lo and hi, the rises from one sample to the next
+// WeekConsumed is the points of each account's week used between lo and hi, the rises from one sample to the next
 // and after a reset what has been used since. The last sample before lo (not older than OutlookMaxAgeS) is where the first rise starts from.
 func WeekConsumed(rows []sampleRow, lo, hi int64) map[string]float64 {
 	by := map[string][]weekPoint{}
@@ -253,7 +253,7 @@ func rise(prev, cur weekPoint) float64 {
 	return cur.Used
 }
 
-// ConsumedCurve is outlook.consumed_curve: for each account, the points of its week used from the first time to each of times.
+// ConsumedCurve is, for each account, the points of its week used from the first time to each of times.
 func ConsumedCurve(rows []sampleRow, times []int64) map[string][]float64 {
 	by := map[string][]weekPoint{}
 	for _, r := range rows {
@@ -287,7 +287,7 @@ func ConsumedCurve(rows []sampleRow, times []int64) map[string][]float64 {
 // Samples are the usage_samples rows WeeklyOutlook and the use of each agent read.
 type Samples = []sampleRow
 
-// Overlay is agent_overlay: the points of the combined week the pick had used by each time of past, its cost share of each account times
+// Overlay is the points of the combined week the pick had used by each time of past, its cost share of each account times
 // what that account had used so far, averaged over the accounts by w as past is. Empty when the pick used nothing or is no agent.
 func Overlay(rows Samples, uses []AgentUse, pick string, past []OutlookPoint, w WeekWeights) []float64 {
 	use, found := PickUse(uses, pick)

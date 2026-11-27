@@ -20,22 +20,10 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// What an agent is handed back when it comes back from a park or a move (handline/session/handoff.py). Four facts, read from what is
-// on disk and in the database, with no model call:
-//
-//  1. the request it was working on (an agent has one delivered at a time),
-//  2. the progress note the agent itself wrote on that request (`hl progress`),
-//  3. the path of the session's transcript,
-//  4. the worktree's branch, HEAD and git status.
-//
-// Nothing else. Everything a summary would add is in the transcript, and a summary is a model call, which fails when every account
-// is walled, the moment a handoff is most needed. This one cannot fail on that: a fact that could not be read is named in the
-// record, and the handoff is degraded only for that reason.
-//
-// The record is taken while the session is still live, because the agent's own status snapshot goes stale once it is closed and its
-// transcript path with it. A close that failed to take one leaves none; the wake then takes it from the closed session's id,
-// finding the transcript by name. It is stored on the agent's row. A wake that types it to the agent clears it, and so does a
-// launch, which injects it into the system prompt: a record on the row is one no session has been handed.
+// What an agent is handed back after a park or a move, read from disk and the database with no model call, so it works even when
+// every account is walled: the request it was on, its own `hl progress` note, the transcript's path, and the worktree's branch,
+// HEAD and status. A fact that cannot be read is named in the record. It is taken while the session is live (else at the wake, from
+// the closed session's id), stored on the agent's row, and cleared once a wake types it or a launch puts it in the system prompt.
 
 // Heads is the delivery layer's answer to "which request was this agent told last" (*supervisor.Env).
 type Heads interface {

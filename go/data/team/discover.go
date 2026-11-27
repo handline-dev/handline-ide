@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/agentctl/agent"
 )
 
-// Found is a login already on this Mac, outside Handline (accounts.discover): the vendor, its folder as ~/<name>, whether the vendor's
+// Found is a login already on this Mac, outside Handline: the vendor, its folder as ~/<name>, whether the vendor's
 // own check says it is logged in (nil: it cannot be told) and whether Adopt takes it.
 type Found struct {
 	Vendor    string

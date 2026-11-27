@@ -8,7 +8,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// agent.strip follows handline/daemon/rpc_uireads.py: the line under an agent's chat header. The state, its detail, the account and the
+// agent.strip is the line under an agent's chat header. The state, its detail, the account and the
 // cache's end come from the stored agent view; the account from the agent's row; the model and the context figures from Context.
 
 // screenWord is the screen word behind a view's wire state (agentview's wire, read back); a view with no state has none.

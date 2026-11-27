@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// What a token costs, by model and by kind (usage/prices.py). Only ratios enter a share, so these are list prices in USD per million
+// What a token costs, by model and by kind. Only ratios enter a share, so these are list prices in USD per million
 // input tokens; output is 5x the input price, a cache write 1.25x and a cache read 0.1x except where CacheReadMult says otherwise.
 
 // priceEntry is one pattern of the model id and its input price. The table runs most specific first: a model is priced by the first
@@ -15,7 +15,7 @@ type priceEntry struct {
 	USD     float64
 }
 
-// InputPrices is prices.INPUT_PRICE in table order.
+// InputPrices is the list price of input tokens in USD per million, by model pattern, the first that matches wins.
 var InputPrices = []priceEntry{
 	{"fable-5-1", 10}, {"mythos-5-1", 10}, {"fable", 10}, {"mythos", 10},
 	{"opus-5-5", 4}, {"opus", 5}, {"sonnet-5", 2}, {"sonnet", 3}, {"haiku", 1},
@@ -24,10 +24,10 @@ var InputPrices = []priceEntry{
 // DefaultPattern prices a model that matches none.
 const DefaultPattern = "sonnet"
 
-// CacheReadMult is prices.CACHE_READ: a cache read as a multiple of the input price where it is not 0.1x.
+// CacheReadMult is a cache read as a multiple of the input price where it is not 0.1x.
 var CacheReadMult = map[string]float64{"opus-5-5": 0.05, "fable-5-1": 0.025, "mythos-5-1": 0.025}
 
-// Kinds in the order token_calls keeps them, with their multiple of the model's input price (prices.KIND).
+// Kinds in the order token_calls keeps them, with their multiple of the model's input price.
 var kindMult = []struct {
 	Kind string
 	Mult float64
@@ -57,7 +57,7 @@ func PatternOf(model string, table []priceEntry) string {
 	return DefaultPattern
 }
 
-// PricesFromConfig is prices.table_from_config: InputPrices with config.yaml's token_prices laid over it. A pattern the table has takes
+// PricesFromConfig is InputPrices with config.yaml's token_prices laid over it. A pattern the table has takes
 // the new price where it is; one it lacks goes first, in sorted order (the map has none). An entry that is not a positive number is ignored.
 func PricesFromConfig(cfg Config) []priceEntry {
 	out := append([]priceEntry(nil), InputPrices...)
@@ -93,7 +93,7 @@ func givenPrice(v any) (float64, bool) {
 	return 0, false
 }
 
-// ClassCosts is prices.class_costs: USD each kind of these tokens costs at list price, by kind. Thinking is a part of Out, so Out here
+// ClassCosts is the USD each kind of these tokens costs at list price, by kind. Thinking is a part of Out, so Out here
 // is what is left of it and they are priced once, as thinking.
 func ClassCosts(model string, t Tokens, table []priceEntry) map[string]float64 {
 	if table == nil {

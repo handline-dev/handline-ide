@@ -35,7 +35,7 @@ func eventOf(r row) map[string]any {
 }
 
 // eventsFeed is events.feed: the newest events of the topics, or the ones after a cursor, with the cursor to resume from
-// and whether retention has dropped what the cursor asked for (handline/daemon/rpc_stream.py).
+// and whether retention has dropped what the cursor asked for.
 func (e *Env) eventsFeed(c *rpc.Conn, params map[string]any) (any, error) {
 	topics := []string{"notifications"}
 	if v, has := params["topics"]; has && v != nil {

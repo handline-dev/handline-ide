@@ -25,7 +25,7 @@ func seconds(v any) float64 {
 	return 0
 }
 
-// taskTimeline is TaskDetail.timeline, as actions.task_timeline: the task's memos, handoffs (a request that carried one is that handoff's
+// taskTimeline is TaskDetail.timeline: the task's memos, handoffs (a request that carried one is that handoff's
 // row), the other requests linked to it (not a memo's tell, the ask a memo to the founder opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with and the lessons added on it, oldest first to the
 // fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
 func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {

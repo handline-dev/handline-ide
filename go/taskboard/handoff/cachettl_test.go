@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// testdata/transcripts holds transcripts and what the Python cachettl.read answered for each.
+// testdata/transcripts holds transcripts and the fixed answer expected for each.
 func TestTheCacheClockReadsLikePython(t *testing.T) {
 	b, err := os.ReadFile("testdata/transcripts/expected.json")
 	if err != nil {

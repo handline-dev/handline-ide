@@ -23,7 +23,7 @@ import (
 // and a command.
 var proposable = []string{"add", "retire", "rename", "team", "context", "settings", "schedule", "run", "sandbox"}
 
-// maxSteps bounds a team diff (MAX_STEPS in handline/team/proposals.py).
+// maxSteps bounds a team diff.
 const maxSteps = 40
 
 func refuse(format string, a ...any) (any, error) {
@@ -61,7 +61,7 @@ func badName(kind, name string) bool {
 	return strings.ContainsAny(name, "/.")
 }
 
-// teamNames are a team's members' full names, or why not (_team_names in hr.py): nothing may exist yet in the roster.
+// teamNames are a team's members' full names, or why not: nothing may exist yet in the roster.
 func (e *Env) teamNames(name string, members []string, repos map[string]string, exists func(string) bool) ([]string, string) {
 	if len(members) == 0 {
 		return nil, "a team needs at least one member (--member); one agent is `hl propose add`"
@@ -311,7 +311,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 	slices.Sort(fns)
 	for _, fn := range fns {
 		v := sets[fn]
-		if kind == "context" { // a proposal file holds no line break; PyJSON matches the Python that still reads it, drop both together
+		if kind == "context" { // a proposal file holds no line break: the context is kept as one line of JSON, non-ASCII escaped
 			v = pyjson.PyJSON(v, false, true)
 		}
 		prop.set("set."+fn, v)
@@ -402,7 +402,7 @@ func (e *Env) raised(c *rpc.Conn, prop *Prop, said string) (any, error) {
 	})
 }
 
-// proposeMethod is proposal.propose (proposal.propose in handline/team/proposals.py): check what was asked for and write it down for the founder. Nothing changes yet.
+// proposeMethod is proposal.propose: check what was asked for and write it down for the founder. Nothing changes yet.
 func (e *Env) proposeMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	args, _ := params["args"].(map[string]any)
 	if argStr(params, "kind") == bundle {
@@ -416,7 +416,7 @@ func (e *Env) proposeMethod(c *rpc.Conn, params map[string]any) (any, error) {
 	return e.raised(c, prop, fmt.Sprintf("proposal %s raised. Nothing changes until the founder decides it; an approve is applied then, and you are told how it went.", prop.id()))
 }
 
-// proposeBundle is proposal.propose of kind bundle (propose_bundle in hr.py): a whole team diff, each step judged against the roster the steps before it leave, in the order they are applied.
+// proposeBundle is proposal.propose of kind bundle: a whole team diff, each step judged against the roster the steps before it leave, in the order they are applied.
 func (e *Env) proposeBundle(c *rpc.Conn, raw []any, why string) (any, error) {
 	why = strings.TrimSpace(why)
 	if why == "" {

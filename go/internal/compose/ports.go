@@ -139,7 +139,7 @@ func (l lifecycleStarter) AccountWait(q db.Q, agent string) (string, error) {
 	return "wall", nil
 }
 
-// evaluate is daemon/evaluate.queued_or_idle: QUEUED when something has not reached the agent yet, IDLE otherwise.
+// evaluate settles an agent's state between QUEUED and IDLE: QUEUED when something has not reached the agent yet, IDLE otherwise.
 type evaluate struct{}
 
 func (evaluate) QueuedOrIdle(q db.Q, agent, when string) error {

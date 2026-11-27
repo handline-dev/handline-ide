@@ -1,14 +1,8 @@
-// Package termchan is the terminal channel: one stream per terminal, served by the daemon, so the IDE and the web UI read no terminal
-// of their own (handline/daemon/termchannel.py, termbytes.py, rpc_terminal.py, rpc_input.py).
-//
-// A Channel is one terminal in the text or styled format while someone is attached. One poller reads its frame at most RateS apart
-// however many clients watch, and ends when the last one leaves; detaching never touches the agent. Each client has a writer of its
-// own and a bounded queue of the notices that must not be lost (markers, holders, resizes) beside one flag for the frame: a client
-// that falls behind on frames is sent the newest frame whole, never a backlog, and one that falls ClientQueue notices behind is hung
-// up to attach again, since no frame can make those good. Scrollback is the host's own where it keeps one (tmux), so fast output loses and doubles
-// nothing; for a host without it, rows that scroll off the top are kept (HistoryMax) under absolute line indexes, found by matching the old frame's tail against the new one's head; a redraw that scrolls nothing adds nothing.
-//
-// seq counts every notice of the terminal (frame, resize, marker, holder), so a client can tell what it missed.
+// Package termchan is the terminal channel: one daemon-served stream per terminal, so the apps read no terminal of their own.
+// A Channel polls one terminal at most RateS apart while anyone is attached. A client behind on frames gets the newest frame whole; one
+// ClientQueue notices behind (markers, holders, resizes) is hung up to attach again. Scrollback is the host's where it keeps one
+// (tmux); otherwise rows scrolled off the top are kept (HistoryMax), matched by the old frame's tail against the new one's head.
+// seq counts every notice of the terminal, so a client can tell what it missed.
 package termchan
 
 import (

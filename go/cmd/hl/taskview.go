@@ -15,7 +15,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskresult"
 )
 
-// The wire's JSON as decoded: an object's members, read loosely the way the Python client reads them.
+// The wire's JSON as decoded: an object's members, read loosely (a missing or mistyped member is its zero value).
 
 type obj = map[string]any
 
@@ -48,7 +48,7 @@ func list(o obj, k string) []obj {
 
 func given(o obj, k string) bool { v, ok := o[k]; return ok && v != nil && v != "" && v != false }
 
-// epoch is a wire Timestamp as seconds, 0 for none (cli/client.epoch, then timefmt.stamp's `ts or 0`).
+// epoch is a wire Timestamp as seconds, 0 for none or one that does not parse.
 func epoch(ts any) int64 {
 	s, _ := ts.(string)
 	t, err := time.Parse(time.RFC3339, s)
@@ -60,7 +60,7 @@ func epoch(ts any) int64 {
 
 func stamp(ts any) string { return timefmt.Stamp(epoch(ts), timefmt.DateTime) }
 
-// readFailed prints why a read failed the way the Python commands do: a refusal as it is, else `could not read <what>`.
+// readFailed prints why a read failed: a refusal as it is, else `could not read <what>`.
 func readFailed(err error, what string) int {
 	var refused *hlclient.RPCError
 	if errors.As(err, &refused) {
@@ -107,7 +107,7 @@ func taskShow(c *hlclient.Client, args []string) (int, bool) {
 	return 0, true
 }
 
-// detailLines is one task as lines to read (cli/task._detail_lines); home is where the daemon keeps the screenshots.
+// detailLines is one task as lines to read; home is where the daemon keeps the screenshots.
 func detailLines(t obj, now float64, home string) []string {
 	// the assignee works the task; its owner is who it answers to (the wire's asker), named apart from the opener only when they differ
 	owner := str(t, "asker")
@@ -365,7 +365,7 @@ func spendLine(t obj) string {
 	return fmt.Sprintf("spent about $%.2f over %.0f min: %s", f(s["usd"]), f(s["minutes"]), strings.Join(parts, ", "))
 }
 
-// timeoutLines is the wire's `time` as the task page's lines (cli/task._clock, then actions.timeout_lines); waits is waitsOn.
+// timeoutLines is the wire's `time` as the task page's lines; waits is waitsOn.
 func timeoutLines(box obj, now float64, waits string) []string {
 	line := "timeout " + timefmt.Span(num(box, "length_s"), false)
 	if box["default"] == true {
@@ -468,7 +468,7 @@ func taskList(c *hlclient.Client, args []string) (int, bool) {
 	return 0, true
 }
 
-// printBoard is each task, then the requests linked to it as they stand now (cli/task._print_board).
+// printBoard is each task, then the requests linked to it as they stand now.
 func printBoard(tasks []obj) {
 	if len(tasks) == 0 {
 		fmt.Println("no open tasks.")
@@ -558,7 +558,7 @@ func taskBoard(c *hlclient.Client, args []string) (int, bool) {
 	return 0, true
 }
 
-// nowSaid is who holds a task now, in words (cli/task.cmd_task_board).
+// nowSaid is who holds a task now, in words.
 func nowSaid(now obj) string {
 	var tasks []string
 	for _, n := range anyList(now["tasks"]) {

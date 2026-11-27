@@ -1,4 +1,4 @@
-// Package gitrun runs git and hands back what it said, the same way for every caller (handline/infra/gitrun.py).
+// Package gitrun runs git and hands back what it said, the same way for every caller.
 package gitrun
 
 import (

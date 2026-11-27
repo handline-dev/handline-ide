@@ -2,7 +2,7 @@ package tick
 
 import "github.com/handline/handline/go/data/db"
 
-// Status is usage/status.py's reading of one agent's account and session, as the tick judges it. A nil figure is unknown, which is not a
+// Status is the usage status of one agent's account and session, as the tick judges it. A nil figure is unknown, which is not a
 // wall and not zero.
 type Status struct {
 	ModelID, SessionID, TranscriptPath string
@@ -10,19 +10,19 @@ type Status struct {
 	ShortTrusted, LongTrusted          *int
 }
 
-// AccountReading is agents.account_reading: which account an agent's usage is landing on and how that is known ("recorded", "reported" or
+// AccountReading is which account an agent's usage is landing on and how that is known ("recorded", "reported" or
 // "assumed").
 type AccountReading struct{ Account, Source string }
 
-// Limit is the usage limit an agent's last turn ended on (events.at_limit).
+// Limit is the usage limit an agent's last turn ended on.
 type Limit struct{ Text, Source string }
 
-// Need is lifecycle.start_or_wake_needed: "start" or "wake", and the sentence for what is waiting.
+// Need is whether the agent needs a start or a wake ("start" or "wake"), and the sentence for what is waiting.
 type Need struct{ Kind, What string }
 
 // Host is what the tick asks of the machine it runs on: the agents and accounts it knows and the structured sessions it supervises.
 type Host interface {
-	// Agents is paths.list_agents, Accounts paths.list_accounts.
+	// Agents is the registered agents, Accounts the registered accounts.
 	Agents() []string
 	Accounts() []string
 	// SessionAlive is whether the agent has a live structured session; SessionIdle whether its S1 state is idle (not running, not
@@ -34,39 +34,39 @@ type Host interface {
 	RunningAccount(agent string) string
 }
 
-// Usage is usage/status.py, usage/load.py and usage/measure.py as the tick reads them.
+// Usage is the accounts' usage status, load and cold-start measure as the tick reads them.
 type Usage interface {
 	AccountReading(q db.Q, agent string) (AccountReading, bool)
 	ReadForAgent(agent, acct string) Status
-	// ContextLimit is status.effective_context_limit for the agent's own config and the model read.
+	// ContextLimit is the agent's context threshold, held to a share of the model's context window.
 	ContextLimit(agent, modelID string) int
-	// AtLimit is events.at_limit: the limit the agent's last turn ended on, nil when it did not.
+	// AtLimit is the limit the agent's last turn ended on, nil when it did not.
 	AtLimit(q db.Q, agent string) *Limit
-	// Settle is measure.settle.
+	// Settle closes the agent's cold-start measurement once its first turn has ended.
 	Settle(q db.Q, agent string)
 }
 
-// Delivery is daemon/delivery.py as supervise calls it.
+// Delivery is the delivery layer as supervise calls it.
 type Delivery interface {
 	EnforceEdges(q db.Q, agent string) error
 	NoteFailure(agent, why string) // why "" clears
 	TrackBackgroundWork(q db.Q, agent string, row *db.AgentState)
 	DeliverQueued(q db.Q, agent string) bool
 	NudgeForgottenResolve(q db.Q, agent string, row *db.AgentState, now int64)
-	// SessionPresent is delivery.session_present.
+	// SessionPresent is whether there is a session to type into, not only the shell it left behind.
 	SessionPresent(agent string) bool
 	HasBackgroundWork(q db.Q, agent string) bool
 	IdleSince(q db.Q, agent string) (int64, bool)
 }
 
-// Messaging is daemon/messaging.py and daemon/landing.py: what could not be sent at once is tried again every tick.
+// Messaging is the retry of sends and landings: what could not be sent at once is tried again every tick.
 type Messaging interface {
 	LandingSweep(q db.Q, agent string)
 	TellUndelivered(q db.Q, agent string)
 	DeliverPending(q db.Q, agent string)
 }
 
-// Lifecycle is daemon/lifecycle.py as the tick calls it.
+// Lifecycle is the session lifecycle as the tick calls it.
 type Lifecycle interface {
 	WaitingFor(q db.Q, agent string) bool
 	ResumableWithoutTerminal(row *db.AgentState) bool
@@ -84,37 +84,38 @@ type Lifecycle interface {
 	TriggersApply(row *db.AgentState) bool
 }
 
-// Handoff is daemon/handoff.py and daemon/handoff_note.py.
+// Handoff is the handoff, the move between accounts and the handoff note.
 type Handoff interface {
 	SettleOwedClear(q db.Q, agent string) bool
 	// RunPendingMove runs a person's move the agent keeps once its turn (or move_now's note) is over; whether it acted.
 	RunPendingMove(q db.Q, agent string) bool
-	// Movable is whether the trigger kind may be answered by a move to another account (handoff.MOVABLE_TRIGGERS).
+	// Movable is whether the trigger kind may be answered by a move to another account.
 	Movable(kind string) bool
-	// MovePlan is handoff._move_plan: the account to move to ("" for none) and why not.
+	// MovePlan is where an agent at the wall moves: the account to move to ("" for none) and why not.
 	MovePlan(q db.Q, agent, kind string) (dest, why string)
-	// MoveToRoom is handoff._move_to_room.
+	// MoveToRoom moves a walled agent to an account with room; whether it moved.
 	MoveToRoom(q db.Q, agent string, t Trigger) bool
-	// PerformHandoff is handoff.perform_handoff; dest "" lets it choose.
+	// PerformHandoff runs the handoff for the trigger; dest "" lets it choose where to. False when it degraded or failed.
 	PerformHandoff(q db.Q, agent string, t Trigger, dest string) bool
-	// NoteHold is handoff_note.hold, NoteAtCacheEdge handoff_note.at_cache_edge.
+	// NoteHold is whether a close should wait for the agent's handoff note; NoteAtCacheEdge asks for the note while an idle session's
+	// prompt cache nears its end.
 	NoteHold(q db.Q, agent string, now int64) bool
 	NoteAtCacheEdge(q db.Q, agent string, now int64, st Status)
 	NoteEnabled(agent string) bool
-	// NoteAsked is handoff_note.asked: the ask still waiting (ok) and how many turns have begun on it.
+	// NoteAsked is the ask for the handoff note still waiting (ok) and how many turns have begun on it.
 	NoteAsked(q db.Q, agent string) (turns int, ok bool)
 	NoteAsk(q db.Q, agent, why string) bool
 	NoteAnsweredTurn(q db.Q, agent string) bool
 	NoteText(q db.Q, agent string) (string, bool)
-	// AskMarginS is handoff_note.ASK_MARGIN_S.
+	// AskMarginS is how close to the cache's end the ask for the note is still worth making.
 	AskMarginS() int
 }
 
-// Reconciler is daemon/reconciler.py as the tick calls it.
+// Reconciler is the lifecycle's reconciler as the tick calls it.
 type Reconciler interface {
 	Sweep(q db.Q, actions *[]string)
 	ExpireHandoffs(q db.Q) []string
-	// StallAgent is reconciler._stall_agent: a real failure in one agent's turn stalls it, a resource shortage does not.
+	// StallAgent counts a failure against the agent: a real failure in one agent's turn stalls it, a resource shortage does not.
 	StallAgent(q db.Q, agent string, actions *[]string, err error, kind string)
 }
 
@@ -138,11 +139,11 @@ type Observe interface {
 	RefreshFactors(q db.Q) error
 }
 
-// Config is the agent's own settings as the policies read them (idle_close._agent_cfg and the daemon's config.yaml).
+// Config is the agent's own settings as the policies read them (its own row and the daemon's config.yaml).
 type Config interface {
 	// AgentConfig is the agent's settings, empty when unreadable.
 	AgentConfig(agent string) map[string]any
-	// Seconds is idle_close.config_seconds: the setting's value in seconds or the default.
+	// Seconds is a config.yaml setting's value in seconds or the default.
 	Seconds(key string, def int64) int64
 	// MoveBeforePct is usage_move_before_pct (usage.MoveBeforeKey), the 5-hour window's; 0 is off.
 	MoveBeforePct() int

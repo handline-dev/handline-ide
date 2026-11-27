@@ -1,5 +1,5 @@
-// Package chatwrites serves the chat page's write methods (handline/daemon/rpc_chatwrites.py, rpc_chat_now.py) and the actions behind them
-// (handline/actions/requests.py): each writes its effect and its write_effects record in one transaction (rpc.Conn.Effect), so a retry after
+// Package chatwrites serves the chat page's write methods and the actions behind them:
+// each writes its effect and its write_effects record in one transaction (rpc.Conn.Effect), so a retry after
 // a crash answers and repeats nothing. The telling follows the commit, on the supervisor's Env.
 package chatwrites
 
@@ -526,7 +526,7 @@ func (w *writes) sendNow(c *rpc.Conn, p map[string]any) (any, error) {
 }
 
 // sendTask is chat.send with a task: the message is the task's brief, and the agent is asked and the task row written in one transaction
-// (actions.task_new), with the call's record, so a retry opens no second task.
+// with the call's record, so a retry opens no second task.
 func (w *writes) sendTask(c *rpc.Conn, agent, body string, task any) (any, error) {
 	t := task.(map[string]any)
 	title, _ := t["title"].(string)

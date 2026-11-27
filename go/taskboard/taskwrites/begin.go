@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/taskboard/requestref"
 )
 
-// parsePriority is actions.parse_priority: P1, p2 or a bare 3.
+// parsePriority reads a priority written P1, p2 or a bare 3.
 func parsePriority(v any) (int64, error) {
 	raw := fmt.Sprint(v)
 	t := strings.ToUpper(strings.TrimSpace(raw))
@@ -23,7 +23,7 @@ func parsePriority(v any) (int64, error) {
 	return 0, badParam(fmt.Sprintf("'%s' is not a priority - write P1 (high), P2 (default) or P3 (low)", raw), "")
 }
 
-// begin is task.begin (actions.task_begin): the founder's own message to the caller is approval enough, so the caller opens a task for
+// begin is task.begin: the founder's own message to the caller is approval enough, so the caller opens a task for
 // itself and starts it. What stands in for the approval is the message linked to the task; why, when given, goes on the event.
 func begin(c *rpc.Conn, p map[string]any) (any, error) {
 	title, err := text(p, "title")

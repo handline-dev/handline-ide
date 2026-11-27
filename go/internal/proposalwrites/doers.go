@@ -530,7 +530,7 @@ func (e *Env) doGlobal(p step) (bool, string, error) {
 	return true, fmt.Sprintf("%s set to %s", switchName, value), nil
 }
 
-// pyRepr is Python's repr of a short text, as a refusal quotes a name.
+// pyRepr is s in single quotes, or Go-quoted when it holds a quote, backslash or line break, as a refusal quotes a name.
 func pyRepr(s string) string {
 	if strings.ContainsAny(s, "'\\\n\r\t") {
 		return fmt.Sprintf("%q", s)

@@ -17,7 +17,7 @@ import (
 	"github.com/handline/handline/go/taskboard/attachments"
 )
 
-// Results told to whoever opened the work reach them in one digest, not one wake each (daemon/noticedigest.py).
+// Results told to whoever opened the work reach them in one digest, not one wake each.
 //
 // A notice (delivery.ClassBatch: a task done or discarded, a child's result, a task change, a memo) is information: it never wakes anyone and
 // is never typed mid-turn. It rides on the target's next real delivery, and the first notice starts a clock: once it has run the notice digest
@@ -237,7 +237,7 @@ func (e *Env) SweepStopped(now int64) (err error) {
 	return nil
 }
 
-// SweepNotices is noticedigest.sweep.
+// SweepNotices runs the notice passes in order: stopped sessions, the digests, the held memos and the notice watches.
 func (e *Env) SweepNotices(now int64) error {
 	if err := e.SweepStopped(now); err != nil {
 		return err

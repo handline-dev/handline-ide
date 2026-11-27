@@ -1,6 +1,6 @@
-// Package inputhold is who types at an agent's terminal: the daemon unless a person or a device took it (input.take)
-// (handline/daemon/inputhold.py). A holder who has not typed for the idle limit loses the hold, found out whenever it is
-// read, and the loss is recorded like a take. The row is the Python daemon's own (input_holders).
+// Package inputhold is who types at an agent's terminal: the daemon unless a person or a device took it (input.take).
+// A holder who has not typed for the idle limit loses the hold, found out whenever it is
+// read, and the loss is recorded like a take. The row is in input_holders.
 package inputhold
 
 import (

@@ -17,7 +17,7 @@ var _ UsagePort = (*UsageAdapter)(nil)
 func (u *UsageAdapter) ShortBlock() int { return usage.ShortBlock }
 func (u *UsageAdapter) LongBlock() int  { return usage.LongBlock }
 
-// Read is status.read of the account.
+// Read is the account's usage status as launch uses it.
 func (u *UsageAdapter) Read(acct string) AccountStatus {
 	st := u.Env.Read(acct)
 	out := AccountStatus{Exists: st.Exists, Stale: st.Stale(), AgeS: st.AgeS(), ShortTrusted: st.ShortTrusted(), LongTrusted: st.LongTrusted(),
@@ -26,7 +26,7 @@ func (u *UsageAdapter) Read(acct string) AccountStatus {
 	return out
 }
 
-// PickAccount is status.pick_account as find_room asks it: a never-run account is a real place to go, and this is the one caller about
+// PickAccount is the usage pick of the best candidate for agent: a never-run account is a real place to go, and this is the one caller about
 // to place an agent, so a carried or idle-floored candidate is asked fresh. A load or a pick that cannot be read picks nobody: fail closed.
 func (u *UsageAdapter) PickAccount(candidates []string, agent string) string {
 	return u.pick(candidates, agent, agent)
@@ -116,7 +116,7 @@ type StatusAdapter struct {
 
 var _ StatusPort = (*StatusAdapter)(nil)
 
-// ReadForAgent is status.read_for_agent.
+// ReadForAgent is the agent's session id and context use from its status file.
 func (s *StatusAdapter) ReadForAgent(agent, account string) SessionStatus {
 	st := s.Env.ReadForAgent(agent, account)
 	out := SessionStatus{SessionID: st.SessionID}

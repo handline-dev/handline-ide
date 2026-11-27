@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 )
 
-// A request is delivered once the receiving session's transcript shows it, not once it was typed (daemon/landing.py).
+// A request is delivered once the receiving session's transcript shows it, not once it was typed.
 // One rule for a queued line, repeated every tick: the transcript first - there, it is landed - and not there, typed unless this daemon
 // typed it less than LandingWaitS ago (kept in memory only, so a restart at worst types it once more). A line that never lands stays
 // queued, on the stuck list: there is no count and no giving up.

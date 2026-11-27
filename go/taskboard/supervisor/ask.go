@@ -15,7 +15,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// Requests between agents (team/ask.py): what `hl task new` and `hl say` write. The agent supplies a target and a message; the edge, the
+// Requests between agents: what `hl task new` and `hl say` write. The agent supplies a target and a message; the edge, the
 // chain depth, the rate limit and what happens to the requester are decided here. A denied request returns the reason.
 //
 // Each writing function takes the Q it writes on (a transaction, when the caller needs the write to stand or fall with its own) and an

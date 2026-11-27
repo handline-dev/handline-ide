@@ -34,7 +34,7 @@ func unserved(p map[string]any, keys ...string) error {
 	return nil
 }
 
-// timeBox is rpc_tasks._span: the task timeout under key in seconds, 0 when it is not given.
+// timeBox is the task timeout under key in seconds, 0 when it is not given.
 func timeBox(p map[string]any, key string) (int64, error) {
 	if p[key] == nil {
 		return 0, nil
@@ -65,7 +65,7 @@ func optionalBool(p map[string]any, key string) (bool, error) {
 	return b, nil
 }
 
-// optionalTask is rpc_tasks._task_number: a task number, or none.
+// optionalTask is the param under key as a task number, ok false when it is absent.
 func optionalTask(p map[string]any, key string) (int64, bool, error) {
 	if p[key] == nil {
 		return 0, false, nil
@@ -106,7 +106,7 @@ func agentNotFound(name string) error {
 	return e
 }
 
-// newMethod is task.new (actions.task_new): the task is opened and its owner asked in one call, through the routing table. The delivery, the
+// newMethod is task.new: the task is opened and its owner asked in one call, through the routing table. The delivery, the
 // task row, its link and the record of the result are one transaction, so a refused owner leaves no task row behind.
 func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
 	return func(c *rpc.Conn, p map[string]any) (any, error) {
@@ -375,7 +375,7 @@ func watchReady(w *db.Watch) error {
 	return nil
 }
 
-// OpenTask is actions.task_new in the caller's transaction: the owner is asked through the routing table and the task row, its link and
+// OpenTask opens a task in the caller's transaction: the owner is asked through the routing table and the task row, its link and
 // the event land with the delivery. A refusal before anything is opened is the error; an owner the routing refuses is asked.OK false, with
 // the writes of the refusal standing, and the caller decides how to commit them. The caller calls tell.Opened once it has committed.
 func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *Asked, err error) {

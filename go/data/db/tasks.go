@@ -52,7 +52,7 @@ func (t *Task) AnswersTo() string {
 	return t.OpenedBy
 }
 
-// Ended is db.task_ended: done or discarded.
+// Ended is whether the task is done or discarded.
 func (t *Task) Ended() bool { return t.DoneEvidence.String != "" || t.DiscardedBy.String != "" }
 
 func taskRows(q Q, query string, args ...any) ([]*Task, error) {
@@ -72,7 +72,7 @@ func taskRows(q Q, query string, args ...any) ([]*Task, error) {
 	return out, rows.Err()
 }
 
-// GetTask is db.get_task: nil when there is no such task.
+// GetTask is the task with id tid, nil when there is no such task.
 func GetTask(q Q, tid int64) (*Task, error) {
 	ts, err := taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE id = ?", tid)
 	if err != nil || len(ts) == 0 {
@@ -81,7 +81,7 @@ func GetTask(q Q, tid int64) (*Task, error) {
 	return ts[0], nil
 }
 
-// OpenTasks is db.open_tasks.
+// OpenTasks lists the tasks neither done nor discarded, by priority then id.
 func OpenTasks(q Q) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE "+OpenSQL+" ORDER BY priority, id")
 }
@@ -91,23 +91,23 @@ func OpenTasksOf(q Q, agent string) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE "+actingCol+" = ? AND "+OpenSQL+" ORDER BY priority, id", agent)
 }
 
-// OpenChildTasks is db.open_child_tasks.
+// OpenChildTasks lists tid's open child tasks, by priority then id.
 func OpenChildTasks(q Q, tid int64) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE parent_task = ? AND "+OpenSQL+" ORDER BY priority, id", tid)
 }
 
-// TasksForRequest is db.tasks_for_request: the tasks a request is linked to, oldest first.
+// TasksForRequest is the tasks a request is linked to, oldest first.
 func TasksForRequest(q Q, rid int64) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE id IN (SELECT task_id FROM task_requests WHERE request_id = ?) ORDER BY id", rid)
 }
 
-// TaskRequests is db.task_requests: the requests linked to a task, as they are now.
+// TaskRequests is the requests linked to a task, as they are now.
 func TaskRequests(q Q, tid int64) ([]*Request, error) {
 	return requestRows(q, "SELECT r."+strings.ReplaceAll(requestCols, ", ", ", r.")+
 		" FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? ORDER BY r.id", tid)
 }
 
-// LiveDelivery is db.live_delivery: the request that asks owner to do the task (the latest task delivery to that owner, queued or
+// LiveDelivery is the request that asks owner to do the task (the latest task delivery to that owner, queued or
 // landed and not answered), nil when none.
 func LiveDelivery(q Q, tid int64, owner string) (*Request, error) {
 	rows, err := TaskRequests(q, tid)
@@ -123,13 +123,13 @@ func LiveDelivery(q Q, tid int64, owner string) (*Request, error) {
 	return last, nil
 }
 
-// TaskBlockers is db.task_blockers: the tasks still blocking tid.
+// TaskBlockers is the open tasks still blocking tid through a block that is not dormant.
 func TaskBlockers(q Q, tid int64) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE id IN (SELECT blocks_on FROM task_blocks WHERE task_id = ? AND dormant = 0) "+
 		"AND discarded_by IS NULL AND done_evidence IS NULL ORDER BY id", tid)
 }
 
-// NewTask is db.new_task, with the request it serves (SetTaskRequest). The clock of timeoutS starts when the task is doing, so timeout_at stays NULL. A reporter of "" is the opener.
+// NewTask opens a task and records the request it serves (SetTaskRequest). The clock of timeoutS starts when the task is doing, so timeout_at stays NULL. A reporter of "" is the opener.
 func NewTask(q Q, title, owner, openedBy string, parent int64, priority int64, expects string, timeoutS int64, reporter string) (int64, error) {
 	return NewTaskServing(q, title, owner, openedBy, parent, priority, expects, timeoutS, reporter, sql.NullInt64{})
 }
@@ -166,7 +166,7 @@ func NewTaskServing(q Q, title, owner, openedBy string, parent int64, priority i
 	return tid, SetTaskRequest(q, tid)
 }
 
-// LinkRequest is db.link_request.
+// LinkRequest links request rid to task tid and refreshes the task's sent_at.
 func LinkRequest(q Q, tid, rid int64) error {
 	if _, err := q.Exec("INSERT OR IGNORE INTO task_requests(task_id, request_id) VALUES (?, ?)", tid, rid); err != nil {
 		return err
@@ -174,7 +174,7 @@ func LinkRequest(q Q, tid, rid int64) error {
 	return RefreshSent(q, tid)
 }
 
-// RefreshSent is db.refresh_sent: sent_at is set once while a request that asks something is out on the task, cleared
+// RefreshSent keeps a task's sent_at: it is set once while a request that asks something is out on the task, cleared
 // when none is left.
 func RefreshSent(q Q, tid int64) error {
 	_, err := q.Exec("UPDATE tasks SET sent_at = CASE WHEN EXISTS "+
@@ -184,7 +184,7 @@ func RefreshSent(q Q, tid int64) error {
 	return err
 }
 
-// RefreshSentOfRequest is db.refresh_sent_of_request.
+// RefreshSentOfRequest runs RefreshSent on every task request rid is linked to.
 func RefreshSentOfRequest(q Q, rid int64) error {
 	tids, err := IDs(q, "SELECT task_id FROM task_requests WHERE request_id = ?", rid)
 	if err != nil {
@@ -198,7 +198,7 @@ func RefreshSentOfRequest(q Q, rid int64) error {
 	return nil
 }
 
-// EndHeld is db.end_held: the task no longer holds the landed delivery that asked owner (anyone when "") for it.
+// EndHeld makes the task no longer hold the landed delivery that asked owner (anyone when "") for it.
 func EndHeld(q Q, tid int64, owner string) error {
 	var o any
 	if owner != "" {
@@ -214,7 +214,7 @@ func unsend(q Q, tid int64) error {
 	return err
 }
 
-// MarkTaskDone is db.mark_task_done: true only if this call wrote the first evidence. via is 'sha', 'request' or 'reason'.
+// MarkTaskDone marks an open task done with evidence; true only if this call wrote the first evidence. via is 'sha', 'request' or 'reason'.
 func MarkTaskDone(q Q, tid int64, evidence, via string) (bool, error) {
 	res, err := q.Exec("UPDATE tasks SET done_evidence = ?, done_at = ?, done_via = ? "+
 		"WHERE id = ? AND done_evidence IS NULL AND discarded_by IS NULL", evidence, Now(), via, tid)
@@ -231,7 +231,7 @@ func MarkTaskDone(q Q, tid int64, evidence, via string) (bool, error) {
 	return false, nil
 }
 
-// DiscardTask is db.discard_task: true only if this call ended the task.
+// DiscardTask discards an open task, true only if this call ended it.
 func DiscardTask(q Q, tid int64, by, reason string) (bool, error) {
 	res, err := q.Exec("UPDATE tasks SET discarded_by = ?, discarded_at = ?, discard_reason = ? WHERE id = ? AND "+OpenSQL, by, Now(), reason, tid)
 	if err != nil {
@@ -247,7 +247,7 @@ func DiscardTask(q Q, tid int64, by, reason string) (bool, error) {
 	return false, nil
 }
 
-// StampTaskDelivered is db.stamp_task_delivered: request rid reached its target's session, so the task it delivers to that
+// StampTaskDelivered records that request rid reached its target's session, so the task it delivers to that
 // same owner is delivered from now. Once.
 func StampTaskDelivered(q Q, rid int64) error {
 	_, err := q.Exec("UPDATE tasks SET delivered_at = ? WHERE delivered_at IS NULL AND owner = "+
@@ -256,7 +256,7 @@ func StampTaskDelivered(q Q, rid int64) error {
 	return err
 }
 
-// SetTaskQueued is db.set_task_queued: approve a task to run (by set) or send it back to draft (""), true only if it changed.
+// SetTaskQueued approves a task to run (by set) or sends it back to draft (""), true only if it changed.
 func SetTaskQueued(q Q, tid int64, by string) (bool, error) {
 	var res sql.Result
 	var err error
@@ -272,7 +272,7 @@ func SetTaskQueued(q Q, tid int64, by string) (bool, error) {
 	return n > 0, nil
 }
 
-// AddBlock is db.add_block, and the request the wait brings the blocker into (inheritRequest).
+// AddBlock makes tid wait on blocksOn, and brings the blocker into the waiting task's request (inheritRequest).
 func AddBlock(q Q, tid, blocksOn int64) error {
 	if _, err := q.Exec("INSERT OR IGNORE INTO task_blocks(task_id, blocks_on, created_at) VALUES (?, ?, ?)", tid, blocksOn, Now()); err != nil {
 		return err
@@ -280,7 +280,7 @@ func AddBlock(q Q, tid, blocksOn int64) error {
 	return inheritRequest(q, tid, blocksOn)
 }
 
-// RemoveBlock is db.remove_block.
+// RemoveBlock deletes tid's wait on blocksOn, true only if there was one.
 func RemoveBlock(q Q, tid, blocksOn int64) (bool, error) {
 	res, err := q.Exec("DELETE FROM task_blocks WHERE task_id = ? AND blocks_on = ?", tid, blocksOn)
 	if err != nil {
@@ -290,12 +290,12 @@ func RemoveBlock(q Q, tid, blocksOn int64) (bool, error) {
 	return n > 0, nil
 }
 
-// BlocksOnIDs is db.blocks_on_ids: the raw edges the task itself names.
+// BlocksOnIDs is the raw edges the task itself names.
 func BlocksOnIDs(q Q, tid int64) ([]int64, error) {
 	return IDs(q, "SELECT blocks_on FROM task_blocks WHERE task_id = ?", tid)
 }
 
-// TasksBlockedBy is db.tasks_blocked_by: every task with a block row naming tid, closed or not.
+// TasksBlockedBy is every task with a block row naming tid, closed or not.
 func TasksBlockedBy(q Q, tid int64) ([]int64, error) {
 	return IDs(q, "SELECT task_id FROM task_blocks WHERE blocks_on = ? ORDER BY task_id", tid)
 }
@@ -303,7 +303,7 @@ func TasksBlockedBy(q Q, tid int64) ([]int64, error) {
 const openDecisionCardsSQL = "(SELECT MIN(l.request_id) FROM task_requests l JOIN tasks t ON t.id = l.task_id " +
 	"WHERE t.owner = ? AND t.discarded_by IS NULL AND t.done_evidence IS NULL GROUP BY t.id)"
 
-// TaskOfCard is decisions.task_of_card: the decision task whose card is request rid, in whatever state it is now; 0 for none.
+// TaskOfCard is the decision task whose card is request rid, in whatever state it is now; 0 for none.
 func TaskOfCard(q Q, rid int64) (int64, error) {
 	tasks, err := TasksForRequest(q, rid)
 	if err != nil {
@@ -324,7 +324,7 @@ func TaskOfCard(q Q, rid int64) (int64, error) {
 	return 0, nil
 }
 
-// FounderClosed is decisions.answer_of's reading of a decision task marked done: its evidence is the founder's answer only when the
+// FounderClosed reads a decision task marked done: its evidence is the founder's answer only when the
 // founder owns it and the last of its settle, done and reopen events is the founder's own settle or done.
 func FounderClosed(q Q, t *Task) (bool, error) {
 	if t.Owner != actor.OwnerKey {
@@ -342,7 +342,7 @@ func FounderClosed(q Q, t *Task) (bool, error) {
 	return kind == "settle_decision_task" || kind == "mark_task_done" && agent == actor.OwnerKey, nil
 }
 
-// OpenDecisionCardIDs is db.open_decision_card_ids: the queued cards of the founder's open decision tasks, oldest first; about
+// OpenDecisionCardIDs is the queued cards of the founder's open decision tasks, oldest first; about
 // agent (its requester) when given, whose body starts with prefix when given, and is exactly body when hasBody.
 func OpenDecisionCardIDs(q Q, agent, prefix string, body *string) ([]int64, error) {
 	query := "SELECT id FROM requests WHERE target = ? AND state = 'queued' AND id IN " + openDecisionCardsSQL
@@ -372,7 +372,7 @@ type TaskEdit struct {
 	IsDoing            bool
 }
 
-// EditTask is db.edit_task: a changed owner, reporter, title, priority, estimate or timeout, stamped with who and when. The caller has checked permission and
+// EditTask writes a changed owner, reporter, title, priority, estimate or timeout, stamped with who and when. The caller has checked permission and
 // that something changed; this only writes. A new owner has not had the task yet, so delivered_at and sent_at clear.
 func EditTask(q Q, tid int64, by string, ed TaskEdit) error {
 	now := Now()
@@ -421,7 +421,7 @@ func DormantBlockers(q Q, tid int64) ([]int64, error) {
 		"AND t.discarded_by IS NULL AND t.done_evidence IS NULL ORDER BY b.blocks_on", tid)
 }
 
-// SyncSelfBlocks is db.sync_self_blocks, after tid changed owner from oldOwner: a wait that one agent now holds both ends of goes dormant
+// SyncSelfBlocks runs after tid changed owner from oldOwner: a wait that one agent now holds both ends of goes dormant
 // (nobody else could finish it), and a dormant one whose ends differ again counts again. A same-owner wait added on purpose is left as it was.
 // It answers the (blocked, blocker) pairs that went dormant.
 func SyncSelfBlocks(q Q, tid int64, oldOwner string) ([][2]int64, error) {
@@ -468,19 +468,18 @@ func SyncSelfBlocks(q Q, tid int64, oldOwner string) ([][2]int64, error) {
 	return went, nil
 }
 
-// TasksToClock is db.tasks_to_clock: every open task, since whether it is doing is not a column.
+// TasksToClock is every open task, since whether it is doing is not a column.
 func TasksToClock(q Q) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks WHERE done_evidence IS NULL AND discarded_by IS NULL ORDER BY id")
 }
 
-// MaxTaskTimeoutS is actions.MAX_TASK_TIMEOUT_S: no task is given longer than this. DefaultTaskTimeoutS is actions.DEFAULT_TASK_TIMEOUT_S, what
-// a task never given a timeout gets: the same.
+// MaxTaskTimeoutS is the longest timeout a task is given. DefaultTaskTimeoutS, what a task never given a timeout gets, is the same.
 const (
 	MaxTaskTimeoutS     = 4 * 3600
 	DefaultTaskTimeoutS = MaxTaskTimeoutS
 )
 
-// AdvanceTaskTimeout is db.advance_task_timeout: starts, resumes or re-arms a task's clock: what a pause left, else timeout_s, from now;
+// AdvanceTaskTimeout starts, resumes or re-arms a task's clock: what a pause left, else timeout_s, from now;
 // defaultS for a task never given one.
 func AdvanceTaskTimeout(q Q, tid, now, defaultS int64) error {
 	_, err := q.Exec("UPDATE tasks SET timeout_s = COALESCE(timeout_s, ?), timeout_at = ? + COALESCE(timeout_left, timeout_s, ?), timeout_left = NULL WHERE id = ?",
@@ -488,7 +487,7 @@ func AdvanceTaskTimeout(q Q, tid, now, defaultS int64) error {
 	return err
 }
 
-// PauseTaskTimeout is db.pause_task_timeout: no deadline runs while a task is not doing or waits; what was left is kept for the resume,
+// PauseTaskTimeout stops a task's clock: no deadline runs while a task is not doing or waits; what was left is kept for the resume,
 // below zero once the box is over.
 func PauseTaskTimeout(q Q, tid, now int64) error {
 	_, err := q.Exec("UPDATE tasks SET timeout_left = timeout_at - ?, timeout_at = NULL WHERE id = ? AND timeout_at IS NOT NULL", now, tid)
@@ -607,7 +606,7 @@ func RanOver(q Q, t *Task, now int64) (bool, error) {
 	return past && n.N > 0, err
 }
 
-// AllTasks is db.all_tasks.
+// AllTasks lists every task, by priority then id.
 func AllTasks(q Q) ([]*Task, error) {
 	return taskRows(q, "SELECT "+taskCols+" FROM tasks ORDER BY priority, id")
 }

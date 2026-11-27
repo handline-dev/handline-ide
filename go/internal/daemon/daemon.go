@@ -75,7 +75,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// daemonLock is the name of the singleton the Python daemon also holds (handline/infra/daemonlock.py DAEMON_LOCK).
+// daemonLock is the name of the lock that keeps one daemon running per home.
 const daemonLock = "daemon"
 
 type Config struct {
@@ -108,7 +108,7 @@ type Config struct {
 	// to the home's tokens: the store is outside the home, so a test leaves it nil).
 	EnsureFounderKey func() bool
 
-	// Teller follows the task writes with what Python did after their commit (the typed says, the deliveries): the supervisor's telling
+	// Teller follows the task writes with what is told after their commit (the typed says, the deliveries): the supervisor's telling
 	// layer. Nil is the Env's own telling once its ports are all wired (OnOpen sets them), and tells nothing before that.
 	Teller taskwrites.Teller
 
@@ -927,7 +927,7 @@ func (d *Daemon) ingestSpool() {
 	}
 }
 
-// spoolLoop reads the hook spool every SpoolEvery, the work the Python daemon does each tick.
+// spoolLoop reads the hook spool every SpoolEvery.
 func (d *Daemon) spoolLoop() {
 	defer d.wg.Done()
 	t := time.NewTicker(hooks.SpoolEvery)

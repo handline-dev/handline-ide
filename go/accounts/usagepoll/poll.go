@@ -19,7 +19,7 @@ type Reader interface {
 	Read(ctx context.Context, acct string) (r *usage.Reading, authFailed bool)
 }
 
-// Poller asks the accounts that are due for a reading, on each tick of the daemon's loop (daemon/usage_poll.poll_usage).
+// Poller asks the accounts that are due for a reading, on each tick of the daemon's loop.
 type Poller struct {
 	DB    db.Q
 	Env   *usage.Env
@@ -85,7 +85,7 @@ func (p *Poller) accounts() []string {
 	return paths.ListAccounts(p.Home)
 }
 
-// Due is why this account's limits need asking about, "" when they do not (usage_due). The figures move when a turn is taken and at no
+// Due is why this account's limits need asking about, "" when they do not. The figures move when a turn is taken and at no
 // other time, and a turn is something the hooks already record; an account nobody works on is asked only when its cadence comes round.
 func (p *Poller) Due(acct string, st *usage.AccountStatus, now int64) string {
 	if !st.Exists || st.Short.At == nil {

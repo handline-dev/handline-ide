@@ -26,7 +26,7 @@ type Env struct {
 	LoginState func(acct string) (loggedIn, known bool)
 	// AgentConfig is an agent's settings. nil: the roster of Home.
 	AgentConfig func(agent string) (team.Config, error)
-	// Refresh asks the account fresh and records the answer, reporting whether it did (usage_api.read + record). nil: never asks.
+	// Refresh asks the account fresh and records the answer, reporting whether it did. nil: never asks.
 	Refresh func(acct string) bool
 }
 
@@ -74,7 +74,8 @@ func (e *Env) agentConfig(agent string) (team.Config, error) {
 	return team.NewRoster(e.Home).Read(agent)
 }
 
-// asInt64 is status._as_int (and asPct, in usage.go, _as_pct: a usage percentage rounds up, a bool or a string is nothing).
+// asInt64 is a JSON number cut to a whole number, nil for anything else (a bool, a string, NaN). asPct, in usage.go, is the same
+// for a usage percentage, which rounds up.
 func asInt64(v any) *int64 {
 	n, ok := v.(json.Number)
 	if !ok {
@@ -104,7 +105,7 @@ func acctWindowOf(e map[string]any) AcctWindow {
 		Lost: e["lost"] == true, Readable: readable}
 }
 
-// WindowsOf is status.windows_of: the shortest and the longest window a record holds. A vendor with one window has no longest; a
+// WindowsOf is the shortest and the longest window a record holds. A vendor with one window has no longest; a
 // record with none has no shortest either, and that reads as unreadable, never as a quiet window.
 func WindowsOf(raw map[string]any) (short, long AcctWindow) {
 	got := entries(raw)
@@ -119,12 +120,12 @@ func WindowsOf(raw map[string]any) (short, long AcctWindow) {
 	return short, long
 }
 
-// Read is status.read for an account's own status file.
+// Read is the reading of an account's own status file.
 func (e *Env) Read(acct string) *AccountStatus {
 	return e.ReadFile(acct, paths.StatusFile(e.Home, acct))
 }
 
-// ReadFile is status.read of a given file.
+// ReadFile is the account's reading from a given status file.
 func (e *Env) ReadFile(acct, path string) *AccountStatus {
 	st := &AccountStatus{Account: acct, Clock: e.now, Short: AcctWindow{Readable: true}, Long: AcctWindow{Readable: true}}
 	cfg := e.config()
@@ -158,7 +159,7 @@ func (e *Env) ReadFile(acct, path string) *AccountStatus {
 	st.Raw = raw
 	st.Short, st.Long = WindowsOf(raw)
 	st.CtxPct = asPct(raw["ctx_pct"])
-	// The snapshot's own field is the raw usage breakdown, not a total: summed as collect.tokens does, nil when nothing was written,
+	// The snapshot's own field is the raw usage breakdown, not a total: its counts summed, nil when nothing was written,
 	// never 0. A bare number is read as it is.
 	if m, isMap := raw["ctx_used"].(map[string]any); isMap {
 		var total int64

@@ -11,8 +11,7 @@ import (
 	"github.com/handline/handline/go/agentctl/agent"
 )
 
-// The hook events a launch keeps installed: captured, the answers to a permission prompt, and the guard
-// (events.CAPTURED | ANSWERS | GUARDS).
+// Wanted are the hook events a launch keeps installed: the captured ones, the answers to a permission prompt, and the guard.
 var Wanted = []string{"SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "PostCompact", "UserPromptSubmit",
 	"PermissionRequest", "TeammateIdle", "PostToolUse", "PostToolUseFailure", "PreToolUse", "Notification"}
 
@@ -45,7 +44,7 @@ var (
 	}
 )
 
-// Hooks is the shared settings file every account's settings.json links to (claude_hooks.py), under the program's home.
+// Hooks is the shared settings file every account's settings.json links to, under the program's home.
 type Hooks struct{ agent.Host }
 
 var _ agent.Hooks = Hooks{}
@@ -79,7 +78,7 @@ func (h Hooks) readObject() (*Object, error) {
 	return o, nil
 }
 
-// write replaces the settings file in one step, as json.dumps(data, indent=2, ensure_ascii=False) writes it.
+// write replaces the settings file in one step: data indented two spaces per level, non-ASCII characters kept as they are.
 func (h Hooks) write(data *Object) error {
 	if err := os.MkdirAll(h.shared(), 0o755); err != nil {
 		return err
@@ -88,7 +87,7 @@ func (h Hooks) write(data *Object) error {
 }
 
 // EnsureShared makes shared/.claude and its settings: Handline's old status line taken out, and each of defaults set
-// unless the file says otherwise (claude_hooks.ensure_shared).
+// unless the file says otherwise.
 func (h Hooks) EnsureShared() error {
 	_, statErr := os.Stat(h.Target())
 	current, err := h.readObject()
@@ -150,7 +149,7 @@ func objects(v any) []*Object {
 	return out
 }
 
-// Missing is whether a wanted event has no entry of ours in the shared settings, or a long hook's has another timeout (claude_hooks.missing).
+// Missing is whether a wanted event has no entry of ours in the shared settings, or a long hook's has another timeout.
 func (h Hooks) Missing() bool {
 	data, err := h.readObject()
 	if err != nil {
@@ -176,7 +175,7 @@ func (h Hooks) Missing() bool {
 }
 
 // Install adds `exe hook <event>` for each wanted event to the shared settings and collapses ours in any spelling to one
-// entry (claude_hooks.install).
+// entry.
 func (h Hooks) Install(exe string) error {
 	data, err := h.readObject()
 	if err != nil {
@@ -270,7 +269,7 @@ func (h Hooks) Install(exe string) error {
 }
 
 // AllowHomeSocket lets a sandboxed agent connect to the daemon's socket: its path in sandbox.network.allowUnixSockets,
-// once (claude_hooks.allow_home_socket).
+// once.
 func (h Hooks) AllowHomeSocket() error {
 	sock := h.Socket
 	data, err := h.readObject()
@@ -309,7 +308,7 @@ func within(child, parent string) bool {
 	return child == parent || strings.HasPrefix(child, strings.TrimSuffix(parent, "/")+"/")
 }
 
-// AllowHomeWrites lets a sandboxed agent write anywhere under the home (claude_hooks.allow_home_writes): the home in
+// AllowHomeWrites lets a sandboxed agent write anywhere under the home: the home in
 // sandbox.filesystem.allowWrite, in place of entries under it, and a denyWrite that is exactly the home taken out. A denyWrite on a
 // parent guards more than the home: it stays, and is answered as a blocker for the founder to decide.
 func (h Hooks) AllowHomeWrites() (changed bool, blockers []string, err error) {
@@ -368,7 +367,7 @@ func (h Hooks) AllowHomeWrites() (changed bool, blockers []string, err error) {
 	return true, blockers, h.write(data)
 }
 
-// SafeCommands run without asking (claude_hooks.SAFE_COMMANDS): read-only tools in full, and hl per subcommand, never all of it. A tool is
+// SafeCommands are the commands that run without asking: read-only tools in full, and hl per subcommand, never all of it. A tool is
 // listed only if no flag makes it run or write anything, so no git prefix.
 func SafeCommands(commands []string) []string {
 	out := []string{}
@@ -392,7 +391,7 @@ func SafeCommands(commands []string) []string {
 	return out
 }
 
-// AllowSafeCommands adds SafeCommands to permissions.allow, keeping what is there (claude_hooks.allow_safe_commands): true if it changed.
+// AllowSafeCommands adds SafeCommands to permissions.allow, keeping what is there: true if it changed.
 func (h Hooks) AllowSafeCommands() (bool, error) {
 	data, err := h.readObject()
 	if err != nil {

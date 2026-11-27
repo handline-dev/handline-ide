@@ -9,7 +9,7 @@ func withTerminal(t *testing.T, e *Env) {
 	run(t, e, "UPDATE agent_state SET terminal = 'h1' WHERE agent = ?", bobKey(t, e))
 }
 
-// The wants are what Python's queue_reason (actions/stuck.py, removed with the Python daemon) answered in each state.
+// The wants are the recorded queue reasons for each state.
 func TestQueueReasonInEachState(t *testing.T) {
 	cases := []struct {
 		name  string

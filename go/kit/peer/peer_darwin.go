@@ -18,7 +18,7 @@ func peerPID(fd int) int {
 }
 
 // Lookup is the parent and start time of pid, from the kernel; ok is false when no such process runs.
-// The start time is spelled as handline/infra/sessiontoken.py spells it, seconds.microseconds.
+// The start time is spelled seconds.microseconds, as the session token spells it.
 func Lookup(pid int) (Proc, bool) {
 	k, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
 	if err != nil || int(k.Proc.P_pid) != pid {

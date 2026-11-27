@@ -1,17 +1,10 @@
 package termchan
 
-// The terminal channel's bytes format on tmux (contract x-terminal-bytes; handline/daemon/termbytes.py): the pane's own escape-coded
-// output, as base64 notices.
-//
-// One control-mode client (`tmux -C`) is the daemon's window onto the server: its `%output` lines are the panes' output in order, and
-// the commands it is given are answered in the same stream. That ordering is what makes a snapshot exact: the screen is captured by a
-// command on that client, the reply stands at one place among the `%output` lines, and a bytes attach starts streaming from there, so
-// no byte is lost or repeated between the snapshot and the first notice.
-//
-// An attach has one counter, seq, that goes up by exactly one with each notice it is sent (output, snapshot, marker, holder); its
-// snapshot's seq is the last notice the screen includes, which is 0 for a fresh attach. Output is queued per client and sent in notices
-// of at most 64 KiB, at most one every 50 ms. Nothing is dropped from the middle: when one client's unsent output reaches 1 MiB it is
-// all discarded and a snapshot notice, reason slow_client, takes its place (counting bytes, not seconds).
+// The terminal channel's bytes format on tmux: the pane's escape-coded output as base64 notices. One control-mode client
+// (`tmux -C`) carries every pane's `%output` and the replies to its commands in one ordered stream, so a snapshot captured on it
+// sits at one place among the output and an attach streams on from there, losing and repeating nothing.
+// Each notice of an attach takes the next seq (a fresh snapshot is 0). Output goes out in notices of at most 64 KiB, at most one per
+// 50 ms; a client 1 MiB behind has its queue dropped for one snapshot notice, reason slow_client.
 
 import (
 	"bufio"

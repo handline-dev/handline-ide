@@ -84,7 +84,7 @@ func RuleTeams(q db.Q, agent string, t *Team) []string {
 	return names
 }
 
-// Rules is each of the agent's teams' rules, as "# Rules for team X\n<text>" (launch._team_rules): its rules in force, then kept(team),
+// Rules is each of the agent's teams' rules, as "# Rules for team X\n<text>": its rules in force, then kept(team),
 // the kept rules in force (RulesBlock). A team with neither has none.
 func Rules(q db.Q, agent string, t *Team, kept func(team string) string) []string {
 	if t == nil {

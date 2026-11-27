@@ -34,12 +34,10 @@ type Trigger struct {
 	Kind, Reason   string
 }
 
-// QueueReason is queue_reason: why request rid, queued for agent, has not reached it. It is the one builder behind chat.messages'
+// QueueReason is why request rid, queued for agent, has not reached it. It is the one builder behind chat.messages'
 // sending_reason and the chat detector's chat.message events.
 //
-// Straight from _delivery_state, in its order. drops "no terminal", "terminal gone", "no session" -> nothing reaches it (terminal-only:
-// a structured agent has no terminal and its closed session is "closed, ..."); drops "closed, no daemon" -> this is the daemon;
-// adds "switched with its terminal open" (a structured agent whose row still holds a terminal); drops "closed, starting" -> a structured wake holds an in-process lock, not the terminal lock file.
+// No reason names a terminal: a structured agent has none, and its closed session is one of the "closed, ..." reasons.
 func (e *Env) QueueReason(agent string, rid int64) (string, error) {
 	req, err := db.GetRequest(e.DB, rid)
 	if err != nil {
@@ -63,7 +61,7 @@ func (e *Env) QueueReason(agent string, rid int64) (string, error) {
 	return e.deliveryState(agent, "waiting for the agent")
 }
 
-// deliveryState is _delivery_state's short phrase, or none when nothing holds the work back.
+// deliveryState is a short phrase for what holds agent's work back, or none when nothing does.
 func (e *Env) deliveryState(agent, none string) (string, error) {
 	if !contains(paths.ListAgents(e.Home), agent) {
 		return "not registered", nil

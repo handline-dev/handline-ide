@@ -12,7 +12,7 @@ import (
 )
 
 // A message told to an agent's session at once: the socket's `message` verb and TellNow for a request, and the pending row that survives
-// a restart (daemon/messaging.py). Nothing here waits for idle: the session queues a line sent mid-turn and reads it once the turn ends.
+// a restart. Nothing here waits for idle: the session queues a line sent mid-turn and reads it once the turn ends.
 // Only a closed or missing session holds a message, and a closed session is woken first. What is held stays owed - on its row (a request) or in pending_messages (a bare line) - and the tick tries again. Tasks are not messages: they keep
 // DeliverQueued's one-at-a-time rule.
 

@@ -19,7 +19,7 @@ func sharedItems(vendor string) []string {
 }
 
 // RelinkAll links every registered account to the shared items that gained a target since the account was registered, and returns what it
-// linked, by account (accounts.relink_all). Anything already there is left alone, a link elsewhere and a real file or directory included:
+// linked, by account. Anything already there is left alone, a link elsewhere and a real file or directory included:
 // only a human's register replaces those. An account that errors is reported to log and skipped, so the rest are caught up.
 func RelinkAll(home string, log func(string)) map[string][]string {
 	done := map[string][]string{}

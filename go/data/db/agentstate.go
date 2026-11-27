@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// AgentState is one agent_state row (db.get_agent_state).
+// AgentState is one agent_state row.
 type AgentState struct {
 	Agent, State                                                        string
 	WakeAt, ClosedAt, CurrentTask                                       sql.NullInt64
@@ -30,7 +30,7 @@ func scanState(r scanner) (*AgentState, error) {
 	return s, err
 }
 
-// GetAgentState is db.get_agent_state: nil when the agent has no row.
+// GetAgentState is the agent's agent_state row, nil when it has none.
 func GetAgentState(q Q, agent string) (*AgentState, error) {
 	s, err := scanState(q.QueryRow("SELECT "+stateCols+" FROM agent_state WHERE agent = ?", agent))
 	if err == sql.ErrNoRows {
@@ -39,12 +39,12 @@ func GetAgentState(q Q, agent string) (*AgentState, error) {
 	return s, err
 }
 
-// AllAgentStates is db.all_agent_states.
+// AllAgentStates is every agent_state row, by agent.
 func AllAgentStates(q Q) ([]*AgentState, error) {
 	return stateRows(q, "SELECT "+stateCols+" FROM agent_state ORDER BY agent")
 }
 
-// DueAgents is db.due_agents: the agents whose wake_at has come.
+// DueAgents is the agents whose wake_at has come, earliest first.
 func DueAgents(q Q, now int64) ([]*AgentState, error) {
 	return stateRows(q, "SELECT "+stateCols+" FROM agent_state WHERE wake_at IS NOT NULL AND wake_at <= ? ORDER BY wake_at", now)
 }
@@ -80,14 +80,14 @@ func nullInt(n int64, set bool) any {
 	return n
 }
 
-// SetTask is db.set_task: the free-text prompt a spawned terminal starts on.
+// SetTask records the free-text prompt a spawned terminal starts on.
 func SetTask(q Q, agent, task string) error {
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, task) VALUES(?,?,?,?) ON CONFLICT(agent) DO UPDATE SET task=excluded.task, updated=excluded.updated",
 		agent, "IDLE", Now(), nullStr(task))
 	return err
 }
 
-// SetCurrentTask is db.set_current_task: the one board task the agent holds now. Giving it a task ends the idle spell its
+// SetCurrentTask records the one board task the agent holds now. Giving it a task ends the idle spell its
 // agent-level progress note was written in. Passing set false clears it.
 func SetCurrentTask(q Q, agent string, tid int64, set bool) error {
 	if set {
@@ -101,7 +101,7 @@ func SetCurrentTask(q Q, agent string, tid int64, set bool) error {
 	return err
 }
 
-// CurrentTask is db.current_task.
+// CurrentTask is the board task the agent holds now; ok is false when it holds none.
 func CurrentTask(q Q, agent string) (int64, bool, error) {
 	var n sql.NullInt64
 	err := q.QueryRow("SELECT current_task FROM agent_state WHERE agent = ?", agent).Scan(&n)
@@ -111,7 +111,7 @@ func CurrentTask(q Q, agent string) (int64, bool, error) {
 	return n.Int64, n.Valid, err
 }
 
-// SetAgentState is db.set_agent_state; wakeAt 0 and detail "" write NULL. It clears the stall kind and the park reason: SetStalled and
+// SetAgentState writes the agent's state; wakeAt 0 and detail "" write NULL. It clears the stall kind and the park reason: SetStalled and
 // SetParked are the ones that keep one.
 func SetAgentState(q Q, agent, state string, wakeAt int64, detail string) error {
 	return SetParked(q, agent, state, wakeAt, "", detail)
@@ -183,7 +183,7 @@ func (s *AgentState) StallFacts() map[string]string {
 	return out
 }
 
-// SetStateUnlessRunning is db.set_state_unless_running: true only when this call wrote it.
+// SetStateUnlessRunning writes the agent's state unless it is RUNNING, true only when this call wrote it.
 func SetStateUnlessRunning(q Q, agent, state, detail string) (bool, error) {
 	res, err := q.Exec("UPDATE agent_state SET state = ?, wake_at = NULL, detail = ?, updated = ?, stall_kind = NULL, stall_args = NULL, park_reason = NULL WHERE agent = ? AND state != 'RUNNING'",
 		state, nullStr(detail), Now(), agent)
@@ -194,7 +194,7 @@ func SetStateUnlessRunning(q Q, agent, state, detail string) (bool, error) {
 	return n > 0, nil
 }
 
-// SetTerminal is db.set_terminal: where an agent lives; a new agent is IDLE.
+// SetTerminal records where an agent lives (its terminal and worktree); a new agent is IDLE.
 func SetTerminal(q Q, agent, terminal, worktree string) error {
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, terminal, worktree) VALUES(?,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET terminal=excluded.terminal, worktree=excluded.worktree, updated=excluded.updated",
 		agent, "IDLE", Now(), nullStr(terminal), nullStr(worktree))
@@ -204,7 +204,7 @@ func SetTerminal(q Q, agent, terminal, worktree string) error {
 	return RecordTerminal(q, terminal, agent)
 }
 
-// RecordTerminal is db.record_terminal: it remembers a terminal opened for agent ("": opened with no agent), beside the ones it had
+// RecordTerminal remembers a terminal opened for agent ("": opened with no agent), beside the ones it had
 // before. The same terminal named again for the same agent, still open, keeps when it was first opened: a launch names the terminal
 // its spawn has just named.
 func RecordTerminal(q Q, handle, agent string) error {
@@ -250,7 +250,7 @@ func EnsureAgentState(q Q, agent string) error {
 	return err
 }
 
-// SetAccount is db.set_account; source is "recorded" or "assumed".
+// SetAccount records the account the agent runs on; source is "recorded" or "assumed".
 func SetAccount(q Q, agent, account, source string) error {
 	_, err := q.Exec("INSERT INTO agent_state(agent, state, updated, account, account_source) VALUES(?,?,?,?,?) ON CONFLICT(agent) DO UPDATE SET account=excluded.account, account_source=excluded.account_source, updated=excluded.updated",
 		agent, "IDLE", Now(), nullStr(account), source)
@@ -270,7 +270,7 @@ func ReplaceLaunchParts(q Q, agent, was, parts string) error {
 	return err
 }
 
-// SetClosed is db.set_closed: the session was closed, and this is how to get it back.
+// SetClosed records that the session was closed, and this is how to get it back.
 func SetClosed(q Q, agent, session string) error {
 	_, err := q.Exec("UPDATE agent_state SET closed_at = ?, resume_session = ?, updated = ? WHERE agent = ?", Now(), nullStr(session), Now(), agent)
 	return err
@@ -282,13 +282,13 @@ func SetResumeSession(q Q, agent, session string) error {
 	return err
 }
 
-// ForgetResume is db.forget_resume: closed still, with no session to resume.
+// ForgetResume leaves the agent closed still, with no session to resume.
 func ForgetResume(q Q, agent string) error {
 	_, err := q.Exec("UPDATE agent_state SET resume_session = NULL, updated = ? WHERE agent = ?", Now(), agent)
 	return err
 }
 
-// ClearClosed is db.clear_closed: a session runs again, a new process, told its queue afresh unless a tell was recorded after the close.
+// ClearClosed clears the closed mark: a session runs again, a new process, told its queue afresh unless a tell was recorded after the close.
 func ClearClosed(q Q, agent string) error {
 	var closed sql.NullInt64
 	err := q.QueryRow("SELECT closed_at FROM agent_state WHERE agent = ?", agent).Scan(&closed)
@@ -310,7 +310,7 @@ func ClearClosed(q Q, agent string) error {
 
 var counters = map[string]bool{"failed_attempts": true, "continuations": true, "throttle_count": true, "wake_failures": true}
 
-// BumpCounter is db.bump_counter; column is one of the four counters.
+// BumpCounter adds by to one of the agent's four counters, named by column.
 func BumpCounter(q Q, agent, column string, by int64) error {
 	if !counters[column] {
 		return fmt.Errorf("not a counter column: %s", column)
@@ -320,7 +320,7 @@ func BumpCounter(q Q, agent, column string, by int64) error {
 	return err
 }
 
-// ResetCounter is db.reset_counter.
+// ResetCounter sets one of the agent's four counters, named by column, to 0.
 func ResetCounter(q Q, agent, column string) error {
 	if !counters[column] {
 		return fmt.Errorf("not a counter column: %s", column)
@@ -329,7 +329,7 @@ func ResetCounter(q Q, agent, column string) error {
 	return err
 }
 
-// Terminal is db.get_terminal.
+// Terminal is the agent's terminal, "" when none is recorded.
 func Terminal(q Q, agent string) (string, error) {
 	var t sql.NullString
 	err := q.QueryRow("SELECT terminal FROM agent_state WHERE agent = ?", agent).Scan(&t)
@@ -339,7 +339,7 @@ func Terminal(q Q, agent string) (string, error) {
 	return t.String, err
 }
 
-// AgentOfTerminal is db.agent_of_terminal: the agent last recorded in this terminal.
+// AgentOfTerminal is the agent last recorded in this terminal.
 func AgentOfTerminal(q Q, terminal string) (string, error) {
 	var a string
 	err := q.QueryRow("SELECT agent FROM agent_state WHERE terminal = ? ORDER BY updated DESC LIMIT 1", terminal).Scan(&a)
@@ -381,18 +381,18 @@ func kindArgs(prefix []any, kinds []string) []any {
 	return args
 }
 
-// LastActivity is db.last_activity: when the agent last did anything we can see (agent_heard included).
+// LastActivity is when the agent last did anything we can see (agent_heard included).
 func LastActivity(q Q, agent string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(t) FROM (SELECT MAX(ts) AS t FROM events WHERE agent = ? AND kind IN ("+marks(len(ActivityKinds))+
 		") UNION ALL SELECT at FROM agent_heard WHERE agent = ?)", append(kindArgs([]any{agent}, ActivityKinds), agent)...)
 }
 
-// LastActivityBefore is db.last_activity_before: the newest activity event before ts (agent_heard keeps no history).
+// LastActivityBefore is the newest activity event before ts (agent_heard keeps no history).
 func LastActivityBefore(q Q, agent string, ts int64) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM events WHERE agent = ? AND ts < ? AND kind IN ("+marks(len(ActivityKinds))+")", kindArgs([]any{agent, ts}, ActivityKinds)...)
 }
 
-// LastActivityID is db.last_activity_id: the id of the agent's latest event of one of kinds.
+// LastActivityID is the id of the agent's latest event of one of kinds.
 func LastActivityID(q Q, agent string, kinds []string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(id) FROM events WHERE agent = ? AND kind IN ("+marks(len(kinds))+")", kindArgs([]any{agent}, kinds)...)
 }
@@ -400,12 +400,12 @@ func LastActivityID(q Q, agent string, kinds []string) (int64, bool, error) {
 // accountActivitySQL reads through events_account_ts (migration 33), the account's own events only.
 const accountActivitySQL = "SELECT MAX(ts) FROM events WHERE account = ? AND kind IN ('UserPromptSubmit', 'Stop', 'StopFailure', 'PostCompact', 'SessionStart')"
 
-// LastAccountActivity is db.last_account_activity: when a session on the account last took a turn.
+// LastAccountActivity is when a session on the account last took a turn.
 func LastAccountActivity(q Q, account string) (int64, bool, error) {
 	return maxInt(q, accountActivitySQL, account)
 }
 
-// LastEventTS is db.last_event_ts.
+// LastEventTS is when the agent's latest event of kind was.
 func LastEventTS(q Q, agent, kind string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM events WHERE agent = ? AND kind = ?", agent, kind)
 }
@@ -453,12 +453,12 @@ func LastSessionStartTS(q Q, agent string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(ts) FROM session_starts WHERE agent = ?", agent)
 }
 
-// LastEventID is db.last_event_id.
+// LastEventID is the id of the agent's latest event of kind.
 func LastEventID(q Q, agent, kind string) (int64, bool, error) {
 	return maxInt(q, "SELECT MAX(id) FROM events WHERE agent = ? AND kind = ?", agent, kind)
 }
 
-// LastEvent is db.last_event: the id and payload of the agent's latest event of kind; ok is false when there is none. A payload that is
+// LastEvent is the id and payload of the agent's latest event of kind; ok is false when there is none. A payload that is
 // not a JSON object reads as empty.
 func LastEvent(q Q, agent, kind string) (id int64, payload map[string]any, ok bool, err error) {
 	var p sql.NullString
@@ -479,7 +479,7 @@ func LastEvent(q Q, agent, kind string) (id int64, payload map[string]any, ok bo
 	return id, payload, true, nil
 }
 
-// MaxEventID is db.max_event_id: the newest event's id, 0 when there are none.
+// MaxEventID is the newest event's id, 0 when there are none.
 func MaxEventID(q Q) (int64, error) {
 	n, _, err := maxInt(q, "SELECT MAX(id) FROM events")
 	return n, err

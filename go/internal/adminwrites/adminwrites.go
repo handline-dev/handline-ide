@@ -1,5 +1,5 @@
-// Package adminwrites serves the founder's configuration writes (handline/daemon/rpc_schedules.py, rpc_settings.py, rpc_accounts.py,
-// rpc_team.py): schedules, settings, an account's cap and alias. They write files, so an effect and its write_effects
+// Package adminwrites serves the founder's configuration writes:
+// schedules, settings, an account's cap and alias. They write files, so an effect and its write_effects
 // record cannot be one transaction: each writes what a retry writes again and records its result once the write is done.
 package adminwrites
 

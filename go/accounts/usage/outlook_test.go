@@ -15,7 +15,7 @@ func outlookRow(a string, ts int64, short, long int, reset int64) sampleRow {
 	return sampleRow{"account": a, "ts": json.Number(itoa(int(ts))), "windows": string(b)}
 }
 
-// The want points are what outlook.weekly_outlook says for the same rows (a: pace 2 points an hour; b: ends in six hours; c: stale).
+// The want points are the outlook these rows must give (a: pace 2 points an hour; b: ends in six hours; c: stale).
 func TestWeeklyOutlookMatchesThePython(t *testing.T) {
 	now := int64(1_800_000_000)
 	var rows []sampleRow

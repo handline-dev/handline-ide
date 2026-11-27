@@ -34,7 +34,7 @@ var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", 
 var hooksWanted = []string{"SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "PostCompact", "UserPromptSubmit",
 	"PermissionRequest", "TeammateIdle", "Notification", "PostToolUse", "PostToolUseFailure", "PreToolUse"}
 
-// isOurHook is claude_hooks._is_our_hook: `<exe> hook <event>`, the exe being one of ours at any path.
+// isOurHook is whether command is `<exe> hook <event>`, the exe being one of ours at any path.
 func isOurHook(command any, event string) bool {
 	s, ok := command.(string)
 	if !ok {
@@ -44,7 +44,7 @@ func isOurHook(command any, event string) bool {
 	return len(parts) >= 3 && parts[len(parts)-2] == "hook" && parts[len(parts)-1] == event && slices.Contains(paths.Commands, filepath.Base(parts[0]))
 }
 
-// hooksInstalled is rpc_lists._hooks_installed: every event wanted has an entry of ours in the shared settings. A settings file that
+// hooksInstalled is whether every event wanted has an entry of ours in the shared settings. A settings file that
 // cannot be read is "not installed", not a failed call.
 func (e *Env) hooksInstalled() bool {
 	b, err := os.ReadFile(filepath.Join(e.Home, "shared", ".claude", "settings.json"))
@@ -82,7 +82,7 @@ func (e *Env) hooksInstalled() bool {
 	return true
 }
 
-// declaredWorktrees is details.eligible_worktrees' declared half: every registered agent's worktrees inside a root the founder declared.
+// declaredWorktrees is the declared half of the worktrees eligible for trust: every registered agent's worktrees inside a root the founder declared.
 func (e *Env) declaredWorktrees() ([][2]string, error) {
 	trust := team.NewTrust(e.Home)
 	var out [][2]string
@@ -101,7 +101,7 @@ func (e *Env) declaredWorktrees() ([][2]string, error) {
 	return out, nil
 }
 
-// settingsValues is rpc_lists._values: every setting the screen shows, with what it stands at now.
+// settingsValues is every setting the screen shows, with what it stands at now.
 func (e *Env) settingsValues() map[string]any {
 	cfg := usage.LoadConfig(e.Home)
 	s := &settings.Settings{Home: e.Home}

@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// PyRepr is Python's repr of a plain string, for the messages that quote one.
+// PyRepr quotes s for the messages that quote one: in single quotes, or double when s has a ' and no ",
+// with backslash, \n, \r, \t and the quote escaped and other control characters and DEL as \xNN.
 func PyRepr(s string) string {
 	q := "'"
 	if strings.Contains(s, "'") && !strings.Contains(s, `"`) {

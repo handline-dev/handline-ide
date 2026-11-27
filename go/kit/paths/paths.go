@@ -1,4 +1,4 @@
-// Package paths is the layout of the handline home, as handline/infra/paths.py has it.
+// Package paths is the layout of the handline home.
 package paths
 
 import (
@@ -63,7 +63,7 @@ func Home() string {
 func DBFile(home string) string     { return filepath.Join(home, "db.sqlite") }
 func SocketFile(home string) string { return filepath.Join(home, "daemon.sock") }
 
-// Commands is the command, main name first (handline/infra/names.py).
+// Commands is the command, main name first.
 var Commands = []string{"hl", "handline"}
 
 // Setenv sets HANDLINE_<suffix> in env.

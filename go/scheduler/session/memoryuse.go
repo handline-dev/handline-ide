@@ -25,8 +25,7 @@ func memoryDir(home, agent string) string {
 	return filepath.Join(paths.AgentDir(home, agent), "memory")
 }
 
-// memoryRel is the path a tool call names, relative to the agent's memory folder; ok false when it names something else
-// (memoryuse._relative).
+// memoryRel is the path a tool call names, relative to the agent's memory folder; ok false when it names something else.
 func memoryRel(home, agent string, input map[string]any) (string, bool) {
 	path, _ := input["file_path"].(string)
 	if path == "" {
@@ -43,7 +42,7 @@ func memoryRel(home, agent string, input map[string]any) (string, bool) {
 const renoteS = 24 * 3600
 
 // NoteMemoryUse records that the agent read or wrote one of its memory files, the index aside, in
-// agents/<name>/memory-use.json ({path relative to the folder: unix seconds}), for `hl memory status` (memoryuse.note_use).
+// agents/<name>/memory-use.json ({path relative to the folder: unix seconds}), for `hl memory status`.
 // The read-modify-write holds a lock that waits, as two PostToolUse hooks of one turn can run at once.
 func NoteMemoryUse(home, agent, tool string, toolInput any, now int64) error {
 	input, ok := toolInput.(map[string]any)
@@ -73,7 +72,7 @@ func NoteMemoryUse(home, agent, tool string, toolInput any, now int64) error {
 	if v, ok := used[rel]; ok {
 		then, ok := wholeSeconds(v)
 		if !ok {
-			return fmt.Errorf("%s: %v is not a time", rel, v) // Python's int() raises, and its hook writes nothing
+			return fmt.Errorf("%s: %v is not a time", rel, v) // the file is left as it is
 		}
 		if now-then < renoteS {
 			return nil
@@ -83,7 +82,8 @@ func NoteMemoryUse(home, agent, tool string, toolInput any, now int64) error {
 	return atomicfile.Write(f, indented(used, "")+"\n")
 }
 
-// wholeSeconds is int(v or 0) for a value read with UseNumber: ok false where Python's int() would raise.
+// wholeSeconds reads a stored time (decoded with UseNumber) as whole seconds: null, false, "", [] and {} are 0, true is 1,
+// a number is truncated, a string must be an integer; ok false for anything else.
 func wholeSeconds(v any) (int64, bool) {
 	switch x := v.(type) {
 	case nil:
@@ -112,7 +112,7 @@ func wholeSeconds(v any) (int64, bool) {
 	return 0, false
 }
 
-// indented is json.dumps(v, sort_keys=True, indent=1) at this indent.
+// indented is v as JSON with sorted keys, each level one space deeper than at.
 func indented(v any, at string) string {
 	in := at + " "
 	switch x := v.(type) {

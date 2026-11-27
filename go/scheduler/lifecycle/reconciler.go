@@ -32,20 +32,20 @@ func TrustStallPrefixes(agent string) []string {
 
 // ReconcilerPorts is everything the startup pass and the sweep reach that another group owns.
 type ReconcilerPorts struct {
-	Agents           func() []string                                                                // agents.driven
-	Registered       func() ([]string, error)                                                       // paths.list_agents, which raises where the listing cannot be read
-	Observe          func(agents []string, terminals map[string]string) map[string]session.Observed // session/observe.observe
+	Agents           func() []string                                                                // the agents the daemon drives
+	Registered       func() ([]string, error)                                                       // the registered agents, an error where the listing cannot be read
+	Observe          func(agents []string, terminals map[string]string) map[string]session.Observed // what the process table shows of each agent's session
 	NoteSeen         func(seen map[string]session.Observed, at time.Time)                           // delivery's last look at the table
-	ResumeHandoff    func(q db.Q, h db.HandoffRow) error                                            // handoff.resume_handoff
-	EnforceEdges     func(q db.Q, agent string) error                                               // delivery.enforce_edges
-	WaitingFor       func(q db.Q, agent string) (bool, error)                                       // lifecycle.waiting_for
-	WakeAgent        func(q db.Q, agent string) (bool, string, error)                               // lifecycle.wake_agent
-	QueuedOrIdle     func(q db.Q, agent, why string) (string, error)                                // evaluate.queued_or_idle: the state it chose
-	RefreshView      func(q db.Q, agent string)                                                     // agentview.refresh_one
-	LiftLogin        func(q db.Q, agent string, row *db.AgentState, actions *[]string)              // login_expired.lift
-	StillDrawn       func(handle string) bool                                                       // delivery.session_still_drawn(wait=False)
+	ResumeHandoff    func(q db.Q, h db.HandoffRow) error                                            // finishes a handoff from the step it reached
+	EnforceEdges     func(q db.Q, agent string) error                                               // denies waiting requests the routing table does not allow
+	WaitingFor       func(q db.Q, agent string) (bool, error)                                       // whether anything waits to be told to the agent
+	WakeAgent        func(q db.Q, agent string) (bool, string, error)                               // wakes the agent: whether it started, and what was said
+	QueuedOrIdle     func(q db.Q, agent, why string) (string, error)                                // sets the agent queued or idle: the state it chose
+	RefreshView      func(q db.Q, agent string)                                                     // rewrites the agent's view
+	LiftLogin        func(q db.Q, agent string, row *db.AgentState, actions *[]string)              // releases an agent stalled with its account once the account's stall ends
+	StillDrawn       func(handle string) bool                                                       // whether the session is still on screen, asked without waiting
 	ResumableSession func(q db.Q, agent string) string                                              // the session id to remember for a closed agent
-	Resolve          func(id int64, why string) error                                               // ask.resolve(done, no notice)
+	Resolve          func(id int64, why string) error                                               // closes a request as done, with no notice
 	Term             interface {
 		Available() bool
 		TrustPromptGone(handle string) bool
@@ -55,7 +55,7 @@ type ReconcilerPorts struct {
 	Now func() int64
 }
 
-// Reconciler is daemon/reconciler.py: the startup pass and the per-tick sweep.
+// Reconciler is the startup pass and the per-tick sweep that hold each agent's recorded state to its session.
 type Reconciler struct {
 	Q     db.Q
 	Log   func(string)
@@ -67,7 +67,7 @@ type Reconciler struct {
 }
 
 // ownFailure is an error that belongs to one agent - its unreadable row or a file it needs - as against the daemon's own fault,
-// which the pass keeps propagating: the class Python's reconcile catches (ConfigError, UnicodeDecodeError, OSError).
+// which the pass keeps propagating: a ConfigError or a file system or system call error.
 func ownFailure(err error) bool {
 	var cfg *ConfigError
 	var pathErr *fs.PathError

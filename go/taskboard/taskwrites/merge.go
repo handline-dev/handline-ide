@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// mergeMethod is task.merge (actions.merge_tasks), anyone's call: each named task's title is added to the kept one's, its requests,
+// mergeMethod is task.merge, anyone's call: each named task's title is added to the kept one's, its requests,
 // sub-tasks, memos and the tasks waiting on it move to the kept task, and it closes as merged into it. All or none. The opener and assignee
 // of every task in it are told.
 func mergeMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, error) {
@@ -125,7 +125,7 @@ func mergeRowOf(tx *sql.Tx, tid int64) (*mergeRow, error) {
 	return r, err
 }
 
-// mergeChecks is _merge_checks: the refusal, if any, and the rows to fold, read in the merge's own transaction.
+// mergeChecks is the refusal, if any, and the rows to fold, read in the merge's own transaction.
 func mergeChecks(tx *sql.Tx, keep int64, others []int64) (*mergeRow, []*mergeRow, error) {
 	keepRow, err := mergeRowOf(tx, keep)
 	if err != nil {
@@ -170,7 +170,7 @@ func mergeChecks(tx *sql.Tx, keep int64, others []int64) (*mergeRow, []*mergeRow
 	return keepRow, rows, nil
 }
 
-// mergeRefusal is _merge_refusal: why `r` cannot be folded into `keep`, or "".
+// mergeRefusal is why `r` cannot be folded into `keep`, or "".
 func mergeRefusal(tx *sql.Tx, keep, r *mergeRow) (string, error) {
 	if r.Discarded {
 		return fmt.Sprintf("task T%d is already discarded", r.ID), nil
@@ -218,7 +218,7 @@ func mergeRefusal(tx *sql.Tx, keep, r *mergeRow) (string, error) {
 	return "", nil
 }
 
-// isUnder is _under: ancestor is tid itself or somewhere up its parent chain.
+// isUnder is whether ancestor is tid itself or somewhere up its parent chain.
 func isUnder(tx *sql.Tx, tid, ancestor int64) (bool, error) {
 	seen := map[int64]bool{}
 	for tid != 0 && !seen[tid] {
@@ -236,12 +236,12 @@ func isUnder(tx *sql.Tx, tid, ancestor int64) (bool, error) {
 	return false, nil
 }
 
-// blocksOn is db.blocks_on_ids: every edge tid itself names, closed blockers too.
+// blocksOn is every task tid waits on by an edge of its own, closed blockers too.
 func blocksOn(tx *sql.Tx, tid int64) ([]int64, error) {
 	return db.IDs(tx, "SELECT blocks_on FROM task_blocks WHERE task_id = ?", tid)
 }
 
-// blockedByCycle is _blocked_by_cycle: tid waiting on `on` would close a loop.
+// blockedByCycle is whether tid waiting on `on` would close a loop.
 func blockedByCycle(tx *sql.Tx, tid, on int64, seen map[int64]bool) (bool, error) {
 	if on == tid {
 		return true, nil
@@ -262,7 +262,7 @@ func blockedByCycle(tx *sql.Tx, tid, on int64, seen map[int64]bool) (bool, error
 	return false, nil
 }
 
-// moveTaskLinks is db.move_task_links: tid's requests, sub-tasks, memos and the edges naming it go to `into`.
+// moveTaskLinks moves tid's links: its requests, sub-tasks, memos and the edges naming it go to `into`.
 func moveTaskLinks(tx *sql.Tx, tid, into int64) error {
 	for _, q := range []struct {
 		sql  string

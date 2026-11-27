@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// The expected answers were read off the Python cycle module for the same settings (the moments are local midnights).
+// The expected answers are fixed for these settings (the moments are local midnights).
 func TestEndOfAndWarnDaysAgreeWithPython(t *testing.T) {
 	cfg := Config{"month_cycle_a": true, "sub_end_a": "2026-10-22", "month_cycle_b": false, "sub_end_b": "2026-10-22", "sub_end_c": "2026-11-30",
 		"month_cycle_d": true, "sub_end_d": "garbage", "cycle_warn_days": 5}

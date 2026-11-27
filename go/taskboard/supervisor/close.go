@@ -10,7 +10,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// Taking a request out of the queue: withdraw, cancel, retire, resolve (team/ask.py). Each is a write on the Q the caller holds (a
+// Taking a request out of the queue: withdraw, cancel, retire, resolve. Each is a write on the Q the caller holds (a
 // transaction) and a tell to run once it has committed.
 
 // WithdrawWrite takes back your own request before it has been delivered. reason is stored as the row's verdict. effect is the
@@ -312,8 +312,8 @@ func (e *Env) ResolveTell(q db.Q, r *Resolved) (string, error) {
 	return msg, nil
 }
 
-// Resolve is ResolveWrite and ResolveTell in one, on the Q given: on the database each statement commits, as the Python resolve does when it
-// has no effect or tasks to open. With either, the caller holds a transaction and uses the halves.
+// Resolve is ResolveWrite and ResolveTell in one, on the Q given: on the database each statement commits on its own, which serves
+// when there is no effect or tasks to open. With either, the caller holds a transaction and uses the halves.
 func (e *Env) Resolve(q db.Q, in ResolveIn) (bool, string, error) {
 	if in.OpenTasks != nil || in.Effect != nil {
 		return false, "", fmt.Errorf("Resolve with OpenTasks or Effect needs a transaction: use ResolveWrite and ResolveTell")

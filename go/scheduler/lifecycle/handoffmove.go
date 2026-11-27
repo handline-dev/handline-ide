@@ -13,7 +13,7 @@ import (
 	"github.com/handline/handline/go/scheduler/staymove"
 )
 
-// The triggers a move answers (daemon/handoff.py): the two walls, a person's order, a login that expired, a subscription that ended, and
+// The triggers a move answers: the two walls, a person's order, a login that expired, a subscription that ended, and
 // a pause.
 const (
 	LoginTrigger  = "login"
@@ -22,7 +22,8 @@ const (
 	ClearWaitS    = 300
 )
 
-// MovableTrigger is handoff.MOVABLE_TRIGGERS.
+// MovableTrigger is whether a trigger of this kind may be answered by a move to another account: a usage wall, a person's order,
+// a login that expired, a subscription that ended or a pause.
 func MovableTrigger(kind string) bool {
 	return kind == "usage" || kind == "usage_7d" || kind == states.EarlyUsageTrigger || kind == "forced" || kind == LoginTrigger ||
 		kind == EndedTrigger || kind == PausedTrigger
@@ -65,14 +66,14 @@ type Windows struct {
 
 // MoveEnv is what a handoff and a move read beyond the lifecycle: usage, the note, and the policy's pure functions.
 type MoveEnv struct {
-	// Reading is agents.account_reading: the account and how it is known ("recorded", "reported" or "assumed").
+	// Reading is which account the agent's usage is landing on and how that is known ("recorded", "reported" or "assumed").
 	Reading func(q db.Q, agent string) (account, source string, ok bool)
 	Windows func(acct string) Windows
-	// ColdStartPct is measure.cold_start_pct, nil when nothing was measured.
+	// ColdStartPct is the median share of the short window a fresh session's first turn has cost lately, nil when too few were measured.
 	ColdStartPct func(q db.Q) *float64
 	// AtLimit is when the agent's last turn ended on a usage limit, ok false when it did not.
 	AtLimit func(q db.Q, agent string) (at int64, ok bool)
-	// NoteHold is handoff_note.hold for a move of this trigger kind: the ask is out and the note not yet in.
+	// NoteHold is whether the handoff note holds a move of this trigger kind: the ask is out and the note not yet in.
 	NoteHold func(q db.Q, agent, kind string, now int64) bool
 	// NoteWritten is whether the agent wrote its handoff note for this stretch; nil for never.
 	NoteWritten func(agent string) bool
@@ -88,7 +89,7 @@ type MoveEnv struct {
 	WakeAfter  func(kind string, shortReset, longReset, now int64) int64
 }
 
-// Mover is daemon/handoff.py: the handoff, the move to another account and the clear that is owed. When each happens is Python's; how is
+// Mover is the handoff, the move to another account and the clear that is owed. When each happens is its caller's; how is
 // not: nothing is typed, a close is proven by the process group (a terminal's by its pane and the session's pid), and a cleared context is
 // a closed session whose next start is fresh from the record.
 type Mover struct {
@@ -130,7 +131,7 @@ func lastLeft(q db.Q, agent string) string {
 
 // MovePlan is an agent at the wall: stay, or move and where to. (destination, why). Stay when nothing waits for it (a wake, starting, is
 // itself the work) or its own account resets before a cold start would pay back and within the prompt cache's life, past which a resume
-// pays for its context in full anyway; otherwise the room test the closed-agent wake already uses (Launcher.full over the other accounts),
+// pays for its context in full anyway; otherwise the room test the closed-agent wake already uses (Launcher.RoomElsewhere over the other accounts),
 // never back to the account it just left before that resets, so one wall is one move.
 func (v *Mover) MovePlan(agent, kind string, starting bool) (dest, why string, err error) {
 	defer catch(&err)
@@ -486,7 +487,7 @@ func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
 
 func (v *Mover) clearOwed(agent string) int64 { return must(db.Cursor(v.M.Q, "clear_owed:"+agent)) }
 
-// ClearNotice is what the agent is told when its clear waits for background work (delivery.CLEAR_NOTICE).
+// ClearNotice is what the agent is told when its clear waits for background work.
 const ClearNotice = "handline: your context is full (%s), so this session will be cleared in %d minutes. No reply is needed. Before then: 1. Stop your background shells. Anything still running at that time is cut off. 2. If you were waiting on a result, write what was running and what is left in: hl progress \"done: ... left: ...\" - the next session starts from that note. 3. Do not start new work or new background jobs. When your background work has ended, the clear happens at once."
 
 // reclaim returns the context: the session is closed (closeFor kind) and the park's wake starts the next one. Work the session still runs

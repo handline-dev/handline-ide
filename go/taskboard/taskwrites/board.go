@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/kit/pyjson"
 )
 
-// The board's facts, read in the transaction of the write that needs them (handline/actions/tasks.py).
+// The board's facts, read in the transaction of the write that needs them.
 
 // task is the columns of a task row the writes read.
 type task struct {
@@ -41,7 +41,7 @@ func getTask(tx *sql.Tx, tid int64) (*task, error) {
 
 func (t *task) done() bool { return t.DoneEvidence.Valid && t.DoneEvidence.String != "" }
 
-// reporter is db.task_reporter: who the task answers to, its opener when none was set.
+// reporter is who the task answers to, its opener when none was set.
 func (t *task) reporter() string {
 	if t.Reporter.String != "" {
 		return t.Reporter.String
@@ -50,7 +50,7 @@ func (t *task) reporter() string {
 }
 
 // asker is who the task answers to when it closes: its reporter when one was set; else the founder if any request linked to
-// it came from the founder, else whoever opened it (task_asker).
+// it came from the founder, else whoever opened it.
 func asker(tx *sql.Tx, t *task) (string, error) {
 	if t.Reporter.String != "" {
 		return t.Reporter.String, nil
@@ -93,7 +93,7 @@ func newestRequest(tx *sql.Tx) (int64, error) {
 	return n, err
 }
 
-// kv is one key and value of an event payload: the keys go out in the order given, as a Python dict's insertion order does.
+// kv is one key and value of an event payload: the keys go out in the order given.
 type kv struct {
 	K string
 	V any
@@ -112,7 +112,7 @@ func reportDormant(tx *sql.Tx, by, holder string, went [][2]int64) error {
 	return nil
 }
 
-// addEvent appends an event as db.add_event does, its payload written in the order of `payload`.
+// addEvent appends an event as db.AddEvent does, its payload written in the order of `payload`.
 func addEvent(tx *sql.Tx, agent, kind string, payload ...kv) error {
 	var p any
 	if len(payload) > 0 {

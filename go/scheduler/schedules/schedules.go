@@ -1,4 +1,4 @@
-// Package schedules is daemon/schedules.py's runner: messages the daemon types at an agent on a cron schedule, set per agent.
+// Package schedules runs the messages the daemon types at an agent on a cron schedule, set per agent.
 //
 // An agent must not schedule its own wakeups (a loop dies with its session), so the daemon does it. When a schedule comes due the message
 // is typed like a say. A schedule that fell due while the agent was RUNNING waits for it to stop; several missed times are one message, and
@@ -29,7 +29,7 @@ type Runner struct {
 	Log func(string)
 }
 
-// Sweep is schedules.sweep: one agent's schedule failing, by error or by panic, is not the tick's.
+// Sweep runs every agent's schedules; one agent's schedule failing, by error or by panic, is not the tick's.
 func (r *Runner) Sweep(now int64) error {
 	for _, agent := range r.Agents() {
 		if err := r.sweepAgent(agent, now); err != nil {

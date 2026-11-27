@@ -8,7 +8,7 @@ import (
 )
 
 // operationGet is operation.get: an operation's row. A row still `running` whose operation this process is not running was left by a
-// daemon that stopped: it is reported `failed`, as Python reports one whose daemon died; the row is not rewritten.
+// daemon that stopped: it is reported `failed`; the row is not rewritten.
 func (e *Env) operationGet(_ *rpc.Conn, params map[string]any) (any, error) {
 	op, _ := params["operation"].(string)
 	if op == "" {

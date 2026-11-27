@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/timefmt"
 )
 
-// Background work behind a session's prompt, and a resolve nobody wrote (daemon/delivery.py).
+// Background work behind a session's prompt, and a resolve nobody wrote.
 
 const (
 	// NudgeAfterS: an agent is asked to resolve the request at the head of its queue once it has been idle this long with nothing of its own
@@ -193,7 +193,7 @@ func (e *Env) bgStale(q db.Q, agent string, now int64) bool {
 }
 
 // BgMayStop: an agent that owes nothing is told to finish or stop the work, and shown nothing for its grace window since. Any other: stale, and
-// told to its supervisor at least StaleBgVetoS ago. Never an agent whose close timeout is NEVER, the veto.
+// told to its supervisor at least StaleBgVetoS ago. Never an agent whose close timeout is never, the veto.
 func (e *Env) bgMayStop(q db.Q, agent string, now int64) bool {
 	if e.Idle.CloseTimeoutS(agent) == e.Idle.Never() {
 		return false

@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// progress keeps or shows the agent's note on its request in progress (cli/task.py cmd_progress).
+// progress keeps or shows the agent's note on its request in progress.
 func progress(c *hlclient.Client, args []string) (int, bool) {
 	params, args, ok := progressCount(args)
 	if !ok || len(args) > 1 || !plain(args) || (params != nil && len(args) == 0) {

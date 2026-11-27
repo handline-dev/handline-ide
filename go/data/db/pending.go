@@ -9,7 +9,7 @@ type Pending struct {
 	Text   string
 }
 
-// AddPending is db.add_pending.
+// AddPending keeps text owed to agent's terminal, stamped ts, and answers its id.
 func AddPending(q Q, agent, text string, ts int64) (int64, error) {
 	res, err := q.Exec("INSERT INTO pending_messages(agent, text, ts) VALUES(?,?,?)", agent, text, ts)
 	if err != nil {
@@ -18,7 +18,7 @@ func AddPending(q Q, agent, text string, ts int64) (int64, error) {
 	return res.LastInsertId()
 }
 
-// GetPending is db.get_pending: nil once it has been typed and deleted.
+// GetPending is the pending message with this id, nil once it has been typed and deleted.
 func GetPending(q Q, id int64) (*Pending, error) {
 	p := &Pending{}
 	err := q.QueryRow("SELECT id, agent, text, ts FROM pending_messages WHERE id = ?", id).Scan(&p.ID, &p.Agent, &p.Text, &p.TS)
@@ -28,7 +28,7 @@ func GetPending(q Q, id int64) (*Pending, error) {
 	return p, err
 }
 
-// ListPending is db.list_pending, oldest first: one agent's, or everyone's when agent is "".
+// ListPending is the pending messages, oldest first: one agent's, or everyone's when agent is "".
 func ListPending(q Q, agent string) ([]*Pending, error) {
 	query, args := "SELECT id, agent, text, ts FROM pending_messages ORDER BY id", []any(nil)
 	if agent != "" {
@@ -50,7 +50,7 @@ func ListPending(q Q, agent string) ([]*Pending, error) {
 	return out, rows.Err()
 }
 
-// DeletePending is db.delete_pending.
+// DeletePending deletes the pending message with this id.
 func DeletePending(q Q, id int64) error {
 	_, err := q.Exec("DELETE FROM pending_messages WHERE id = ?", id)
 	return err

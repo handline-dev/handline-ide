@@ -14,7 +14,7 @@ import (
 	"github.com/handline/handline/go/kit/textsafe"
 )
 
-// The words typed at an agent (daemon/delivery.py: tell_text, batch_text, answers_text and what they are built from).
+// The words typed at an agent: a tell, a batch of notices, the answers, and what they are built from.
 
 const (
 	// TitleShown is how much of a handed-off task's title a tell shows.
@@ -97,7 +97,7 @@ func inReplyTo(q db.Q, r *db.Request) string {
 	return fmt.Sprintf("in reply to %s%s", parent.Name(q), first)
 }
 
-// splitLines is Python's str.splitlines for the separators a request body holds.
+// splitLines splits at \n, \r\n and \r, with no empty last line for a trailing break.
 func splitLines(s string) []string {
 	if s == "" {
 		return nil

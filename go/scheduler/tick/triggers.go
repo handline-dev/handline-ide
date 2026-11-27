@@ -1,5 +1,5 @@
-// Package tick is the daemon's tick: what one pass decides for each agent and the passes that follow (session/triggers.py,
-// daemon/evaluate.py and the small policies it calls). Everything it touches that another package owns it reaches through the
+// Package tick is the daemon's tick: what one pass decides for each agent and the passes that follow (the triggers, the
+// evaluation and the small policies it calls). Everything it touches that another package owns it reaches through the
 // interfaces in ports.go; tests use fakes.
 package tick
 
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// The numbers the triggers and the account pick are made from (session/triggers.py).
+// The numbers the triggers and the account pick are made from.
 const (
 	// ContextClampFraction holds an agent's context threshold (team.ContextTokens or its own context_tokens) to this share of a model's
 	// window when the window is known.

@@ -1,4 +1,4 @@
-// Package timefmt writes times and lengths of time one way everywhere (handline/infra/timefmt.py).
+// Package timefmt writes times and lengths of time one way everywhere.
 package timefmt
 
 import (
@@ -56,7 +56,7 @@ func ParseSpan(text string) (int64, error) {
 	return n * unit, nil
 }
 
-// Layouts for Stamp: the date and time, the month, day and time, and the clock (handline/infra/timefmt.py DATE_TIME, SHORT, CLOCK).
+// Layouts for Stamp: the date and time, the month, day and time, and the clock.
 const (
 	DateTime = "2006-01-02 15:04"
 	Short    = "01-02 15:04"

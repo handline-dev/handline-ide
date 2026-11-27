@@ -32,8 +32,7 @@ import (
 )
 
 // This file builds the policy tick. With TickConfig.Terminals it supervises the terminal agents, reading their sessions from
-// <config dir>/sessions/<pid>.json, and a Python daemon must not tick the same agents then. Folding the day is a
-// model call that stays the Python daemon's.
+// <config dir>/sessions/<pid>.json. Folding the day is a model call and is not part of this tick.
 
 // Tick is the policy tick and what it needs beside the lifecycle.
 type Tick struct {
@@ -42,7 +41,7 @@ type Tick struct {
 
 	dev       *tick.DevMode
 	restarted bool
-	// Startup is loop.py's start, run once before the first tick: reconcile, bring up the agents with work waiting, settle old messages,
+	// Startup is the daemon's start, run once before the first tick: reconcile, bring up the agents with work waiting, settle old messages,
 	// and try every pending one.
 	Startup func()
 	// gates opens the gate tasks on its own clock until its stop closes, which Start does when the loop ends.
@@ -62,7 +61,7 @@ type TickConfig struct {
 	Stop <-chan struct{}
 	Why  func() string
 	// Terminals puts the terminal agents under this tick: it wakes, closes, restarts and hands off their sessions. Their agent_view rows
-	// stay the Python daemon's until the view covers them.
+	// are not written by this tick.
 	Terminals bool
 }
 
@@ -195,7 +194,7 @@ type startPorts struct {
 	Reload       func() error
 }
 
-// runStartup is loop.py's start, in its order: reconcile; settle what a send cut off by the stop left (a say marked delivered with no send
+// runStartup is the daemon's start, in this order: reconcile; settle what a send cut off by the stop left (a say marked delivered with no send
 // record, a request told but never marked typed) so that it goes first, to agents already free; start the agents with work waiting and no session; retry every pending
 // message. A reconcile that fails ends the start: starting agents on state it did not settle would act on a wrong picture.
 func runStartup(log func(string), s startPorts) {
@@ -411,7 +410,7 @@ func (t tickUsage) fillFromSession(agent, acct string, st *tick.Status) {
 	}
 }
 
-// ContextLimit is status.effective_context_limit: the agent's own figure, held to a share of the model's window when the window is known.
+// ContextLimit is the context limit an agent works to: its own figure, held to a share of the model's window when the window is known.
 func (t tickUsage) ContextLimit(agent, modelID string) int {
 	cfg, _ := t.roster.Read(agent)
 	limit := int(team.ContextTokensOf(cfg))
@@ -448,7 +447,7 @@ func (t tickUsage) AtLimit(q db.Q, agent string) *tick.Limit {
 
 func (t tickUsage) Settle(q db.Q, agent string) { t.u.SettleColdStart(q, agent) }
 
-// tickDelivery is tick.Delivery over the supervisor's delivery; a call that fails says nothing, as Python's does.
+// tickDelivery is tick.Delivery over the supervisor's delivery; a call that fails says nothing.
 type tickDelivery struct{ env *supervisor.Env }
 
 func (d tickDelivery) EnforceEdges(q db.Q, agent string) error {

@@ -12,13 +12,13 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// progressMax is handoff.PROGRESS_MAX: the note is typed into a fresh session, so it stays short.
+// progressMax is the longest progress note kept: the note is typed into a fresh session, so it stays short.
 const progressMax = 1500
 
 func taskProgressKey(tid int64) string    { return fmt.Sprintf("progress-task:%d", tid) }
 func requestProgressKey(rid int64) string { return fmt.Sprintf("progress:%d", rid) }
 
-// setProgress is handoff.set_progress: the note goes on the agent's delivered request (its effective head), else on the task it holds,
+// setProgress keeps an agent's progress note: it goes on the agent's delivered request (its effective head), else on the task it holds,
 // else on the agent. An empty note clears it. It answers where it was kept.
 func setProgress(tx *sql.Tx, agent, note string) (string, error) {
 	head, err := db.EffectiveHead(tx, agent)

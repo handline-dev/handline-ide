@@ -16,7 +16,7 @@ import (
 	"github.com/handline/handline/go/kit/storetest"
 )
 
-// status_cases.json is what the Python status module said about each case (its generator is gone; edit it by hand); the Go port must say the same.
+// status_cases.json holds the fixed expected status of each case (edit it by hand); Read must say the same.
 
 type fixture struct {
 	Now   int64        `json:"now"`
@@ -110,7 +110,7 @@ func testEnv(home string, now int64) *Env {
 		LoginState: func(string) (bool, bool) { return true, true }}
 }
 
-// load is the fixture's load with the launch pace hold on, as the Python daemon always held.
+// load is the fixture's load with the launch pace hold on.
 func (s loadSpec) load(acct string, e *Env) *Load {
 	return &Load{Account: acct, Active: s.Active, Burn: s.Burn, Costs: costsAt(s.Samples, s.Ratios, acct)}
 }
@@ -226,7 +226,7 @@ func normalized(t *testing.T, v any) any {
 	return out
 }
 
-// zeroResetIsNone: Python keeps a reset of 0 as 0 and a missing one as None; both mean "no reset" everywhere they are read.
+// zeroResetIsNone reads a reset of 0 as a missing one (null): both mean "no reset" everywhere they are read.
 func zeroResetIsNone(v any) {
 	switch x := v.(type) {
 	case map[string]any:
@@ -254,7 +254,7 @@ func TestStatusMatchesPython(t *testing.T) {
 			st := e.Read("a")
 			got := normalized(t, describeGo(st, c.Load.load("a", e), float64(f.Now)))
 			want := normalized(t, c.Expect)
-			// Python's unfit was the cap and the launch hold; neither keeps a start off since T9103 (Unfit is the wall alone).
+			// The fixture's unfit counts the cap and the launch hold; neither keeps a start off any more (Unfit is the wall alone).
 			delete(want.(map[string]any), "unfit")
 			delete(want.(map[string]any), "unfit_agent")
 			if !reflect.DeepEqual(got, want) {

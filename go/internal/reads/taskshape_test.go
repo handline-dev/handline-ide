@@ -7,7 +7,7 @@ import (
 	"github.com/handline/handline/go/internal/contracttest"
 )
 
-// The Python CLI reads these keys unguarded, so every one of the contract's Task must be on the row.
+// Clients read these keys unguarded, so every one of the contract's Task must be on the row.
 func TestATaskRowCarriesEveryKeyOfTheContractTask(t *testing.T) {
 	t.Parallel()
 	raw := contracttest.Spec(t)
@@ -52,7 +52,7 @@ func TestATaskRowCarriesEveryKeyOfTheContractTask(t *testing.T) {
 	}
 }
 
-// Python names the request out; it has no text for a draft whose request is gone, so Go's is the same words without the number.
+// A mismatch names the request; a draft whose request is gone gets the same words without the number.
 func TestAMismatchNamesTheRequestOutAndASettledOneLeavesTheNumberOut(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// The want figures are what handline/usage/prices.py says for the same tokens.
+// The want figures are the fixed list-price costs of these tokens.
 func TestCostMatchesThePythonTable(t *testing.T) {
 	tok := Tokens{Inp: 1000, CC: 2000, CR: 300000, Out: 500, Thinking: 200}
 	for model, want := range map[string]float64{

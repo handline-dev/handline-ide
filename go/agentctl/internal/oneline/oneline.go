@@ -18,7 +18,7 @@ func isControl(r rune) bool {
 	return (r >= 0 && r < 0x09) || (r >= 0x0b && r < 0x20) || (r >= 0x7f && r < 0xa0)
 }
 
-// splitLines is str.splitlines: a break is any of \n \r \r\n \v \f the FS-US separators, NEL, U+2028 and U+2029.
+// splitLines is s cut into lines: a break is any of \n \r \r\n \v \f the FS-US separators, NEL, U+2028 and U+2029.
 func splitLines(s string) []string {
 	var out []string
 	var cur strings.Builder

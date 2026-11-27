@@ -18,7 +18,7 @@ import (
 	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
-// authStatusTimeout is how long `claude auth status` may take (the Python vendor's ten seconds).
+// authStatusTimeout is how long `claude auth status` may take.
 const authStatusTimeout = 10 * time.Second
 
 // founderAsker is subscriptions.Asker: a decision for the founder, opened by agent.
@@ -68,7 +68,7 @@ func (p vendorPlans) Recorded(acct string) (string, bool) {
 	return team.Accounts{Home: p.home}.RecordedSubscriptionType(acct)
 }
 
-// Refresh is accounts.subscription_type(refresh=True): a reading that cannot be taken leaves what is recorded.
+// Refresh reads the account's subscription type anew from the claude CLI: a reading that cannot be taken leaves what is recorded.
 func (p vendorPlans) Refresh(acct string) (string, error) {
 	recorded, _ := p.Recorded(acct)
 	if !(team.Accounts{Home: p.home}).LoggedIn(acct) || team.AccountVendor(p.home, acct) != team.DefaultVendor {

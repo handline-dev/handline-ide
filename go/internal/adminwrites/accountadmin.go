@@ -14,7 +14,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// account.add and account.remove (handline/team/accounts.py add_account, remove_account): the account's directory made and linked to the
+// account.add and account.remove: the account's directory made and linked to the
 // shared files with nothing logged in, and the sequence of `hl account remove`. The login is account.login's; trusting the agents'
 // worktrees on the new account is settings.trust's.
 

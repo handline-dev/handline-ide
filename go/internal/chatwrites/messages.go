@@ -12,7 +12,7 @@ import (
 	"github.com/handline/handline/go/taskboard/supervisor"
 )
 
-// say, ask, push, push.answer, push.cancelled and progress.get (handline/daemon/rpc_messages.py, rpc_taskverbs.py): an agent's messages and the
+// say, ask, push, push.answer, push.cancelled and progress.get: an agent's messages and the
 // nudges typed after them. The message and the daemon's record of it are one transaction; the typing follows the commit.
 
 func (w *writes) registerMessages(s *rpc.Server) {

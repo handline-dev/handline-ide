@@ -13,10 +13,10 @@ import (
 )
 
 // recordSkewS is how far a window's reset may be in the past before the window counts as ended: the reset is the server's and the
-// comparison is against a local clock, so the slack is for ordinary skew (usage_api.CLOCK_SKEW_S).
+// comparison is against a local clock, so the slack is for ordinary skew.
 const recordSkewS = 60
 
-// Record leaves a reading where every reader already looks (usage_api.record): the account's status file, merged into what is there,
+// Record leaves a reading where every reader already looks: the account's status file, merged into what is there,
 // so a session's id, transcript pointer and context figures survive. A first-hand reading is the authority for its window, so it
 // replaces the held figure even when lower with the same reset (the vendor can reset a limit early and keep the reset time); only a
 // figure observed after this reading is kept. It reports whether the file was written.

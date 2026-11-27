@@ -1,7 +1,6 @@
-// Package reads serves the daemon's read methods from the same sqlite database the Python daemon uses:
+// Package reads serves the daemon's read methods from the daemon's sqlite database:
 // daemon.status, agents.list, agent.get, agent.timeline, tasks.list, task.get and inbox.list. Nothing here writes.
-// Each method follows its Python one (handline/daemon/rpc_status.py, rpc_agents.py, rpc_taskview.py, rpc_inbox.py)
-// and the rows they read; a test builds a database with the Python migrations' schema and holds the answers to them.
+// A test builds a database with the migrations' schema and holds the answers to it.
 package reads
 
 import (
@@ -178,7 +177,7 @@ func Register(s *rpc.Server, env Env) {
 	s.Register("inbox.queue", rpc.Method{Handler: e.inboxQueue, Waits: true})
 }
 
-// row is one result row by column name, the way sqlite3.Row reads in the Python daemon.
+// row is one result row by column name.
 type row map[string]any
 
 func query(db db.Q, q string, args ...any) ([]row, error) {
@@ -272,7 +271,7 @@ func ts(v any) any {
 	return nil
 }
 
-// Param readers: a wrong type is a bad_request naming the field, as the Python methods' helpers do.
+// Param readers: a wrong type is a bad_request naming the field.
 
 func badParam(msg, field string) error { return rpc.BadRequestError(msg, field, rpc.InvalidParams) }
 

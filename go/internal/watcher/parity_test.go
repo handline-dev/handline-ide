@@ -37,7 +37,7 @@ func same(a, b any) bool {
 }
 
 // withoutRefs is v without the requests' refs and the names made from them: they are random, and newer than the recorded rows.
-// It also drops the request-task key (request_task) and a prompt item's answer, which the Python rows never carry.
+// It also drops the request-task key (request_task) and a prompt item's answer, which the recorded rows never carry.
 func withoutRefs(v any) any {
 	switch x := v.(type) {
 	case map[string]any:
@@ -60,16 +60,15 @@ func withoutRefs(v any) any {
 	return v
 }
 
-// parity runs the Go detector over a database that setup and then change are applied to, and returns the rows the Python watcher wrote
-// for the same changes (recorded from handline/daemon/stream.py before it was deleted: testdata/parity/<test name>.json) and the rows Go
-// wrote.
+// parity runs the Go detector over a database that setup and then change are applied to, and returns the recorded rows
+// for the same changes (testdata/parity/<test name>.json) and the rows Go wrote.
 func parity(t *testing.T, detector func(*sql.DB) Detector, setup, change func(run func(string, ...any))) (py []map[string]any, goRows []*stream.Event) {
 	t.Helper()
 	recorded, err := os.ReadFile(filepath.Join("testdata", "parity", t.Name()+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Python named the founder human; the rows now carry the owner's key.
+	// The recorded rows name the founder human; the rows now carry the owner's key.
 	recorded = bytes.ReplaceAll(recorded, []byte(`"human"`), []byte(`"p1"`))
 	recorded = bytes.ReplaceAll(recorded, []byte(`\"human\"`), []byte(`\"p1\"`))
 	if err := json.Unmarshal(recorded, &py); err != nil {
@@ -103,7 +102,7 @@ func parity(t *testing.T, detector func(*sql.DB) Detector, setup, change func(ru
 	return py, goRows
 }
 
-// sameRow reports the differences between a Python row and a Go one on topic, type, agent, title, target; data is the caller's.
+// sameRow reports the differences between a recorded row and a Go one on topic, type, agent, title, target; data is the caller's.
 func sameRow(t *testing.T, i int, want map[string]any, e *stream.Event) {
 	t.Helper()
 	agent, title := any(nil), any(nil)
@@ -122,7 +121,7 @@ func sameRow(t *testing.T, i int, want map[string]any, e *stream.Event) {
 	}
 }
 
-// sinceRecorded are the Task fields Go added after the Python rows were recorded.
+// sinceRecorded are the Task fields Go added after the rows were recorded.
 var sinceRecorded = func() map[string]bool {
 	added := map[string]bool{}
 	for _, field := range strings.Fields("waits waiting tags pr pr_repo status watch unread first_unread spent_usd request role acting turns my_request decided") {
@@ -156,7 +155,7 @@ func TestGoAndPythonWriteTheSameRowsForTheSameTaskChange(t *testing.T) {
 	if len(py) != len(events) || len(py) != 5 {
 		t.Fatalf("python wrote %d rows, go %d", len(py), len(events))
 	}
-	// Go's data must equal Python's on every field of the Task: the Python CLI reads them all. report left the contract with the review
+	// Go's data must equal the recorded data on every field of the Task: clients read them all. report left the contract with the review
 	// state.
 	dropped := map[string]bool{"report": true}
 	for i, e := range events {

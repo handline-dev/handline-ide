@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// LiveRefusal is why this hl may not run against its home, "" when it may (paths.home in Python): a test reaching the live home; or a checkout other than the one the installed hl runs
+// LiveRefusal is why this hl may not run against its home, "" when it may: a test reaching the live home; or a checkout other than the one the installed hl runs
 // reaching it - a worktree's hl run by hand - unless HANDLINE_ALLOW_LIVE=1 says it is meant.
 func LiveRefusal(home string) string {
 	if !paths.IsLive(home) {

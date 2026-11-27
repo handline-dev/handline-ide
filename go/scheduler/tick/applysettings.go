@@ -30,7 +30,7 @@ type SettingsPorts interface {
 	// FingerprintParts is the settings the next launch would use, in launch order, as the running session is held to them
 	// (lifecycle's PartsSince: a part whose text it launched with is unchanged keeps its recorded hash).
 	FingerprintParts(agent string) ([]Part, error)
-	// CurrentAccount is agents.current_account.
+	// CurrentAccount is the account recorded for the agent.
 	CurrentAccount(q db.Q, agent string) string
 	// RulesNote is the note of a session's changed team rules and the record to keep once it is told.
 	RulesNote(agent string, row *db.AgentState) (note, record string, err error)

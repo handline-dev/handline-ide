@@ -1,5 +1,5 @@
-// Package team is handline/team: the agents' and accounts' files, the routing policy, standing consent for folders and an
-// agent's settings. It reads and writes the same files the Python modules do, and refuses what they refuse.
+// Package team is the agents' and accounts' files, the routing policy, standing consent for folders and an agent's
+// settings.
 package team
 
 import (
@@ -56,7 +56,8 @@ func truthy(v any) bool {
 	return true
 }
 
-// pyStr is str() of a decoded value.
+// pyStr is a decoded value as text: nil is "None", a bool "True" or "False", a float in shortest round-trip form (1.0 for a whole
+// number), anything else as fmt prints it.
 func pyStr(v any) string {
 	switch x := v.(type) {
 	case nil:
@@ -74,7 +75,7 @@ func pyStr(v any) string {
 	return fmt.Sprint(v)
 }
 
-// orDefault is str(cfg.get(k) or def).
+// orDefault is cfg's value under k as text (pyStr), def when it is missing or falsy.
 func orDefault(cfg Config, k, def string) string {
 	if v := cfg[k]; truthy(v) {
 		return pyStr(v)
@@ -163,7 +164,8 @@ func browserCommand(cfg Config) string {
 	return jsonText(args[len(args)-1])
 }
 
-// jsonText is str() of a decoded JSON value, for the cases a command line can be.
+// jsonText is a decoded JSON value as text, for the cases a command line can be: nil is "None", a bool "True" or "False", anything
+// else as fmt prints it.
 func jsonText(v any) string {
 	switch x := v.(type) {
 	case string:

@@ -38,7 +38,7 @@ func ClassOf(kind Kind, aimed, failed bool) Class {
 
 var failWord = regexp.MustCompile(`(?i)^(fail(?:ed|ure)?|blocked|fatal)`)
 
-// Failed is whether a task's closing words say it failed, is blocked or FATAL (urgent_result).
+// Failed is whether a task's closing words say it failed, is blocked or FATAL.
 func Failed(result string) bool {
 	s := strings.TrimSpace(result)
 	m := failWord.FindString(s)

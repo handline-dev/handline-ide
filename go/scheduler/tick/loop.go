@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Loop is daemon/loop.py's tick loop. The lock, database, socket and signal handling around it belong to whoever builds the daemon: it
+// Loop is the daemon's tick loop. The lock, database, socket and signal handling around it belong to whoever builds the daemon: it
 // is handed Stop, closed on SIGINT/SIGTERM, and returns once the tick in hand has finished.
 type Loop struct {
 	Tick *Tick

@@ -6,7 +6,7 @@ import (
 	"github.com/handline/handline/go/kit/actor"
 )
 
-// HeadTaskBlocked is delivery.head_task_blocked: is the head's own task on record as waiting, on another open task (a blocker or a child
+// HeadTaskBlocked is whether the head's own task is on record as waiting, on another open task (a blocker or a child
 // of its own, TaskWaits) or on an ask the agent itself sent that is linked to the same task. A head with no task is never this, nor a person's answer not yet
 // landed: the holder reads it now, whatever the task waits on.
 func HeadTaskBlocked(q Q, agent string, head *Request) (bool, error) {

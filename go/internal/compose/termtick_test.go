@@ -205,7 +205,7 @@ func TestATerminalAgentsViewRowSaysWhatItsSessionFileSays(t *testing.T) {
 		}
 		return v
 	}
-	// Not ticking terminals: the Python daemon's row stands, nothing is written.
+	// Not ticking terminals: the stored row stands, nothing is written.
 	p.agentView(cfgOf(p), false, tu).RefreshOne(bob)
 	var n int
 	p.db.QueryRow("SELECT COUNT(*) FROM agent_view WHERE agent = '" + bob + "'").Scan(&n)
@@ -332,7 +332,7 @@ func TestARefusalThePythonDaemonAlreadyLiftedIsNotStalledAgain(t *testing.T) {
 	p, tk, _ := loginRig(t)
 	d := p.db
 	authFailed(t, p, "a1")
-	// Python's lift keeps a session row id under this name and sets it when it lifts: only the time it was written can be compared here.
+	// The older lift cursor holds a session row id under this name: only the time it was written can be compared here.
 	lifted := "login_lifted:" + teamtest.Key(t, p.home, "bob")
 	if err := dbpkg.SetCursor(d, lifted, 77); err != nil {
 		t.Fatal(err)

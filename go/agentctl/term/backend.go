@@ -1,4 +1,4 @@
-// Package term is how the daemon talks to the terminal an agent runs in (handline/session/term.py and backends/): a host that
+// Package term is how the daemon talks to the terminal an agent runs in: a host that
 // lists terminals, reads the rendered screen and types into one, and the readers above it that turn a screen into a dialog
 // or a turn, and press keys on it only for what a fresh read just showed.
 package term

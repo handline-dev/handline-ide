@@ -1,5 +1,5 @@
-// Package lock is the exclusive holds, each one flock: one writer per agent terminal, and one daemon per installation
-// (handline/infra/lock.py). The kernel releases an flock when its holder dies, so neither hold survives the process that took
+// Package lock is the exclusive holds, each one flock: one writer per agent terminal, and one daemon per installation.
+// The kernel releases an flock when its holder dies, so neither hold survives the process that took
 // it. Neither nests (each acquire opens a fresh file description, so a second acquire inside the first fails) and neither
 // waits: a caller that cannot have the hold leaves the work to the one that has it.
 package lock

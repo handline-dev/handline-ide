@@ -23,16 +23,16 @@ import (
 	"github.com/handline/handline/go/scheduler/session"
 )
 
-// captured are the hook events recorded as they come (events.CAPTURED, without TeammateIdle, which is no longer kept). Notification is
+// captured are the hook events recorded as they come (not TeammateIdle, which is no longer kept). Notification is
 // installed for permission_prompt only, and the daemon raises the needs-you card from it (-notification-needs-you).
 var captured = map[string]bool{"SessionStart": true, "SessionEnd": true, "Stop": true, "StopFailure": true, "SubagentStop": true,
 	"PostCompact": true, "UserPromptSubmit": true, "PermissionRequest": true, "Notification": true}
 
-// collected are the moments the session's own status snapshot is pulled again (events.COLLECT_EVENTS): they fire on a turn's edges and
+// collected are the moments the session's own status snapshot is pulled again: they fire on a turn's edges and
 // carry the cwd the transcript is found under. SessionEnd is not one: a snapshot written as a session exits would call it fresh.
 var collected = map[string]bool{"SessionStart": true, "UserPromptSubmit": true, "Stop": true, "StopFailure": true, "PostCompact": true}
 
-// hook is `hl hook <event>` (session/events.record_from_stdin). PreToolUse runs the guard chain; PostToolUse and its failure take away the
+// hook is `hl hook <event>`, the event on stdin. PreToolUse runs the guard chain; PostToolUse and its failure take away the
 // wait a permission prompt raised and record the event, and a PostToolUse notes a memory file used and a command started in the background;
 // the captured events are recorded, and the turn-edge ones pull the session's status snapshot. It always exits 0,
 // as a hook that fails must never take the session with it.
@@ -59,7 +59,7 @@ func hook(c *hlclient.Client, args []string) (int, bool) {
 		}
 	}
 	if ev, _ := raw["hook_event_name"].(string); ev != "" {
-		event = ev // the payload's own name, as Python took it
+		event = ev // the payload's own name wins over the argument
 	}
 	if event == "Interrupt" {
 		event = "Stop" // codex's Esc ends the turn, as Claude Code's Stop does
@@ -262,7 +262,7 @@ func holds(c *hlclient.Client, agent, kind string) bool {
 
 // record hands the event to the daemon, which writes it down and decides what it means for the agent's state, and returns what it
 // said (nil when it did not): with the daemon not answering within 2s the event goes to the spool, which only records
-// (events._record), and nothing is said. Nothing here starts a daemon.
+// it, and nothing is said. Nothing here starts a daemon.
 func record(c *hlclient.Client, agent, event string, raw map[string]any) map[string]any {
 	if raw == nil {
 		raw = map[string]any{}
@@ -355,7 +355,7 @@ func daemonBack(c *hlclient.Client, end time.Time) bool {
 	}
 }
 
-// capture is the rest of record_from_stdin: the record of an event that is kept and the status snapshot on a turn's edge. Anything else is
+// capture is the rest of hook: the record of an event that is kept and the status snapshot on a turn's edge. Anything else is
 // answered and left alone.
 func capture(c *hlclient.Client, agent, event string, raw map[string]any) {
 	if !captured[event] {

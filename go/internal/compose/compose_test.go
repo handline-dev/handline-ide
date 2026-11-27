@@ -218,7 +218,7 @@ func TestADecisionAndAColdStartMeasurementAreReallyMade(t *testing.T) {
 	if cards != 1 || tasks != 1 {
 		t.Fatalf("cards %d, tasks %d", cards, tasks)
 	}
-	// An account with no trusted reading is not measured, as measure.begin does: the call is made, and leaves no open start.
+	// An account with no trusted reading is not measured: the call is made, and leaves no open start.
 	dbpkg.SetMeta(d, "coldstart:alice", "stale")
 	ports.MeasureBegin(d, "alice", "a1")
 	if v, _, _ := dbpkg.Meta(d, "coldstart:alice"); v != "" {

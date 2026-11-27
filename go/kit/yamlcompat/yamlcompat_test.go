@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// cases are sources with what the bundled Python parser (handline/infra/yamlcompat.py) read them as, or refused.
+// cases are sources with the fixed answer each must read as, or that it is refused.
 var cases = []struct {
 	src, want string // want is JSON; empty when the source is refused
 	refused   bool

@@ -86,7 +86,7 @@ func (e *Env) Discarded(owner string, told []db.Notice, freed []string) {
 	e.deliverUnblocked(e.DB, told, freed)
 }
 
-// Released is what a release does after it commits (actions.release_task): the owner of a held request is typed to stop (and moved on to
+// Released is what a release does after it commits: the owner of a held request is typed to stop (and moved on to
 // its next task when a draft parked it), and each queued request it closed is told like any retirement (the target told to stop if it had
 // it, the requester told, the queue moved up). It answers a phrase for each, the first line of what the retirement says.
 func (e *Env) Released(tid int64, why string, retired []taskwrites.Retired) []string {
@@ -156,7 +156,7 @@ func (e *Env) Cancelled(tid int64, by, owner string, stop bool, closed []taskwri
 	}
 }
 
-// Done is what a done task does after it commits (actions.mark_task_done): the owner is moved on
+// Done is what a done task does after it commits: the owner is moved on
 // and pushed its next task, the tasks it was the last blocker of are released, and the says it wrote are typed. A leftover request settled on
 // an already done task only types its says.
 func (e *Env) Done(tid int64, by, owner string, told []db.Notice, finished bool) {
@@ -214,7 +214,7 @@ func (e *Env) HandoffRetire(tx *sql.Tx, rid int64, verdict string) (func(), erro
 	}, nil
 }
 
-// HandedOver is what a handoff does after it commits (actions.task_handoff): the requests it closed
+// HandedOver is what a handoff does after it commits: the requests it closed
 // are told, the old owner is moved on if it held the task, the new owner is typed the task, and a manager is told when siblings pass work.
 func (e *Env) HandedOver(h taskwrites.Handover) (out string) {
 	defer e.guard("telling after a handoff", &out)
@@ -243,7 +243,7 @@ func (e *Env) HandedOver(h taskwrites.Handover) (out string) {
 	return strings.Join(lines, "\n")
 }
 
-// Edited is what an edit does after it commits (rpc_tasks._edit): a changed body told to the holder, a task that changed hands sent on, and an
+// Edited is what an edit does after it commits: a changed body told to the holder, a task that changed hands sent on, and an
 // owner whose last blocker the edit cleared, or whose current task it blocked, moved on.
 func (e *Env) Edited(ed taskwrites.Edited) {
 	var out string
@@ -286,7 +286,7 @@ func (e *Env) tellBodyEdited(q db.Q, tid int64, by string) {
 	e.typeSay(q, row.Acting, fmt.Sprintf("T%d body edited by %s: %s", tid, addr.Ref(by), firstRunes(textsafe.Oneline(latest.String), 400)), "task body edited")
 }
 
-// sendMovedTask (actions.send_moved_task): after an edit gave the task to a new owner, the old owner's request for it is taken back and the
+// sendMovedTask: after an edit gave the task to a new owner, the old owner's request for it is taken back and the
 // new owner is asked the same brief now, as task.new would; an old owner that had the task in hand is told to stop. No-op if the owner did not change.
 func (e *Env) sendMovedTask(q db.Q, tid int64, old, by string) {
 	row := must(db.GetTask(q, tid))

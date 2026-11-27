@@ -18,7 +18,7 @@ import (
 // and is remembered by a cursor until the shape is gone. Nothing is fixed and no agent is told: which edge to drop is the founder's call.
 const waitforPrefix = "waitfor:"
 
-// Decider is team/ask.py's raise_decision.
+// Decider raises a decision for the founder.
 type Decider interface {
 	RaiseDecision(q db.Q, who, text, source string) error
 }
@@ -30,7 +30,7 @@ type StuckWait struct {
 	Text string
 }
 
-// stuckSet keeps the order the waits were found in, as Python's dict does.
+// stuckSet keeps the order the waits were found in.
 type stuckSet struct {
 	list []StuckWait
 	at   map[string]int
@@ -244,7 +244,7 @@ type WaitFor struct {
 	Log    func(string)
 }
 
-// Sweep is waitfor.sweep.
+// Sweep raises each stuck wait not raised yet and forgets the ones that are gone.
 func (w *WaitFor) Sweep(q db.Q, now int64) error {
 	current, err := StuckWaits(q)
 	if err != nil {

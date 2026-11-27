@@ -1,5 +1,5 @@
-// Package watcher turns change in the database into rows of the event stream, for the topics whose detector has moved here from the Python
-// daemon's watcher. It looks every Every for a commit by another connection, and then runs each detector, which compares what it
+// Package watcher turns change in the database into rows of the event stream, for the topics whose detector is here.
+// It looks every Every for a commit by another connection, and then runs each detector, which compares what it
 // last saw with what the database shows now and appends an event for each difference. The first look of a detector says nothing: a
 // client's snapshot already shows what is there.
 //

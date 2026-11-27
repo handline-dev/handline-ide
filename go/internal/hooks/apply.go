@@ -1,6 +1,5 @@
 // Package hooks is the record path: what a session's hook tells the daemon (hook.record), the spool a hook leaves
-// its event in when the daemon is down, and what the daemon writes down for each event. It follows
-// handline/session/events.py (apply_hook) and handline/daemon/spool.py, over the same tables and files.
+// its event in when the daemon is down, and what the daemon writes down for each event.
 package hooks
 
 import (

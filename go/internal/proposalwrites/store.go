@@ -1,6 +1,6 @@
 // Package proposalwrites serves proposal.decide and what it does: the founder's decision on a proposal, recorded where no agent can write it, and the
-// change an approve makes to the roster (handline/team/proposals.py, handline/daemon/rpc_team.py). A proposal is a file, proposals/<id>.yaml, kept as
-// the flat map hr.py writes.
+// change an approve makes to the roster. A proposal is a file, proposals/<id>.yaml, kept as
+// a flat map.
 package proposalwrites
 
 import (
@@ -159,7 +159,7 @@ func stepIndex(kind string) int {
 
 var subjectFields = []string{"kind", "agent", "to", "team", "repo", "model", "effort", "vendor", "response", "relation", "requested_by", "why", "members"}
 
-// subject is what the founder is deciding on: every field of the draft that changes what applying it does, as a digest (decisions.digest).
+// subject is what the founder is deciding on: every field of the draft that changes what applying it does, as a digest.
 func (p *Prop) subject() string {
 	fields := map[string]any{}
 	for _, k := range subjectFields {

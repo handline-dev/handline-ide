@@ -14,17 +14,17 @@ import (
 
 // loginLifted is the cursor holding the id of the failed turn a lift has passed. That turn stays the agent's last event
 // until it is prompted again, and without this it would stall the account a second time.
-// It is the Go daemon's own: Python's "login_lifted:<agent>" holds a session row id, and one name for both would be read as the other's.
+// The older "login_lifted:<agent>" cursor holds a session row id, so this one has its own name.
 func loginLifted(agent string) string { return "login_lifted_event:" + agent }
 
-// pythonLifted is when Python's lift last ran for the agent, 0 if never. A refusal at or before it was lifted there: the cursor of
-// that daemon is a session row id this one cannot compare with an event id, so its time is.
+// pythonLifted is when the older "login_lifted:<agent>" cursor was last set, 0 if never. A refusal at or before it was lifted: that
+// cursor is a session row id, which cannot be compared with an event id, so its time is.
 func pythonLifted(q db.Q, agent string) int64 {
 	at, _, _ := db.CursorUpdated(q, "login_lifted:"+agent)
 	return at
 }
 
-// lifted is whether a lift has passed a failure on acct: the agent's own lift cursor, Python's lift, or a login since.
+// lifted is whether a lift has passed a failure on acct: the agent's own lift cursor, the older lift cursor, or a login since.
 func lifted(q db.Q, accounts team.Accounts, agent, acct string, f handoff.Failure) bool {
 	cursor, _ := db.Cursor(q, loginLifted(agent))
 	return f.ID <= cursor || f.TS <= pythonLifted(q, agent) || accounts.LoggedInSince(acct, f.TS)
@@ -84,7 +84,7 @@ func loginPorts(accounts team.Accounts, ended, paused func(acct string) string) 
 	}
 }
 
-// liftLogin is login_expired.lift: an agent stalled with its account is released once the account's stall ends.
+// liftLogin releases an agent stalled with its account once the account's stall ends.
 func liftLogin(accounts team.Accounts) func(db.Q, string, *db.AgentState, *[]string) {
 	return func(q db.Q, agent string, row *db.AgentState, actions *[]string) {
 		if row.State != states.Stalled || verdict.ParseStuckKind(row.StallKind.String) != verdict.StuckLogin {

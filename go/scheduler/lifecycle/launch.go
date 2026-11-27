@@ -40,7 +40,7 @@ import (
 // the same tools, or a change to one reads as a launch that never drifted to the other.
 const DisallowedTools = "SendMessage,ScheduleWakeup,CronCreate"
 
-// AccountStatus is usage/status.py's reading of one account, as launch uses it. A nil trusted figure is one nothing can name.
+// AccountStatus is the usage status of one account, as launch uses it. A nil trusted figure is one nothing can name.
 type AccountStatus struct {
 	Exists, Stale             bool
 	AgeS                      *float64
@@ -53,7 +53,7 @@ type AccountStatus struct {
 	Paused bool
 }
 
-// UsagePort is usage/status.py and usage/load.py as launch reads them.
+// UsagePort is the accounts' usage status and load as launch reads them.
 type UsagePort interface {
 	Read(acct string) AccountStatus
 	ShortBlock() int
@@ -77,7 +77,7 @@ type UsagePort interface {
 	// Headroom is what the account's weekly bucket still holds as a share of the week's quota, ok false when the pace cannot be read. The
 	// larger, the slower-paced.
 	Headroom(acct string) (float64, bool)
-	// ActiveOn is how many agents are mid-turn on the account, agent itself left out (load.active_agents with exclude): one counted
+	// ActiveOn is how many agents are mid-turn on the account, agent itself left out: one counted
 	// from its wake_reserved event until its Stop counts too. The pick spreads similar accounts by it.
 	ActiveOn(q db.Q, acct, agent string) (int, error)
 	// StartFit is the pick's test of the account for agent's start: why it is not a first choice ("" when it is), and the points left
@@ -87,7 +87,7 @@ type UsagePort interface {
 	MidTurn(q db.Q, agent string) []string
 }
 
-// AccountsPort is team/accounts.py as launch uses it.
+// AccountsPort is the team's accounts as launch uses them.
 type AccountsPort interface {
 	MayStart(acct string) bool
 	LoginCommand(acct string) (string, error)
@@ -108,11 +108,11 @@ type LaunchPorts struct {
 	Usage    UsagePort
 	Accounts AccountsPort
 	Vendors  VendorsPort
-	// AccountReading is agents.account_reading: which account an agent's usage is landing on, and whether that is recorded, reported or assumed.
+	// AccountReading is which account an agent's usage is landing on, and whether that is recorded, reported or assumed.
 	AccountReading func(q db.Q, agent string) (account, source string, ok bool)
 	// CurrentAccount is the account recorded for the agent.
 	CurrentAccount func(q db.Q, agent string) string
-	// WaitingFor is lifecycle.waiting_for: whether anything is waiting to be told to the agent.
+	// WaitingFor is whether anything is waiting to be told to the agent.
 	WaitingFor func(q db.Q, agent string) bool
 	// TeamRules is the rules of each team the agent is in (team.Rules): its base.md text and its kept rules.
 	TeamRules func(agent string) []string
@@ -120,7 +120,7 @@ type LaunchPorts struct {
 	Held func(agent string) team.Held
 	// Routing is the roster; nil when there is none.
 	Routing func() *team.Team
-	// McpApproved is trust.mcp_approved for the launch's working directory.
+	// McpApproved is the MCP servers of the launch's working directory that the founder approved, so a launch may enable them.
 	McpApproved func(cwd string) []string
 	// PaneAgent is the agent the daemon stamped the pane with ("" for a pane it did not open for an agent); nil: no pane is stamped.
 	PaneAgent func(handle string) string
@@ -146,7 +146,7 @@ func (r *Refusal) Error() string { return r.Msg }
 
 func refuse(format string, a ...any) *Refusal { return &Refusal{fmt.Sprintf(format, a...)} }
 
-// Launcher is session/launch.py: hl launch, the execution layer. The launcher wrapper sets the account's config directory in the
+// Launcher is hl launch, the execution layer. The launcher wrapper sets the account's config directory in the
 // environment before the vendor's binary starts, which the host preserves across hibernation and restore.
 type Launcher struct {
 	Q      db.Q
@@ -1246,7 +1246,7 @@ const changedBytesMax = 32 << 10
 // textBytesMax is how many bytes of whole part texts a start keeps over all its changed parts, in order; a part that does not fit has no Text.
 const textBytesMax = 256 << 10
 
-// partOrder is the order the parts are written in, as the Python dict keeps it.
+// partOrder is the order the parts are written in.
 // Renaming a part restarts no one: a name the earlier record lacks is skipped.
 var partOrder = []string{"model", "effort", "mcp config", "browser", "permissions", "sandbox", "ROLE.md", "base.md", "team instructions", rulesPart}
 

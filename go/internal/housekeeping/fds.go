@@ -19,7 +19,7 @@ const (
 	ExhaustionEvery = time.Minute
 )
 
-// FDs is daemon/fds.py: the open-descriptor count, logged when it first reads and whenever it moves by a twentieth of the limit, and named
+// FDs watches the open-descriptor count: logged when it first reads and whenever it moves by a twentieth of the limit, and named
 // by type the first time it is past Near of the soft limit. A daemon that ran out of descriptors answered nothing and said nothing for
 // 18 minutes; this is how the next one names what holds them.
 type FDs struct {
