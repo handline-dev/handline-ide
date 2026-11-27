@@ -9,8 +9,11 @@ export function SettingsPage({
   title,
   note,
   action,
+  room = '',
   children,
 }: {
+  /** Space kept under the last row, for a bar floating over the page (selectionRoom). */
+  room?: string;
   keep: string;
   /** A detail page's navigation bar, above all else. */
   bar?: ReactNode;
@@ -21,7 +24,7 @@ export function SettingsPage({
   children: ReactNode;
 }) {
   return (
-    <ScrollFade keep={keep} className="min-h-0 flex-1">
+    <ScrollFade keep={keep} className={`min-h-0 flex-1 ${room}`}>
       <Page>
         <div className="flex flex-col gap-4 pb-8 pt-3">
           {bar}

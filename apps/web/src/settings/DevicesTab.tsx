@@ -29,6 +29,7 @@ import {
   OFF_TEXT,
   StateWord,
   confirmRevoke,
+  eachOf,
   refused,
 } from '#src/settings/DeviceControls.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
@@ -53,16 +54,18 @@ import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { confirm } from '#src/ui/modal.tsx';
+import { selectionRoom, WithSelectionBar } from '#src/ui/SelectionBar.tsx';
 import { Segmented } from '#src/ui/Segmented.tsx';
 
 const BUILD_MODES = ['auto', 'manual'] as const;
 
 type Devices = ReturnType<typeof useDevices>;
 
-/** Sets each row's mode; Off asks once for all of them. */
-function setAll(rows: DeviceRow[], mode: Mode, q: Devices) {
+/** Sets each row's mode, past any that fail; Off asks once for all of them. */
+function setAll(rows: DeviceRow[], mode: Mode, q: Devices, done?: () => void) {
   const go = async () => {
-    for (const r of rows) await q.setMode(r, mode);
+    await eachOf(rows, (r) => q.setMode(r, mode), `set to ${MODE_WORD[mode]}`);
+    done?.();
   };
   if (mode !== 'off') return void go().catch(refused);
   void confirm({
@@ -319,71 +322,83 @@ export function DevicesTab({ open: start }: { open?: string }) {
   const list = (items: DeviceRow[]) => (
     <div className="divide-y divide-border rounded-lg border border-border">
       {items.map((r) => (
-        <Row key={r.id} r={r} q={q} picked={picked.has(r.id)} pick={(on, shift) => pick(r.id, on, shift)} open={() => setOpen(r.id)} />
+        <Row
+          key={r.id}
+          r={r}
+          q={q}
+          picked={picked.has(r.id)}
+          pick={(on, shift) => pick(r.id, on, shift)}
+          open={() => (setPicked(new Set()), setOpen(r.id))}
+        />
       ))}
     </div>
   );
+  const clear = () => setPicked(new Set());
+  // A mode is offered only when a picked device runs agents and is yours to set; it then applies to those, counted when not all.
+  const part = runners.length < chosen.length ? ` ${runners.length}` : '';
   const bulk = (
-    <div className="flex flex-wrap items-center gap-2" role="region" aria-label="Selection">
-      <span className="text-sm text-fg">{chosen.length} selected</span>
-      {MODES.map((m) => (
-        <Button key={m} disabled={runners.length === 0 || q.pending !== null} onClick={() => setAll(runners, m, q)}>
-          {MODE_WORD[m]}
-        </Button>
-      ))}
-      <Button variant="danger" disabled={q.pending !== null} onClick={() => confirmRevoke(chosen, q.revoke)}>
+    <>
+      {runners.length > 0 &&
+        MODES.map((m) => (
+          <Button key={m} variant="ghost" disabled={q.pending !== null} onClick={() => setAll(runners, m, q, clear)}>
+            {MODE_WORD[m]}
+            {part}
+          </Button>
+        ))}
+      <Button variant="ghost" disabled={q.pending !== null} onClick={() => confirmRevoke(chosen, q.revoke, clear)}>
         Revoke
       </Button>
-      <Button onClick={() => setPicked(new Set())}>Cancel</Button>
-    </div>
+    </>
   );
   return (
-    <SettingsPage
-      keep="settings-devices"
-      title="Devices"
-      note="The computers that run agents, and the phones and browsers that connect."
-      action={
-        <div className="flex shrink-0 items-center gap-2">
-          {shell()?.joinCluster && (
-            <Button onClick={() => void joinWithLink()}>
-              <Link2 size={14} />
-              Join with a link
-            </Button>
-          )}
-          <Button variant="primary" onClick={() => void openPairSheet()}>
-            <Plus size={14} />
-            Connect a device
-          </Button>
-        </div>
-      }
-    >
-      <SetAsideNote />
-      {q.loading && <ListLoading rows={3} label="Loading devices" />}
-      {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
-      {chosen.length > 0 && bulk}
-      {recent.length > 0 && list(recent)}
-      {old.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 text-sm">
-            <button
-              type="button"
-              aria-expanded={showOld}
-              onClick={() => setShowOld((v) => !v)}
-              className="flex flex-1 items-center gap-2 text-left text-muted hover:text-fg"
-            >
-              <ChevronRight size={14} className={showOld ? 'rotate-90' : ''} />
-              {old.length} not seen for over 30 days
-            </button>
-            <Button disabled={q.pending !== null} onClick={() => confirmRevoke(old, q.revoke)}>
-              Revoke all {old.length}
+    <WithSelectionBar count={chosen.length} onClear={clear} actions={bulk} className="flex-1">
+      <SettingsPage
+        keep="settings-devices"
+        room={selectionRoom(chosen.length)}
+        title="Devices"
+        note="The computers that run agents, and the phones and browsers that connect."
+        action={
+          <div className="flex shrink-0 items-center gap-2">
+            {shell()?.joinCluster && (
+              <Button onClick={() => void joinWithLink()}>
+                <Link2 size={14} />
+                Join with a link
+              </Button>
+            )}
+            <Button variant="primary" onClick={() => void openPairSheet()}>
+              <Plus size={14} />
+              Connect a device
             </Button>
           </div>
-          {showOld && list(old)}
-        </div>
-      )}
-      <AgentPlacement rows={q.rows} />
-      <AllDevices q={q} />
-    </SettingsPage>
+        }
+      >
+        <SetAsideNote />
+        {q.loading && <ListLoading rows={3} label="Loading devices" />}
+        {q.error && <p className="text-sm text-danger">Devices did not load.</p>}
+        {recent.length > 0 && list(recent)}
+        {old.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3 text-sm">
+              <button
+                type="button"
+                aria-expanded={showOld}
+                onClick={() => setShowOld((v) => !v)}
+                className="flex flex-1 items-center gap-2 text-left text-muted hover:text-fg"
+              >
+                <ChevronRight size={14} className={showOld ? 'rotate-90' : ''} />
+                {old.length} not seen for over 30 days
+              </button>
+              <Button disabled={q.pending !== null} onClick={() => confirmRevoke(old, q.revoke)}>
+                Revoke all {old.length}
+              </Button>
+            </div>
+            {showOld && list(old)}
+          </div>
+        )}
+        <AgentPlacement rows={q.rows} />
+        <AllDevices q={q} />
+      </SettingsPage>
+    </WithSelectionBar>
   );
 }
 
