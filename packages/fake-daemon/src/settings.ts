@@ -16,6 +16,7 @@ export const defaultSettings = (model: string, effort: string): Record<string, s
   sandbox_allow: '',
   mode: 'default',
   device: '',
+  session_mode: 'terminal',
 });
 
 /** The keys an agent may change on itself; the rest are the founder's. */
@@ -28,6 +29,7 @@ const ONE_OF: Record<string, string[]> = {
   handoff_note: ['default', 'on', 'off'],
   mode: ['default', 'auto', 'acceptEdits', 'plan'],
 };
+const SESSION_MODES = ['terminal', 'chat'];
 const WHOLE = new Set(['context_k', 'idle_close']);
 /** One line of sandbox_allow: `<day> <kind> <value>`, as the daemon checks it (go/data/team/sandbox.go). */
 const LABEL = '[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?';
@@ -38,6 +40,10 @@ const ENTRY = new RegExp(
 function check(key: string, v: unknown): string {
   if (typeof v !== 'string') throw badRequest(`${key} takes a string`, key);
   if (!(key in defaultSettings('', ''))) throw badRequest(`${key} is not an agent setting`, key);
+  if (key === 'session_mode') {
+    if (v && !SESSION_MODES.includes(v)) throw badRequest(`session_mode must be one of ${SESSION_MODES.join(', ')}`, key);
+    return v || 'terminal';
+  }
   if (ONE_OF[key] && !ONE_OF[key].includes(v)) throw badRequest(`${key} is one of ${ONE_OF[key].join(', ')}`, key);
   if (WHOLE.has(key) && !/^[0-9]*$/.test(v)) throw badRequest(`${key} is a whole number`, key);
   if (key === 'context_k' && !v) throw badRequest('context_k is a whole number', key);
