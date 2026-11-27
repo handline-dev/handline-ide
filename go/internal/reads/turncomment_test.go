@@ -132,3 +132,25 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 		t.Fatalf("not bob's: %v", items)
 	}
 }
+
+// A person's turn holding an agent's done reads as finish with the done's words, and one holding a handoff as handoff with its note.
+func TestAHeldTurnReadsAsWhatItsPassDoes(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'amy', 'amy', 1, 'amy'), (2, 'b', 'amy', 'amy', 1, 'amy'), "+
+		"(3, 'c', 'amy', 'amy', 1, 'amy')")
+	run(t, e, `INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, on_pass, evidence, pass_to) VALUES`+
+		`(1, 1, 'p1', '', 'amy', 10, 'finish', '{"Sha":"abc1234","Full":"abc1234deadbeef"}', NULL), `+
+		`(2, 1, 'p1', '', 'amy', 10, 'finish', '{"Words":"no code to land"}', NULL), `+
+		`(3, 1, 'p1', '', 'amy', 10, 'handoff', 'branch is ready', 'bob')`)
+	for tid, want := range map[string][2]string{"1": {"finish", "abc1234"}, "2": {"finish", "no code to land"}, "3": {"handoff", "branch is ready"}} {
+		got, err := e.taskGet(nil, map[string]any{"task": json.Number(tid)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		turn := got.(map[string]any)["turns"].([]any)[0].(map[string]any)
+		if turn["on_pass"] != want[0] || turn["evidence"] != want[1] {
+			t.Fatalf("T%s: on_pass %v, evidence %v", tid, turn["on_pass"], turn["evidence"])
+		}
+	}
+}

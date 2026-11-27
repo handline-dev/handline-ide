@@ -540,9 +540,9 @@ export type Turn = {
   /** Who put it there: the one acting below it, or the founder. */
   by: string;
   since: Timestamp;
-  /** done: a pass of this turn closes the task with evidence, through the usual done gates. */
-  on_pass: "done" | null;
-  /** The done evidence a pass closes the task with (on_pass done). */
+  /** done: a pass of this turn closes the task with evidence, through the usual done gates. finish: a person's turn holding the acting agent's own done behind the task's later comments; a pass runs that done as the agent. handoff: the same for the agent's handoff; a pass hands the task on as the agent asked. */
+  on_pass: ("done" | "finish" | "handoff") | null;
+  /** The done evidence a pass closes the task with (on_pass done), the held done's words (finish), or the handoff's note (handoff). */
   evidence: string | null;
   /** When ask was last rewritten; null when it reads as pushed. */
   edited: Timestamp | null;

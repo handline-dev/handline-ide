@@ -2273,14 +2273,16 @@
        {
         "type": "string",
         "enum": [
-         "done"
+         "done",
+         "finish",
+         "handoff"
         ]
        },
        {
         "type": "null"
        }
       ],
-      "description": "done: a pass of this turn closes the task with evidence, through the usual done gates."
+      "description": "done: a pass of this turn closes the task with evidence, through the usual done gates. finish: a person's turn holding the acting agent's own done behind the task's later comments; a pass runs that done as the agent. handoff: the same for the agent's handoff; a pass hands the task on as the agent asked."
      },
      "evidence": {
       "oneOf": [
@@ -2291,7 +2293,7 @@
         "type": "null"
        }
       ],
-      "description": "The done evidence a pass closes the task with (on_pass done)."
+      "description": "The done evidence a pass closes the task with (on_pass done), the held done's words (finish), or the handoff's note (handoff)."
      },
      "edited": {
       "oneOf": [

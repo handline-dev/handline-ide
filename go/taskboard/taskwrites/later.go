@@ -34,6 +34,18 @@ func (d heldDone) in(tid int64) DoneIn {
 	return in
 }
 
+// HeldEvidence is the evidence a held done was given: its words, else its sha; empty for a request's done or a turn that holds none.
+func HeldEvidence(evidence string) string {
+	var d heldDone
+	if json.Unmarshal([]byte(evidence), &d) != nil {
+		return ""
+	}
+	if d.Words != "" {
+		return d.Words
+	}
+	return d.Sha
+}
+
 // laterHold is a done or handoff held behind the person its task's open later comments are for.
 type laterHold struct {
 	h    Handover

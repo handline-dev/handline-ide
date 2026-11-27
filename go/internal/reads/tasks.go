@@ -21,6 +21,7 @@ import (
 	"github.com/handline/handline/go/scheduler/settings"
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/taskresult"
+	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 const eventTask = "CASE WHEN json_valid(payload) THEN json_extract(payload, '$.task_id') END"
@@ -1178,6 +1179,12 @@ func (e *Env) turnsOf(tid int64, history bool) ([]any, error) {
 		var onPass, evidence, edited any
 		if u.OnPass != "" {
 			onPass, evidence = u.OnPass, u.Evidence
+		}
+		if u.OnPass == db.TurnOnPassFinish {
+			evidence = nil
+			if held := taskwrites.HeldEvidence(u.Evidence); held != "" {
+				evidence = held
+			}
 		}
 		earlier, at := []any{}, ts(u.Since)
 		for _, ev := range evs {
