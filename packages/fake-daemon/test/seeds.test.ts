@@ -17,7 +17,7 @@ test('inbox-terminal and proposals come through the ordinary methods', async () 
   const { proposals } = await client.call('proposal.list', {});
   assert.deepEqual(
     proposals.map((p) => p.kind),
-    ['add', 'settings', 'retire', 'run', 'sandbox'],
+    ['add', 'settings', 'retire', 'run', 'run', 'sandbox'],
   );
   assert.equal(proposals[0]!.asked?.team, 'handline');
   assert.equal(proposals[1]!.asked?.sets?.model, 'opus');

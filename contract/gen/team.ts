@@ -50,6 +50,8 @@ export type Proposal = {
   reason?: string;
   /** The founder's note on the decision (why it was rejected, say), as proposal.decide took it. Absent when the founder gave none or it is still open. */
   note?: string;
+  /** The task its asking agent was doing when it asked, on any kind; task.get's timeline shows a run proposal there as a run row. Absent when the agent was doing none, or the founder asked. */
+  task?: number;
   /** The fields the proposal asks for (vendor, model, effort, team, repo, to, then each `set <key>`). Every value is text from an agent (same rule as `reason`); optional, and a key it did not ask for is absent. Absent for kind bundle: its `diff` carries the changes. members, repos, relation, response and context texts are in `diff` only. */
   asked?: {
     vendor?: string;

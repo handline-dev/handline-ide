@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/names"
 	"github.com/handline/handline/go/kit/paths"
@@ -382,6 +383,14 @@ func newProp(kind, agent, actor, why string) (*Prop, error) {
 
 // raised writes the proposal down outside the transaction; the Effect only records the reply.
 func (e *Env) raised(c *rpc.Conn, prop *Prop, said string) (any, error) {
+	if c.Caller.Role == "agent" {
+		// The task the agent is doing as it asks, so the task's conversation shows the ask where it was made.
+		if tid, err := db.DoingTask(e.DB, c.Caller.Actor()); err != nil {
+			e.logf("proposal %s: the task %s is doing cannot be read, so it names none: %v", prop.id(), c.Caller.Actor(), err)
+		} else if tid != 0 {
+			prop.set("task", tid)
+		}
+	}
 	if err := e.save(prop); err != nil {
 		return refuse("could not write the proposal down, so nothing was raised: %v", err)
 	}

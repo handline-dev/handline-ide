@@ -337,6 +337,17 @@ export class TaskStore {
           .flat()
           .filter((l) => l.task === t.id)
           .map((l) => ({ at: l.created_at, who: l.created_by, kind: 'lesson' as const, text: l.text, memo: null, edited_at: null })),
+        ...this.host.script.proposals.proposals
+          .filter((p) => p.kind === 'run' && p.task === t.id && p.run)
+          .map((p) => ({
+            at: p.created,
+            who: p.requested_by ?? p.agent,
+            kind: 'run' as const,
+            text: p.run!.command,
+            memo: null,
+            edited_at: null,
+            proposal: p,
+          })),
       ].sort((a, b) => a.at.localeCompare(b.at)),
     };
   }

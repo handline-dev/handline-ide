@@ -133,6 +133,9 @@ func (e *Env) proposalView(p proposal) map[string]any {
 	if p.truthy("note") {
 		v["note"] = p.text("note")
 	}
+	if t, _ := p.get("task").(int64); t > 0 {
+		v["task"] = t
+	}
 	asked := map[string]any{}
 	for _, k := range []string{"vendor", "model", "effort", "team", "repo", "to"} {
 		if p.truthy(k) {

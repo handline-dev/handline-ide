@@ -1,6 +1,7 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
 import type { Accepted, Actor, AttachmentId, Duration, ImagePart, PullUnavailable, ReadCursor, RequestId, RequestName, RequestRef, Role, Status, TextPart, Timestamp, Topic, Who, WriteKind } from './core.ts';
+import type { Proposal } from './team.ts';
 
 /** The task's clock: it counts while the task is doing and nothing holds it, stands still keeping what is left while anything does, and runs on past its length. */
 export type TaskClock = {
@@ -207,13 +208,13 @@ export type TaskDetail = Task & {
       ok: boolean;
     } | null;
   } & TaskLook)[];
-  /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done and each time it was sent back. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
+  /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done, each time it was sent back and the commands its agents asked the founder to run while doing it. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
   timeline: {
     at: Timestamp;
     /** The author, or `from → to` for a handoff or a turn. */
     who: string;
-    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row). */
-    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn" | "lesson";
+    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row); run, a command an agent asked the founder to run while doing the task (who the agent, text the command, `proposal` the ask with its Run and Deny and, once decided, how it ended). */
+    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn" | "lesson" | "run";
     /** Already stripped of control characters: a client draws it as it is. */
     text: string;
     /** On a turn row: push, the turn handed to `to` (text its ask, which may be empty); pop, given back to `to`. */
@@ -224,6 +225,8 @@ export type TaskDetail = Task & {
     edited_at: Timestamp | null;
     /** `text` cut at the images it names, for a memo, a handoff, an edit or a reject; present only when it names one. */
     parts?: (TextPart | ImagePart)[];
+    /** On a run row only: the proposal as proposal.list shows it, open or decided; its state and run say how it ended (rejected is denied, run.state and run.exit once it ran). */
+    proposal?: Proposal;
   }[];
   /** The task was opened as a ui task. Absent when it was not. */
   ui?: boolean;

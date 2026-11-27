@@ -188,6 +188,8 @@ function patchTaskLists(qc: QueryClient, d: string, t: Task, cursor: number): vo
 /** A proposal takes its place in the unfiltered list at once (the dot's count follows); a filtered list is read again. */
 function proposalChanged({ qc, d }: Ctx, e: WireEvent) {
   const p = data<{ proposal: Proposal }>(e).proposal;
+  // A run asked on a task is a row of that task's timeline.
+  if (p.task) void qc.invalidateQueries({ queryKey: qk.task(d, p.task) });
   for (const [key] of qc.getQueriesData({ queryKey: qk.hrs(d) })) {
     if (key.length === qk.hrs(d).length)
       edit<{ proposals: Proposal[] }>(

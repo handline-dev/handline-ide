@@ -26,7 +26,7 @@ func seconds(v any) float64 {
 }
 
 // taskTimeline is TaskDetail.timeline, as actions.task_timeline: the task's memos, handoffs (a request that carried one is that handoff's
-// row), the other requests linked to it (not a memo's tell, the ask a memo to the founder opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with and the lessons added on it, oldest first to the
+// row), the other requests linked to it (not a memo's tell, the ask a memo to the founder opens or a return that told a memo, which repeat the memo), the edits of its brief, its marks done, the notes it was sent back with, the lessons added on it and the commands its agents asked the founder to run while doing it, oldest first to the
 // fraction of a second. parts cuts a text at the images it names; a memo, a handoff, an edit and a reject row carry them.
 func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []any) ([]any, error) {
 	type entry struct {
@@ -129,6 +129,11 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		case db.LessonKind:
 			add(at, ev.str("agent"), "lesson", text(p["text"]), nil, nil, false)
 		}
+	}
+	for _, p := range e.taskRuns(tid) {
+		command, _ := p.runCommand()
+		add(float64(p.created), p.text("requested_by"), "run", command, nil, nil, false)
+		out[len(out)-1].row["proposal"] = e.proposalView(p)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].at < out[j].at })
 	rows := make([]any, len(out))
