@@ -25,6 +25,15 @@ describe('fittedRoom', () => {
       }
   });
 
+  it("puts the HQ's free spot where one more person stands, also when the room reshapes for them, and a team's nowhere", () => {
+    const hq = (n: number): House => ({ ...team(n), lead: null, hq: true });
+    for (let n = 0; n <= 14; n++) {
+      const after = fittedRoom(hq(n + 1)).places.find((p) => p.person.key === `p${n}`)!;
+      expect(fittedRoom(hq(n)).join).toEqual([after.x, after.z]);
+    }
+    expect(fittedRoom(team(3)).join).toBeUndefined();
+  });
+
   it('draws the desks in the same place whoever rests on the sofas', () => {
     for (const n of [5, 20, 30, 33, 61]) expect(deskAt(team(n, 'resting'), 'p1')).toEqual(deskAt(team(n), 'p1'));
   });

@@ -70,7 +70,14 @@ export type Cast = {
   mine?: Box & { name: [number, number]; at: [number, number]; seat: [number, number] };
   /** The empty desk where the founder hires the next agent, with where its label goes. */
   hire?: Box & { name: [number, number]; at: [number, number] };
+  /** In the HQ, the dotted figure where the next agent hired would stand: its sheet cell in `cell`, its figure in the box. */
+  join?: Box & { cell: Box; row: number; at: [number, number] };
 };
+
+/** The sheet's row whose figure the HQ's dotted outline takes: the plainest outline. */
+const JOIN_ROW = 2;
+/** That figure's columns in its walking-down cell, in sheet pixels, measured on the sheet. */
+const JOIN_SPAN = [12, 128] as const;
 
 /** What lies flat on the floor, under a standing person's feet. */
 export const FLAT = new Set(['floor', 'baseboard', 'rug', 'road', 'walk', 'grass', 'lane']);
@@ -242,6 +249,14 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
   }
   const hire = boxOf(pic, frame, HIRE_DESK);
   if (hire) cast.hire = { ...hire, name: [hire.x + hire.w / 2, hire.y + hire.h + 1], at: beside(HIRE_DESK) };
+  if (room.join) {
+    const [x, z] = room.join;
+    const [fx, fy] = frame.toPixel(x, 0, z);
+    const cell = boxFor('walk_down', fx, fy);
+    const tall = TALL.walk_down[JOIN_ROW] * SCALE;
+    const [left, right] = JOIN_SPAN.map((c) => cell.x + c * SCALE);
+    cast.join = { x: left, y: fy - tall, w: right - left, h: tall, cell, row: JOIN_ROW, at: [x - CHAIR_MID, z] };
+  }
   // The founder's desk opens their decisions whether its papers or the desk itself is clicked.
   const mine = union(union(boxOf(pic, frame, MY_DESK), boxOf(pic, frame, MY_CHAIR)), boxOf(pic, frame, papersOf(MY_DESK)));
   const side = beside(MY_DESK);

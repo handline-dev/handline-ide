@@ -2,14 +2,16 @@
 // founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them; the bubbles of those
 // waiting for the founder. One seated moves by what it is doing (motion.ts), from the newest people (MotionsOf), so the room is not drawn
 // again.
-import { use, useSyncExternalStore } from 'react';
+import { useRead } from '@handline/app-data';
+import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import { talking, useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
 import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/founder.tsx';
 import type { Door } from '#src/town/moves.ts';
 import { lineUp } from '#src/town/names.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
 import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
-import { BUBBLE, hashOf, PEOPLE_SHEET, SHEET, walkColumn, type Figure } from '#src/town/people.ts';
+import { BUBBLE, hashOf, PEOPLE_SHEET, SHEET, walkColumn, type Cast, type Figure } from '#src/town/people.ts';
+import { outlineDots } from '#src/town/outline.ts';
 import { boxOn, WalkingFigure } from '#src/town/walking.tsx';
 import { WALKERS } from '#src/town/look.ts';
 import { useElapsed, type Cheering } from '#src/town/cheers.ts';
@@ -210,4 +212,69 @@ function Drawing({
       {front && <image href={front.url} x={front.x} y={front.y} width={front.w} height={front.h} style={PIXEL} />}
     </g>
   );
+}
+
+/** The dotted outline's grid, in sheet pixels: a dot is a cell of it. */
+const DOT = 7;
+/** Each figure's dotted outline as an image, by its sheet row, once made. */
+const outlines = new Map<number, Promise<string>>();
+
+/** A figure's dotted outline, drawn from the sheet's walking-down pose (its third column) once it has loaded. */
+function outlineOf(row: number): Promise<string> {
+  const made = outlines.get(row);
+  if (made) return made;
+  const url = new Promise<string>((resolve, reject) => {
+    const sheet = new Image();
+    const fail = (e: unknown) => {
+      outlines.delete(row);
+      reject(e instanceof Error ? e : new Error('the people sheet did not load'));
+    };
+    sheet.onerror = fail;
+    sheet.onload = () => {
+      try {
+        resolve(dotted(sheet, row));
+      } catch (e) {
+        fail(e);
+      }
+    };
+    sheet.src = PEOPLE_SHEET;
+  });
+  outlines.set(row, url);
+  return url;
+}
+
+/** The dotted outline of the figure in `row` of the loaded sheet, as an image url. */
+function dotted(sheet: HTMLImageElement, row: number): string {
+  const [cw, ch] = SHEET.cell;
+  const read = Object.assign(document.createElement('canvas'), { width: cw, height: ch }).getContext('2d')!;
+  read.drawImage(sheet, -2 * cw, -row * ch);
+  const rgba = read.getImageData(0, 0, cw, ch).data;
+  const alpha = Array.from({ length: cw * ch }, (_, i) => rgba[i * 4 + 3]);
+  const out = Object.assign(document.createElement('canvas'), { width: Math.ceil(cw / DOT), height: Math.ceil(ch / DOT) });
+  const pen = out.getContext('2d')!;
+  pen.fillStyle = NAME_INK;
+  for (const [x, y] of outlineDots(alpha, cw, ch, DOT)) pen.fillRect(x, y, 1, 1);
+  return out.toDataURL();
+}
+
+/** The HQ's dotted person, where the next agent hired would stand; none while there is no team to hire into, as in Targets.tsx. */
+export function JoinOutline({ join }: { join: NonNullable<Cast['join']> }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    outlineOf(join.row).then(
+      (u) => live && setUrl(u),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [join.row]);
+  const teams = useRead('workspaces.list', {}).data?.workspaces.length ?? 0;
+  if (!url || !teams) return null;
+  const [cw, ch] = SHEET.cell;
+  // The grid's last cells reach past the cell: the image is drawn that much bigger, at the sheet's scale.
+  const [gw, gh] = [Math.ceil(cw / DOT) * DOT, Math.ceil(ch / DOT) * DOT];
+  const k = join.cell.w / cw;
+  return <image href={url} x={join.cell.x} y={join.cell.y} width={gw * k} height={gh * k} style={PIXEL} className="pointer-events-none" />;
 }

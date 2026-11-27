@@ -1,9 +1,9 @@
 import { useAgentOptions, useDirectory, useNewAgentForm, useOperation, useRead, why } from '@handline/app-data';
 import type { Workspace } from '@handline/client';
 import { Check, Eye } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '#src/ui/Button.tsx';
-import { Field, Input } from '#src/ui/Field.tsx';
+import { Field, Input, Select } from '#src/ui/Field.tsx';
 import { ModalFrame, openModal, type Close } from '#src/ui/modal.tsx';
 import { Refs } from '#src/ui/refs.tsx';
 import { OperationProgress } from '#src/ui/OperationProgress.tsx';
@@ -57,7 +57,8 @@ function Folders({ wsKey, picked, pick }: { wsKey: string; picked: string; pick:
   );
 }
 
-function Form({ ws, close }: { ws: Workspace; close: Close<string> }) {
+/** `team`, when given, is drawn first: a field that picks the team, locked while the create is on its way. */
+function Form({ ws, close, team }: { ws: Workspace; close: Close<string>; team?: (locked: boolean) => ReactNode }) {
   const [started, setStarted] = useState<{ operation: string; name: string } | null>(null);
   const { f, set, ready, send, create } = useNewAgentForm(ws.key, (operation, name) => setStarted({ operation, name }));
   const defaultName = useAgentOptions().data?.default_names?.[ws.key] ?? '';
@@ -71,6 +72,7 @@ function Form({ ws, close }: { ws: Workspace; close: Close<string> }) {
         send();
       }}
     >
+      {team?.(create.isPending)}
       {/* Each empty field gets the daemon's pick, shown as its placeholder. */}
       <Field label="Name">
         <Input autoFocus value={f.name} onChange={(e) => set('name', e.target.value)} placeholder={defaultName} />
@@ -101,6 +103,39 @@ export function newAgent(ws: Workspace) {
   return openModal<string>((close) => (
     <ModalFrame title={`New agent in ${ws.name}`} onClose={() => close()}>
       <Form ws={ws} close={close} />
+    </ModalFrame>
+  ));
+}
+
+/** Picks the team first, in the same form; the form starts afresh for another team, and the team stays once Create is pressed. */
+function InTeam({ workspaces, close }: { workspaces: Workspace[]; close: Close<string> }) {
+  const [key, setKey] = useState(workspaces[0].key);
+  const ws = workspaces.find((w) => w.key === key) ?? workspaces[0];
+  return (
+    <Form
+      key={ws.key}
+      ws={ws}
+      close={close}
+      team={(locked) => (
+        <Field label="Team">
+          <Select value={ws.key} disabled={locked} onChange={(e) => setKey(e.target.value)}>
+            {workspaces.map((w) => (
+              <option key={w.key} value={w.key}>
+                {w.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+    />
+  );
+}
+
+/** The new-agent dialog for a team picked in it, from `workspaces` (at least one); resolves as `newAgent` does. */
+export function newAgentIn(workspaces: Workspace[]) {
+  return openModal<string>((close) => (
+    <ModalFrame title="New agent" onClose={() => close()}>
+      <InTeam workspaces={workspaces} close={close} />
     </ModalFrame>
   ));
 }

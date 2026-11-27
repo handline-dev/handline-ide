@@ -11,6 +11,9 @@ export const toggleIn = (list: readonly string[], name: string): string[] =>
 
 export const togglePin = toggleIn;
 
+/** The pins with `name` added at the end, unless it is pinned already. */
+export const addPin = (pins: readonly string[], name: string): string[] => (pins.includes(name) ? [...pins] : [...pins, name]);
+
 /** The pins with `name` moved to `index`. */
 export function movePin(pins: readonly string[], name: string, index: number): string[] {
   const rest = pins.filter((n) => n !== name);

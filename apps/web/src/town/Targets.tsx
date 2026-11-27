@@ -1,14 +1,15 @@
 // What takes a click or a hover in an office's picture (Inside.tsx), laid over it as page elements at the same boxes, in picture pixels
 // times the picture's scale: the founder's desk (the decisions), each person and its desk (a card on hover, its chat on a click, the
-// app's own agent menu on a right-click), the papers on a desk (its tasks), the empty desk (hires an agent), the door (out) and the
-// founder itself (its look). Page elements, not shapes in the picture, so a card and the app's menu can hang on them. A click first
+// app's own agent menu on a right-click), the papers on a desk (its tasks), the empty desk and the HQ's dotted person (each hires an
+// agent), the door (out) and the founder itself (its look). Page elements, not shapes in the picture, so a card and the app's menu can hang on them. A click first
 // walks the founder there; what a tab bar shows stays outlined. Clicks between the targets fall through to the floor.
 import { PreviewCard as P } from '@base-ui/react/preview-card';
-import { useAgents, useRead } from '@handline/app-data';
+import { useAgents, useNav, useRead } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
+import { Plus } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { AgentMenu } from '#src/AgentMenu.tsx';
-import { newAgent } from '#src/NewAgent.tsx';
+import { newAgent, newAgentIn } from '#src/NewAgent.tsx';
 import { chatOf, withAgent } from '#src/layout/kinds.tsx';
 import { SetGoingButton, useSetGoing } from '#src/chat/agent/SetGoing.tsx';
 import { floatingSurface } from '#src/ui/Popover.tsx';
@@ -126,9 +127,11 @@ export function Targets({
   // While the founder walks, by the keys or to where a click sent it, the pointer is not looking at anyone.
   const walking = useFounder(founder, (me) => !!me?.moving);
   const agents = useAgents().data?.agents;
-  const workspace = useRead('workspaces.list', {}).data?.workspaces.find((w) => w.key === house.key);
+  const workspaces = useRead('workspaces.list', {}).data?.workspaces ?? [];
+  const workspace = workspaces.find((w) => w.key === house.key);
+  const { addPin } = useNav();
   const rows = figuresOf(drawn.stage.people);
-  const { mine, hire, desks, papers, spots } = drawn.cast;
+  const { mine, hire, join, desks, papers, spots } = drawn.cast;
   const door = drawn.front.door;
   const decisions = house.decisions.length;
   /** A box of the picture on the page, a picture pixel wider all round. */
@@ -200,6 +203,21 @@ export function Targets({
             void newAgent(workspace);
           }}
         />
+      )}
+      {/* The HQ's dotted person: one hired here also stands in the HQ, pinned. */}
+      {join && workspaces.length > 0 && (
+        <button
+          type="button"
+          title="Hire an agent"
+          style={at(join)}
+          className="group pointer-events-auto absolute grid cursor-pointer place-items-center rounded-sm outline-accent focus-visible:outline"
+          onClick={() => {
+            founder.go(join.at, () => founder.turn('right'));
+            void newAgentIn(workspaces).then((key) => key && addPin(key));
+          }}
+        >
+          <Plus size={20} strokeWidth={3} className="text-accent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+        </button>
       )}
       {door && (
         <button

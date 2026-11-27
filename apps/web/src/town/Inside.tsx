@@ -18,7 +18,7 @@ import { useCrowd } from '#src/town/crowd.ts';
 import { fadeOf, useMore } from '#src/town/pan.ts';
 import { useGivenWork } from '#src/town/errands.ts';
 import { useCheers } from '#src/town/cheers.ts';
-import { Bubbles, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
+import { Bubbles, JoinOutline, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 /** How much of the front wall shows while a person reaches into it. */
@@ -133,6 +133,7 @@ export function Inside({
                     }}
                   />
                   <Monitors screens={drawn.screens} />
+                  {drawn.cast.join && <JoinOutline join={drawn.cast.join} />}
                   <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} cheers={cheers} />
                   <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
                     <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />

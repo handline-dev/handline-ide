@@ -63,6 +63,8 @@ export type Room = {
   blocks: Block[];
   places: Place[];
   entry: [number, number];
+  /** The HQ's spot where the next agent hired would stand (fit.ts). */
+  join?: [number, number];
 };
 
 /** Blocks gathered by `put`, in metres. */
@@ -116,8 +118,9 @@ const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
 const LIT: Activity[] = ['working', 'you'];
 
 /** The room for a house: benches of `cols` desks on the left; right of them the rest room at the back and the way in at the front, the
- *  founder's desk ahead of the door, each half the depth unless the sofas need more; `fit` widens the work room by `w` metres and makes the room at least `d`
- *  deep (fit.ts shapes it to the picture). The HQ has no benches: its people (the pinned agents) stand together, `cols` to a row. */
+ *  founder's desk ahead of the door, each half the depth unless the sofas need more; `fit` widens the work room by `w` metres and makes
+ *  the room at least `d` deep (fit.ts shapes it to the picture). The HQ has no benches: its people (the pinned agents) stand together,
+ *  `cols` to a row, with room for one more. */
 export function roomOf(
   house: House,
   cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(house.people.length)))),
@@ -125,8 +128,8 @@ export function roomOf(
 ): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
   const hq = house.hq === true;
-  // A team's benches hold one desk more than it has agents: the empty one, where the founder hires.
-  const rows = Math.max(1, Math.ceil((people.length + (hq ? 0 : 1)) / cols));
+  // A team's benches hold one desk more than it has agents, and the HQ one spot more: the empty one, where the founder hires.
+  const rows = Math.max(1, Math.ceil((people.length + 1) / cols));
   // Resting while its prompt cache lives, an agent stays at its desk; after, it goes to a sofa.
   const seated = (p: Person) => AT_DESK.includes(p.activity) || (p.activity === 'resting' && p.cached);
   const idle = hq ? [] : people.filter((p) => p.activity === 'resting' && !p.cached);
