@@ -349,9 +349,9 @@ func (e *Env) tellStructured(q db.Q, row *db.Request, d delivery.Delivery) (what
 			folded, text = nil, founderText(q, row, e.imageLines(q, row))
 		}
 	}
-	if e.Temps != nil && must(db.FounderAuthored(q, rid)) {
+	if e.Temps != nil && !strings.HasPrefix(row.Body, "!") && must(db.FounderAuthored(q, rid)) { // after a `!` command it would be run
 		if line := besideLine(q, agent, row); line != "" {
-			text = line + "\n\n" + text
+			text += "\n\n" + line
 		}
 	}
 	text = e.arrivalLine(q, agent, text, requestOp(rid))
