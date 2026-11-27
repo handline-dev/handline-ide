@@ -154,6 +154,11 @@ export const CHAT_SEEDS: Record<string, Seed> = {
         reason: 'You moved it from alpha, at 92% of its 5-hour window, to beta.',
       },
     });
+    d.chat.seedItem(ARCH, {
+      at: iso(10),
+      kind: 'machine_moved',
+      machine_moved: { from: 'MacBook Air', to: 'Mac mini', reason: 'MacBook Air is offline' },
+    });
     d.chat.seedItem(ARCH, { at: iso(10), kind: 'move_failed', move_failed: { to: 'gamma', reason: 'gamma is at its usage limit' } });
     const s = d.sessions.get(ARCH)!;
     s.fx.view = { ...s.fx.view, pending_move: { to: 'alpha', since: iso(1), phase: 'scheduled' } };

@@ -38,7 +38,7 @@ export function drawsNothing(e: TimelineEntry, agent: string, me: string): boole
   if (e.kind === 'item')
     return (
       e.item.session?.cause === 'move' || // the move's own line says it
-      (!e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed)
+      (!e.item.session && !e.item.text && e.item.kind !== 'bash' && !e.item.account_moved && !e.item.move_failed && !e.item.machine_moved)
     );
   if (e.kind === 'proposal') return true;
   // A message typed on a schedule is a quiet line: it is why the agent took a turn nobody asked for, and the list of schedules opens on it.

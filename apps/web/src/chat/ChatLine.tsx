@@ -2,7 +2,7 @@ import { Ago } from '#src/ui/Ago.tsx';
 import { BASH_WATCH_MS, drawsNothing, isPerson, maybeRanNote, sideOf, tickLevel, type TimelineEntry } from '@handline/app-core';
 import type { TranscriptItem } from '@handline/client';
 import { motion } from 'framer-motion';
-import { CornerDownRight } from 'lucide-react';
+import { CornerDownRight, Monitor } from 'lucide-react';
 import { BashChip } from '#src/chat/Composer.tsx';
 import { useState, type ReactNode } from 'react';
 import { AgentNote } from '#src/chat/AgentNote.tsx';
@@ -61,6 +61,12 @@ export function ChatLine({
     return (
       <motion.div data-id={key} {...fade}>
         <MoveLine agent={agent} at={e.at} moved={e.item.account_moved} failed={e.item.move_failed} note={moveNote} />
+      </motion.div>
+    );
+  if (e.kind === 'item' && e.item.machine_moved)
+    return (
+      <motion.div data-id={key} {...fade}>
+        <MachineLine at={e.at} to={e.item.machine_moved.to} reason={e.item.machine_moved.reason} />
       </motion.div>
     );
   // A command with no message to fold into: typed at the terminal, or sent before messages recorded their landing.
@@ -251,6 +257,20 @@ function Quotable({ text, on, onQuote, children }: { text: string; on: boolean; 
           Quote
         </button>
       )}
+    </div>
+  );
+}
+
+/** The agent started on another machine because its own could not start it: one line between rules, its time on hover. */
+function MachineLine({ at, to, reason }: { at: string; to: string; reason: string }) {
+  return (
+    <div className="my-3 flex min-h-10 items-center gap-4 text-sm text-muted">
+      <div className="h-px flex-1 bg-border" />
+      <span title={clock(at)} className="flex min-w-0 items-center gap-1.5 text-center">
+        <Monitor size={14} className="shrink-0" />
+        {reason ? `Started on ${to}: ${reason}` : `Started on ${to}`}
+      </span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
