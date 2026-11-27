@@ -26,19 +26,21 @@ export function Connect({ children }: { children: ReactNode }) {
   const [shellSaidNone, setShellSaidNone] = useState(() => !shell()?.onToken || !storage?.getItem('shell:token-pending'));
   useEffect(() => shell()?.onToken?.((t) => (t ? setToken(t) : setShellSaidNone(true))), []);
   // A revoked device, or a token from an older pairing: the listener refuses it, so it goes and pairing comes back.
+  const refused = useCallback(() => {
+    forgetToken(storage, url);
+    setLost(true);
+    setToken(null);
+  }, [storage, url]);
   useEffect(() => {
     if (!token || !needsToken(url)) return;
     let live = true;
     void tokenRefused(url, token, webSocketTransport).then((no) => {
-      if (!live || !no) return;
-      forgetToken(storage, url);
-      setLost(true);
-      setToken(null);
+      if (live && no) refused();
     });
     return () => {
       live = false;
     };
-  }, [url, token, storage]);
+  }, [url, token, refused]);
   // The owner's machines: the page joins whichever is master now, with the same token.
   const machines = useMemo(() => new Machines(storage, url), [storage, url]);
   const name = useSyncExternalStore(machines.subscribe, () => machines.get().master?.name ?? '');
@@ -63,13 +65,14 @@ export function Connect({ children }: { children: ReactNode }) {
       master: { floor: () => machines.get().master, below: m.below },
     });
     client.onState((st) => {
+      if (st === 'closed' && client.refusal?.gate === 'unpaired') refused();
       const said = st === 'open' ? masterOf(client.hello) : null;
       if (said) machines.joined(m.at(), said);
     });
     const s = new Store(client);
     if (insecure) s.fail(`Refusing ${url}: use wss:// for a daemon that is not on this machine.`);
     return s;
-  }, [url, insecure, token, machines]);
+  }, [url, insecure, token, machines, refused]);
   const off = insecure || !!failure;
   const error = useSyncExternalStore(
     (f) => store.subscribe(f),

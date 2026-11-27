@@ -10,6 +10,7 @@ function flaky(daemon: FakeDaemon) {
   const net = {
     down: false,
     reject: false,
+    unpaired: false,
     connects: 0,
     open: () => made.filter((t) => !(t as Transport & { closed: boolean }).closed).length,
   };
@@ -20,6 +21,15 @@ function flaky(daemon: FakeDaemon) {
     made.push(client);
     if (net.down) {
       server.onmessage = () => server.close();
+    } else if (net.unpaired) {
+      server.onmessage = (m) =>
+        server.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: JSON.parse(m).id,
+            error: { code: -32000, message: 'refused', data: { code: 'refused', gate: 'unpaired', reason: 'not paired' } },
+          }),
+        );
     } else if (net.reject) {
       // An error reply to every call, and the connection kept: only the client can close it.
       server.onmessage = (m) =>
@@ -88,4 +98,22 @@ test('closing the client while it connects closes the connection that arrives', 
   await started;
   await until(() => net.connects === 1, 'the connect to finish');
   await until(() => net.open() === 0, 'the late connection to close');
+});
+
+test('a device refused as unpaired on reconnect stops retrying and fails what waits', async () => {
+  const daemon = new FakeDaemon();
+  const { net, connect } = flaky(daemon);
+  const client = new DaemonClient({ client: 'web-pc', connect, reconnect: { minMs: 1, maxMs: 2 } });
+  await client.start();
+  net.unpaired = true;
+  daemon.dropConnections();
+  const waiting = client.call('daemon.status', {});
+  await assert.rejects(waiting, (e: Error & { gate?: string }) => e.gate === 'unpaired');
+  assert.equal(client.state, 'closed');
+  assert.equal(client.refusal?.gate, 'unpaired');
+  const tries = net.connects;
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(net.connects, tries, 'no retry after the refusal');
+  assert.equal(net.open(), 0);
+  client.close();
 });
