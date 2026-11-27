@@ -29,6 +29,7 @@ import {
   type RowAim,
 } from '@handline/app-core';
 import { goToTurnOf, showMemo } from '#src/tools/TaskTurn.ts';
+import { ServiceRow, useServiceDown } from '#src/requests/ServiceRow.tsx';
 import { useRequests } from '#src/requests/data.ts';
 import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
 import { HereWord } from '#src/connection/ClusterWord.tsx';
@@ -136,6 +137,7 @@ const fitList = (px: number, size: number) => Math.max(320, Math.min(px, size - 
 
 /** Every cluster's requests in one list: with several, newest first, each joined one's row with its name; only this Mac's are picked. */
 function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
+  const down = useServiceDown();
   const own = all.find((a) => a.cluster === '')?.data;
   const several = all.length > 1;
   const merged = (of: (d: ReturnType<typeof useRequests>) => PendingRequest[]): At[] => {
@@ -249,13 +251,16 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
       >
         <ScrollFade keep="requests" fadeTop={false} className={`min-h-0 flex-1 ${selectionRoom(n)}`}>
           <div className="flex flex-col gap-6 pb-4 text-sm">
-            {r.failed && <p className="px-2 text-danger">Requests did not load.</p>}
-            {!r.loaded && !r.failed && <ListLoading label="Loading requests" />}
+            {r.failed && !down && <p className="px-2 text-danger">Requests did not load.</p>}
+            {!r.loaded && !r.failed && !down && <ListLoading label="Loading requests" />}
+            {(r.loaded || down) && (
+              <Section title="Your turn" rows={rows.turn} count={r.turn.length + (down ? 1 : 0)} empty="Nothing waits on you.">
+                {down && <ServiceRow key="service" />}
+                {r.turn.map((p) => line(p))}
+              </Section>
+            )}
             {r.loaded && (
               <>
-                <Section title="Your turn" rows={rows.turn} count={r.turn.length} empty="Nothing waits on you.">
-                  {r.turn.map((p) => line(p))}
-                </Section>
                 {r.notes.length > 0 && (
                   <Section title="Notes" rows={rows.notes} count={r.notes.length} empty="">
                     {r.notes.map((p) => line(p))}

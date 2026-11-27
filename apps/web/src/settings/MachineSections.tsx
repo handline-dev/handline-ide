@@ -8,8 +8,6 @@ import { Block, Setting } from '#src/settings/Meter.tsx';
 import { Bar, toneOf } from '#src/ui/Meter.tsx';
 import { SharedRuns } from '#src/settings/SharedRuns.tsx';
 import { useMachine } from '#src/settings/data/machine.ts';
-import { useService } from '#src/settings/data/service.ts';
-import { ServiceBlock } from '#src/settings/ServiceBlock.tsx';
 import { Button } from '#src/ui/Button.tsx';
 import { NumberStepper } from '#src/ui/NumberStepper.tsx';
 import { Segmented } from '#src/ui/Segmented.tsx';
@@ -77,7 +75,6 @@ function Target({
 export function MachineSections() {
   const nameOf = useNameOf();
   const m = useMachine();
-  const service = useService();
   const [refused, setRefused] = useState<{ key: string; text: string } | null>(null);
   const send = (key: string, go: () => Promise<unknown>) => {
     setRefused(null);
@@ -204,7 +201,6 @@ export function MachineSections() {
         </Setting>
         {why('awake')}
       </Block>
-      {service && <ServiceBlock service={service} working={m.working} />}
     </>
   );
 }
