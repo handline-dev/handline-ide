@@ -56,12 +56,29 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
       kind: 'run',
       agent: ARCH,
       title: `run in /work, with its output told to <@${ARCH}>`,
-      diff: 'run: gh auth refresh -s workflow\ncwd: /work',
-      run: { command: 'gh auth refresh -s workflow', cwd: '/work', risks: ['network'] },
+      diff: 'run: gh auth refresh -s workflow && git push origin HEAD:main\ncwd: /work',
+      run: { command: 'gh auth refresh -s workflow && git push origin HEAD:main', cwd: '/work', risks: ['network'] },
       reason: 'The push needs the workflow scope, which only your login can grant.',
       requested_by: ARCH,
       task: 1684,
     });
+    // Two it asked earlier on the same task, one that ran clean and one that failed.
+    for (const [id, state, exit] of [
+      [911, 'done', 0],
+      [912, 'failed', 1],
+    ] as const)
+      book.raise({
+        id,
+        kind: 'run',
+        agent: ARCH,
+        title: `run in /work, with its output told to <@${ARCH}>`,
+        diff: 'run: pnpm install\ncwd: /work',
+        run: { command: 'pnpm install', cwd: '/work', risks: [], state, exit },
+        requested_by: ARCH,
+        task: 1684,
+        state: 'approved',
+        settled: new Date().toISOString(),
+      });
     book.raise({
       id: 909,
       kind: 'sandbox',

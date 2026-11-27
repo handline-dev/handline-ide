@@ -8,6 +8,8 @@ import type { Proposal } from '@handline/client';
 import { ArrowRight, Lightbulb } from 'lucide-react';
 import { CommandText } from '#src/ui/CommandText.tsx';
 import { TextDiff } from '#src/requests/ProposalView.tsx';
+import { useState } from 'react';
+import { RunAsk } from '#src/chat/RunAsk.tsx';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 
 export function ProposalCards({ agent }: { agent: string }) {
@@ -15,28 +17,41 @@ export function ProposalCards({ agent }: { agent: string }) {
   const asked = (id: string) => listed.find((x) => String(x.id) === id && x.requested_by === agent);
   const turns = useRead('requests.pending', {}).data?.answer.filter((x) => x.source === 'proposal' && x.id && asked(x.id)) ?? [];
   const nameOf = useNameOf();
-  return turns.map((t) => {
-    const p = asked(t.id!)!;
-    return (
-      <div key={t.id} data-proposal={t.id} className="mt-2 flex flex-col gap-3 rounded-lg border border-border p-3 text-sm">
-        <div className="flex gap-2.5">
-          <Lightbulb size={16} className="mt-0.5 shrink-0 text-warning" />
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <p className="font-medium text-fg">{proposalTitle(p, nameOf)}</p>
-            {p.reason && (
-              <p className="text-muted">
-                <Refs text={p.reason} />
-              </p>
-            )}
+  // A command asked while this chat is open keeps its place once answered, to say how it ended.
+  const [seen, setSeen] = useState<readonly number[]>([]);
+  const open = turns.map((t) => Number(t.id));
+  if (open.some((id) => !seen.includes(id))) setSeen([...seen, ...open.filter((id) => !seen.includes(id))]);
+  const runs = listed.filter((x) => x.kind === 'run' && x.requested_by === agent && seen.includes(x.id));
+  return (
+    <>
+      {runs.map((p) => (
+        <RunAsk key={p.id} p={p} who={agent} at={p.created} />
+      ))}
+      {turns.map((t) => {
+        const p = asked(t.id!)!;
+        if (p.kind === 'run') return null;
+        return (
+          <div key={t.id} data-proposal={t.id} className="mt-2 flex flex-col gap-3 rounded-lg border border-border p-3 text-sm">
+            <div className="flex gap-2.5">
+              <Lightbulb size={16} className="mt-0.5 shrink-0 text-warning" />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <p className="font-medium text-fg">{proposalTitle(p, nameOf)}</p>
+                {p.reason && (
+                  <p className="text-muted">
+                    <Refs text={p.reason} />
+                  </p>
+                )}
+              </div>
+            </div>
+            <Changes p={p} />
+            <div className="flex justify-end gap-2">
+              <TurnQuick p={t} />
+            </div>
           </div>
-        </div>
-        <Changes p={p} />
-        <div className="flex justify-end gap-2">
-          <TurnQuick p={t} />
-        </div>
-      </div>
-    );
-  });
+        );
+      })}
+    </>
+  );
 }
 
 /** Each change a yes makes, full width: a file's text before and after, any other its own lines. */

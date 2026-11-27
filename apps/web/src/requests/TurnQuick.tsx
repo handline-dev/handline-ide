@@ -2,7 +2,7 @@
 import { classify, sentence, useProposals, useUnstall, useWrite, why } from '@handline/app-data';
 import type { PendingRequest } from '@handline/client';
 import { laterKey, tomorrowAt9, turnKey } from '@handline/app-core';
-import { RotateCw, X } from 'lucide-react';
+import { Play, RotateCw, X } from 'lucide-react';
 import { useState } from 'react';
 import { useRowActions } from '#src/requests/RowMenu.tsx';
 import { RunButton } from '#src/requests/RunRow.tsx';
@@ -15,40 +15,8 @@ import { toast } from '#src/ui/toast.tsx';
  *  changed since stays off on this row, so a changed proposal is opened and read before it is allowed. */
 export function TurnQuick({ p }: { p: PendingRequest }) {
   const act = useRowActions();
-  const decide = useWrite('proposal.decide');
   const dismiss = useWrite('warning.dismiss');
-  const listed = useProposals().data?.proposals.find((x) => String(x.id) === p.id);
-  const [changed, setChanged] = useState(false);
-  if (p.source === 'proposal' && p.id) {
-    const answer = (decision: 'approve' | 'reject') =>
-      decide.mutate(
-        { proposal: Number(p.id), decision, ...(decision === 'approve' && listed ? { subject: listed.subject } : {}) },
-        {
-          onError: (e) => {
-            const f = classify(e);
-            if (f.kind === 'refused' && f.gate === 'proposal_changed') {
-              setChanged(true);
-              toast('The proposal changed since it was listed: open it and read it before you allow it.', { tone: 'warning' });
-            } else if (sentence(f)) toast(`Did not answer: ${sentence(f)}`, { tone: 'warning' });
-          },
-        },
-      );
-    return (
-      <>
-        <Button disabled={decide.isPending} onClick={() => answer('reject')}>
-          Deny
-        </Button>
-        <Button
-          variant="primary"
-          disabled={decide.isPending || !listed || changed}
-          title={changed ? 'Changed since it was listed: open it to read it' : listed ? undefined : 'Reading the proposal'}
-          onClick={() => answer('approve')}
-        >
-          {listed?.kind === 'run' ? 'Run' : 'Allow'}
-        </Button>
-      </>
-    );
-  }
+  if (p.source === 'proposal' && p.id) return <ProposalAnswers id={Number(p.id)} />;
   if (p.warning?.kind === 'review' && p.id) return <ReviewOffer id={p.id} warning={p.warning} />;
   if (p.source === 'machine' && p.id) {
     const id = p.id;
@@ -120,5 +88,58 @@ function TryAgain({ agent }: { agent: string }) {
       <RotateCw size={14} />
       Try again
     </Button>
+  );
+}
+
+/** A proposal's Deny and Allow (Run, with its play mark, for a command); `runFirst` puts Run before Deny, as under a command. */
+export function ProposalAnswers({ id, runFirst }: { id: number; runFirst?: boolean }) {
+  const decide = useWrite('proposal.decide');
+  const listed = useProposals().data?.proposals.find((x) => x.id === id);
+  const [changed, setChanged] = useState(false);
+  const answer = (decision: 'approve' | 'reject') =>
+    decide.mutate(
+      { proposal: id, decision, ...(decision === 'approve' && listed ? { subject: listed.subject } : {}) },
+      {
+        onError: (e) => {
+          const f = classify(e);
+          if (f.kind === 'refused' && f.gate === 'proposal_changed') {
+            setChanged(true);
+            toast('The proposal changed since it was listed: open it and read it before you allow it.', { tone: 'warning' });
+          } else if (sentence(f)) toast(`Did not answer: ${sentence(f)}`, { tone: 'warning' });
+        },
+      },
+    );
+  const deny = (
+    <Button disabled={decide.isPending} onClick={() => answer('reject')}>
+      Deny
+    </Button>
+  );
+  const run = (
+    <Button
+      variant="primary"
+      disabled={decide.isPending || !listed || changed}
+      title={changed ? 'Changed since it was listed: open it to read it' : listed ? undefined : 'Reading the proposal'}
+      onClick={() => answer('approve')}
+    >
+      {listed?.kind === 'run' ? (
+        <>
+          <Play size={14} />
+          Run
+        </>
+      ) : (
+        'Allow'
+      )}
+    </Button>
+  );
+  return runFirst ? (
+    <>
+      {run}
+      {deny}
+    </>
+  ) : (
+    <>
+      {deny}
+      {run}
+    </>
   );
 }

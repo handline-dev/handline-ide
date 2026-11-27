@@ -7,7 +7,7 @@ import { findImageRefs } from '#src/images.ts';
 type Entry = TaskDetail['timeline'][number];
 
 export interface ActivityItem {
-  kind: 'comment' | 'event';
+  kind: 'comment' | 'event' | 'run';
   at: string;
   who: string;
   /** What happened, as a sentence; empty for a comment. */
@@ -27,6 +27,8 @@ export interface ActivityItem {
   turnTo?: string;
   /** For a comment that opens with a person: that person, as the daemon read it (Memo.to); a word to them that passes no turn. */
   to?: string;
+  /** On a run: the command the agent asked the founder to run, as proposal.list shows it. */
+  proposal?: Entry['proposal'];
 }
 
 const STATE_WORD: Record<string, string> = {
@@ -123,8 +125,9 @@ export function activityOf(memos: TaskDetail['memos'], timeline: readonly Entry[
     const base = { kind: 'event' as const, at: e.at, who: e.who, memo: e.memo, edited: false };
     switch (e.kind) {
       case 'memo':
-      case 'run':
         return [];
+      case 'run':
+        return e.proposal ? [{ ...base, kind: 'run', line: '', note: e.text, proposal: e.proposal }] : [];
       case 'turn': {
         if (e.memo != null && shown.has(e.memo)) return [];
         // The person giving the turn back says nothing new: their comment is the answer.

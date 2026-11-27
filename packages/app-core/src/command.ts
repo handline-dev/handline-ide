@@ -61,3 +61,63 @@ export function runLine(
   if (run.state === 'running') return `Running · ${Math.max(0, Math.round((now - Date.parse(run.started_at)) / 1000))}s`;
   return `${run.state === 'done' ? 'Done' : 'Failed'} · exit ${run.exit ?? '?'} · ${run.seconds ?? 0}s`;
 }
+
+/** A command with each `&&`, `||` or `;` step on its own line (`&&` and `||` lead the next line, `;` ends its own), the quoted text
+ * and the lines it already has left as they are; nothing is dropped, so the lines read as the whole of what runs. */
+export function commandSteps(cmd: string): string {
+  let out = '';
+  let quote = '';
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i];
+    if (quote) {
+      if (c === '\\' && quote === '"' && i + 1 < cmd.length) out += c + cmd[++i];
+      else out += c;
+      if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '\\' && i + 1 < cmd.length) {
+      out += c + cmd[++i];
+      continue;
+    }
+    if (c === "'" || c === '"') quote = c;
+    const two = cmd.slice(i, i + 2);
+    if (two === '&&' || two === '||') {
+      out = `${out.trimEnd()}\n${two} `;
+      i += 1;
+      while (/\s/.test(cmd[i + 1] ?? '')) i++;
+      continue;
+    }
+    if (c === ';' && cmd[i + 1] !== ';' && cmd[i - 1] !== ';') {
+      out = `${out.trimEnd()};\n`;
+      while (/\s/.test(cmd[i + 1] ?? '')) i++;
+      continue;
+    }
+    out += c;
+  }
+  return out.trim();
+}
+
+/** How a run proposal ended, as a word and a mark; null while it waits. */
+export type RunOutcome = { mark: 'ok' | 'fail' | 'denied' | 'running' | 'other'; word: string };
+export function runOutcome(p: { state: string; run?: { state?: string; exit?: number } }): RunOutcome | null {
+  if (p.state === 'open') return null;
+  if (p.state === 'rejected') return { mark: 'denied', word: 'Denied' };
+  if (p.state === 'withdrawn') return { mark: 'other', word: 'Withdrawn' };
+  const r = p.run?.state;
+  if (r === 'done') return { mark: 'ok', word: 'Ran · succeeded' };
+  if (r === 'failed') return { mark: 'fail', word: `Failed · exit ${p.run?.exit ?? '?'}` };
+  if (r === 'running') return { mark: 'running', word: 'Running' };
+  if (r === 'stopped') return { mark: 'fail', word: 'Stopped' };
+  if (p.state === 'approved' && !r) return { mark: 'ok', word: 'Allowed' };
+  return { mark: 'other', word: r ?? p.state };
+}
+
+/** A run proposal's command: its run's, else the `run: ` line of its words (a `cwd: ` line is the folder, not the command). */
+export const runCommand = (p: { run?: { command: string }; diff?: string }): string =>
+  p.run?.command ??
+  (p.diff ?? '')
+    .split('\n')
+    .filter((l) => !l.startsWith('cwd: '))
+    .map((l) => l.replace(/^run: /, ''))
+    .join('\n')
+    .trim();

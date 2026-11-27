@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bangOf, commandOf, commandRisk, isCommandLang, runLine } from '#src/command.ts';
+import { bangOf, commandOf, commandRisk, commandSteps, isCommandLang, runCommand, runLine, runOutcome } from '#src/command.ts';
 
 test('sh, bash, zsh and shell fences are commands, in any case; other languages and plain fences are not', () => {
   assert.deepEqual(['sh', 'Bash', 'zsh', ' shell '].map(isCommandLang), [true, true, true, true]);
@@ -62,4 +62,27 @@ test('bangOf: the command after `! `, as Claude Code asks agents to write one fo
   assert.equal(commandOf('diff', '! changed line'), null);
   assert.equal(commandOf('python', '! pip install x'), null);
   assert.equal(commandOf('', '! one\n! two'), null);
+});
+
+test('commandSteps puts each step on its own line, quoted text and case terminators left alone', () => {
+  assert.equal(commandSteps('git a && git b'), 'git a\n&& git b');
+  assert.equal(commandSteps('a; b || c'), 'a;\nb\n|| c');
+  assert.equal(commandSteps(`echo "a && b" && echo 'c; d'`), `echo "a && b"\n&& echo 'c; d'`);
+  assert.equal(commandSteps('case x in a) y;; esac'), 'case x in a) y;; esac');
+});
+
+test('runOutcome names each end of a run proposal', () => {
+  assert.equal(runOutcome({ state: 'open' }), null);
+  assert.equal(runOutcome({ state: 'rejected' })?.word, 'Denied');
+  assert.equal(runOutcome({ state: 'approved', run: { state: 'done', exit: 0 } })?.word, 'Ran · succeeded');
+  assert.equal(runOutcome({ state: 'approved', run: { state: 'failed', exit: 2 } })?.word, 'Failed · exit 2');
+});
+
+test('runCommand reads the command from the words when the proposal has no run', () => {
+  assert.equal(runCommand({ diff: 'run: git push\ncwd: /work' }), 'git push');
+  assert.equal(runCommand({ run: { command: 'ls' }, diff: 'x' }), 'ls');
+});
+
+test('commandSteps keeps a blank line inside quotes', () => {
+  assert.equal(commandSteps('git commit -m "a\n\nb" && ls'), 'git commit -m "a\n\nb"\n&& ls');
 });

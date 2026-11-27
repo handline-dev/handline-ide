@@ -111,3 +111,12 @@ test('whom a comment is written to comes from the daemon (Memo.to), never from i
   assert.equal(a!.to, 'p1');
   assert.equal(b!.to, undefined);
 });
+
+test('a run row becomes a run item carrying its proposal; one without a proposal draws nothing', () => {
+  const proposal = { id: 910, state: 'open', run: { command: 'ls', cwd: '/w' } };
+  const run = { ...e('run', 'a1', 'ls', '2026-01-01T00:00:01Z'), proposal } as Parameters<typeof activityOf>[1][number];
+  const a = activityOf([], [run, e('run', 'a1', 'ls', '2026-01-01T00:00:02Z')]);
+  assert.equal(a.length, 1);
+  assert.equal(a[0]!.kind, 'run');
+  assert.equal(a[0]!.proposal?.id, 910);
+});
