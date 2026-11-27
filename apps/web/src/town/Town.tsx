@@ -156,7 +156,7 @@ function Legend() {
   // Each mark, what it means in full, and in short.
   const rows: [ReactNode, string, string][] = [
     [square(SWATCH.lit), 'A window per agent: working', 'Working'],
-    [square(SWATCH.dark), 'Idle or asleep', 'Idle or asleep'],
+    [square(SWATCH.dark), 'Idle', 'Idle'],
     [square(SWATCH.stopped), 'Stopped', 'Stopped'],
     [square(SWATCH.empty), 'Nobody at work', 'Nobody at work'],
     [pin('var(--warning)', '!'), 'Waiting for you', 'Waiting for you'],

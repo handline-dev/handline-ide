@@ -1,12 +1,13 @@
-// What an office says about its people beyond where they sit (Marks.tsx draws it): the mark over one on hold, stopped or asleep, the
+// What an office says about its people beyond where they sit (Marks.tsx draws it): the mark over one on hold, stopped or dozing, the
 // steps done of a task, and what the papers on a desk say on hover. Plain sums over what the town already holds, with no drawing in them.
 import type { Task } from '@handline/client';
 import type { Activity } from '#src/layout/agentList.ts';
 import { WORDS, type Person } from '#src/town/model.ts';
 
-/** The mark over a person: an hourglass on hold, a warning when stopped on a fault, Zzz over the desk of one asleep. */
+/** The mark over a person: an hourglass on hold, a warning when stopped on a fault, Zzz over one resting whose prompt cache ran out. */
 export type Mark = 'held' | 'error' | 'asleep';
-export const markOf = (a: Activity): Mark | null => (a === 'held' || a === 'error' || a === 'asleep' ? a : null);
+export const markOf = (p: Pick<Person, 'activity' | 'cached'>): Mark | null =>
+  p.activity === 'held' || p.activity === 'error' ? p.activity : p.activity === 'resting' && !p.cached ? 'asleep' : null;
 
 const STUCK: Activity[] = ['held', 'error'];
 

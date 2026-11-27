@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
-import { crowdOf, stepped, talking, type Mover, type Stage } from '#src/town/crowd.ts';
+import { crowdOf, stepped, talking, toDesks, type Mover, type Stage } from '#src/town/crowd.ts';
 import { givenWork } from '#src/town/errands.ts';
 import type { House, Person } from '#src/town/model.ts';
 import { changesOf, doorOf, routeOf, seatsOf, type Seat } from '#src/town/moves.ts';
@@ -109,6 +109,28 @@ describe('a person whose place changes', () => {
     const four = laid(['a', 'b', 'c', 'd'].map((k) => person(k, 'working')));
     const three = laid(['a', 'c', 'd'].map((k) => person(k, 'working')));
     expect(changesOf(four.seats, three.seats).map((c) => c.key)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('says who walks to its desk, whose screen lights once it sits', () => {
+    const crowd = crowdOf();
+    crowd.place(stageOf(laid([person('a', 'resting'), person('b', 'working'), person('c', 'working')])));
+    const now = stageOf(laid([person('a', 'working'), person('b', 'resting'), person('c', 'working')]));
+    crowd.place(now);
+    // a gets up from a sofa for its desk; b leaves its desk for a sofa.
+    expect([...crowd.get().keys()].sort()).toEqual(['a', 'b']);
+    expect(toDesks(crowd.get(), now)).toBe('a');
+    // Drawn again with a's screen dark, every seat where it was: both walk on as they were.
+    const was = crowd.get();
+    crowd.place({ ...now, people: [...now.people] });
+    expect(crowd.get()).toBe(was);
+    crowd.place(null);
+    // One coming in to rest at its desk while its cache lives has no screen to light.
+    const cached = crowdOf();
+    cached.place(stageOf(laid([person('a', 'resting'), person('b', 'working')])));
+    const back = stageOf(laid([person('a', 'resting', true), person('b', 'working')]));
+    cached.place(back);
+    expect([[...cached.get().keys()], toDesks(cached.get(), back)]).toEqual([['a'], '']);
+    cached.place(null);
   });
 
   it('goes out of the door looking as it did, though gone from the team', () => {

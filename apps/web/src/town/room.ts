@@ -1,8 +1,8 @@
 // A workspace's office as a 3D room, in metres (scene3d.ts draws it, people.ts puts the people in): a cut-open box with the back wall at
 // z = 0, rows of benches (the lead first) in the work room on the left, and on the right two rooms, each parted from it by a low wall with
 // a doorway in the middle: the rest room of sofas at the back, and at the front the way in, the founder's desk ahead of the door. An agent
-// at work sits at its desk, its screen lit while it works or waits for the founder; an idle one sits in the rest room; one starting stands
-// by the founder's desk; an asleep one's desk is empty. One more desk, empty, is where the founder hires. Furniture is in furniture.ts.
+// at work sits at its desk, its screen lit while it works or waits for the founder; an idle one stays at its desk while its prompt cache lives
+// and then sits in the rest room; one starting stands by the founder's desk. One more desk, empty, is where the founder hires. Furniture is in furniture.ts.
 import type { Activity } from '#src/layout/agentList.ts';
 import * as F from '#src/town/furniture.ts';
 import type { House, Person } from '#src/town/model.ts';
@@ -115,16 +115,18 @@ const FRONT_PART = 'wall:front';
 export const inFront = (b: Block) => b.part === FRONT_PART || b.tag === DOOR;
 
 const AT_DESK: Activity[] = ['working', 'you', 'held', 'error'];
-const LIT: Activity[] = ['working', 'you'];
+/** Whose screens are lit: working, or waiting for the founder. */
+export const LIT: Activity[] = ['working', 'you'];
 
 /** The room for a house: benches of `cols` desks on the left; right of them the rest room at the back and the way in at the front, the
  *  founder's desk ahead of the door, each half the depth unless the sofas need more; `fit` widens the work room by `w` metres and makes
  *  the room at least `d` deep (fit.ts shapes it to the picture). The HQ has no benches: its people (the pinned agents) stand together,
- *  `cols` to a row, with room for one more. */
+ *  `cols` to a row, with room for one more. The screens of `dark` stay dark: they are still walking to their desks. */
 export function roomOf(
   house: House,
   cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(house.people.length)))),
   fit = { w: 0, d: 0 },
+  dark: ReadonlySet<string> = new Set(),
 ): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
   const hq = house.hq === true;
@@ -171,7 +173,8 @@ export function roomOf(
       const z = FIRST + Math.floor(i / cols) * ROW;
       const chair = `chair:${p.key}`;
       desk(x, z, `desk:${p.key}`, p.queue);
-      F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, LIT.includes(p.activity), p.activity === 'working' ? screenOf(p.key) : undefined);
+      const lit = LIT.includes(p.activity) && !dark.has(p.key);
+      F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, lit, lit && p.activity === 'working' ? screenOf(p.key) : undefined);
       F.keyboard(put, x + 0.22, z - 0.08, F.DESK_TOP, 0.34);
       if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
       F.chair(put, x + 0.225, z + 0.3, chair);

@@ -38,6 +38,13 @@ describe('roomOf', () => {
     expect(r.blocks.filter((b) => b.kind === 'lit')).toHaveLength(2);
   });
 
+  it('keeps the screen of one still walking to its desk dark', () => {
+    const h = house([person('a', 'working'), person('b', 'you'), person('c', 'working')]);
+    const lit = (r: Room) => r.blocks.filter((b) => b.kind === 'lit').map((b) => b.tag ?? 'lit');
+    expect(lit(roomOf(h))).toEqual(['screen:a', 'lit', 'screen:c']);
+    expect(lit(roomOf(h, undefined, undefined, new Set(['a', 'b'])))).toEqual(['screen:c']);
+  });
+
   it('keeps one empty desk after the last agent for hiring, and moves nobody for it', () => {
     const team = (n: number) => house(Array.from({ length: n }, (_, i) => person(`p${i}`, 'working')));
     const top = (r: Room, tag: string) => r.blocks.find((b) => b.tag === tag && b.part?.startsWith('desk:'))!;

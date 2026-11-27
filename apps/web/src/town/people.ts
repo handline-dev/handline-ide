@@ -41,8 +41,8 @@ export type Box = { x: number; y: number; w: number; h: number };
 /** What a click opens an agent's chat from, in picture pixels: its figure, or its desk with its chair; `at` is the floor spot (metres)
  *  the founder walks to first, and `face` which way it then looks: to its right at whoever sits at the desk, by default. */
 export type Spot = Box & { person: Person; at: [number, number]; face?: 'up' };
-/** A person's name, centred on x with its top at y; `away` under the empty desk of one who is not in the room. */
-export type Name = { person: Person; x: number; y: number; away?: boolean };
+/** A person's name, centred on x with its top at y. */
+export type Name = { person: Person; x: number; y: number };
 /** A person drawn: its cell of the sheet (`col`, `row`) in `box`, the room's nearer pixels to lay over it as an image in `front`, and how
  *  far into the room it is (`z`), so the founder walks in front of or behind it. One at its desk turns on `neck`, at its chair's top. */
 export type Figure = {
@@ -241,11 +241,6 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const papers = boxOf(pic, frame, papersOf(`desk:${person.key}`));
     // Just before its papers, at the desk's right edge, looking at them.
     if (papers) cast.papers.push({ ...papers, person, at: beside(`desk:${person.key}`, 'right'), face: 'up' });
-    // Nobody at this desk: a mark for its agent goes over the empty chair.
-    const chair = cast.heads.some((h) => h.key === person.key) ? null : boxOf(pic, frame, `chair:${person.key}`);
-    if (chair) cast.heads.push({ key: person.key, x: chair.x + chair.w / 2, y: chair.y });
-    // Its name still stands under the chair, so one can tell whose empty desk it is.
-    if (chair) cast.names.push({ person, x: chair.x + chair.w / 2, y: chair.y + chair.h + 1, away: true });
   }
   const hire = boxOf(pic, frame, HIRE_DESK);
   if (hire) cast.hire = { ...hire, name: [hire.x + hire.w / 2, hire.y + hire.h + 1], at: beside(HIRE_DESK) };

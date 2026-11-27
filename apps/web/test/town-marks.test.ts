@@ -15,9 +15,10 @@ const person = (key: string, activity: Activity, doing: string | null = null, wh
 });
 
 describe('the mark over a person', () => {
-  it('is only for one on hold, stopped or asleep', () => {
-    const all: Activity[] = ['working', 'waking', 'asleep', 'you', 'held', 'error', 'resting'];
-    expect(all.map(markOf)).toEqual([null, null, 'asleep', null, 'held', 'error', null]);
+  it('is for one on hold or stopped, and Zzz for one resting whose prompt cache ran out', () => {
+    const all: Activity[] = ['working', 'waking', 'you', 'held', 'error', 'resting'];
+    expect(all.map((activity) => markOf({ activity, cached: false }))).toEqual([null, null, null, 'held', 'error', 'asleep']);
+    expect(markOf({ activity: 'resting', cached: true })).toBeNull();
   });
 });
 

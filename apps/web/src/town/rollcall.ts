@@ -17,7 +17,7 @@ const groupOf = (p: Person): Group | null =>
       ? p.activity
       : null;
 
-/** Everyone of `houses` by group, house by house in the town's order; one resting or asleep is in none. */
+/** Everyone of `houses` by group, house by house in the town's order; one resting is in none. */
 export function rollCallOf(houses: readonly House[]): RollCall {
   const out: RollCall = { working: [], you: [], error: [], held: [] };
   for (const house of houses)

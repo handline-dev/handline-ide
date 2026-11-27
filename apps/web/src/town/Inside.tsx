@@ -1,7 +1,7 @@
 // A workspace's office, shown when its building is clicked: a 3D room drawn as pixel art (room.ts, fit.ts, scene3d.ts, people.ts), drawn
 // to fill the pane. The founder walks in it (founder.tsx): a click on the floor walks there, on a person or desk brings up that agent's
 // chat (Windows.tsx), on its papers its tasks, on the founder's desk the decisions, on the empty desk hires; Targets.tsx lays these over
-// the picture. Marks say who is on hold, stopped or asleep (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
+// the picture. Marks say who is on hold, stopped or dozing (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
 // founder walks into it or it is clicked; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useRef, useState } from 'react';
 import type { House } from '#src/town/model.ts';
@@ -14,7 +14,7 @@ import { useWalker } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
 import { Monitors, MotionsOf } from '#src/town/monitors.tsx';
-import { useCrowd } from '#src/town/crowd.ts';
+import { useCrowd, usePlaced, useToDesks } from '#src/town/crowd.ts';
 import { fadeOf, useMore } from '#src/town/pan.ts';
 import { useGivenWork } from '#src/town/errands.ts';
 import { useCheers } from '#src/town/cheers.ts';
@@ -50,8 +50,11 @@ export function Inside({
 }) {
   const { show } = useTownShown();
   const [pane, [pw, ph]] = useSize();
-  // The same room whatever the space: a smaller pane shows it smaller, but never so small that names shrink; a bigger room scrolls.
-  const drawn = useDrawn(house);
+  const crowd = useCrowd();
+  // The same room whatever the space: a smaller pane shows it smaller, but never so small that names shrink; a bigger room scrolls. One
+  // walking to its desk sits before its screen lights.
+  const drawn = useDrawn(house, useToDesks(crowd));
+  usePlaced(crowd, drawn?.stage ?? null);
   const scale = drawn ? Math.max(READABLE, Math.min(pw / drawn.w, ph / drawn.h)) : 1;
   // The door, pushed open into the room as the founder comes in, shuts behind it; walking down into it pushes it open out, toward the
   // viewer, and then goes back out to the city. One of the people (`crowd`) coming or going holds it open while in the doorway.
@@ -62,7 +65,6 @@ export function Inside({
     const entry = drawn?.ground.entry;
     if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z], out: true });
   });
-  const crowd = useCrowd(drawn?.stage ?? null);
   // One teammate giving another work walks over to it, talks and walks back.
   useGivenWork((from, to) => crowd.errand(from, to));
   // One whose task is finished celebrates a few seconds.

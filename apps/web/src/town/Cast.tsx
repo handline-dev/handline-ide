@@ -9,7 +9,7 @@ import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/
 import type { Door } from '#src/town/moves.ts';
 import { lineUp } from '#src/town/names.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
-import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
+import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { BUBBLE, hashOf, PEOPLE_SHEET, SHEET, walkColumn, type Cast, type Figure } from '#src/town/people.ts';
 import { outlineDots } from '#src/town/outline.ts';
 import { boxOn, WalkingFigure } from '#src/town/walking.tsx';
@@ -57,10 +57,9 @@ export function People({
   const behind = useFounder(founder, (me) => (me ? items.filter((i) => i.z <= me.at[1]).length : 0));
   const { hire, mine } = drawn.cast;
   const labels = [
-    // The name under an empty desk is quieter: its agent is away.
     ...drawn.cast.names
       .filter((n) => !movers.has(n.person.key))
-      .map((n) => ({ item: { key: `name:${n.person.key}`, fill: n.away ? NAME_AWAY : NAME_INK }, x: n.x, y: n.y, text: n.person.name })),
+      .map((n) => ({ item: { key: `name:${n.person.key}`, fill: NAME_INK }, x: n.x, y: n.y, text: n.person.name })),
     // In the accent colour: something to do, not somebody.
     ...(hire ? [{ item: { key: 'hire', fill: 'var(--accent)' }, x: hire.name[0], y: hire.name[1], text: '+ Hire' }] : []),
     ...(mine ? [{ item: { key: 'you', fill: NAME_INK }, x: mine.name[0], y: mine.name[1], text: 'You' }] : []),

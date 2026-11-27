@@ -6,6 +6,7 @@ import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import type { Person } from '#src/town/model.ts';
 import { figuresOf, type Facing } from '#src/town/people.ts';
 import { changesOf, routeOf, standingAt, type Door, type Seat } from '#src/town/moves.ts';
+import { LIT } from '#src/town/room.ts';
 import type { Floor, Spot } from '#src/town/walk.ts';
 
 /** An errand to `to`'s desk: seconds of talk left there, facing `face`, then the turns `back` to its seat. */
@@ -36,6 +37,7 @@ export type Crowd = {
   get: () => Movers;
   subscribe: (l: () => void) => () => void;
   place: (s: Stage | null) => void;
+  stage: () => Stage | null;
   /** `from`, seated, walks to `to`'s desk, talks and walks back. */
   errand: (from: string, to: string) => void;
 };
@@ -129,6 +131,8 @@ export function crowdOf(): Crowd {
     // Whoever's seat changed walks there; whoever was walking walks on over the new floor, to where its seat is now. One on an errand
     // whose seat stays goes on with it over the new floor, or home when the other's desk is gone.
     const changed = new Set(changesOf(was.seats, s.seats).map((c) => c.key));
+    // With every seat where it was the floor is too (a screen lit or dark, a paper more): everyone walks on as they were.
+    if (!changed.size) return;
     const moving = new Set([...changed, ...[...movers].filter(([k, m]) => !m.errand || changed.has(k)).map(([k]) => k)]);
     if (!moving.size && ![...movers.values()].some((m) => m.errand)) return;
     const next = new Map<string, Mover>();
@@ -166,15 +170,37 @@ export function crowdOf(): Crowd {
     emit();
     go();
   };
-  return { get: () => movers, subscribe: (l) => (all.add(l), () => void all.delete(l)), place, errand };
+  return { get: () => movers, subscribe: (l) => (all.add(l), () => void all.delete(l)), place, stage: () => stage, errand };
 }
 
-/** The crowd of the office drawn as `stage`, placed before the screen is painted, so a seated figure never shows at its new seat. */
-export function useCrowd(stage: Stage | null): Crowd {
-  const [crowd] = useState(crowdOf);
+/** An office's crowd, kept while the office is shown. */
+export const useCrowd = (): Crowd => useState(crowdOf)[0];
+
+/** `crowd` placed on the office drawn as `stage` before the screen is painted, so a seated figure never shows at its new seat. */
+export function usePlaced(crowd: Crowd, stage: Stage | null) {
   useLayoutEffect(() => crowd.place(stage), [crowd, stage]);
   useLayoutEffect(() => () => crowd.place(null), [crowd]);
-  return crowd;
 }
 
 export const useMovers = (c: Crowd) => useSyncExternalStore(c.subscribe, c.get);
+
+/** Who is walking to its desk on `stage` with a screen to light there, comma-joined by key: it lights once it sits. */
+export const toDesks = (movers: Movers, stage: Stage | null): string =>
+  [...movers]
+    .filter(([key, m]) => !m.leaving && !m.errand && stage?.seats.get(key)?.id.startsWith('desk:'))
+    .filter(([key]) => LIT.some((a) => stage?.people.find((p) => p.key === key)?.activity === a))
+    .map(([key]) => key)
+    .sort()
+    .join(',');
+
+/** The keys walking to their desks in `crowd`, as toDesks says, kept as it changes; read before the drawing it darkens, so it lags the
+ *  crowd by the one render the drawing takes. */
+export function useToDesks(crowd: Crowd): string {
+  const [keys, setKeys] = useState('');
+  useLayoutEffect(() => {
+    const read = () => setKeys(toDesks(crowd.get(), crowd.stage()));
+    read();
+    return crowd.subscribe(read);
+  }, [crowd]);
+  return keys;
+}
