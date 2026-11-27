@@ -269,8 +269,8 @@ func TestATaskHoldingSeveralItemsIsOneRowTheStrongestNames(t *testing.T) {
 	setup := func(first, second string) *Env {
 		e := testEnv(t)
 		runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(7, 'the task', 'gone', 'p1', 1, 'p1')",
-			"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 7, 'bob', 'which one <@p1>?', 10)",
-			"INSERT INTO requests(id, ts, requester, target, body, state, kind, memo_id, edge_ok) VALUES"+first+", "+second,
+			"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(1, 7, 'bob', 'which one <@p1>?', 10)",
+			"INSERT INTO requests(id, ts, requester, target, body, state, kind, comment_id, edge_ok) VALUES"+first+", "+second,
 			"INSERT INTO task_requests(task_id, request_id) VALUES(7, 20), (7, 21)")
 		noteLost(t, e, db.RefusedTaskPrefix, 7, "gone", "refused")
 		return e
@@ -387,7 +387,7 @@ func TestARequestsUnreadCommentsComeFromTheMarker(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	runAll(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'a', 'bob', 'p1', 1, 'p1')",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'a', 1), (2, 1, 'bob', 'b', 2)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(1, 1, 'bob', 'a', 1), (2, 1, 'bob', 'b', 2)",
 		"INSERT INTO cursors(name, row_id, updated) VALUES('task_seen:p1:1', 1, 1)")
 	if r := requestRowOf(t, e, 1); r["unread_comments"] != int64(1) {
 		t.Fatalf("%v", r)
@@ -427,7 +427,7 @@ func TestALostBashLineWarnsToLookBeforeRunningItAgain(t *testing.T) {
 func TestAFounderNoticeStaysUntilItsTaskMovesOrItsAgentIsMended(t *testing.T) {
 	t.Parallel()
 	for name, over := range map[string]string{
-		"commented": "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(7, 'bob', 'on it', 300)",
+		"commented": "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(7, 'bob', 'on it', 300)",
 		"ended":     "UPDATE tasks SET done_evidence = 'x', done_at = 9 WHERE id = 7",
 	} {
 		e := testEnv(t)

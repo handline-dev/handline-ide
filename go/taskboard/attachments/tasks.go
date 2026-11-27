@@ -32,7 +32,7 @@ func Refs(text string) []Ref {
 // it was handed on or sent back with. The LIKE filters scan every such row, which is fine at today's sizes.
 const taskTexts = `SELECT l.task_id AS tid, r.body AS text FROM task_requests l JOIN requests r ON r.id = l.request_id
 	WHERE l.rowid = (SELECT MIN(f.rowid) FROM task_requests f WHERE f.task_id = l.task_id) AND r.body LIKE '%](attachment:%'
-UNION ALL SELECT task_id, body FROM task_memos WHERE body LIKE '%](attachment:%'
+UNION ALL SELECT task_id, body FROM task_comments WHERE body LIKE '%](attachment:%'
 UNION ALL SELECT json_extract(payload, '$.task_id'), json_extract(payload, '$.note') FROM events
 	WHERE kind IN ('reject_task', 'task_handoff') AND json_valid(payload) AND payload LIKE '%](attachment:%'`
 

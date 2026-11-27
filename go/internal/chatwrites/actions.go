@@ -267,7 +267,7 @@ func ForYouSeen(q db.Q, agent string, upto int64) error {
 	if err := db.SetCursor(q, key, upto); err != nil {
 		return err
 	}
-	ids, err := db.IDs(q, "SELECT id FROM requests WHERE target = ? AND requester = ? AND id <= ? AND read_at IS NULL AND memo_id IS NULL", actor.OwnerKey, agent, upto)
+	ids, err := db.IDs(q, "SELECT id FROM requests WHERE target = ? AND requester = ? AND id <= ? AND read_at IS NULL AND comment_id IS NULL", actor.OwnerKey, agent, upto)
 	if err != nil {
 		return err
 	}

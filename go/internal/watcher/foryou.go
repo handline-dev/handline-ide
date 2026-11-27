@@ -45,7 +45,7 @@ func ForYouSignature(q *sql.DB) string {
 func (*ForYou) Name() string { return "for_you" }
 
 func (*ForYou) Tables() []string {
-	return []string{"agent_state", "cursors", "events", "meta", "people", "prefs", "prompt_blocks", "requests", "task_blocks", "task_memos", "task_requests", "task_tags", "task_turns", "tasks"} // meta: the pause moves a task between doing and queued
+	return []string{"agent_state", "cursors", "events", "meta", "people", "prefs", "prompt_blocks", "requests", "task_blocks", "task_comments", "task_requests", "task_tags", "task_turns", "tasks"} // meta: the pause moves a task between doing and queued
 }
 
 // Scan looks at each person's items: an event of one is that person's alone (its Agent).

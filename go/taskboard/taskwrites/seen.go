@@ -26,7 +26,7 @@ func MarkSeen(tx db.Q, person string, tid, upto int64) (bool, error) {
 	}
 	if upto == 0 {
 		var top sql.NullInt64
-		if err := tx.QueryRow("SELECT MAX(id) FROM task_memos WHERE task_id = ?", tid).Scan(&top); err != nil {
+		if err := tx.QueryRow("SELECT MAX(id) FROM task_comments WHERE task_id = ?", tid).Scan(&top); err != nil {
 			return false, err
 		}
 		upto = top.Int64

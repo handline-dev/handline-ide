@@ -87,7 +87,7 @@ func TestALessonAboutTheFounderCitesTheirWordsAndHasItsOwnCap(t *testing.T) {
 		t.Fatal(err)
 	}
 	exec(t, d, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'story part', %q, 'gp', 1)", worker))
-	exec(t, d, fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, %q, 'in Korean, please', 1), (8, 1, %q, 'noted', 2)",
+	exec(t, d, fmt.Sprintf("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 1, %q, 'in Korean, please', 1), (8, 1, %q, 'noted', 2)",
 		founder, worker))
 	exec(t, d, fmt.Sprintf("INSERT INTO requests(id, ts, requester, target, body, state, kind, ref) VALUES(5, 1, %q, %q, 'short, please', 'landed', 'say', 'abcdef123456')",
 		founder, worker))

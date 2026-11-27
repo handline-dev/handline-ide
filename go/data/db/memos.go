@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/kit/addr"
 )
 
-// Memo is one task_memos row.
+// Memo is one task_comments row.
 type Memo struct {
 	ID, TaskID   int64
 	Author, Body string
@@ -17,7 +17,7 @@ type Memo struct {
 	EditedAt     sql.NullFloat64
 }
 
-// A memo's add, edit and delete are each kept as an event (memo_add, memo_edit, memo_delete) with the text before and after: they are the
+// A memo's add, edit and delete are each kept as an event (comment_add, comment_edit, comment_delete) with the text before and after: they are the
 // task's history (task.history), which keeps a deleted memo's words. q should be the transaction that changes the memo.
 
 // AddMemo adds a task's memo. The stamp is float seconds since the epoch, with the fraction kept.
@@ -26,7 +26,7 @@ func AddMemo(q Q, tid int64, author, body string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES (?, ?, ?, ?)", tid, author, body, float64(time.Now().UnixNano())/1e9)
+	res, err := q.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES (?, ?, ?, ?)", tid, author, body, float64(time.Now().UnixNano())/1e9)
 	if err != nil {
 		return 0, err
 	}
@@ -34,14 +34,14 @@ func AddMemo(q Q, tid int64, author, body string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, err = AddEvent(q, author, "memo_add", KV{"task_id", tid}, KV{"memo", mid}, KV{"now", body})
+	_, err = AddEvent(q, author, "comment_add", KV{"task_id", tid}, KV{"comment", mid}, KV{"now", body})
 	return mid, err
 }
 
 // GetMemo is the memo with id mid, nil when there is no such memo.
 func GetMemo(q Q, mid int64) (*Memo, error) {
 	m := &Memo{}
-	err := q.QueryRow("SELECT id, task_id, author, body, created_at, edited_at FROM task_memos WHERE id = ?", mid).
+	err := q.QueryRow("SELECT id, task_id, author, body, created_at, edited_at FROM task_comments WHERE id = ?", mid).
 		Scan(&m.ID, &m.TaskID, &m.Author, &m.Body, &m.CreatedAt, &m.EditedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -58,10 +58,10 @@ func EditMemo(q Q, mid int64, by, body string) error {
 	if body, err = storedMentions(q, m.TaskID, by, body); err != nil {
 		return err
 	}
-	if _, err := q.Exec("UPDATE task_memos SET body = ?, edited_at = ? WHERE id = ?", body, Now(), mid); err != nil {
+	if _, err := q.Exec("UPDATE task_comments SET body = ?, edited_at = ? WHERE id = ?", body, Now(), mid); err != nil {
 		return err
 	}
-	_, err = AddEvent(q, by, "memo_edit", KV{"task_id", m.TaskID}, KV{"memo", mid}, KV{"was", m.Body}, KV{"now", body})
+	_, err = AddEvent(q, by, "comment_edit", KV{"task_id", m.TaskID}, KV{"comment", mid}, KV{"was", m.Body}, KV{"now", body})
 	return err
 }
 
@@ -71,34 +71,34 @@ func DeleteMemo(q Q, mid int64, by string) error {
 	if err != nil || m == nil {
 		return err
 	}
-	if _, err := q.Exec("DELETE FROM task_memos WHERE id = ?", mid); err != nil {
+	if _, err := q.Exec("DELETE FROM task_comments WHERE id = ?", mid); err != nil {
 		return err
 	}
-	_, err = AddEvent(q, by, "memo_delete", KV{"task_id", m.TaskID}, KV{"memo", mid}, KV{"was", m.Body})
+	_, err = AddEvent(q, by, "comment_delete", KV{"task_id", m.TaskID}, KV{"comment", mid}, KV{"was", m.Body})
 	return err
 }
 
 // LinkMemoTell keeps that request rid told reader of memo mid. A task's return that carried the comment stays its tell: an edit's later
 // tell does not replace it, or the return would show again as a request of its own; one closed before it reached the reader is none.
 func LinkMemoTell(q Q, mid int64, reader string, rid int64) error {
-	_, err := q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES (?, ?, ?)"+keepReturnTell, mid, reader, rid)
+	_, err := q.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES (?, ?, ?)"+keepReturnTell, mid, reader, rid)
 	return err
 }
 
 // CarriesMemo is whether request rid is reader's tell of a comment: the comment is in its body.
 func CarriesMemo(q Q, rid int64, reader string) (bool, error) {
 	var n int
-	err := q.QueryRow("SELECT COUNT(*) FROM memo_tells WHERE request_id = ? AND reader = ?", rid, reader).Scan(&n)
+	err := q.QueryRow("SELECT COUNT(*) FROM comment_tells WHERE request_id = ? AND reader = ?", rid, reader).Scan(&n)
 	return n > 0, err
 }
 
 // keepReturnTell is LinkMemoTell's rule for a reader already told: a return that reached it stays its tell.
-var keepReturnTell = " ON CONFLICT(memo_id, reader) DO UPDATE SET request_id = excluded.request_id WHERE (SELECT kind != 'task' OR " +
-	NeverReached("") + " FROM requests WHERE id = memo_tells.request_id) IS NOT 0"
+var keepReturnTell = " ON CONFLICT(comment_id, reader) DO UPDATE SET request_id = excluded.request_id WHERE (SELECT kind != 'task' OR " +
+	NeverReached("") + " FROM requests WHERE id = comment_tells.request_id) IS NOT 0"
 
 // MemoCountBy is how many memos author has written on the task since the stamp, inclusive (seconds, as a memo's created_at).
 func MemoCountBy(q Q, tid int64, author string, since float64) (n int64, err error) {
-	err = q.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = ? AND created_at >= ?", tid, author, since).Scan(&n)
+	err = q.QueryRow("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = ? AND created_at >= ?", tid, author, since).Scan(&n)
 	return n, err
 }
 
@@ -134,7 +134,7 @@ func ToPerson(body string) bool {
 // MemoWriter is who wrote the comment that request rid tells its reader about, "" when rid tells no comment.
 func MemoWriter(q Q, rid int64) (string, error) {
 	var author string
-	err := q.QueryRow("SELECT m.author FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE t.request_id = ? LIMIT 1", rid).Scan(&author)
+	err := q.QueryRow("SELECT m.author FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE t.request_id = ? LIMIT 1", rid).Scan(&author)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}

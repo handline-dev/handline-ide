@@ -27,7 +27,7 @@ var taskExtras = []struct {
 	query string
 	since bool // takes the cutoff of taskLooked
 }{
-	{"SELECT task_id, COUNT(*), MAX(id), MAX(edited_at) FROM task_memos GROUP BY task_id", false},
+	{"SELECT task_id, COUNT(*), MAX(id), MAX(edited_at) FROM task_comments GROUP BY task_id", false},
 	{"SELECT l.task_id, COUNT(*), MAX(r.state_at) FROM tasks t JOIN task_requests l ON l.task_id = t.id JOIN requests r ON r.id = l.request_id " +
 		"WHERE " + taskLooked + " GROUP BY l.task_id", true},
 	{"SELECT task_id, COUNT(*) FROM task_blocks WHERE dormant = 0 GROUP BY task_id", false},
@@ -51,7 +51,7 @@ func (*Tasks) Name() string { return "tasks" }
 
 // Tables are the tables its reads touch (tables_test.go holds a list to what they touch).
 func (*Tasks) Tables() []string {
-	return []string{"agent_state", "cursors", "events", "meta", "requests", "task_blocks", "task_memos", "task_requests", "task_tags", "task_turns", "tasks"}
+	return []string{"agent_state", "cursors", "events", "meta", "requests", "task_blocks", "task_comments", "task_requests", "task_tags", "task_turns", "tasks"}
 }
 
 // rowsPrint reads every row of query as text, keyed by its first column, so two reads are equal exactly when the rows are.

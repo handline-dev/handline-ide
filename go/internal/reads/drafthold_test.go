@@ -123,7 +123,7 @@ func TestADraftItsAgentLeftBehindShowsUntilSeen(t *testing.T) {
 	if got := runRows(t, e); got != "" {
 		t.Fatalf("seen, it leaves: %q", got)
 	}
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(5, 1, 'a7', 'more', 200)")
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(5, 1, 'a7', 'more', 200)")
 	if got := runRows(t, e); got != "1:[]" {
 		t.Fatalf("a later comment brings it back: %q", got)
 	}

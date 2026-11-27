@@ -226,9 +226,9 @@ func agentsOf(q db.Q, it Item) ([]string, error) {
 // one before it on the task.
 func readComments(q db.Q, person string, after int64) ([]Item, error) {
 	return db.Collect[Item](q.Query(`SELECT m.id, CAST(m.created_at AS INTEGER), m.task_id, t.title, m.body,
-		COALESCE((SELECT a.body FROM task_memos a WHERE a.task_id = m.task_id AND a.id < m.id AND a.author != m.author
+		COALESCE((SELECT a.body FROM task_comments a WHERE a.task_id = m.task_id AND a.id < m.id AND a.author != m.author
 			AND (m.reply_to IS NULL OR a.id = m.reply_to) ORDER BY a.id DESC LIMIT 1), '')
-		FROM task_memos m JOIN tasks t ON t.id = m.task_id WHERE m.author = ? AND m.id > ? ORDER BY m.id LIMIT ?`, person, after, rowsPerQuery))(
+		FROM task_comments m JOIN tasks t ON t.id = m.task_id WHERE m.author = ? AND m.id > ? ORDER BY m.id LIMIT ?`, person, after, rowsPerQuery))(
 		func(rows *sql.Rows) (it Item, err error) {
 			var title, body, answered string
 			err = rows.Scan(&it.row, &it.at, &it.task, &title, &body, &answered)

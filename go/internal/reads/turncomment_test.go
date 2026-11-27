@@ -12,9 +12,9 @@ func TestATurnReadsTheCommentItWasHandedOverWith(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy')")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'amy', 'A or B? I recommend A', 10)")
-	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, memo) VALUES(1, 1, 'p1', '', 'amy', 10, 7)")
-	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"p1","ask":"","memo":7}')`)
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 1, 'amy', 'A or B? I recommend A', 10)")
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, comment) VALUES(1, 1, 'p1', '', 'amy', 10, 7)")
+	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"p1","ask":"","comment":7}')`)
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestAnUnreadCommentToTheFounderIsANoteNotTheirTurn(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'ship', 'amy', 'lead', 1, 'lead'), (3, 'other', 'amy', 'lead', 1, 'lead')")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES"+
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES"+
 		"(8, 2, 'amy', '<@p1> shipped to beta', 20), (9, 3, 'amy', 'told <@p1> already', 21)")
 	pending := func() map[string]any {
 		t.Helper()
@@ -71,7 +71,7 @@ func TestANoteSeenInItsAuthorsChatIsRead(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'ship', 'amy', 'lead', 1, 'lead')")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(8, 2, 'amy', '<@p1> shipped to beta', 20)")
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(8, 2, 'amy', '<@p1> shipped to beta', 20)")
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(30, 10, 'amy', 'human', 'before', 'landed', 'say'), "+
 		"(31, 25, 'amy', 'human', 'after', 'landed', 'say')")
 	notes := func() any { return pending(t, e)["counts"].(map[string]any)["notes"] }
@@ -92,16 +92,16 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 	t.Parallel()
 	e := testEnv(t)
 	run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'amy', 'amy', 1, 'amy')")
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES"+
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES"+
 		"(7, 1, 'amy', 'A or B?', 10), (8, 1, 'p1', 'A', 20), (9, 1, 'amy', '<@p1> A is in', 30), (10, 1, 'amy', 'plain', 40), (11, 1, 'amy', '<@p1> C or D?', 50)")
 	run(t, e, `INSERT INTO events(id, ts, agent, kind, payload) VALUES`+
-		`(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"p1","ask":"","memo":7}'), `+
-		`(2, 20, 'p1', 'task_turn_pop', '{"task_id":1,"agent":"p1","outcome":"pass","note":"A","to":"amy","memo":8}'), `+
-		`(3, 30, 'amy', 'memo_add', '{"task_id":1,"memo":9,"now":"<@p1> A is in"}'), `+
-		`(4, 40, 'amy', 'memo_add', '{"task_id":1,"memo":10,"now":"plain"}'), `+
-		`(5, 50, 'amy', 'memo_add', '{"task_id":1,"memo":11,"now":"<@p1> C or D?"}'), `+
-		`(6, 50, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"p1","from":"A or B?","ask":"<@p1> C or D?","memo":11}')`)
-	run(t, e, "UPDATE task_memos SET body = 'A or B? I recommend A' WHERE id = 7")
+		`(1, 10, 'amy', 'task_turn_push', '{"task_id":1,"to":"p1","ask":"","comment":7}'), `+
+		`(2, 20, 'p1', 'task_turn_pop', '{"task_id":1,"agent":"p1","outcome":"pass","note":"A","to":"amy","comment":8}'), `+
+		`(3, 30, 'amy', 'comment_add', '{"task_id":1,"comment":9,"now":"<@p1> A is in"}'), `+
+		`(4, 40, 'amy', 'comment_add', '{"task_id":1,"comment":10,"now":"plain"}'), `+
+		`(5, 50, 'amy', 'comment_add', '{"task_id":1,"comment":11,"now":"<@p1> C or D?"}'), `+
+		`(6, 50, 'amy', 'task_turn_ask', '{"task_id":1,"agent":"p1","from":"A or B?","ask":"<@p1> C or D?","comment":11}')`)
+	run(t, e, "UPDATE task_comments SET body = 'A or B? I recommend A' WHERE id = 7")
 	items, err := e.transcriptItems("amy", nil)
 	if err != nil {
 		t.Fatal(err)

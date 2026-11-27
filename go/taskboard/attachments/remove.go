@@ -54,8 +54,8 @@ func (s *Store) Remove(q db.Q, id, by string, dry bool) (n int, already bool, er
 const naming = `SELECT count(*) FROM (
 	SELECT 'r' || id FROM requests WHERE body LIKE ?1
 	UNION SELECT 'r' || substr(name, 13) FROM meta WHERE name LIKE 'attachments:%' AND value LIKE ?2
-	UNION SELECT 'm' || id FROM task_memos WHERE body LIKE ?1
-	UNION SELECT 'm' || substr(name, 12) FROM meta WHERE name LIKE 'memo-files:%' AND value LIKE ?2
+	UNION SELECT 'm' || id FROM task_comments WHERE body LIKE ?1
+	UNION SELECT 'm' || substr(name, 15) FROM meta WHERE name LIKE 'comment-files:%' AND value LIKE ?2
 	UNION SELECT 'e' || rowid FROM events WHERE kind IN ('reject_task', 'task_handoff') AND json_valid(payload)
 		AND json_extract(payload, '$.note') LIKE ?1)`
 

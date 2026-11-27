@@ -351,7 +351,7 @@ func MemoSummary(q Q, tid int64, receiver string, told int64, cap int) (string, 
 // DeliveryMemoTexts is the texts of the comments request told brings receiver on task tid: those it carries, then those MemoSummary shows
 // with the same cap.
 func DeliveryMemoTexts(q Q, tid int64, receiver string, told int64, cap int) ([]string, error) {
-	rows, err := q.Query("SELECT m.body FROM task_memos m JOIN memo_tells t ON t.memo_id = m.id WHERE m.task_id = ? AND t.reader = ? AND t.request_id = ? ORDER BY m.id",
+	rows, err := q.Query("SELECT m.body FROM task_comments m JOIN comment_tells t ON t.comment_id = m.id WHERE m.task_id = ? AND t.reader = ? AND t.request_id = ? ORDER BY m.id",
 		tid, receiver, told)
 	if err != nil {
 		return nil, err
@@ -382,8 +382,8 @@ type shownMemo struct{ line, body string }
 
 // memosShown is MemoSummary's comments, and how many earlier ones it leaves out.
 func memosShown(q Q, tid int64, receiver string, told int64, cap int) ([]shownMemo, int, error) {
-	rows, err := q.Query("SELECT id, author, body, created_at, edited_at FROM task_memos m WHERE task_id = ? AND NOT EXISTS "+
-		"(SELECT 1 FROM memo_tells WHERE memo_id = m.id AND reader = ? AND request_id = ?) ORDER BY id", tid, receiver, told)
+	rows, err := q.Query("SELECT id, author, body, created_at, edited_at FROM task_comments m WHERE task_id = ? AND NOT EXISTS "+
+		"(SELECT 1 FROM comment_tells WHERE comment_id = m.id AND reader = ? AND request_id = ?) ORDER BY id", tid, receiver, told)
 	if err != nil {
 		return nil, 0, err
 	}

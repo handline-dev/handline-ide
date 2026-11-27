@@ -137,7 +137,7 @@ func TestATaskChangeWritesTheRecordedRows(t *testing.T) {
 		},
 		func(run func(string, ...any)) {
 			run("UPDATE tasks SET title = 'new', priority = 1 WHERE id = 1")
-			run("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)")
+			run("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)")
 			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'second', 'carol', 'p1', 1, 'p1')")
 			// one an open blocker holds, and one doing past its deadline (the clock counts from the deadline missed)
 			run("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(3, 'held', 'carol', 'p1', 1, 'p1')")

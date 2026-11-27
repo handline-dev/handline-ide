@@ -288,7 +288,7 @@ func moveTaskLinks(tx *sql.Tx, tid, into int64) error {
 		{"DELETE FROM task_blocks WHERE blocks_on = ?", []any{tid}},
 		{"UPDATE OR IGNORE task_blocks SET task_id = ? WHERE task_id = ? AND blocks_on != ?", []any{into, tid, into}},
 		{"DELETE FROM task_blocks WHERE task_id = ?", []any{tid}},
-		{"UPDATE task_memos SET task_id = ? WHERE task_id = ?", []any{into, tid}},
+		{"UPDATE task_comments SET task_id = ? WHERE task_id = ?", []any{into, tid}},
 	} {
 		if _, err := tx.Exec(q.sql, q.args...); err != nil {
 			return err

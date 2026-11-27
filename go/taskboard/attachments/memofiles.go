@@ -213,7 +213,7 @@ func (s *Store) keep(files []Info, link func() error) error {
 	return err
 }
 
-func memoKey(mid int64) string { return fmt.Sprintf("memo-files:%d", mid) }
+func memoKey(mid int64) string { return fmt.Sprintf("comment-files:%d", mid) }
 
 func LinkMemo(q db.Q, mid int64, infos []Info) error {
 	b, err := json.Marshal(infos)
@@ -241,7 +241,7 @@ func MemoFiles(q db.Q, mid int64) ([]Info, error) {
 	return infos, nil
 }
 
-const memoFilesHeld = `SELECT tm.task_id AS tid, m.value AS text FROM meta m JOIN task_memos tm ON m.name = 'memo-files:' || tm.id`
+const memoFilesHeld = `SELECT tm.task_id AS tid, m.value AS text FROM meta m JOIN task_comments tm ON m.name = 'comment-files:' || tm.id`
 
 // FileMap gives the path only withPath, since only an agent reads files by path.
 func (s *Store) FileMap(in Info, withPath bool) map[string]any {

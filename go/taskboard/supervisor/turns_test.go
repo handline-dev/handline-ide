@@ -104,7 +104,7 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 	// the turn's delivery carries the comment: alice is not told it a second time
 	var delivered, told int
 	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'alice' AND kind = 'task' AND body LIKE '%review the parser%'")).Scan(&delivered))
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM memo_tells WHERE reader = 'alice'")).Scan(&told))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM comment_tells WHERE reader = 'alice'")).Scan(&told))
 	if turns, _ := db.Turns(r.DB, tid); delivered != 1 || told != 0 || len(turns) != 1 || turns[0].Memo == 0 || turns[0].OnPass != db.TurnOnPassDone {
 		t.Fatalf("delivered %d, told %d, %+v", delivered, told, turns)
 	}
@@ -115,7 +115,7 @@ func TestAReviewTurnClosesTheTaskOnAPassAndASendBackReturnsItWithTheNote(t *test
 		t.Fatalf("acting %q", r.acting(tid))
 	}
 	var memo string
-	r.must(r.DB.QueryRow(r.sql("SELECT body FROM task_memos WHERE task_id = ? AND author = 'alice'"), tid).Scan(&memo))
+	r.must(r.DB.QueryRow(r.sql("SELECT body FROM task_comments WHERE task_id = ? AND author = 'alice'"), tid).Scan(&memo))
 	if memo != "the empty list fails" {
 		t.Fatalf("%q", memo)
 	}
@@ -362,7 +362,7 @@ func TestASendBackWaitsAtTheFrontAndTheFoundersNoteIsAComment(t *testing.T) {
 	}
 	r.turnCall(r.k("human"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","note":"take it back, bob","request_id":"b1"}`, tid))
 	var memos int
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = 'human' AND body = 'take it back, bob'"), tid).Scan(&memos))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = 'human' AND body = 'take it back, bob'"), tid).Scan(&memos))
 	if memos != 1 {
 		t.Fatal("the founder's send-back note is a comment")
 	}
@@ -427,17 +427,17 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	var from string
 	r.must(r.DB.QueryRow(r.sql("SELECT r.id, r.requester FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'ops/bob' ORDER BY r.id DESC LIMIT 1"), held).Scan(&rid, &from))
 	toldBob := func() int64 {
-		r.must(r.DB.QueryRow(r.sql("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'human' AND t.reader = 'ops/bob'"), held).Scan(&told))
+		r.must(r.DB.QueryRow(r.sql("SELECT COALESCE(MAX(t.request_id), 0) FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE m.task_id = ? AND m.author = 'human' AND t.reader = 'ops/bob'"), held).Scan(&told))
 		return told
 	}
 	var comments int
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND author = 'human'"), held).Scan(&comments))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND author = 'human'"), held).Scan(&comments))
 	if toldBob() != rid || from != actor.OwnerKey || comments != 1 {
 		t.Fatalf("the pass #%d from %q; the comment's tell to ops/bob #%d; %d comments", rid, from, told, comments)
 	}
 	// an edit tells bob again, and the return stays the comment's tell
 	var mid int64
-	r.must(r.DB.QueryRow(r.sql("SELECT MAX(id) FROM task_memos WHERE task_id = ? AND author = 'human'"), held).Scan(&mid))
+	r.must(r.DB.QueryRow(r.sql("SELECT MAX(id) FROM task_comments WHERE task_id = ? AND author = 'human'"), held).Scan(&mid))
 	r.turnCall(r.k("human"), "task.comment.edit", fmt.Sprintf(`{"task":%d,"memo":%d,"text":"now, please","request_id":"c2"}`, held, mid))
 	if toldBob() != rid {
 		t.Fatalf("an edit replaced the return #%d as the comment's tell: #%d", rid, told)
@@ -463,7 +463,7 @@ func TestAnAgentsNotedPassIsToldByTheTasksReturn(t *testing.T) {
 	r.turnCall(r.k("alice"), "task.turn.pop", fmt.Sprintf(`{"task":%d,"outcome":"send_back","note":"the test fails","request_id":"p2"}`, tid))
 	var rid, told int64
 	r.must(r.DB.QueryRow(r.sql("SELECT MAX(r.id) FROM requests r JOIN task_requests l ON l.request_id = r.id WHERE l.task_id = ? AND r.target = 'bob'"), tid).Scan(&rid))
-	r.must(r.DB.QueryRow(r.sql("SELECT COALESCE(MAX(t.request_id), 0) FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE m.task_id = ? AND m.author = 'alice' AND m.body = 'the test fails' AND t.reader = 'bob'"), tid).Scan(&told))
+	r.must(r.DB.QueryRow(r.sql("SELECT COALESCE(MAX(t.request_id), 0) FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE m.task_id = ? AND m.author = 'alice' AND m.body = 'the test fails' AND t.reader = 'bob'"), tid).Scan(&told))
 	if told == 0 || told != rid {
 		t.Fatalf("the return #%d; alice's comment told bob by #%d", rid, told)
 	}
@@ -498,7 +498,7 @@ func TestANewCommentMovesTheFoundersTurnToIt(t *testing.T) {
 	}
 	r.refusedCall(r.k("alice"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"mine?","turn":"human","request_id":"p4"}`, held), "only it, or the founder")
 	var n int
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_memos WHERE task_id = ? AND body = 'mine?'"), held).Scan(&n))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM task_comments WHERE task_id = ? AND body = 'mine?'"), held).Scan(&n))
 	if n != 0 {
 		t.Fatal("a refused turn leaves no comment: the two are one write")
 	}
@@ -531,7 +531,7 @@ func TestAForwardedCommentStaysTheCommentsWhenTheTaskMovesAndAPassIsTheTurns(t *
 		t.Fatalf("the return %d and its resend %d are the comment's: %v %v", back, again, r.forwarded(back), r.forwarded(again))
 	}
 	var reader string
-	r.must(r.DB.QueryRow(r.sql("SELECT reader FROM memo_tells WHERE request_id = ?"), again).Scan(&reader))
+	r.must(r.DB.QueryRow(r.sql("SELECT reader FROM comment_tells WHERE request_id = ?"), again).Scan(&reader))
 	if reader != r.k(("alice")) {
 		t.Fatalf("the resend tells %q", reader)
 	}

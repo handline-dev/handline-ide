@@ -89,12 +89,12 @@ func TestNamingCountsEachPlaceOnce(t *testing.T) {
 			if _, err := q.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'w', 'boss', 1)"); err != nil {
 				return err
 			}
-			_, err := q.Exec("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(10, 1, 'w', ?, 1)", ref(id))
+			_, err := q.Exec("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(10, 1, 'w', ?, 1)", ref(id))
 			return err
 		}, 3},
 		{"the same memo carries it as a file", func() error { return LinkMemo(q, 10, carried) }, 3},
 		{"a memo only carries it", func() error {
-			if _, err := q.Exec("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(20, 1, 'w', 'plain', 1)"); err != nil {
+			if _, err := q.Exec("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(20, 1, 'w', 'plain', 1)"); err != nil {
 				return err
 			}
 			return LinkMemo(q, 20, carried)

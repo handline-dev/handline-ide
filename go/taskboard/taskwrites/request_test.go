@@ -40,7 +40,7 @@ func TestARequestIsATaskTheFounderOpenedFromTheirMessage(t *testing.T) {
 		"SELECT COUNT(*) FROM tasks": 1,
 		"SELECT COUNT(*) FROM tasks WHERE id = 1 AND title = 'please do the thing' AND owner = 'manager' AND opened_by = 'p1' AND from_request = 1": 1,
 		"SELECT COUNT(*) FROM task_requests WHERE task_id = 1 AND request_id = 1":                                                                   1,
-		"SELECT COUNT(*) FROM task_memos WHERE task_id = 1 AND author = 'p1' AND body LIKE 'please do the thing%'":                                  1,
+		"SELECT COUNT(*) FROM task_comments WHERE task_id = 1 AND author = 'p1' AND body LIKE 'please do the thing%'":                                  1,
 		"SELECT COUNT(*) FROM agent_state WHERE agent = 'manager' AND current_task = 1":                                                             1,
 	} {
 		if got := count(t, db, q); got != want {
@@ -89,7 +89,7 @@ func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 	db, mk := discardEnv(t)
 	exec(t, db,
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at, from_request) VALUES(1, 'the request', 'manager', 'p1', 1, 5), (2, 'plain', 'manager', 'gp', 1, NULL)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(1, 1, 'p1', 'the ask', 1)")
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(1, 1, 'p1', 'the ask', 1)")
 	add := func(id, task int, extra, rid string) string {
 		return fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"task.comment.add","params":{"task":%d,"text":"note %s",%s"request_id":%q}}`, id, task, rid, extra, rid)
 	}
@@ -98,8 +98,8 @@ func TestACommentOnARequestRepliesAndTellsTheFounderNothing(t *testing.T) {
 		t.Fatalf("%v", r)
 	}
 	for q, want := range map[string]int{
-		"SELECT COUNT(*) FROM task_memos WHERE body = 'note a' AND reply_to = 1":     1,
-		"SELECT COUNT(*) FROM task_memos WHERE body = 'note b' AND reply_to IS NULL": 1,
+		"SELECT COUNT(*) FROM task_comments WHERE body = 'note a' AND reply_to = 1":     1,
+		"SELECT COUNT(*) FROM task_comments WHERE body = 'note b' AND reply_to IS NULL": 1,
 		"SELECT COUNT(*) FROM requests WHERE target = 'p1'":                          0,
 	} {
 		if got := count(t, db, q); got != want {
@@ -119,7 +119,7 @@ func TestARequestSaysItsPathRefsInItsFirstComment(t *testing.T) {
 		t.Fatalf("%v", r[0])
 	}
 	var body string
-	db.QueryRow(keyed(db, "SELECT body FROM task_memos WHERE task_id = 1")).Scan(&body)
+	db.QueryRow(keyed(db, "SELECT body FROM task_comments WHERE task_id = 1")).Scan(&body)
 	if body != "read these\n[file 1: /w/spec.md]\n[folder 2: /w/docs]" {
 		t.Fatalf("%q", body)
 	}

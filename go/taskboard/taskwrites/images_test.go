@@ -92,7 +92,7 @@ func TestAnAgentNamesOnlyAnImageATaskAlreadyShows(t *testing.T) {
 		t.Fatal(err)
 	}
 	said(t, run("w", "task.comment.add", "m2", params(2, "text", "carried from T1: "+ref(img))))
-	if count(t, sdb, "SELECT COUNT(*) FROM task_memos WHERE task_id = 2 AND body = 'carried from T1: "+ref(img)+"'") != 1 {
+	if count(t, sdb, "SELECT COUNT(*) FROM task_comments WHERE task_id = 2 AND body = 'carried from T1: "+ref(img)+"'") != 1 {
 		t.Fatal("the memo is stored as written")
 	}
 }
@@ -140,7 +140,7 @@ func TestAHandoffNoteNamesImagesAsAMemoDoes(t *testing.T) {
 	}
 	said(t, run("", "task.comment.add", "m1", params(1, "text", "the founder's "+ref(img))))
 	said(t, run("w", "task.handoff", "h2", `,"task":1,"to":"boss","note":"see `+ref(img)+`"`))
-	sdb.Exec(keyed(sdb, "DELETE FROM task_memos"))
+	sdb.Exec(keyed(sdb, "DELETE FROM task_comments"))
 	if held, _ := attachments.Held(sdb, 5); held[img] != 5 {
 		t.Fatalf("the note holds the image while the task is open: %v", held)
 	}

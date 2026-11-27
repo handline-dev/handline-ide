@@ -675,12 +675,12 @@ func ReopenLanded(q Q, rid int64) (bool, error) {
 	return n > 0, nil
 }
 
-// CloseMemoAsks closes the open asks that task comments raised (requests.memo_id) and that match where, with args: state "landed" is
+// CloseMemoAsks closes the open asks that task comments raised (requests.comment_id) and that match where, with args: state "landed" is
 // answered (read as well), "withdrawn" is taken back. It answers how many it closed.
 func CloseMemoAsks(q Q, state, where string, args ...any) (int64, error) {
 	res, err := q.Exec("UPDATE requests SET state = ?1, state_at = ?2, landed_at = CASE WHEN ?1 = 'landed' THEN ?2 END, "+
 		"read_at = CASE WHEN ?1 = 'landed' THEN COALESCE(read_at, ?2) ELSE read_at END, queue_order = NULL "+
-		"WHERE memo_id IS NOT NULL AND state = 'queued' AND "+where, append([]any{state, Now()}, args...)...)
+		"WHERE comment_id IS NOT NULL AND state = 'queued' AND "+where, append([]any{state, Now()}, args...)...)
 	if err != nil {
 		return 0, err
 	}

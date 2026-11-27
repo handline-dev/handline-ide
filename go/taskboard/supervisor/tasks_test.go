@@ -721,7 +721,7 @@ func TestAMemoKeepsTheTellItSentToEachReader(t *testing.T) {
 	r.must(r.TellMemoOf(r.DB, tid, 8, r.k(("dave")), "added", "@bob look", "", false))
 	count := func(mid int64) int {
 		var n int
-		r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM memo_tells WHERE memo_id = ?"), mid).Scan(&n))
+		r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM comment_tells WHERE comment_id = ?"), mid).Scan(&n))
 		return n
 	}
 	if count(8) == 0 {
@@ -729,7 +729,7 @@ func TestAMemoKeepsTheTellItSentToEachReader(t *testing.T) {
 	}
 	r.must(r.TellMemoOf(r.DB, tid, 0, r.k(("dave")), "added", "unlinked", "", false))
 	var n int
-	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM memo_tells WHERE memo_id = 0")).Scan(&n))
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM comment_tells WHERE comment_id = 0")).Scan(&n))
 	if n != 0 {
 		t.Fatal("memo 0 keeps nothing")
 	}

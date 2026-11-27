@@ -1,6 +1,6 @@
 package db
 
-// A request the daemon sends on someone's behalf forwards something: a comment (memo_tells), a turn's return (the task_turn_pop that sent
+// A request the daemon sends on someone's behalf forwards something: a comment (comment_tells), a turn's return (the task_turn_pop that sent
 // it names it), or the task itself, delivered when it is queued or sent again to its new holder (task_forward). One that forwards a
 // comment or a turn's return is drawn as that comment or turn and never as a request of its own; ForwardedSQL is that rule, in one place.
 
@@ -13,7 +13,7 @@ const (
 func RecordForward(q Q, tid, rid int64, carries string, from int64, reader string) error {
 	if carries == ForwardResend {
 		// WHERE true: an upsert's SELECT needs it to read ON CONFLICT as the upsert's
-		if _, err := q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) SELECT memo_id, ?, ? FROM memo_tells WHERE request_id = ? AND true"+keepReturnTell,
+		if _, err := q.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) SELECT comment_id, ?, ? FROM comment_tells WHERE request_id = ? AND true"+keepReturnTell,
 			reader, rid, from); err != nil {
 			return err
 		}
@@ -26,13 +26,13 @@ func RecordForward(q Q, tid, rid int64, carries string, from int64, reader strin
 // resends, whatever became of them: one withdrawn is hidden too.
 var ForwardedSQL = "WITH RECURSIVE resend(src, id) AS MATERIALIZED (SELECT json_extract(payload, '$.from'), " + eventRequest +
 	" FROM events WHERE kind = 'task_forward' AND json_extract(payload, '$.carries') = '" + ForwardResend + "'), " +
-	"fwd(id) AS (SELECT t.request_id FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id JOIN requests r ON r.id = t.request_id WHERE r.kind = 'task' " +
+	"fwd(id) AS (SELECT t.request_id FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id JOIN requests r ON r.id = t.request_id WHERE r.kind = 'task' " +
 	"UNION SELECT " + eventRequest + " FROM events WHERE kind = 'task_turn_pop' AND " + eventRequest + " IS NOT NULL " +
 	"UNION SELECT resend.id FROM resend JOIN fwd ON resend.src = fwd.id) SELECT id FROM fwd"
 
 // CommentAuthors is the authors of the comments request rid forwards, in comment order; none for a request that forwards none.
 func CommentAuthors(q Q, rid int64) ([]string, error) {
-	rows, err := q.Query("SELECT m.author FROM memo_tells t JOIN task_memos m ON m.id = t.memo_id WHERE t.request_id = ? ORDER BY m.id", rid)
+	rows, err := q.Query("SELECT m.author FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE t.request_id = ? ORDER BY m.id", rid)
 	if err != nil {
 		return nil, err
 	}

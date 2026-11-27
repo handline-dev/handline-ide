@@ -59,12 +59,12 @@ func TestAPersonsCommentForwardedToAStalledAgentClearsTheStall(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		res, err := tk.Q.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, ?, 'c', 1)", by)
+		res, err := tk.Q.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, ?, 'c', 1)", by)
 		if err != nil {
 			t.Fatal(err)
 		}
 		mid, _ := res.LastInsertId()
-		if _, err := tk.Q.Exec("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(?, 'a', ?)", mid, rid); err != nil {
+		if _, err := tk.Q.Exec("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(?, 'a', ?)", mid, rid); err != nil {
 			t.Fatal(err)
 		}
 		supervise(tk, "a")

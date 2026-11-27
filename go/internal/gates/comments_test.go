@@ -69,7 +69,7 @@ func TestCommentsOnATasksPullRequestReachItsHolderOnceEach(t *testing.T) {
 		t.Fatalf("told %q, read %v", tell.told, read)
 	}
 	var memos int
-	if err := sdb.QueryRow("SELECT COUNT(*) FROM task_memos WHERE task_id = 2 AND author = ?", daemonAuthor).Scan(&memos); err != nil || memos != 3 {
+	if err := sdb.QueryRow("SELECT COUNT(*) FROM task_comments WHERE task_id = 2 AND author = ?", daemonAuthor).Scan(&memos); err != nil || memos != 3 {
 		t.Fatalf("%d comments on the task, %v", memos, err)
 	}
 	on = append(on, watch.Comment{Key: "l2", Kind: watch.CommentLine, Path: "go/a.go", Body: "outdated", At: at(400), Member: true})

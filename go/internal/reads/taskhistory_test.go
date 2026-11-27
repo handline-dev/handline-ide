@@ -19,9 +19,9 @@ func TestTaskHistoryListsEveryChangeAsRowsNewestFirst(t *testing.T) {
 		(12, 'cat', 'edit_task', '{"task_id": 1, "owner": {"old": "al", "new": "bob"}, "title": {"old": "ship", "new": "ship it"}}'),
 		(13, 'amy', 'block_task', '{"task_id": 1, "blocks_on": 7}'),
 		(14, 'bob', 'task_start', '{"task_id": 1, "was_current": null}'),
-		(15, 'cat', 'memo_add', '{"task_id": 1, "memo": 3, "now": "mind the cache"}'),
-		(16, 'cat', 'memo_edit', '{"task_id": 1, "memo": 3, "was": "mind the cache", "now": "mind the disk"}'),
-		(17, 'p1', 'memo_delete', '{"task_id": 1, "memo": 3, "was": "mind the disk"}'),
+		(15, 'cat', 'comment_add', '{"task_id": 1, "comment": 3, "now": "mind the cache"}'),
+		(16, 'cat', 'comment_edit', '{"task_id": 1, "comment": 3, "was": "mind the cache", "now": "mind the disk"}'),
+		(17, 'p1', 'comment_delete', '{"task_id": 1, "comment": 3, "was": "mind the disk"}'),
 		(18, 'dan', 'unblock_task', '{"task_id": 1, "blocks_on": 7, "after_request": 6}'),
 		(19, 'bob', 'mark_task_done', '{"task_id": 1, "done": "abc123", "from": "doing"}'),
 		(20, 'cat', 'edit_task', '{"task_id": 2, "title": {"old": "x", "new": "y"}}')`)

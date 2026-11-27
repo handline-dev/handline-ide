@@ -127,7 +127,7 @@ func (r *landRig) task(id int64) (evidence, via, by string, blockers int) {
 
 func (r *landRig) memos() string {
 	r.t.Helper()
-	rows, err := r.d.Query("SELECT author || ': ' || body FROM task_memos WHERE task_id = 2 ORDER BY id")
+	rows, err := r.d.Query("SELECT author || ': ' || body FROM task_comments WHERE task_id = 2 ORDER BY id")
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestTheReviewRuleHoldsAGatesCloseAsItHoldsAnyDone(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.exec("INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(2, 1, ?, ?, 1)", r.rev, r.bob)
-	res, err := r.d.Exec("INSERT INTO task_memos(task_id, author, body, created_at) VALUES(2, ?, 'looks right', 1)", r.rev)
+	res, err := r.d.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(2, ?, 'looks right', 1)", r.rev)
 	if err != nil {
 		t.Fatal(err)
 	}

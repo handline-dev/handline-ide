@@ -9,7 +9,7 @@ import (
 // syncMemoAsk keeps an old @human comment's open ask in step with its edit, or withdraws it; a comment raises no new ask.
 func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 	var rid int64
-	err := tx.QueryRow("SELECT id FROM requests WHERE memo_id = ? AND state = 'queued'", mid).Scan(&rid)
+	err := tx.QueryRow("SELECT id FROM requests WHERE comment_id = ? AND state = 'queued'", mid).Scan(&rid)
 	if err == sql.ErrNoRows {
 		return nil
 	}
@@ -20,7 +20,7 @@ func syncMemoAsk(tx *sql.Tx, mid int64, body string) error {
 		_, err = tx.Exec("UPDATE requests SET body = ? WHERE id = ?", body, rid)
 		return err
 	}
-	_, err = db.CloseMemoAsks(tx, "withdrawn", "memo_id = ?", mid)
+	_, err = db.CloseMemoAsks(tx, "withdrawn", "comment_id = ?", mid)
 	return err
 }
 
@@ -43,7 +43,7 @@ func WithdrawUnaddressedMemoAsks(q db.Q) (int64, error) {
 	if done, err := db.Cursor(q, key); err != nil || done != 0 {
 		return 0, err
 	}
-	rows, err := q.Query("SELECT memo_id, body FROM requests WHERE memo_id IS NOT NULL AND state = 'queued'")
+	rows, err := q.Query("SELECT comment_id, body FROM requests WHERE comment_id IS NOT NULL AND state = 'queued'")
 	if err != nil {
 		return 0, err
 	}
@@ -62,7 +62,7 @@ func WithdrawUnaddressedMemoAsks(q db.Q) (int64, error) {
 	rows.Close()
 	var closed int64
 	for _, mid := range stale {
-		n, err := db.CloseMemoAsks(q, "withdrawn", "memo_id = ?", mid)
+		n, err := db.CloseMemoAsks(q, "withdrawn", "comment_id = ?", mid)
 		if err != nil {
 			return 0, err
 		}

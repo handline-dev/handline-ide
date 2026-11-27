@@ -43,7 +43,7 @@ func TestAMemoChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
 	mid, _ := AddMemo(q, tid, "a", "first")
 	EditMemo(q, mid, "b", "second")
 	DeleteMemo(q, mid, "human")
-	rows, err := q.Query("SELECT agent, kind, payload FROM events WHERE kind LIKE 'memo_%' ORDER BY id")
+	rows, err := q.Query("SELECT agent, kind, payload FROM events WHERE kind LIKE 'comment_%' ORDER BY id")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,9 +55,9 @@ func TestAMemoChangeIsKeptAsAnEventWithItsTextBeforeAndAfter(t *testing.T) {
 		got = append(got, agent+" "+kind+" "+payload)
 	}
 	want := []string{
-		`a memo_add {"task_id": 1, "memo": 1, "now": "first"}`,
-		`b memo_edit {"task_id": 1, "memo": 1, "was": "first", "now": "second"}`,
-		`human memo_delete {"task_id": 1, "memo": 1, "was": "second"}`,
+		`a comment_add {"task_id": 1, "comment": 1, "now": "first"}`,
+		`b comment_edit {"task_id": 1, "comment": 1, "was": "first", "now": "second"}`,
+		`human comment_delete {"task_id": 1, "comment": 1, "was": "second"}`,
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("%q", got)
@@ -83,7 +83,7 @@ func TestALaterTellReplacesASayButNotATaskReturnThatMayReachItsReader(t *testing
 			t.Fatal(err)
 		}
 		var got int64
-		if err := q.QueryRow("SELECT request_id FROM memo_tells WHERE memo_id = 7 AND reader = 'bob'").Scan(&got); err != nil {
+		if err := q.QueryRow("SELECT request_id FROM comment_tells WHERE comment_id = 7 AND reader = 'bob'").Scan(&got); err != nil {
 			t.Fatal(err)
 		}
 		return got

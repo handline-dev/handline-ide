@@ -65,14 +65,14 @@ func TestSearchFindsTasksCommentsAndTheMessagesAChatDraws(t *testing.T) {
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(10, 210, 'p1', '" + bob + "', 'Fix the\ncheckout flow', 'landed', 'task')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(24, 240, '" + bob + "', '" + cy + "', 'checkout again, to you', 'landed', 'task')",
 		"INSERT INTO task_requests(task_id, request_id) VALUES(2, 10), (2, 24)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(5, 1, '" + bob + "', 'I agree on the CHECKOUT wording', 150)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(5, 1, '" + bob + "', 'I agree on the CHECKOUT wording', 150)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(20, 220, 'p1', '" + bob + "', 'a checkout question', 'landed', 'say')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(21, 221, '" + bob + "', '" + cy + "', 'checkout between agents', 'landed', 'say')",
 		// none of these is drawn by a chat: taken back, a comment's forward, a notice a digest listed, a message between people, the
 		// daemon's own notice
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(22, 222, 'p1', '" + bob + "', 'checkout taken back', 'withdrawn', 'say')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(23, 223, '" + bob + "', '" + cy + "', 'checkout comment, forwarded', 'landed', 'task')",
-		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(5, '" + cy + "', 23)",
+		"INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(5, '" + cy + "', 23)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, delivered_at) VALUES(25, 225, '" + bob + "', '" + cy + "', 'checkout notice', 'landed', 'say', 1, 226)",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(26, 226, 'p1', 'p1', 'checkout to myself', 'landed', 'say')",
 		"INSERT INTO requests(id, ts, requester, target, body, state, kind) VALUES(27, 227, 'sys', '" + bob + "', 'checkout nudge', 'landed', 'say')",
@@ -139,7 +139,7 @@ func TestSearchBoundsItsQueryAndItsHits(t *testing.T) {
 	e := testEnv(t)
 	for i := 1; i <= 3; i++ {
 		run(t, e, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(?, '가나다 plan', 'a1', 'p1', 1)", i)
-		run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(?, 1, 'a1', 'the plan', 1)", i)
+		run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(?, 1, 'a1', 'the plan', 1)", i)
 	}
 	for _, bad := range []struct {
 		params map[string]any

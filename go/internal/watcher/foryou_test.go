@@ -54,10 +54,10 @@ func TestForYouTellsEachKindOpeningAndClosingWithTheCount(t *testing.T) {
 	}
 	now := time.Now().Unix()
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(2, 'other', 'w', 'boss', 1, 'boss')")
-	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 2, 'w', '@human?', 1)")
+	exec(t, d, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 2, 'w', '@human?', 1)")
 
 	step("for_you.opened task/1 1", "INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by) VALUES(1, 'pick', 'p1', 'boss', 1, 'boss')")
-	step("for_you.opened comment/7 2", "INSERT INTO requests(id, ref, ts, requester, target, body, state, memo_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 1, 'w', 'p1', '@human?', 'queued', 7, 1)")
+	step("for_you.opened comment/7 2", "INSERT INTO requests(id, ref, ts, requester, target, body, state, comment_id, edge_ok) VALUES(70, 'aaaaaaaaaaa7', 1, 'w', 'p1', '@human?', 'queued', 7, 1)")
 	step("for_you.opened prompt/fp1 3", "INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, first_seen, last_seen) VALUES('bob', 'permission', 'fp1', 't', '[]', '{}', ?, ?)", now, now)
 	if err := os.MkdirAll(filepath.Join(home, "proposals"), 0o755); err != nil {
 		t.Fatal(err)

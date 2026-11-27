@@ -134,7 +134,7 @@ func TaskMovedSince(q Q, tid, at int64) (bool, error) {
 	var moved bool
 	err := q.QueryRow("SELECT EXISTS(SELECT 1 FROM events WHERE ts >= ? AND kind NOT IN "+boardTellKinds+" AND "+
 		"CASE WHEN json_valid(payload) THEN json_extract(payload, '$.task_id') END = ?) "+
-		"OR EXISTS(SELECT 1 FROM task_memos WHERE task_id = ? AND created_at >= ?)", at+1, tid, tid, at+1).Scan(&moved)
+		"OR EXISTS(SELECT 1 FROM task_comments WHERE task_id = ? AND created_at >= ?)", at+1, tid, tid, at+1).Scan(&moved)
 	return moved, err
 }
 
@@ -166,7 +166,7 @@ func FounderNoticeOver(q Q, n FounderNotice) (bool, error) {
 	}
 	var acted bool
 	err := q.QueryRow("SELECT EXISTS(SELECT 1 FROM requests WHERE requester = ?1 AND ts >= ?2) "+
-		"OR EXISTS(SELECT 1 FROM task_memos WHERE author = ?1 AND created_at >= ?2)", n.Agent, n.At+1).Scan(&acted)
+		"OR EXISTS(SELECT 1 FROM task_comments WHERE author = ?1 AND created_at >= ?2)", n.Agent, n.At+1).Scan(&acted)
 	return acted, err
 }
 

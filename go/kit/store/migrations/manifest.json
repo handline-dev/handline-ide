@@ -243,5 +243,10 @@
   "version": 148,
   "name": "agent_session_mode",
   "additive": true
+ },
+ {
+  "version": 149,
+  "name": "comment_names",
+  "additive": false
  }
 ]

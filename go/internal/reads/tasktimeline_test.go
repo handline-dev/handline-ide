@@ -17,7 +17,7 @@ func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, edge_ok) VALUES(1, 10, 'amy', 'bob', 'the brief\nmore', 'landed', 'task', 1), "+
 		"(2, 30, 'amy', 'cy', 'T1 handed to you', 'landed', 'task', 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2)")
-	run(t, e, "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'amy', 'a memo', 20.5)")
+	run(t, e, "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'amy', 'a memo', 20.5)")
 	for _, ev := range []struct {
 		ts            int
 		who, kind, at string
@@ -58,15 +58,15 @@ func TestATasksTimelineLeavesOutAMemosTellAndAskButKeepsTheOtherRequests(t *test
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(1, 10, 'amy', 'bob', 'the brief', 'landed', 'task', 0, 1), "+
 		"(2, 20, 'amy', 'bob', 'a memo tell', 'landed', 'say', 2, 1), (3, 30, 'cy', 'bob', 'a child result', 'landed', 'say', 1, 1), "+
 		"(4, 40, 'bob', 'p1', '@human ship it?', 'queued', NULL, 0, 1), (5, 50, 'p1', 'bob', 'T1 is your turn again: human passed it: a', 'landed', 'task', 0, 1)")
-	run(t, e, "UPDATE requests SET memo_id = 9 WHERE id = 4") // the ask bob's @human comment opened
+	run(t, e, "UPDATE requests SET comment_id = 9 WHERE id = 4") // the ask bob's @human comment opened
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(6, 60, 'p1', 'cy', 'T1 is your turn again: b', 'withdrawn', 'task', 0, 1)")
 	// the board's notices to bob (a timeout, a hold) stay in bob's chat; a task the board opened keeps its brief row
 	run(t, e, "INSERT INTO requests(id, ts, requester, target, body, state, kind, notice, edge_ok) VALUES(8, 61, 'sys', 'bob', 'T1 is past its timeout', 'landed', 'say', 0, 1), "+
 		"(9, 62, 'sys', 'bob', 'T1 waited for a holder', 'landed', 'say', 0, 1), (10, 63, 'sys', 'bob', 'a board brief', 'landed', 'task', 0, 1)")
 	run(t, e, "INSERT INTO task_requests(task_id, request_id) VALUES(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 8), (1, 9), (1, 10)")
 	// the founder's comment that passed bob's turn back, told bob by that return
-	run(t, e, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 50)")
-	run(t, e, "INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'bob', 5), (7, 'cy', 6)") // 6 was withdrawn before it reached cy
+	run(t, e, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 1, 'p1', 'now', 50)")
+	run(t, e, "INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(7, 'bob', 5), (7, 'cy', 6)") // 6 was withdrawn before it reached cy
 	got, err := e.taskGet(nil, map[string]any{"task": json.Number("1")})
 	if err != nil {
 		t.Fatal(err)

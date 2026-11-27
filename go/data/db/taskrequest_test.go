@@ -18,8 +18,8 @@ func TestTheTurnRuleTakesTheNewestFounderMessageOfTheTurn(t *testing.T) {
 	}
 	// comment is the founder's (or another's) comment on T1, told to manager by request id at landed.
 	comment := func(id int, author string, at int) []string {
-		return []string{msg(id, "sys", "say", at, 0, "NULL"), fmt.Sprintf("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(%d, 1, '%s', 'c', %d)", id, author, at),
-			fmt.Sprintf("INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(%d, 'manager', %d)", id, id)}
+		return []string{msg(id, "sys", "say", at, 0, "NULL"), fmt.Sprintf("INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(%d, 1, '%s', 'c', %d)", id, author, at),
+			fmt.Sprintf("INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(%d, 'manager', %d)", id, id)}
 	}
 	for _, c := range []struct {
 		name, owner, want string
@@ -83,8 +83,8 @@ func TestAFounderCommentOnAgentWorkStartsARequest(t *testing.T) {
 		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'agent work', 'manager', 'manager', 1)",
 		"INSERT INTO events(ts, agent, kind) VALUES(10, 'manager', 'Stop')",
 		"INSERT INTO requests(id, requester, target, body, state, kind, ts, landed_at) VALUES(5, 'sys', 'manager', 'm', 'landed', 'say', 11, 11)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, '" + actor.OwnerKey + "', 'ok, build it', 11)",
-		"INSERT INTO memo_tells(memo_id, reader, request_id) VALUES(7, 'manager', 5)",
+		"INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(7, 1, '" + actor.OwnerKey + "', 'ok, build it', 11)",
+		"INSERT INTO comment_tells(comment_id, reader, request_id) VALUES(7, 'manager', 5)",
 	} {
 		if _, err := q.Exec(s); err != nil {
 			t.Fatalf("%s: %v", s, err)

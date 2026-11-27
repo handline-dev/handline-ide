@@ -134,7 +134,7 @@ func TestAStoppedRunnerIsOfflineThenItsSessionIsTakenBackAndItsLeftoversRescued(
 		t.Fatalf("the sweep took back %+v (%v)", got, err)
 	}
 	var memo string
-	master.db.QueryRow("SELECT body FROM task_memos WHERE task_id = 1").Scan(&memo)
+	master.db.QueryRow("SELECT body FROM task_comments WHERE task_id = 1").Scan(&memo)
 	if !strings.Contains(memo, pushed[:9]) || !strings.Contains(memo, "on work") || !strings.Contains(memo, "box") {
 		t.Fatalf("the task's memo: %q", memo)
 	}

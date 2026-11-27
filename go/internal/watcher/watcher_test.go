@@ -65,7 +65,7 @@ func TestTheFirstLookSaysNothingAndEachChangeIsOneTaskChangedRow(t *testing.T) {
 	if json.Unmarshal(got[0].Data, &task) != nil || task["id"] != float64(1) || task["to"] != "bob" || task["state"] != "draft" || *got[1].Agent != "carol" {
 		t.Fatalf("%v", task)
 	}
-	exec(t, d, "INSERT INTO task_memos(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)")
+	exec(t, d, "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)")
 	if err := tk.Scan(d, emit); err != nil || len(rows(t, l)) != 3 {
 		t.Fatalf("a memo is a change: %v %d", err, len(rows(t, l)))
 	}
@@ -153,7 +153,7 @@ func TestPrimeStartsANewCursorAtTheNewestRowAndKeepsAnOldOne(t *testing.T) {
 func TestTheFoundersReadMarkerIsAChangeOfTheTask(t *testing.T) {
 	d, l := rig(t)
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
-	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(4, 1, 'bob', 'note', 5)")
+	exec(t, d, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(4, 1, 'bob', 'note', 5)")
 	tk := &Tasks{Reads: &reads.Env{DB: d}}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	if err := tk.Scan(d, emit); err != nil {
@@ -174,7 +174,7 @@ func TestTheFoundersReadMarkerIsAChangeOfTheTask(t *testing.T) {
 func TestAMembersReadMarkerIsAChangeOfTheTask(t *testing.T) {
 	d, l := rig(t)
 	exec(t, d, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'old', 'bob', 'p1', 1)")
-	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(4, 1, 'bob', 'note', 5)")
+	exec(t, d, "INSERT INTO task_comments(id, task_id, author, body, created_at) VALUES(4, 1, 'bob', 'note', 5)")
 	tk := &Tasks{Reads: &reads.Env{DB: d}}
 	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
 	if err := tk.Scan(d, emit); err != nil {

@@ -64,7 +64,7 @@ func TestNoNoticeOnceTheTaskIsTheFoundersOrWithNoDoingTask(t *testing.T) {
 	ask, err := db.AddRequest(r.DB, db.NewRequest{Requester: r.k(("bob")), Target: actor.OwnerKey, Body: "may I open the PR?", Kind: "ask"})
 	r.must(err)
 	r.must(db.LinkRequest(r.DB, tid, ask))
-	_, err = r.DB.Exec("UPDATE requests SET memo_id = ? WHERE id = ?", mid, ask)
+	_, err = r.DB.Exec("UPDATE requests SET comment_id = ? WHERE id = ?", mid, ask)
 	r.must(err)
 	r.must(r.SweepSaidAndStopped())
 	if n := r.saidStopNotices(r.k("bob"), tid); n != 0 {

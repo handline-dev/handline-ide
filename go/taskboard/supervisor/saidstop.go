@@ -45,7 +45,7 @@ func (e *Env) SweepSaidAndStopped() (err error) {
 		}
 		var asking bool // the task already waits on the founder in a memo: the say is part of that, nothing to hand over
 		check(q.QueryRow("SELECT EXISTS(SELECT 1 FROM requests r JOIN task_requests tr ON tr.request_id = r.id WHERE tr.task_id = ? AND r.requester = ? "+
-			"AND r.target = ? AND r.memo_id IS NOT NULL AND r.state = 'queued')", h.tid, h.agent, actor.OwnerKey).Scan(&asking))
+			"AND r.target = ? AND r.comment_id IS NOT NULL AND r.state = 'queued')", h.tid, h.agent, actor.OwnerKey).Scan(&asking))
 		if asking {
 			continue
 		}
