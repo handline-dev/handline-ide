@@ -618,13 +618,9 @@ func (v *Mover) park(agent string, t HandoffTrigger, hid string, ok, cleared, re
 	m := v.M
 	now := m.now()
 	acct, source, have := v.E.Reading(m.Q, agent)
-	// A move whose start waits for the handoff note is due now: each tick's wake goes on with it the moment the note is in.
-	noteMove := m.noteMove(must(db.GetAgentState(m.Q, agent))) != nil
-	shortRetry := noteMove || !have || source == "assumed" || t.Kind == "forced" || retrySoon
+	shortRetry := !have || source == "assumed" || t.Kind == "forced" || retrySoon
 	var wake int64
 	switch {
-	case noteMove:
-		wake = now
 	case shortRetry:
 		wake = now + states.AssumedAccountRecheckS
 	case usageTrigger(t.Kind) || t.Kind == states.ByHandMark:

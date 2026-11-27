@@ -484,11 +484,10 @@
           "enum": [
            "saving",
            "switching",
-           "note",
            "starting",
            "waiting"
           ],
-          "description": "`saving`: the limit was reached and its progress is being saved; `to` is not decided. `switching`: the old session is closing for `to`. `note`: the old session has closed and the start on `to` waits for the handoff note written from its transcript. `starting`: the session on `to` is launching. `waiting`: it stays on `from` until `until`, because the account resets soon or no account has room."
+          "description": "`saving`: the limit was reached and its progress is being saved; `to` is not decided. `switching`: the old session is closing for `to`. `starting`: the session on `to` is launching. `waiting`: it stays on `from` until `until`, because the account resets soon or no account has room."
          },
          "from": {
           "type": "string",

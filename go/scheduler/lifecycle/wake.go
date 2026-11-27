@@ -394,7 +394,7 @@ func (m *Manager) continuesWork(agent string, row *db.AgentState) bool {
 	if row == nil {
 		return false
 	}
-	if m.restartOwed(agent, row) != nil || m.moveOwed(agent, row) != nil || m.noteMove(row) != nil {
+	if m.restartOwed(agent, row) != nil || m.moveOwed(agent, row) != nil {
 		return true
 	}
 	if _, ok := must2(db.CloseOwedHandoff(m.Q, agent, m.now(), row.ClosedAt.Int64)); ok {
@@ -485,27 +485,6 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 	// reaches the old session; it is the new one's first prompt.
 	// A close while the note wait counted owes the handoff, however late the wake.
 	kind, waits := must2(db.CloseOwedHandoff(m.Q, agent, m.now(), row.ClosedAt.Int64))
-	// A move whose start waited for the handoff note goes on to where it was going, once To can still take it: by the room test, or past
-	// it when a person chose To that way (SwitchNow).
-	pastFit := o.PastFit
-	held := m.noteMove(row)
-	if held != nil && movedTo == "" {
-		chosen := must(db.Cursor(m.Q, pastFitKey(agent))) == held.Since
-		room := m.Launch.RoomOn
-		if chosen {
-			room = m.Launch.RoomPastFit
-		}
-		if why := room(m.Q, agent, row, held.To); why != "" {
-			check(db.ClearSwitch(m.Q, agent))
-			m.moveFailed(agent, held.To, held.To+" "+why)
-			held = nil
-		} else {
-			movedTo, pastFit = held.To, chosen
-			if held.Cause == "forced" {
-				moveWhy = "You were moved"
-			}
-		}
-	}
 	if movedTo != "" {
 		check(db.ClearNoteWait(m.Q, agent))
 	}
@@ -584,7 +563,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 		}
 	}
 	wait := m.Launch.WakeWait(m.Q, agent, row)
-	if movedTo != "" || pastFit {
+	if movedTo != "" || o.PastFit {
 		// The account it moves to was picked for having room, or by a person who was told it has little; the wall of the one it leaves,
 		// still on its row, is no reason to pick again (a second move written for the same one).
 		wait = nil
@@ -664,7 +643,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 			wt = desk
 		}
 	}
-	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveReason, moveWhy, o.Stopped, o.Applying, held}
+	c := closed2{force, warm, cause, restartedBy, movedTo, moveFrom, moveReason, moveWhy, o.Stopped, o.Applying}
 	return m.launchClosed(agent, row, wt, session, c)
 }
 
@@ -714,20 +693,6 @@ func (m *Manager) movedAccount(agent, from, to, trigger, reason string, more ...
 	must(db.AddEvent(m.Q, agent, "moved_account", kv...))
 }
 
-// pastFitKey holds the since of the note switch of a move a person chose past the room test (SwitchNow).
-func pastFitKey(agent string) string { return "note_past_fit:" + agent }
-
-// noteMove is the move whose start waits for the closed agent's handoff note (db.SwitchNote), nil for none.
-func (m *Manager) noteMove(row *db.AgentState) *db.AccountSwitch {
-	if !isClosed(row) {
-		return nil
-	}
-	if s := must(db.LiveSwitch(m.Q, row, m.now())); s != nil && s.Phase == db.SwitchNote {
-		return s
-	}
-	return nil
-}
-
 // moveFailed is the chat's line for a move that will not happen; it is not tried again.
 func (m *Manager) moveFailed(agent, to, why string) {
 	_, _ = db.AddEvent(m.Q, agent, db.MoveFailedKind, db.KV{K: "to", V: to}, db.KV{K: "reason", V: why})
@@ -764,7 +729,6 @@ type closed2 struct {
 	moveWhy            string // WakePromptIn.MoveWhy
 	stopped            string // WakePromptIn.Stopped
 	applying           []string
-	noteMove           *db.AccountSwitch // the move that waited for the note (noteMove): its moved_account is written at the launch
 }
 
 // wakeCause is what a wake nobody gave a cause records its start as: a move, else what ended the last session - a fold of a full
@@ -875,9 +839,6 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	if slot == "" {
 		return false, noRoom
 	}
-	if s := c.noteMove; s != nil {
-		m.noteSwitch(agent, s.Cause, s.From, s.To, db.SwitchStarting)
-	}
 	attempts := []bool{false}
 	if session != "" && !cold {
 		attempts = []bool{true, false}
@@ -968,19 +929,10 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		}
 	}
 	if !ok {
-		if s := c.noteMove; s != nil { // still owed: the next wake tries it again
-			check(db.SetSwitch(m.Q, *s))
-			m.refreshView(agent)
-		}
 		return false, m.wakeFailed(agent, session, why, took, foreign)
 	}
 	if c.movedFrom != "" {
 		m.recordMove(agent, c.movedFrom, c.movedTo, "pinned", c.moveReason)
-	}
-	if s := c.noteMove; s != nil {
-		check(db.SetAccount(m.Q, agent, s.To, ""))
-		m.recordMove(agent, s.From, s.To, s.Cause, m.moveReason(s.Cause, s.From))
-		m.Log("  %s: moved %s -> %s (%s) once its handoff note was in", agent, s.From, s.To, s.Cause)
 	}
 	// A relaunch is where claude shows its folder-trust screen - on a moved agent the new account has never trusted this folder - and the
 	// wake prompt waits behind it. Until it is past, the agent is not woken.
