@@ -21,7 +21,7 @@ test('with no seed there are no schedules, and the zone is still given', async (
   const got = await client.call('schedules.list', {});
   assert.deepEqual(got.schedules, []);
   assert.deepEqual(got.unreadable, []);
-  assert.equal(got.zone.offset_min, -new Date().getTimezoneOffset());
+  assert.equal(got.zone.offset_min, 0 - new Date().getTimezoneOffset()); // not unary -: in UTC that is -0, which the wire sends as 0
   client.close();
 });
 
