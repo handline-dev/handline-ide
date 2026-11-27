@@ -26,9 +26,9 @@ type Review struct {
 	// Ready is whether it waits for the founder's verdict now: the newest Ready came after the newest verdict, and the founder's turn it put
 	// on, hung on its comment, is still on top (only OK or Redo takes it off: the founder's comment is a question to the assignee).
 	Ready bool
-	// LandBy is who the newest Ready waits to go to; Memo the comment that carries the agent's result; At when it was made.
-	LandBy   string
-	Memo, At int64
+	// LandBy is who the newest Ready waits to go to; Comment the comment that carries the agent's result; At when it was made.
+	LandBy      string
+	Comment, At int64
 	// Redo is how many times the founder sent it back; OK whether the newest verdict is an OK, Auto whether that OK was automatic.
 	Redo     int
 	OK, Auto bool
@@ -43,7 +43,7 @@ func TaskReview(q Q, tid int64) (*Review, error) {
 		return nil, err
 	}
 	last := ready[len(ready)-1]
-	r := &Review{LandBy: payloadStr(last.payload, "land_by"), Memo: payloadNum(last.payload, "comment"), At: last.at, By: last.agent}
+	r := &Review{LandBy: payloadStr(last.payload, "land_by"), Comment: payloadNum(last.payload, "comment"), At: last.at, By: last.agent}
 	verdicts, err := taskEvents(q, VerdictKind, tid)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func TaskReview(q Q, tid int64) (*Review, error) {
 		if err != nil {
 			return nil, err
 		}
-		r.Ready = len(turns) > 0 && actor.IsPerson(turns[len(turns)-1].Agent) && turns[len(turns)-1].Memo == r.Memo
+		r.Ready = len(turns) > 0 && actor.IsPerson(turns[len(turns)-1].Agent) && turns[len(turns)-1].Comment == r.Comment
 	}
 	return r, nil
 }
@@ -96,10 +96,10 @@ func ReadyDue(q Q, tid int64, reviewFlow bool) (bool, error) {
 	return verdict != VerdictOK, err
 }
 
-// AddReady records that the task is Ready for the founder, by its assignee, waiting to go to landBy, its result in comment memo; more
+// AddReady records that the task is Ready for the founder, by its assignee, waiting to go to landBy, its result in comment `comment`; more
 // is the assignee's check report.
-func AddReady(q Q, tid int64, by, landBy string, memo int64, more ...KV) error {
-	_, err := AddEvent(q, by, ReadyKind, append([]KV{{"task_id", tid}, {"land_by", landBy}, {"comment", memo}}, more...)...)
+func AddReady(q Q, tid int64, by, landBy string, comment int64, more ...KV) error {
+	_, err := AddEvent(q, by, ReadyKind, append([]KV{{"task_id", tid}, {"land_by", landBy}, {"comment", comment}}, more...)...)
 	return err
 }
 
@@ -114,10 +114,10 @@ func MaySkipCount(q Q, agent, work, model string, after int64) (int, error) {
 }
 
 // AddVerdict records the founder's verdict on a Ready task: VerdictOK, or VerdictRedo with its note's comment.
-func AddVerdict(q Q, tid int64, by, verdict string, memo int64) error {
+func AddVerdict(q Q, tid int64, by, verdict string, comment int64) error {
 	payload := []KV{{"task_id", tid}, {"verdict", verdict}}
-	if memo != 0 {
-		payload = append(payload, KV{"comment", memo})
+	if comment != 0 {
+		payload = append(payload, KV{"comment", comment})
 	}
 	_, err := AddEvent(q, by, VerdictKind, payload...)
 	return err

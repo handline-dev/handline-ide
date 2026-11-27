@@ -27,7 +27,7 @@ const (
 	TurnOnPassHandoff = "handoff"
 )
 
-// Turn is one turn on a task: who acts, what they were asked, who put them there and when, and what a pass does. Memo is the comment it
+// Turn is one turn on a task: who acts, what they were asked, who put them there and when, and what a pass does. Comment is the comment it
 // was handed over with, 0 for a turn from before; Ask is that comment's text when there is one.
 type Turn struct {
 	Agent, Ask, By string
@@ -35,7 +35,7 @@ type Turn struct {
 	OnPass         string
 	Evidence       string
 	PassTo         string
-	Memo           int64
+	Comment        int64
 }
 
 // TurnAskSQL is the ask of the task_turns row named alias: its comment's text, else the ask stored with it.
@@ -59,7 +59,7 @@ func Turns(q Q, tid int64) ([]Turn, error) {
 	var out []Turn
 	for rows.Next() {
 		var t Turn
-		cols := []any{&t.Agent, &t.Ask, &t.By, &t.Since, &t.OnPass, &t.Evidence, &t.PassTo, &t.Memo}
+		cols := []any{&t.Agent, &t.Ask, &t.By, &t.Since, &t.OnPass, &t.Evidence, &t.PassTo, &t.Comment}
 		if err := rows.Scan(cols...); err != nil {
 			return nil, err
 		}
@@ -79,48 +79,48 @@ func Acting(q Q, tid int64) (string, error) {
 }
 
 // PushTurn puts t on top of task tid's stack. The caller has checked the task is open, it carries fewer than MaxTurns, and t.Agent is
-// neither its owner nor in the stack. A turn with a memo stores no ask of its own: the comment is its message.
+// neither its owner nor in the stack. A turn with a comment stores no ask of its own: the comment is its message.
 func PushTurn(q Q, tid int64, t Turn) error {
 	var n int
 	if err := q.QueryRow("SELECT COUNT(*) FROM task_turns WHERE task_id = ?", tid).Scan(&n); err != nil {
 		return err
 	}
 	ask := t.Ask
-	if t.Memo != 0 {
+	if t.Comment != 0 {
 		ask = ""
 	}
 	if _, err := q.Exec("INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since, on_pass, evidence, pass_to, comment) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		tid, n+1, t.Agent, ask, t.By, t.Since, nullStr(t.OnPass), nullStr(t.Evidence), nullStr(t.PassTo), nullInt(t.Memo, t.Memo != 0)); err != nil {
+		tid, n+1, t.Agent, ask, t.By, t.Since, nullStr(t.OnPass), nullStr(t.Evidence), nullStr(t.PassTo), nullInt(t.Comment, t.Comment != 0)); err != nil {
 		return err
 	}
 	_, err := AddEvent(q, t.By, "task_turn_push", KV{K: "task_id", V: tid}, KV{K: "to", V: t.Agent}, KV{K: "ask", V: ask},
-		KV{K: "on_pass", V: t.OnPass}, KV{K: "depth", V: n + 1}, KV{K: "comment", V: t.Memo})
+		KV{K: "on_pass", V: t.OnPass}, KV{K: "depth", V: n + 1}, KV{K: "comment", V: t.Comment})
 	return err
 }
 
-// ReaskTopTurn asks task tid's top turn again, by `by`: hung on comment memo (whose text is ask), or with ask as its own text when memo is 0.
+// ReaskTopTurn asks task tid's top turn again, by `by`: hung on comment `comment` (whose text is ask), or with ask as its own text when comment is 0.
 // False when it has no turn, or the same text is asked again with no comment. The text it replaced stays in a task_turn_ask event.
-func ReaskTopTurn(q Q, tid int64, by, ask string, memo int64) (bool, error) {
+func ReaskTopTurn(q Q, tid int64, by, ask string, comment int64) (bool, error) {
 	turns, err := Turns(q, tid)
-	if err != nil || len(turns) == 0 || memo == 0 && turns[len(turns)-1].Ask == ask {
+	if err != nil || len(turns) == 0 || comment == 0 && turns[len(turns)-1].Ask == ask {
 		return false, err
 	}
 	top := turns[len(turns)-1]
 	stored := ask
-	if memo != 0 {
+	if comment != 0 {
 		stored = ""
 	}
-	if _, err := q.Exec("UPDATE task_turns SET ask = ?, comment = ? WHERE task_id = ? AND pos = ?", stored, nullInt(memo, memo != 0), tid, len(turns)); err != nil {
+	if _, err := q.Exec("UPDATE task_turns SET ask = ?, comment = ? WHERE task_id = ? AND pos = ?", stored, nullInt(comment, comment != 0), tid, len(turns)); err != nil {
 		return false, err
 	}
 	_, err = AddEvent(q, by, "task_turn_ask", KV{K: "task_id", V: tid}, KV{K: "agent", V: top.Agent}, KV{K: "from", V: top.Ask}, KV{K: "ask", V: ask},
-		KV{K: "comment", V: memo})
+		KV{K: "comment", V: comment})
 	return err == nil, err
 }
 
 // PopTurn takes the top turn off task tid by `by` with outcome and note, and answers it and the agent that acts now; ok false with no turn.
-// rid is the task's return the pop sent the agent below, memo the comment that is its note; 0 for none.
-func PopTurn(q Q, tid int64, by, outcome, note string, rid, memo int64) (top Turn, acting string, ok bool, err error) {
+// rid is the task's return the pop sent the agent below, comment the comment that is its note; 0 for none.
+func PopTurn(q Q, tid int64, by, outcome, note string, rid, comment int64) (top Turn, acting string, ok bool, err error) {
 	turns, err := Turns(q, tid)
 	if err != nil || len(turns) == 0 {
 		return Turn{}, "", false, err
@@ -136,8 +136,8 @@ func PopTurn(q Q, tid int64, by, outcome, note string, rid, memo int64) (top Tur
 	if rid != 0 {
 		kv = append(kv, KV{K: "request_id", V: rid})
 	}
-	if memo != 0 {
-		kv = append(kv, KV{K: "comment", V: memo})
+	if comment != 0 {
+		kv = append(kv, KV{K: "comment", V: comment})
 	}
 	_, err = AddEvent(q, by, "task_turn_pop", kv...)
 	return top, acting, true, err

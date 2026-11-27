@@ -293,7 +293,7 @@ func WaitingTasks(q Q, agent string) ([]WaitingTask, error) {
 			}
 			delivered := false
 			for _, r := range linked {
-				if r.Target == agent && r.ID > after && !neverReached(r.State) && r.Kind.String != "say" { // a memo notice delivers nothing
+				if r.Target == agent && r.ID > after && !neverReached(r.State) && r.Kind.String != "say" { // a comment notice delivers nothing
 					delivered = true
 				}
 			}
@@ -330,14 +330,14 @@ func neverReached(state string) bool {
 	return false
 }
 
-// MemoCap is the runes of comments a delivery or a start shows when the receiver has none of its own on the task.
-const MemoCap = 500
+// CommentCap is the runes of comments a delivery or a start shows when the receiver has none of its own on the task.
+const CommentCap = 500
 
-// MemoSummary is task tid's comments for a delivery to receiver or its start, one per line, each whole, newest last; "" when it has none.
+// CommentSummary is task tid's comments for a delivery to receiver or its start, one per line, each whole, newest last; "" when it has none.
 // They are the comments after receiver's own last one; with none of its own, the newest that fit cap runes (always the newest). The
 // comments left out are only counted. Comments that request told already carried to receiver are left out uncounted (told 0: none).
-func MemoSummary(q Q, tid int64, receiver string, told int64, cap int) (string, error) {
-	shown, earlier, err := memosShown(q, tid, receiver, told, cap)
+func CommentSummary(q Q, tid int64, receiver string, told int64, cap int) (string, error) {
+	shown, earlier, err := commentsShown(q, tid, receiver, told, cap)
 	if err != nil || len(shown) == 0 && earlier == 0 {
 		return "", err
 	}
@@ -348,9 +348,9 @@ func MemoSummary(q Q, tid int64, receiver string, told int64, cap int) (string, 
 	return summary(tid, lines, earlier), nil
 }
 
-// DeliveryMemoTexts is the texts of the comments request told brings receiver on task tid: those it carries, then those MemoSummary shows
+// DeliveryCommentTexts is the texts of the comments request told brings receiver on task tid: those it carries, then those CommentSummary shows
 // with the same cap.
-func DeliveryMemoTexts(q Q, tid int64, receiver string, told int64, cap int) ([]string, error) {
+func DeliveryCommentTexts(q Q, tid int64, receiver string, told int64, cap int) ([]string, error) {
 	rows, err := q.Query("SELECT m.body FROM task_comments m JOIN comment_tells t ON t.comment_id = m.id WHERE m.task_id = ? AND t.reader = ? AND t.request_id = ? ORDER BY m.id",
 		tid, receiver, told)
 	if err != nil {
@@ -368,7 +368,7 @@ func DeliveryMemoTexts(q Q, tid int64, receiver string, told int64, cap int) ([]
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	shown, _, err := memosShown(q, tid, receiver, told, cap)
+	shown, _, err := commentsShown(q, tid, receiver, told, cap)
 	if err != nil {
 		return nil, err
 	}
@@ -378,22 +378,22 @@ func DeliveryMemoTexts(q Q, tid int64, receiver string, told int64, cap int) ([]
 	return out, nil
 }
 
-type shownMemo struct{ line, body string }
+type shownComment struct{ line, body string }
 
-// memosShown is MemoSummary's comments, and how many earlier ones it leaves out.
-func memosShown(q Q, tid int64, receiver string, told int64, cap int) ([]shownMemo, int, error) {
+// commentsShown is CommentSummary's comments, and how many earlier ones it leaves out.
+func commentsShown(q Q, tid int64, receiver string, told int64, cap int) ([]shownComment, int, error) {
 	rows, err := q.Query("SELECT id, author, body, created_at, edited_at FROM task_comments m WHERE task_id = ? AND NOT EXISTS "+
 		"(SELECT 1 FROM comment_tells WHERE comment_id = m.id AND reader = ? AND request_id = ?) ORDER BY id", tid, receiver, told)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer rows.Close()
-	var memos []shownMemo
+	var comments []shownComment
 	own := -1 // the index of receiver's last comment
 	for rows.Next() {
 		var id int64
 		var author, body string
-		var created float64 // a memo's stamp is float seconds, with a fraction
+		var created float64 // a comment's stamp is float seconds, with a fraction
 		var edited sql.NullFloat64
 		if err := rows.Scan(&id, &author, &body, &created, &edited); err != nil {
 			return nil, 0, err
@@ -403,23 +403,23 @@ func memosShown(q Q, tid int64, receiver string, told int64, cap int) ([]shownMe
 			at = edited.Float64
 		}
 		if author == receiver {
-			own = len(memos)
+			own = len(comments)
 		}
-		memos = append(memos, shownMemo{fmt.Sprintf("comment %d %s %s: %s", id, author, time.Unix(int64(at), 0).Format("01-02 15:04"), textsafe.Oneline(body)), body})
+		comments = append(comments, shownComment{fmt.Sprintf("comment %d %s %s: %s", id, author, time.Unix(int64(at), 0).Format("01-02 15:04"), textsafe.Oneline(body)), body})
 	}
-	if err := rows.Err(); err != nil || len(memos) == 0 {
+	if err := rows.Err(); err != nil || len(comments) == 0 {
 		return nil, 0, err
 	}
 	from := own + 1
 	if own < 0 {
-		from = len(memos) - 1
-		for n := utf8.RuneCountInString(memos[from].line); from > 0; from-- {
-			if n += utf8.RuneCountInString(memos[from-1].line) + 1; n > cap {
+		from = len(comments) - 1
+		for n := utf8.RuneCountInString(comments[from].line); from > 0; from-- {
+			if n += utf8.RuneCountInString(comments[from-1].line) + 1; n > cap {
 				break
 			}
 		}
 	}
-	return memos[from:], from, nil
+	return comments[from:], from, nil
 }
 
 func summary(tid int64, shown []string, earlier int) string {

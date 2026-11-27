@@ -54,19 +54,19 @@ const turnStart = "COALESCE((SELECT MAX(ts) FROM events WHERE agent = ?1 AND kin
 func turnRequest(q Q, tid int64, agent string) (sql.NullInt64, error) {
 	var req sql.NullInt64
 	var rid, top int64
-	var memoTask sql.NullInt64
-	const memoTaskSQL = "(SELECT m.task_id FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE t.request_id = r.id AND t.reader = ?1 " +
+	var commentTask sql.NullInt64
+	const commentTaskSQL = "(SELECT m.task_id FROM comment_tells t JOIN task_comments m ON m.id = t.comment_id WHERE t.request_id = r.id AND t.reader = ?1 " +
 		"AND m.author = ?2 ORDER BY m.id DESC LIMIT 1)"
-	err := q.QueryRow("SELECT r.id, "+memoTaskSQL+" FROM requests r WHERE r.target = ?1 AND r.landed_at >= "+turnStart+
-		" AND ((r.requester = ?2 AND r.kind = 'say' AND r.founder_auth >= 1) OR "+memoTaskSQL+" IS NOT NULL) ORDER BY r.landed_at DESC, r.id DESC LIMIT 1",
-		agent, actor.OwnerKey).Scan(&rid, &memoTask)
+	err := q.QueryRow("SELECT r.id, "+commentTaskSQL+" FROM requests r WHERE r.target = ?1 AND r.landed_at >= "+turnStart+
+		" AND ((r.requester = ?2 AND r.kind = 'say' AND r.founder_auth >= 1) OR "+commentTaskSQL+" IS NOT NULL) ORDER BY r.landed_at DESC, r.id DESC LIMIT 1",
+		agent, actor.OwnerKey).Scan(&rid, &commentTask)
 	if err == sql.ErrNoRows {
 		return req, nil
 	} else if err != nil {
 		return req, err
 	}
-	if memoTask.Valid {
-		if err := q.QueryRow("SELECT request FROM tasks WHERE id = ?", memoTask.Int64).Scan(&req); err != nil || req.Valid {
+	if commentTask.Valid {
+		if err := q.QueryRow("SELECT request FROM tasks WHERE id = ?", commentTask.Int64).Scan(&req); err != nil || req.Valid {
 			return req, err
 		}
 		if err := q.QueryRow("SELECT request FROM tasks WHERE turn_origin = ? ORDER BY id LIMIT 1", rid).Scan(&req); err != sql.ErrNoRows {
