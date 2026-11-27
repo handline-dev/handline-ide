@@ -99,3 +99,28 @@ export function byWorkspace<A extends Pick<AgentView, 'key' | 'workspace'>>(
   const rest = agents.filter((a) => !known.has(a.workspace));
   return [...groups.filter((g) => g.agents.length > 0), ...(rest.length ? [{ workspace: null, agents: rest }] : [])];
 }
+
+/** The agent a key stands for: a seat (a temp beside an agent's own work) is its agent, so a screen lists one row per agent. */
+export function ownerOf(d: Pick<Directory, 'agents'>, key: string): string {
+  return d.agents.find((x) => x.key === key)?.hired_from || key;
+}
+
+/** One agent of a list of sessions, with how many of them run under it and how many of those work now. */
+export interface FoldedAgent {
+  key: string;
+  sessions: number;
+  working: number;
+}
+
+/** Keys folded to one entry per agent, in first-seen order: an agent and its temps read as one name with a count, never the name repeated. */
+export function foldSeats(d: Pick<Directory, 'agents'>, keys: readonly string[], working: (key: string) => boolean): FoldedAgent[] {
+  const out = new Map<string, FoldedAgent>();
+  for (const k of keys) {
+    const key = ownerOf(d, k);
+    const f = out.get(key) ?? { key, sessions: 0, working: 0 };
+    f.sessions += 1;
+    if (working(k)) f.working += 1;
+    out.set(key, f);
+  }
+  return [...out.values()];
+}

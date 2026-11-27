@@ -3,7 +3,7 @@ import { MachinesOf } from '#src/connection/PlaceWord.tsx';
 import { pct } from '#src/format/count.ts';
 // Under the Usage graph, one of four views at a time: the accounts, who used it (by agent), which models used it (each agent's use under
 // the model it runs on now), and the cost per day stacked by agent. The figures are the daemon's (stats.get, stats.outlook).
-import { costByAgent, nameOf, planUsd, spentText, weekBudgets } from '@handline/app-core';
+import { costByAgent, nameOf, ownerOf, planUsd, spentText, weekBudgets } from '@handline/app-core';
 import type { Stats } from '@handline/client';
 import { useAgents, useDirectory, useOutlook, useStats } from '@handline/app-data';
 import { Bot, ChartColumn, ChevronRight, Cpu, Info, UserRound } from 'lucide-react';
@@ -109,7 +109,8 @@ export function ByAgent({ win }: { win: Win }) {
   const budgets = weekBudgets(useOutlook('7d').data?.budget);
   for (const line of s?.use ?? []) {
     const u = { ...line, cost: planUsd(line.week_pct, budgets.get(line.account)) };
-    const name = u.agent || NO_AGENT;
+    // A temp's use counts under its agent, so the agent has one row, not one per session.
+    const name = u.agent ? ownerOf(dir, u.agent) : NO_AGENT;
     const a = agents.get(name) ?? { name, cost: 0, week: null, accounts: [], machines: new Set<string>() };
     Object.assign(a, add(a, u));
     // use has a row per machine: an account the agent spent on from two machines is one entry with both summed.

@@ -1,5 +1,5 @@
-import { creditsLine, unusedLine } from '@handline/app-core';
-import { useAgents, useNameOf, useOutlook } from '@handline/app-data';
+import { creditsLine, foldSeats, unusedLine, type FoldedAgent } from '@handline/app-core';
+import { useNameOf, useOutlook, useRead } from '@handline/app-data';
 import { activityOf } from '#src/layout/agentList.ts';
 import type { Account } from '@handline/client';
 import type { ReactNode } from 'react';
@@ -94,36 +94,44 @@ export function AccountFacts({
 /** At most this many circles in the stack, a +N one included. */
 const SHOWN = 6;
 
-/** The agents on an account as initial circles, filled while one works (its sidebar mark), and how many work over them. */
+/** The agents on an account as initial circles, one per agent (its temps folded in, their count on the circle), filled while one works,
+ * and how many sessions work over them. */
 function AgentsBar({ account: a }: { account: Account }) {
   const nameOf = useNameOf();
-  const views = new Map((useAgents().data?.agents ?? []).map((x) => [x.key, x]));
-  const working = (k: string) => {
+  const all = useRead('agents.list', {}).data?.agents ?? []; // temps too: they run on the account under their agent's name
+  const views = new Map(all.map((x) => [x.key, x]));
+  const busy = (k: string) => {
     const v = views.get(k);
     return !!v && activityOf(v) === 'working';
   };
-  const busy = a.agents.filter(working).length;
+  const folded = foldSeats({ agents: all }, a.agents, busy);
+  const working = folded.reduce((n, f) => n + f.working, 0);
   // Working ones first; past SHOWN the rest is a count, so the stack stays in its column.
-  const ordered = [...a.agents.filter(working), ...a.agents.filter((k) => !working(k))];
+  const ordered = [...folded.filter((f) => f.working), ...folded.filter((f) => !f.working)];
   const shown = ordered.length > SHOWN ? ordered.slice(0, SHOWN - 1) : ordered;
   const more = ordered.length - shown.length;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between gap-6 text-xs">
         <span className="text-muted">Agents</span>
-        {a.agents.length > 0 && <span className="text-fg tabular-nums">{a.paused ? 'moves next turn' : `${busy} working`}</span>}
+        {a.agents.length > 0 && <span className="text-fg tabular-nums">{a.paused ? 'moves next turn' : `${working} working`}</span>}
       </div>
       {a.agents.length ? (
         // On hover, every agent on it by name, each opening its chat.
         <div className="group/agents relative flex">
-          {shown.map((k) => (
+          {shown.map((f) => (
             <span
-              key={k}
-              className={`-mr-1 grid size-6 place-items-center rounded-full border-2 border-bg text-xs font-medium uppercase ${
-                working(k) ? 'bg-accent text-accent-fg' : 'bg-hover text-muted'
+              key={f.key}
+              className={`relative -mr-1 grid size-6 place-items-center rounded-full border-2 border-bg text-xs font-medium uppercase ${
+                f.working ? 'bg-accent text-accent-fg' : 'bg-hover text-muted'
               }`}
             >
-              {nameOf(k).slice(0, 1)}
+              {nameOf(f.key).slice(0, 1)}
+              {f.sessions > 1 && (
+                <span className="absolute -top-2 -right-1.5 z-10 grid h-4 min-w-4 place-items-center rounded-full border border-bg bg-fg px-0.5 text-xs leading-none font-normal text-bg tabular-nums">
+                  {f.sessions}
+                </span>
+              )}
             </span>
           ))}
           {more > 0 && (
@@ -132,8 +140,8 @@ function AgentsBar({ account: a }: { account: Account }) {
             </span>
           )}
           <ul className="absolute top-full right-0 z-30 hidden max-h-64 min-w-44 flex-col overflow-y-auto rounded-md border border-border bg-bg py-1 group-hover/agents:flex">
-            {ordered.map((k) => (
-              <AgentLink key={k} agent={k} working={working(k)} />
+            {ordered.map((f) => (
+              <AgentLink key={f.key} agent={f} />
             ))}
           </ul>
         </div>
@@ -144,14 +152,18 @@ function AgentsBar({ account: a }: { account: Account }) {
   );
 }
 
+/** What an agent's row says: "working", "3 working" when several of its sessions do, "4 sessions" when several run and none works. */
+const doing = (f: FoldedAgent) =>
+  f.working > 1 ? `${f.working} working` : f.working ? 'working' : f.sessions > 1 ? `${f.sessions} sessions` : '';
+
 /** One agent in an account's list: its name and whether it works now; a click opens its chat the app's way. */
-function AgentLink({ agent, working }: { agent: string; working: boolean }) {
-  const open = useOpenable(chatOf(agent));
+function AgentLink({ agent }: { agent: FoldedAgent }) {
+  const open = useOpenable(chatOf(agent.key));
   return (
     <li>
       <button type="button" {...open} className="flex w-full items-center gap-2 px-3 py-1 text-left text-xs text-fg hover:bg-hover">
-        <span className="min-w-0 flex-1 truncate">{useNameOf()(agent)}</span>
-        {working && <span className="text-muted">working</span>}
+        <span className="min-w-0 flex-1 truncate">{useNameOf()(agent.key)}</span>
+        {doing(agent) && <span className="text-muted tabular-nums">{doing(agent)}</span>}
       </button>
     </li>
   );
