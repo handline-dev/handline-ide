@@ -11,6 +11,7 @@ const KEYS = [
   'bg_notice_s',
   'bg_grace_s',
   'bg_check_s',
+  'move_background_wait_s',
   'notice_digest_s',
   'token_prices',
   'input_hold_idle_s',

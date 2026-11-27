@@ -11,6 +11,7 @@ import (
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/proposalwrites"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/internal/temps"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/scheduler/cronspec"
@@ -269,11 +270,29 @@ func (t timeboxPorts) BgJobs(q db.Q, agent string, count int, _ int64) []tick.Bg
 	from, _, _ := db.LastEventOfTS(q, agent, []string{"background_work_ended", "SessionStart"})
 	var jobs []tick.BgJob
 	for _, r := range running {
-		j := tick.BgJob{Name: r.Name}
+		j := tick.BgJob{Name: r.Name, Words: jobWords(r), ID: r.ID, Type: r.Type}
 		if r.ID != "" {
 			j.Started = db.BgJobStarted(q, agent, from, r.ID)
 		}
 		jobs = append(jobs, j)
 	}
 	return jobs
+}
+
+// JobsCPU reads each shell job's CPU time from the processes under the agent's terminal (sessionrpc.JobsCPU).
+func (t timeboxPorts) JobsCPU(q db.Q, agent string, jobs []tick.BgJob) []tick.BgJob {
+	handle, err := db.Terminal(q, agent)
+	if err != nil || handle == "" {
+		return jobs
+	}
+	listed := make([]sessionrpc.RunningJob, 0, len(jobs))
+	for _, j := range jobs {
+		listed = append(listed, sessionrpc.RunningJob{ID: j.ID, Type: j.Type, Name: j.Name})
+	}
+	cpu := sessionrpc.JobsCPU(q, agent, t.p.panePid(handle), listed)
+	out := append([]tick.BgJob(nil), jobs...)
+	for i, j := range out {
+		out[i].CPU, out[i].CPUKnown = cpu[j.ID]
+	}
+	return out
 }

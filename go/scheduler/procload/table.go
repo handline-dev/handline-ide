@@ -39,7 +39,7 @@ func parseTable(out string, loc *time.Location) []Raw {
 		pid, e1 := strconv.Atoi(f[0])
 		ppid, e2 := strconv.Atoi(f[1])
 		rss, e3 := strconv.ParseInt(f[2], 10, 64)
-		cpu, ok := parseCPUTime(f[3])
+		cpu, ok := ParseCPUTime(f[3])
 		start, e5 := time.ParseInLocation("Mon Jan 2 15:04:05 2006", strings.Join(f[4:9], " "), loc)
 		if e1 != nil || e2 != nil || e3 != nil || !ok || e5 != nil {
 			continue
@@ -53,8 +53,8 @@ func parseTable(out string, loc *time.Location) []Raw {
 	return rows
 }
 
-// parseCPUTime reads ps's TIME: [[dd-]hh:]mm:ss[.ss].
-func parseCPUTime(s string) (float64, bool) {
+// ParseCPUTime reads ps's TIME: [[dd-]hh:]mm:ss[.ss].
+func ParseCPUTime(s string) (float64, bool) {
 	days := 0.0
 	if d, rest, ok := strings.Cut(s, "-"); ok {
 		n, err := strconv.Atoi(d)

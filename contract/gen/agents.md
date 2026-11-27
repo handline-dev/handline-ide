@@ -82,7 +82,7 @@ Drop the move an agent keeps for its turn's end (pending_move phase scheduled). 
 
 ### `agent.move_now`
 
-Move an agent now: to `account`, or without it to the account its kept move names. The turn under way is stopped as session.interrupt stops it, the agent is asked for its handoff note, and the move runs once the note is in (or after the daemon's own note wait, on its own record; account_moved says which). A closed agent's next wake starts on the account.
+Move an agent now: to `account`, or without it to the account its kept move names. The turn under way is stopped as session.interrupt stops it, the agent is asked for its handoff note, and the move runs once the note is in (or after the daemon's own note wait, on its own record; account_moved says which). A closed agent's next wake starts on the account. A usage move waiting on the agent's background work goes at once, with no note asked: its close ends the work, and the result says whether it moved.
 
 ### `agent.switch_now`
 

@@ -48,7 +48,8 @@ var settingKinds = map[string]byte{
 	"mcp_config": 's', "schedules": 's', "peer_inbox": 'b', "account": 's', "ignore_cache_expiry": 'b', "bg_notice_s": 'i',
 	"bg_grace_s": 'i', "bg_check_s": 'i', "notice_digest_s": 'i', "handoff_prompt": 's', "cache_renewal": 'b', "idle_fold": 'b',
 	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b', "account_split": 's', "block_screen_capture": 'b',
-	"session_mode": 's',
+	"session_mode":           's',
+	"move_background_wait_s": 'i',
 }
 
 // settingKeys is settingKinds' keys in order, for the SELECT.

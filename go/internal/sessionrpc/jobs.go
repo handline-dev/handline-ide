@@ -1,6 +1,7 @@
 package sessionrpc
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -10,9 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
+	"github.com/handline/handline/go/scheduler/procload"
 )
 
 // RunningJob is one job the agent's last Stop listed: its id, type ("shell", ...) and name.
@@ -180,6 +183,55 @@ func (e *Env) stopJob(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
+// JobsCPU is the CPU time each listed shell job has used so far, in seconds by its id: the processes of the group agent.job.stop would
+// end, with their ended children, summed. A job whose group is not found (its output file not recorded, nothing writes it, or not under pane, the agent's terminal)
+// is left out, as is every job when ps or lsof cannot be read.
+func JobsCPU(q db.Q, agent string, pane int, jobs []RunningJob) map[string]float64 {
+	out := map[string]float64{}
+	from, _, err := db.LastEventOfTS(q, agent, []string{"background_work_ended", "SessionStart"})
+	if pane == 0 || err != nil {
+		return out
+	}
+	outputs := map[string]string{}
+	var files []string
+	for _, j := range jobs {
+		if j.Type != "shell" {
+			continue
+		}
+		if f := db.BgJobOutput(q, agent, from, j.ID); f != "" {
+			outputs[j.ID], files = f, append(files, f)
+		}
+	}
+	if len(files) == 0 {
+		return out
+	}
+	open, known := holders(files)
+	if !known {
+		return out
+	}
+	procs, err := processTable()
+	if err != nil {
+		return out
+	}
+	for id, f := range outputs {
+		if group, err := jobGroup(procs, pane, open[f]); err == nil {
+			out[id] = groupCPU(procs, group)
+		}
+	}
+	return out
+}
+
+// groupCPU is the CPU time of the processes of group, summed.
+func groupCPU(procs []proc, group int) float64 {
+	sum := 0.0
+	for _, p := range procs {
+		if p.pgid == group {
+			sum += p.cpu
+		}
+	}
+	return sum
+}
+
 // leads is whether pid still leads its process group.
 func leads(pid int) bool {
 	g, err := syscall.Getpgid(pid)
@@ -217,26 +269,35 @@ func (e *Env) running(agent string) []RunningJob {
 	return e.Running(agent)
 }
 
-// proc is one row of the process table.
-type proc struct{ pid, ppid, pgid int }
+// toolTimeout bounds a ps or lsof run: the background check calls them on the tick.
+const toolTimeout = 10 * time.Second
+
+// proc is one row of the process table: cpu is the CPU time it and its ended children have used, in seconds.
+type proc struct {
+	pid, ppid, pgid int
+	cpu             float64
+}
 
 // processTable is every process of this machine.
 func processTable() ([]proc, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,ppid=,pgid=").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ps", "-axS", "-o", "pid=,ppid=,pgid=,time=").Output()
 	if err != nil {
 		return nil, err
 	}
 	var procs []proc
 	for _, line := range strings.Split(string(out), "\n") {
 		f := strings.Fields(line)
-		if len(f) != 3 {
+		if len(f) != 4 {
 			continue
 		}
 		pid, e1 := strconv.Atoi(f[0])
 		ppid, e2 := strconv.Atoi(f[1])
 		pgid, e3 := strconv.Atoi(f[2])
+		cpu, _ := procload.ParseCPUTime(f[3]) // a time that does not read is 0: the row still places its process
 		if e1 == nil && e2 == nil && e3 == nil {
-			procs = append(procs, proc{pid, ppid, pgid})
+			procs = append(procs, proc{pid, ppid, pgid, cpu})
 		}
 	}
 	return procs, nil
@@ -256,7 +317,9 @@ func holders(files []string) (map[string][]int, bool) {
 		}
 		named[real] = f
 	}
-	b, err := exec.Command("lsof", append([]string{"-F", "pfan", "--"}, files...)...).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), toolTimeout)
+	defer cancel()
+	b, err := exec.CommandContext(ctx, "lsof", append([]string{"-w", "-F", "pfan", "--"}, files...)...).Output()
 	var exit *exec.ExitError
 	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) { // 1: none of them is open
 		return nil, false

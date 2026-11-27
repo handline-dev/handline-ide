@@ -79,8 +79,8 @@ type MoveEnv struct {
 	NoteWritten func(agent string) bool
 	// LimitDialogOpen is whether the usage-limit dialog is on the agent's screen: the turn behind it is over, whatever the session says.
 	LimitDialogOpen func(agent string) bool
-	// BackgroundWork is what the agent's session still runs behind its prompt, "" for nothing.
-	BackgroundWork func(q db.Q, agent string) string
+	// BackgroundWork is what the agent's session still runs behind its prompt.
+	BackgroundWork func(q db.Q, agent string) Background
 	// ContextUse is the context used and its limit, used < 0 when unknown.
 	ContextUse    func(q db.Q, agent string) (used, limit int)
 	MeasureForget func(q db.Q, agent string)
@@ -88,6 +88,16 @@ type MoveEnv struct {
 	StayOrMove func(s staymove.Situation) (move bool, why string)
 	WakeAfter  func(kind string, shortReset, longReset, now int64) int64
 }
+
+// Background is the work a session still runs behind its prompt: Words names each job as a person reads it, Lines as it was started.
+// Words "" is none.
+type Background struct{ Words, Lines string }
+
+// BackgroundWaits begins a saving switch's waits when its move waits on the agent's background work.
+const BackgroundWaits = "background: "
+
+// MovedPastBackgroundKind is the event of a wall move that stopped waiting on background work: the jobs and how long it waited.
+const MovedPastBackgroundKind = "move_past_background"
 
 // Mover is the handoff, the move to another account and the clear that is owed. When each happens is its caller's; how is
 // not: nothing is typed, a close is proven by the process group (a terminal's by its pane and the session's pid), and a cleared context is
@@ -265,7 +275,7 @@ func (v *Mover) moveToRoom(agent string, t HandoffTrigger, dest string) (moved, 
 	}
 	waited := must(db.GetSwitch(m.Q, agent))
 	m.noteSwitch(agent, t.Kind, here, there, db.SwitchSwitching)
-	running := v.E.BackgroundWork(m.Q, agent) // the close stops it; the next session is told
+	running := v.E.BackgroundWork(m.Q, agent).Lines // the close stops it; the next session is told
 	if ok, why := v.closeFor(agent, t.Kind); !ok {
 		v.log("  %s: staying on %s - %s", agent, here, why)
 		if waited != nil && waited.Phase == db.SwitchWaiting { // the tick's try off a parked account: the wait goes on
@@ -390,22 +400,28 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 	case wallTrigger(t.Kind):
 		busy = m.wallBusy // the move stops background work nothing waits on
 	}
+	noteKind := t.Kind
 	if !settled && busy(agent) {
-		if t.Kind != "forced" {
-			waits := "the turn to end"
-			if jobs := v.E.BackgroundWork(m.Q, agent); jobs != "" && m.TermRun.IdleWithBackground(agent) {
-				waits = "background: " + jobs
-			}
-			v.log("  %s: %s fired - deferring, waits for %s", agent, t.Kind, waits)
+		if t.Kind == "forced" {
+			return false, fmt.Errorf("%s: the forced move did not happen: a terminal's turn cannot be interrupted without typing", agent)
+		}
+		waits, logged := "the turn to end", "the turn to end"
+		bg := v.E.BackgroundWork(m.Q, agent)
+		onBg := bg.Words != "" && m.TermRun.IdleWithBackground(agent)
+		if onBg {
+			waits, logged = BackgroundWaits+bg.Words, BackgroundWaits+bg.Lines
+		}
+		if !onBg || !v.backgroundWaitOver(agent, t.Kind, bg, now) {
+			v.log("  %s: %s fired - deferring, waits for %s", agent, t.Kind, logged)
 			check(db.MarkDeferred(m.Q, agent, now))
 			v.deferredSaving(agent, t.Kind, dest, waits)
 			return true, nil
 		}
-		return false, fmt.Errorf("%s: the forced move did not happen: a terminal's turn cannot be interrupted without typing", agent)
+		noteKind = states.EarlyUsageTrigger // the note is asked as an early move asks it: with the work running
 	}
 	// The agent writes its own part of the record first, one turn while its cache is warm. A person's order is not held for it, and a
 	// session at the wall cannot take a turn.
-	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, t.Kind, now) {
+	if t.Kind != "forced" && t.Kind != LoginTrigger && !settled && v.E.NoteHold(m.Q, agent, noteKind, now) {
 		v.log("  %s: %s fired - waiting for its handoff note", agent, t.Kind)
 		check(db.MarkNoteWait(m.Q, agent, t.Kind, now))
 		v.deferredSaving(agent, t.Kind, dest, "its handoff note")
@@ -421,6 +437,42 @@ func (v *Mover) performHandoff(agent string, t HandoffTrigger, dest string) (boo
 		m.moveFailed(agent, kept.To, fmt.Sprintf("a %s handoff came first and could not take it there", t.Kind))
 	}
 	return ok, nil
+}
+
+// backgroundWaitOver is whether a wall move has waited on the agent's background work as long as the setting lets it (none waits as long
+// as the work runs). Past it the
+// move goes on and its close ends the work; the first time is said once, in the log and a MovedPastBackgroundKind event.
+func (v *Mover) backgroundWaitOver(agent, kind string, bg Background, now int64) bool {
+	if !wallTrigger(kind) {
+		return false
+	}
+	m := v.M
+	since := v.backgroundWaitSince(agent, now)
+	var limit int64
+	if m.Settings != nil {
+		limit = m.Settings.MoveBackgroundWaitS(agent)
+	}
+	if limit <= 0 || now-since < limit {
+		return false
+	}
+	if said, ok := must2(db.LastEventOfTS(m.Q, agent, []string{MovedPastBackgroundKind})); !ok || said < since {
+		must(db.AddEventAt(m.Q, now, agent, MovedPastBackgroundKind, db.KV{K: "kind", V: kind}, db.KV{K: "jobs", V: bg.Words},
+			db.KV{K: "waited_s", V: now - since}))
+		v.log("  %s: %s waited %s on background work (%s) - moving past it, which ends it: %s", agent, kind, timefmt.Ago(now-since),
+			bg.Words, bg.Lines)
+	}
+	return true
+}
+
+// backgroundWaitSince is when the move began to wait on the background work running now: its first wait on background, or the start of
+// the current stretch of work when that came later (a mark left by a session or work since ended counts for nothing).
+func (v *Mover) backgroundWaitSince(agent string, now int64) int64 {
+	m := v.M
+	since := must(db.MarkBackgroundWait(m.Q, agent, now))
+	if began, ok, err := m.Delivery.BgSince(m.Q, agent); err == nil && ok && began > since {
+		since = min(began, now)
+	}
+	return since
 }
 
 func (v *Mover) perform(agent string, t HandoffTrigger, dest string) bool {
@@ -497,7 +549,7 @@ func (v *Mover) reclaim(agent, kind string) (bool, string) {
 	if !m.sessionAlive(agent) {
 		return false, "no session process; nothing to close"
 	}
-	running := v.E.BackgroundWork(m.Q, agent)
+	running := v.E.BackgroundWork(m.Q, agent).Lines
 	if running == "" {
 		return v.closeNow(agent, kind)
 	}

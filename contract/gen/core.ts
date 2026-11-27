@@ -378,6 +378,8 @@ export type SettingsValues = {
   bg_grace_s?: number;
   /** How long a background job runs before its agent is asked whether to stop it. Per agent. */
   bg_check_s?: number;
+  /** How long a usage move waits on the agent's background work before it goes past it, which ends the work. 0 waits as long as the work runs. Per agent. */
+  move_background_wait_s?: number;
   /** Seconds after the first waiting notice before the agent is typed one digest, at its prompt. Per agent. */
   notice_digest_s?: number;
   /** Input price per million tokens by model-name pattern, laid over the built-in table; an entry that is not a positive number is ignored. */
@@ -492,6 +494,8 @@ export type SettingsChanges = {
   bg_grace_s?: number | null;
   /** How long a background job runs before its agent is asked whether to stop it. Per agent. null removes the key (back to the default). */
   bg_check_s?: number | null;
+  /** How long a usage move waits on the agent's background work before it goes past it, which ends the work. 0 waits as long as the work runs. Per agent. null removes the key (back to the default). */
+  move_background_wait_s?: number | null;
   /** Seconds after the first waiting notice before the agent is typed one digest, at its prompt. Per agent. null removes the key (back to the default). */
   notice_digest_s?: number | null;
   /** Input price per million tokens by model-name pattern, laid over the built-in table; an entry that is not a positive number is ignored. null removes the key (back to the default). */
@@ -1242,7 +1246,7 @@ export interface CoreMethods {
 }; result: Settings };
   "settings.set": { params: {
   changes: SettingsChanges;
-  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture. Any other key with `agent` is bad_request. */
+  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s. Any other key with `agent` is bad_request. */
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };

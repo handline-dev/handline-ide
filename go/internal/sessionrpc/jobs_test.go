@@ -74,7 +74,7 @@ func TestAgentJobsListsWhatTheLastStopSaidWithAShellsLastLines(t *testing.T) {
 // The job's group is the nearest one of its own, under the agent's CLI, among the processes holding its output: never the CLI's,
 // which reads that file too, never one shared with what is above it.
 func TestTheJobsGroupIsItsOwnBelowTheCLI(t *testing.T) {
-	procs := []proc{{1, 0, 1}, {10, 1, 10}, {20, 10, 20}, {21, 20, 20}, {30, 10, 10}, {40, 99, 40}}
+	procs := []proc{{1, 0, 1, 0}, {10, 1, 10, 0}, {20, 10, 20, 0}, {21, 20, 20, 0}, {30, 10, 10, 0}, {40, 99, 40, 0}}
 	for _, c := range []struct {
 		open []int
 		want int
@@ -120,6 +120,37 @@ func TestStopOneShellEndsItAndNothingAbove(t *testing.T) {
 	}
 	if g := refused(c.call("agent.job.stop", map[string]any{"agent": "ann", "job": "a1", "request_id": rid("s3")})); g != "type" {
 		t.Fatalf("no shell: gate %q", g)
+	}
+}
+
+// A shell job's CPU time is its own group's, read live; work that is no shell, or whose output is not recorded, has none.
+func TestJobsCPUIsTheJobsOwnGroupsCPUTime(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "b1.output")
+	os.WriteFile(out, nil, 0o644)
+	burn := `import time; e = time.process_time() + 0.4
+while time.process_time() < e: pass
+time.sleep(300)`
+	start(t, "python3", "-c", fmt.Sprintf(`import subprocess, sys, time; subprocess.Popen([sys.executable, "-c", %q], stdout=open(%q, "a"), start_new_session=True); time.sleep(300)`, burn, out))
+	r, _, _ := jobsRig(t, nil)
+	started(r, "b1", out)
+	jobs := []RunningJob{{ID: "b1", Type: "shell", Name: "shell: burn"}, {ID: "b2", Type: "shell", Name: "shell: unrecorded"}, {ID: "a1", Type: "agent", Name: "agent: review"}}
+	for end := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		got := JobsCPU(r.e.DB, r.ann, os.Getpid(), jobs)
+		if len(got) > 1 {
+			t.Fatalf("only the recorded shell has a CPU time: %v", got)
+		}
+		if got["b1"] >= 0.3 {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("the job's CPU never showed: %v", got)
+		}
+	}
+	if got := JobsCPU(r.e.DB, r.ann, 0, jobs); len(got) != 0 {
+		t.Fatalf("no terminal to look under: %v", got)
+	}
+	if got := groupCPU([]proc{{1, 0, 1, 5}, {2, 1, 2, 1.5}, {3, 2, 2, 2}}, 2); got != 3.5 {
+		t.Fatalf("group sum %v", got)
 	}
 }
 

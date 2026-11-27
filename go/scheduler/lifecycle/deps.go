@@ -29,6 +29,8 @@ type Delivery interface {
 	BgHolds(q db.Q, agent string, now int64) (bool, error)
 	IdleSince(q db.Q, agent string) (int64, bool, error)
 	BgOwesNothing(q db.Q, agent string) (bool, error)
+	// BgSince is when the agent's current stretch of background work began; ok false when it runs none.
+	BgSince(q db.Q, agent string) (int64, bool, error)
 	BgMayStop(q db.Q, agent string, now int64) (bool, error)
 	BgPromptedAt(q db.Q, agent string) (int64, error)
 	BgSilentS(q db.Q, agent string, now int64) (int64, bool, error)

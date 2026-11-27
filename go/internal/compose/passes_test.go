@@ -42,7 +42,8 @@ func TestTheBackgroundCheckNamesWhatTheLastStopSaidRunsAndWhenEachStarted(t *tes
 	}
 	p.turns = tr
 	ports := timeboxPorts{p: p}
-	want := []tick.BgJob{{Name: "agent: review the diff", Started: 8}, {Name: "shell: go test ./...", Started: 9}}
+	want := []tick.BgJob{{Name: "agent: review the diff", Words: "review the diff", ID: "a3", Type: "agent", Started: 8},
+		{Name: "shell: go test ./...", Words: "go test", ID: "b7", Type: "shell", Started: 9}}
 	if got := ports.BgJobs(p.db, "alice", 0, 0); !slices.Equal(got, want) {
 		t.Fatalf("named %v", got)
 	}

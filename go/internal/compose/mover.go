@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/words"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/staymove"
 	"github.com/handline/handline/go/scheduler/tick"
@@ -53,20 +55,20 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 			return err == nil && text != ""
 		},
 		LimitDialogOpen: p.limitDialogOpen,
-		BackgroundWork: func(q db.Q, agent string) string {
+		BackgroundWork: func(q db.Q, agent string) lifecycle.Background {
 			if ok, _ := env.HasBackgroundWork(q, agent); !ok {
-				return ""
+				return lifecycle.Background{}
 			}
 			if p.turns != nil {
-				var names []string
+				var said, lines []string
 				for _, j := range p.turns.Running(agent) {
-					names = append(names, j.Name)
+					said, lines = append(said, jobWords(j)), append(lines, j.Name)
 				}
-				if len(names) > 0 {
-					return strings.Join(names, ", ")
+				if len(said) > 0 {
+					return lifecycle.Background{Words: strings.Join(said, ", "), Lines: strings.Join(lines, ", ")}
 				}
 			}
-			return "unnamed jobs"
+			return lifecycle.Background{Words: "unnamed jobs", Lines: "unnamed jobs"}
 		},
 		ContextUse: func(q db.Q, agent string) (int, int) {
 			acct := m.Agents.CurrentAccount(q, agent)
@@ -80,4 +82,14 @@ func (p *Parts) newMover(m *lifecycle.Manager, uenv *usage.Env, env *supervisor.
 		StayOrMove:    staymove.Decide,
 		WakeAfter:     tick.WakeAfter,
 	}}
+}
+
+// jobWords names a background job as a person reads it: its description, or the program and first word of the shell line it ran.
+func jobWords(j turns.Job) string {
+	if j.Command != "" {
+		if w := words.Command(j.Command); w != "" {
+			return w
+		}
+	}
+	return strings.TrimPrefix(j.Name, j.Type+": ")
 }

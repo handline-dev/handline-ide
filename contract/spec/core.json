@@ -2096,6 +2096,12 @@
       "default": 600,
       "description": "How long a background job runs before its agent is asked whether to stop it. Per agent."
      },
+     "move_background_wait_s": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "How long a usage move waits on the agent's background work before it goes past it, which ends the work. 0 waits as long as the work runs. Per agent."
+     },
      "notice_digest_s": {
       "type": "integer",
       "minimum": 1,
@@ -2504,6 +2510,18 @@
        }
       ],
       "description": "How long a background job runs before its agent is asked whether to stop it. Per agent. null removes the key (back to the default)."
+     },
+     "move_background_wait_s": {
+      "oneOf": [
+       {
+        "type": "integer",
+        "minimum": 0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "How long a usage move waits on the agent's background work before it goes past it, which ends the work. 0 waits as long as the work runs. Per agent. null removes the key (back to the default)."
      },
      "notice_digest_s": {
       "oneOf": [
@@ -5984,7 +6002,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture. Any other key with `agent` is bad_request."
+      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s. Any other key with `agent` is bad_request."
      }
     },
     {
