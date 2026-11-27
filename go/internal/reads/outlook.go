@@ -92,15 +92,11 @@ func (e *Env) statsOutlook(_ *rpc.Conn, params map[string]any) (any, error) {
 
 // agentUseOf is the spec's agent_use row.
 func agentUseOf(u usage.AgentUse) map[string]any {
-	var est any
-	if u.EstPct != nil {
-		est = round(*u.EstPct, 2)
-	}
 	fracs := map[string]any{}
 	for a, f := range u.Fracs {
 		fracs[a] = round(f, 4)
 	}
-	return map[string]any{"agent": u.Agent, "node": u.Node, "tokens": u.Tokens, "cost": round(u.Cost, 4), "share": round(u.Share, 4), "est_pct": est, "fracs": fracs}
+	return map[string]any{"agent": u.Agent, "node": u.Node, "tokens": u.Tokens, "cost": round(u.Cost, 4), "share": round(u.Share, 4), "fracs": fracs}
 }
 
 // overlayOf is the spec's overlay, at two places like left_pct.
@@ -245,7 +241,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 		delete(c.Plan.Span, k)
 	}
 	if v, ok := c.Plan.Span[none]; ok { // a rise with no priced call: plan money no agent row holds
-		agentUse = append(agentUse, map[string]any{"agent": usage.Unattributed, "node": nil, "tokens": 0, "cost": 0.0, "share": 0.0, "est_pct": nil,
+		agentUse = append(agentUse, map[string]any{"agent": usage.Unattributed, "node": nil, "tokens": 0, "cost": 0.0, "share": 0.0,
 			"fracs": map[string]any{}, "plan_cost": round(v, 4)})
 	}
 	res := map[string]any{"range": name, "now": ts(now), "accounts": out.Accounts, "past": points(out.Past), "future": points(future),

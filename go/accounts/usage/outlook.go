@@ -281,8 +281,7 @@ func CallCosts(q db.Q, self string, dayLo, useLo, hi int64, table []priceEntry, 
 	if err != nil {
 		return CallCost{}, err
 	}
-	weekUsed := WeekConsumed(rows, useLo, hi)
-	return CallCost{Daily: daily, Uses: agentUses(per, per.keys(), weekUsed),
+	return CallCost{Daily: daily, Uses: agentUses(per, per.keys()),
 		Plan: planCostsOf(days, per, rows, dayLo, useLo, hi, weekUSD)}, nil
 }
 

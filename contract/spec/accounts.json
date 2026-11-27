@@ -829,17 +829,6 @@
          "type": "number",
          "description": "Its cost as a fraction (0 to 1) of everyone's cost in the span; 0 when nothing was spent."
         },
-        "est_pct": {
-         "oneOf": [
-          {
-           "type": "number"
-          },
-          {
-           "type": "null"
-          }
-         ],
-         "description": "An estimate of the points of the combined week the agent used in the span: its cost share of each account times the points that account used, averaged over the accounts. An estimate, because what the plan charges is not what the price list says. Null when no account has a reading."
-        },
         "fracs": {
          "type": "object",
          "additionalProperties": {
@@ -858,7 +847,6 @@
         "tokens",
         "cost",
         "share",
-        "est_pct",
         "fracs"
        ]
       },

@@ -3,7 +3,7 @@
   {
    "name": "stats.outlook.agent_use_rows_carry_what_the_table_draws",
    "spec": "stats.outlook",
-   "about": "Every agent_use row has the agent, its tokens, list-price cost, share of everyone's cost, est_pct (a number, or null with no reading) and fracs by account; with no agent asked for there is no overlay. Needs --var outlook_agent: an agent that used tokens in the range.",
+   "about": "Every agent_use row has the agent, its tokens, list-price cost, share of everyone's cost and fracs by account; with no agent asked for there is no overlay. Needs --var outlook_agent: an agent that used tokens in the range.",
    "as": "founder",
    "steps": [
     {
@@ -43,16 +43,6 @@
         },
         "share": {
          "$type": "number"
-        },
-        "est_pct": {
-         "$oneOf": [
-          {
-           "$type": "number"
-          },
-          {
-           "$type": "null"
-          }
-         ]
         },
         "fracs": {
          "$type": "object"
@@ -110,16 +100,6 @@
         },
         "share": {
          "$type": "number"
-        },
-        "est_pct": {
-         "$oneOf": [
-          {
-           "$type": "number"
-          },
-          {
-           "$type": "null"
-          }
-         ]
         },
         "fracs": {
          "$type": "object"

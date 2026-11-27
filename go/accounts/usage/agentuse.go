@@ -13,8 +13,6 @@ type AgentUse struct {
 	Tokens int64
 	Cost   float64 // USD at list price
 	Share  float64 // of everyone's cost in the span
-	// EstPct is the points of the combined week it used (see agentUses); nil when no account has a reading.
-	EstPct *float64
 	// Fracs is its cost share of each account in the span; an account it spent nothing on is absent.
 	Fracs map[string]float64
 }
@@ -138,15 +136,12 @@ func PairUsesOf(q db.Q, self string, lo, hi int64, table []priceEntry, weekUsed 
 }
 
 // agentUses is each agent's tokens and list-price cost on each machine as per tallied them, largest cost first, ties by
-// name then machine. weekUsed is the
-// points of each account's week used in the span (WeekConsumed): an agent's EstPct is its cost share of each account times that account's
-// points, averaged over the accounts, an estimate because what the plan charges is not what the price list says.
-func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUse {
+// name then machine.
+func agentUses(per tally, keys []callKey) []AgentUse {
 	acctCost := map[string]float64{}
 	for _, k := range keys {
 		acctCost[k.acct] += per[k].cost
 	}
-	est := map[UseKey]float64{}
 	by := map[UseKey]*AgentUse{}
 	var total float64
 	for _, k := range keys {
@@ -164,18 +159,11 @@ func agentUses(per tally, keys []callKey, weekUsed map[string]float64) []AgentUs
 			continue
 		}
 		u.Fracs[k.acct] = t.cost / acctCost[k.acct]
-		if pts, ok := weekUsed[k.acct]; ok {
-			est[uk] += t.cost / acctCost[k.acct] * pts / float64(len(weekUsed))
-		}
 	}
 	out := make([]AgentUse, 0, len(by))
 	for _, u := range by {
 		if total != 0 {
 			u.Share = u.Cost / total
-		}
-		if len(weekUsed) > 0 {
-			e := est[UseKey{u.Agent, u.Node}]
-			u.EstPct = &e
 		}
 		out = append(out, *u)
 	}
@@ -200,13 +188,6 @@ func PickUse(uses []AgentUse, pick string) (AgentUse, bool) {
 		sum.Tokens += u.Tokens
 		sum.Cost += u.Cost
 		sum.Share += u.Share
-		if u.EstPct != nil {
-			e := *u.EstPct
-			if sum.EstPct != nil {
-				e += *sum.EstPct
-			}
-			sum.EstPct = &e
-		}
 		for a, f := range u.Fracs {
 			sum.Fracs[a] += f
 		}

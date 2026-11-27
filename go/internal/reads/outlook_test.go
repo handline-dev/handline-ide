@@ -293,7 +293,7 @@ func addExtra(t *testing.T, e *Env, acct, extra string) {
 	}
 }
 
-func TestOutlookGivesWhatEachAgentUsedAndTheEstimateOfTheWeek(t *testing.T) {
+func TestOutlookGivesWhatEachAgentUsed(t *testing.T) {
 	t.Parallel()
 	e, clock := outlookWithUse(t)
 	got, err := e.outlookAt("24h", 24, clock, nil)
@@ -310,10 +310,6 @@ func TestOutlookGivesWhatEachAgentUsedAndTheEstimateOfTheWeek(t *testing.T) {
 	if len(uses) != 2 || one["agent"] != "grp.one" || two["agent"] != "grp.two" || one["tokens"] != int64(4_000_000) ||
 		one["cost"] != 8.0 || one["share"] != 0.8 || two["share"] != 0.2 || fr["a"] != 0.75 || fr["b"] != 1.0 {
 		t.Fatalf("%v", uses)
-	}
-	// grp.one: 3/4 of a's 20 points and all of b's 10, over two accounts; grp.two: 1/4 of a's.
-	if one["est_pct"] != 12.5 || two["est_pct"] != 2.5 {
-		t.Fatalf("%v %v", one["est_pct"], two["est_pct"])
 	}
 }
 
@@ -455,7 +451,7 @@ func TestUseRowsSayTheMachineThatSpentIt(t *testing.T) {
 		rows[row{m["agent"].(string), m["node"].(string)}] = m
 	}
 	one, there := rows[row{"grp.one", "m1"}], rows[row{"grp.one", "r1"}]
-	if len(rows) != 3 || one["tokens"] != int64(4_000_000) || there["tokens"] != int64(1_000_000) || one["est_pct"] != 8.0 || there["est_pct"] != 5.0 {
+	if len(rows) != 3 || one["tokens"] != int64(4_000_000) || there["tokens"] != int64(1_000_000) {
 		t.Fatalf("agent_use: %v", res["agent_use"])
 	}
 	// 4/5 of a's 20 points and all of b's 10, over two accounts.
