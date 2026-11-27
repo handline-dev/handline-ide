@@ -17,7 +17,7 @@ import (
 
 // ensureLANCert is the self-signed certificate the LAN doors present, made in <home>/network the first time one is needed and kept, so
 // its fingerprint (which a paired phone pins) stays the same. A browser warns once about it: nothing a LAN has can vouch for it.
-func ensureLANCert(home string) (crt, key string, err error) {
+func ensureLANCert(home string, hosts []netAddress) (crt, key string, err error) {
 	dir := filepath.Join(home, "network")
 	crt, key = filepath.Join(dir, "lan.crt"), filepath.Join(dir, "lan.key")
 	if _, err := os.Stat(crt); err == nil {
@@ -41,7 +41,7 @@ func ensureLANCert(home string) (crt, key string, err error) {
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
-	for _, a := range addressesNow() {
+	for _, a := range hosts {
 		if ip := net.ParseIP(a.Host); ip != nil {
 			tmpl.IPAddresses = append(tmpl.IPAddresses, ip)
 		} else {

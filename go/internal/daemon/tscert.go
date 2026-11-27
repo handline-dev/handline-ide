@@ -16,7 +16,8 @@ import (
 // writes it into <home>/network, and it is fetched again a month before it expires (certSource serves the new files without a restart).
 type tsCert struct {
 	dir   string
-	ready func() // told when a fetch has written a certificate, so the doors are made again
+	ready func()                            // told when a fetch has written a certificate, so the doors are made again
+	get   func(name, crt, key string) error // fetches the certificate
 
 	mu       sync.Mutex
 	name     string // the name the files are for
@@ -28,9 +29,9 @@ type tsCert struct {
 // renewBefore is how long before its expiry the certificate is fetched again; Tailscale's are good for 90 days.
 const renewBefore = 30 * 24 * time.Hour
 
-// fetchTailscaleCert runs `tailscale cert` for name and writes what it prints into crt and key: the App Store build of Tailscale is
-// sandboxed and cannot write a file outside its own folder. A variable so a test fetches its own.
-var fetchTailscaleCert = func(name, crt, key string) error {
+// tailscaleCert runs `tailscale cert` for name and writes what it prints into crt and key: the App Store build of Tailscale is
+// sandboxed and cannot write a file outside its own folder.
+func tailscaleCert(name, crt, key string) error {
 	var last error
 	for _, cli := range tailscaleCLIs {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -91,7 +92,7 @@ func (t *tsCert) source(name string, log func(string, ...any)) *certSource {
 func (t *tsCert) fetch(name, crt, key string, log func(string, ...any)) {
 	err := os.MkdirAll(t.dir, 0o700)
 	if err == nil {
-		err = fetchTailscaleCert(name, crt, key)
+		err = t.get(name, crt, key)
 	}
 	t.mu.Lock()
 	t.fetching = false

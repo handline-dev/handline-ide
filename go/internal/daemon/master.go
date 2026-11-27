@@ -123,7 +123,7 @@ func OwnDoor(cfg Config) (*runner.Door, error) {
 		return nil, nil
 	}
 	if cfg.plain() {
-		addr, err := plainAddr(cfg.Listen)
+		addr, err := plainAddr(cfg.Listen, cfg.ifaces)
 		if err != nil {
 			return nil, err
 		}

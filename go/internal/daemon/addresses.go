@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
@@ -35,12 +36,62 @@ func (a netAddress) plain(cfg Config) bool {
 	return cfg.plain() && (a.Kind == kindTailscale || a.Kind == kindTailscaleName)
 }
 
-// addressesNow is machineAddresses; a variable so a test can serve hosts it can bind.
-var addressesNow = machineAddresses
+// machineView is what a test has one daemon read in place of its machine (the hosts, whether the tailnet gives HTTPS, a Tailscale
+// certificate's fetch), so it reaches no other daemon, nor one left running by a test before it. Each is the machine's until set.
+type machineView struct {
+	hosts atomic.Pointer[[]netAddress]
+	https atomic.Pointer[func() bool]
+	fetch atomic.Pointer[func(name, crt, key string) error]
+}
+
+func (m *machineView) setHosts(hosts []netAddress)                  { m.hosts.Store(&hosts) }
+func (m *machineView) setHTTPS(f func() bool)                       { m.https.Store(&f) }
+func (m *machineView) setFetch(f func(name, crt, key string) error) { m.fetch.Store(&f) }
+
+// machineHosts is the hosts a daemon serves while no test set its own; TestMain replaces it once, before any test runs.
+var machineHosts = func(c Config) []netAddress { return machineAddresses(c.ifaces) }
+
+// addressesNow is every host this machine can be reached on now.
+func (c Config) addressesNow() []netAddress {
+	if c.machine != nil {
+		if p := c.machine.hosts.Load(); p != nil {
+			return *p
+		}
+	}
+	return machineHosts(c)
+}
+
+// tailnetHTTPS is whether the tailnet gives this machine's name a certificate.
+func (c Config) tailnetHTTPS() bool {
+	if c.machine != nil {
+		if p := c.machine.https.Load(); p != nil {
+			return (*p)()
+		}
+	}
+	return machineHTTPS()
+}
+
+// fetchTailscaleCert fetches the Tailscale certificate for name into crt and key.
+func (c Config) fetchTailscaleCert(name, crt, key string) error {
+	if c.machine != nil {
+		if p := c.machine.fetch.Load(); p != nil {
+			return (*p)(name, crt, key)
+		}
+	}
+	return tailscaleCert(name, crt, key)
+}
+
+// ifaces lists the interface addresses: the machine's, or a test's.
+func (c Config) ifaces() ([]ifaceAddr, error) {
+	if c.interfaces != nil {
+		return c.interfaces()
+	}
+	return osInterfaces()
+}
 
 // machineAddresses is every host this machine can be reached on from another device: no loopback and no public address.
-func machineAddresses() []netAddress {
-	all, err := interfaceAddrs()
+func machineAddresses(ifaces func() ([]ifaceAddr, error)) []netAddress {
+	all, err := ifaces()
 	if err != nil {
 		return nil
 	}
@@ -83,13 +134,13 @@ var localName = func() string {
 	return strings.SplitN(h, ".", 2)[0] + ".local"
 }
 
-// tailscaleName is this machine's MagicDNS name out of `tailscale status --json`, or "". tailnetHTTPS says whether the tailnet gives
+// tailscaleName is this machine's MagicDNS name out of `tailscale status --json`, or "". machineHTTPS says whether the tailnet gives
 // that name a certificate (HTTPS on: the name is in CertDomains). A read that found the name is kept a minute, as the address list is read
 // every few seconds; one that found none is not kept, so a read missed at start (Tailscale not ready yet) is made again at the next look.
 // Both are asked only while this machine has a Tailscale address, so a machine without one runs no Tailscale command.
 var (
 	tailscaleName = func() string { return tailscaleNow().name }
-	tailnetHTTPS  = func() bool { return tailscaleNow().https }
+	machineHTTPS  = func() bool { return tailscaleNow().https } // TestMain replaces it once, before any test runs
 )
 
 type tailscaleSelf struct {
@@ -161,7 +212,7 @@ func chosenHosts(home string) []string {
 // whether a listener serves it and how.
 func (d *Daemon) connectionAddresses(_ *rpc.Conn, _ map[string]any) (any, error) {
 	items := []any{}
-	for _, a := range addressesNow() {
+	for _, a := range d.cfg.addressesNow() {
 		enc := "tls"
 		if a.plain(d.cfg) {
 			enc = "none"
@@ -187,7 +238,7 @@ func (d *Daemon) networkSetting() adminwrites.Network { return netSetting{d} }
 func (s netSetting) Known(hosts []string) error {
 	have := map[string]bool{}
 	names := []string{}
-	for _, a := range addressesNow() {
+	for _, a := range s.d.cfg.addressesNow() {
 		have[a.Host] = true
 		names = append(names, a.Host)
 	}
