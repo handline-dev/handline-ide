@@ -280,7 +280,16 @@ func TestAnAskNobodyAnsweredIsReadAgainByTheNextReader(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("not asked")
 	}
-	time.Sleep(100 * time.Millisecond) // the records after the ask are read and acknowledged meanwhile
+	// The records after the ask are read, and acknowledged up to it, before the next reader comes.
+	if !ev.has(func() bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		s := p.state("a")
+		ask := s.asks["ask1"]
+		return ask != nil && s.ackedFor > ask.seq
+	}) {
+		t.Fatal("nothing after the ask was read")
+	}
 	again := make(chan string, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -407,6 +416,8 @@ func TestANewerAskOrATurnsEndEndsAStaleAskAndAReplacedWaitLeavesTheNewEntry(t *t
 			<-ctx.Done()
 			return agent.AskAnswer{}, false
 		}}
+	ended := make(chan string, 8)
+	p.waited = func(id string) { ended <- id }
 	askLine := func(id string) holder.Record {
 		return holder.Record{Seq: 1, Line: []byte(`{"type":"control_request","request_id":"` + id + `","request":{"subtype":"can_use_tool","tool_name":"Bash"}}`)}
 	}
@@ -437,7 +448,14 @@ func TestANewerAskOrATurnsEndEndsAStaleAskAndAReplacedWaitLeavesTheNewEntry(t *t
 	<-waits
 	gone["r3"].cancel()
 	done(old, "not cancelled")
-	time.Sleep(50 * time.Millisecond)
+	for r3 := false; !r3; {
+		select {
+		case id := <-ended:
+			r3 = id == "r3"
+		case <-time.After(3 * time.Second):
+			t.Fatal("the old wait never ended")
+		}
+	}
 	p.mu.Lock()
 	_, kept := s.asks["r3"]
 	p.mu.Unlock()

@@ -41,6 +41,8 @@ type Port struct {
 
 	mu     sync.Mutex
 	agents map[string]*session
+	// waited, when set, is told each ask whose wait has ended and cleaned up after itself.
+	waited func(request string)
 }
 
 type held struct{ op, text string }
@@ -65,6 +67,8 @@ type session struct {
 	// reader is the holder read now, and seen the last record it handled: an answer acknowledges up to it once written.
 	reader *holder.Reader
 	seen   int64
+	// ackedFor is the last handled record an acknowledgement has been sent for.
+	ackedFor int64
 }
 
 type pendingAsk struct {
@@ -265,7 +269,7 @@ func (p *Port) read(a string, c agent.Chat, r *holder.Reader) {
 		s.state, s.tasks, s.tasksKnown, s.limit = "", nil, false, agent.Limit{}
 		lost, unsent, asks := s.ops, s.held, s.asks
 		s.ops, s.held, s.receipts, s.asks = map[string]string{}, nil, map[string]delivery.Receipt{}, map[string]*pendingAsk{}
-		s.reader, s.seen = nil, 0
+		s.reader, s.seen, s.ackedFor = nil, 0, 0
 		p.mu.Unlock()
 		for _, ask := range asks {
 			ask.cancel()
@@ -387,6 +391,9 @@ func (p *Port) ask(a string, c agent.Chat, ev agent.Event, seq int64) {
 	}
 	go func() {
 		defer cancel()
+		if p.waited != nil {
+			defer p.waited(ev.Request)
+		}
 		answer, ok := agent.AskAnswer{Message: NoAnswer}, true
 		if p.Ask != nil {
 			answer, ok = p.Ask(ctx, a, ev)
@@ -422,9 +429,15 @@ func (p *Port) ack(a string) {
 	s := p.state(a)
 	r, n := s.reader, s.seen
 	p.mu.Unlock()
-	if r != nil {
-		_ = r.Ack(p.ackable(a, n))
+	if r == nil {
+		return
 	}
+	_ = r.Ack(p.ackable(a, n))
+	p.mu.Lock()
+	if s.reader == r && n > s.ackedFor {
+		s.ackedFor = n
+	}
+	p.mu.Unlock()
 }
 
 // ackable is how far a's records may be acknowledged once seq is handled: up to the first ask still waiting.
