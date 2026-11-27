@@ -20,7 +20,6 @@ function seed(now: number): Desk[] {
     pinned_to: '',
     size_bytes: Math.round((1.6 + (n % 3) * 0.2) * GB),
     task: null,
-    removed_tonight: false,
     ...more,
   });
   return [
@@ -49,7 +48,7 @@ export class FakeDesks {
       case 'desks.list': {
         const repo = typeof p.repo === 'string' && p.repo ? p.repo : null;
         const desks = this.desks.filter((d) => !repo || d.repo === repo).sort((a, b) => a.last_used - b.last_used);
-        return { desks, kept: null };
+        return { desks };
       }
       case 'desk.pin': {
         const d = this.desks.find((x) => x.path === p.desk || x.name === p.desk);

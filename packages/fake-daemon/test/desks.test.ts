@@ -7,7 +7,6 @@ test("desks.list serves a project's desks; desk.pin changes them", async () => {
   await s.client.start();
   let got = await s.client.call('desks.list', { repo: '/work/handline' });
   assert.equal(got.desks.length, 10);
-  assert.equal(got.kept, null);
 
   await s.client.call('desk.pin', { desk: 'desk-10', to: 'p1', request_id: 'p1' });
   got = await s.client.call('desks.list', { repo: '/work/handline' });

@@ -61,7 +61,6 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	}
 	lc.Env.Temps = hired
 	desks := &deskSweep{lc: lc, home: cfg.Home, log: cfg.Log}
-	prune := &deskPrune{pool: lc.Desks, q: lc.Env.DB, home: cfg.Home, free: cfg.DiskFree, log: cfg.Log}
 	return []tick.NamedSweep{
 		{Name: "keep-awake", Run: func(q db.Q, now int64) error {
 			p.awake.Sync(keepawake.ModeOf(usage.LoadConfig(cfg.Home)), lc.Gate.Active() > 0)
@@ -84,7 +83,6 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 			return held.SweepHeld(heldPorts(tk, q, healPorts{lc: lc, home: cfg.Home}))
 		}},
 		{Name: "desks", Run: func(_ db.Q, now int64) error { return desks.Run(now) }},
-		{Name: "desk-prune", Run: func(_ db.Q, now int64) error { return prune.Run(now) }},
 		{Name: "reclaim", Run: func(db.Q, int64) error {
 			if cfg.Nodes == nil {
 				return nil

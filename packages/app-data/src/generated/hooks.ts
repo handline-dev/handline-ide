@@ -117,7 +117,6 @@ export const useRepoSet = (target?: string) => useWrite("repo.set", target);
 export const useFolderInit = (target?: string) => useWrite("folder.init", target);
 export const useFolderClone = (target?: string) => useWrite("folder.clone", target);
 export const useDeskPin = (target?: string) => useWrite("desk.pin", target);
-export const useDesksKeep = (target?: string) => useWrite("desks.keep", target);
 export const useFileWrite = (target?: string) => useWrite("file.write", target);
 export const useTaskNew = (target?: string) => useWrite("task.new", target);
 export const useTaskTurnPop = (target?: string) => useWrite("task.turn.pop", target);
