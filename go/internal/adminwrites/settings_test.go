@@ -1,10 +1,12 @@
 package adminwrites
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/handline/handline/go/accounts/usage"
+	"github.com/handline/handline/go/internal/contracttest"
 	"github.com/handline/handline/go/taskboard/handoff"
 )
 
@@ -61,6 +63,34 @@ func TestAccountSplitTakesAutoOrManual(t *testing.T) {
 	for _, bad := range []any{"Manual", "", true} {
 		if _, err := settingValue(usage.SplitKey, bad); err == nil {
 			t.Fatalf("%v was taken", bad)
+		}
+	}
+}
+
+func TestSettingsChangesNamesEverySettingSettingsSetTakes(t *testing.T) {
+	var spec struct {
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			} `json:"schemas"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(contracttest.Spec(t), &spec); err != nil {
+		t.Fatal(err)
+	}
+	changes := spec.Components.Schemas["SettingsChanges"].Properties
+	values := spec.Components.Schemas["SettingsValues"].Properties
+	for key := range settingKinds {
+		if _, ok := changes[key]; !ok {
+			t.Errorf("settings.set takes %s, SettingsChanges does not name it", key)
+		}
+	}
+	for key := range changes {
+		if _, ok := settingKinds[key]; !ok && key != "token_prices" { // taken only as null, until config.yaml holds a nested value
+			t.Errorf("SettingsChanges names %s, settings.set refuses it", key)
+		}
+		if _, ok := values[key]; !ok {
+			t.Errorf("SettingsChanges names %s, SettingsValues has no value for it", key)
 		}
 	}
 }
