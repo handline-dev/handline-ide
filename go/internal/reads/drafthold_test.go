@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/handline/handline/go/data/team/teamtest"
 )
 
 // runRows is the founder's run rows in requests.pending, as "task:holds", in order.
@@ -168,5 +170,26 @@ func TestAWaitCycleEnds(t *testing.T) {
 	held, since, err := e.heldOn(1, b)
 	if err != nil || fmt.Sprint(held) != "[2 3]" || since != 25 {
 		t.Fatalf("both wait, the first since 25: %v %d %v", held, since, err)
+	}
+}
+
+// A draft with no turn shows its agent opener's turn, as a person's comment on it is told there; queued, opened by a person, or carrying
+// a turn, it shows who acts on it.
+func TestADraftShowsItsOpenersTurn(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	addAgent(t, e, "carol", "")
+	bob, carol := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "carol")
+	run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at, queued_by, queued_at) VALUES"+
+		"(1, 'draft', '%[1]s', '%[2]s', 10, NULL, NULL), (2, 'queued', '%[1]s', '%[2]s', 10, '%[2]s', 20), (3, 'the founder''s draft', '%[1]s', 'p1', 10, NULL, NULL)", bob, carol))
+	run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(4, 'a draft with a turn', '%s', '%s', 10)", bob, carol))
+	run(t, e, "INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(4, 1, 'p1', 'p1', 20)")
+	got, err := e.Tasks([]int64{1, 2, 3, 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[1]["acting"] != carol || got[2]["acting"] != bob || got[3]["acting"] != bob || got[4]["acting"] != "p1" {
+		t.Fatalf("draft %v, queued %v, the founder's draft %v, with a turn %v", got[1]["acting"], got[2]["acting"], got[3]["acting"], got[4]["acting"])
 	}
 }

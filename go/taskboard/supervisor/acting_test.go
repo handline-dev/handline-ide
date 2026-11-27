@@ -103,6 +103,20 @@ func TestACommentTellsTheAgentOnTop(t *testing.T) {
 	}
 }
 
+// foundersRecipients is whom the founder's comment text on task tid is told, as "agent:why" each.
+func (r *rig) foundersRecipients(tid int64, text string) string {
+	r.t.Helper()
+	got, ok := r.MemoRecipients(tid, actor.OwnerKey, text, false)
+	if !ok {
+		r.t.Fatal("no task")
+	}
+	var out []string
+	for _, g := range got {
+		out = append(out, g.Agent+":"+g.Why)
+	}
+	return strings.Join(out, " ")
+}
+
 // The founder's comment naming no one on a task they hold themselves (a story) is told to the last agent that commented there, the one who
 // spoke to them; one naming @x is told to x only; with no other writer it reaches no one.
 func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *testing.T) {
@@ -110,18 +124,7 @@ func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *tes
 	r.bigTeam()
 	tid, err := db.NewTask(r.DB, "the story", actor.OwnerKey, actor.OwnerKey, 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
-	who := func(text string) string {
-		t.Helper()
-		got, ok := r.MemoRecipients(tid, actor.OwnerKey, text, false)
-		if !ok {
-			t.Fatal("no task")
-		}
-		var out []string
-		for _, g := range got {
-			out = append(out, g.Agent+":"+g.Why)
-		}
-		return strings.Join(out, " ")
-	}
+	who := func(text string) string { t.Helper(); return r.foundersRecipients(tid, text) }
 	if got := who("plain"); got != "" {
 		t.Fatalf("no one else wrote, yet %q", got)
 	}
@@ -145,6 +148,46 @@ func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *tes
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"why is it paused?","request_id":"c1"}`, tid))
 	if says := fmt.Sprint(r.saysTo("bob")); !strings.Contains(says, "why is it paused?") {
 		t.Fatalf("bob is not told: %s", says)
+	}
+}
+
+// The founder's comment naming no one on a draft is told to the agent that opened it, now, and not to its assignee, who hears of the draft
+// only when it is queued; one naming an agent still reaches that agent.
+func TestTheFoundersCommentOnADraftReachesItsOpener(t *testing.T) {
+	r := newRig(t)
+	r.bigTeam()
+	tid, err := db.NewTask(r.DB, "a draft", r.k("bob"), r.k("carol"), 0, db.DefaultPriority, "", 0, "")
+	r.must(err)
+	who := func(text string) string { t.Helper(); return r.foundersRecipients(tid, text) }
+	if got := who("why this?"); got != r.k("carol")+":owner" {
+		t.Fatalf("the draft's opener, not its assignee: %q", got)
+	}
+	if got := who("<@" + r.k("alice") + "> look"); got != r.k("alice")+":asked" {
+		t.Fatalf("a named agent: %q", got)
+	}
+	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"which git hosts?","request_id":"d1"}`, tid))
+	if says := fmt.Sprint(r.saysTo("carol")); !strings.Contains(says, "which git hosts?") {
+		t.Fatalf("carol is not told: %s", says)
+	}
+	if says := fmt.Sprint(r.saysTo("bob")); strings.Contains(says, "which git hosts?") {
+		t.Fatalf("the draft's assignee is told: %s", says)
+	}
+	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: r.k("alice"), By: actor.OwnerKey, Since: r.clock}))
+	if got := who("over to you"); got != r.k("alice")+":assignee" {
+		t.Fatalf("a draft that carries a turn: %q", got)
+	}
+	_, err = r.DB.Exec("DELETE FROM task_turns WHERE task_id = ?", tid)
+	r.must(err)
+	_, err = db.SetTaskQueued(r.DB, tid, r.k("carol"))
+	r.must(err)
+	if got := who("and now?"); got != r.k("bob")+":assignee" {
+		t.Fatalf("once queued, its assignee: %q", got)
+	}
+	// a draft the founder opened has no one to answer for it but them: their comment is told to no one
+	mine, err := db.NewTask(r.DB, "my draft", r.k("bob"), actor.OwnerKey, 0, db.DefaultPriority, "", 0, "")
+	r.must(err)
+	if got, _ := r.MemoRecipients(mine, actor.OwnerKey, "a note", false); len(got) != 0 {
+		t.Fatalf("the founder's own draft: %+v", got)
 	}
 }
 

@@ -234,13 +234,23 @@ func TestNoTellingWhenThePortsAreNotAllSet(t *testing.T) {
 	}
 }
 
-// The founder's comment passes their turn before it is told: recipients names the holder it goes back to, not who the task answers to, as add does.
-func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
-	d, agents := tellDaemon(t, true)
+// queuedJob is a task bob holds and alice opened, queued: a draft's comments are its opener's.
+func queuedJob(t *testing.T, d *Daemon) int64 {
+	t.Helper()
 	tid, err := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
+	if err == nil {
+		_, err = db.SetTaskQueued(d.db, tid, key(t, d, "alice"))
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
+	return tid
+}
+
+// The founder's comment passes their turn before it is told: recipients names the holder it goes back to, not who the task answers to, as add does.
+func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
+	d, agents := tellDaemon(t, true)
+	tid := queuedJob(t, d)
 	if err := db.PushTurn(d.db, tid, db.Turn{Agent: actor.OwnerKey, By: key(t, d, "bob"), Since: 1}); err != nil {
 		t.Fatal(err)
 	}
@@ -258,10 +268,7 @@ func TestCommentRecipientsOnTheFoundersTurnNameTheHolderBelowIt(t *testing.T) {
 // recipients answers who add then tells, by one rule, for the founder's comment and an agent's.
 func TestCommentRecipientsAreExactlyWhoAddThenTells(t *testing.T) {
 	d, agents := tellDaemon(t, true)
-	tid, err := db.NewTask(d.db, "job", key(t, d, "bob"), key(t, d, "alice"), 0, db.DefaultPriority, "", 0, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tid := queuedJob(t, d)
 	founder, agent := pipeTo(t, d, "k"), pipeTo(t, d, "")
 	alice, bob := key(t, d, "alice"), key(t, d, "bob")
 	recipients := func(f *pipeConn, text string) string {

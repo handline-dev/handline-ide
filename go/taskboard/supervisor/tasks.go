@@ -592,7 +592,11 @@ func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now, bac
 	}
 	named = slices.DeleteFunc(named, func(a string) bool { return must(paths.Reaches(e.DB, a)) == by }) // naming only oneself names no one
 	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
-	readers := mapOnce(e.memoReaders(row, by, named, back), seat)
+	raw := e.memoReaders(row, by, named, back)
+	if len(named) == 0 && actor.IsPerson(by) && row.Acting == row.Owner && !actor.IsPerson(row.Owner) && !row.QueuedBy.Valid && !row.SentAt.Valid && isDraft(q, row) {
+		return draftReaders(raw, must(paths.Reaches(e.DB, row.AnswersTo())))
+	}
+	readers := mapOnce(raw, seat)
 	last := ""
 	if len(named) == 0 && actor.IsPerson(by) && row.Acting == by {
 		if last = seat(e.lastWriter(q, row.ID, by)); last != "" && !slices.Contains(readers, last) {
@@ -615,6 +619,18 @@ func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now, bac
 			why = "assignee"
 		}
 		out = append(out, taskwrites.Recipient{Agent: a, Why: why})
+	}
+	return out
+}
+
+// draftReaders is whom a person's comment that names no one on an agent's draft with no turn is told: its opener, now, who can answer or change
+// it, and no one when a person opened it; the assignee hears of the draft only when it is queued.
+func draftReaders(readers []string, opener string) []taskwrites.Recipient {
+	var out []taskwrites.Recipient
+	for _, a := range readers {
+		if a == opener {
+			out = append(out, taskwrites.Recipient{Agent: a, Why: "owner"})
+		}
 	}
 	return out
 }

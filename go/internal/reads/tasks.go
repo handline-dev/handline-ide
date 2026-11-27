@@ -15,6 +15,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
@@ -528,7 +529,7 @@ func (e *Env) taskOf(t row, state string, b *board) (map[string]any, error) {
 	}
 	task := map[string]any{
 		"blocked_by": blockedBy, "waits": waitList, "waiting": mapOrNil(waiting), "time": clock, "status": st.Map(),
-		"asker": asker, "id": t.i("id"), "from": t.str("opened_by"), "to": t.str("owner"), "acting": actingOf(t), "title": t.str("title"), "state": state, "time_box": nil,
+		"asker": asker, "id": t.i("id"), "from": t.str("opened_by"), "to": t.str("owner"), "acting": e.shownActing(t, state), "title": t.str("title"), "state": state, "time_box": nil,
 		"parent": t.intOrNil("parent_task"), "request": t.intOrNil("request"), "role": b.teamOf(e.Home).TaskRole(t.str("owner")), "created": ts(t["created_at"]), "delivered": ts(t["delivered_at"]),
 		"turns": turns, "done": ts(t["done_at"]), "priority": t.i("priority"), "hold_reason": hold, "block_reason": blockReason(blockedBy), "evidence": t.strOrNil("done_evidence"), "spent_usd": nil,
 	}
@@ -1139,6 +1140,21 @@ func actingOf(t row) string {
 		return a
 	}
 	return t.str("owner")
+}
+
+// shownActing is whose turn task row t shows: an agent's draft with no turn is delivered to no one, so it shows the agent its opener's word
+// reaches (a person's comment on it is told there); any other task, who acts on it.
+func (e *Env) shownActing(t row, state string) string {
+	opener := t.str("reporter")
+	if opener == "" {
+		opener = t.str("opened_by")
+	}
+	if k, _, ok := actor.Parse(opener); state == "draft" && actingOf(t) == t.str("owner") && !actor.IsPerson(t.str("owner")) && ok && k == actor.Agent {
+		if a, err := paths.Reaches(e.DB, opener); err == nil {
+			return a
+		}
+	}
+	return actingOf(t)
 }
 
 // turnsOf is Task.turns: the turns on task tid, bottom first. Each says when its ask was last rewritten (edited); with history, also the
