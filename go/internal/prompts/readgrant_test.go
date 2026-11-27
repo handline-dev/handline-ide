@@ -34,7 +34,7 @@ func TestAReadOfAMemoryOrATranscriptOffersTheWholeGrant(t *testing.T) {
 		{"Grep", "path", filepath.Join(agents, "a7", "memory"), true},
 		{"Glob", "pattern", filepath.Join(agents, "a7", "memory", "*.md"), true},
 		{"Read", "file_path", filepath.Join(cfg, "projects", "-wt", "s.jsonl"), true},
-		{"Read", "file_path", filepath.Join(agents, "a7", "ROLE.md"), false},
+		{"Read", "file_path", filepath.Join(agents, "a7", "agent.yaml"), false},
 		{"Read", "file_path", filepath.Join(cfg, ".credentials.json"), false},
 		{"Read", "file_path", "memory/MEMORY.md", false},
 		{"Bash", "command", filepath.Join(agents, "a7", "memory"), false},

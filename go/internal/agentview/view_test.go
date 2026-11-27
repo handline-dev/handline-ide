@@ -457,7 +457,7 @@ func TestASettingsRestartShowsWaitingForTheTurnThenStartingUntilTheNewSession(t 
 		return h
 	}
 	r.state(t, "a", states.Running, "")
-	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"ROLE.md"}, 4980, false); err != nil {
+	if err := db.SetSettingsOwed(r.env.Q, "a", []string{"role"}, 4980, false); err != nil {
 		t.Fatal(err)
 	}
 	if h := handoff(); h != nil {

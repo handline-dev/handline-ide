@@ -235,7 +235,7 @@ func (e *Env) draft(actor, kind string, args map[string]any, why string, registe
 	}
 	if kind == "context" {
 		if len(sets) == 0 {
-			return nil, "name ROLE.md, base.md or rules, with the whole new text"
+			return nil, "name role, base or rules, with the whole new text"
 		}
 		var texts [][2]string
 		for fn, text := range sets {

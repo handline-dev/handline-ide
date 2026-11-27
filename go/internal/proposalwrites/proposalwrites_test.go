@@ -559,7 +559,7 @@ func TestContextScheduleGlobalAndSettingsAreAppliedAsProposed(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	ctx, _ := json.Marshal("You are alice.\n")
-	p, id := r.propose("aaaa0007", "kind", "context", "agent", "alice", "set.ROLE.md", string(ctx))
+	p, id := r.propose("aaaa0007", "kind", "context", "agent", "alice", "set.role", string(ctx))
 	r.decide(id, "approve", p.subject(), "f1")
 	if in := r.agentPart("alice", db.PartRole); in.Text != "You are alice." || in.Approver != actor.OwnerKey || in.Actor == "" {
 		t.Fatalf("%+v", in)
@@ -587,9 +587,9 @@ func TestAContextFileHasNoSizeLimit(t *testing.T) {
 	r := newRig(t)
 	role := "# alice\n\n" + strings.Repeat("x", 3072) + "\n"
 	ctx, _ := json.Marshal(role)
-	p, id := r.propose("aaaa0010", "kind", "context", "agent", "alice", "set.ROLE.md", string(ctx))
+	p, id := r.propose("aaaa0010", "kind", "context", "agent", "alice", "set.role", string(ctx))
 	if res := r.decide(id, "approve", p.subject(), "g1"); r.agentPart("alice", db.PartRole).Text != strings.TrimSpace(role) {
-		t.Fatalf("a 3KB ROLE.md was not written: %v", res)
+		t.Fatalf("a 3KB role was not written: %v", res)
 	}
 }
 
@@ -972,9 +972,9 @@ func TestProposeWritesTheProposalFileAndRefusesWhatTheOldCLIRefused(t *testing.T
 		p.str("state") != "proposed" || p.str("why") != "idle" {
 		t.Fatalf("%v %+v", err, p)
 	}
-	ctx := call("p2", `"kind":"context","args":{"name":"bob","sets":{"ROLE.md":"new role"}},"why":"w"`)["result"].(map[string]any)
+	ctx := call("p2", `"kind":"context","args":{"name":"bob","sets":{"role":"new role"}},"why":"w"`)["result"].(map[string]any)
 	cp, _ := r.e.load(fmt.Sprintf("%08x", int64(ctx["proposal"].(float64))))
-	if cp == nil || cp.str("set.ROLE.md") != `"new role"` {
+	if cp == nil || cp.str("set.role") != `"new role"` {
 		t.Fatalf("a context text is kept as JSON on one line: %+v", cp)
 	}
 	for _, c := range []struct{ params, want string }{
@@ -984,7 +984,7 @@ func TestProposeWritesTheProposalFileAndRefusesWhatTheOldCLIRefused(t *testing.T
 		{`"kind":"add","args":{"name":"carol/lead"},"why":"w"`, "carol/lead needs a repo"},
 		{`"kind":"retire","args":{"name":"bob"},"why":" "`, "say why"},
 		{`"kind":"link","args":{"name":"alice","to":"bob"},"why":"w"`, `kind "link" is not raised this way`},
-		{`"kind":"context","args":{"name":"bob","sets":{"x.md":"t"}},"why":"w"`, "only ROLE.md, base.md and rules"},
+		{`"kind":"context","args":{"name":"bob","sets":{"x.md":"t"}},"why":"w"`, "only role, base and rules"},
 	} {
 		refusedWith(t, call(c.want[:3], c.params), c.want)
 	}

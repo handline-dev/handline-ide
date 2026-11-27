@@ -53,7 +53,7 @@ const BASE: Record<string, (h: Call) => unknown> = {
   ...SETTINGS_HANDLERS,
   ...PROPOSAL_HANDLERS,
   ...STRIP_HANDLERS,
-  'team.get': ({ script, iso }) => teamOf([...script.sessions.values()], iso()),
+  'team.get': ({ script }) => teamOf([...script.sessions.values()]),
   'session.start': (h) => {
     const { actor, script, agent } = h;
     return script.startSession(agent(), false, actor);

@@ -11,7 +11,7 @@ import (
 	"github.com/handline/handline/go/kit/jsontext"
 )
 
-// A running session is never restarted for changed prompt parts (ROLE.md, base.md, team instructions): claude --resume keeps the system
+// A running session is never restarted for changed prompt parts (the role, the standing context, team instructions): claude --resume keeps the system
 // prompt its conversation began with, so a resume would cost the turn and the cache and apply nothing. They are owed until its next
 // fresh start (a cold-cache wake, a handoff when context fills). Changed team rules are told once, in a message.
 // A launch flag a person changed (agent.set, an approved proposal, a kept grant; who is kept in db.SettingsByMeta) is applied at an idle
@@ -42,7 +42,7 @@ type SettingsPorts interface {
 const RulesPart = "team rules"
 
 // PromptParts are lifecycle.PromptParts: what only a fresh start gives a session.
-var PromptParts = []string{"ROLE.md", "base.md", "team instructions"}
+var PromptParts = []string{db.LaunchedRole, db.LaunchedBase, "team instructions"}
 
 // ApplySettings tells, owes or applies what changed since a session was launched.
 type ApplySettings struct{ Ports SettingsPorts }
@@ -50,8 +50,8 @@ type ApplySettings struct{ Ports SettingsPorts }
 // Changed is the named settings the running session was launched without, in launch order; nothing for a session that recorded none (a
 // launch from before they were kept).
 func (a *ApplySettings) Changed(agent string, row *db.AgentState) ([]string, error) {
-	var old map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(orNull(row.LaunchParts.String)), &old); err != nil || old == nil {
+	old := db.LaunchPartsOf(row.LaunchParts.String)
+	if old == nil {
 		return nil, nil
 	}
 	parts, err := a.Ports.FingerprintParts(agent)
@@ -73,13 +73,6 @@ func (a *ApplySettings) Changed(agent string, row *db.AgentState) ([]string, err
 		}
 	}
 	return names, nil
-}
-
-func orNull(s string) string {
-	if s == "" {
-		return "null"
-	}
-	return s
 }
 
 func sameJSON(a, b []byte) bool {

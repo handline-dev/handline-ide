@@ -65,7 +65,7 @@ test('agents group by workspace in its order, lead first, and an agent of an unk
 test('a key no list holds is never shown raw, and plain text names without @', () => {
   assert.equal(nameOf(dir, 'a404'), 'a removed agent');
   assert.equal(nameOf(dir, 'p77'), 'someone');
-  assert.equal(plainRefs(dir, 'retire <@a404>, replace ROLE.md of <@a5>'), 'retire a removed agent, replace ROLE.md of auditor');
+  assert.equal(plainRefs(dir, 'retire <@a404>, replace role of <@a5>'), 'retire a removed agent, replace role of auditor');
 });
 
 test('a bare key inside daemon text reads as its name, and only a key the lists hold', () => {

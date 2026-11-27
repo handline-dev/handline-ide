@@ -58,17 +58,17 @@ func byPerson(t *testing.T, tk *Tick) {
 // A person's change of no launch flag (a prompt part, or a setting no launch reads) leaves no name behind for a later Handline change.
 func TestWhoChangedIsDroppedWhenNoFlagChanged(t *testing.T) {
 	tk, w, a := settled(t)
-	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "ROLE.md": "r1", "build": "b1"}' WHERE agent = 'a'`); err != nil {
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "role": "r1", "build": "b1"}' WHERE agent = 'a'`); err != nil {
 		t.Fatal(err)
 	}
-	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"ROLE.md", "r2"}}, account: "acct"}
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"role", "r2"}}, account: "acct"}
 	byPerson(t, tk)
 	a.Sweep(tk, 10_000)
 	if v, _, _ := db.Meta(tk.Q, db.SettingsByMeta("a")); v != "" || w.did("restart") {
 		t.Fatalf("who changed outlived a change of no flag: %q %v", v, w.calls)
 	}
 	// a Handline update moving a flag afterwards is owed, not restarted in the person's name
-	a.Ports = settingsPorts{parts: []Part{{"model", "sonnet"}, {"ROLE.md", "r2"}}, account: "acct"}
+	a.Ports = settingsPorts{parts: []Part{{"model", "sonnet"}, {"role", "r2"}}, account: "acct"}
 	a.Sweep(tk, 10_030)
 	if w.did("restart") {
 		t.Fatalf("restarted in a stale name: %v", w.calls)
@@ -87,24 +87,25 @@ func TestAFlagNobodyChangedIsOwedNotApplied(t *testing.T) {
 	}
 }
 
-// A prompt part (ROLE.md, base.md, the team instructions) never restarts a session, even a person's change: a resume would not give
-// it, and a fresh start costs the cache. It is owed until the next fresh start.
+// A prompt part (the role, the standing context, the team instructions) never restarts a session, even a person's change: a resume
+// would not give it, and a fresh start costs the cache. It is owed until the next fresh start. The launch record here names the role
+// as records did before the rename, which still reads.
 func TestAPromptPartChangeIsOwedEvenWhenAPersonMadeIt(t *testing.T) {
 	tk, w, a := settled(t)
 	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "ROLE.md": "r1", "team instructions": "t1"}' WHERE agent = 'a'`); err != nil {
 		t.Fatal(err)
 	}
-	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"ROLE.md", "r2"}, {"team instructions", "t1"}}, account: "acct"}
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"role", "r2"}, {"team instructions", "t1"}}, account: "acct"}
 	byPerson(t, tk)
 	a.Sweep(tk, 10_000)
 	if w.did("restart") || w.hold {
 		t.Fatalf("restarted for a prompt part: %v", w.calls)
 	}
-	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil || strings.Join(o.Settings, ",") != "ROLE.md" {
+	if o, _ := db.GetSettingsOwed(tk.Q, "a"); o == nil || strings.Join(o.Settings, ",") != "role" {
 		t.Fatalf("not owed: %+v", o)
 	}
 	// once a fresh launch carries it, nothing is owed
-	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "ROLE.md": "r2", "team instructions": "t1"}' WHERE agent = 'a'`); err != nil {
+	if _, err := tk.Q.Exec(`UPDATE agent_state SET launch_parts = '{"model": "opus", "role": "r2", "team instructions": "t1"}' WHERE agent = 'a'`); err != nil {
 		t.Fatal(err)
 	}
 	a.Sweep(tk, 10_030)
@@ -144,7 +145,7 @@ func TestAPersonsFlagChangeStartsFreshFromTheHandoffNoteOnce(t *testing.T) {
 		t.Fatalf("restarted twice for one change: %v", w.calls)
 	}
 	// a prompt part edited while the same flag still disagrees is no new reason to restart
-	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(3)}, {"ROLE.md", "r2"}}, account: "acct"}
+	a.Ports = settingsPorts{parts: []Part{{"model", "opus"}, {"effort", float64(3)}, {"role", "r2"}}, account: "acct"}
 	byPerson(t, tk)
 	a.Sweep(tk, 10_090)
 	if w.did("restart") {

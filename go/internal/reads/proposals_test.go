@@ -161,7 +161,7 @@ func TestProposalDiffIsOneChangePerLineInTheSpecsWords(t *testing.T) {
 		{"settings with nothing set", "kind: settings\nagent: w\n", "change the settings of w"},
 		{"an agent by key is a mention", "kind: settings\nagent: a7\n", "change the settings of <@a7>"},
 		{"team", "kind: team\nagent: eng\nrepo: r\nmembers: \"a,b\"\n", "create team eng (working in r) with members a, b"},
-		{"context", "kind: context\nagent: w\nset.ROLE.md: \"\\\"x\\\"\"\n", "replace ROLE.md of w"},
+		{"context", "kind: context\nagent: w\nset.role: \"\\\"x\\\"\"\n", "replace role of w"},
 		{"rename", "kind: rename\nagent: a\nto: b\n", "rename a to b"},
 		{"schedule add", "kind: schedule\nagent: old\nset.action: add\nset.cron: \"0 9 * * 1\"\nset.message: review\n", "schedule 0 9 * * 1: review for old"},
 		{"schedule edit", "kind: schedule\nagent: old\nset.action: edit\nset.cron: \"0 8 * * 1\"\nset.message: review\nset.cron_was: \"0 9 * * 1\"\nset.message_was: look\n",
@@ -270,11 +270,11 @@ func TestAContextChangeCarriesItsFileTextBeforeAndAfterWhileItWaits(t *testing.T
 	t.Parallel()
 	e := testEnv(t)
 	addAgent(t, e, "w", "Old role.")
-	ctx := "kind: context\nagent: w\nset.ROLE.md: \"\\\"New role.\\\\n\\\"\"\n"
+	ctx := "kind: context\nagent: w\nset.role: \"\\\"New role.\\\\n\\\"\"\n"
 	putProposal(t, e, "0000000a", "id: \"0000000a\"\nrequested_by: boss\ncreated: 1\nstate: proposed\n"+ctx)
 	putProposal(t, e, "0000000b", "id: \"0000000b\"\nrequested_by: boss\ncreated: 1\nstate: applied\napplied: 2\n"+ctx)
 	putProposal(t, e, "0000000c", "id: \"0000000c\"\nkind: bundle\nagent: x\nrequested_by: boss\ncreated: 1\nstate: proposed\n"+
-		"i1.kind: context\ni1.agent: w\ni1.set.ROLE.md: \"\\\"New role.\\\"\"\ni2.kind: retire\ni2.agent: old\n")
+		"i1.kind: context\ni1.agent: w\ni1.set.role: \"\\\"New role.\\\"\"\ni2.kind: retire\ni2.agent: old\n")
 	key := teamtest.Key(t, e.Home, "w")
 	rules, _ := db.InstructionOwner(e.DB, key, db.PartRules)
 	if _, err := db.SetInstruction(e.DB, rules, db.PartRules, "Old rules.", "p1", "", 1); err != nil {
@@ -285,11 +285,11 @@ func TestAContextChangeCarriesItsFileTextBeforeAndAfterWhileItWaits(t *testing.T
 	for _, v := range e.ProposalList() {
 		got[v["id"].(int64)] = v["changes"].([]any)
 	}
-	open := map[string]any{"kind": "context", "agent": "w", "file": "ROLE.md", "diff": "replace ROLE.md of w", "before": "Old role.", "after": "New role."}
+	open := map[string]any{"kind": "context", "agent": "w", "file": "role", "diff": "replace role of w", "before": "Old role.", "after": "New role."}
 	if !reflect.DeepEqual(got[10], []any{open}) {
 		t.Errorf("open: %v", got[10])
 	}
-	settled := map[string]any{"kind": "context", "agent": "w", "file": "ROLE.md", "diff": "replace ROLE.md of w", "after": "New role."}
+	settled := map[string]any{"kind": "context", "agent": "w", "file": "role", "diff": "replace role of w", "after": "New role."}
 	if !reflect.DeepEqual(got[11], []any{settled}) {
 		t.Errorf("settled: no before, the file now is its after: %v", got[11])
 	}

@@ -3,24 +3,13 @@ package reads
 import (
 	"database/sql"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// instructionInfo is a team.get role_file or base_file: no path (the text is in the database) and when its version in force was written,
-// null for none.
-func (e *Env) instructionInfo(key, part string) map[string]any {
-	var updated any
-	if in, err := db.CurrentInstruction(e.DB, key, part); err == nil && in != nil {
-		updated = ts(in.At)
-	}
-	return map[string]any{"path": "", "updated": updated}
-}
-
 // teamGet is team.get: the agents of the caller's workspace (every agent for a person outside every workspace folder: the app), each
-// with its files, the people, and the other workspaces. Each name is the caller's word for that key (addr.Name).
+// with its role line, the people, and the other workspaces. Each name is the caller's word for that key (addr.Name).
 func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 	r, err := addr.Of(e.DB, c.Caller.Key, c.Cwd())
 	if err != nil {
@@ -46,8 +35,7 @@ func (e *Env) teamGet(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	agents := []any{}
 	for _, k := range keys {
-		agents = append(agents, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "role": e.roleLine(k),
-			"role_file": e.instructionInfo(k, db.PartRole), "base_file": e.instructionInfo(k, db.PartBase)})
+		agents = append(agents, map[string]any{"key": k, "name": addr.Name(e.DB, r, k), "role": e.roleLine(k)})
 	}
 	people := []any{}
 	ids, err := e.DB.Query("SELECT id FROM people ORDER BY id")

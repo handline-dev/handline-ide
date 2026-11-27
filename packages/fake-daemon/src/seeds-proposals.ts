@@ -83,8 +83,8 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
       kind: 'context',
       agent: ARCH,
       title: `context ${ARCH}`,
-      diff: `replace ROLE.md of ${ARCH}`,
-      changes: [{ kind: 'context', agent: ARCH, file: 'ROLE.md', diff: `replace ROLE.md of ${ARCH}`, before, after }],
+      diff: `replace role of ${ARCH}`,
+      changes: [{ kind: 'context', agent: ARCH, file: 'role', diff: `replace role of ${ARCH}`, before, after }],
       reason: 'The role now covers the app too.',
     });
     book.raise({
@@ -92,14 +92,14 @@ export const PROPOSAL_SEEDS: Record<string, Seed> = {
       kind: 'bundle',
       agent: '2 changes',
       title: 'bundle 2 changes',
-      diff: `set model of ${AUD} to opus\nreplace base.md of ${AUD}`,
+      diff: `set model of ${AUD} to opus\nreplace base of ${AUD}`,
       changes: [
         { kind: 'settings', agent: AUD, diff: `set model of ${AUD} to opus` },
         {
           kind: 'context',
           agent: AUD,
-          file: 'base.md',
-          diff: `replace base.md of ${AUD}`,
+          file: 'base',
+          diff: `replace base of ${AUD}`,
           before: 'Audit each land.',
           after: 'Audit each land and each release.',
         },

@@ -190,7 +190,7 @@ func clip(s string, n int) string {
 	return s
 }
 
-// roleLine is the first line of the agent's ROLE.md that is not blank and not a heading, as one line.
+// roleLine is the first line of the agent's role that is not blank and not a heading, as one line.
 func (e *Env) roleLine(name string) string {
 	b, err := team.AgentInstruction(e.Q, name, db.PartRole)
 	if err != nil {

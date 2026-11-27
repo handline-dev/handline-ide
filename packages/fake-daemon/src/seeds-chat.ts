@@ -104,7 +104,7 @@ export const CHAT_SEEDS: Record<string, Seed> = {
         handoff_note: sampleHandoff,
         resumed: true,
         cause: 'restart',
-        changed: `${team}, team rules changed, ${team}, team rules changed (workspaces/w1/base.md)`,
+        changed: `${team}, team rules changed, ${team}, team rules changed (w1)`,
         changed_lines: [
           {
             part: 'team rules',
@@ -115,7 +115,7 @@ export const CHAT_SEEDS: Record<string, Seed> = {
           {
             part: 'team instructions',
             added: Array.from({ length: 12 }, (_, i) => `ui rule ${i + 1}: keep messages short`),
-            removed: ['ui: handline.ui (ROLE.md)'],
+            removed: ['ui: handline.ui'],
           },
         ],
       },

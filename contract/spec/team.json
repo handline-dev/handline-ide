@@ -14,58 +14,12 @@
      },
      "role": {
       "type": "string"
-     },
-     "role_file": {
-      "type": "object",
-      "properties": {
-       "path": {
-        "type": "string"
-       },
-       "updated": {
-        "oneOf": [
-         {
-          "$ref": "#/components/schemas/Timestamp"
-         },
-         {
-          "type": "null"
-         }
-        ]
-       }
-      },
-      "required": [
-       "path",
-       "updated"
-      ]
-     },
-     "base_file": {
-      "type": "object",
-      "properties": {
-       "path": {
-        "type": "string"
-       },
-       "updated": {
-        "oneOf": [
-         {
-          "$ref": "#/components/schemas/Timestamp"
-         },
-         {
-          "type": "null"
-         }
-        ]
-       }
-      },
-      "required": [
-       "path",
-       "updated"
-      ]
      }
     },
     "required": [
      "key",
      "name",
-     "role",
-     "role_file",
-     "base_file"
+     "role"
     ]
    },
    "Proposal": {
@@ -220,7 +174,7 @@
         },
         "file": {
          "type": "string",
-         "description": "Context only: the file it replaces, ROLE.md, base.md or rules."
+         "description": "Context only: the instruction it replaces, role, base or rules."
         },
         "before": {
          "type": "string",
@@ -347,7 +301,7 @@
       "additionalProperties": {
        "type": "string"
       },
-      "description": "settings: agent setting keys as AgentSettingValues names them. context: whole new file texts keyed `ROLE.md` or `base.md`; empty text or control characters other than tab and newline is bad_request. sandbox: `kind` (host, command, write or cert) and `value` (empty for cert), checked as agent.set checks an entry of sandbox_allow; one the agent has already is bad_request."
+      "description": "settings: agent setting keys as AgentSettingValues names them. context: whole new texts keyed `role`, `base` or `rules`; empty text or control characters other than tab and newline is bad_request. sandbox: `kind` (host, command, write or cert) and `value` (empty for cert), checked as agent.set checks an entry of sandbox_allow; one the agent has already is bad_request."
      },
      "changes": {
       "type": "array",
@@ -1185,7 +1139,7 @@
       },
       "text_bytes": {
        "type": "integer",
-       "description": "The size of the workspace's rules text (its base.md) in bytes, 0 when it has none. Only with a workspace."
+       "description": "The size of the workspace's rules text in bytes, 0 when it has none. Only with a workspace."
       },
       "limit_bytes": {
        "type": "integer",

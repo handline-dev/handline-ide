@@ -903,7 +903,7 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	}
 	set("claude-sonnet-5-5", "low")
 	r.setPart(t, db.PartRole, "a new role")
-	if got, _, err := r.l.whatChanged("ann"); got != "model changed on disk (m1 -> sonnet-5-5), effort changed on disk (high -> low), ROLE.md changed by the founder" || err != nil {
+	if got, _, err := r.l.whatChanged("ann"); got != "model changed on disk (m1 -> sonnet-5-5), effort changed on disk (high -> low), role changed by the founder" || err != nil {
 		t.Fatalf("%q %v", got, err)
 	}
 	// A session recorded before values were kept: the hash says it changed, not from what.
@@ -915,11 +915,11 @@ func TestWhatChangedSaysOldAndNewValues(t *testing.T) {
 	b, _ := json.Marshal(old)
 	record(string(b))
 	set("m1", "high")
-	if got, _, _ := r.l.whatChanged("ann"); got != "ROLE.md changed by the founder" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "role changed by the founder" {
 		t.Fatalf("back to the old model and effort, only the role differs: %q", got)
 	}
 	set("m2", "high")
-	if got, _, _ := r.l.whatChanged("ann"); got != "model changed on disk, ROLE.md changed by the founder" {
+	if got, _, _ := r.l.whatChanged("ann"); got != "model changed on disk, role changed by the founder" {
 		t.Fatalf("%q", got)
 	}
 }
@@ -977,19 +977,30 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	r.setPart(t, db.PartRole, "builds\nreviews\ntests")
 	_, lines, err := r.l.whatChanged("ann")
 	want := []LineChange{
-		{Part: "ROLE.md", Added: []string{"tests"}, Removed: []string{}, Text: "builds\nreviews\ntests"},
+		{Part: "role", Added: []string{"tests"}, Removed: []string{}, Text: "builds\nreviews\ntests"},
 		{Part: "team rules", Added: []string{"- reply in Korean"}, Removed: []string{"- reply in English"}, Text: rules},
 	}
 	if err != nil || !reflect.DeepEqual(lines, want) {
 		t.Fatalf("%+v %v", lines, err)
 	}
-	// Lines are kept in order up to changedBytesMax over the whole start (ROLE.md's 5 bytes first) and every line after counted;
+	// A record written before the role and standing context were renamed names them ROLE.md and base.md; it reads the same.
+	named := strings.NewReplacer(`"role"`, `"ROLE.md"`, `"standing context"`, `"base.md"`).Replace(rec)
+	if !strings.Contains(named, `"ROLE.md"`) || strings.Contains(named, `"role"`) {
+		t.Fatalf("the record has no role to rename: %s", rec)
+	}
+	if err := db.SetLaunchParts(r.l.Q, "ann", named); err != nil {
+		t.Fatal(err)
+	}
+	if _, lines, err = r.l.whatChanged("ann"); err != nil || !reflect.DeepEqual(lines, want) {
+		t.Fatalf("an old record: %+v %v", lines, err)
+	}
+	// Lines are kept in order up to changedBytesMax over the whole start (the role's 5 bytes first) and every line after counted;
 	// a whole text past textBytesMax is not kept, and the parts after it still are.
 	line := strings.Repeat("x", 1000)
 	n := textBytesMax/1000 + 1
 	r.setPart(t, db.PartBase, strings.Repeat(line+"\n", n))
 	_, lines, _ = r.l.whatChanged("ann")
-	if len(lines) != 3 || lines[1].Part != "base.md" || len(lines[1].Added) != changedBytesMax/1000 || lines[1].More != n-changedBytesMax/1000 ||
+	if len(lines) != 3 || lines[1].Part != "standing context" || len(lines[1].Added) != changedBytesMax/1000 || lines[1].More != n-changedBytesMax/1000 ||
 		len(lines[2].Added)+len(lines[2].Removed) != 0 || lines[2].More != 2 {
 		t.Fatalf("%d %d %+v", len(lines[1].Added), lines[1].More, lines[2])
 	}
@@ -1011,7 +1022,7 @@ func TestWhatChangedSaysTheLinesOfTheTextParts(t *testing.T) {
 	if err := db.SetLaunchParts(r.l.Q, "ann", string(b)); err != nil {
 		t.Fatal(err)
 	}
-	if got, lines, _ := r.l.whatChanged("ann"); got != "ROLE.md changed by the founder, base.md changed by the founder, team rules changed" || lines != nil {
+	if got, lines, _ := r.l.whatChanged("ann"); got != "role changed by the founder, standing context changed by the founder, team rules changed" || lines != nil {
 		t.Fatalf("no texts kept: %q %+v", got, lines)
 	}
 }
@@ -1035,8 +1046,8 @@ func TestAStartKeepsWhatItsSettingsChanged(t *testing.T) {
 	if err := r.l.Q.QueryRow("SELECT changed, changed_lines, resumed FROM session_starts WHERE agent = 'ann'").Scan(&changed, &lines, &resumed); err != nil {
 		t.Fatal(err)
 	}
-	if changed != "model changed on disk (m1 -> m2), base.md changed by the founder" || resumed != 1 ||
-		lines != `[{"part":"base.md","added":["a new line"],"removed":[],"text":"a new line"}]` {
+	if changed != "model changed on disk (m1 -> m2), standing context changed by the founder" || resumed != 1 ||
+		lines != `[{"part":"standing context","added":["a new line"],"removed":[],"text":"a new line"}]` {
 		t.Fatalf("%q %q %d", changed, lines, resumed)
 	}
 }
@@ -1420,7 +1431,7 @@ func TestAStartNamesWhoChangedEachPart(t *testing.T) {
 	if err := r.l.Q.QueryRow("SELECT changed, changed_lines FROM session_starts WHERE agent = 'ann'").Scan(&changed, &lines); err != nil {
 		t.Fatal(err)
 	}
-	if changed != "ROLE.md changed by bob/lead with the founder's OK" || !strings.Contains(lines, `"added":["reviews"]`) {
+	if changed != "role changed by bob/lead with the founder's OK" || !strings.Contains(lines, `"added":["reviews"]`) {
 		t.Fatalf("%q %q", changed, lines)
 	}
 	hist, err := db.InstructionsAfter(r.l.Q, ann, db.PartRole, 0)
@@ -1550,7 +1561,7 @@ func coreTeam(members *[]string) func() *team.Team {
 }
 
 // claude --resume keeps the system prompt its conversation began with, so a resume records the prompt parts the session really has: a
-// ROLE.md change stays owed across it, while a flag change is recorded. A fresh launch reads the new text and owes nothing.
+// role change stays owed across it, while a flag change is recorded. A fresh launch reads the new text and owes nothing.
 func TestAResumeKeepsThePromptPartsItHasAndAFreshLaunchTakesTheNewOnes(t *testing.T) {
 	r := newLaunchRig(t)
 	r.setPart(t, db.PartRole, "builds")
@@ -1563,7 +1574,7 @@ func TestAResumeKeepsThePromptPartsItHasAndAFreshLaunchTakesTheNewOnes(t *testin
 		t.Fatal(err)
 	}
 	words, lines, err := r.l.whatChanged("ann")
-	if err != nil || !strings.HasPrefix(words, "ROLE.md changed") || strings.Contains(words, "effort") || len(lines) != 1 || lines[0].Added[0] != "reviews" {
+	if err != nil || !strings.HasPrefix(words, "role changed") || strings.Contains(words, "effort") || len(lines) != 1 || lines[0].Added[0] != "reviews" {
 		t.Fatalf("after a resume: %q %+v %v", words, lines, err)
 	}
 	if err := r.prepare("ann", nil, false, "", "main", "launch", ""); err != nil {

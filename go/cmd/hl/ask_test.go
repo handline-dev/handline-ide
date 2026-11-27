@@ -81,7 +81,7 @@ func TestHrProposesThroughTheDaemonAndTakesOneBack(t *testing.T) {
 	want := []string{
 		`proposal.propose {"args":{"effort":"high","name":"c.three","repo":"/r"},"kind":"add","why":"w"}`,
 		`proposal.propose {"args":{"name":"c.three"},"kind":"retire","why":"w"}`,
-		`proposal.propose {"args":{"name":"b.two","sets":{"ROLE.md":"the role"}},"kind":"context","why":"w"}`,
+		`proposal.propose {"args":{"name":"b.two","sets":{"role":"the role"}},"kind":"context","why":"w"}`,
 		`proposal.withdraw {"proposal":10}`,
 	}
 	if got := sent(calls()); !reflect.DeepEqual(got, want) {

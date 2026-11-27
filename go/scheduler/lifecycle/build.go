@@ -57,7 +57,7 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 		return nil, nil, errors.New("launch has no session token store")
 	}
 	l.Tokens.EnsureKeyFolders()
-	// Its folder is by key: one not looked up would read ROLE.md and memory from a folder sessions may write.
+	// Its folder is by key: one not looked up would read memory from a folder sessions may write.
 	if key, err := paths.AgentKeyIn(l.Q, agent); err != nil {
 		return nil, nil, err
 	} else if key == "" {

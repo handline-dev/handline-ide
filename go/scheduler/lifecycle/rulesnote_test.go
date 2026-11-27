@@ -82,8 +82,8 @@ func TestARulesChangeIsToldOnceAndIsNoDrift(t *testing.T) {
 	}
 }
 
-// ROLE.md moves its part, and the rules still reach the system prompt.
-func TestROLEmdMovesItsPartAndTheRulesStayInThePrompt(t *testing.T) {
+// the role moves its part, and the rules still reach the system prompt.
+func TestTheRoleMovesItsPartAndTheRulesStayInThePrompt(t *testing.T) {
 	r := newLaunchRig(t)
 	rules := "RULES-A"
 	r.l.Ports.TeamRules = func(string) []string { return []string{rules} }
@@ -91,7 +91,7 @@ func TestROLEmdMovesItsPartAndTheRulesStayInThePrompt(t *testing.T) {
 	before, _ := partsJSON(r.l, "ann")
 	r.setPart(t, db.PartRole, "a new role")
 	if after, _ := partsJSON(r.l, "ann"); after == before {
-		t.Fatal("ROLE.md did not move the fingerprint")
+		t.Fatal("the role did not move the fingerprint")
 	}
 	if ctx, _ := r.l.ContextFor("ann"); !strings.Contains(ctx, "RULES-B") {
 		t.Fatal("the rules left the system prompt")
