@@ -96,6 +96,7 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 		argv = append(argv, "--append-system-prompt", o.Preamble)
 	}
 	settings := NewObject()
+	settings.Set("tui", "default") // a renderer said keeps Claude Code from asking mid-turn to try another, which nobody answers
 	if o.MemoryDir != "" {
 		settings.Set("autoMemoryDirectory", o.MemoryDir)
 	}
@@ -181,10 +182,7 @@ func (Driver) LaunchArgv(exe string, o agent.LaunchArgs) []string {
 	if len(o.MCPApproved) > 0 {
 		settings.Set("enabledMcpjsonServers", o.MCPApproved) // else the session waits at start for a person to approve them
 	}
-	if settings.Len() > 0 {
-		argv = append(argv, "--settings", Dumps(settings, 0, true))
-	}
-	return argv
+	return append(argv, "--settings", Dumps(settings, 0, true))
 }
 
 // CacheEnv is the Go, npm and pnpm caches of a sandboxed session, in its own folder: a cache the sandbox may write is one an unsandboxed
