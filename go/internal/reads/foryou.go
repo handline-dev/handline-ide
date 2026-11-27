@@ -83,12 +83,17 @@ func (e *Env) ForYou() ([]map[string]any, int, error) {
 		return nil, 0, err
 	}
 	for _, t := range owned {
-		if s := b.state(t); s != "queued" && s != "doing" {
+		s := b.state(t)
+		asked := s == "draft" && t.str("owner") != e.person() // its opener's question to them on a draft: Run is one answer
+		if s != "queued" && s != "doing" && !asked {
 			continue
 		}
 		ask, err := asks(t.i("id"))
 		if err != nil {
 			return nil, 0, err
+		}
+		if asked {
+			ask = "run"
 		}
 		from := t.str("reporter")
 		if from == "" {

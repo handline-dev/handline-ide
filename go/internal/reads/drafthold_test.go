@@ -193,3 +193,33 @@ func TestADraftShowsItsOpenersTurn(t *testing.T) {
 		t.Fatalf("draft %v, queued %v, the founder's draft %v, with a turn %v", got[1]["acting"], got[2]["acting"], got[3]["acting"], got[4]["acting"])
 	}
 }
+
+// A draft its opener asked the founder on is theirs with Run, so Run answers it; a draft with no turn is not.
+func TestADraftInTheFoundersTurnIsTheirsToRun(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	addAgent(t, e, "bob", "")
+	addAgent(t, e, "carol", "")
+	bob, carol := teamtest.Key(t, e.Home, "bob"), teamtest.Key(t, e.Home, "carol")
+	run(t, e, fmt.Sprintf("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'asked', '%[1]s', '%[2]s', 10), (2, 'not asked', '%[1]s', '%[2]s', 10)", bob, carol))
+	run(t, e, fmt.Sprintf("INSERT INTO task_turns(task_id, pos, agent, ask, pushed_by, since) VALUES(1, 1, 'p1', 'GitLab too?', '%s', 20)", carol))
+	items, _, err := e.ForYou()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, it := range items {
+		got = append(got, fmt.Sprint(it["kind"], ":", it["id"], ":", it["asks"]))
+	}
+	if strings.Join(got, " ") != "task:1:run" {
+		t.Fatalf("%q", got)
+	}
+	// its Your turn row is a run row, which carries Run, with the opener's question
+	var rows []string
+	for _, r := range pending(t, e)["answer"].([]map[string]any) {
+		rows = append(rows, fmt.Sprint(r["task"], ":", r["kind"], ":", r["ask"], ":", r["agent"] == carol))
+	}
+	if strings.Join(rows, " ") != "1:run:GitLab too?:true" {
+		t.Fatalf("%q", rows)
+	}
+}

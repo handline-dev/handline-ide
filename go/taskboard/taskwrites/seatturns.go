@@ -40,7 +40,11 @@ func seatTurn(tx *sql.Tx, tid int64, by, to, ask string) (newTo, newAsk, drop st
 	if len(turns) == 0 {
 		return to, ask, "", nil
 	}
-	top, below := turns[len(turns)-1], Below(turns, t.Owner)
+	base, err := stackBase(tx, t)
+	if err != nil {
+		return "", "", "", err
+	}
+	top, below := turns[len(turns)-1], Below(turns, base)
 	if top.Agent != by || top.By != below || top.OnPass != "" { // only the turn its seat's question put on it
 		return to, ask, "", nil
 	}

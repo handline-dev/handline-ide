@@ -228,11 +228,10 @@ func setQueued(tx *sql.Tx, home string, tid int64, by string, queued bool, kept 
 			memo = fmt.Sprintf(", comment %d keeps where %s stopped", mid, parked)
 		}
 	}
-	stack := []string{}
-	if !queued { // a draft is nobody's turn: it goes back to its owner
-		if stack, err = clearStack(tx, tid, by, ""); err != nil {
-			return queuedSet{}, err
-		}
+	// a draft is nobody's turn: it goes back to its owner; Run answers the question its opener put to a person on it
+	stack, err := clearStack(tx, tid, by, "")
+	if err != nil {
+		return queuedSet{}, err
 	}
 	var to []string
 	for _, who := range append([]string{t.OpenedBy, t.Owner}, stack...) {

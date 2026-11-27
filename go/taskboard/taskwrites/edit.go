@@ -497,6 +497,14 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 				if err != nil {
 					return nil, err
 				}
+				if asked, err := draftAsked(tx, tid); err != nil {
+					return nil, err
+				} else if asked { // a draft is delivered to no one: a new assignee is a plain edit, and its opener's question goes with the old one
+					if _, err := clearStack(tx, tid, me, ""); err != nil {
+						return nil, err
+					}
+					turns = nil
+				}
 				if len(turns) > 0 || actor.IsPerson(*owner) && me != actor.OwnerKey {
 					var h Handover
 					var asked *Asked

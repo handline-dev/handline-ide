@@ -11,6 +11,7 @@ import (
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
@@ -43,7 +44,16 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	if err != nil {
 		return Handover{}, nil, err
 	}
-	if actor.IsPerson(to) && ask != "" && turnRefusal(t, tid, actor.OwnerKey) == "" && actor.IsPerson(t.Acting) && len(turns) > 0 && by == Below(turns, t.Owner) {
+	base := ""
+	if t != nil {
+		if base, err = stackBase(tx, t); err != nil {
+			return Handover{}, nil, err
+		}
+		if len(turns) == 0 && actor.IsPerson(to) && ask != "" && by == base {
+			t.Acting = base // a draft's opener asks a person on it
+		}
+	}
+	if actor.IsPerson(to) && ask != "" && turnRefusal(t, tid, actor.OwnerKey) == "" && actor.IsPerson(t.Acting) && len(turns) > 0 && by == Below(turns, base) {
 		// the founder's turn is their one question slot on the task: asking again rewrites it
 		changed, err := db.ReaskTopTurn(tx, tid, by, ask, memo)
 		if err != nil || !changed {
@@ -83,6 +93,33 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	return h, asked, err
 }
 
+// stackBase is who task t's turns rest on, who acts on it when none is on top: its owner, but on an agent's draft, which is delivered
+// to no one, the agent its opener's word reaches (paths.Reaches), as a comment on the draft is told there.
+func stackBase(tx *sql.Tx, t *task) (string, error) {
+	opener := t.reporter()
+	if k, _, ok := actor.Parse(opener); !ok || k != actor.Agent || actor.IsPerson(t.Owner) {
+		return t.Owner, nil
+	}
+	if st, err := state(tx, t); err != nil || st != "draft" {
+		return t.Owner, err
+	}
+	return paths.Reaches(tx, opener)
+}
+
+// draftAsked is whether task tid is a draft its opener put a turn on: asking a person, which leaves it a draft, as Run is the start.
+func draftAsked(tx *sql.Tx, tid int64) (bool, error) {
+	t, err := getTask(tx, tid)
+	if err != nil || t == nil {
+		return false, err
+	}
+	base, err := stackBase(tx, t)
+	if err != nil || base == t.Owner {
+		return false, err
+	}
+	turns, err := db.Turns(tx, tid)
+	return len(turns) > 0 && turns[0].By == base, err
+}
+
 // Below is who acts on a task once its top turn comes off: the turn under it, else its owner.
 func Below(turns []db.Turn, owner string) string {
 	if len(turns) > 1 {
@@ -109,6 +146,8 @@ type Popped struct {
 	Handover
 	Asked *Asked
 	Done  *DoneResult
+	// Notes is the notice a pop back to a draft's opener types it, in place of a delivery: a draft goes to no one.
+	Notes []told
 }
 
 // turnPopMethod is task.turn.pop.
@@ -170,6 +209,10 @@ func (p Popped) tell(tell Teller) {
 		tell.Done(p.Task, p.By, p.Done.Owner, p.Done.Told, p.Done.Finished)
 		return
 	}
+	if p.Notes != nil {
+		tell.Notified(p.Notes)
+		return
+	}
 	if p.Asked != nil {
 		p.After = p.Asked.After
 		if !p.Asked.OK {
@@ -209,7 +252,11 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 		return Popped{}, refusal(fmt.Sprintf("T%d has no turn on it: %s acts on it as its owner", tid, addr.Ref(t.Owner)))
 	}
 	top := turns[len(turns)-1]
-	below := Below(turns, t.Owner)
+	base, err := stackBase(tx, t)
+	if err != nil {
+		return Popped{}, err
+	}
+	below := Below(turns, base)
 	h := Handover{Task: tid, By: by, From: top.Agent, To: below, Title: t.Title}
 	if outcome == db.TurnPass && top.OnPass == db.TurnOnPassDone {
 		res, err := MarkDone(tx, home, top.Agent, DoneIn{Task: tid, Words: top.Evidence, TurnPassed: true})
@@ -266,6 +313,21 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 		body = question + "을 대표님이 넘김"
 	case note != "":
 		body += "\n\n" + note
+	}
+	if base != t.Owner && below == base { // a draft's opener: told, and nothing is delivered or queued
+		if err := pop(); err != nil {
+			return Popped{}, err
+		}
+		rid, err := addSay(tx, below, body, false)
+		if err != nil {
+			return Popped{}, err
+		}
+		if memo != 0 {
+			if err := db.LinkMemoTell(tx, memo, below, rid); err != nil {
+				return Popped{}, err
+			}
+		}
+		return Popped{Handover: h, Asked: &Asked{OK: true}, Notes: []db.Notice{{RID: rid, To: below, Text: body}}}, nil
 	}
 	// System: the task goes back to an agent that already had it, so no team edge is asked for
 	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: below, Kind: "task", System: true, Body: body, Within: func(rid int64) error {

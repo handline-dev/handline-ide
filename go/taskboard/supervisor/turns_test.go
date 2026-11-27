@@ -544,3 +544,53 @@ func TestAForwardedCommentStaysTheCommentsWhenTheTaskMovesAndAPassIsTheTurns(t *
 		t.Fatalf("the pass's return %d is the turn's", passed)
 	}
 }
+
+// A draft's opener may ask the founder on it: the turn keeps it a draft; their comment comes back to
+// the opener with a notice, and its assignee hears nothing, nor is anything delivered; Run clears the turn the next ask put on it.
+func TestADraftsOpenerAsksTheFounderAndTheAnswerComesBackToIt(t *testing.T) {
+	r := newRig(t)
+	r.bigTeam()
+	r.agentUp(r.k("bob"))
+	r.agentUp(r.k("carol"))
+	tid, err := db.NewTask(r.DB, "a draft", r.k("bob"), r.k("carol"), 0, db.DefaultPriority, "", 0, "")
+	r.must(err)
+	state := func() string {
+		t.Helper()
+		row, err := db.GetTask(r.DB, tid)
+		r.must(err)
+		st, err := db.TaskState(r.DB, row)
+		r.must(err)
+		return st
+	}
+	r.turnCall(r.k("carol"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"GitLab too? I recommend later","turn":"human","request_id":"c1"}`, tid))
+	if r.acting(tid) != actor.OwnerKey || state() != "draft" {
+		t.Fatalf("acting %q, %s", r.acting(tid), state())
+	}
+	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"later is fine","request_id":"h1"}`, tid))
+	if turns, _ := db.Turns(r.DB, tid); len(turns) != 0 || state() != "draft" {
+		t.Fatalf("turns %+v, %s", turns, state())
+	}
+	if says := strings.Join(r.saysTo("carol"), "\n"); strings.Count(says, "later is fine") != 1 {
+		t.Fatalf("carol is told once: %q", says)
+	}
+	var toBob int
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'bob' AND (body LIKE '%later is fine%' OR body LIKE '%GitLab%')")).Scan(&toBob))
+	var linked int
+	r.must(r.DB.QueryRow("SELECT COUNT(*) FROM task_requests WHERE task_id = ?", tid).Scan(&linked))
+	if toBob != 0 || linked != 0 {
+		t.Fatalf("bob told %d times, %d requests on the draft", toBob, linked)
+	}
+	// a new assignee on the asked draft is a plain edit: the question goes, and nothing is sent to the new one
+	r.turnCall(r.k("carol"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"dave instead?","turn":"human","request_id":"c3"}`, tid))
+	r.turnCall(r.k("human"), "task.edit", fmt.Sprintf(`{"task":%d,"owner":%q,"request_id":"e1"}`, tid, r.k("dave")))
+	var toDave int
+	r.must(r.DB.QueryRow(r.sql("SELECT COUNT(*) FROM requests WHERE target = 'dave' AND kind = 'task'")).Scan(&toDave))
+	if turns, _ := db.Turns(r.DB, tid); len(turns) != 0 || state() != "draft" || toDave != 0 {
+		t.Fatalf("turns %+v, %s, dave asked %d", turns, state(), toDave)
+	}
+	r.turnCall(r.k("carol"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"and the docs?","turn":"human","request_id":"c2"}`, tid))
+	r.turnCall(r.k("human"), "task.queue", fmt.Sprintf(`{"tasks":[%d],"request_id":"q1"}`, tid))
+	if turns, _ := db.Turns(r.DB, tid); len(turns) != 0 || r.acting(tid) != r.k("dave") {
+		t.Fatalf("Run leaves turns %+v, acting %q", turns, r.acting(tid))
+	}
+}

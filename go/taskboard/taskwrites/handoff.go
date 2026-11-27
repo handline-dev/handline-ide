@@ -333,7 +333,10 @@ func shiftTask(tx *sql.Tx, tell Teller, h *Handover, why string, now bool, chang
 			return err
 		}
 	}
-	if actor.IsPerson(h.To) { // a task the founder acts on is asked of them, so it is queued: a draft is outside "for you"
+	if actor.IsPerson(h.To) { // a task the founder acts on is asked of them, so it is queued; a draft its opener asks them on stays one
+		if asked, err := draftAsked(tx, h.Task); err != nil || asked {
+			return err
+		}
 		_, err := db.SetTaskQueued(tx, h.Task, h.By)
 		return err
 	}
