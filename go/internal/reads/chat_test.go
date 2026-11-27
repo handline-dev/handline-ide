@@ -713,7 +713,8 @@ func TestAnUnblockedTaskIsACardInTheChatOfTheAgentItStartsFor(t *testing.T) {
 	}
 }
 
-// A move that landed and a person's move that could not run are one line each in the agent's own chat, and the live event is the same item.
+// A move that landed, a person's move that could not run and a start on another machine are one line each in the agent's own chat, and
+// the live event is the same item.
 func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)
@@ -723,7 +724,8 @@ func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
 		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(1, 1000, '` + bob + `', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced","note_written":true,"reason":"You moved it to beta."}')`,
 		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(2, 1001, '` + bob + `', 'moved_account', '{"from":"beta","to":"alpha","trigger":"usage"}')`,
 		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(3, 1002, '` + bob + `', 'move_failed', '{"to":"gamma","reason":"gamma has no free slot"}')`,
-		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(4, 1003, 'ann', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced"}')`,
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(4, 1003, '` + bob + `', 'machine_moved', '{"from":"mini","to":"studio","reason":"mini is offline"}')`,
+		`INSERT INTO events(id, ts, agent, kind, payload) VALUES(5, 1004, 'ann', 'moved_account', '{"from":"alpha","to":"beta","trigger":"forced"}')`,
 	} {
 		if _, err := e.DB.Exec(q); err != nil {
 			t.Fatal(err)
@@ -739,6 +741,7 @@ func TestChatTranscriptShowsAnAccountMoveAndAFailedOne(t *testing.T) {
 		{"kind": "account_moved", "account_moved": map[string]any{"from": "beta", "to": "alpha", "cause": "policy", "note_written": false,
 			"reason": "beta's 5-hour limit was reached."}}, // written before moves kept a reason: read from its trigger
 		{"kind": "move_failed", "move_failed": map[string]any{"to": "gamma", "reason": "gamma has no free slot"}},
+		{"kind": "machine_moved", "machine_moved": map[string]any{"from": "mini", "to": "studio", "reason": "mini is offline"}},
 	}
 	if len(items) != len(want) {
 		t.Fatalf("%d items: %v", len(items), items)
