@@ -43,7 +43,6 @@ var (
 		{"agentPushNotifEnabled", false},
 		{"cleanupPeriodDays", 7},
 	}
-	ide_aMarkers = []string{"ide_a/agent-hooks", ".ide_a/agent-hooks", "IDE_A_AGENT_HOOK", "ide_a-hook"}
 )
 
 // Hooks is the shared settings file every account's settings.json links to (claude_hooks.py), under the program's home.
@@ -176,78 +175,13 @@ func (h Hooks) Missing() bool {
 	return false
 }
 
-func isIdeA(e *Object) bool {
-	cmd, ok := e.vals["command"].(string)
-	if !ok {
-		return false
-	}
-	for _, m := range ide_aMarkers {
-		if strings.Contains(cmd, m) {
-			return true
-		}
-	}
-	return false
-}
-
-// stripIdeA drops the IDE A hooks the old mirror wrote, leaving everything else; each group it keeps is rebuilt with its
-// "hooks" last, as Python's rebuild leaves it.
-func stripIdeA(data *Object) {
-	hooks, ok := data.vals["hooks"].(*Object)
-	if !ok {
-		return
-	}
-	kept := NewObject()
-	for _, event := range hooks.keys {
-		groups, ok := hooks.vals[event].([]any)
-		if !ok {
-			kept.Set(event, hooks.vals[event])
-			continue
-		}
-		var keep []any
-		for _, g := range groups {
-			o, ok := g.(*Object)
-			if !ok {
-				keep = append(keep, g)
-				continue
-			}
-			var entries []any
-			list, _ := o.vals["hooks"].([]any)
-			for _, e := range list {
-				if eo, ok := e.(*Object); ok && isIdeA(eo) {
-					continue
-				}
-				entries = append(entries, e)
-			}
-			if len(entries) > 0 {
-				ng := NewObject()
-				for _, k := range o.keys {
-					if k != "hooks" {
-						ng.Set(k, o.vals[k])
-					}
-				}
-				ng.Set("hooks", entries)
-				keep = append(keep, ng)
-			}
-		}
-		if len(keep) > 0 {
-			kept.Set(event, keep)
-		}
-	}
-	if kept.Len() > 0 {
-		data.Set("hooks", kept)
-	} else {
-		data.Delete("hooks")
-	}
-}
-
-// Install adds `exe hook <event>` for each wanted event to the shared settings, collapses ours in any spelling to one
-// entry, and drops the IDE A hooks the old mirror wrote (claude_hooks.install).
+// Install adds `exe hook <event>` for each wanted event to the shared settings and collapses ours in any spelling to one
+// entry (claude_hooks.install).
 func (h Hooks) Install(exe string) error {
 	data, err := h.readObject()
 	if err != nil {
 		return err
 	}
-	stripIdeA(data)
 	block, ok := data.setDefault("hooks", NewObject()).(*Object)
 	if !ok {
 		return fmt.Errorf("%s: hooks is not an object", h.Target())

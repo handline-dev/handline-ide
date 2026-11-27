@@ -424,8 +424,7 @@ def main(argv: list[str]) -> int:
                                    "-serve-net-fds", ",".join(map(str, net_theirs)), *claude], pass_fds=theirs + net_theirs,
                                   stderr=subprocess.PIPE,
                                   # the founder's daemon, even when an agent runs the check: it writes the protected store
-                                  # OCP_* (the old name of HANDLINE_*) in a session started before the rename names the real home
-                                  env={**{k: v for k, v in os.environ.items() if not k.startswith("OCP_")},
+                                  env={**os.environ,
                                        "HANDLINE_TEST_ROOT": str(test_root), "HANDLINE_AGENT": "",
                                        **({"HANDLINE_TERMINAL": "fake"} if fakes else {}),
                                        "PATH": f"{GH_BIN}:{os.environ['PATH']}"})

@@ -51,7 +51,7 @@ func TestStartupSettlesOnlyTheSaysNothingTracksAndTypesPendingRows(t *testing.T)
 	}
 	asked := r.ask(r.k("alice"), r.k(("bob")), "old ask", "ask")
 	db.MarkDelivered(r.DB, asked)
-	r.must(r.MigrateOldMessages(r.DB))
+	r.must(r.SettleInterruptedSends(r.DB))
 	state := func(id int64) string { row, _ := db.GetRequest(r.DB, id); return row.State }
 	if state(told) != "landed" || state(owed) != "queued" || state(tracked) != "queued" || state(batched) != "queued" {
 		t.Fatalf("told %s owed %s tracked %s batched %s", state(told), state(owed), state(tracked), state(batched))

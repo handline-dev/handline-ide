@@ -694,7 +694,7 @@ func (e *Env) waitingOf(t row, state string, waits []row, rec map[string]any) (m
 	}
 	// CROSS JOIN reads the task's few links first; left to plan, sqlite walks every request to the founder for each task.
 	asked, err := queryOne(e.DB, "SELECT MIN(r.ts) AS since FROM task_requests l CROSS JOIN requests r ON l.request_id = r.id "+
-		"WHERE l.task_id = ? AND r.target = ? AND "+notBoard+" AND "+founderOpen, t.i("id"), actor.OwnerKey)
+		"WHERE l.task_id = ? AND r.target = ? AND "+founderOpen, t.i("id"), actor.OwnerKey)
 	if err != nil {
 		return nil, 0, err
 	}

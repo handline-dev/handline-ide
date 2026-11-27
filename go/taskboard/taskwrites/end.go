@@ -354,7 +354,7 @@ func childResultNotice(tx *sql.Tx, dep *task, by string, child int64) (*told, er
 		}
 		return nil, err
 	}
-	if !parent.Valid || parent.Int64 != dep.ID || dep.Acting == by {
+	if !parent.Valid || parent.Int64 != dep.ID || dep.Acting == by || actor.IsPerson(dep.Acting) { // the board tells the founder nothing
 		return nil, nil
 	}
 	var since int64
