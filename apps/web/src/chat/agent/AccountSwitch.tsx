@@ -24,7 +24,7 @@ export function useSwitchLock(agent: string): string | null {
   return s ? switchWords(s) : null;
 }
 
-/** A move under way as its four steps, the current one with its seconds; narrow, the title and the current step alone. Null for a wait. */
+/** A move under way as its three steps, the current one with its seconds; narrow, the title and the current step alone. Null for a wait. */
 export function MoveSteps({ agent }: { agent: string }) {
   const s = useSwitch(agent)?.account_switch;
   const tick = useNow(1000);
@@ -53,7 +53,7 @@ export function MoveSteps({ agent }: { agent: string }) {
         ))}
       </span>
       <span className="min-w-0 truncate @xl:hidden">
-        · {m.at + 1}/4 {now.name} · <span className="tabular-nums">{took}</span>
+        · {m.at + 1}/{m.steps.length} {now.name} · <span className="tabular-nums">{took}</span>
       </span>
     </span>
   );
