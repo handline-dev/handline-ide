@@ -38,7 +38,7 @@ type taskCommit struct {
 	sha, subject   string
 	parents        []string
 	at             int64
-	seq            int // topological place, landed first: the tie-break within one second
+	seq            int    // topological place, landed first: the tie-break within one second
 	branch         string // the repo's default branch
 	landed         bool   // on branch
 	agent          string
