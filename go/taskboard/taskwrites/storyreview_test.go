@@ -84,7 +84,7 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 	if acting, _ := db.Acting(d, 1); acting != "p1" || count(t, d, "SELECT COUNT(*) FROM tasks WHERE id = 1 AND owner = 'gp/worker'") != 1 {
 		t.Fatalf("the founder's turn is on the worker's task: acting %s", acting)
 	}
-	files, _ := attachments.MemoFiles(d, r.Memo)
+	files, _ := attachments.CommentFiles(d, r.Comment)
 	st := attachments.New(home)
 	if len(files) != 2 || st.FileMap(files[1], false)["kind"] != "video" || st.FileMap(files[1], false)["poster"] != files[0].ID {
 		t.Fatalf("the result carries the picture and the video, the picture its poster: %+v", files)
@@ -110,12 +110,12 @@ func TestAStorysSubTaskWaitsForTheFoundersOKBeforeItGoesToLand(t *testing.T) {
 		}
 		return fmt.Sprint(ts)
 	}
-	before, memos := turns(), len(f.memos)
+	before, comments := turns(), len(f.comments)
 	if as("", "task.comment.add", `"task":1,"text":"why the yellow?",`)["error"] != nil {
 		t.Fatal("the founder's comment")
 	}
-	if !review().Ready || turns() != before || len(f.memos) != memos+1 || !strings.Contains(f.memos[memos], `"why the yellow?"`) {
-		t.Fatalf("the question ended Ready or was not told: %v %v", turns(), f.memos)
+	if !review().Ready || turns() != before || len(f.comments) != comments+1 || !strings.Contains(f.comments[comments], `"why the yellow?"`) {
+		t.Fatalf("the question ended Ready or was not told: %v %v", turns(), f.comments)
 	}
 	if acting, _ := db.Acting(d, 1); acting != "p1" {
 		t.Fatalf("the founder's question passed their turn to %s", acting)

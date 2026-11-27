@@ -40,8 +40,8 @@ func TestWhereListsTheTasksTheLastWordsWithTheFounderAndTheLeadAndTheProgress(t 
 	if err := db.AddBlock(q, second, first); err != nil {
 		t.Fatal(err)
 	}
-	db.AddMemo(q, first, "boss", "an older memo")
-	db.AddMemo(q, first, "boss", "start after the contract lands\nsecond line")
+	db.AddComment(q, first, "boss", "an older comment")
+	db.AddComment(q, first, "boss", "start after the contract lands\nsecond line")
 	for _, m := range []db.NewRequest{{Requester: actor.OwnerKey, Target: "ann", Body: "do it right"}, {Requester: "ann", Target: "boss", Body: "blocked on the contract"},
 		{Requester: "zed", Target: "ann", Body: "an aside"}} {
 		if _, err := db.AddRequest(q, m); err != nil {
@@ -70,7 +70,7 @@ func TestWhereListsTheTasksTheLastWordsWithTheFounderAndTheLeadAndTheProgress(t 
 			t.Errorf("missing %q:\n%s", want, got)
 		}
 	}
-	for _, not := range []string{"not sent yet", "an older memo", "second line", "an aside", "days old"} {
+	for _, not := range []string{"not sent yet", "an older comment", "second line", "an aside", "days old"} {
 		if strings.Contains(got, not) {
 			t.Errorf("has %q:\n%s", not, got)
 		}
@@ -106,7 +106,7 @@ func TestWhereForAnAgentTheFounderLeads(t *testing.T) {
 	}
 }
 
-// Ten tasks, a memo on every other one, and seven messages: it lists WhereTasks tasks and says there are more, and WhereMessages messages.
+// Ten tasks, a comment on every other one, and seven messages: it lists WhereTasks tasks and says there are more, and WhereMessages messages.
 func TestWhereKeepsToItsLimits(t *testing.T) {
 	w := newWorld(t)
 	q := w.DB
@@ -116,7 +116,7 @@ func TestWhereKeepsToItsLimits(t *testing.T) {
 			t.Fatal(err)
 		}
 		if i%2 == 0 {
-			db.AddMemo(q, tid, "boss", "a memo")
+			db.AddComment(q, tid, "boss", "a comment")
 		}
 	}
 	for i := range 7 {

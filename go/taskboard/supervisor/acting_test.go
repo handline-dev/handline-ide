@@ -97,7 +97,7 @@ func TestABodyEditIsToldToTheAgentOnTop(t *testing.T) {
 // A comment tells the agent on top at once, as the task's assignee; its owner hears of a plain comment only through the board.
 func TestACommentTellsTheAgentOnTop(t *testing.T) {
 	r, tid := turnRig(t)
-	got, ok := r.MemoRecipients(tid, r.k("dave"), "plain", false)
+	got, ok := r.CommentRecipients(tid, r.k("dave"), "plain", false)
 	if !ok || len(got) != 1 || got[0].Agent != r.k("alice") || got[0].Why != "assignee" {
 		t.Fatalf("%+v", got)
 	}
@@ -106,7 +106,7 @@ func TestACommentTellsTheAgentOnTop(t *testing.T) {
 // foundersRecipients is whom the founder's comment text on task tid is told, as "agent:why" each.
 func (r *rig) foundersRecipients(tid int64, text string) string {
 	r.t.Helper()
-	got, ok := r.MemoRecipients(tid, actor.OwnerKey, text, false)
+	got, ok := r.CommentRecipients(tid, actor.OwnerKey, text, false)
 	if !ok {
 		r.t.Fatal("no task")
 	}
@@ -129,7 +129,7 @@ func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *tes
 		t.Fatalf("no one else wrote, yet %q", got)
 	}
 	for _, w := range []string{r.k("alice"), r.k("bob"), actor.OwnerKey} {
-		_, err := db.AddMemo(r.DB, tid, w, "a word")
+		_, err := db.AddComment(r.DB, tid, w, "a word")
 		r.must(err)
 	}
 	if got := who("plain"); got != r.k("bob")+":last_writer" {
@@ -140,9 +140,9 @@ func TestTheFoundersCommentOnTheirOwnTaskGoesToTheLastAgentThatWroteThere(t *tes
 	}
 	// An agent's comment on a task it holds stays the holder's to answer: its progress notes reach no one who once wrote there.
 	held := r.newTask("alice", r.k("carol"), "alice's work")
-	_, err = db.AddMemo(r.DB, held, r.k("bob"), "a word")
+	_, err = db.AddComment(r.DB, held, r.k("bob"), "a word")
 	r.must(err)
-	if got, ok := r.MemoRecipients(held, r.k("alice"), "halfway", false); !ok || len(got) != 0 {
+	if got, ok := r.CommentRecipients(held, r.k("alice"), "halfway", false); !ok || len(got) != 0 {
 		t.Fatalf("an agent's progress note was told: %+v", got)
 	}
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"why is it paused?","request_id":"c1"}`, tid))
@@ -186,7 +186,7 @@ func TestTheFoundersCommentOnADraftReachesItsOpener(t *testing.T) {
 	// a draft the founder opened has no one to answer for it but them: their comment is told to no one
 	mine, err := db.NewTask(r.DB, "my draft", r.k("bob"), actor.OwnerKey, 0, db.DefaultPriority, "", 0, "")
 	r.must(err)
-	if got, _ := r.MemoRecipients(mine, actor.OwnerKey, "a note", false); len(got) != 0 {
+	if got, _ := r.CommentRecipients(mine, actor.OwnerKey, "a note", false); len(got) != 0 {
 		t.Fatalf("the founder's own draft: %+v", got)
 	}
 }
@@ -194,7 +194,7 @@ func TestTheFoundersCommentOnADraftReachesItsOpener(t *testing.T) {
 // A comment that names someone reaches only them, not the task's holder.
 func TestACommentThatNamesSomeoneSkipsTheHolder(t *testing.T) {
 	r, tid := turnRig(t)
-	got, ok := r.MemoRecipients(tid, r.k("dave"), "<@"+r.k("carol")+"> look", false)
+	got, ok := r.CommentRecipients(tid, r.k("dave"), "<@"+r.k("carol")+"> look", false)
 	if !ok || len(got) != 1 || got[0].Agent != r.k("carol") || got[0].Why != "asked" {
 		t.Fatalf("%+v", got)
 	}
@@ -204,7 +204,7 @@ func TestACommentThatNamesSomeoneSkipsTheHolder(t *testing.T) {
 func TestATurnGivenBackReachesItsHolderWhomeverItNames(t *testing.T) {
 	r, tid := turnRig(t)
 	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: actor.OwnerKey, By: r.k("alice"), Since: r.clock}))
-	got, ok := r.MemoRecipients(tid, actor.OwnerKey, "yes, and <@"+r.k("carol")+"> see this", false)
+	got, ok := r.CommentRecipients(tid, actor.OwnerKey, "yes, and <@"+r.k("carol")+"> see this", false)
 	if !ok || fmt.Sprint(got) != fmt.Sprint([]taskwrites.Recipient{{Agent: r.k("alice"), Why: "assignee"}, {Agent: r.k("carol"), Why: "asked"}}) {
 		t.Fatalf("%+v", got)
 	}
@@ -222,14 +222,14 @@ func TestATurnGivenBackReachesItsHolderWhomeverItNames(t *testing.T) {
 // The founder's question on a task Ready for them is told to the agent below their turn, which answers it in a comment; their turn stays.
 func TestTheFoundersQuestionOnAReadyTaskIsToldToItsAssignee(t *testing.T) {
 	r, tid := turnRig(t)
-	mid, err := db.AddMemo(r.DB, tid, r.k("alice"), "built it")
+	mid, err := db.AddComment(r.DB, tid, r.k("alice"), "built it")
 	r.must(err)
 	r.must(db.AddReady(r.DB, tid, r.k("alice"), r.k("carol"), mid))
-	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: actor.OwnerKey, By: r.k("alice"), Since: r.clock, Memo: mid}))
-	if got, ok := r.MemoRecipients(tid, actor.OwnerKey, "why the yellow?", false); !ok || len(got) != 1 || got[0].Agent != r.k("alice") {
+	r.must(db.PushTurn(r.DB, tid, db.Turn{Agent: actor.OwnerKey, By: r.k("alice"), Since: r.clock, Comment: mid}))
+	if got, ok := r.CommentRecipients(tid, actor.OwnerKey, "why the yellow?", false); !ok || len(got) != 1 || got[0].Agent != r.k("alice") {
 		t.Fatalf("%+v", got)
 	}
-	if got, ok := r.MemoRecipients(tid, actor.OwnerKey, "<@"+r.k("carol")+"> why?", false); !ok || len(got) != 2 || got[0].Agent != r.k("alice") {
+	if got, ok := r.CommentRecipients(tid, actor.OwnerKey, "<@"+r.k("carol")+"> why?", false); !ok || len(got) != 2 || got[0].Agent != r.k("alice") {
 		t.Fatalf("a question naming someone else must still reach the holder: %+v", got)
 	}
 	r.turnCall("human", "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"why the yellow?","request_id":"c1"}`, tid))

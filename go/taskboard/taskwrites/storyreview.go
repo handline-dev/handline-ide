@@ -104,7 +104,7 @@ func okMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, er
 			if err != nil {
 				return nil, err
 			}
-			_, result, err := memoOf(tx, tid, r.Memo)
+			_, result, err := commentOf(tx, tid, r.Comment)
 			if err != nil {
 				return nil, err
 			}
@@ -147,8 +147,8 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 		}
 		me := c.Caller.Actor()
 		var (
-			popped Popped
-			memo   int64
+			popped  Popped
+			comment int64
 			// skipped: the task went on without the founder (an automatic OK), and is handed back from where it is now
 			skipped bool
 			h       Handover
@@ -168,10 +168,10 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			if err := claimImages(tx, home, me, note, "", "note"); err != nil {
 				return nil, err
 			}
-			if memo, err = db.AddMemo(tx, tid, me, note); err != nil {
+			if comment, err = db.AddComment(tx, tid, me, note); err != nil {
 				return nil, err
 			}
-			if err := db.AddVerdict(tx, tid, me, db.VerdictRedo, memo); err != nil {
+			if err := db.AddVerdict(tx, tid, me, db.VerdictRedo, comment); err != nil {
 				return nil, err
 			}
 			if err := redoToEvery(tx, home, r.By, tid, me); err != nil {
@@ -179,7 +179,7 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			}
 			told := fmt.Sprintf("T%d 대표님 Redo %d (댓글 %d): %s\n\nFirst keep one lesson from this note, what to do differently from now on: "+
 				"`hl lesson add \"<the lesson>\" --task T%d`. Then work it again on your branch, and hand it to %s as before: it comes to the founder "+
-				"first again.", tid, r.Redo+1, memo, note, tid, addr.Ref(r.LandBy))
+				"first again.", tid, r.Redo+1, comment, note, tid, addr.Ref(r.LandBy))
 			if skipped {
 				if h, asked, err = handOff(tx, tell, tid, me, r.By, told, paths.ListAgents(home), false); err != nil {
 					return nil, err
@@ -188,15 +188,15 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 					return nil, refusal(asked.Msg)
 				}
 				to = r.By
-				return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(r.By), r.Redo+1), map[string]any{"comment": memo}), nil
+				return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(r.By), r.Redo+1), map[string]any{"comment": comment}), nil
 			}
-			if popped, err = popTurnTold(tx, home, tell, tid, me, db.TurnSendBack, note, memo, told); err != nil {
+			if popped, err = popTurnTold(tx, home, tell, tid, me, db.TurnSendBack, note, comment, told); err != nil {
 				return nil, err
 			}
 			if popped.Asked != nil && !popped.Asked.OK { // all of it rolls back: the task stays Ready
 				return nil, refusal(popped.Asked.Msg)
 			}
-			return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(popped.To), r.Redo+1), map[string]any{"comment": memo}), nil
+			return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(popped.To), r.Redo+1), map[string]any{"comment": comment}), nil
 		})
 		if err != nil {
 			return nil, err
@@ -208,7 +208,7 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			popped.tell(tell)
 			to = popped.To
 		}
-		tell.MemoChanged(tid, memo, me, "added", note, false, []string{to}) // the task's return carries the note
+		tell.CommentChanged(tid, comment, me, "added", note, false, []string{to}) // the task's return carries the note
 		return out, nil
 	}
 }

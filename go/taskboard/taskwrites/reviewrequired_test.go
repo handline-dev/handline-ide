@@ -42,15 +42,15 @@ func TestReviewRequiredHoldsADoneWithCommitsUntilAnotherAgentComments(t *testing
 		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.done","params":{"task":%d,"request_id":"r%d"%s}}`, task, n, params))[0]
 	}
 	withSha := fmt.Sprintf(`,"evidence":%q,"repo":%q`, sha, repo)
-	// review is agent's turn on task answered, with a comment or (memo false) without.
-	review := func(task int, agent string, memo bool) {
+	// review is agent's turn on task answered, with a comment or (comment false) without.
+	review := func(task int, agent string, comment bool) {
 		t.Helper()
 		if _, err := d.Exec("INSERT INTO task_turns(task_id, pos, agent, pushed_by, since) VALUES(?, "+
 			"(SELECT COUNT(*) + 1 FROM task_turns WHERE task_id = ?), ?, ?, 1)", task, task, agent, lead); err != nil {
 			t.Fatal(err)
 		}
 		var id int64
-		if memo {
+		if comment {
 			res, err := d.Exec("INSERT INTO task_comments(task_id, author, body, created_at) VALUES(?, ?, 'looks right', 1)", task, agent)
 			if err != nil {
 				t.Fatal(err)

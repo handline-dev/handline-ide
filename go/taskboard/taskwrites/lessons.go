@@ -82,7 +82,7 @@ func cited(tx *sql.Tx, p map[string]any, text, me, founder string) (string, erro
 		return "", badParam("said names the founder's own words this comes from: a comment number or a msg_<hash>", "said")
 	}
 	if n, ok := rpc.AsInt(v); ok {
-		m, err := db.GetMemo(tx, n)
+		m, err := db.GetComment(tx, n)
 		if err != nil {
 			return "", err
 		}

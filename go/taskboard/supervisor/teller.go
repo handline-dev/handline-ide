@@ -18,15 +18,15 @@ import (
 // What the task writes (go/taskboard/taskwrites) leave to the telling layer once they have committed: Env satisfies taskwrites.Teller. Nothing
 // here is raised to the caller, whose write is done: a failure is logged and the tick is the net.
 
-// MemoChanged tells whom a memo concerns that it was added, edited or deleted (what), now or in each reader's digest (TellMemo).
-func (e *Env) MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
-	if err := e.TellMemoSkipping(e.DB, tid, mid, by, what, text, "", now, skip); err != nil {
+// CommentChanged tells whom a comment concerns that it was added, edited or deleted (what), now or in each reader's digest (TellComment).
+func (e *Env) CommentChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
+	if err := e.TellCommentSkipping(e.DB, tid, mid, by, what, text, "", now, skip); err != nil {
 		e.log("  telling about the comment on T%d failed: %v", tid, err)
 	}
 }
 
-// MemoRecipients is whom a comment by `by` on task tid would be told to, by the rule TellMemoSkipping applies; false when there is no such task.
-func (e *Env) MemoRecipients(tid int64, by, text string, now bool) (out []taskwrites.Recipient, found bool) {
+// CommentRecipients is whom a comment by `by` on task tid would be told to, by the rule TellCommentSkipping applies; false when there is no such task.
+func (e *Env) CommentRecipients(tid int64, by, text string, now bool) (out []taskwrites.Recipient, found bool) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -41,7 +41,7 @@ func (e *Env) MemoRecipients(tid int64, by, text string, now bool) (out []taskwr
 	top := row.Acting
 	check(toldBelow(e.DB, row, by)) // the founder's comment passes their turn before it is told, so it goes to the holder below
 	back := row.Acting != top
-	return e.memoRecipients(e.DB, row, by, text, "", now, back), true
+	return e.commentRecipients(e.DB, row, by, text, "", now, back), true
 }
 
 // PassedPause is task.send_now's telling: the agent takes the task it let through the pause now (ActNow).

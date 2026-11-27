@@ -68,7 +68,7 @@ func serverFor(t *testing.T, db *sql.DB, agent string) *rpc.Server {
 	return s
 }
 
-func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
+func TestCommentsAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	t.Parallel()
 	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
 	if err != nil {
@@ -118,7 +118,7 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	}
 	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_comments")).Scan(&n)
 	if n != 0 {
-		t.Fatal("the memo is still there")
+		t.Fatal("the comment is still there")
 	}
 }
 

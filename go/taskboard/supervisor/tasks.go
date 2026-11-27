@@ -18,7 +18,7 @@ import (
 )
 
 // The task calls the supervisor makes: the owner's current task and advancing it, the "unblocked" and result notices,
-// memo says. They run after the write that caused them has committed, on the database itself.
+// comment says. They run after the write that caused them has committed, on the database itself.
 
 // linkDelivery links a task to the request that delivers it, and makes it the owner's current task if it holds none yet.
 func (e *Env) linkDelivery(q db.Q, tid int64, owner string, rid int64) {
@@ -488,7 +488,7 @@ func (e *Env) releaseOne(tid int64, how string) (waiting []int64, err error) {
 	return waiting, nil
 }
 
-// ---------------------------------------------------------------- memos
+// ---------------------------------------------------------------- comments
 
 // typeSay writes a say from the task board to owner, typed at once.
 func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
@@ -521,35 +521,35 @@ func (e *Env) queueSay(q db.Q, owner, body string) int64 {
 	return rid
 }
 
-// TellMemo types a memo's change, like a say, to each reader memoRecipients picks.
-func (e *Env) TellMemo(q db.Q, tid int64, by, what, text, to string, now bool) error {
-	return e.TellMemoOf(q, tid, 0, by, what, text, to, now)
+// TellComment types a comment's change, like a say, to each reader commentRecipients picks.
+func (e *Env) TellComment(q db.Q, tid int64, by, what, text, to string, now bool) error {
+	return e.TellCommentOf(q, tid, 0, by, what, text, to, now)
 }
 
-// TellMemoOf is TellMemo for memo mid, whose tell to each reader is kept (db.LinkMemoTell) so the memo can show who has read it; mid 0 keeps none.
-func (e *Env) TellMemoOf(q db.Q, tid, mid int64, by, what, text, to string, now bool) error {
-	return e.TellMemoSkipping(q, tid, mid, by, what, text, to, now, nil)
+// TellCommentOf is TellComment for comment mid, whose tell to each reader is kept (db.LinkCommentTell) so the comment can show who has read it; mid 0 keeps none.
+func (e *Env) TellCommentOf(q db.Q, tid, mid int64, by, what, text, to string, now bool) error {
+	return e.TellCommentSkipping(q, tid, mid, by, what, text, to, now, nil)
 }
 
-// TellMemoSkipping is TellMemoOf that leaves the agents in skip out.
-func (e *Env) TellMemoSkipping(q db.Q, tid, mid int64, by, what, text, to string, now bool, skip []string) (err error) {
+// TellCommentSkipping is TellCommentOf that leaves the agents in skip out.
+func (e *Env) TellCommentSkipping(q db.Q, tid, mid int64, by, what, text, to string, now bool, skip []string) (err error) {
 	defer Catch(&err)
 	row := must(db.GetTask(q, tid))
 	if row == nil {
 		return nil
 	}
 	ready := what == "added" && must(readyBelow(q, row, by)) // the founder's question on a task Ready for them: told to the agent below their turn
-	for _, r := range e.memoRecipients(q, row, by, text, to, now, ready) {
+	for _, r := range e.commentRecipients(q, row, by, text, to, now, ready) {
 		if slices.Contains(skip, r.Agent) {
 			continue
 		}
 		who := addr.For(q, r.Agent, by)
-		line := memoLine(tid, mid, what, who, text)
+		line := commentLine(tid, mid, what, who, text)
 		if ready && r.Agent == row.Acting {
 			line += fmt.Sprintf("\nT%d stays Ready for %s: answer in a comment; only their OK, merge or Redo moves it on", tid, who)
 		}
-		rid := e.typeSay(q, r.Agent, line, "task memo")
-		e.linkMemoTell(q, mid, r.Agent, rid)
+		rid := e.typeSay(q, r.Agent, line, "task comment")
+		e.linkCommentTell(q, mid, r.Agent, rid)
 	}
 	return nil
 }
@@ -578,13 +578,13 @@ func toldBelow(q db.Q, row *db.Task, by string) error {
 	return err
 }
 
-// memoRecipients is the one rule for whom a comment on row is told. A comment that names agents with @, or that was said to one (to), is
+// commentRecipients is the one rule for whom a comment on row is told. A comment that names agents with @, or that was said to one (to), is
 // told to those only: each is asked. One that names no one is told to the task's holder (its assignee); who the task answers to (owner) is
 // told only when it is sent now, or when the founder wrote it on a task no agent holds (the founder does, or the holder has retired):
 // otherwise answering is the holder's. The founder's comment that names no one on a task they hold is told to the last agent that commented
 // there (last_writer): the one who spoke to them. back is the founder's comment that answers their turn (passes it back, or asks on a
 // task Ready for them): the agent below it is told whomever it names.
-func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now, back bool) []taskwrites.Recipient {
+func (e *Env) commentRecipients(q db.Q, row *db.Task, by, text, to string, now, back bool) []taskwrites.Recipient {
 	seat := e.seatFor(q, row, by)
 	named := mapOnce(e.mentioned(by, text), seat)
 	if to != "" {
@@ -592,7 +592,7 @@ func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now, bac
 	}
 	named = slices.DeleteFunc(named, func(a string) bool { return must(paths.Reaches(e.DB, a)) == by }) // naming only oneself names no one
 	unheld := actor.IsPerson(by) && !e.registered(row.Acting)
-	raw := e.memoReaders(row, by, named, back)
+	raw := e.commentReaders(row, by, named, back)
 	if len(named) == 0 && actor.IsPerson(by) && row.Acting == row.Owner && !actor.IsPerson(row.Owner) && !row.QueuedBy.Valid && !row.SentAt.Valid && isDraft(q, row) {
 		return draftReaders(raw, must(paths.Reaches(e.DB, row.AnswersTo())))
 	}
@@ -606,7 +606,7 @@ func (e *Env) memoRecipients(q db.Q, row *db.Task, by, text, to string, now, bac
 	var out []taskwrites.Recipient
 	for _, a := range readers {
 		asked := slices.Contains(named, a)
-		if delivery.ClassOf(delivery.Memo, now || asked || a == row.Acting || a == last || unheld, false) != delivery.ClassNow {
+		if delivery.ClassOf(delivery.Comment, now || asked || a == row.Acting || a == last || unheld, false) != delivery.ClassNow {
 			continue
 		}
 		why := "owner"
@@ -661,20 +661,20 @@ func mapOnce(keys []string, f func(string) string) []string {
 	return out
 }
 
-// linkMemoTell keeps that request rid told reader of memo mid; a failure is logged, since the tell itself went out.
-func (e *Env) linkMemoTell(q db.Q, mid int64, reader string, rid int64) {
+// linkCommentTell keeps that request rid told reader of comment mid; a failure is logged, since the tell itself went out.
+func (e *Env) linkCommentTell(q db.Q, mid int64, reader string, rid int64) {
 	if mid == 0 {
 		return
 	}
-	if err := db.LinkMemoTell(q, mid, reader, rid); err != nil {
+	if err := db.LinkCommentTell(q, mid, reader, rid); err != nil {
 		e.log("  comment %d: its tell to %s was not kept: %v", mid, reader, err)
 	}
 }
 
-// memoReaders is whom a memo on row concerns, each once: the agents it names (named), with the task's assignee when it gives a turn back
+// commentReaders is whom a comment on row concerns, each once: the agents it names (named), with the task's assignee when it gives a turn back
 // (back); naming no one, who the task answers to (its reporter) and its assignee whatever the task's state. Never the writer, or the
 // founder, who reads the board.
-func (e *Env) memoReaders(row *db.Task, by string, named []string, back bool) []string {
+func (e *Env) commentReaders(row *db.Task, by string, named []string, back bool) []string {
 	list := []string{row.AnswersTo(), row.Acting}
 	if len(named) > 0 {
 		list = nil
@@ -711,7 +711,7 @@ func (e *Env) lastWriter(q db.Q, tid int64, by string) string {
 	return ""
 }
 
-// mentioned is the key of every registered agent text names with <@key>. A memo writer that tells before it stores (a handoff note, a
+// mentioned is the key of every registered agent text names with <@key>. A comment writer that tells before it stores (a handoff note, a
 // turn's) hands the text as typed, so by's @words are resolved here too.
 func (e *Env) mentioned(by, text string) []string {
 	if w, err := addr.Of(e.DB, by, ""); err == nil {
@@ -728,9 +728,9 @@ func (e *Env) mentioned(by, text string) []string {
 	return out
 }
 
-// memoLine is the line comment mid's reader is told: `T<n> comment <id> by <who>: <text>`, "edited by" or "deleted by" for those, the text
+// commentLine is the line comment mid's reader is told: `T<n> comment <id> by <who>: <text>`, "edited by" or "deleted by" for those, the text
 // on one line and cut at 400 runes, then its file lines whole. Mid 0 leaves the id out.
-func memoLine(tid, mid int64, what, by, text string) string {
+func commentLine(tid, mid int64, what, by, text string) string {
 	line := fmt.Sprintf("T%d comment", tid)
 	if mid != 0 {
 		line += fmt.Sprintf(" %d", mid)
@@ -750,15 +750,15 @@ func memoLine(tid, mid int64, what, by, text string) string {
 	return strings.Join(append([]string{line + ": " + t}, files...), "\n")
 }
 
-// MemoLeadS is how long a memo held for its reader's digest may go unread before its writer is told.
-const MemoLeadS = 3600
+// CommentLeadS is how long a comment held for its reader's digest may go unread before its writer is told.
+const CommentLeadS = 3600
 
-// SweepHeldMemos tells the memo's writer once, in its digest, of each memo held for the reader's digest that has gone MemoLeadS unread: the
-// writer is the one waiting on it. The memo stays held for the reader.
-func (e *Env) SweepHeldMemos(now int64) (err error) {
+// SweepHeldComments tells the comment's writer once, in its digest, of each comment held for the reader's digest that has gone CommentLeadS unread: the
+// writer is the one waiting on it. The comment stays held for the reader.
+func (e *Env) SweepHeldComments(now int64) (err error) {
 	defer Catch(&err)
 	q := db.Q(e.DB)
-	rows := must(db.UnreadMemosBefore(q, now-MemoLeadS))
+	rows := must(db.UnreadCommentsBefore(q, now-CommentLeadS))
 	if len(rows) == 0 {
 		return nil
 	}
@@ -768,8 +768,8 @@ func (e *Env) SweepHeldMemos(now int64) (err error) {
 			continue
 		}
 		check(db.SetCursor(q, key, 1))
-		if writer := must(db.MemoWriter(q, r.ID)); writer != r.Target && !actor.IsPerson(writer) && e.registered(writer) {
-			must(e.Notice(q, writer, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", addr.Ref(r.Target), db.MsgName(q, r.ID), r.Body), "memo unread 1h"))
+		if writer := must(db.CommentWriter(q, r.ID)); writer != r.Target && !actor.IsPerson(writer) && e.registered(writer) {
+			must(e.Notice(q, writer, fmt.Sprintf("%s has not read this comment in an hour, held for its next digest (%s): %s", addr.Ref(r.Target), db.MsgName(q, r.ID), r.Body), "comment unread 1h"))
 		}
 	}
 	return nil

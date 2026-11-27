@@ -28,7 +28,7 @@ func Refs(text string) []Ref {
 	return out
 }
 
-// taskTexts are the texts that may name an image, each with its task: its brief (the first request linked to it), its memos and the notes
+// taskTexts are the texts that may name an image, each with its task: its brief (the first request linked to it), its comments and the notes
 // it was handed on or sent back with. The LIKE filters scan every such row, which is fine at today's sizes.
 const taskTexts = `SELECT l.task_id AS tid, r.body AS text FROM task_requests l JOIN requests r ON r.id = l.request_id
 	WHERE l.rowid = (SELECT MIN(f.rowid) FROM task_requests f WHERE f.task_id = l.task_id) AND r.body LIKE '%](attachment:%'
@@ -36,7 +36,7 @@ UNION ALL SELECT task_id, body FROM task_comments WHERE body LIKE '%](attachment
 UNION ALL SELECT json_extract(payload, '$.task_id'), json_extract(payload, '$.note') FROM events
 	WHERE kind IN ('reject_task', 'task_handoff') AND json_valid(payload) AND payload LIKE '%](attachment:%'`
 
-// Held is kept from now while a task naming it (or a memo file) is open, else from when the last such task closed.
+// Held is kept from now while a task naming it (or a comment file) is open, else from when the last such task closed.
 func Held(q db.Q, now int64) (map[string]int64, error) {
 	held := map[string]int64{}
 	err := heldBy(q, now, taskTexts, func(text string) []string {
@@ -49,7 +49,7 @@ func Held(q db.Q, now int64) (map[string]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	return held, heldBy(q, now, memoFilesHeld, func(files string) []string {
+	return held, heldBy(q, now, commentFilesHeld, func(files string) []string {
 		var infos []Info
 		json.Unmarshal([]byte(files), &infos)
 		ids := make([]string, len(infos))

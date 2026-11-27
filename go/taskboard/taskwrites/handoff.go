@@ -120,16 +120,16 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 			return nil, err
 		}
 		var (
-			h      Handover
-			asked  *Asked
-			msg    string
-			memo   int64
-			landBy string // a finish held back from it: Ready for the founder
-			skip   bool   // ... or not held back: its review level lets it go on without the founder
-			level  string
-			model  string
-			judged string // the kind of work whose level judged the finish
-			hold   *laterHold
+			h       Handover
+			asked   *Asked
+			msg     string
+			comment int64
+			landBy  string // a finish held back from it: Ready for the founder
+			skip    bool   // ... or not held back: its review level lets it go on without the founder
+			level   string
+			model   string
+			judged  string // the kind of work whose level judged the finish
+			hold    *laterHold
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			hold = nil
@@ -163,23 +163,23 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 					}
 					return nil, refusal(fmt.Sprintf("no task T%d", tid))
 				}
-				if memo, err = db.AddMemo(tx, tid, me, said); err != nil {
+				if comment, err = db.AddComment(tx, tid, me, said); err != nil {
 					return nil, err
 				}
-				if err := store.AttachMemo(tx, memo, files); err != nil {
+				if err := store.AttachComment(tx, comment, files); err != nil {
 					return nil, err
 				}
 				switch {
 				case skip:
-					if err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(true, works, model, judged)...); err == nil {
+					if err = db.AddReady(tx, tid, me, landBy, comment, rep.fields(true, works, model, judged)...); err == nil {
 						err = db.AddVerdict(tx, tid, db.AutoVerdictBy, db.VerdictOK, 0)
 					}
 					if err == nil {
 						h, asked, err = handOff(tx, tell, tid, me, landBy, fmt.Sprintf("OK without the founder (review level %s). %s", level, said), agents, false)
 					}
 				default:
-					if h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, memo, "", ""); err == nil && landBy != "" && asked.OK && !asked.Reask {
-						err = db.AddReady(tx, tid, me, landBy, memo, rep.fields(maySkip, works, model, judged)...)
+					if h, asked, err = pushTurn(tx, tell, tid, me, actor.OwnerKey, said, comment, "", ""); err == nil && landBy != "" && asked.OK && !asked.Reask {
+						err = db.AddReady(tx, tid, me, landBy, comment, rep.fields(maySkip, works, model, judged)...)
 					}
 				}
 			} else {
@@ -211,7 +211,7 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				return accepted(msg, nil), nil
 			}
 			if landBy != "" {
-				msg = fmt.Sprintf("T%d is Ready for the founder (comment %d): \"OK, merge\" hands it to %s, \"Redo\" sends it back to you", tid, memo, addr.Ref(landBy))
+				msg = fmt.Sprintf("T%d is Ready for the founder (comment %d): \"OK, merge\" hands it to %s, \"Redo\" sends it back to you", tid, comment, addr.Ref(landBy))
 				return accepted(msg, nil), nil
 			}
 			return accepted(fmt.Sprintf("T%d handed to %s: %s", tid, addr.Ref(to), msg), nil), nil
@@ -232,12 +232,12 @@ func handoffMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (an
 				out["said"] = out["said"].(string) + "\n" + tail
 			}
 		}
-		if memo != 0 {
+		if comment != 0 {
 			told := said
 			if lines := store.FileLines(files); lines != "" {
 				told += "\n" + lines
 			}
-			tell.MemoChanged(tid, memo, me, "added", told, false, nil)
+			tell.CommentChanged(tid, comment, me, "added", told, false, nil)
 		}
 		return out, nil
 	}

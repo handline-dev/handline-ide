@@ -33,14 +33,14 @@ func optText(p map[string]any, key string) (string, error) {
 }
 
 // pushTurn puts `to` on top of task tid in tx, by the agent acting on it or the founder, and delivers the task to `to` (the founder is not
-// delivered to: the task is in front of them as theirs to act on). memo is the comment it is handed over with, whose text is ask; 0 for a
+// delivered to: the task is in front of them as theirs to act on). comment is the comment it is handed over with, whose text is ask; 0 for a
 // turn the daemon puts on with ask as its own text.
-func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64, onPass, evidence string) (Handover, *Asked, error) {
-	return pushTurnPassing(tx, tell, tid, by, to, ask, memo, onPass, evidence, "")
+func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, comment int64, onPass, evidence string) (Handover, *Asked, error) {
+	return pushTurnPassing(tx, tell, tid, by, to, ask, comment, onPass, evidence, "")
 }
 
 // pushTurnPassing is pushTurn of a turn whose pass hands the task to passTo (onPass handoff).
-func pushTurnPassing(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64, onPass, evidence, passTo string) (Handover, *Asked, error) {
+func pushTurnPassing(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, comment int64, onPass, evidence, passTo string) (Handover, *Asked, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return Handover{}, nil, err
@@ -60,7 +60,7 @@ func pushTurnPassing(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, mem
 	}
 	if actor.IsPerson(to) && ask != "" && turnRefusal(t, tid, actor.OwnerKey) == "" && actor.IsPerson(t.Acting) && len(turns) > 0 && by == Below(turns, base) {
 		// the founder's turn is their one question slot on the task: asking again rewrites it
-		changed, err := db.ReaskTopTurn(tx, tid, by, ask, memo)
+		changed, err := db.ReaskTopTurn(tx, tid, by, ask, comment)
 		if err != nil || !changed {
 			return Handover{}, &Asked{OK: true, Msg: "the founder's question is unchanged", Reask: true}, err
 		}
@@ -79,7 +79,7 @@ func pushTurnPassing(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, mem
 	}
 	h := Handover{Task: tid, By: by, From: t.Acting, To: to, Title: t.Title}
 	push := func() error {
-		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence, PassTo: passTo, Memo: memo})
+		return db.PushTurn(tx, tid, db.Turn{Agent: to, Ask: ask, By: by, Since: time.Now().Unix(), OnPass: onPass, Evidence: evidence, PassTo: passTo, Comment: comment})
 	}
 	if actor.IsPerson(to) {
 		return h, &Asked{OK: true, Msg: "it waits on the founder"}, shiftTask(tx, tell, &h, "the founder's turn", true, push)
@@ -93,10 +93,10 @@ func pushTurnPassing(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, mem
 	}
 	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: to, Kind: "task", Body: body, Within: func(rid int64) error {
 		h.RID = rid
-		if err := shiftTask(tx, tell, &h, "turn to "+to, true, push); err != nil || memo == 0 {
+		if err := shiftTask(tx, tell, &h, "turn to "+to, true, push); err != nil || comment == 0 {
 			return err
 		}
-		return db.LinkMemoTell(tx, memo, to, rid) // the delivery carries the comment: its tell
+		return db.LinkCommentTell(tx, comment, to, rid) // the delivery carries the comment: its tell
 	}})
 	return h, asked, err
 }
@@ -243,17 +243,17 @@ func (p Popped) tell(tell Teller) {
 }
 
 // popTurn takes the top turn off task tid in tx: a pass or a send-back (with a note) by the agent whose turn it is or the founder. The task
-// goes back to the one below, at the front of its queue (the founder's answer typed at once), with the note as a comment: memo, the
+// goes back to the one below, at the front of its queue (the founder's answer typed at once), with the note as a comment: comment, the
 // founder's comment the note already is, or one the pop writes (0). That return is the comment's tell to the one below. A pass of a turn
 // pushed with on_pass "done" closes the task instead, by that turn's agent through the done gates; when a gate refuses, the turn still
 // comes off with the refusal added to its note.
 // Popped.Asked not OK is a refused return: nothing changed.
-func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, memo int64) (Popped, error) {
-	return popTurnTold(tx, home, tell, tid, by, outcome, note, memo, "")
+func popTurn(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, comment int64) (Popped, error) {
+	return popTurnTold(tx, home, tell, tid, by, outcome, note, comment, "")
 }
 
 // popTurnTold is popTurn with the words the agent below is typed, told; "" for popTurn's own.
-func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, memo int64, told string) (Popped, error) {
+func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, note string, comment int64, told string) (Popped, error) {
 	t, err := getTask(tx, tid)
 	if err != nil {
 		return Popped{}, err
@@ -276,7 +276,7 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 	below := Below(turns, base)
 	h := Handover{Task: tid, By: by, From: top.Agent, To: below, Title: t.Title}
 	if outcome == db.TurnPass && top.OnPass == db.TurnOnPassDone {
-		if hold, err := holdReview(tx, tell, tid, by, below, note, memo, top); err != nil || hold != nil {
+		if hold, err := holdReview(tx, tell, tid, by, below, note, comment, top); err != nil || hold != nil {
 			return Popped{Handover: hold.handover(), Asked: &Asked{OK: true}, hold: hold}, err
 		}
 		res, err := MarkDone(tx, home, top.Agent, DoneIn{Task: tid, Words: top.Evidence, TurnPassed: true})
@@ -286,7 +286,7 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 			return Popped{Handover: h, Done: res}, nil
 		case errors.As(err, &refused) && refused.Code == "refused":
 			note = strings.TrimSpace(note + " (not closed: " + refused.Message + ")")
-			memo = 0 // the refusal is news to the one below
+			comment = 0 // the refusal is news to the one below
 		default:
 			return Popped{}, err
 		}
@@ -306,18 +306,18 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 		}
 	}
 	pop := func() error {
-		if note != "" && memo == 0 {
-			if memo, err = db.AddMemo(tx, tid, by, note); err != nil {
+		if note != "" && comment == 0 {
+			if comment, err = db.AddComment(tx, tid, by, note); err != nil {
 				return err
 			}
 		}
-		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID, memo); err != nil {
+		if _, _, _, err := db.PopTurn(tx, tid, by, outcome, note, h.RID, comment); err != nil {
 			return err
 		}
-		if memo == 0 || h.RID == 0 {
+		if comment == 0 || h.RID == 0 {
 			return nil
 		}
-		return db.LinkMemoTell(tx, memo, below, h.RID) // the note reaches the one below on the task's return: its tell
+		return db.LinkCommentTell(tx, comment, below, h.RID) // the note reaches the one below on the task's return: its tell
 	}
 	word := "passed"
 	if outcome == db.TurnSendBack {
@@ -333,14 +333,14 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 	answer := by == actor.OwnerKey && actor.IsPerson(top.Agent) // the founder ending their own turn answers the task's open question
 	// the receiver asked the question, so it is named by its comment, not repeated
 	question := fmt.Sprintf("T%d 질문", tid)
-	if top.Memo != 0 {
-		question = fmt.Sprintf("T%d 댓글 %d 질문", tid, top.Memo)
+	if top.Comment != 0 {
+		question = fmt.Sprintf("T%d 댓글 %d 질문", tid, top.Comment)
 	}
 	switch {
 	case told != "":
 		body = told
-	case answer && memo != 0:
-		body = fmt.Sprintf("%s에 대표님 댓글 %d: %s", question, memo, textsafe.Oneline(note))
+	case answer && comment != 0:
+		body = fmt.Sprintf("%s에 대표님 댓글 %d: %s", question, comment, textsafe.Oneline(note))
 	case answer && note != "":
 		body = fmt.Sprintf("%s에 대표님 답: %s", question, textsafe.Oneline(note))
 	case answer:
@@ -356,8 +356,8 @@ func popTurnTold(tx *sql.Tx, home string, tell Teller, tid int64, by, outcome, n
 		if err != nil {
 			return Popped{}, err
 		}
-		if memo != 0 {
-			if err := db.LinkMemoTell(tx, memo, below, rid); err != nil {
+		if comment != 0 {
+			if err := db.LinkCommentTell(tx, comment, below, rid); err != nil {
 				return Popped{}, err
 			}
 		}

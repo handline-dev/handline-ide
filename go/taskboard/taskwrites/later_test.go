@@ -31,13 +31,13 @@ func laterEnv(t *testing.T, laters ...string) (*sql.DB, func(agent string, rid, 
 	return sdb, run
 }
 
-func openLater(t *testing.T, sdb *sql.DB) []db.LaterMemo {
+func openLater(t *testing.T, sdb *sql.DB) []db.LaterComment {
 	t.Helper()
 	person, err := db.LaterFor(sdb, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	open, err := db.OpenLaterMemos(sdb, 1, person)
+	open, err := db.OpenLaterComments(sdb, 1, person)
 	if err != nil {
 		t.Fatal(err)
 	}

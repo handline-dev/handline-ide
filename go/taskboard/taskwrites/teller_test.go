@@ -12,7 +12,7 @@ import (
 
 // fakeTeller records what the writes leave for the telling layer.
 type fakeTeller struct {
-	memos     []string
+	comments  []string
 	queued    []string
 	discarded []string
 	told      []db.Notice
@@ -50,11 +50,11 @@ func (f *fakeTeller) retired(rs []Retired) []Retired {
 	return out
 }
 
-func (f *fakeTeller) MemoRecipients(int64, string, string, bool) ([]Recipient, bool) {
+func (f *fakeTeller) CommentRecipients(int64, string, string, bool) ([]Recipient, bool) {
 	return nil, true
 }
-func (f *fakeTeller) MemoChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
-	f.memos = append(f.memos, fmt.Sprintf("T%d %s %s %q%s", tid, f.n(by), what, text, map[bool]string{true: " now"}[now]))
+func (f *fakeTeller) CommentChanged(tid, mid int64, by, what, text string, now bool, skip []string) {
+	f.comments = append(f.comments, fmt.Sprintf("T%d %s %s %q%s", tid, f.n(by), what, text, map[bool]string{true: " now"}[now]))
 }
 func (f *fakeTeller) Background(_ string, fn func()) { go fn() }
 func (f *fakeTeller) PassedPause(agent string)       { f.passed = append(f.passed, f.n(agent)) }
@@ -134,7 +134,7 @@ func TestADiscardHandsItsSaysItsFreedOwnersToTheTeller(t *testing.T) {
 	}
 }
 
-func TestMemoWritesTellTheHolderThroughTheTeller(t *testing.T) {
+func TestCommentWritesTellTheHolderThroughTheTeller(t *testing.T) {
 	t.Parallel()
 	sdb, mk := discardEnv(t)
 	sdb.Exec(keyed(sdb, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 't', 'worker', 'manager', 1)"))
@@ -145,17 +145,17 @@ func TestMemoWritesTellTheHolderThroughTheTeller(t *testing.T) {
 	call(t, s, `{"jsonrpc":"2.0","id":3,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"m3"}}`)
 	call(t, s, `{"jsonrpc":"2.0","id":5,"method":"task.comment.add","params":{"task":1,"text":"stop","now":true,"request_id":"m5"}}`)
 	want := []string{`T1 manager added "check the cache"`, `T1 manager edited "check the disk"`, `T1 manager deleted ""`, `T1 manager added "stop" now`}
-	if !reflect.DeepEqual(f.memos, want) {
-		t.Fatalf("%q", f.memos)
+	if !reflect.DeepEqual(f.comments, want) {
+		t.Fatalf("%q", f.comments)
 	}
-	// a memo that is refused is not told
-	f.memos = nil
+	// a comment that is refused is not told
+	f.comments = nil
 	call(t, s, `{"jsonrpc":"2.0","id":4,"method":"task.comment.add","params":{"task":99,"text":"x","request_id":"m4"}}`)
-	if len(f.memos) != 0 {
-		t.Fatalf("%q", f.memos)
+	if len(f.comments) != 0 {
+		t.Fatalf("%q", f.comments)
 	}
-	if r := call(t, s, `{"jsonrpc":"2.0","id":6,"method":"task.comment.add","params":{"task":1,"text":"x","now":"yes","request_id":"m6"}}`); r[0]["error"] == nil || len(f.memos) != 0 {
-		t.Fatalf("a now that is not true or false was taken: %v %q", r[0], f.memos)
+	if r := call(t, s, `{"jsonrpc":"2.0","id":6,"method":"task.comment.add","params":{"task":1,"text":"x","now":"yes","request_id":"m6"}}`); r[0]["error"] == nil || len(f.comments) != 0 {
+		t.Fatalf("a now that is not true or false was taken: %v %q", r[0], f.comments)
 	}
 }
 

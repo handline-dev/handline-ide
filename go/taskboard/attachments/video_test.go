@@ -2,7 +2,7 @@ package attachments
 
 import "testing"
 
-// A memo carries an MP4 or MOV video checked by its first bytes; an image sent with it under the same name is its poster.
+// A comment carries an MP4 or MOV video checked by its first bytes; an image sent with it under the same name is its poster.
 func TestAVideoIsCheckedByItsBytesAndTakesItsSameNamedPictureAsPoster(t *testing.T) {
 	for name, b := range map[string]string{"a.mp4": "\x00\x00\x00\x18ftypisom", "a.MOV": "\x00\x00\x00\x14ftypqt  ", "old.mov": "\x00\x00\x00\x08wide"} {
 		if mime, err := FileMime(name, []byte(b)); err != nil || videos[mime] == "" {

@@ -19,7 +19,7 @@ import (
 
 // Results told to whoever opened the work reach them in one digest, not one wake each.
 //
-// A notice (delivery.ClassBatch: a task done or discarded, a child's result, a task change, a memo) is information: it never wakes anyone and
+// A notice (delivery.ClassBatch: a task done or discarded, a child's result, a task change, a comment) is information: it never wakes anyone and
 // is never typed mid-turn. It rides on the target's next real delivery, and the first notice starts a clock: once it has run the notice digest
 // window, the notices still waiting are typed as one message of one line each, the next time the tick finds the target at its prompt with a
 // live session. A closed agent keeps the clock: a notice is not worth waking it for.
@@ -73,7 +73,7 @@ func (e *Env) tellNowSay(q db.Q, to, text, reason string) {
 	must(e.TellNow(q, rid))
 }
 
-// DigestLine is `T<n> · who · result (msg_<hash>)` for a result notice; any other notice is its own text. A memo's file lines follow, one each, so
+// DigestLine is `T<n> · who · result (msg_<hash>)` for a result notice; any other notice is its own text. A comment's file lines follow, one each, so
 // every path can be read whole.
 func DigestLine(q db.Q, r *db.Request) string {
 	text, files := attachments.SplitFileLines(r.Body)
@@ -237,7 +237,7 @@ func (e *Env) SweepStopped(now int64) (err error) {
 	return nil
 }
 
-// SweepNotices runs the notice passes in order: stopped sessions, the digests, the held memos and the notice watches.
+// SweepNotices runs the notice passes in order: stopped sessions, the digests, the held comments and the notice watches.
 func (e *Env) SweepNotices(now int64) error {
 	if err := e.SweepStopped(now); err != nil {
 		return err
@@ -245,7 +245,7 @@ func (e *Env) SweepNotices(now int64) error {
 	if err := e.SweepDigests(now); err != nil {
 		return err
 	}
-	if err := e.SweepHeldMemos(now); err != nil {
+	if err := e.SweepHeldComments(now); err != nil {
 		return err
 	}
 	return e.SweepNoticeWatches(now)

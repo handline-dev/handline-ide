@@ -93,7 +93,7 @@ func TestAnAgentNamesOnlyAnImageATaskAlreadyShows(t *testing.T) {
 	}
 	said(t, run("w", "task.comment.add", "m2", params(2, "text", "carried from T1: "+ref(img))))
 	if count(t, sdb, "SELECT COUNT(*) FROM task_comments WHERE task_id = 2 AND body = 'carried from T1: "+ref(img)+"'") != 1 {
-		t.Fatal("the memo is stored as written")
+		t.Fatal("the comment is stored as written")
 	}
 }
 
@@ -127,11 +127,11 @@ func TestATaskWriteClaimsTheImagesItNames(t *testing.T) {
 	}
 	said(t, run("", "task.comment.add", "m1", params(1, "text", "see "+ref(img))))
 	if claimed() == nil {
-		t.Fatal("the memo claims the image it names")
+		t.Fatal("the comment claims the image it names")
 	}
 }
 
-func TestAHandoffNoteNamesImagesAsAMemoDoes(t *testing.T) {
+func TestAHandoffNoteNamesImagesAsACommentDoes(t *testing.T) {
 	t.Parallel()
 	sdb, s, run := imagesEnv(t)
 	img := putImage(t, sdb, s)
@@ -146,7 +146,7 @@ func TestAHandoffNoteNamesImagesAsAMemoDoes(t *testing.T) {
 	}
 }
 
-func TestAnAgentAttachesToAMemoOnlyFilesFromItsOwnPlaces(t *testing.T) {
+func TestAnAgentAttachesToACommentOnlyFilesFromItsOwnPlaces(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	_, _, run := reportEnvIn(t, home, "INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'a', 'w', 'boss', 1)")

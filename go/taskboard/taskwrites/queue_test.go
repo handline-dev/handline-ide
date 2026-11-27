@@ -182,7 +182,7 @@ func TestDraftWithdrawsTheDeliveryNotYetLandedAndEndsOneThatHas(t *testing.T) {
 }
 
 // A task that landed with its holder working it is parked: the holder is stopped and moved on, its timeout paused, and what it left in its
-// worktree is kept in a memo.
+// worktree is kept in a comment.
 func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 	t.Parallel()
 	sdb, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
@@ -223,7 +223,7 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 	draft := func(rid string, tid int) map[string]any {
 		return call(t, s, fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.draft","params":{"tasks":[%d],"request_id":%q}}`, tid, rid))[0]
 	}
-	read := func(tid int64) (st string, timeout *int64, memos []string) {
+	read := func(tid int64) (st string, timeout *int64, comments []string) {
 		tx, _ := sdb.Begin()
 		defer tx.Rollback()
 		tk, _ := getTask(tx, tid)
@@ -235,15 +235,15 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 		for rows.Next() {
 			var b string
 			rows.Scan(&b)
-			memos = append(memos, b)
+			comments = append(comments, b)
 		}
 		rows.Close()
 		return
 	}
 
 	r := draft("p1", 1)
-	if st, timeout, memos := read(1); r["error"] != nil || st != "draft" || timeout != nil || memos != nil {
-		t.Fatalf("a landed task with an idle holder: %v, T1 %s timeout %v memos %q", r, st, timeout, memos)
+	if st, timeout, comments := read(1); r["error"] != nil || st != "draft" || timeout != nil || comments != nil {
+		t.Fatalf("a landed task with an idle holder: %v, T1 %s timeout %v comments %q", r, st, timeout, comments)
 	}
 	if said := r["result"].(map[string]any)["said"]; said != "delivered T1 - 1 stopped" ||
 		len(f.released) != 1 || f.released[0] != (Retired{RID: 11, Requester: "boss", Target: "w", Held: true, Park: true}) {
@@ -262,13 +262,13 @@ func TestDraftParksALandedTaskItsHolderIsWorking(t *testing.T) {
 	head := strings.TrimSpace(gitrun.Run(wt, "rev-parse", "--short", "HEAD").Stdout)
 	f.released = nil
 	r = draft("p2", 2)
-	st, _, memos := read(2)
+	st, _, comments := read(2)
 	want := fmt.Sprintf("parked while v worked it: branch work @ %s in %s (1 commit(s) since it landed) - resume from there", head, wt)
-	if r["error"] != nil || st != "draft" || len(memos) != 1 || memos[0] != want || len(f.released) != 1 || !f.released[0].Park {
-		t.Fatalf("a landed task with commits: %v, T2 %s memos %q, told %+v", r, st, memos, f.released)
+	if r["error"] != nil || st != "draft" || len(comments) != 1 || comments[0] != want || len(f.released) != 1 || !f.released[0].Park {
+		t.Fatalf("a landed task with commits: %v, T2 %s comments %q, told %+v", r, st, comments, f.released)
 	}
 	if said := r["result"].(map[string]any)["said"]; said != "delivered T2, comment 1 keeps where v stopped - 1 stopped" {
-		t.Fatalf("the reply names the memo: %q", said)
+		t.Fatalf("the reply names the comment: %q", said)
 	}
 }
 
@@ -298,8 +298,8 @@ func TestTheFoundersRunEndsTheirTurnOnTheParentQuietly(t *testing.T) {
 			count(t, sdb, "SELECT COUNT(*) FROM agent_state WHERE agent = 'worker' AND current_task = 1") != 0 {
 			t.Fatalf("run %v: the founder's turn stays on the parent, or its holder was handed it", run)
 		}
-		if n := count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'worker'") + count(t, sdb, "SELECT COUNT(*) FROM task_comments WHERE task_id = 1"); n != 0 || len(f.handed) != 0 || len(f.memos) != 0 {
-			t.Fatalf("run %v: the parent's holder was told: %d rows, handed %v, memos %v", run, n, f.handed, f.memos)
+		if n := count(t, sdb, "SELECT COUNT(*) FROM requests WHERE target = 'worker'") + count(t, sdb, "SELECT COUNT(*) FROM task_comments WHERE task_id = 1"); n != 0 || len(f.handed) != 0 || len(f.comments) != 0 {
+			t.Fatalf("run %v: the parent's holder was told: %d rows, handed %v, comments %v", run, n, f.handed, f.comments)
 		}
 		for _, n := range f.notified {
 			if n.To == "worker" {

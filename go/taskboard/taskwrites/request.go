@@ -116,13 +116,13 @@ func requestMethod(home string) func(*rpc.Conn, map[string]any) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			// A ref is a path, not a kept file: the memo says it in words, numbered after the files.
-			memo := strings.Join(append([]string{req.Body}, attachments.PathRefLines(attachments.PathRefsOf(tx, rid), len(files))...), "\n")
-			mid, err := db.AddMemo(tx, tid, req.Requester, strings.TrimSpace(memo))
+			// A ref is a path, not a kept file: the comment says it in words, numbered after the files.
+			comment := strings.Join(append([]string{req.Body}, attachments.PathRefLines(attachments.PathRefsOf(tx, rid), len(files))...), "\n")
+			mid, err := db.AddComment(tx, tid, req.Requester, strings.TrimSpace(comment))
 			if err != nil {
 				return nil, err
 			}
-			if err := attachments.New(home).AttachMemo(tx, mid, files); err != nil {
+			if err := attachments.New(home).AttachComment(tx, mid, files); err != nil {
 				return nil, err
 			}
 			if err := addEvent(tx, c.Caller.Actor(), "task_request", kv{"task_id", tid}, kv{"chat_request", rid}, kv{"owner", owner}); err != nil {

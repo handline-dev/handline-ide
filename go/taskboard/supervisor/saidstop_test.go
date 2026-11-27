@@ -59,7 +59,7 @@ func TestNoNoticeOnceTheTaskIsTheFoundersOrWithNoDoingTask(t *testing.T) {
 	r.agentUp(r.k("bob"))
 	tid := r.beginCurrent(r.k("bob"), r.k(("alice")), "the PR")
 	r.turn(r.k("bob"), true)
-	mid, err := db.AddMemo(r.DB, tid, r.k(("bob")), "`@human` may I open the PR?") // the task waits on the founder in a memo ask
+	mid, err := db.AddComment(r.DB, tid, r.k(("bob")), "`@human` may I open the PR?") // the task waits on the founder in a comment ask
 	r.must(err)
 	ask, err := db.AddRequest(r.DB, db.NewRequest{Requester: r.k(("bob")), Target: actor.OwnerKey, Body: "may I open the PR?", Kind: "ask"})
 	r.must(err)
@@ -68,7 +68,7 @@ func TestNoNoticeOnceTheTaskIsTheFoundersOrWithNoDoingTask(t *testing.T) {
 	r.must(err)
 	r.must(r.SweepSaidAndStopped())
 	if n := r.saidStopNotices(r.k("bob"), tid); n != 0 {
-		t.Fatalf("told about a task that waits on the founder in a memo ask: %v", r.saysTo(r.k("bob")))
+		t.Fatalf("told about a task that waits on the founder in a comment ask: %v", r.saysTo(r.k("bob")))
 	}
 
 	r.agentUp(r.k("alice"))
