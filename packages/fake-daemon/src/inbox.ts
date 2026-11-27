@@ -7,7 +7,7 @@ import { seedInbox } from '#src/fixtures.ts';
 interface Host {
   emit(topic: 'inbox', type: string, f: { agent?: string; title?: string; data: Record<string, unknown> }): void;
   /** The tasks, where the founder's reply to an ask a comment raised goes: a comment on that task, a reply to the comment. */
-  tasks: { memo(p: Record<string, unknown>, op: 'add', person: string): number };
+  tasks: { comment(p: Record<string, unknown>, op: 'add', person: string): number };
 }
 
 export class FakeInbox {
@@ -94,9 +94,9 @@ export class FakeInbox {
     for (const id of ids) this.change(this.find(id), { read: true });
   }
 
-  /** The open ask the comment `memo` of `task` raised. */
-  askOf(task: number, memo: number): InboxItem | undefined {
-    return this.items.find((i) => i.task === task && i.memo === memo && !i.read);
+  /** The open ask that comment `comment` on `task` raised. */
+  askOf(task: number, comment: number): InboxItem | undefined {
+    return this.items.find((i) => i.task === task && i.comment === comment && !i.read);
   }
 
   /** Changes an item's text, as an edit of the comment it came from does. */
@@ -107,7 +107,7 @@ export class FakeInbox {
   /** Closes the open asks that comments raised: of one task, or of every task (`task` undefined). */
   closeAsks(task?: number): void {
     for (const i of this.items)
-      if (i.memo !== undefined && !i.read && (task === undefined || i.task === task)) this.change(i, { read: true });
+      if (i.comment !== undefined && !i.read && (task === undefined || i.task === task)) this.change(i, { read: true });
   }
 
   /** Closes one ask. */

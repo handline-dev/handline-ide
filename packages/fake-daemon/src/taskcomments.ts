@@ -1,5 +1,5 @@
-// The fake daemon's task comments: the memos on a row, the asks to the founder they raise, and who was told.
-import type { Memo, MemoFile, MemoReader } from '@handline/contract';
+// The fake daemon's task comments: the comments on a row, the asks to the founder they raise, and who was told.
+import type { Comment, CommentFile, CommentReader } from '@handline/contract';
 import { refs } from '#src/attachments.ts';
 import { TaskFailure, TaskStore, type Row } from '#src/taskstore.ts';
 import { FOUNDER } from '#src/founder.ts';
@@ -69,7 +69,7 @@ export class TaskComments extends TaskStore {
     }
     const last =
       named.length === 0 && founder && acting === person
-        ? ([...(t.memos ?? [])].reverse().find((m) => m.author !== person && this.isAgent(m.author))?.author ?? '')
+        ? ([...(t.comments ?? [])].reverse().find((m) => m.author !== person && this.isAgent(m.author))?.author ?? '')
         : '';
     const listed = named.length === 0 ? [t.from, acting] : back ? [acting] : [];
     const unheld = founder && !this.isAgent(acting);
@@ -88,7 +88,7 @@ export class TaskComments extends TaskStore {
   /** task.seen: the marker moves forward to `upto`, by default the task's newest comment, and never back; a task with no comments is marked too. */
   seen(p: Record<string, unknown>): void {
     const t = this.find(p.task);
-    const newest = (t.memos ?? []).reduce((n, m) => Math.max(n, m.id), 0);
+    const newest = (t.comments ?? []).reduce((n, m) => Math.max(n, m.id), 0);
     const upto = typeof p.upto === 'number' ? p.upto : newest;
     if (upto > (this.seenUpto.get(t.id) ?? -1)) {
       this.seenUpto.set(t.id, upto);
@@ -227,7 +227,7 @@ export class TaskComments extends TaskStore {
   private runnable(id: number, holds: number[]): boolean {
     const t = this.rows.find((r) => r.id === id);
     if (t?.state !== 'draft') return false;
-    const newest = (t.memos ?? []).reduce((n, m) => Math.max(n, m.id), 0);
+    const newest = (t.comments ?? []).reduce((n, m) => Math.max(n, m.id), 0);
     return holds.length > 0 || (this.seenUpto.get(id) ?? -1) < newest;
   }
 
@@ -238,7 +238,7 @@ export class TaskComments extends TaskStore {
     for (const t of this.rows) {
       if (answer.has(`task:${t.id}`) || t.state === 'discarded') continue;
       const v = this.view(t);
-      const m = (t.memos ?? [])
+      const m = (t.comments ?? [])
         .filter((x) => x.author !== 'human' && x.id > (this.seenUpto.get(t.id) ?? 0) && TO_FOUNDER.test(x.text))
         .at(-1);
       const seen = m && this.host.chat.seenAt(m.author);
@@ -262,19 +262,19 @@ export class TaskComments extends TaskStore {
   }
 
   private lastComment(t: Row): string {
-    return (t.memos ?? []).reduce((at, m) => (m.at > at ? m.at : at), t.created);
+    return (t.comments ?? []).reduce((at, m) => (m.at > at ? m.at : at), t.created);
   }
 
-  memo(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
+  comment(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
     const t = this.find(p.task);
-    const memos = (t.memos ??= []);
+    const comments = (t.comments ??= []);
     if (op === 'add') {
       this.images(String(p.text), '', 'text', agent);
-      const id = memos.reduce((n, m) => Math.max(n, m.id), 0) + 1;
+      const id = comments.reduce((n, m) => Math.max(n, m.id), 0) + 1;
       const files = Array.isArray(p.files) ? p.files.map((f) => this.host.uploads.memoFile(String(f))) : [];
-      if (p.reply !== undefined && !memos.some((m) => m.id === p.reply))
-        throw new TaskFailure('refused', `memo ${String(p.reply)} does not exist`);
-      memos.push({
+      if (p.reply !== undefined && !comments.some((m) => m.id === p.reply))
+        throw new TaskFailure('refused', `comment ${String(p.reply)} does not exist`);
+      comments.push({
         id,
         task: t.id,
         author: person,
@@ -283,30 +283,37 @@ export class TaskComments extends TaskStore {
         ...(p.reply === undefined ? {} : { reply_to: Number(p.reply) }),
         ...(files.length ? { files } : {}),
       });
-      (t.history ??= []).push({ at: this.now(), by: person, field: 'memo', was: '', now: String(p.text), memo: id });
-      this.askFor(t, memos[memos.length - 1]!, true);
+      (t.history ??= []).push({ at: this.now(), by: person, field: 'comment', was: '', now: String(p.text), comment: id });
+      this.askFor(t, comments[comments.length - 1]!, true);
       return id;
     }
-    const i = memos.findIndex((m) => m.id === p.memo);
-    if (i < 0) throw new TaskFailure('refused', `memo ${String(p.memo)} does not exist`);
+    const i = comments.findIndex((m) => m.id === p.comment);
+    if (i < 0) throw new TaskFailure('refused', `comment ${String(p.comment)} does not exist`);
     if (op === 'edit') {
-      this.images(String(p.text), memos[i]!.text, 'text', agent);
-      (t.history ??= []).push({ at: this.now(), by: person, field: 'memo', was: memos[i]!.text, now: String(p.text), memo: memos[i]!.id });
-      memos[i] = { ...memos[i]!, text: String(p.text) };
-      this.askFor(t, memos[i]!, false);
+      this.images(String(p.text), comments[i]!.text, 'text', agent);
+      (t.history ??= []).push({
+        at: this.now(),
+        by: person,
+        field: 'comment',
+        was: comments[i]!.text,
+        now: String(p.text),
+        comment: comments[i]!.id,
+      });
+      comments[i] = { ...comments[i]!, text: String(p.text) };
+      this.askFor(t, comments[i]!, false);
     } else {
-      (t.history ??= []).push({ at: this.now(), by: person, field: 'memo', was: memos[i]!.text, now: '', memo: memos[i]!.id });
-      this.askFor(t, memos[i]!, false, true);
-      memos.splice(i, 1);
+      (t.history ??= []).push({ at: this.now(), by: person, field: 'comment', was: comments[i]!.text, now: '', comment: comments[i]!.id });
+      this.askFor(t, comments[i]!, false, true);
+      comments.splice(i, 1);
     }
-    return memos[i]?.id ?? 0;
+    return comments[i]?.id ?? 0;
   }
 
   /**
    * The ask to the founder that comment `m` raised, kept as the comment reads now: an ask an agent's comment to the founder opened before comments stopped asking stays open.
    * The founder writing on the task answers it.
    */
-  protected askFor(t: Row, m: Memo, adding: boolean, gone = false): void {
+  protected askFor(t: Row, m: Comment, adding: boolean, gone = false): void {
     const inbox = this.host.inbox;
     if (!this.isAgent(m.author)) return adding ? inbox.closeAsks(t.id) : undefined;
     const open = inbox.askOf(t.id, m.id);
@@ -315,31 +322,31 @@ export class TaskComments extends TaskStore {
     else if (open) inbox.close(open);
   }
 
-  /** Where the tell of a founder's comment stands for each agent it was told to, as the daemon reports it (Memo.readers). */
-  setReaders(task: number, memo: number, readers: MemoReader[]): void {
-    const m = this.find(task).memos?.find((x) => x.id === memo);
-    if (!m) throw new TaskFailure('refused', `memo ${memo} does not exist`);
+  /** Where the tell of a founder's comment stands for each agent it was told to, as the daemon reports it (Comment.readers). */
+  setReaders(task: number, comment: number, readers: CommentReader[]): void {
+    const m = this.find(task).comments?.find((x) => x.id === comment);
+    if (!m) throw new TaskFailure('refused', `comment ${comment} does not exist`);
     m.readers = readers;
   }
 
-  /** A memo that carries files, as `hl task comment add --file` leaves it. */
-  memoWithFiles(task: number, author: string, text: string, files: MemoFile[]): number {
-    const id = this.memo({ task, text }, 'add', author);
-    const m = this.find(task).memos!.find((x) => x.id === id)!;
+  /** A comment that carries files, as `hl task comment add --file` leaves it. */
+  memoWithFiles(task: number, author: string, text: string, files: CommentFile[]): number {
+    const id = this.comment({ task, text }, 'add', author);
+    const m = this.find(task).comments!.find((x) => x.id === id)!;
     m.files = files;
     return id;
   }
-  /** How many briefs and memos name image id, or carry it as a memo's file: attachment.remove's count. */
+  /** How many briefs and comments name image id, or carry it as a comment's file: attachment.remove's count. */
   naming(id: string): number {
     let n = 0;
     for (const t of this.rows) {
       if (refs(t.body).includes(id)) n++;
-      for (const m of t.memos ?? []) if (refs(m.text).includes(id) || m.files?.some((f) => f.id === id)) n++;
+      for (const m of t.comments ?? []) if (refs(m.text).includes(id) || m.files?.some((f) => f.id === id)) n++;
     }
     return n;
   }
-  /** Every memo's files through mark, so one the founder removed reads gone and removed. */
-  remark(mark: (f: MemoFile) => MemoFile): void {
-    for (const t of this.rows) for (const m of t.memos ?? []) if (m.files) m.files = m.files.map(mark);
+  /** Every comment's files through mark, so one the founder removed reads gone and removed. */
+  remark(mark: (f: CommentFile) => CommentFile): void {
+    for (const t of this.rows) for (const m of t.comments ?? []) if (m.files) m.files = m.files.map(mark);
   }
 }

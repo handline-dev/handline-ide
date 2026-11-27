@@ -75,7 +75,7 @@
      },
      "result": {
       "accepted": true,
-      "memo": {
+      "comment": {
        "$save": "mid"
       }
      }
@@ -93,7 +93,7 @@
      "result": {
       "items": {
        "$each": {
-        "memo": {
+        "comment": {
          "$absent": true
         }
        }
@@ -178,7 +178,7 @@
      },
      "result": {
       "accepted": true,
-      "memo": {
+      "comment": {
        "$save": "mid"
       }
      }
@@ -196,7 +196,7 @@
      "result": {
       "items": {
        "$each": {
-        "memo": {
+        "comment": {
          "$absent": true
         }
        }

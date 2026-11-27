@@ -72,7 +72,17 @@ export const REQUEST_SEEDS: Record<string, Seed> = {
     );
     const ask = 'Which goes first: the store or the list?';
     const turns = [
-      { agent: 'p1', ask, memo: null, by: 'handline.architect', since: ago(90), on_pass: null, evidence: null, edited: null, earlier: [] },
+      {
+        agent: 'p1',
+        ask,
+        comment: null,
+        by: 'handline.architect',
+        since: ago(90),
+        on_pass: null,
+        evidence: null,
+        edited: null,
+        earlier: [],
+      },
     ];
     d.tasks.seed({ id: 3954, from: 'handline.architect', to: 'handline.lander', title: 'Pick the merge order', state: 'queued', turns });
     d.tasks.seed({
@@ -122,8 +132,8 @@ export const REQUEST_SEEDS: Record<string, Seed> = {
     titles.forEach((title, i) => {
       const at = new Date(Date.now() - (60 + i) * 60_000).toISOString();
       const author = i ? 'handline.ui' : 'handline.lander';
-      const memos = [{ id: 5000 + i, task: 3890 + i, author, at, text: '<@human> Landed on main.' }];
-      d.tasks.seed({ id: 3890 + i, from: 'human', to: 'human', title, state: 'queued', memos });
+      const comments = [{ id: 5000 + i, task: 3890 + i, author, at, text: '<@human> Landed on main.' }];
+      d.tasks.seed({ id: 3890 + i, from: 'human', to: 'human', title, state: 'queued', comments });
     });
     // The founder read the lander's chat after its note: that note is read; handline.ui's two are not.
     const seen = d.chat.seed('handline.lander', {

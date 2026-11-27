@@ -56,10 +56,10 @@ function Snippet({ text, query }: { text: string; query: string }) {
 }
 
 /** Brings a comment into view once its task's page has drawn it. */
-function showMemoWhenDrawn(memo: number) {
+function showMemoWhenDrawn(comment: number) {
   let tries = 0;
   const look = () => {
-    if (document.querySelector(`[data-memo="${memo}"]`)) return showMemo(memo);
+    if (document.querySelector(`[data-comment="${comment}"]`)) return showMemo(comment);
     if (++tries < 40) setTimeout(look, 100);
   };
   setTimeout(look, 100);
@@ -98,11 +98,11 @@ function useHitEntry(query: string): (hit: SearchHit, i: number) => Entry {
     if (hit.kind === 'comment')
       return {
         ...task(hit.task!, hit.title),
-        key: `hit:comment:${hit.memo}`,
+        key: `hit:comment:${hit.comment}`,
         icon: <MessageSquareText size={14} />,
         hint: who,
         note,
-        then: () => showMemoWhenDrawn(hit.memo!),
+        then: () => showMemoWhenDrawn(hit.comment!),
       };
     // A message that delivers a task is that task's card in the chat: it opens the task. Any other opens with the lines around it.
     const opens = hit.task ? taskOf(hit.task) : messageOf(hit.request!);

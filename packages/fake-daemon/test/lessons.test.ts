@@ -76,9 +76,9 @@ test("the learning seed's founder rules carry their count and a quote that opens
   const items = (await client.call('lessons.list', { agent: 'human' })).items;
   const quoted = items.find((l) => l.quote?.comment != null)!;
   assert.ok(quoted.count > 1);
-  const memos = (await client.call('task.get', { task: quoted.quote!.task! })).timeline.filter((r) => r.kind === 'memo');
+  const comments = (await client.call('task.get', { task: quoted.quote!.task! })).timeline.filter((r) => r.kind === 'comment');
   assert.ok(
-    memos.some((r) => r.memo === quoted.quote!.comment),
+    comments.some((r) => r.comment === quoted.quote!.comment),
     'the quote names a comment the task has',
   );
   assert.ok(items.some((l) => l.quote?.message?.startsWith('msg_')) && items.some((l) => !l.quote && l.count === 1));

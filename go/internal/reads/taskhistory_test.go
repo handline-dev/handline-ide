@@ -37,17 +37,17 @@ func TestTaskHistoryListsEveryChangeAsRowsNewestFirst(t *testing.T) {
 		if m["note"] != nil {
 			line += fmt.Sprintf(" (%v)", m["note"])
 		}
-		if m["memo"] != nil {
-			line += fmt.Sprintf(" memo %v", m["memo"])
+		if m["comment"] != nil {
+			line += fmt.Sprintf(" comment %v", m["comment"])
 		}
 		lines = append(lines, line)
 	}
 	want := []string{
 		`19 bob state: "doing" -> "done" (abc123)`,
 		`18 dan blocked_by: "T7" -> ""`,
-		`17 p1 memo: "mind the disk" -> "" memo 3`,
-		`16 cat memo: "mind the cache" -> "mind the disk" memo 3`,
-		`15 cat memo: "" -> "mind the cache" memo 3`,
+		`17 p1 comment: "mind the disk" -> "" comment 3`,
+		`16 cat comment: "mind the cache" -> "mind the disk" comment 3`,
+		`15 cat comment: "" -> "mind the cache" comment 3`,
 		`14 bob state: "queued" -> "doing"`,
 		`13 amy blocked_by: "" -> "T7"`,
 		`12 cat title: "ship" -> "ship it"`,

@@ -137,9 +137,9 @@ test("a task's text names only finished, kept images; an agent only one a task a
   const image = { id: img, name: 'a.png', mime: 'image/png', bytes: PNG.length };
   const mine = await s.client.call('task.get', { task });
   assert.deepEqual(mine.body_parts, [{ text: 'cut off ' }, { image, caption: 'the button' }]);
-  assert.deepEqual(mine.memos[0]!.parts, [{ text: 'from the brief ' }, { image, caption: 'the button' }]);
+  assert.deepEqual(mine.comments[0]!.parts, [{ text: 'from the brief ' }, { image, caption: 'the button' }]);
   const theirs = await agent.call('task.get', { task });
-  assert.match(String((theirs.memos[0]!.parts![1] as { path?: string }).path), /^\/.*\.png$/);
+  assert.match(String((theirs.comments[0]!.parts![1] as { path?: string }).path), /^\/.*\.png$/);
   s.daemon.uploads.expire(img);
   assert.deepEqual((await s.client.call('task.get', { task })).body_parts![1], { image: { id: img }, caption: 'the button', gone: true });
   await s.client.call('task.edit', { task, body: `still cut off ${ref(img)}`, request_id: 'e2' }); // a kept reference is not checked again

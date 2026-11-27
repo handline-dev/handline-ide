@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { activityOf, addressText, toldOf } from '#src/task-activity.ts';
 
-const e = (kind: string, who: string, text: string, at: string, memo: number | null = null) =>
-  ({ at, who, kind, text, memo, edited_at: null }) as Parameters<typeof activityOf>[1][number];
+const e = (kind: string, who: string, text: string, at: string, comment: number | null = null) =>
+  ({ at, who, kind, text, comment, edited_at: null }) as Parameters<typeof activityOf>[1][number];
 
 test('entries become comments and events in words, a handoff one line with its note kept', () => {
   const a = activityOf(
@@ -11,7 +11,7 @@ test('entries become comments and events in words, a handoff one line with its n
     [
       e('state', 'handline.pc', 'new -> opened', '2026-01-01T00:00:01Z'),
       e('handoff', 'handline.pc → worker2', 'Over to you', '2026-01-01T00:00:02Z'),
-      e('memo', 'founder', 'Hello', '2026-01-01T00:00:03Z', 7),
+      e('comment', 'founder', 'Hello', '2026-01-01T00:00:03Z', 7),
       e('state', 'worker2', 'queued -> doing', '2026-01-01T00:00:04Z'),
       e('reject', 'handline.pc', 'Not yet', '2026-01-01T00:00:05Z'),
     ],
@@ -27,11 +27,11 @@ test('entries become comments and events in words, a handoff one line with its n
     ],
   );
   assert.equal(a[1]!.note, 'Over to you');
-  assert.equal(a[2]!.memo, 7);
+  assert.equal(a[2]!.comment, 7);
 });
 
 test('a comment lists the files its text does not name, a text file too; one it names is drawn in place, not again', () => {
-  const memo = {
+  const comment = {
     id: 1,
     author: 'human',
     at: '2026-11-06T00:00:00Z',
@@ -42,7 +42,7 @@ test('a comment lists the files its text does not name, a text file too; one it 
       { id: 'ccc', name: 'notes.md', kind: 'markdown', mime: 'text/markdown', bytes: 30, gone: false },
     ],
   } as unknown as Parameters<typeof activityOf>[0][number];
-  assert.deepEqual(activityOf([memo], [])[0]!.images, [
+  assert.deepEqual(activityOf([comment], [])[0]!.images, [
     { id: 'bbb', name: 'other.png', mime: 'image/png', size: 20 },
     { id: 'ccc', name: 'notes.md', mime: 'text/markdown', size: 30 },
   ]);
@@ -77,10 +77,12 @@ test('a turn passed or a handoff reads by who it went to, the person as you; the
 });
 
 test("the person's comment that gives the turn back is headed with whom it went to", () => {
-  const memo = { id: 7, author: 'human', at: '2026-01-01T00:00:02Z', text: 'Go.' } as unknown as Parameters<typeof activityOf>[0][number];
+  const comment = { id: 7, author: 'human', at: '2026-01-01T00:00:02Z', text: 'Go.' } as unknown as Parameters<
+    typeof activityOf
+  >[0][number];
   const [c, ...rest] = activityOf(
-    [memo],
-    [{ ...e('turn', 'human → handline.ui', '', '2026-01-01T00:00:02Z'), memo: 7, turn: 'pop' }],
+    [comment],
+    [{ ...e('turn', 'human → handline.ui', '', '2026-01-01T00:00:02Z'), comment: 7, turn: 'pop' }],
     'human',
   );
   assert.deepEqual([c!.turn, c!.turnTo, rest.length], ['pop', 'handline.ui', 0]);
@@ -103,7 +105,7 @@ test("the founder's own comment is addressed to whom the daemon told, never the 
   assert.equal(addressText('@architect here', toldOf({ readers: [told('architect')] }, 'ron')), 'here');
 });
 
-test('whom a comment is written to comes from the daemon (Memo.to), never from its words', () => {
+test('whom a comment is written to comes from the daemon (Comment.to), never from its words', () => {
   type M = Parameters<typeof activityOf>[0][number];
   const to = { id: 1, author: 'a2', at: '2026-01-01T00:00:00Z', text: '<@p1> OK?', to: 'p1' } as unknown as M;
   const plain = { id: 2, author: 'a2', at: '2026-01-01T00:00:01Z', text: '<@p1> OK?' } as unknown as M;

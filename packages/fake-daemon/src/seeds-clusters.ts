@@ -31,9 +31,9 @@ export const CLUSTER_SEEDS: Record<string, Seed> = {
       state: 'doing',
       created: at,
       body: 'The old key was in a log.',
-      memos: [{ id: 1, at, author: 'shop.backend', text: ask, task: 41 }],
-      turnLog: [{ at, who: `shop.backend → ${ME}`, text: ask, turn: 'push', memo: 1 }],
-      turns: [{ agent: ME, ask, memo: 1, by: 'shop.backend', since: at, on_pass: null, evidence: null, edited: null, earlier: [] }],
+      comments: [{ id: 1, at, author: 'shop.backend', text: ask, task: 41 }],
+      turnLog: [{ at, who: `shop.backend → ${ME}`, text: ask, turn: 'push', comment: 1 }],
+      turns: [{ agent: ME, ask, comment: 1, by: 'shop.backend', since: at, on_pass: null, evidence: null, edited: null, earlier: [] }],
       acting: ME,
     });
     d.inbox.add({ kind: 'decision', agent: 'shop.backend', title: 'Rotate the payment API key', body: ask, task: 41 });

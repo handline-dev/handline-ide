@@ -49,8 +49,8 @@ test('tasks-200 seeds 200 tasks, and all switches on every seed but those asked 
 test('review: a task tagged review whose first comment names two pictures the daemon serves', () => {
   const daemon = new FakeDaemon();
   applySeeds(daemon, 'review');
-  const { memos } = daemon.tasks.get({ task: 9301 });
-  const images = memos[0]!.parts!.flatMap((p) => ('image' in p ? [p.image.id] : []));
+  const { comments } = daemon.tasks.get({ task: 9301 });
+  const images = comments[0]!.parts!.flatMap((p) => ('image' in p ? [p.image.id] : []));
   assert.equal(images.length, 2);
   assert.equal(daemon.uploads.get({ id: images[0] }).mime, 'image/png');
 });
@@ -70,7 +70,7 @@ test('chat-actions: the open task the founder owns has a body, a time box, two c
   await client.start();
   const t = await client.call('task.get', { task: 6902 });
   assert.equal(t.state, 'doing');
-  assert.equal(t.memos.length, 2);
+  assert.equal(t.comments.length, 2);
   assert.ok(t.body.includes('three steps'));
   client.close();
 });
@@ -114,7 +114,7 @@ test('story-review seeds a sub-task Ready for you with pictures and a video, and
   );
   const ready = await client.call('task.get', { task: 9411 });
   assert.equal(ready.turns?.at(-1)?.agent, 'p1');
-  const files = ready.memos.find((m) => m.id === ready.review?.memo)?.files ?? [];
+  const files = ready.comments.find((m) => m.id === ready.review?.comment)?.files ?? [];
   const video = files.find((f) => f.kind === 'video');
   assert.deepEqual(
     files.map((f) => f.kind),

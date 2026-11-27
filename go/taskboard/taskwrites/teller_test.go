@@ -141,8 +141,8 @@ func TestMemoWritesTellTheHolderThroughTheTeller(t *testing.T) {
 	f := &fakeTeller{}
 	s := mk("manager", f)
 	call(t, s, `{"jsonrpc":"2.0","id":1,"method":"task.comment.add","params":{"task":1,"text":"check the cache","request_id":"m1"}}`)
-	call(t, s, `{"jsonrpc":"2.0","id":2,"method":"task.comment.edit","params":{"task":1,"memo":1,"text":"check the disk","request_id":"m2"}}`)
-	call(t, s, `{"jsonrpc":"2.0","id":3,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"m3"}}`)
+	call(t, s, `{"jsonrpc":"2.0","id":2,"method":"task.comment.edit","params":{"task":1,"comment":1,"text":"check the disk","request_id":"m2"}}`)
+	call(t, s, `{"jsonrpc":"2.0","id":3,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"m3"}}`)
 	call(t, s, `{"jsonrpc":"2.0","id":5,"method":"task.comment.add","params":{"task":1,"text":"stop","now":true,"request_id":"m5"}}`)
 	want := []string{`T1 manager added "check the cache"`, `T1 manager edited "check the disk"`, `T1 manager deleted ""`, `T1 manager added "stop" now`}
 	if !reflect.DeepEqual(f.memos, want) {

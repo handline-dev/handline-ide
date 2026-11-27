@@ -185,7 +185,7 @@ function Requests({ all }: { all: AllRequests }) {
     const { scroll } = requestClick(shown, aim);
     pick();
     if (scroll === 'turn') goToTurnOf(aim.task!);
-    else if (scroll) showMemo(scroll.memo);
+    else if (scroll) showMemo(scroll.comment);
   };
   const found = showable.findIndex((x) => keyOf(x) === chosenKey);
   // A shown row that left the list (answered, put off) stays shown; until one is chosen, the first.
@@ -230,7 +230,7 @@ function Requests({ all }: { all: AllRequests }) {
           onPick={
             split && x.p.task !== null
               ? () =>
-                  click({ key: keyOf(x), task: x.p.task, memo: x.p.source === 'comment' && x.p.id ? Number(x.p.id) : undefined }, () =>
+                  click({ key: keyOf(x), task: x.p.task, comment: x.p.source === 'comment' && x.p.id ? Number(x.p.id) : undefined }, () =>
                     choose(x, showable.indexOf(x)),
                   )
               : undefined

@@ -98,7 +98,7 @@ func (e *Env) taskHistory(c *rpc.Conn, params map[string]any) (any, error) {
 		case "merge_task":
 			add("merged_into", "", fmt.Sprintf("T%d", int64(seconds(p["into"]))))
 		case "comment_add", "comment_edit", "comment_delete":
-			add("memo", text(p["was"]), text(p["now"]))["memo"] = int64(seconds(p["comment"]))
+			add("comment", text(p["was"]), text(p["now"]))["comment"] = int64(seconds(p["comment"]))
 		}
 		now, ok := historyState(kind, p)
 		if ok {

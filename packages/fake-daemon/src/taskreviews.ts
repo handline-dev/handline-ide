@@ -25,6 +25,6 @@ export class TaskReviews extends TaskPlans {
     if (typeof p.note !== 'string' || !p.note.trim()) throw invalidParams('a redo says what to change in note', 'note');
     const t = this.readyTask(p);
     this.change(t, { review: { ...t.review, ready: false, redo: t.review.redo + 1 } });
-    return this.memo({ task: t.id, text: p.note }, 'add', person); // no longer Ready, the founder's comment passes their turn back
+    return this.comment({ task: t.id, text: p.note }, 'add', person); // no longer Ready, the founder's comment passes their turn back
   }
 }

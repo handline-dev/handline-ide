@@ -93,8 +93,8 @@ export function TaskTab({ id }: { id: number }) {
       task={t.id}
       open={mine ? openTurnRow(t, me) : undefined}
       turn={turn}
-      onReply={(id) => setReplyTo(t.memos.find((m) => m.id === id) ?? null)}
-      items={activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
+      onReply={(id) => setReplyTo(t.comments.find((m) => m.id === id) ?? null)}
+      items={activityOf(t.comments, t.timeline, me, nameOf).filter((i) => !isSystem(i.who))}
     />
   );
   const box = (
@@ -230,7 +230,7 @@ export function TaskChat({ id }: { id: number }) {
   const attach = useAttachments(`task:${id}`);
   const [draft, setDraft] = useDraft(`task:${id}`);
   if (!t) return <TaskLoading id={id} />;
-  const items = activityOf(t.memos, t.timeline, me, nameOf).filter((i) => !isSystem(i.who));
+  const items = activityOf(t.comments, t.timeline, me, nameOf).filter((i) => !isSystem(i.who));
   const mine = !CLOSED.includes(t.state) && foundersTurn(t, me);
   return (
     <FileDropArea take={attach.add} className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -245,7 +245,7 @@ export function TaskChat({ id }: { id: number }) {
                 task={t.id}
                 open={mine ? openTurnRow(t, me) : undefined}
                 turn={t.turns?.at(-1)}
-                onReply={(m) => setReplyTo(t.memos.find((x) => x.id === m) ?? null)}
+                onReply={(m) => setReplyTo(t.comments.find((x) => x.id === m) ?? null)}
                 items={items}
               />
             ),
@@ -297,7 +297,7 @@ function TaskLink({ id, title, state }: { id: number; title?: string; state?: Lo
 }
 
 /** A line's key: a comment by its number and words, so an edit draws it again; an event by its time and words. */
-const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.memo}:${i.note}` : `e${i.at}${i.line}`);
+const keyOf = (i: ActivityItem) => (i.kind === 'comment' ? `c${i.comment}:${i.note}` : `e${i.at}${i.line}`);
 
 /** Comments and changes in one list, oldest first, all shown; the page opens at the newest. */
 function Activity({
@@ -314,18 +314,18 @@ function Activity({
   items: ActivityItem[];
   open?: OpenTurn;
   turn?: Turn;
-  onReply: (memo: number) => void;
+  onReply: (comment: number) => void;
 }) {
   // The texts an edited comment had: its history rows. Its 'edited' mark opens them in a window.
   const rows = useTaskHistory(task).data?.rows;
-  const earlierOf = (memo?: number | null) =>
-    (rows ?? []).filter((r) => r.field === 'memo' && r.memo === memo && r.was && r.now).sort((a, b) => a.at.localeCompare(b.at));
+  const earlierOf = (comment?: number | null) =>
+    (rows ?? []).filter((r) => r.field === 'comment' && r.comment === comment && r.was && r.now).sort((a, b) => a.at.localeCompare(b.at));
   // What was there when the task opened just shows; a comment or event that comes later, or a comment's new words, flash.
   const [first] = useState(() => new Set(items.map(keyOf)));
   const fresh = (i: ActivityItem) => (first.has(keyOf(i)) ? '' : 'just-changed');
   const me = useMe();
   const isOpen = (i: ActivityItem) =>
-    !!open && i.turn === 'push' && ('memo' in open ? i.memo === open.memo : i.at === open.at) && isPerson(i.turnTo ?? '', me);
+    !!open && i.turn === 'push' && ('comment' in open ? i.comment === open.comment : i.at === open.at) && isPerson(i.turnTo ?? '', me);
   if (!items.length) return null;
   return (
     <Section title={bare ? null : 'Activity'}>
@@ -339,15 +339,15 @@ function Activity({
               i={i}
               fresh={fresh(i)}
               turn={isOpen(i)}
-              quoted={i.replyTo != null ? (items.find((r) => r.memo === i.replyTo)?.note ?? '(deleted)') : undefined}
+              quoted={i.replyTo != null ? (items.find((r) => r.comment === i.replyTo)?.note ?? '(deleted)') : undefined}
               onReply={onReply}
               task={task}
               onEdited={
-                i.memo != null && earlierOf(i.memo).length
+                i.comment != null && earlierOf(i.comment).length
                   ? () =>
                       showHistory('Versions of this comment', [
-                        { text: earlierOf(i.memo)[0].was, at: i.at, by: i.who },
-                        ...earlierOf(i.memo).map((r) => ({ text: r.now, at: r.at, by: r.by })),
+                        { text: earlierOf(i.comment)[0].was, at: i.at, by: i.who },
+                        ...earlierOf(i.comment).map((r) => ({ text: r.now, at: r.at, by: r.by })),
                       ])
                   : undefined
               }

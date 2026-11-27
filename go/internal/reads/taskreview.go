@@ -8,5 +8,5 @@ func (e *Env) reviewOf(tid int64) (any, error) {
 	if err != nil || r == nil {
 		return nil, err
 	}
-	return map[string]any{"ready": r.Ready, "land_by": r.LandBy, "memo": r.Memo, "at": ts(r.At), "redo": r.Redo, "ok": r.OK}, nil
+	return map[string]any{"ready": r.Ready, "land_by": r.LandBy, "comment": r.Memo, "at": ts(r.At), "redo": r.Redo, "ok": r.OK}, nil
 }

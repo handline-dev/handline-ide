@@ -129,12 +129,12 @@ func TestAMemoOnADoingTaskIsTypedAtItsHolderWhenThePortsAreWired(t *testing.T) {
 	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "mind the cache") {
 		t.Fatalf("the holder was not told: %q", got)
 	}
-	result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.comment.edit","params":{"task":1,"memo":1,"text":"@bob mind the disk","request_id":"m2"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.comment.edit","params":{"task":1,"comment":1,"text":"@bob mind the disk","request_id":"m2"}}`))
 	if got := agents.said(key(t, d, "bob")); !strings.Contains(got, "comment 1 edited by a: @lead mind the disk") { // bob leads its workspace: it reads itself as lead
 		t.Fatalf("the edit was not typed: %q", got)
 	}
 	// a delete names no reader, so nobody is told
-	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"m3"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"m3"}}`))
 	held, err := db.PendingNotices(d.db, key(t, d, "bob"))
 	if err != nil {
 		t.Fatal(err)

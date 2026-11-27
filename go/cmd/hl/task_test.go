@@ -68,8 +68,8 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"", []string{"task", "comment", "T3", "add", "hi", "--now"}, []string{`task.comment.add {"now":true,"task":3,"text":"hi"}`}},
 		{"", []string{"task", "comment", "T3", "add", "hi", "--attach", "/x/a.png", "--attach", "/x/b.md"},
 			[]string{`task.comment.add {"files":["/x/a.png","/x/b.md"],"task":3,"text":"hi"}`}},
-		{"from stdin", []string{"task", "comment", "T3", "edit", "4", "-"}, []string{`task.comment.edit {"memo":4,"task":3,"text":"from stdin"}`}},
-		{"", []string{"task", "comment", "T3", "delete", "4"}, []string{`task.comment.delete {"memo":4,"task":3}`}},
+		{"from stdin", []string{"task", "comment", "T3", "edit", "4", "-"}, []string{`task.comment.edit {"comment":4,"task":3,"text":"from stdin"}`}},
+		{"", []string{"task", "comment", "T3", "delete", "4"}, []string{`task.comment.delete {"comment":4,"task":3}`}},
 		{"", []string{"task", "comment", "T3", "add", "hi"}, []string{`task.comment.add {"task":3,"text":"hi"}`}},
 		{"", []string{"task", "comment", "T3", "add", "hi", "--reply", "7"}, []string{`task.comment.add {"reply":7,"task":3,"text":"hi"}`}},
 		{"", []string{"task", "comment", "T3", "add", "A or B?", "--turn", "human"}, []string{`task.comment.add {"task":3,"text":"A or B?","turn":"human"}`}},
@@ -237,7 +237,7 @@ func TestTaskShowListAndBoardRead(t *testing.T) {
 			"created":"2026-10-01T10:00:00Z","time":{"length_s":3600,"default":false,"start":null,"end":null,"overdue_since":null,"told":0},
 			"evidence":"abc123","done":"2026-10-02T11:30:00Z","discarded":null,"body":"the brief",
 			"result":{"commit":"abc1234def","branch":"develop","landed":false,"shots":[{"n":1,"bytes":2048},{"n":2,"bytes":10}]},
-			"memos":[{"id":5,"author":"a.one","at":"2026-10-01T12:00:00Z","text":"a comment","edited_at":null}],
+			"comments":[{"id":5,"author":"a.one","at":"2026-10-01T12:00:00Z","text":"a comment","edited_at":null}],
 			"blockers":[{"task":9,"owner":"c","title":"first"}],"subtasks":[{"id":8,"owner":"d","state":"doing","title":"child"}],
 			"handoffs":[{"at":"2026-10-01T13:00:00Z","from":"a.one","to":"b.two","note":"over to you"}],
 			"assignments":[{"at":"2026-10-01T14:00:00Z","by":"c","what":"owner","from":"a.one","to":"c"}]}`,
@@ -306,7 +306,7 @@ func TestTaskShowPrintsWhereTheImagesOfItsTextsAre(t *testing.T) {
 	got := strings.Join(detailLines(obj{
 		"id": float64(7), "title": "t", "body": "see ![x](attachment:0123456789abcdef)",
 		"body_parts": []any{obj{"text": "see "}, img("/h/attachments/a.png"), obj{"image": obj{"id": "1"}, "caption": "gone", "gone": true}},
-		"memos":      []any{obj{"id": float64(1), "author": "w", "text": "m", "parts": []any{img("/h/attachments/a.png")}}},
+		"comments":      []any{obj{"id": float64(1), "author": "w", "text": "m", "parts": []any{img("/h/attachments/a.png")}}},
 		"timeline":   []any{obj{"kind": "reject", "who": "human", "text": "no", "parts": []any{img("/h/attachments/a.png")}}},
 	}, 0, ""), "\n")
 	for _, want := range []string{"brief\nsee ![x](attachment:0123456789abcdef)\n" + shot + "\n", "    m\n    " + shot, "sent back\n", "    no\n    " + shot} {
@@ -349,8 +349,8 @@ func TestTaskShowPrintsThePlanAndWhereItsAsksStand(t *testing.T) {
 func TestTaskShowOpensWithWhereItStandsNow(t *testing.T) {
 	memo := func(id float64, author string) obj { return obj{"id": id, "author": author, "text": "x"} }
 	open := obj{"id": float64(7), "title": "t", "to": "w", "acting": "human",
-		"turns":    []any{obj{"agent": "human", "by": "w", "memo": float64(3)}},
-		"memos":    []any{memo(1, "human"), memo(3, "w")},
+		"turns":    []any{obj{"agent": "human", "by": "w", "comment": float64(3)}},
+		"comments":    []any{memo(1, "human"), memo(3, "w")},
 		"subtasks": []any{obj{"id": float64(8), "owner": "x", "state": "doing"}, obj{"id": float64(9), "owner": "y", "state": "done"}},
 		"blockers": []any{obj{"task": float64(5), "owner": "z"}},
 	}
@@ -360,7 +360,7 @@ func TestTaskShowOpensWithWhereItStandsNow(t *testing.T) {
 		t.Fatalf("no %q in\n%s", want, got)
 	}
 	// answered: the founder's comments since the holder's last one
-	answered := obj{"id": float64(7), "title": "t", "to": "w", "memos": []any{memo(1, "human"), memo(3, "w"), memo(4, "human"), memo(5, "human")}}
+	answered := obj{"id": float64(7), "title": "t", "to": "w", "comments": []any{memo(1, "human"), memo(3, "w"), memo(4, "human"), memo(5, "human")}}
 	got = strings.Join(detailLines(answered, 0, ""), "\n")
 	if want := "now\n  holder w   turn w\n  founder since: comment 4, 5\n\nbrief"; !strings.Contains(got, want) {
 		t.Fatalf("no %q in\n%s", want, got)

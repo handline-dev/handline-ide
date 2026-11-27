@@ -139,7 +139,7 @@ export type TaskDetail = Task & {
     outcome: string;
   }[];
   events: TaskEvent[];
-  memos: Memo[];
+  comments: Comment[];
   blockers: ({
     task: number;
     reason: string;
@@ -200,7 +200,7 @@ export type TaskDetail = Task & {
       /** The land_by agent "OK, merge" hands it to (task.ok). */
       land_by: string;
       /** The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready. */
-      memo: number;
+      comment: number;
       at: Timestamp;
       /** How many times the founder sent it back (task.redo). */
       redo: number;
@@ -208,22 +208,22 @@ export type TaskDetail = Task & {
       ok: boolean;
     } | null;
   } & TaskLook)[];
-  /** What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done, each time it was sent back and the commands its agents asked the founder to run while doing it. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay. */
+  /** What happened on the task as one list, oldest first: its comments, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done, each time it was sent back and the commands its agents asked the founder to run while doing it. Overlaps `events`, `comments`, `handoffs` and `deliveries`, which stay. */
   timeline: {
     at: Timestamp;
     /** The author, or `from → to` for a handoff or a turn. */
     who: string;
-    /** memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row); run, a command an agent asked the founder to run while doing the task (who the agent, text the command, `proposal` the ask with its Run and Deny and, once decided, how it ended). */
-    kind: "memo" | "handoff" | "request" | "edit" | "state" | "reject" | "turn" | "lesson" | "run";
+    /** comment; handoff; a request linked to the task, except a comment's tell, the ask to the founder an @human comment opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their comment or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: comment names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row); run, a command an agent asked the founder to run while doing the task (who the agent, text the command, `proposal` the ask with its Run and Deny and, once decided, how it ended). */
+    kind: "comment" | "handoff" | "request" | "edit" | "state" | "reject" | "turn" | "lesson" | "run";
     /** Already stripped of control characters: a client draws it as it is. */
     text: string;
     /** On a turn row: push, the turn handed to `to` (text its ask, which may be empty); pop, given back to `to`. */
     turn?: "push" | "pop";
     /** On a request the daemon delivered on someone's behalf: queue, the queued task sent to its free holder (or raised on the founder's board); resend, the delivery sent again to the task's new holder. Absent on a request someone sent. */
     forwards?: "queue" | "resend";
-    memo: number | null;
+    comment: number | null;
     edited_at: Timestamp | null;
-    /** `text` cut at the images it names, for a memo, a handoff, an edit or a reject; present only when it names one. */
+    /** `text` cut at the images it names, for a comment, a handoff, an edit or a reject; present only when it names one. */
     parts?: (TextPart | ImagePart)[];
     /** On a run row only: the proposal as proposal.list shows it, open or decided; its state and run say how it ended (rejected is denied, run.state and run.exit once it ran). */
     proposal?: Proposal;
@@ -317,7 +317,7 @@ export type TaskDetail = Task & {
     /** The land_by agent "OK, merge" hands it to (task.ok). */
     land_by: string;
     /** The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready. */
-    memo: number;
+    comment: number;
     at: Timestamp;
     /** How many times the founder sent it back (task.redo). */
     redo: number;
@@ -343,7 +343,7 @@ export type TaskEvent = {
   data: { [key: string]: unknown };
 };
 
-export type Memo = {
+export type Comment = {
   id: number;
   task: number;
   author: string;
@@ -351,12 +351,12 @@ export type Memo = {
   text: string;
   /** The person the comment is written to when it opens with a mention of them (the stored <@key>, or the older @human read as the task's person): a note to them that moves no turn. Absent otherwise. The app draws its chip from this and drops that leading mention from the text. */
   to?: string;
-  /** When the memo's text was last changed; null if never. */
+  /** When the comment's text was last changed; null if never. */
   edited_at?: Timestamp | null;
   /** `text` cut at the images it names, as TaskDetail.body_parts; present only when it names one. */
   parts?: (TextPart | ImagePart)[];
-  /** The files the memo carries, in the order they were given; present only when it carries one. */
-  files?: MemoFile[];
+  /** The files the comment carries, in the order they were given; present only when it carries one. */
+  files?: CommentFile[];
   /** The person a later step is for (task.comment.add later); absent on any other comment. */
   later?: string;
   /** With later: true while the task is open and that person has not commented on it since. */
@@ -364,7 +364,7 @@ export type Memo = {
   /** The comment this one answers; null for none. */
   reply_to?: number | null;
   /** Where the tell of a founder's comment stands for each agent it was told to, in the order told; present only on a founder comment that told someone. */
-  readers?: MemoReader[];
+  readers?: CommentReader[];
 };
 
 export type TaskBoardRow = {
@@ -381,8 +381,8 @@ export type TaskBoardRow = {
 /** What task.done must be given: sha, verdict, decision or report (default; decision when the owner is a person). */
 export type Expects = "sha" | "verdict" | "decision" | "report";
 
-/** A file a memo carries (task.comment.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
-export type MemoFile = {
+/** A file a comment carries (task.comment.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id. */
+export type CommentFile = {
   id: AttachmentId;
   kind: "image" | "markdown" | "video";
   /** The file's name as its writer gave it, with no folder. Shown to the person; never used as a path. */
@@ -405,15 +405,15 @@ export type HistoryRow = {
   /** Who made the change: an agent's key, or a person's. */
   by: string;
   /** evidence is a done task's result. assignee is who works the task, owner who it answers to. state is opened, draft, queued, doing, done, discarded, closed, released or merged. blocked_by is a task it waits on, as T<n>; parent the task it sits under, as T<n>, empty for none. tag is a tag added (was empty) or removed (now empty). */
-  field: "title" | "assignee" | "owner" | "body" | "evidence" | "priority" | "estimate" | "timeout" | "state" | "tag" | "blocked_by" | "parent" | "merged_into" | "memo";
-  /** The value before; empty when there was none (a task just opened, a wait just added, a memo just added). */
+  field: "title" | "assignee" | "owner" | "body" | "evidence" | "priority" | "estimate" | "timeout" | "state" | "tag" | "blocked_by" | "parent" | "merged_into" | "comment";
+  /** The value before; empty when there was none (a task just opened, a wait just added, a comment just added). */
   was: string;
-  /** The value after; empty when it is gone (a wait removed, a memo deleted). */
+  /** The value after; empty when it is gone (a wait removed, a comment deleted). */
   now: string;
   /** With a state row: the done evidence, the report, or the reason or note given. Absent when none was. */
   note?: string;
-  /** With a memo row: the memo's id. */
-  memo?: number;
+  /** With a comment row: the comment's id. */
+  comment?: number;
   /** With a discarded state row: the requests withdrawn with it. Absent when none were. */
   withdrew?: number[];
 };
@@ -491,7 +491,7 @@ export type TaskWatch = {
 };
 
 /** One reader of a founder's comment and where its tell stands. */
-export type MemoReader = {
+export type CommentReader = {
   agent: string;
   /** The request that told the comment to this agent. */
   request: number;
@@ -535,7 +535,7 @@ export type PendingRequest = {
 export type Turn = {
   /** Who acts while this turn is on top: an agent's key, or a person's. */
   agent: string;
-  /** What it was asked to do, as it reads now: the text of its comment (memo) when it has one; empty when nothing was said. */
+  /** What it was asked to do, as it reads now: the text of its comment when it has one; empty when nothing was said. */
   ask: string;
   /** Who put it there: the one acting below it, or the founder. */
   by: string;
@@ -549,7 +549,7 @@ export type Turn = {
   /** The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only. */
   earlier?: TurnAsk[];
   /** The comment the turn was handed over with (task.comment.add with turn), its message; null for a turn put on with no comment: the daemon's at a review's end, an agent's owner edit to human (task.edit), and turns from before. */
-  memo: number | null;
+  comment: number | null;
 };
 
 /** A text a turn's ask once read. */
@@ -888,7 +888,7 @@ export interface TasksMethods {
   text: string;
   /** Tell every reader at once, even mid-turn. */
   now?: boolean;
-  /** The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment. */
+  /** The comment on the same task this one answers (Comment.reply_to). Refused (not_found comment) when the task has no such comment. */
   reply?: number;
   /** Hand the task to this agent, or to a person, with this comment: it goes on top and acts now; the one below keeps its turn but acts on nothing, so its doing slot frees. human is the task's person: the person it or its nearest parent answers to, else whose request it serves, else the owner. For a person, the comment is the decision and what you recommend. */
   turn?: Who;
@@ -896,11 +896,11 @@ export interface TasksMethods {
   done?: string;
   /** A step only this person can do that the rest of the task does not wait on (Memo.later): posted and shown now, it pushes no turn, tells no one and adds no Requests row, and the agent keeps working. A later comment of this person's on the task answers it. A done or handoff by an agent while any is open writes one comment listing them and puts this person's turn on it: their pass closes the task with the done's evidence, or hands it on as asked; their comment sends it back with their words. Refused with turn or done, and from a person. */
   later?: Who;
-  /** Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, MemoFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
+  /** Absolute paths of files the comment carries (Comment.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, CommentFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files). */
   files?: string[];
   request_id: RequestId;
 }; result: Accepted & {
-    memo: number;
+    comment: number;
   } };
   "task.comment.recipients": { params: {
   task: number;
@@ -916,14 +916,14 @@ export interface TasksMethods {
   } };
   "task.comment.edit": { params: {
   task: number;
-  memo: number;
+  comment: number;
   /** Markdown. It may name images (x-attachments, texts). Each @word that names someone the caller may reach is stored as <@key>, and reads give that token: a client writes it out as the reader's name. */
   text: string;
   request_id: RequestId;
 }; result: Accepted };
   "task.comment.delete": { params: {
   task: number;
-  memo: number;
+  comment: number;
   request_id: RequestId;
 }; result: Accepted };
   "task.send_now": { params: {

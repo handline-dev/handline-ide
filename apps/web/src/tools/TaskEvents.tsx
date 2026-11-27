@@ -123,8 +123,8 @@ export function EventRow({ i, fresh, turn }: { i: ActivityItem; fresh: string; t
 }
 
 /** The founder's own comment on a task can be edited, and deleted unless it passed a turn (the daemon's rule); null for any other. */
-export const ownComment = (i: Pick<ActivityItem, 'memo' | 'turn'>, mine: boolean, task?: number) =>
-  mine && task != null && i.memo != null ? { task, memo: i.memo, deletable: !i.turn } : null;
+export const ownComment = (i: Pick<ActivityItem, 'comment' | 'turn'>, mine: boolean, task?: number) =>
+  mine && task != null && i.comment != null ? { task, comment: i.comment, deletable: !i.turn } : null;
 
 /** A comment as a chat line, headed by its writer and time; whom it went to is an @mention before the text. While the founder's turn
  * passed with it is open, it sits on a soft warm ground marked Waiting for you. */
@@ -143,7 +143,7 @@ export function CommentRow({
   fresh: string;
   turn: boolean;
   quoted?: string;
-  onReply: (memo: number) => void;
+  onReply: (comment: number) => void;
   onEdited?: () => void;
 }) {
   const me = useMe();
@@ -169,15 +169,15 @@ export function CommentRow({
       confirmText: 'Delete',
       icon: <Trash2 size={14} />,
       danger: true,
-      run: () => del.mutateAsync({ task: own.task, memo: own.memo }),
+      run: () => del.mutateAsync({ task: own.task, comment: own.comment }),
     });
   const save = (text: string) => {
     setEditing(false);
-    if (own && text.trim() && text !== i.note) edit.mutate({ task: own.task, memo: own.memo, text });
+    if (own && text.trim() && text !== i.note) edit.mutate({ task: own.task, comment: own.comment, text });
   };
   return (
     <div
-      data-memo={i.memo}
+      data-comment={i.comment}
       data-turn-open={turn ? '' : undefined}
       className={`group relative isolate flex gap-2.5 rounded-md pb-3 ring-warning ring-offset-4 ring-offset-bg transition-shadow duration-500 ${turn ? '-mx-3 mb-3 rounded-lg bg-warning/10 px-3 pt-2 pb-2' : ''}`}
     >
@@ -241,7 +241,7 @@ export function CommentRow({
         <div
           className={`absolute ${turn ? 'top-1.5 right-3' : 'top-0 right-0'} flex items-center gap-1.5 text-xs text-muted opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100`}
         >
-          <Actions text={i.note} onQuote={() => i.memo != null && onReply(i.memo)} />
+          <Actions text={i.note} onQuote={() => i.comment != null && onReply(i.comment)} />
           {own && (
             <IconButton className="size-6!" label="Edit" onClick={() => setEditing(true)}>
               <Pencil size={14} />

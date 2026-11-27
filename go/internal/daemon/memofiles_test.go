@@ -26,7 +26,7 @@ func TestAMemoCarriesAnImageAndAMarkdownFileThroughTaskGet(t *testing.T) {
 	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"@bob the proposal","files":`+string(files)+`,"request_id":"m1"}}`))
 
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
-	memo := task["memos"].([]any)[0].(map[string]any)
+	memo := task["comments"].([]any)[0].(map[string]any)
 	got := memo["files"].([]any)
 	if len(got) != 2 {
 		t.Fatalf("%v", memo)
@@ -77,7 +77,7 @@ func TestAMemoFileOfAnotherTypeIsRefused(t *testing.T) {
 		}
 	}
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
-	if memos := task["memos"].([]any); len(memos) != 0 {
+	if memos := task["comments"].([]any); len(memos) != 0 {
 		t.Fatalf("a refused memo was kept: %v", memos)
 	}
 }
@@ -91,11 +91,11 @@ func TestAMemosFileIsHeldWhileItsTaskIsOpenAndNotOnceTheMemoIsDeleted(t *testing
 	files, _ := json.Marshal([]string{md})
 	result(t, f.ask(`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"x","files":`+string(files)+`,"request_id":"m1"}}`))
 	task := result(t, f.ask(`{"jsonrpc":"2.0","id":3,"method":"task.get","params":{"task":1}}`))
-	id := task["memos"].([]any)[0].(map[string]any)["files"].([]any)[0].(map[string]any)["id"].(string)
+	id := task["comments"].([]any)[0].(map[string]any)["files"].([]any)[0].(map[string]any)["id"].(string)
 	if held, err := attachments.Held(d.db, 12345); err != nil || held[id] != 12345 {
 		t.Fatalf("held from %d (%v), want now", held[id], err)
 	}
-	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"m2"}}`))
+	result(t, f.ask(`{"jsonrpc":"2.0","id":4,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"m2"}}`))
 	if held, _ := attachments.Held(d.db, 12345); len(held) != 0 {
 		t.Fatalf("a deleted memo's file is still held: %v", held)
 	}

@@ -280,7 +280,7 @@ export const CHAT_SEEDS: Record<string, Seed> = {
         by_agent: { [ARCH]: 2.61, 'handline.auditor': 0.81 }, // local-ref-ok
         by_model: { 'claude-opus-4-5': 3.1, 'claude-haiku-4-5': 0.32 },
       },
-      memos: [
+      comments: [
         { id: 9501, task: 6902, author: ARCH, at: iso(-12), text: 'The plan is ready to read.' },
         { id: 9502, task: 6902, author: ME, at: iso(-9), text: 'Reading it now.' },
       ],

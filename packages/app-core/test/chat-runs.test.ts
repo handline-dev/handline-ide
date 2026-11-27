@@ -69,7 +69,7 @@ test('task notices in a row are one card, and a line that draws nothing between 
 test('a line that draws something ends the card; a task comment is its task row', () => {
   const comment = item(3, {
     text: '',
-    task_comment: { task: 10, memo: 1, who: 'human', kind: 'note', text: '\nlooks good\nmore' },
+    task_comment: { task: 10, comment: 1, who: 'human', kind: 'note', text: '\nlooks good\nmore' },
   } as Partial<TranscriptItem>);
   const rows = taskRuns([notice(1, 10), msg(2, { body: 'next' }), comment], A, 'human', nameOf);
   assert.equal(rows.length, 3);

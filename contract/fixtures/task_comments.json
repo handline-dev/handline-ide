@@ -103,7 +103,7 @@
       "method": "task.comment.edit",
       "params": {
        "task": 999999,
-       "memo": 1,
+       "comment": 1,
        "text": "new",
        "request_id": "conf-tc-3"
       }
@@ -119,9 +119,9 @@
    ]
   },
   {
-   "name": "task.comment.delete.memo_is_a_number",
+   "name": "task.comment.delete.comment_is_a_number",
    "spec": "task.comment.delete",
-   "about": "memo is an integer: bad_request naming it.",
+   "about": "comment is an integer: bad_request naming it.",
    "as": "agent",
    "steps": [
     {
@@ -143,7 +143,7 @@
       "method": "task.comment.delete",
       "params": {
        "task": 1,
-       "memo": "one",
+       "comment": "one",
        "request_id": "conf-tc-4"
       }
      },
@@ -151,7 +151,7 @@
       "code": -32602,
       "data": {
        "code": "bad_request",
-       "field": "memo"
+       "field": "comment"
       }
      }
     }
@@ -322,7 +322,7 @@
      },
      "result": {
       "accepted": true,
-      "memo": {
+      "comment": {
        "$type": "integer"
       }
      }
@@ -337,7 +337,7 @@
       }
      },
      "result": {
-      "memos": {
+      "comments": {
        "$contains": {
         "text": "<@{{task_owner}}> please look"
        }

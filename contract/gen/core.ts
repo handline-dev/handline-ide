@@ -777,7 +777,7 @@ export type MachineNeed = {
   text: string;
 };
 
-/** attachment.remove deleted this image or file: a client marks every ImagePart and MemoFile with this id gone and removed, without refetching. */
+/** attachment.remove deleted this image or file: a client marks every ImagePart and CommentFile with this id gone and removed, without refetching. */
 export type AttachmentRemoved = {
   id: AttachmentId;
 };
@@ -788,7 +788,7 @@ export type Later = unknown | unknown;
 /** One open item waiting on the founder. A task given to the founder (or the ask on it) is `task`, an agent's `@human` ask in a task comment is `comment`, an agent's open permission prompt or dialog is `prompt`, a proposal that waits is `proposal`, and something the machine needs is `machine`. A plain say is not an item: nothing is asked. */
 export type ForYouItem = {
   kind: "task" | "comment" | "prompt" | "proposal" | "machine";
-  /** task: the task number. comment: the comment's number (InboxItem.memo), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the warning, `disk`, `login:<account>`, `delivery:<ref>` or `undelivered:<task>`. The pair (kind, id) names the item, as in the keys of NavPrefs.later. */
+  /** task: the task number. comment: the comment's number (InboxItem.comment), or the request's ref for an ask that is on no task. prompt: Prompt.id. proposal: the proposal's id (Proposal.id). machine: the warning, `disk`, `login:<account>`, `delivery:<ref>` or `undelivered:<task>`. The pair (kind, id) names the item, as in the keys of NavPrefs.later. */
   id: string;
   /** Who asks; null for the machine. */
   agent: Who | null;
@@ -859,8 +859,8 @@ export type SearchHit = {
   task?: number;
   /** The title of `task`. */
   title?: string;
-  /** Only a comment: its id (Memo.id). */
-  memo?: number;
+  /** Only a comment: its id (Comment.id). */
+  comment?: number;
   /** Only a message: its number; chat.locate gives the page around it. */
   request?: number;
   /** Only a message: the agent whose chat shows it. */

@@ -19,13 +19,13 @@ test('search finds a task by its title, brief and evidence, a comment and a mess
     to: ARCH,
     title: 'Commented',
     state: 'queued',
-    memos: [{ id: 77, task: 9104, author: ARCH, at, text: 'Agreed: quince, not pear.' }],
+    comments: [{ id: 77, task: 9104, author: ARCH, at, text: 'Agreed: quince, not pear.' }],
   });
   const said = daemon.chat.seed(ARCH, { body: 'Is the quince ripe?', from: 'human', to: ARCH, at });
   const { hits, more } = await client.call('search', { query: 'quince' });
   assert.equal(more, false);
   assert.deepEqual(
-    hits.map((h) => [h.kind, h.task ?? h.request, h.field ?? h.memo ?? h.agent, h.snippet]),
+    hits.map((h) => [h.kind, h.task ?? h.request, h.field ?? h.comment ?? h.agent, h.snippet]),
     [
       ['task', 9103, 'result', 'abc1234 quince landed'],
       ['task', 9102, 'brief', 'Peel the QUINCE first.'],

@@ -76,7 +76,7 @@ func memoList(c *hlclient.Client, tid int) int {
 	if err != nil {
 		return readFailed(err, fmt.Sprintf("T%d", tid))
 	}
-	memos := list(t, "memos")
+	memos := list(t, "comments")
 	for _, m := range memos {
 		edited := ""
 		if given(m, "edited_at") {
@@ -159,7 +159,7 @@ func detailLines(t obj, now float64, home string) []string {
 	out = append(out, "", "brief", body)
 	out = append(out, pathLines(list(t, "body_parts"), "")...)
 	out = append(out, planLines(t)...)
-	if memos := list(t, "memos"); len(memos) > 0 {
+	if memos := list(t, "comments"); len(memos) > 0 {
 		out = append(out, "", "comments")
 		for _, m := range memos {
 			out = append(out, fmt.Sprintf("  comment %s  %s  %s\n    %s", str(m, "id"), str(m, "author"), stamp(m["at"]), str(m, "text")))
@@ -228,13 +228,13 @@ func nowLines(t obj) []string {
 	if turns := list(t, "turns"); len(turns) > 0 {
 		top := turns[len(turns)-1]
 		q := "  open question to " + str(top, "agent") + " from " + str(top, "by")
-		if given(top, "memo") {
-			asked = num(top, "memo")
+		if given(top, "comment") {
+			asked = num(top, "comment")
 			q += fmt.Sprintf(": comment %d", asked)
 		}
 		out = append(out, q)
 	}
-	memos := list(t, "memos")
+	memos := list(t, "comments")
 	if asked == 0 {
 		for _, m := range memos {
 			if str(m, "author") == holder {
@@ -640,7 +640,7 @@ func planLines(t obj) []string {
 		line := ""
 		switch {
 		case r["ready"] == true:
-			line = fmt.Sprintf("Ready for the founder since %s (comment %d): OK, merge hands it to %s", stamp(r["at"]), num(r, "memo"), str(r, "land_by"))
+			line = fmt.Sprintf("Ready for the founder since %s (comment %d): OK, merge hands it to %s", stamp(r["at"]), num(r, "comment"), str(r, "land_by"))
 		case r["ok"] == true:
 			line = "OK by the founder: it goes to " + str(r, "land_by") + " to merge"
 		}

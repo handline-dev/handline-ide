@@ -1,7 +1,7 @@
 // The fake daemon's images: attachment.put takes a file in chunks, attachment.get gives it back, a message or a task's text names the finished ones.
 // Image bytes live here only; the replay store (replies, events) holds a digest or the Attachment, never the data.
 import { createHash, randomBytes } from 'node:crypto';
-import type { Attachment, ImagePart, MemoFile, TextPart } from '@handline/contract';
+import type { Attachment, ImagePart, CommentFile, TextPart } from '@handline/contract';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 
 // These mirror the contract's x-attachments limits (kept in prose there; app-data holds the client's copy).
@@ -63,8 +63,8 @@ export class FakeAttachments {
     return true;
   }
 
-  /** An image part or memo file of a removed id, as reads give it; anything else as it is. */
-  marked<T extends ImagePart | MemoFile | TextPart>(x: T): T {
+  /** An image part or comment file of a removed id, as reads give it; anything else as it is. */
+  marked<T extends ImagePart | CommentFile | TextPart>(x: T): T {
     const id = 'image' in x ? x.image.id : 'id' in x ? x.id : undefined;
     if (id === undefined || !this.removed.has(id)) return x;
     return 'image' in x
@@ -72,18 +72,18 @@ export class FakeAttachments {
       : ({ ...x, gone: true, removed: true } as T);
   }
 
-  /** A file a memo carries (an image or Markdown), kept as the daemon keeps one; a test passes the returned id as task.comment.add `files`. */
-  addMemoFile(name: string, mime: MemoFile['mime'], data: Buffer): MemoFile {
-    const file: MemoFile = { id: newId(), kind: mime === 'text/markdown' ? 'markdown' : 'image', name, mime, bytes: data.length };
+  /** A file a comment carries (an image or Markdown), kept as the daemon keeps one; a test passes the returned id as task.comment.add `files`. */
+  addMemoFile(name: string, mime: CommentFile['mime'], data: Buffer): CommentFile {
+    const file: CommentFile = { id: newId(), kind: mime === 'text/markdown' ? 'markdown' : 'image', name, mime, bytes: data.length };
     this.files.set(file.id, { ...file, mime: mime as Mime, data, sent: true });
     return file;
   }
 
-  /** The MemoFile for an id `addMemoFile` gave. */
-  memoFile(id: string): MemoFile {
+  /** The CommentFile for an id `addMemoFile` gave. */
+  memoFile(id: string): CommentFile {
     const f = this.files.get(id);
     if (!f) throw new Failure('not_found', 'That file is gone.');
-    const mime = f.mime as MemoFile['mime'];
+    const mime = f.mime as CommentFile['mime'];
     if (mime.startsWith('video/')) return { id, kind: 'video', name: f.name, mime, bytes: f.bytes, poster: null };
     return { id, kind: mime === 'text/markdown' ? 'markdown' : 'image', name: f.name, mime, bytes: f.bytes };
   }

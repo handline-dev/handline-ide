@@ -13,15 +13,15 @@ export class TaskVerbs extends TaskComments {
     this.host.inbox.closeAsks(t.id);
     return `task T${t.id} done`;
   }
-  /** The founder goes on top with comment memo, its text the ask; already on top, a new comment moves the turn to it (edited, old text in earlier). */
-  turnPush(task: unknown, memo: number, ask: string, agent: string): void {
+  /** The founder goes on top with that comment, its text the ask; already on top, a new comment moves the turn to it (edited, old text in earlier). */
+  turnPush(task: unknown, comment: number, ask: string, agent: string): void {
     const t = this.find(task);
     const top = t.turns?.at(-1);
     if (top?.agent === FOUNDER) {
       const turn = {
         ...top,
         ask,
-        memo,
+        comment,
         edited: this.now(),
         earlier: [...(top.earlier ?? []), { ask: top.ask, at: top.edited ?? top.since }],
       };
@@ -37,17 +37,17 @@ export class TaskVerbs extends TaskComments {
       evidence: null,
       edited: null,
       earlier: [],
-      memo,
+      comment,
     };
-    const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: '', turn: 'push' as const, memo }];
+    const log = [...(t.turnLog ?? []), { at: turn.since, who: `${turn.by} → human`, text: '', turn: 'push' as const, comment }];
     this.change(t, { turns: [...(t.turns ?? []), turn], acting: FOUNDER, turnLog: log });
   }
   /** The founder's comment while their turn is on top passes it (docs/design/turns.md), unless the task is Ready for them: then it is a
    * question to its assignee and the turn stays for OK or Redo. A comment with turn human puts the founder on top. */
-  override memo(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
+  override comment(p: Record<string, unknown>, op: 'add' | 'edit' | 'delete', person: string, agent = false): number {
     if (op === 'add' && p.turn !== undefined && p.turn !== 'human')
       throw new TaskFailure('refused', 'the fake daemon hands turns to human only');
-    const id = super.memo(p, op, person, agent);
+    const id = super.comment(p, op, person, agent);
     if (op === 'add' && p.turn === 'human') this.turnPush(p.task, id, String(p.text).trim(), agent ? person : '');
     else if (op === 'add' && !agent && !this.find(p.task).review?.ready && this.find(p.task).turns?.at(-1)?.agent === FOUNDER)
       this.turnPop(p);

@@ -68,11 +68,11 @@ Open a folder attachment that attachment.put then fills file by file, for a drop
 
 ### `attachment.get`
 
-Read an attached image or a memo's file, or a small copy of an image, for drawing. See x-attachments. An id that no longer exists (never put, or kept past its time) is not_found.
+Read an attached image or a comment's file, or a small copy of an image, for drawing. See x-attachments. An id that no longer exists (never put, or kept past its time) is not_found.
 
 ### `attachment.remove`
 
-The founder deletes an image or a memo's file everywhere it is named; dry_run counts the places first. See x-attachments. The file is deleted at once, wherever it is named: in a chat message, a task's brief, a memo or a note, or carried as a memo's file. Every read that names the id then answers as for an image no longer kept, ImagePart and MemoFile with gone: true, and with removed: true as well, so a client tells a deletion from an expiry; attachment.get is not_found. The texts that name it are not changed. ChatMessage.attachments and turn_start.attachments still list the id; a client reads gone and removed from parts. The event attachment.removed goes on the chat and tasks topics. An id removed already is accepted with removed_from 0, so a retried tap is no error; one never put is not_found, what attachment. A dry run writes nothing and keeps no reply under the request_id. An agent or member caller is refused, gate role. Agents are not told: one that was given the path keeps its line, and reading it later fails.
+The founder deletes an image or a comment's file everywhere it is named; dry_run counts the places first. See x-attachments. The file is deleted at once, wherever it is named: in a chat message, a task's brief, a comment or a note, or carried as a comment's file. Every read that names the id then answers as for an image no longer kept, ImagePart and CommentFile with gone: true, and with removed: true as well, so a client tells a deletion from an expiry; attachment.get is not_found. The texts that name it are not changed. ChatMessage.attachments and turn_start.attachments still list the id; a client reads gone and removed from parts. The event attachment.removed goes on the chat and tasks topics. An id removed already is accepted with removed_from 0, so a retried tap is no error; one never put is not_found, what attachment. A dry run writes nothing and keeps no reply under the request_id. An agent or member caller is refused, gate role. Agents are not told: one that was given the path keeps its line, and reading it later fails.
 
 ### `inbox.list`
 
@@ -96,7 +96,7 @@ Take back a request of your own before it is delivered, as hl withdraw does. The
 
 ### `inbox.mark_read`
 
-Mark items read; an id that is not yours is not_found. For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.memo) is read only by naming its own id: reading an agent's messages past it leaves it open.
+Mark items read; an id that is not yours is not_found. For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.comment) is read only by naming its own id: reading an agent's messages past it leaves it open.
 
 ### `requests.list`
 

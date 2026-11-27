@@ -87,10 +87,10 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 	r := call(t, mk("worker"),
 		`{"jsonrpc":"2.0","id":2,"method":"task.comment.add","params":{"task":1,"text":"first","request_id":"a1"}}`,
 		`{"jsonrpc":"2.0","id":3,"method":"task.comment.add","params":{"task":1,"text":"first","request_id":"a1"}}`,
-		`{"jsonrpc":"2.0","id":4,"method":"task.comment.edit","params":{"task":1,"memo":1,"text":"second","request_id":"a2"}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"task.comment.edit","params":{"task":1,"comment":1,"text":"second","request_id":"a2"}}`,
 		`{"jsonrpc":"2.0","id":5,"method":"task.comment.add","params":{"task":9,"text":"x","request_id":"a3"}}`)
 	res := r[0]["result"].(map[string]any)
-	if res["memo"].(float64) != 1 || res["said"] != "comment 1 added to T1" {
+	if res["comment"].(float64) != 1 || res["said"] != "comment 1 added to T1" {
 		t.Fatalf("%v", r[0])
 	}
 	if r[1]["result"].(map[string]any)["replayed"] != true {
@@ -109,11 +109,11 @@ func TestMemosAreAddedEditedAndDeletedByTheirAuthorOrTheFounder(t *testing.T) {
 		t.Fatalf("%d %q", n, body)
 	}
 	other := call(t, mk("manager"),
-		`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"b1"}}`)
+		`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"b1"}}`)
 	if e := other[0]["error"].(map[string]any); e["data"].(map[string]any)["code"] != "refused" {
 		t.Fatalf("another agent may not delete it: %v", other[0])
 	}
-	if got := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":1,"request_id":"b2"}}`); got[0]["result"] == nil {
+	if got := call(t, mk("worker"), `{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"comment":1,"request_id":"b2"}}`); got[0]["result"] == nil {
 		t.Fatalf("the author deletes: %v", got[0])
 	}
 	db.QueryRow(keyed(db, "SELECT COUNT(*) FROM task_comments")).Scan(&n)

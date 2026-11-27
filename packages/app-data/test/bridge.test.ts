@@ -141,7 +141,7 @@ describe('tasks and inbox', () => {
     applyEvent(c, ev('task.changed', task(7, 'doing'), { topic: 'tasks' }));
     expect([all, one, other].map(stale)).toEqual([true, true, false]);
   });
-  it("a task or memo write reads the task's history again once it settles", () => {
+  it("a task or comment write reads the task's history again once it settles", () => {
     const touched = (method: string, p: object) => writes[method]!.touches!(D, p as never).map((k) => JSON.stringify(k));
     const history = JSON.stringify(qk.taskHistory(D, 7));
     for (const [method, p] of [
@@ -149,8 +149,8 @@ describe('tasks and inbox', () => {
       ['task.done', { task: 7 }],
       ['task.queue', { tasks: [7] }],
       ['task.comment.add', { task: 7, text: 'x' }],
-      ['task.comment.edit', { task: 7, memo: 1, text: 'x' }],
-      ['task.comment.delete', { task: 7, memo: 1 }],
+      ['task.comment.edit', { task: 7, comment: 1, text: 'x' }],
+      ['task.comment.delete', { task: 7, comment: 1 }],
     ] as const)
       expect(touched(method, p), method).toContain(history);
   });

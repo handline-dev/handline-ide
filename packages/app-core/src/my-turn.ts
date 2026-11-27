@@ -42,9 +42,9 @@ export interface Card {
   /** Who is asking, never the person themselves. */
   from: string | null;
   task: number | null;
-  /** The task comment an ask answers (InboxItem.memo); null for every other card. */
-  memo: number | null;
-  /** The task is tagged `review`: its first comment's pictures are the thing to look at (Memo.parts), and Approve and Ask for change stand in for Done. */
+  /** The task comment an ask answers (InboxItem.comment); null for every other card. */
+  comment: number | null;
+  /** The task is tagged `review`: its first comment's pictures are the thing to look at (Comment.parts), and Approve and Ask for change stand in for Done. */
   review: boolean;
   /** 1 is the most urgent; 4 for a card with no task. */
   priority: number;
@@ -95,7 +95,7 @@ function taskCards(
       agent: null,
       from: t.from && !isPerson(t.from, me) ? t.from : null,
       task: t.id,
-      memo: null,
+      comment: null,
       review: !!t.tags?.includes(REVIEW_TAG),
       ...when(t.id),
       since: at(t.created),
@@ -160,7 +160,7 @@ const machineCards = (machine: readonly MachineNeed[]): Card[] =>
     agent: null,
     from: null,
     task: null,
-    memo: null,
+    comment: null,
     review: false,
     priority: 1,
     due: null,
@@ -187,14 +187,14 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
     const t = i.task == null ? undefined : byTask.get(i.task);
     // The daemon titles an item with the first line of its body; a card about a task is titled with the task, and the body is its text.
     const known = t?.title ?? (i.task == null ? undefined : titles?.get(i.task));
-    const asked = i.kind === 'ask' && i.memo != null && i.task != null;
+    const asked = i.kind === 'ask' && i.comment != null && i.task != null;
     // An ask whose task is not known yet is headed by its comment's first line; the whole comment stays as the text.
     const title = known ?? (asked ? withoutTag(i.title) : i.title);
     const base = {
       agent: i.agent,
       from: other(t?.from) ?? other(i.agent),
       task: i.task,
-      memo: i.memo ?? null,
+      comment: i.comment ?? null,
       review: !!t?.tags?.includes(REVIEW_TAG),
       since: at(i.created),
       ...when(i.task),
@@ -228,7 +228,7 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
           ...open,
         ],
       });
-    } else if (i.kind === 'ask' && i.memo != null && i.task != null) {
+    } else if (i.kind === 'ask' && i.comment != null && i.task != null) {
       cards.push(commentAsk(i, base, title, open));
     } else if (KINDS[i.kind]) {
       const decide = decisions(i, t?.tags, base.review);
@@ -263,7 +263,7 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
       agent: a.key,
       from: a.key,
       task,
-      memo: null,
+      comment: null,
       review: false,
       ...w,
       since: at(n.since),
@@ -286,8 +286,10 @@ export function myTurn({ items, agents, tasks, titles, machine = [], me = '' }: 
   cards.push(...taskCards(tasks, new Set(cards.flatMap((c) => (c.task == null ? [] : [c.task]))), me, when));
 
   // Until the founder's tasks are migrated, a task with an open `@human` ask is shown once: by the ask, not by its task or decision card.
-  const asked = new Set(cards.flatMap((c) => (c.memo != null && c.task != null ? [c.task] : [])));
-  const once = cards.filter((c) => c.memo != null || c.task == null || !asked.has(c.task) || (c.kind !== 'decision' && c.kind !== 'task'));
+  const asked = new Set(cards.flatMap((c) => (c.comment != null && c.task != null ? [c.task] : [])));
+  const once = cards.filter(
+    (c) => c.comment != null || c.task == null || !asked.has(c.task) || (c.kind !== 'decision' && c.kind !== 'task'),
+  );
 
   return once.sort(
     (x, y) =>

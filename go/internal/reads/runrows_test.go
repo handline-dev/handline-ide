@@ -62,7 +62,7 @@ func TestATasksTimelineCarriesTheRunsAskedWhileDoingIt(t *testing.T) {
 		run, _ := p["run"].(map[string]any)
 		rows = append(rows, fmt.Sprintf("run|%v|%v|%v|%v|%v|%v", m["who"], m["text"], p["task"], p["state"], run["state"], run["exit"]))
 	}
-	want := []string{"run|bob|echo 0000000a|1|rejected|<nil>|<nil>", "memo", "run|bob|echo 0000000b|1|approved|failed|3"}
+	want := []string{"run|bob|echo 0000000a|1|rejected|<nil>|<nil>", "comment", "run|bob|echo 0000000b|1|approved|failed|3"}
 	if fmt.Sprint(rows) != fmt.Sprint(want) {
 		t.Fatalf("got  %q\nwant %q", rows, want)
 	}

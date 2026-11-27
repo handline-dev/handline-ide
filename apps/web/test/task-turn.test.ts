@@ -5,7 +5,10 @@ import { turnReply } from '#src/tools/TaskTurn.ts';
 const ask = 'Bell: how should each pause show?\nA) One line per pause\nB. One line per agent';
 
 it('the turn as what the box answers: its question, by whoever asked, marked as the turn', () => {
-  const t = { memos: [], turns: [{ agent: 'human', ask, by: 'handline.arch', since: new Date().toISOString() }] } as unknown as TaskDetail;
+  const t = {
+    comments: [],
+    turns: [{ agent: 'human', ask, by: 'handline.arch', since: new Date().toISOString() }],
+  } as unknown as TaskDetail;
   expect(turnReply(t)).toEqual({ author: 'handline.arch', text: ask, turn: true });
-  expect(turnReply({ memos: [], turns: [] } as unknown as TaskDetail)).toBeNull();
+  expect(turnReply({ comments: [], turns: [] } as unknown as TaskDetail)).toBeNull();
 });

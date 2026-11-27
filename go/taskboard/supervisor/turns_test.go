@@ -69,7 +69,7 @@ func TestTheFoundersTurnFreesTheAgentsSlotAndTheirCommentGivesItBack(t *testing.
 	// while it waits on the founder they answer, not hand it on; nobody hands a turn to themself; the comment it hangs on stays
 	r.refusedCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"over to you","turn":"alice","request_id":"p2"}`, held), "waits on you")
 	r.refusedCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"mine","turn":"human","request_id":"p3"}`, held), "to yourself")
-	r.refusedCall(r.k("bob"), "task.comment.delete", fmt.Sprintf(`{"task":%d,"memo":%d,"request_id":"d1"}`, held, turns[0].Memo), "what a turn")
+	r.refusedCall(r.k("bob"), "task.comment.delete", fmt.Sprintf(`{"task":%d,"comment":%d,"request_id":"d1"}`, held, turns[0].Memo), "what a turn")
 	// the founder's comment passes it: bob acts again, told with the comment
 	r.turnCall(r.k("human"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"now `+strings.Repeat("x", 500)+`","request_id":"c1"}`, held))
 	if r.acting(held) != r.k(("bob")) {
@@ -446,7 +446,7 @@ func TestTheFoundersPassIsTheirCommentsTellAndTheTaskStillMoves(t *testing.T) {
 	// an edit tells bob again, and the return stays the comment's tell
 	var mid int64
 	r.must(r.DB.QueryRow(r.sql("SELECT MAX(id) FROM task_comments WHERE task_id = ? AND author = 'human'"), held).Scan(&mid))
-	r.turnCall(r.k("human"), "task.comment.edit", fmt.Sprintf(`{"task":%d,"memo":%d,"text":"now, please","request_id":"c2"}`, held, mid))
+	r.turnCall(r.k("human"), "task.comment.edit", fmt.Sprintf(`{"task":%d,"comment":%d,"text":"now, please","request_id":"c2"}`, held, mid))
 	if toldBob() != rid {
 		t.Fatalf("an edit replaced the return #%d as the comment's tell: #%d", rid, told)
 	}
@@ -487,7 +487,7 @@ func TestANewCommentMovesTheFoundersTurnToIt(t *testing.T) {
 	typed := len(r.term.typed)
 	out := r.turnCall(r.k("bob"), "task.comment.add", fmt.Sprintf(`{"task":%d,"text":"A, B or C? I recommend C","turn":"human","request_id":"p2"}`, held))
 	res := out["result"].(map[string]any)
-	mid, _ := res["memo"].(float64)
+	mid, _ := res["comment"].(float64)
 	if said := res["said"]; said != fmt.Sprintf("comment %d added to T%d: the founder's turn now hangs on this comment", int64(mid), held) {
 		t.Fatalf("%q", said)
 	}

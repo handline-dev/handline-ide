@@ -21,10 +21,10 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `task.start` | agent | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | not from the app |
 | `task.seen` | member | yes | `task`, `upto?`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: mark seen |
 | `requests.pending` | member |  | none | `{answer, comments, counts} & ReadCursor` |  |  | `requests-pending`, fed by tasks |
-| `task.comment.add` | agent | yes | `task`, `text`, `now?`, `reply?`, `turn?`, `done?`, `later?`, `files?`, `request_id` | `Accepted & {memo}` | `refused`, `not_found`, `bad_request` |  | authored: add comment |
+| `task.comment.add` | agent | yes | `task`, `text`, `now?`, `reply?`, `turn?`, `done?`, `later?`, `files?`, `request_id` | `Accepted & {comment}` | `refused`, `not_found`, `bad_request` |  | authored: add comment |
 | `task.comment.recipients` | agent |  | `task`, `text`, `now?` | `{recipients}` | `not_found`, `bad_request` |  | `comment-recipients`, fed by tasks |
-| `task.comment.edit` | agent | yes | `task`, `memo`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: edit comment |
-| `task.comment.delete` | agent | yes | `task`, `memo`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: delete comment |
+| `task.comment.edit` | agent | yes | `task`, `comment`, `text`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: edit comment |
+| `task.comment.delete` | agent | yes | `task`, `comment`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: delete comment |
 | `task.send_now` | member | yes | `task`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: run this one now |
 | `task.queue` | agent | yes | `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: queue |
 | `task.draft` | agent | yes | `tasks`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | authored: draft |
@@ -57,7 +57,7 @@ One task with body, delivery history and linked events.
 
 ### `task.history`
 
-Every change to a task, newest first: one row per field changed, with who made it, the value before and after, and when. It is read from the events each task write keeps in its own transaction, so it is never edited or deleted; a fix is a later row. A deleted memo's words stay in it. Anyone may edit a task (task.edit); this history is what makes that safe to undo by hand.
+Every change to a task, newest first: one row per field changed, with who made it, the value before and after, and when. It is read from the events each task write keeps in its own transaction, so it is never edited or deleted; a fix is a later row. A deleted comment's words stay in it. Anyone may edit a task (task.edit); this history is what makes that safe to undo by hand.
 
 ### `task.time`
 
@@ -77,7 +77,7 @@ Create a task. The founder or a member device opens one for an agent only, and i
 
 ### `task.handoff`
 
-Hand a task to another agent. Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.memo), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`. A story's sub-task (opened as a draft) that its assignee hands to its workspace's land_by agent does not go there: it is Ready for the founder (TaskDetail.review), the note a comment carrying the result with any files and the founder's turn on it, until task.ok hands it on or task.redo sends it back; it needs a note. That holds until the founder's newest verdict is OK. While it is Ready, an agent's handoff of it is refused.
+Hand a task to another agent. Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.comment), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`. A story's sub-task (opened as a draft) that its assignee hands to its workspace's land_by agent does not go there: it is Ready for the founder (TaskDetail.review), the note a comment carrying the result with any files and the founder's turn on it, until task.ok hands it on or task.redo sends it back; it needs a note. That holds until the founder's newest verdict is OK. While it is Ready, an agent's handoff of it is refused.
 
 ### `task.turn.pop`
 
@@ -113,7 +113,7 @@ What waits on the founder to act, in one read, and the counts the bell and the s
 
 ### `task.comment.add`
 
-Add a comment; anyone may. It is told only to an agent that has to act on it: one that names agents as @name is told to those only; one that names no one is told to the task's assignee (its holder) and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. The founder's comment that gives their turn back, or asks on a task Ready for them, always reaches the agent below their turn. It is never told to its writer. task.comment.recipients says who will be told before posting. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`). An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder adds any comment to that task, (2) the founder marks it read (inbox.mark_read naming its id), (3) its comment is deleted or edited so it no longer names `@human`, or (4) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.memo): by the agent acting on the task or the founder (on an agent's draft with no turn, the agent that answers for its opener may put a person's turn on it), refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment. A person's turn on a draft leaves it a draft, listed for them with Run (requests.pending kind run); their comment passes it back to the draft's opener with a notice, nothing delivered, and Run (task.queue) clears it.
+Add a comment; anyone may. It is told only to an agent that has to act on it: one that names agents as @name is told to those only; one that names no one is told to the task's assignee (its holder) and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. The founder's comment that gives their turn back, or asks on a task Ready for them, always reaches the agent below their turn. It is never told to its writer. task.comment.recipients says who will be told before posting. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `comment` set) stays open until (1) the founder adds any comment to that task, (2) the founder marks it read (inbox.mark_read naming its id), (3) its comment is deleted or edited so it no longer names `@human`, or (4) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.comment): by the agent acting on the task or the founder (on an agent's draft with no turn, the agent that answers for its opener may put a person's turn on it), refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment. A person's turn on a draft leaves it a draft, listed for them with Run (requests.pending kind run); their comment passes it back to the draft's opener with a notice, nothing delivered, and Run (task.queue) clears it.
 
 ### `task.comment.recipients`
 
@@ -121,11 +121,11 @@ Who a comment would be told to, before it is posted: the rule task.comment.add u
 
 ### `task.comment.edit`
 
-Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`).
+Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add).
 
 ### `task.comment.delete`
 
-Delete a comment: its author or the founder. Deleting a comment withdraws the ask it opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`).
+Delete a comment: its author or the founder. Deleting a comment withdraws the ask it opened (task.comment.add).
 
 ### `task.send_now`
 
@@ -137,7 +137,7 @@ Approve draft tasks to run: anyone may; each task's opener and assignee are told
 
 ### `task.draft`
 
-Send queued or doing tasks back to draft: anyone may; each task's opener and assignee are told. A holder working the task is told to stop and moved on to its next task, and commits or changes it left in its worktree are kept in a memo on the task. A draft clears the task's turns, telling the agents that held them: it goes back to its owner.
+Send queued or doing tasks back to draft: anyone may; each task's opener and assignee are told. A holder working the task is told to stop and moved on to its next task, and commits or changes it left in its worktree are kept in a comment on the task. A draft clears the task's turns, telling the agents that held them: it goes back to its owner.
 
 ### `task.merge`
 

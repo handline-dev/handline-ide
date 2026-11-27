@@ -14,7 +14,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
     const ask =
       'Which way should the bell count a pause?\nA) One line for each pause, newest first\nB) One line for each agent, its pauses folded under it';
-    const memos = [
+    const comments = [
       { id: 1, at: iso(48), author: ARCH, text: 'Started on the bell redesign. Reading how pauses are counted today.' },
       {
         id: 2,
@@ -38,9 +38,9 @@ export const TURN_SEEDS: Record<string, Seed> = {
       state: 'doing',
       created: iso(55),
       body: 'The bell counts every pause as its own line. Pick how repeats are shown.',
-      memos,
-      turnLog: [{ at: iso(3), who: `${ARCH} → ${ME}`, text: ask, turn: 'push', memo: 4 }],
-      turns: [{ agent: FOUNDER, ask, memo: 4, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      comments,
+      turnLog: [{ at: iso(3), who: `${ARCH} → ${ME}`, text: ask, turn: 'push', comment: 4 }],
+      turns: [{ agent: FOUNDER, ask, comment: 4, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
       acting: FOUNDER,
     });
     d.inbox.add({ kind: 'decision', agent: ARCH, title: 'Bell redesign: how a pause is counted', body: ask, task: 8809 });
@@ -62,7 +62,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
       state: 'doing',
       created: iso(60),
       body: 'The bell counts every pause as its own line.',
-      memos: [
+      comments: [
         { id: 11, at: iso(50), author: ARCH, text: 'Reading how pauses are counted today.' },
         { id: 12, at: iso(40), author: ARCH, text: first },
         {
@@ -77,11 +77,13 @@ export const TURN_SEEDS: Record<string, Seed> = {
         { id: 16, at: iso(1), author: 'handline.ui', text: 'B is the one the bell mock-up uses.' },
       ].map((m) => ({ ...m, task: 8830 })),
       turnLog: [
-        { at: iso(40), who: `${ARCH} → ${ME}`, text: first, turn: 'push', memo: 12 },
-        { at: iso(30), who: `${ME} → ${ARCH}`, text: '', turn: 'pop', memo: 13 },
-        { at: iso(3), who: `${ARCH} → ${ME}`, text: again, turn: 'push', memo: 15 },
+        { at: iso(40), who: `${ARCH} → ${ME}`, text: first, turn: 'push', comment: 12 },
+        { at: iso(30), who: `${ME} → ${ARCH}`, text: '', turn: 'pop', comment: 13 },
+        { at: iso(3), who: `${ARCH} → ${ME}`, text: again, turn: 'push', comment: 15 },
       ],
-      turns: [{ agent: FOUNDER, ask: again, memo: 15, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      turns: [
+        { agent: FOUNDER, ask: again, comment: 15, by: ARCH, since: iso(3), on_pass: null, evidence: null, edited: null, earlier: [] },
+      ],
       acting: FOUNDER,
     });
     // The same in the architect's chat, as task_comment items: its card there.
@@ -101,8 +103,8 @@ export const TURN_SEEDS: Record<string, Seed> = {
       [3, 15, 'turn', ARCH, again],
       [2, 17, 'note', ARCH, `<@${ME}> Shots for A and B are in the task.`],
     ] as const;
-    for (const [min, memo, kind, who, text] of lines)
-      d.chat.seedItem(ARCH, { at: iso(min), kind: 'task_comment', text, task_comment: { task: 8830, memo, kind, who, text } });
+    for (const [min, comment, kind, who, text] of lines)
+      d.chat.seedItem(ARCH, { at: iso(min), kind: 'task_comment', text, task_comment: { task: 8830, comment, kind, who, text } });
     d.tasks.seed({
       id: 8831,
       from: ARCH,
@@ -112,7 +114,7 @@ export const TURN_SEEDS: Record<string, Seed> = {
       decided: { at: iso(5), ask: 'Which sound should the bell play?', answer: 'The soft one.' },
       created: iso(20),
       body: 'The bell needs a sound for a pause.',
-      memos: [
+      comments: [
         { id: 15, at: iso(5), author: ME, text: 'The soft one.', task: 8831 },
         // On a task the founder holds, his own comment is addressed to whom it was told, not to him.
         {

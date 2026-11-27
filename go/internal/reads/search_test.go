@@ -14,7 +14,7 @@ import (
 
 type searchHit struct {
 	Kind, At, Snippet, Field, Title, Agent, Scope, From string
-	Task, Memo, Request                                 int64
+	Task, Comment, Request                              int64
 }
 
 func searchOf(t *testing.T, e *Env, params map[string]any) (hits []searchHit, more bool) {
@@ -40,7 +40,7 @@ func (h searchHit) line() string {
 	case "task":
 		return fmt.Sprintf("task %d %s", h.Task, h.Field)
 	case "comment":
-		return fmt.Sprintf("comment %d on %d by %s", h.Memo, h.Task, h.From)
+		return fmt.Sprintf("comment %d on %d by %s", h.Comment, h.Task, h.From)
 	}
 	return fmt.Sprintf("message %d in %s %s task %d", h.Request, h.Agent, h.Scope, h.Task)
 }

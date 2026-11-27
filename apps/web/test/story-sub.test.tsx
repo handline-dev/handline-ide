@@ -27,7 +27,7 @@ it('opens a sub-task that was loading without breaking the order of its hooks', 
   const el = document.createElement('div');
   const root = createRoot(el);
   act(() => root.render(<SubTask sub={sub} story={story} onPick={() => {}} at={[1, 1]} onStep={() => {}} />));
-  task = { id: 2, title: 'Two', state: 'draft', to: 'a1', plan: null, plan_state: 'none', review: null, memos: [], timeline: [] };
+  task = { id: 2, title: 'Two', state: 'draft', to: 'a1', plan: null, plan_state: 'none', review: null, comments: [], timeline: [] };
   expect(() => act(() => root.render(<SubTask sub={sub} story={story} onPick={() => {}} at={[1, 1]} onStep={() => {}} />))).not.toThrow();
   expect(el.textContent).toContain('Two');
   act(() => root.unmount());

@@ -2,7 +2,7 @@
 import type { FakeInbox } from '#src/inbox.ts';
 import type { FakeRequests } from '#src/requests.ts';
 import { planFields, planState, type PlanRow } from '#src/planview.ts';
-import type { HistoryRow, Lesson, Memo, Proposal, Task, TaskClock, TaskDetail, TaskLook, TaskPR, TimeSegment } from '@handline/contract';
+import type { HistoryRow, Lesson, Comment, Proposal, Task, TaskClock, TaskDetail, TaskLook, TaskPR, TimeSegment } from '@handline/contract';
 import { seedTasks } from '#src/seedtasks.ts';
 import { changes } from '#src/history.ts';
 import type { SeedCommit } from '#src/taskchanges.ts';
@@ -31,9 +31,9 @@ export interface Host {
 export type Row = Task &
   PlanRow & {
     body: string;
-    memos?: Memo[];
+    comments?: Comment[];
     notes?: { at: string; who: string; text: string }[]; // the notes it was sent back with
-    turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop'; memo?: number }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
+    turnLog?: { at: string; who: string; text: string; turn: 'push' | 'pop'; comment?: number }[]; // turns pushed (`by → to`, the ask) and given back (`from → to`)
     handoffLog?: { at: string; who: string; text: string }[]; // handoffs (`from → to`, the note)
     blockers: { task: number; reason: string; at?: string }[];
     clock?: TaskClock | null;
@@ -105,7 +105,7 @@ export class TaskStore {
   protected images(text: string, was: string, field: string, agent: boolean): void {
     const shown = () =>
       new Set(
-        this.rows.flatMap((r) => [r.body, ...(r.memos ?? []).map((m) => m.text), ...(r.notes ?? []).map((n) => n.text)].flatMap(refs)),
+        this.rows.flatMap((r) => [r.body, ...(r.comments ?? []).map((m) => m.text), ...(r.notes ?? []).map((n) => n.text)].flatMap(refs)),
       );
     this.host.uploads.check(text, was, field, agent, shown);
   }
@@ -173,9 +173,9 @@ export class TaskStore {
     return t.to === 'human' ? { on: 'founder', text: 'needs you', tasks: [], since: t.created } : null;
   }
   protected view(row: Row): Task {
-    const { body: _b, memos: _m, notes: _n, blockers, clock, estimate: _e, todo: _todo, spend: _spend, pull: _pull, ...t } = row;
+    const { body: _b, comments: _m, notes: _n, blockers, clock, estimate: _e, todo: _todo, spend: _spend, pull: _pull, ...t } = row;
     const ended = t.state === 'done' || t.state === 'discarded';
-    const fresh = (row.memos ?? []).filter((m) => m.author !== 'human' && m.id > (this.seenUpto.get(row.id) ?? 0));
+    const fresh = (row.comments ?? []).filter((m) => m.author !== 'human' && m.id > (this.seenUpto.get(row.id) ?? 0));
     const opener = this.draftOpener(row);
     return {
       ...t,
@@ -297,7 +297,7 @@ export class TaskStore {
     };
     // Whom a comment is written to, as the daemon reads it (addr.Lead): the person its leading mention names.
     const lead = (text: string) => /^\s*<@(human|p\d+)>/.exec(text)?.[1];
-    const memos = (t.memos ?? []).map((m) => {
+    const comments = (t.comments ?? []).map((m) => {
       const to = lead(m.text);
       return withParts(to ? { ...m, to } : m, m.text);
     });
@@ -312,7 +312,7 @@ export class TaskStore {
       ...(bodyParts ? { body_parts: bodyParts } : {}),
       deliveries: t.delivered ? [{ at: t.delivered, how: 'typed', outcome: 'delivered' }] : [],
       events: [{ topic: 'tasks', type: 'task.opened', at: t.created, actor: null, agent: t.to, title: t.title, target: null, data: {} }],
-      memos,
+      comments,
       blockers: t.blockers.map((b) => {
         const held = this.rows.find((r) => r.id === b.task);
         return { ...b, owner: held?.to ?? '', title: held?.title ?? '', ...this.look(b.task) };
@@ -330,18 +330,21 @@ export class TaskStore {
         .filter((r) => r.parent === t.id)
         .map((r) => ({ id: r.id, title: r.title, owner: r.to, plan_state: planState(r), review: r.review ?? null, ...this.look(r.id) })),
       timeline: [
-        ...(t.memos ?? []).map((m) =>
-          withParts({ at: m.at, who: m.author, kind: 'memo' as const, text: m.text, memo: m.id, edited_at: m.edited_at ?? null }, m.text),
+        ...(t.comments ?? []).map((m) =>
+          withParts(
+            { at: m.at, who: m.author, kind: 'comment' as const, text: m.text, comment: m.id, edited_at: m.edited_at ?? null },
+            m.text,
+          ),
         ),
         ...(t.notes ?? []).map((n) =>
-          withParts({ at: n.at, who: n.who, kind: 'reject' as const, text: n.text, memo: null, edited_at: null }, n.text),
+          withParts({ at: n.at, who: n.who, kind: 'reject' as const, text: n.text, comment: null, edited_at: null }, n.text),
         ),
-        ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, memo: n.memo ?? null, edited_at: null })),
-        ...(t.handoffLog ?? []).map((n) => ({ ...n, kind: 'handoff' as const, memo: null, edited_at: null })),
+        ...(t.turnLog ?? []).map((n) => ({ ...n, kind: 'turn' as const, comment: n.comment ?? null, edited_at: null })),
+        ...(t.handoffLog ?? []).map((n) => ({ ...n, kind: 'handoff' as const, comment: null, edited_at: null })),
         ...[...this.lessons.values(), this.removedLessons]
           .flat()
           .filter((l) => l.task === t.id)
-          .map((l) => ({ at: l.created_at, who: l.created_by, kind: 'lesson' as const, text: l.text, memo: null, edited_at: null })),
+          .map((l) => ({ at: l.created_at, who: l.created_by, kind: 'lesson' as const, text: l.text, comment: null, edited_at: null })),
         ...this.host.script.proposals.proposals
           .filter((p) => p.kind === 'run' && p.task === t.id && p.run)
           .map((p) => ({
@@ -349,7 +352,7 @@ export class TaskStore {
             who: p.requested_by ?? p.agent,
             kind: 'run' as const,
             text: p.run!.command,
-            memo: null,
+            comment: null,
             edited_at: null,
             proposal: p,
           })),

@@ -31,7 +31,7 @@ func TestAFounderCommentShowsWhereItsTellStandsForEachReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memos := got.(map[string]any)["memos"].([]any)
+	memos := got.(map[string]any)["comments"].([]any)
 	var states []string
 	for _, r := range memos[0].(map[string]any)["readers"].([]any) {
 		states = append(states, r.(map[string]any)["agent"].(string)+":"+r.(map[string]any)["state"].(string))

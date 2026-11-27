@@ -528,7 +528,7 @@ func timelineEntry(r row) map[string]any {
 	if a, ok := payload["actor"].(map[string]any); ok {
 		actor = a
 	}
-	kind := wireEvent(r.str("kind"), payload)
+	kind := r.str("kind")
 	text := kind
 	for _, k := range []string{"text", "detail", "method"} {
 		if s := setText(payload[k]); s != "" {

@@ -75,7 +75,7 @@ function Row({ t, task, ruled }: { t: Touched; task?: Task; ruled: boolean }) {
   const me = useMe();
   const last = t.events.at(-1)!;
   // Where it stands now, then the newest comment ("With lander · You: OK") or how often it changed ("· 2 changes"). The time shows on hover.
-  // An edit heard live after a comment (the comment's own memo row) leaves the comment the newest thing said.
+  // An edit heard live after a comment (the comment's own comment row) leaves the comment the newest thing said.
   const at = t.events.map((e) => e.kind).lastIndexOf('comment');
   const said = at >= 0 && t.events.slice(at + 1).every((e) => e.kind === 'edit') ? plainLine(t.events[at].detail) : undefined;
   const line = [task ? holder(task, me, nameOf) : said ? '' : last.detail, said ?? (t.events.length > 1 && `${t.events.length} changes`)]
@@ -173,7 +173,7 @@ function fromRow(task: number, title: string, rows: HistoryRow[]): TaskEvent | n
   const r = rows[0];
   if (r.field === 'blocked_by')
     return { key, at, kind: 'edit', id, title, detail: r.now ? `Waits on ${r.now}` : `No longer waits on ${r.was}` };
-  if (r.field === 'memo') return { key, at, kind: 'edit', id, title, detail: `Comment: ${r.now.replace(/\s+/g, ' ')}` };
+  if (r.field === 'comment') return { key, at, kind: 'edit', id, title, detail: `Comment: ${r.now.replace(/\s+/g, ' ')}` };
   if (r.field === 'body') return { key, at, kind: 'edit', id, title, detail: 'Brief edited' };
   return { key, at, kind: 'edit', id, title, detail: r.field === 'title' ? '' : r.field, before: r.was || '—', after: r.now || '—' };
 }

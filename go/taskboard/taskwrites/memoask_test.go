@@ -68,7 +68,7 @@ func TestAnOldCommentsAskFollowsItsComment(t *testing.T) {
 		return s, body
 	}
 	edit := func(mid int64, text string) {
-		call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.edit","params":{"task":1,"memo":%d,"text":%q,"request_id":%q}}`, mid, text, rid()))
+		call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.edit","params":{"task":1,"comment":%d,"text":%q,"request_id":%q}}`, mid, text, rid()))
 	}
 	oldAsk(t, db, 1, 1, "@human which one?")
 	edit(1, "@human which one, A or B?")
@@ -80,7 +80,7 @@ func TestAnOldCommentsAskFollowsItsComment(t *testing.T) {
 		t.Fatalf("an edit that moves `@human` off the start: %q", s)
 	}
 	oldAsk(t, db, 1, 2, "@human again")
-	call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"memo":2,"request_id":%q}}`, rid()))
+	call(t, mk("worker"), fmt.Sprintf(`{"jsonrpc":"2.0","id":2,"method":"task.comment.delete","params":{"task":1,"comment":2,"request_id":%q}}`, rid()))
 	if s, _ := state(2); s != "withdrawn" {
 		t.Fatalf("a deleted comment: %q", s)
 	}

@@ -141,7 +141,7 @@ func (e *Env) items(heads []itemHead) ([]map[string]any, error) {
 			return nil, err
 		}
 		if h.memo != 0 {
-			it["memo"] = h.memo
+			it["comment"] = h.memo
 		}
 		out = append(out, it)
 	}

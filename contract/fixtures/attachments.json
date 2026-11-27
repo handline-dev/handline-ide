@@ -1007,7 +1007,7 @@
   {
    "name": "task.comment.add.more_than_six_images_is_bad_request",
    "spec": "task.comment.add",
-   "about": "A text names at most 6 images; a memo naming 7 is bad_request, field text.",
+   "about": "A text names at most 6 images; a comment naming 7 is bad_request, field text.",
    "as": "founder",
    "steps": [
     {
@@ -1086,9 +1086,9 @@
    ]
   },
   {
-   "name": "task.comment.add.a_put_image_is_named_in_a_brief_and_a_memo",
+   "name": "task.comment.add.a_put_image_is_named_in_a_brief_and_a_comment",
    "spec": "task.comment.add",
-   "about": "An image put by the founder is named in a task's brief and in a memo; the texts are stored as written and read back cut into parts, with no path for a founder.",
+   "about": "An image put by the founder is named in a task's brief and in a comment; the texts are stored as written and read back cut into parts, with no path for a founder.",
    "as": "founder",
    "steps": [
     {
@@ -1188,7 +1188,7 @@
         }
        }
       ],
-      "memos": {
+      "comments": {
        "$contains": {
         "text": "still ![the button](attachment:{{aid}})",
         "parts": [
@@ -1209,7 +1209,7 @@
       },
       "timeline": {
        "$contains": {
-        "kind": "memo",
+        "kind": "comment",
         "parts": [
          {
           "text": "still "
@@ -1369,7 +1369,7 @@
       }
      },
      "result": {
-      "memos": {
+      "comments": {
        "$contains": {
         "parts": [
          {

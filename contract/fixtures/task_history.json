@@ -81,7 +81,7 @@
    "with": {
     "boss": "founder"
    },
-   "about": "A task an agent opened from the founder's message, then retitled, with a memo added and edited: each change is a row of who, field, was, now and when, newest first; the memo's rows carry its id and its text before and after.",
+   "about": "A task an agent opened from the founder's message, then retitled, with a comment added and edited: each change is a row of who, field, was, now and when, newest first; the comment's rows carry its id and its text before and after.",
    "steps": [
     {
      "send": {
@@ -165,7 +165,7 @@
      },
      "result": {
       "accepted": true,
-      "memo": {
+      "comment": {
        "$save": "mid"
       }
      }
@@ -177,7 +177,7 @@
       "method": "task.comment.edit",
       "params": {
        "task": "{{tid}}",
-       "memo": "{{mid}}",
+       "comment": "{{mid}}",
        "text": "second words",
        "request_id": "conf-hist-3"
       }
@@ -258,8 +258,8 @@
         "by": {
          "$type": "string"
         },
-        "field": "memo",
-        "memo": {
+        "field": "comment",
+        "comment": {
          "$type": "integer"
         },
         "was": "first words",
@@ -285,12 +285,12 @@
         "now": "history task, renamed"
        },
        {
-        "field": "memo",
+        "field": "comment",
         "was": "first words",
         "now": "second words"
        },
        {
-        "field": "memo",
+        "field": "comment",
         "was": "",
         "now": "first words"
        },

@@ -72,7 +72,7 @@
       ],
       "description": "Only on a card the daemon raised after its own recovery failed: the action to offer as a button. open_terminal opens the item's agent's terminal, since every step the daemon could take was taken."
      },
-     "memo": {
+     "comment": {
       "type": "integer",
       "description": "Only on an ask an agent's task comment raised by naming `@human` (task.comment.add): that comment's id on `task`. A client opens the comment itself. Absent on any other item."
      }
@@ -607,7 +607,7 @@
        "task": {
         "type": "integer"
        },
-       "memo": {
+       "comment": {
         "oneOf": [
          {
           "type": "integer"
@@ -616,7 +616,7 @@
           "type": "null"
          }
         ],
-        "description": "The comment (Memo.id); null for a turn put on with no comment (Turn.memo), whose text is the turn's ask."
+        "description": "The comment (Comment.id); null for a turn put on with no comment (Turn.comment), whose text is the turn's ask."
        },
        "kind": {
         "type": "string",
@@ -637,7 +637,7 @@
       },
       "required": [
        "task",
-       "memo",
+       "comment",
        "kind",
        "who",
        "text"
@@ -2098,7 +2098,7 @@
   },
   {
    "name": "attachment.get",
-   "summary": "Read an attached image or a memo's file, or a small copy of an image, for drawing.",
+   "summary": "Read an attached image or a comment's file, or a small copy of an image, for drawing.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -2185,7 +2185,7 @@
   },
   {
    "name": "attachment.remove",
-   "summary": "The founder deletes an image or a memo's file everywhere it is named; dry_run counts the places first.",
+   "summary": "The founder deletes an image or a comment's file everywhere it is named; dry_run counts the places first.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -2224,7 +2224,7 @@
         "removed_from": {
          "type": "integer",
          "minimum": 0,
-         "description": "How many chat messages, task texts and memos name it or carry it, each once; 0 when it was removed already."
+         "description": "How many chat messages, task texts and comments name it or carry it, each once; 0 when it was removed already."
         }
        },
        "required": [
@@ -2255,7 +2255,7 @@
    "x-gates": [
     "role"
    ],
-   "description": "See x-attachments. The file is deleted at once, wherever it is named: in a chat message, a task's brief, a memo or a note, or carried as a memo's file. Every read that names the id then answers as for an image no longer kept, ImagePart and MemoFile with gone: true, and with removed: true as well, so a client tells a deletion from an expiry; attachment.get is not_found. The texts that name it are not changed. ChatMessage.attachments and turn_start.attachments still list the id; a client reads gone and removed from parts. The event attachment.removed goes on the chat and tasks topics. An id removed already is accepted with removed_from 0, so a retried tap is no error; one never put is not_found, what attachment. A dry run writes nothing and keeps no reply under the request_id. An agent or member caller is refused, gate role. Agents are not told: one that was given the path keeps its line, and reading it later fails."
+   "description": "See x-attachments. The file is deleted at once, wherever it is named: in a chat message, a task's brief, a comment or a note, or carried as a comment's file. Every read that names the id then answers as for an image no longer kept, ImagePart and CommentFile with gone: true, and with removed: true as well, so a client tells a deletion from an expiry; attachment.get is not_found. The texts that name it are not changed. ChatMessage.attachments and turn_start.attachments still list the id; a client reads gone and removed from parts. The event attachment.removed goes on the chat and tasks topics. An id removed already is accepted with removed_from 0, so a retried tap is no error; one never put is not_found, what attachment. A dry run writes nothing and keeps no reply under the request_id. An agent or member caller is refused, gate role. Agents are not told: one that was given the path keeps its line, and reading it later fails."
   },
   {
    "name": "inbox.list",
@@ -2933,7 +2933,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.memo) is read only by naming its own id: reading an agent's messages past it leaves it open."
+   "description": "For the founder, every message of an agent up to the newest id named is read; a decision or a reply owed is never read away, so such an id, and what lies past it, stays unread (refused, gate state, when nothing could be read). For an agent only the head of its own queue can be read, as `hl inbox` does; another id of its own is refused, gate state. An ask raised by a task comment (InboxItem.comment) is read only by naming its own id: reading an agent's messages past it leaves it open."
   },
   {
    "name": "requests.list",

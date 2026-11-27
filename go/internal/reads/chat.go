@@ -913,7 +913,7 @@ func commentCardOf(ev row) (item map[string]any, agent string, ok bool) {
 		memoID = memo
 	}
 	return map[string]any{"id": itemID(ev.i("ts"), itemTask, ev.i("id")), "at": ts(ev["ts"]), "kind": "task_comment",
-		"task_comment": map[string]any{"task": tid, "memo": memoID, "kind": kind, "who": ev.str("agent"), "text": textsafe.Text(words)}}, agent, true
+		"task_comment": map[string]any{"task": tid, "comment": memoID, "kind": kind, "who": ev.str("agent"), "text": textsafe.Text(words)}}, agent, true
 }
 
 // taskItemOf is one task event of the events table as a transcript item and the task it names; false when the chat does not show it. A

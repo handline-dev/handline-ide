@@ -105,7 +105,7 @@ func TestAnEditThatKeepsAReferenceToAGoneImageIsNotRefusedForIt(t *testing.T) {
 	said(t, run("boss", "task.edit", "e1", params(1, "body", "a "+ref(img))))
 	info, _ := s.Lookup(img)
 	os.Remove(s.Path(info))
-	said(t, run("", "task.comment.edit", "m2", `,"memo":1`+params(1, "text", "two "+ref(img))))
+	said(t, run("", "task.comment.edit", "m2", `,"comment":1`+params(1, "text", "two "+ref(img))))
 	said(t, run("boss", "task.edit", "e2", params(1, "body", "b "+ref(img))))
 	if r := run("", "task.comment.add", "m3", params(1, "text", "three "+ref(img))); errData(r)["code"] != "not_found" {
 		t.Fatalf("a new text naming it is refused: %v", r)

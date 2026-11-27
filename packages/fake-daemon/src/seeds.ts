@@ -52,7 +52,7 @@ export const SEEDS: Record<string, Seed> = {
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
     const [before, after] = [d.uploads.add('before.png', png), d.uploads.add('after.png', png)];
     d.tasks.seed({ id: 9301, from: ARCH, to: ME, title: 'Review: wider margin on the board', state: 'doing', tags: ['review'] });
-    d.tasks.memo(
+    d.tasks.comment(
       { task: 9301, text: `Margin widened.\n![before](attachment:${before.id})\n![after](attachment:${after.id})` },
       'add',
       ARCH,
@@ -66,7 +66,7 @@ export const SEEDS: Record<string, Seed> = {
     const ids = [1, 2, 3, 4, 5].map((i) => d.uploads.add(`shot-${i}.png`, png).id);
     const ref = (i: number) => `![shot ${i + 1}](attachment:${ids[i]})`;
     d.tasks.seed({ id: 9302, from: ARCH, to: ME, title: 'Five screenshots of the board', state: 'doing' });
-    d.tasks.memo({ task: 9302, text: `Here they are.\n${ref(0)} ${ref(1)}\n\n${ref(2)}\n\n${ref(3)}\n${ref(4)}` }, 'add', ARCH);
+    d.tasks.comment({ task: 9302, text: `Here they are.\n${ref(0)} ${ref(1)}\n\n${ref(2)}\n\n${ref(3)}\n${ref(4)}` }, 'add', ARCH);
   },
 
   /** An open task given to the person, with its card in the architect's chat: the card then offers Open and Done. */

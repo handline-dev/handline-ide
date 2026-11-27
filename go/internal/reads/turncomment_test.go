@@ -21,7 +21,7 @@ func TestATurnReadsTheCommentItWasHandedOverWith(t *testing.T) {
 	}
 	task := got.(map[string]any)
 	turn := task["turns"].([]any)[0].(map[string]any)
-	if turn["ask"] != "A or B? I recommend A" || turn["memo"] != int64(7) {
+	if turn["ask"] != "A or B? I recommend A" || turn["comment"] != int64(7) {
 		t.Fatalf("%v", turn)
 	}
 	var push map[string]any
@@ -30,7 +30,7 @@ func TestATurnReadsTheCommentItWasHandedOverWith(t *testing.T) {
 			push = row
 		}
 	}
-	if push == nil || push["turn"] != "push" || push["memo"] != int64(7) {
+	if push == nil || push["turn"] != "push" || push["comment"] != int64(7) {
 		t.Fatalf("the push row: %v", push)
 	}
 }
@@ -110,7 +110,7 @@ func TestTheFoundersTurnTheirAnswerAndANoteAreCardsInTheAgentsChat(t *testing.T)
 	for _, it := range items {
 		if it["kind"] == "task_comment" {
 			c := it["task_comment"].(map[string]any)
-			got = append(got, fmt.Sprintf("%s %v %s %q", c["kind"], c["memo"], c["who"], c["text"]))
+			got = append(got, fmt.Sprintf("%s %v %s %q", c["kind"], c["comment"], c["who"], c["text"]))
 		}
 	}
 	want := `[turn 7 amy "A or B? I recommend A" answer 8 p1 "A" note 9 amy "<@p1> A is in" note 11 amy "<@p1> C or D?"]`

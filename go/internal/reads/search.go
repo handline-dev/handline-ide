@@ -129,7 +129,7 @@ func (e *Env) search(_ *rpc.Conn, params map[string]any) (any, error) {
 	}
 	for _, m := range cut(memos) {
 		hits = append(hits, map[string]any{"kind": "comment", "at": ts(m["created_at"]), "snippet": snippetOf(m.str("body"), text),
-			"task": m.i("task_id"), "title": m.str("title"), "memo": m.i("id"), "from": m.str("author")})
+			"task": m.i("task_id"), "title": m.str("title"), "comment": m.i("id"), "from": m.str("author")})
 	}
 	messages, err := query(e.DB, searchMessagesSQL, like, limit+1)
 	if err != nil {

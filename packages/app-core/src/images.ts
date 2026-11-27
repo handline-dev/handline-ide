@@ -1,7 +1,7 @@
 // What an app does with a picture before it is uploaded and after it is chosen, with no platform in it: the size to shrink to, and the line a
 // text carries for an image already uploaded.
 
-/** The Markdown line that names an uploaded image in a task body or a memo. */
+/** The Markdown line that names an uploaded image in a task body or a comment. */
 export const imageRef = (id: string, alt = '') => `![${alt.replace(/[[\]\n]/g, ' ').trim()}](attachment:${id})`;
 
 /** A note, then one reference per attached file under its name, each on its own line. */

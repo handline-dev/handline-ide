@@ -17,7 +17,7 @@ export type InboxItem = {
   /** Only on a card the daemon raised after its own recovery failed: the action to offer as a button. open_terminal opens the item's agent's terminal, since every step the daemon could take was taken. */
   fix?: "open_terminal";
   /** Only on an ask an agent's task comment raised by naming `@human` (task.comment.add): that comment's id on `task`. A client opens the comment itself. Absent on any other item. */
-  memo?: number;
+  comment?: number;
 };
 
 /** Landing state of a message; open set. */
@@ -154,8 +154,8 @@ export type TranscriptItem = {
   /** For kind task_comment: a task comment the founder is part of, as a card in an agent's chat. turn: the founder's turn put on the task, in the chat of the agent below it; answer: the founder's comment that gave the turn back, in the chat of the agent it went back to; note: an `@human` comment (news, no turn), in its author's chat. The card opens the task; the answer is written there. */
   task_comment?: {
     task: number;
-    /** The comment (Memo.id); null for a turn put on with no comment (Turn.memo), whose text is the turn's ask. */
-    memo: number | null;
+    /** The comment (Comment.id); null for a turn put on with no comment (Turn.comment), whose text is the turn's ask. */
+    comment: number | null;
     kind: "turn" | "answer" | "note";
     /** Who wrote it: the agent's key, or the person's for an answer. */
     who: string;
@@ -486,7 +486,7 @@ export interface ChatMethods {
   dry_run?: boolean;
   request_id: RequestId;
 }; result: Accepted & {
-    /** How many chat messages, task texts and memos name it or carry it, each once; 0 when it was removed already. */
+    /** How many chat messages, task texts and comments name it or carry it, each once; 0 when it was removed already. */
     removed_from: number;
   } };
   "inbox.list": { params: {

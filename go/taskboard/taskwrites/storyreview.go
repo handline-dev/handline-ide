@@ -188,7 +188,7 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 					return nil, refusal(asked.Msg)
 				}
 				to = r.By
-				return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(r.By), r.Redo+1), map[string]any{"memo": memo}), nil
+				return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(r.By), r.Redo+1), map[string]any{"comment": memo}), nil
 			}
 			if popped, err = popTurnTold(tx, home, tell, tid, me, db.TurnSendBack, note, memo, told); err != nil {
 				return nil, err
@@ -196,7 +196,7 @@ func redoMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			if popped.Asked != nil && !popped.Asked.OK { // all of it rolls back: the task stays Ready
 				return nil, refusal(popped.Asked.Msg)
 			}
-			return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(popped.To), r.Redo+1), map[string]any{"memo": memo}), nil
+			return accepted(fmt.Sprintf("T%d sent back to %s: Redo %d", tid, addr.Ref(popped.To), r.Redo+1), map[string]any{"comment": memo}), nil
 		})
 		if err != nil {
 			return nil, err

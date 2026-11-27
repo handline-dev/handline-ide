@@ -7,7 +7,7 @@ import { useWrite } from '#src/write.ts';
 export function useTaskSeen(task: number, active = true): void {
   const mark = useWrite('task.seen', String(task));
   const t = useTask(task).data;
-  const newest = t ? Math.max(0, ...t.memos.map((m) => m.id)) : 0;
+  const newest = t ? Math.max(0, ...t.comments.map((m) => m.id)) : 0;
   const told = useRef(0);
   useEffect(() => {
     told.current = 0;

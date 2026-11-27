@@ -125,9 +125,9 @@ func taskID(p map[string]any) (int64, error) {
 }
 
 func memoID(p map[string]any) (int64, error) {
-	n, ok := rpc.AsInt(p["memo"])
+	n, ok := rpc.AsInt(p["comment"])
 	if !ok {
-		return 0, badParam("memo is a memo number", "memo")
+		return 0, badParam("comment must be a comment's number", "comment")
 	}
 	return n, nil
 }
@@ -170,7 +170,7 @@ func memoOf(tx *sql.Tx, tid, mid int64) (author, body string, err error) {
 	switch err = tx.QueryRow("SELECT task_id, author, body FROM task_comments WHERE id = ?", mid).Scan(&of, &author, &body); {
 	case err == sql.ErrNoRows || (err == nil && of != tid):
 		e := rpc.NotFoundError(fmt.Sprintf("T%d has no comment %d", tid, mid))
-		e.Data = map[string]any{"what": "memo", "name": fmt.Sprint(mid)}
+		e.Data = map[string]any{"what": "comment", "name": fmt.Sprint(mid)}
 		return "", "", e
 	}
 	return author, body, err
@@ -355,7 +355,7 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 					said += fmt.Sprintf(", and T%d is %s's turn now: %s", tid, addr.Ref(to), asked.Msg)
 				}
 			}
-			return accepted(said, map[string]any{"memo": mid}), nil
+			return accepted(said, map[string]any{"comment": mid}), nil
 		})
 		var skip []string // agents another delivery already carries the comment to
 		if err == nil && asked != nil && !asked.Reask && tell != nil {

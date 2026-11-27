@@ -64,7 +64,7 @@ const parties = (t: TaskDetail): string[] => [
     t.to,
     t.asker,
     t.from,
-    ...[...t.memos].reverse().map((m) => m.author),
+    ...[...t.comments].reverse().map((m) => m.author),
   ]),
 ];
 

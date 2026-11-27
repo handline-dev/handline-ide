@@ -91,7 +91,7 @@ export function taskCall(
       case 'task.ok':
         return ok(tasks.ok(p));
       case 'task.redo':
-        return ok('Sent back.', { memo: tasks.redo(p, person) });
+        return ok('Sent back.', { comment: tasks.redo(p, person) });
       case 'task.done':
         return ok(tasks.done(p));
       case 'task.reopen':
@@ -109,11 +109,11 @@ export function taskCall(
       case 'task.comment.add':
         if (typeof p.done === 'string' && p.done.trim() && (p.turn === undefined || p.turn === 'human'))
           throw invalidParams('done goes with a turn to an agent: a review whose pass closes the task', 'done');
-        return ok('Comment added.', { memo: tasks.memo(p, 'add', person, agent) });
+        return ok('Comment added.', { comment: tasks.comment(p, 'add', person, agent) });
       case 'task.comment.edit':
-        return (tasks.memo(p, 'edit', person, agent), ok('Comment changed.'));
+        return (tasks.comment(p, 'edit', person, agent), ok('Comment changed.'));
       case 'task.comment.delete':
-        return (tasks.memo(p, 'delete', person), ok('Comment deleted.'));
+        return (tasks.comment(p, 'delete', person), ok('Comment deleted.'));
       case 'task.turn.pop':
         return (tasks.turnPop(p), ok('Turn given back.'));
       default:

@@ -1,6 +1,6 @@
 // A Ready task's result and the founder's verdict on it: shared by a story's sub-task panel and a task's own page.
 import { lineCommentsText, redoLabel } from '@handline/app-core';
-import type { MemoFile, TaskDetail } from '@handline/client';
+import type { CommentFile, TaskDetail } from '@handline/client';
 import { useAttachmentUrl, useWrite } from '@handline/app-data';
 import { Play } from 'lucide-react';
 import { useState } from 'react';
@@ -15,8 +15,8 @@ import { playVideo } from '#src/viewer/VideoPlayer.tsx';
 
 /** A Ready task's result, in the order the founder judges it: the pictures or video, the code, then what changed from the plan. */
 export function Result({ t, review }: { t: TaskDetail; review: NonNullable<TaskDetail['review']> }) {
-  const memo = t.memos.find((m) => m.id === review.memo);
-  const files = memo?.files ?? [];
+  const comment = t.comments.find((m) => m.id === review.comment);
+  const files = comment?.files ?? [];
   const posters = new Set(files.map((f) => f.poster).filter(Boolean));
   const pictures = files.filter((f) => f.kind === 'image' && !posters.has(f.id));
   const videos = files.filter((f) => f.kind === 'video');
@@ -38,10 +38,10 @@ export function Result({ t, review }: { t: TaskDetail; review: NonNullable<TaskD
         </summary>
         <TaskCode task={t.id} />
       </details>
-      {memo && (
+      {comment && (
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted">Changed from the plan</span>
-          <Markdown text={memo.text} />
+          <Markdown text={comment.text} />
         </div>
       )}
       {review.redo > 0 && <p className="text-xs text-muted">Sent back {review.redo === 1 ? 'once' : `${review.redo} times`}.</p>}
@@ -51,7 +51,7 @@ export function Result({ t, review }: { t: TaskDetail; review: NonNullable<TaskD
 }
 
 /** A picture framed as one, under a window bar and a little faded, so its buttons do not look live. */
-function Framed({ f }: { f: MemoFile }) {
+function Framed({ f }: { f: CommentFile }) {
   const { url } = useAttachmentUrl(f.id, false);
   return (
     <figure className="flex flex-col gap-1">
@@ -72,7 +72,7 @@ function Framed({ f }: { f: MemoFile }) {
   );
 }
 
-function Video({ f }: { f: MemoFile }) {
+function Video({ f }: { f: CommentFile }) {
   return (
     <figure className="flex flex-col gap-1">
       <button type="button" onClick={() => playVideo(f.id, f.name)} className="relative overflow-hidden rounded-md border border-border">

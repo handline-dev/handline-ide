@@ -621,10 +621,10 @@
          "$ref": "#/components/schemas/TaskEvent"
         }
        },
-       "memos": {
+       "comments": {
         "type": "array",
         "items": {
-         "$ref": "#/components/schemas/Memo"
+         "$ref": "#/components/schemas/Comment"
         }
        },
        "blockers": {
@@ -875,7 +875,7 @@
                  "type": "string",
                  "description": "The land_by agent \"OK, merge\" hands it to (task.ok)."
                 },
-                "memo": {
+                "comment": {
                  "type": "integer",
                  "description": "The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready."
                 },
@@ -895,7 +895,7 @@
                "required": [
                 "ready",
                 "land_by",
-                "memo",
+                "comment",
                 "at",
                 "redo",
                 "ok"
@@ -939,7 +939,7 @@
           "kind": {
            "type": "string",
            "enum": [
-            "memo",
+            "comment",
             "handoff",
             "request",
             "edit",
@@ -949,7 +949,7 @@
             "lesson",
             "run"
            ],
-           "description": "memo; handoff; a request linked to the task, except a memo's tell, the ask to the founder an @human memo opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their memo or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: memo names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row); run, a command an agent asked the founder to run while doing the task (who the agent, text the command, `proposal` the ask with its Run and Deny and, once decided, how it ended)."
+           "description": "comment; handoff; a request linked to the task, except a comment's tell, the ask to the founder an @human comment opens, and a request that forwards a comment or a turn's return (any of them withdrawn too), which repeat their comment or turn; edit, the brief changed (text is the new brief); state, a change of state (text is `from -> done`); reject, the task sent back (text is the note), from before a review was a handoff; turn, a turn pushed (who is `by → to`, text its ask, empty when it was handed over with a comment: comment names that comment) or given back (who is `from → to`, text empty: a note is its comment); lesson, a lesson added on the task (who added it, text the lesson as added; a later merge or removal does not change the row); run, a command an agent asked the founder to run while doing the task (who the agent, text the command, `proposal` the ask with its Run and Deny and, once decided, how it ended)."
           },
           "text": {
            "type": "string",
@@ -971,11 +971,11 @@
            ],
            "description": "On a request the daemon delivered on someone's behalf: queue, the queued task sent to its free holder (or raised on the founder's board); resend, the delivery sent again to the task's new holder. Absent on a request someone sent."
           },
-          "memo": {
+          "comment": {
            "oneOf": [
             {
              "type": "integer",
-             "description": "A memo's id, for editing or deleting it; on a turn push row, the comment the turn was handed over with; null for the others."
+             "description": "A comment's id, for editing or deleting it; on a turn push row, the comment the turn was handed over with; null for the others."
             },
             {
              "type": "null"
@@ -1004,7 +1004,7 @@
              }
             ]
            },
-           "description": "`text` cut at the images it names, for a memo, a handoff, an edit or a reject; present only when it names one."
+           "description": "`text` cut at the images it names, for a comment, a handoff, an edit or a reject; present only when it names one."
           },
           "proposal": {
            "$ref": "#/components/schemas/Proposal",
@@ -1016,11 +1016,11 @@
           "who",
           "kind",
           "text",
-          "memo",
+          "comment",
           "edited_at"
          ]
         },
-        "description": "What happened on the task as one list, oldest first: its memos, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done, each time it was sent back and the commands its agents asked the founder to run while doing it. Overlaps `events`, `memos`, `handoffs` and `deliveries`, which stay."
+        "description": "What happened on the task as one list, oldest first: its comments, its handoffs (a handoff's note is its entry, not a second one), the requests linked to it, the edits of its brief, its marks done, each time it was sent back and the commands its agents asked the founder to run while doing it. Overlaps `events`, `comments`, `handoffs` and `deliveries`, which stay."
        },
        "ui": {
         "type": "boolean",
@@ -1344,7 +1344,7 @@
             "type": "string",
             "description": "The land_by agent \"OK, merge\" hands it to (task.ok)."
            },
-           "memo": {
+           "comment": {
             "type": "integer",
             "description": "The comment that carries the agent's result, with its files (pictures, a video and its poster), of the newest Ready."
            },
@@ -1364,7 +1364,7 @@
           "required": [
            "ready",
            "land_by",
-           "memo",
+           "comment",
            "at",
            "redo",
            "ok"
@@ -1381,7 +1381,7 @@
        "body",
        "deliveries",
        "events",
-       "memos",
+       "comments",
        "blockers",
        "children",
        "handoffs",
@@ -1485,7 +1485,7 @@
     ],
     "description": "An event as task.get lists it: the fields of Event but no cursor, because task events are not on the stream and have no position in it."
    },
-   "Memo": {
+   "Comment": {
     "type": "object",
     "properties": {
      "id": {
@@ -1516,7 +1516,7 @@
         "type": "null"
        }
       ],
-      "description": "When the memo's text was last changed; null if never."
+      "description": "When the comment's text was last changed; null if never."
      },
      "parts": {
       "type": "array",
@@ -1535,9 +1535,9 @@
      "files": {
       "type": "array",
       "items": {
-       "$ref": "#/components/schemas/MemoFile"
+       "$ref": "#/components/schemas/CommentFile"
       },
-      "description": "The files the memo carries, in the order they were given; present only when it carries one."
+      "description": "The files the comment carries, in the order they were given; present only when it carries one."
      },
      "later": {
       "type": "string",
@@ -1561,7 +1561,7 @@
      "readers": {
       "type": "array",
       "items": {
-       "$ref": "#/components/schemas/MemoReader"
+       "$ref": "#/components/schemas/CommentReader"
       },
       "description": "Where the tell of a founder's comment stands for each agent it was told to, in the order told; present only on a founder comment that told someone."
      }
@@ -1640,9 +1640,9 @@
     ],
     "description": "What task.done must be given: sha, verdict, decision or report (default; decision when the owner is a person)."
    },
-   "MemoFile": {
+   "CommentFile": {
     "type": "object",
-    "description": "A file a memo carries (task.comment.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id.",
+    "description": "A file a comment carries (task.comment.add files): an image, a Markdown text, or an MP4 or QuickTime video, kept on the daemon's machine like an attached image and read with attachment.get by its id.",
     "properties": {
      "id": {
       "$ref": "#/components/schemas/AttachmentId"
@@ -1734,25 +1734,25 @@
        "blocked_by",
        "parent",
        "merged_into",
-       "memo"
+       "comment"
       ],
       "description": "evidence is a done task's result. assignee is who works the task, owner who it answers to. state is opened, draft, queued, doing, done, discarded, closed, released or merged. blocked_by is a task it waits on, as T<n>; parent the task it sits under, as T<n>, empty for none. tag is a tag added (was empty) or removed (now empty)."
      },
      "was": {
       "type": "string",
-      "description": "The value before; empty when there was none (a task just opened, a wait just added, a memo just added)."
+      "description": "The value before; empty when there was none (a task just opened, a wait just added, a comment just added)."
      },
      "now": {
       "type": "string",
-      "description": "The value after; empty when it is gone (a wait removed, a memo deleted)."
+      "description": "The value after; empty when it is gone (a wait removed, a comment deleted)."
      },
      "note": {
       "type": "string",
       "description": "With a state row: the done evidence, the report, or the reason or note given. Absent when none was."
      },
-     "memo": {
+     "comment": {
       "type": "integer",
-      "description": "With a memo row: the memo's id."
+      "description": "With a comment row: the comment's id."
      },
      "withdrew": {
       "type": "array",
@@ -2084,7 +2084,7 @@
      "result"
     ]
    },
-   "MemoReader": {
+   "CommentReader": {
     "type": "object",
     "properties": {
      "agent": {
@@ -2259,7 +2259,7 @@
      },
      "ask": {
       "type": "string",
-      "description": "What it was asked to do, as it reads now: the text of its comment (memo) when it has one; empty when nothing was said."
+      "description": "What it was asked to do, as it reads now: the text of its comment when it has one; empty when nothing was said."
      },
      "by": {
       "type": "string",
@@ -2311,7 +2311,7 @@
       },
       "description": "The texts ask replaced, oldest first, each with when it was set; empty when never rewritten. In task.get only."
      },
-     "memo": {
+     "comment": {
       "oneOf": [
        {
         "type": "integer"
@@ -2331,7 +2331,7 @@
      "on_pass",
      "evidence",
      "edited",
-     "memo"
+     "comment"
     ],
     "additionalProperties": false
    },
@@ -2767,7 +2767,7 @@
   },
   {
    "name": "task.history",
-   "summary": "Every change to a task, newest first: one row per field changed, with who made it, the value before and after, and when. It is read from the events each task write keeps in its own transaction, so it is never edited or deleted; a fix is a later row. A deleted memo's words stay in it. Anyone may edit a task (task.edit); this history is what makes that safe to undo by hand.",
+   "summary": "Every change to a task, newest first: one row per field changed, with who made it, the value before and after, and when. It is read from the events each task write keeps in its own transaction, so it is never edited or deleted; a fix is a later row. A deleted comment's words stay in it. Anyone may edit a task (task.edit); this history is what makes that safe to undo by hand.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -3584,7 +3584,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.memo), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`. A story's sub-task (opened as a draft) that its assignee hands to its workspace's land_by agent does not go there: it is Ready for the founder (TaskDetail.review), the note a comment carrying the result with any files and the founder's turn on it, until task.ok hands it on or task.redo sends it back; it needs a note. That holds until the founder's newest verdict is OK. While it is Ready, an agent's handoff of it is refused."
+   "description": "Anyone may hand an open task on, not only its owner (the asker takes a task back so). It moves who acts on the task: its owner, or with turns open the agent of its top turn; it is refused to an agent that is the owner below the turns or already has a turn on it. task.history's row names who made the move (by). An agent's handoff to `human` adds the note as a comment and puts the founder's turn on it (Turn.comment), as task.comment.add with turn human does; it needs a note. The task stays the agent's and waits on the founder. The founder may hand a task to `human`. A story's sub-task (opened as a draft) that its assignee hands to its workspace's land_by agent does not go there: it is Ready for the founder (TaskDetail.review), the note a comment carrying the result with any files and the founder's turn on it, until task.ok hands it on or task.redo sends it back; it needs a note. That holds until the founder's newest verdict is OK. While it is Ready, an agent's handoff of it is refused."
   },
   {
    "name": "task.turn.pop",
@@ -4162,8 +4162,8 @@
   },
   {
    "name": "task.comment.add",
-   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: one that names agents as @name is told to those only; one that names no one is told to the task's assignee (its holder) and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. The founder's comment that gives their turn back, or asks on a task Ready for them, always reaches the agent below their turn. It is never told to its writer. task.comment.recipients says who will be told before posting. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task. The wire still calls a comment a memo (Memo, `memo`, `memos`).",
-   "description": "An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `memo` set) stays open until (1) the founder adds any comment to that task, (2) the founder marks it read (inbox.mark_read naming its id), (3) its comment is deleted or edited so it no longer names `@human`, or (4) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.memo): by the agent acting on the task or the founder (on an agent's draft with no turn, the agent that answers for its opener may put a person's turn on it), refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment. A person's turn on a draft leaves it a draft, listed for them with Run (requests.pending kind run); their comment passes it back to the draft's opener with a notice, nothing delivered, and Run (task.queue) clears it.",
+   "summary": "Add a comment; anyone may. It is told only to an agent that has to act on it: one that names agents as @name is told to those only; one that names no one is told to the task's assignee (its holder) and, when the founder wrote it on a task no agent holds, who the task answers to (its reporter, else its opener); with now every one of those readers, mid-turn too. The founder's comment that gives their turn back, or asks on a task Ready for them, always reaches the agent below their turn. It is never told to its writer. task.comment.recipients says who will be told before posting. The founder is told by one inbox line per request (a task made from their message, task.request) while it stays unread, counting the agents' new comments. A reader at its prompt is told at once and a reader mid-turn at the end of its turn. comment.edit and comment.delete are told the same way. A comment asks the founder nothing unless it carries turn human: that is their turn on the task. One whose first word is `@human` is news for them: it moves no turn, and requests.pending lists it as a note until they read the task.",
+   "description": "An ask an agent's `@human` comment opened before comments stopped asking (InboxItem kind ask, `task` and `comment` set) stays open until (1) the founder adds any comment to that task, (2) the founder marks it read (inbox.mark_read naming its id), (3) its comment is deleted or edited so it no longer names `@human`, or (4) the task is done or discarded. An edit that keeps `@human` first keeps that ask and updates its body. While human is the top turn (Task.acting), the founder's comment passes that turn, the comment its note (task.turn.pop), except on a task Ready for them (TaskDetail.review.ready): there it is a question told to the agent below the turn, the task stays Ready, and a turn with it is refused. With turn, the comment also puts `turn` on top of the task in the same transaction and is that turn's message (Turn.comment): by the agent acting on the task or the founder (on an agent's draft with no turn, the agent that answers for its opener may put a person's turn on it), refused as a turn is when `turn` is the owner or already has a turn, the task carries 3 turns, or it is ended. An agent is delivered the task with the comment; human is not delivered to: the task waits on the founder (requests.pending, my_turn), no agent is alarmed and its time box starts again when the turn ends. While the founder's turn is on top, the agent below adding another comment with turn human moves that turn to the new comment. A person's turn on a draft leaves it a draft, listed for them with Run (requests.pending kind run); their comment passes it back to the draft's opener with a notice, nothing delivered, and Run (task.queue) clears it.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4194,7 +4194,7 @@
      "required": false,
      "schema": {
       "type": "integer",
-      "description": "The comment on the same task this one answers (Memo.reply_to). Refused (not_found memo) when the task has no such comment."
+      "description": "The comment on the same task this one answers (Comment.reply_to). Refused (not_found comment) when the task has no such comment."
      }
     },
     {
@@ -4230,7 +4230,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Absolute paths of files the memo carries (Memo.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, MemoFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files)."
+      "description": "Absolute paths of files the comment carries (Comment.files): PNG, JPEG, GIF or WebP images, .md Markdown, at most 10 MiB each, and MP4 or MOV videos, at most 100 MiB each (an image with the same name is the video's poster, CommentFile.poster). The daemon reads each and keeps a copy under its home. An agent may name only files under its worktree, its folder or the scratch folder; the founder any. A path outside those, a file of another type, an image or video whose first bytes do not match its ending, or a .md that is not text is bad_request (field files)."
      }
     },
     {
@@ -4251,12 +4251,12 @@
       {
        "type": "object",
        "properties": {
-        "memo": {
+        "comment": {
          "type": "integer"
         }
        },
        "required": [
-        "memo"
+        "comment"
        ]
       }
      ]
@@ -4364,7 +4364,7 @@
   },
   {
    "name": "task.comment.edit",
-   "summary": "Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`).",
+   "summary": "Edit a comment: its author or the founder. An edit that drops `@human` withdraws an ask the comment opened (task.comment.add).",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4375,7 +4375,7 @@
      }
     },
     {
-     "name": "memo",
+     "name": "comment",
      "required": true,
      "schema": {
       "type": "integer"
@@ -4424,7 +4424,7 @@
   },
   {
    "name": "task.comment.delete",
-   "summary": "Delete a comment: its author or the founder. Deleting a comment withdraws the ask it opened (task.comment.add). The wire still calls a comment a memo (Memo, `memo`, `memos`).",
+   "summary": "Delete a comment: its author or the founder. Deleting a comment withdraws the ask it opened (task.comment.add).",
    "paramStructure": "by-name",
    "params": [
     {
@@ -4435,7 +4435,7 @@
      }
     },
     {
-     "name": "memo",
+     "name": "comment",
      "required": true,
      "schema": {
       "type": "integer"
@@ -4566,7 +4566,7 @@
   },
   {
    "name": "task.draft",
-   "summary": "Send queued or doing tasks back to draft: anyone may; each task's opener and assignee are told. A holder working the task is told to stop and moved on to its next task, and commits or changes it left in its worktree are kept in a memo on the task.",
+   "summary": "Send queued or doing tasks back to draft: anyone may; each task's opener and assignee are told. A holder working the task is told to stop and moved on to its next task, and commits or changes it left in its worktree are kept in a comment on the task.",
    "paramStructure": "by-name",
    "params": [
     {

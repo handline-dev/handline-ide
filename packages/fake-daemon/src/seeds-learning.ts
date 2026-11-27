@@ -45,7 +45,7 @@ export const LEARNING_SEEDS: Record<string, Seed> = {
           ? undefined
           : message
             ? { text: said, message }
-            : { text: said, task: RULES_TASK, comment: d.tasks.memo({ task: RULES_TASK, text: said }, 'add', ME) };
+            : { text: said, task: RULES_TASK, comment: d.tasks.comment({ task: RULES_TASK, text: said }, 'add', ME) };
         return { id: 101 + i, agent: FOUNDER, text, count, quote, created_at: at(5 - i), created_by: 'rules_fold' };
       }),
     );

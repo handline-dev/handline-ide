@@ -232,7 +232,7 @@
       }
      },
      "result": {
-      "memos": {
+      "comments": {
        "$contains": {
         "text": "still ![the button](attachment:{{aid}})",
         "parts": [

@@ -41,7 +41,7 @@ func TestATasksTimelineIsEverythingThatHappenedOnItInOrder(t *testing.T) {
 		m := r.(map[string]any)
 		rows = append(rows, fmt.Sprintf("%v|%v|%v", m["kind"], m["who"], m["text"]))
 	}
-	want := []string{"request|amy → bob|landed  the brief", "edit|amy|a new brief", "memo|amy|a memo", "handoff|bob → cy|yours",
+	want := []string{"request|amy → bob|landed  the brief", "edit|amy|a new brief", "comment|amy|a memo", "handoff|bob → cy|yours",
 		"state|cy|doing -> done", "reject|amy|not yet", "lesson|bob|say what is left out"}
 	if fmt.Sprint(rows) != fmt.Sprint(want) {
 		t.Fatalf("got  %q\nwant %q", rows, want)

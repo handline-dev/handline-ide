@@ -36,7 +36,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 	var out []entry
 	add := func(at float64, who, kind, text string, memo, edited any, imaged bool) {
 		text = textsafe.Text(text)
-		r := map[string]any{"at": ts(at), "who": who, "kind": kind, "text": text, "memo": memo, "edited_at": edited}
+		r := map[string]any{"at": ts(at), "who": who, "kind": kind, "text": text, "comment": memo, "edited_at": edited}
 		if imaged {
 			if p := parts(text); p != nil {
 				r["parts"] = p
@@ -49,7 +49,7 @@ func (e *Env) taskTimeline(tid int64, memos, reqs []row, parts func(string) []an
 		if m.set("edited_at") {
 			edited = ts(m["edited_at"])
 		}
-		add(seconds(m["created_at"]), m.str("author"), "memo", m.str("body"), m.i("id"), edited, true)
+		add(seconds(m["created_at"]), m.str("author"), "comment", m.str("body"), m.i("id"), edited, true)
 	}
 	events, err := query(e.DB, "SELECT ts, agent, kind, payload FROM events WHERE kind IN ('task_handoff', 'edit_task', 'mark_task_done', "+
 		"'reject_task', 'task_turn_push', 'task_turn_pop', 'task_forward', '"+db.LessonKind+"') AND "+eventTask+" = ? ORDER BY id", tid)

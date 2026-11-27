@@ -1,7 +1,7 @@
 // Every write method of the contract, once, with its kind and what it does to the cache.
 // A method in none of the four lists fails the guard test, so a new write is decided by a person before it ships.
 import { navOf, taskAfter, type PageSettings, type TaskEdit, type TaskVerb } from '@handline/app-core';
-import type { Account, InboxItem, Memo, NavPrefsChanges, Prefs, Proposal, Settings, Task } from '@handline/client';
+import type { Account, InboxItem, Comment, NavPrefsChanges, Prefs, Proposal, Settings, Task } from '@handline/client';
 import { edit, provisionalId, upsert, type Ctx } from '#src/cache.ts';
 import { accountAfter, type AccountChange } from '#src/account-after.ts';
 import { accountRemove } from '#src/account-remove.ts';
@@ -66,13 +66,13 @@ const newTask = (c: Ctx, p: never): Task => {
   };
 };
 
-// A task's memos live in the task's detail; a memo write changes them, and adds a row to its history.
+// A task's comments live in the task's detail; a comment write changes them, and adds a row to its history.
 const memoKeys = (d: string, p: never) => {
   const { task } = as<{ task: number }>(p);
   return [qk.task(d, task), qk.taskHistory(d, task)];
 };
-const changeMemos = (c: Ctx, task: number, f: (l: Memo[]) => Memo[]) =>
-  edit<List<'memos', Memo>>(c.qc, qk.task(c.d, task), listOf('memos', f));
+const changeMemos = (c: Ctx, task: number, f: (l: Comment[]) => Comment[]) =>
+  edit<List<'comments', Comment>>(c.qc, qk.task(c.d, task), listOf('comments', f));
 
 const tasks: Record<string, Patch> = {
   'task.new': {
@@ -114,7 +114,7 @@ const tasks: Record<string, Patch> = {
     touches: memoKeys,
     patch: (c, p) => {
       const { task, text, reply } = as<{ task: number; text: string; reply?: number }>(p);
-      const memo: Memo = {
+      const comment: Comment = {
         id: provisionalId(),
         task,
         author: c.author ?? c.me,
@@ -122,22 +122,23 @@ const tasks: Record<string, Patch> = {
         text,
         ...(reply === undefined ? {} : { reply_to: reply }),
       };
-      changeMemos(c, task, (l) => [...l, memo]);
+      changeMemos(c, task, (l) => [...l, comment]);
     },
-    reconcile: (c, p, r) => changeMemos(c, as<{ task: number }>(p).task, (l) => renumber(l, (m) => m.id < 0, (r as { memo: number }).memo)),
+    reconcile: (c, p, r) =>
+      changeMemos(c, as<{ task: number }>(p).task, (l) => renumber(l, (m) => m.id < 0, (r as { comment: number }).comment)),
   },
   'task.comment.edit': {
     touches: memoKeys,
     patch: (c, p) => {
-      const { task, memo, text } = as<{ task: number; memo: number; text: string }>(p);
-      changeMemos(c, task, (l) => l.map((m) => (m.id === memo ? { ...m, text } : m)));
+      const { task, comment, text } = as<{ task: number; comment: number; text: string }>(p);
+      changeMemos(c, task, (l) => l.map((m) => (m.id === comment ? { ...m, text } : m)));
     },
   },
   'task.comment.delete': {
     touches: memoKeys,
     patch: (c, p) => {
-      const { task, memo } = as<{ task: number; memo: number }>(p);
-      changeMemos(c, task, (l) => l.filter((m) => m.id !== memo));
+      const { task, comment } = as<{ task: number; comment: number }>(p);
+      changeMemos(c, task, (l) => l.filter((m) => m.id !== comment));
     },
   },
 };

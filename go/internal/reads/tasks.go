@@ -913,7 +913,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		data := decodeObject(ev.str("payload"))
 		evs = append(evs, map[string]any{
-			"topic": "tasks", "type": wireEvent(ev.str("kind"), data), "at": ts(ev["ts"]),
+			"topic": "tasks", "type": ev.str("kind"), "at": ts(ev["ts"]),
 			"actor": map[string]any{"kind": kind, "name": ev.str("agent")}, "agent": t.str("owner"), "title": nil,
 			"target": map[string]any{"screen": "tasks", "id": fmt.Sprint(*tid)}, "data": data})
 	}
@@ -928,7 +928,7 @@ func (e *Env) taskGet(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	task["memos"] = ms
+	task["comments"] = ms
 	if task["timeline"], err = e.taskTimeline(*tid, memos, reqs, parts); err != nil {
 		return nil, err
 	}
@@ -1195,7 +1195,7 @@ func (e *Env) turnsOf(tid int64, history bool) ([]any, error) {
 			memo = u.Memo
 		}
 		turn := map[string]any{"agent": u.Agent, "ask": u.Ask, "by": u.By, "since": ts(u.Since), "on_pass": onPass, "evidence": evidence, "edited": edited,
-			"memo": memo}
+			"comment": memo}
 		if history {
 			turn["earlier"] = earlier
 		}

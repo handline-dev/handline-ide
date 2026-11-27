@@ -5,7 +5,7 @@ export interface PeopleTask {
   from: string;
   to: string;
   events: readonly { at: string; agent?: string | null; actor?: { kind: string; name: string } | null }[];
-  memos?: readonly { at: string; author: string }[];
+  comments?: readonly { at: string; author: string }[];
 }
 /** An agent and the workspace it is in (AgentView.workspace). */
 export interface PeopleAgent {
@@ -28,7 +28,7 @@ export function involved(t: PeopleTask): string[] {
   const seen: { name: string; at: string }[] = [];
   for (const e of t.events)
     for (const name of [e.agent, e.actor && e.actor.kind !== 'daemon' ? e.actor.name : null]) if (name) seen.push({ name, at: e.at });
-  for (const m of t.memos ?? []) seen.push({ name: m.author, at: m.at });
+  for (const m of t.comments ?? []) seen.push({ name: m.author, at: m.at });
   const byTime = seen.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).map((s) => s.name);
   return [...new Set([...byTime, t.to, t.from])].filter((n) => n && !SYSTEM.has(n));
 }

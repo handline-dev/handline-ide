@@ -26,7 +26,7 @@ func TestATaskGetCarriesItsReview(t *testing.T) {
 	must(db.AddReady(e.DB, 2, "bob", "lander", 5))
 	must(db.PushTurn(e.DB, 2, db.Turn{Agent: "p1", By: "bob", Since: 1, Memo: 5}))
 	r := get(2)["review"].(map[string]any)
-	if r["ready"] != true || r["land_by"] != "lander" || r["memo"] != int64(5) || r["redo"] != 0 || r["ok"] != false {
+	if r["ready"] != true || r["land_by"] != "lander" || r["comment"] != int64(5) || r["redo"] != 0 || r["ok"] != false {
 		t.Fatalf("%v", r)
 	}
 	if sub := get(1)["subtasks"].([]any)[0].(map[string]any)["review"].(map[string]any); sub["ready"] != true {
@@ -42,7 +42,7 @@ func TestATaskGetCarriesItsReview(t *testing.T) {
 	must(db.AddReady(e.DB, 2, "bob", "lander", 7))
 	must(db.PushTurn(e.DB, 2, db.Turn{Agent: "p1", By: "bob", Since: 1, Memo: 7}))
 	must(db.AddVerdict(e.DB, 2, "p1", db.VerdictOK, 0))
-	if r := get(2)["review"].(map[string]any); r["ready"] != false || r["ok"] != true || r["redo"] != 1 || r["memo"] != int64(7) {
+	if r := get(2)["review"].(map[string]any); r["ready"] != false || r["ok"] != true || r["redo"] != 1 || r["comment"] != int64(7) {
 		t.Fatalf("an OK ends the Ready even before its turn comes off: %v", r)
 	}
 }

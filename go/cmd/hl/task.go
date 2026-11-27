@@ -426,7 +426,7 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 			}
 		}
 	}
-	mutating(c, "memo")
+	mutating(c, "comment")
 	if !asking(c, "write a comment") {
 		return 1, true
 	}
@@ -510,9 +510,9 @@ func taskMemo(c *hlclient.Client, args []string) (int, bool) {
 		return said(c.Write("task.comment.add", params)), true
 	}
 	if verb == "edit" {
-		return said(c.Write("task.comment.edit", map[string]any{"task": tid, "memo": mid, "text": rest[1]})), true
+		return said(c.Write("task.comment.edit", map[string]any{"task": tid, "comment": mid, "text": rest[1]})), true
 	}
-	return said(c.Write("task.comment.delete", map[string]any{"task": tid, "memo": mid})), true
+	return said(c.Write("task.comment.delete", map[string]any{"task": tid, "comment": mid})), true
 }
 
 // taskPlan is hl task plan: the assignee keeps the task's plan from a file (--file PATH, - for stdin), or the founder marks it OK (--ok) or

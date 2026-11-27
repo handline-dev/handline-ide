@@ -12,7 +12,9 @@ test('a comment asks nothing; the founder is asked by a comment with a turn, and
   await worker.start();
   const task = (await s.client.call('task.new', { owner: AGENT, title: 'a task', body: 'build it', request_id: 'a1' })).task as number;
   const asks = async () =>
-    ((await s.client.call('inbox.list', { unread: true })).items as { kind: string; memo?: number }[]).filter((i) => i.memo !== undefined);
+    ((await s.client.call('inbox.list', { unread: true })).items as { kind: string; comment?: number }[]).filter(
+      (i) => i.comment !== undefined,
+    );
   await worker.call('task.comment.add', { task, text: '@human which one?', request_id: 'a2' });
   assert.deepEqual(await asks(), []);
   const turn = async () =>
@@ -20,17 +22,17 @@ test('a comment asks nothing; the founder is asked by a comment with a turn, and
       (await s.client.call('task.get', { task })).turns as {
         agent: string;
         ask: string;
-        memo: number | null;
+        comment: number | null;
         edited: string | null;
         earlier?: { ask: string }[];
       }[]
     ).at(-1);
-  const first = (await worker.call('task.comment.add', { task, text: 'A or B?', turn: 'human', request_id: 'a3' })).memo;
+  const first = (await worker.call('task.comment.add', { task, text: 'A or B?', turn: 'human', request_id: 'a3' })).comment;
   const u = await turn();
-  assert.deepEqual([u?.agent, u?.ask, u?.memo, u?.edited], ['p1', 'A or B?', first, null]);
-  const second_ = (await worker.call('task.comment.add', { task, text: 'A, B or C?', turn: 'human', request_id: 'a5' })).memo;
+  assert.deepEqual([u?.agent, u?.ask, u?.comment, u?.edited], ['p1', 'A or B?', first, null]);
+  const second_ = (await worker.call('task.comment.add', { task, text: 'A, B or C?', turn: 'human', request_id: 'a5' })).comment;
   const t = await turn();
-  assert.deepEqual([t?.ask, t?.memo, t?.earlier?.map((e) => e.ask), !!t?.edited], ['A, B or C?', second_, ['A or B?'], true]);
+  assert.deepEqual([t?.ask, t?.comment, t?.earlier?.map((e) => e.ask), !!t?.edited], ['A, B or C?', second_, ['A or B?'], true]);
   worker.close();
   s.client.close();
 });

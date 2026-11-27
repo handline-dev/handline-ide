@@ -15,7 +15,7 @@ export type SearchTask = {
   created: string;
   body: string;
   evidence?: string | null;
-  memos?: { id: number; author: string; at: string; text: string }[];
+  comments?: { id: number; author: string; at: string; text: string }[];
 };
 /** A message as search reads it, with the chat that shows it. */
 export type SearchMessage = { id: number; at: string; from: string; body: string; agent: string; scope: 'mine' | 'all'; task?: number };
@@ -67,7 +67,7 @@ export function search(tasks: SearchTask[], messages: SearchMessage[], p: Record
         return { kind: 'task', at: t.created, snippet: snippetOf(text, query), field, task: t.id, title: t.title };
       }),
     tasks
-      .flatMap((t) => (t.memos ?? []).map((m) => ({ t, m })))
+      .flatMap((t) => (t.comments ?? []).map((m) => ({ t, m })))
       .filter(({ m }) => holds(m.text))
       .sort((a, b) => b.m.id - a.m.id)
       .map(({ t, m }) => ({
@@ -76,7 +76,7 @@ export function search(tasks: SearchTask[], messages: SearchMessage[], p: Record
         snippet: snippetOf(m.text, query),
         task: t.id,
         title: t.title,
-        memo: m.id,
+        comment: m.id,
         from: m.author,
       })),
     messages

@@ -83,7 +83,7 @@ const inboxItem = (id: number) => ({
   prompt: null,
 });
 const inboxSeed: [Key, unknown][] = [[qk.inbox(D), { items: [inboxItem(1), inboxItem(2)], more: false }]];
-const memoSeed: [Key, unknown][] = [[qk.task(D, 7), { id: 7, memos: [{ id: 1, task: 7, author: 'me', at: 't', text: 'old' }] }]];
+const memoSeed: [Key, unknown][] = [[qk.task(D, 7), { id: 7, comments: [{ id: 1, task: 7, author: 'me', at: 't', text: 'old' }] }]];
 const account = { name: 'x', label: 'x', recover: false };
 const settingsSeed: [Key, unknown][] = [[['d', D, 'settings'], { values: { idle_close: '5' }, trust_folders: [], overrides: {} }]];
 
@@ -100,8 +100,8 @@ const AUTHORED: [string, object, [Key, unknown][], boolean][] = [
   ['task.withdraw', { task: 7 }, taskSeed, false],
   ['task.merge', { into: 7, tasks: [8, 9] }, taskSeed, true],
   ['task.comment.add', { task: 7, text: 'new' }, memoSeed, true],
-  ['task.comment.edit', { task: 7, memo: 1, text: 'changed' }, memoSeed, true],
-  ['task.comment.delete', { task: 7, memo: 1 }, memoSeed, true],
+  ['task.comment.edit', { task: 7, comment: 1, text: 'changed' }, memoSeed, true],
+  ['task.comment.delete', { task: 7, comment: 1 }, memoSeed, true],
   ['inbox.mark_read', { ids: [1] }, inboxSeed, true],
   ['agent.set', { agent: 'a', values: { model: 'opus' } }, [[qk.agent(D, 'a'), { name: 'a', settings: { model: 'sonnet' } }]], true],
   ['settings.set', { changes: { idle_close: '9' } }, settingsSeed, true],

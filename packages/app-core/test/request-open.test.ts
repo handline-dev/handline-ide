@@ -7,7 +7,7 @@ test('a row of another task shows that task and is the one painted', () => {
 });
 
 test('a row of the task already shown scrolls to its comment instead of showing it again', () => {
-  assert.deepEqual(requestClick(40, { key: 'note:7', task: 40, memo: 7 }), { show: 40, painted: 'note:7', scroll: { memo: 7 } });
+  assert.deepEqual(requestClick(40, { key: 'note:7', task: 40, comment: 7 }), { show: 40, painted: 'note:7', scroll: { comment: 7 } });
 });
 
 test('a turn row of the task already shown scrolls to the turn', () => {

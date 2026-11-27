@@ -126,15 +126,15 @@ export const STORY_SEEDS: Record<string, Seed> = {
       state: 'doing',
       created: iso(95),
       body: 'Find an old message in a chat without scrolling.',
-      memos: chat,
+      comments: chat,
       blockers: drafts.map((t) => ({ task: t.id, reason: '' })),
     });
     // The question in T9405's plan, put to the founder on the task. // local-ref-ok
     const ask = 'Should a member device see the other workspaces in search, or only the one it is paired to?';
     const question = {
-      memos: [{ id: 1, task: 9405, at: iso(14), author: AUD, text: ask }],
-      turnLog: [{ at: iso(14), who: `${AUD} → ${ME}`, text: ask, turn: 'push' as const, memo: 1 }],
-      turns: [{ agent: ME, ask, memo: 1, by: AUD, since: iso(14), on_pass: null, evidence: null, edited: null, earlier: [] }],
+      comments: [{ id: 1, task: 9405, at: iso(14), author: AUD, text: ask }],
+      turnLog: [{ at: iso(14), who: `${AUD} → ${ME}`, text: ask, turn: 'push' as const, comment: 1 }],
+      turns: [{ agent: ME, ask, comment: 1, by: AUD, since: iso(14), on_pass: null, evidence: null, edited: null, earlier: [] }],
       acting: ME,
     };
     for (const t of drafts) {
@@ -191,9 +191,9 @@ export const STORY_SEEDS: Record<string, Seed> = {
     const video = { ...d.uploads.memoFile(d.uploads.add('badge.mp4', DEMO_MP4, 'video/mp4').id), poster: poster.id };
     const files = [before, after, poster].map((f) => d.uploads.memoFile(f.id)).concat(video);
     const result = 'Done: the count comes from chat.list. Changed from the plan: nothing. Before and after, and the badge counting up.';
-    const memo = d.tasks.memoWithFiles(ready, TERM, result, files);
-    d.tasks.turnPush(ready, memo, result, TERM);
-    d.tasks.find(ready).review = { ready: true, land_by: ARCH, memo, at: iso(5), redo: 0, ok: false };
+    const comment = d.tasks.memoWithFiles(ready, TERM, result, files);
+    d.tasks.turnPush(ready, comment, result, TERM);
+    d.tasks.find(ready).review = { ready: true, land_by: ARCH, comment, at: iso(5), redo: 0, ok: false };
     // its code: a commit on the agent's branch that names the task
     const file = (path: string, added: number, deleted: number, diff: string) => ({
       path,
@@ -230,8 +230,8 @@ export const STORY_SEEDS: Record<string, Seed> = {
     ];
 
     d.tasks.seed({ ...sub(redo, AUD, 'Draw the badge on the chat list', 140), state: 'doing' });
-    const first = d.tasks.memo({ task: redo, text: 'Done: a red badge on each chat row.' }, 'add', AUD, true);
-    d.tasks.memo({ task: redo, text: 'Redo: the badge covers the agent name on the phone.' }, 'add', ME);
-    d.tasks.find(redo).review = { ready: false, land_by: ARCH, memo: first, at: iso(30), redo: 1, ok: false };
+    const first = d.tasks.comment({ task: redo, text: 'Done: a red badge on each chat row.' }, 'add', AUD, true);
+    d.tasks.comment({ task: redo, text: 'Redo: the badge covers the agent name on the phone.' }, 'add', ME);
+    d.tasks.find(redo).review = { ready: false, land_by: ARCH, comment: first, at: iso(30), redo: 1, ok: false };
   },
 };

@@ -28,11 +28,11 @@ export function turnReply(t: TaskDetail): Reply | null {
 
 /** The Activity row of the founder's open turn: the comment it was passed with, or for a turn passed with none, when its row was
  * written (the last push to them by whoever holds it back). */
-export type OpenTurn = { memo: number } | { at: string };
+export type OpenTurn = { comment: number } | { at: string };
 export function openTurnRow(t: TaskDetail, me: string): OpenTurn | undefined {
   const turn = t.turns?.at(-1);
   if (!turn || !isPerson(turn.agent, me)) return undefined;
-  if (turn.memo != null) return { memo: turn.memo };
+  if (turn.comment != null) return { comment: turn.comment };
   const at = t.timeline
     .filter((e) => {
       const [by, to] = e.who.split('→').map((s) => s.trim());
@@ -49,7 +49,7 @@ export function goToTurn(task: number) {
 
 /** Brings a comment into view and marks it for a moment. */
 export function showMemo(id: number) {
-  const el = document.querySelector(`[data-memo="${id}"]`);
+  const el = document.querySelector(`[data-comment="${id}"]`);
   if (!el) return;
   el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   el.classList.add('ring-2', 'ring-warning');

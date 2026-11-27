@@ -230,9 +230,9 @@ test('a permission card is titled by what is asked, not the raw command line, wh
 });
 
 test('an ask from a task comment is answered by a reply, OK or Approve, and never closes the task', () => {
-  const ask = item({ id: 9, kind: 'ask', task: 5, memo: 77, agent: 'a', body: 'Ship it?' });
+  const ask = item({ id: 9, kind: 'ask', task: 5, comment: 77, agent: 'a', body: 'Ship it?' });
   const [plain] = myTurn({ items: [ask], agents: [], tasks: [task({ id: 5 })] });
-  assert.equal(plain!.memo, 77);
+  assert.equal(plain!.comment, 77);
   assert.deepEqual(plain!.actions.slice(0, plain!.primary), [
     { type: 'reply', id: 9, text: 'OK', label: 'Go ahead' },
     { type: 'answer', id: 9 },
@@ -246,7 +246,7 @@ test('an ask from a task comment is answered by a reply, OK or Approve, and neve
 });
 
 test('a task with an open `@human` ask is shown once, by the ask, and its text drops the mention', () => {
-  const ask = item({ id: 9, kind: 'ask', task: 5, memo: 77, body: '@human is 16 px fine?' });
+  const ask = item({ id: 9, kind: 'ask', task: 5, comment: 77, body: '@human is 16 px fine?' });
   const old = item({ id: 8, kind: 'decision', task: 5 });
   const cards = myTurn({ items: [old, ask], agents: [], tasks: [task({ id: 5, to: 'human', tags: ['review'] })], me: 'human' });
   assert.deepEqual(
@@ -265,7 +265,7 @@ test('an ask on a task outside the list is titled with the task read by its id, 
     id: 9,
     kind: 'ask',
     task: 1684,
-    memo: 77,
+    comment: 77,
     title: '@human should the tab strip wrap?',
     body: '@human should the tab strip wrap or scroll?',
   }); // local-ref-ok
@@ -279,7 +279,7 @@ test('an ask whose task is not known yet drops the mention from its title and ke
     id: 9,
     kind: 'ask',
     task: 1684,
-    memo: 77,
+    comment: 77,
     title: '@human should the tab strip wrap?',
     body: '@human should the tab strip wrap?',
   }); // local-ref-ok
@@ -289,7 +289,7 @@ test('an ask whose task is not known yet drops the mention from its title and ke
 });
 
 test('a mention in the middle of a sentence leaves the sentence its colon', () => {
-  const ask = item({ id: 9, kind: 'ask', task: 5, memo: 77, body: 'Second look please @human: the margin is now 24 px.' });
+  const ask = item({ id: 9, kind: 'ask', task: 5, comment: 77, body: 'Second look please @human: the margin is now 24 px.' });
   const [c] = myTurn({ items: [ask], agents: [], tasks: [task({ id: 5, to: 'human' })], me: 'human' });
   assert.equal(c!.detail, 'Second look please: the margin is now 24 px.');
 });

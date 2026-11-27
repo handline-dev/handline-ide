@@ -42,11 +42,11 @@ test('a comment that names agents is told to them only, one that names no one to
   assert.deepEqual(await named(third, '@handline.architect please look', true), [`${ARCH}:asked`]);
   assert.deepEqual(await named(owner, `@${ARCH} and @handline.term-build`), ['handline.term-build:asked']); // never the writer
   // the holder asks the founder; the founder's answer that names someone passes the turn back, so the holder hears it too
-  await s.daemon.tasks.memo({ task: held, text: 'which one?', turn: 'human' }, 'add', 'handline.auditor', true);
+  await s.daemon.tasks.comment({ task: held, text: 'which one?', turn: 'human' }, 'add', 'handline.auditor', true);
   assert.deepEqual(await named(s.client, '@handline.term-build see this'), ['handline.auditor:assignee', 'handline.term-build:asked']);
   third.close();
   await s.client.call('task.comment.add', { task, text: `@${ARCH} look`, request_id: 'r2' });
-  assert.equal((await s.client.call('task.get', { task })).memos.length, 1);
+  assert.equal((await s.client.call('task.get', { task })).comments.length, 1);
   owner.close();
   s.client.close();
 });
@@ -92,7 +92,7 @@ test('a draft’s opener asks the founder on it and it stays a draft: a Run row,
   const task = (
     await owner.call('task.new', { owner: 'handline.auditor', title: 'later', body: 'build it', draft: true, request_id: 'r1' })
   ).task as number;
-  const ask = () => s.daemon.tasks.memo({ task, text: 'Run it now?', turn: 'human' }, 'add', ARCH, true);
+  const ask = () => s.daemon.tasks.comment({ task, text: 'Run it now?', turn: 'human' }, 'add', ARCH, true);
   const row = async () =>
     ((await s.client.call('requests.pending', {})).answer as { task: number | null; kind: string; ask: string; agent: string }[]).find(
       (r) => r.task === task,
