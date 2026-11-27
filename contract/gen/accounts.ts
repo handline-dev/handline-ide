@@ -204,7 +204,7 @@ export type Outlook = {
     /** Its plan money in the span, US dollars: each account's week rise in the span times that account's weekly budget, split by its cost share of that account (`fracs`). Token prices only split it; they never size it. */
     plan_cost?: number;
   }[];
-  /** Only with `agent`: the points of the combined week the pick had used by each time of `past`, one number per `past` entry in the same order: its cost share of each account times what that account had used so far, averaged over the accounts. Empty when the pick used nothing in the span or is not an agent or group. Absent from a daemon that does not send it. */
+  /** Only with `agent`: the points of the combined week the pick had used by each time of `past`, one number per `past` entry in the same order: its cost share of each account times what that account had used so far, averaged over the accounts as `past` is. Empty when the pick used nothing in the span or is not an agent or group. Absent from a daemon that does not send it. */
   overlay?: number[];
   /** Each account that has a reading in the span, by name: its windows and its pace line, for a chart per account. Absent from a daemon that does not send it. */
   by_account?: {

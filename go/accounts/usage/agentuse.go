@@ -251,8 +251,8 @@ func ConsumedCurve(rows []sampleRow, times []int64) map[string][]float64 {
 type Samples = []sampleRow
 
 // Overlay is agent_overlay: the points of the combined week the pick had used by each time of past, its cost share of each account times
-// what that account had used so far, averaged over the accounts. Empty when the pick used nothing or is no agent.
-func Overlay(rows Samples, uses []AgentUse, pick string, past []OutlookPoint) []float64 {
+// what that account had used so far, averaged over the accounts by w as past is. Empty when the pick used nothing or is no agent.
+func Overlay(rows Samples, uses []AgentUse, pick string, past []OutlookPoint, w WeekWeights) []float64 {
 	use, found := PickUse(uses, pick)
 	if !found || len(use.Fracs) == 0 {
 		return nil
@@ -267,14 +267,20 @@ func Overlay(rows Samples, uses []AgentUse, pick string, past []OutlookPoint) []
 		accts = append(accts, a)
 	}
 	sort.Strings(accts)
-	n := float64(max(len(curves), 1))
+	var total float64
+	for _, a := range accts {
+		total += w.of(a)
+	}
 	out := make([]float64, len(times))
+	if total <= 0 {
+		return out
+	}
 	for k := range times {
 		var sum float64
 		for _, a := range accts {
-			sum += use.Fracs[a] * curves[a][k]
+			sum += w.of(a) * use.Fracs[a] * curves[a][k]
 		}
-		out[k] = sum / n
+		out[k] = sum / total
 	}
 	return out
 }

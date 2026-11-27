@@ -152,13 +152,16 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
   const steps = 12;
   const step = Math.max(15 * 60_000, (head * 2) / 96);
   const at = (t: number) => new Date(t).toISOString();
+  const plan = budget();
+  // The week line weighs each account by its budget, as the title does, so at now it is the budget's left.
+  const end = plan.left_pct ?? 50;
   const past = Array.from({ length: steps + 1 }, (_, i) => ({
     at: at(now - head + (head * i) / steps),
-    left_pct: 90 - (i * 40) / steps,
+    left_pct: 90 - (i * (90 - end)) / steps,
   }));
   const future = Array.from({ length: steps }, (_, i) => ({
     at: at(now + (head * (i + 1)) / steps),
-    left_pct: Math.max(0, 50 - ((i + 1) * 50) / steps),
+    left_pct: Math.max(0, end - ((i + 1) * end) / steps),
   }));
   if (pick !== undefined && typeof pick !== 'string') throw badRequest('agent is a string', 'agent');
   const cost_per_day = costPerDay(nowIso, range);
@@ -174,13 +177,13 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     ],
     cost_per_day,
     plan_cost_per_day: planCostPerDay(cost_per_day),
-    budget: budget(),
+    budget: plan,
     agent_use: AGENT_USE.map((u) => ({ ...u, fracs: { ...u.fracs } })),
     // An account's history at the daemon's step (its OutlookPoints, 96 over twice the range, never under 15 minutes): 30 minutes for 24h.
     by_account: byAccount(
       Array.from({ length: Math.floor(head / step) + 1 }, (_, i) => {
         const t = now - head + i * step;
-        return { at: at(t), left_pct: 90 - (40 * (t - (now - head))) / head };
+        return { at: at(t), left_pct: 90 - ((90 - end) * (t - (now - head))) / head };
       }),
       future,
       now,

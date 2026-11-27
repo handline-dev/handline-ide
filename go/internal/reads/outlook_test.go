@@ -245,6 +245,20 @@ func TestOutlookGivesThePlanMoneyNotTheListPrice(t *testing.T) {
 	if bud["week_usd"] != 29.08 || bud["spent_usd"] != 6.42 || bud["left_pct"] != 77.94 || fmt.Sprint(bud["extra_spent"]) != "map[USD:3]" {
 		t.Fatalf("weighted by budget, extra usage beside it: %v", bud)
 	}
+	// The week line weighs each account by its budget, as the title does: at now it is the budget's left, and ahead each point is the
+	// accounts' guesses weighted $6 to $23.08.
+	past := res["past"].([]any)
+	if left := past[len(past)-1].(map[string]any)["left_pct"]; left != bud["left_pct"] {
+		t.Fatalf("the line at now is %v, the title %v", left, bud["left_pct"])
+	}
+	by := res["by_account"].([]any)
+	for i, p := range res["future"].([]any) {
+		wa := by[0].(map[string]any)["future"].([]any)[i].(map[string]any)["week_left"].(float64)
+		wb := by[1].(map[string]any)["future"].([]any)[i].(map[string]any)["week_left"].(float64)
+		if got := p.(map[string]any)["left_pct"].(float64); math.Abs(got-(wa*6+wb*23.08)/29.08) > 0.02 {
+			t.Fatalf("point %d ahead is %v, not a %v and b %v weighted by budget", i, got, wa, wb)
+		}
+	}
 	if x := res["plan_cost_per_day"].([]any)[0].(map[string]any)["extra"]; fmt.Sprint(x) != "map[USD:8.5]" {
 		t.Fatalf("a's extra usage rose 5.50, then 3 from 0 in the new month: %v", x)
 	}

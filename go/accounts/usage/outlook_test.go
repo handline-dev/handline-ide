@@ -26,7 +26,7 @@ func TestWeeklyOutlookMatchesThePython(t *testing.T) {
 			rows = append(rows, outlookRow("c", now-5*3600, 5, 70, now+9*86400))
 		}
 	}
-	o := WeeklyOutlook(rows, now, 12, map[string]float64{"b": float64(now + 6*3600)}, nil)
+	o := WeeklyOutlook(rows, now, 12, map[string]float64{"b": float64(now + 6*3600)}, nil, nil)
 	if o.Accounts != 3 || len(o.Past) != 49 || len(o.Future) != 48 {
 		t.Fatalf("%d accounts, %d past, %d future", o.Accounts, len(o.Past), len(o.Future))
 	}
@@ -47,11 +47,11 @@ func TestWeeklyOutlookMatchesThePython(t *testing.T) {
 
 func TestWeeklyOutlookWithNoReadingIsEmptyAndAWeekThatResetsStartsAgain(t *testing.T) {
 	now := int64(1_800_000_000)
-	if o := WeeklyOutlook(nil, now, 24, nil, nil); o.Accounts != 0 || len(o.Past) != 0 || len(o.Future) != 0 {
+	if o := WeeklyOutlook(nil, now, 24, nil, nil, nil); o.Accounts != 0 || len(o.Past) != 0 || len(o.Future) != 0 {
 		t.Fatalf("%+v", o)
 	}
 	rows := []sampleRow{outlookRow("a", now-2*3600, 10, 20, now+3600), outlookRow("a", now, 10, 30, now+3600)}
-	o := WeeklyOutlook(rows, now, 12, nil, nil)
+	o := WeeklyOutlook(rows, now, 12, nil, nil, nil)
 	// pace 10 points over 2 h; an hour on the week resets and is used from nothing at that pace.
 	var after *float64
 	for _, p := range o.Future {
@@ -114,7 +114,7 @@ func TestWeeklyOutlookCountsALoggedOutAccountAsNothingLeft(t *testing.T) {
 		t.Fatalf("no point at %d", at-now)
 		return 0
 	}
-	o := WeeklyOutlook(rows, now, 12, nil, nil)
+	o := WeeklyOutlook(rows, now, 12, nil, nil, nil)
 	if l := left(o, now-10*3600); l != 60 {
 		t.Errorf("both in: %v, want 60", l)
 	}
@@ -127,7 +127,7 @@ func TestWeeklyOutlookCountsALoggedOutAccountAsNothingLeft(t *testing.T) {
 	if l := left(o, now+3600); l != 60 {
 		t.Errorf("both in ahead: %v, want 60", l)
 	}
-	o = WeeklyOutlook(rows, now, 12, nil, map[string]float64{"b": float64(now - 2*3600)})
+	o = WeeklyOutlook(rows, now, 12, nil, map[string]float64{"b": float64(now - 2*3600)}, nil)
 	if l := left(o, now-3600); l != 40 {
 		t.Errorf("b out since two hours: %v, want 40", l)
 	}

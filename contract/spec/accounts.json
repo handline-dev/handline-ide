@@ -703,7 +703,7 @@
          "oneOf": [
           {
            "type": "number",
-           "description": "Percent of the week left, averaged over the accounts that have a reading at that time; an account that could not be used then (its login gone or expired) counts as 0."
+           "description": "Percent of the week left, averaged over the accounts that have a reading at that time, each weighed by its weekly plan budget as budget.left_pct is (alike when no account has one); an account that could not be used then (its login gone or expired) counts as 0."
           },
           {
            "type": "null"
@@ -730,7 +730,7 @@
          "oneOf": [
           {
            "type": "number",
-           "description": "Percent of the week left, averaged over the accounts that have a reading at that time; an account that could not be used then (its login gone or expired) counts as 0."
+           "description": "Percent of the week left, averaged over the accounts that have a reading at that time, each weighed by its weekly plan budget as budget.left_pct is (alike when no account has one); an account that could not be used then (its login gone or expired) counts as 0."
           },
           {
            "type": "null"
@@ -844,7 +844,7 @@
       "items": {
        "type": "number"
       },
-      "description": "Only with `agent`: the points of the combined week the pick had used by each time of `past`, one number per `past` entry in the same order: its cost share of each account times what that account had used so far, averaged over the accounts. Empty when the pick used nothing in the span or is not an agent or group. Absent from a daemon that does not send it."
+      "description": "Only with `agent`: the points of the combined week the pick had used by each time of `past`, one number per `past` entry in the same order: its cost share of each account times what that account had used so far, averaged over the accounts as `past` is. Empty when the pick used nothing in the span or is not an agent or group. Absent from a daemon that does not send it."
      },
      "by_account": {
       "type": "array",

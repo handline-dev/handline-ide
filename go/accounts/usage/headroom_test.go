@@ -298,7 +298,7 @@ func TestAWindowObservedAWeekBeforeItsRowIsStale(t *testing.T) {
 			}
 		}
 	}
-	w, wf := WeeklyOutlook(all, now, 12, nil, nil), WeeklyOutlook(fresh, now, 12, nil, nil)
+	w, wf := WeeklyOutlook(all, now, 12, nil, nil, nil), WeeklyOutlook(fresh, now, 12, nil, nil, nil)
 	same("past", w.Past, wf.Past)
 	same("future", w.Future, wf.Future)
 	h, hf := HeadroomKeepStale(all, now, now-12*3600, now+12*3600, 900, nil, nil), HeadroomKeepStale(fresh, now, now-12*3600, now+12*3600, 900, nil, nil)
@@ -317,7 +317,7 @@ func TestALoggedOutAccountWithAnOldReadingStillCountsAsNothingLeft(t *testing.T)
 		out["logged_out"] = json.Number("1")
 		rows = append(rows, headroomRow("in", ts, 10, ts+3600, 20, now+3*86400), out)
 	}
-	if p := WeeklyOutlook(rows, now, 12, nil, nil).Past; p[len(p)-1].Left == nil || *p[len(p)-1].Left != 40 {
+	if p := WeeklyOutlook(rows, now, 12, nil, nil, nil).Past; p[len(p)-1].Left == nil || *p[len(p)-1].Left != 40 {
 		t.Fatalf("the week line at now: %v, want 40 (in's 80 and out's nothing)", p[len(p)-1].Left)
 	}
 	h := HeadroomKeepStale(rows, now, now-12*3600, now+12*3600, 900, nil, nil)

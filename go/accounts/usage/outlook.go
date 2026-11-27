@@ -116,21 +116,21 @@ func pace(series []weekPoint) float64 {
 }
 
 // WeeklyOutlook is outlook.weekly_outlook. rows are usage_samples rows, oldest first. The value is the headroom left of the week, in
-// percent, averaged over the accounts that have a reading. ends is when an account that ends stops: looking back it is not counted
+// percent, averaged over the accounts that have a reading, each weighed by w (WeekWeights). ends is when an account that ends stops: looking back it is not counted
 // once it has ended; looking ahead it stays in the average with nothing left after its end, so the line steps down by its share.
 // An account that could not be used (loggedOut; outSince is from when, for one that cannot now) counts as nothing left, then and ahead, so
 // the line falls by its share while it is out and rises when it is back.
-func WeeklyOutlook(rows []sampleRow, now int64, hours int, ends, outSince map[string]float64) Outlook {
+func WeeklyOutlook(rows []sampleRow, now int64, hours int, ends, outSince map[string]float64, w WeekWeights) Outlook {
 	by := map[string][]weekPoint{}
 	var order []string // first appearance, as a Python dict keeps it
 	for _, r := range rows {
-		if w, ok := weekOf(r); ok {
+		if wp, ok := weekOf(r); ok {
 			a, _ := r["account"].(string)
 			if _, seen := by[a]; !seen {
 				order = append(order, a)
 			}
-			w.Out = loggedOut(r, outSince)
-			by[a] = append(by[a], w)
+			wp.Out = loggedOut(r, outSince)
+			by[a] = append(by[a], wp)
 		}
 	}
 	out := Outlook{Accounts: len(by)}
@@ -143,30 +143,28 @@ func WeeklyOutlook(rows []sampleRow, now int64, hours int, ends, outSince map[st
 		paces[a] = pace(s)
 	}
 	endsAt := func(a string) (float64, bool) { v, ok := ends[a]; return v, ok }
-	ahead := 0
 	isAhead := map[string]bool{}
 	for _, a := range order {
 		e, ended := endsAt(a)
 		if now-by[a][len(by[a])-1].TS <= OutlookMaxAgeS && !(ended && float64(now) >= e) {
 			isAhead[a] = true
-			ahead++
 		}
 	}
 	for t := now - int64(hours)*3600; t <= now+int64(hours)*3600; t += step {
-		var left []float64
+		var left []accountLeft
 		for _, a := range order {
 			series := by[a]
 			if e, ended := endsAt(a); ended && float64(t) >= e {
 				if t > now && isAhead[a] {
-					left = append(left, 0) // a capacity that is gone, not an account that is
+					left = append(left, accountLeft{a, 0}) // a capacity that is gone, not an account that is
 				}
 				continue
 			}
 			if t <= now {
 				if s, ok := at(series, t); ok && s.Out {
-					left = append(left, 0)
+					left = append(left, accountLeft{a, 0})
 				} else if ok {
-					left = append(left, 100-s.Used)
+					left = append(left, accountLeft{a, 100 - s.Used})
 				}
 				continue
 			}
@@ -175,7 +173,7 @@ func WeeklyOutlook(rows []sampleRow, now int64, hours int, ends, outSince map[st
 				continue
 			}
 			if _, gone := outSince[a]; gone {
-				left = append(left, 0)
+				left = append(left, accountLeft{a, 0})
 				continue
 			}
 			used := last.Used
@@ -184,19 +182,10 @@ func WeeklyOutlook(rows []sampleRow, now int64, hours int, ends, outSince map[st
 			} else {
 				used += paces[a] * float64(t-now)
 			}
-			left = append(left, 100-min(100, used))
+			left = append(left, accountLeft{a, 100 - min(100, used)})
 		}
 		p := OutlookPoint{At: t}
-		n := len(left)
-		if t > now {
-			n = ahead
-		}
-		if len(left) > 0 && n > 0 {
-			var sum float64
-			for _, v := range left {
-				sum += v
-			}
-			avg := sum / float64(n)
+		if avg, ok := w.Mean(left); ok {
 			p.Left = &avg
 		}
 		if t <= now {

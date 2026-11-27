@@ -102,9 +102,9 @@ func agentUseOf(u usage.AgentUse) map[string]any {
 }
 
 // overlayOf is the spec's overlay, at two places like left_pct.
-func overlayOf(rows usage.Samples, uses []usage.AgentUse, pick string, past []usage.OutlookPoint) []any {
+func overlayOf(rows usage.Samples, uses []usage.AgentUse, pick string, past []usage.OutlookPoint, w usage.WeekWeights) []any {
 	out := []any{}
-	for _, v := range usage.Overlay(rows, uses, pick, past) {
+	for _, v := range usage.Overlay(rows, uses, pick, past, w) {
 		out = append(out, round(v, 2))
 	}
 	return out
@@ -195,7 +195,6 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 	all = usage.SamplesOf(all, listed) // the lines read the accounts the title and the rows show
 	rows := usage.SamplesFrom(all, now-span-usage.OutlookMaxAgeS)
 	ends, outSince := e.accountEnds(cfg, rows, clock)
-	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince)
 	loads, err := ue.ReadAll(e.DB, "")
 	if err != nil {
 		return nil, err
@@ -220,7 +219,9 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 		}
 		runway = append(runway, map[string]any{"account": a, "runs_out_in_seconds": runs, "week_resets_at": resets})
 	}
-	byAccount, future := outlookByAccount(all, now, hours, ends, outSince, weekUSD)
+	weights := usage.WeightsOf(budgets) // the line weighs each account as the budget's total does
+	out := usage.WeeklyOutlook(rows, now, hours, ends, outSince, weights)
+	byAccount, future := outlookByAccount(all, now, hours, ends, outSince, weekUSD, weights)
 	c, err := usage.CallCosts(e.DB, firstDay(clock, hours), now-span, now, usage.PricesFromConfig(cfg), all, weekUSD)
 	if err != nil {
 		return nil, err
@@ -240,7 +241,7 @@ func (e *Env) outlookAt(name string, hours int, clock time.Time, pick *string) (
 		"runway": runway, "by_account": byAccount, "cost_per_day": perDayOf(c.Daily), "agent_use": agentUse,
 		"budget": budgetOf(budgets), "plan_cost_per_day": planPerDayOf(c.Plan.Daily, usage.ExtraDaily(all, firstDay(clock, hours), now))}
 	if pick != nil {
-		res["overlay"] = overlayOf(rows, c.Uses, *pick, out.Past)
+		res["overlay"] = overlayOf(rows, c.Uses, *pick, out.Past, weights)
 	}
 	return res, nil
 }
@@ -269,9 +270,9 @@ func budgetOf(bs []usage.AccountBudget) map[string]any {
 		"left_usd": round(t.WeekUSD-t.SpentUSD, 2), "left_pct": leftPct, "extra_spent": rounded(usage.ExtraSpent(bs), 2)}
 }
 
-// outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged, each going as
+// outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged by w, each going as
 // usage.HeadroomKeepStale does. rows are the samples from at least a day back; weekUSD is each account's weekly plan budget.
-func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, weekUSD map[string]float64) ([]any, []usage.OutlookPoint) {
+func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, weekUSD map[string]float64, w usage.WeekWeights) ([]any, []usage.OutlookPoint) {
 	span := int64(hours) * 3600
 	h := usage.HeadroomKeepStale(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince)
 	byAccount := []any{}
@@ -300,16 +301,16 @@ func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, 
 			}
 		}
 	}
+	names := make([]string, len(h.Accounts))
+	for i, a := range h.Accounts {
+		names[i] = a.Account
+	}
 	for i := range future {
-		var sum float64
-		n := 0
-		for _, a := range h.Accounts {
-			if w := a.Future[i].Week; w != nil {
-				sum, n = sum+*w, n+1
-			}
+		weeks := make([]*float64, len(h.Accounts))
+		for j, a := range h.Accounts {
+			weeks[j] = a.Future[i].Week
 		}
-		if n > 0 {
-			avg := sum / float64(n)
+		if avg, ok := w.MeanOf(names, weeks); ok {
 			future[i].Left = &avg
 		}
 	}

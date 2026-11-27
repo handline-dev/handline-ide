@@ -20,3 +20,11 @@ test("stats.outlook's budget carries each case of extra usage beside the plan mo
   );
   client.close();
 });
+
+test("stats.outlook's week line at now is the budget's left, as the daemon weighs each account by its budget", async () => {
+  const { client } = setup();
+  await client.start();
+  const out = await client.call('stats.outlook', { range: '7d' });
+  assert.equal(out.past.at(-1)?.left_pct, out.budget?.left_pct);
+  client.close();
+});
