@@ -17,8 +17,8 @@ import (
 	"github.com/handline/handline/go/agentctl/holder"
 )
 
-// NoAsks is why a tool ask is refused while nothing answers asks from the app.
-const NoAsks = "Permission asks are not answered in Chat mode yet; work without this tool or ask the person in your reply."
+// NoAnswer is the no to a tool ask nothing could answer.
+const NoAnswer = "Nobody could answer this permission ask; work without this tool or ask the person in your reply."
 
 // Port delivers to Chat agents.
 type Port struct {
@@ -32,6 +32,9 @@ type Port struct {
 	// OnSession is told the session id the CLI runs under; OnTurnEnd that a turn ended. Either may be nil.
 	OnSession func(agent, id string)
 	OnTurnEnd func(agent string, failed bool)
+	// Ask is a person's answer to a tool ask, waited for until ctx ends (the session went, or the CLI took the ask back); ok false is no
+	// answer. Nil answers every ask no.
+	Ask func(ctx context.Context, agent string, ask agent.Event) (a agent.AskAnswer, ok bool)
 	// Write and Open reach the holder; nil is package holder.
 	Write func(socket string, line []byte) error
 	Open  func(ctx context.Context, socket string, from int64) (*holder.Reader, error)
@@ -56,6 +59,17 @@ type session struct {
 	tasks      []agent.Task
 	tasksKnown bool
 	limit      agent.Limit
+	// asks are the tool asks waiting for an answer, by request id: the record that brought each is not acknowledged until it is answered,
+	// so a daemon that restarts reads it again. The CLI asks one at a time, so a newer ask or a turn's end means an older one is stale.
+	asks map[string]*pendingAsk
+	// reader is the holder read now, and seen the last record it handled: an answer acknowledges up to it once written.
+	reader *holder.Reader
+	seen   int64
+}
+
+type pendingAsk struct {
+	seq    int64
+	cancel context.CancelFunc
 }
 
 func (p *Port) state(a string) *session {
@@ -64,7 +78,7 @@ func (p *Port) state(a string) *session {
 	}
 	s := p.agents[a]
 	if s == nil {
-		s = &session{ops: map[string]string{}, receipts: map[string]delivery.Receipt{}, active: map[string]bool{}}
+		s = &session{ops: map[string]string{}, receipts: map[string]delivery.Receipt{}, active: map[string]bool{}, asks: map[string]*pendingAsk{}}
 		p.agents[a] = s
 	}
 	return s
@@ -249,9 +263,13 @@ func (p *Port) read(a string, c agent.Chat, r *holder.Reader) {
 		s := p.state(a)
 		s.watching, s.ready, s.active = false, false, map[string]bool{}
 		s.state, s.tasks, s.tasksKnown, s.limit = "", nil, false, agent.Limit{}
-		lost, unsent := s.ops, s.held
-		s.ops, s.held, s.receipts = map[string]string{}, nil, map[string]delivery.Receipt{}
+		lost, unsent, asks := s.ops, s.held, s.asks
+		s.ops, s.held, s.receipts, s.asks = map[string]string{}, nil, map[string]delivery.Receipt{}, map[string]*pendingAsk{}
+		s.reader, s.seen = nil, 0
 		p.mu.Unlock()
+		for _, ask := range asks {
+			ask.cancel()
+		}
 		for _, op := range lost {
 			p.failed(a, op, "the session ended before it took the message", true)
 		}
@@ -259,16 +277,23 @@ func (p *Port) read(a string, c agent.Chat, r *holder.Reader) {
 			p.failed(a, h.op, "the session ended while the message waited for its turn", false)
 		}
 	}()
+	p.mu.Lock()
+	p.state(a).reader = r
+	p.mu.Unlock()
 	for {
 		rec, err := r.Next()
 		if err != nil {
 			return
 		}
-		p.handle(a, c, rec)
-		_ = r.Ack(rec.Seq)
-		if rec.Holder == "exit" {
+		if rec.Holder == "exit" { // the CLI is gone, and with it every ask: all of it is read
+			_ = r.Ack(rec.Seq)
 			return
 		}
+		p.handle(a, c, rec)
+		p.mu.Lock()
+		p.state(a).seen = rec.Seq
+		p.mu.Unlock()
+		p.ack(a)
 	}
 }
 
@@ -305,6 +330,7 @@ func (p *Port) handle(a string, c agent.Chat, rec holder.Record) {
 	case agent.EventEcho:
 		p.confirm(a, ev.UUID)
 	case agent.EventResult:
+		p.cancelAsks(a, "")
 		if p.OnTurnEnd != nil {
 			p.OnTurnEnd(a, ev.IsError)
 		}
@@ -323,10 +349,94 @@ func (p *Port) handle(a string, c agent.Chat, rec holder.Record) {
 		p.state(a).limit = ev.Limit
 		p.mu.Unlock()
 	case agent.EventAsk:
-		_ = p.write(p.Socket(a), c.Refuse(ev, NoAsks))
+		p.ask(a, c, ev, rec.Seq)
+	case agent.EventCancel:
+		p.mu.Lock()
+		if ask, ok := p.state(a).asks[ev.Request]; ok {
+			ask.cancel()
+		}
+		p.mu.Unlock()
 	case agent.EventRequest:
 		_ = p.write(p.Socket(a), c.Unserved(ev))
 	}
+}
+
+// ask waits for the answer to a tool ask apart from the reader, which goes on meanwhile, and writes it. An ask already waiting (read
+// again after a reconnect) is left to the wait it has; an older one is stale and goes.
+func (p *Port) ask(a string, c agent.Chat, ev agent.Event, seq int64) {
+	p.mu.Lock()
+	s := p.state(a)
+	if _, dup := s.asks[ev.Request]; dup {
+		p.mu.Unlock()
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	me := &pendingAsk{seq: seq, cancel: cancel}
+	s.asks[ev.Request] = me
+	p.mu.Unlock()
+	p.cancelAsks(a, ev.Request)
+	// mine is whether the entry for the request is still this wait's: a reader after this one may hold one of its own.
+	mine := func(drop bool) bool {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		ok := s.asks[ev.Request] == me
+		if ok && drop {
+			delete(s.asks, ev.Request)
+		}
+		return ok
+	}
+	go func() {
+		defer cancel()
+		answer, ok := agent.AskAnswer{Message: NoAnswer}, true
+		if p.Ask != nil {
+			answer, ok = p.Ask(ctx, a, ev)
+		}
+		if ctx.Err() != nil || !mine(false) { // the session went, or the CLI took the ask back: nothing to answer
+			mine(true)
+			return
+		}
+		if !ok {
+			answer = agent.AskAnswer{Message: NoAnswer}
+		}
+		// Written before the entry goes, so nothing is acknowledged past the ask until its answer is on the stream.
+		_ = p.write(p.Socket(a), c.Answer(ev, answer))
+		mine(true)
+		p.ack(a)
+	}()
+}
+
+// cancelAsks ends the waits of a's asks other than keep.
+func (p *Port) cancelAsks(a, keep string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for id, ask := range p.state(a).asks {
+		if id != keep {
+			ask.cancel()
+		}
+	}
+}
+
+// ack acknowledges a's records up to the last one handled, short of the first ask still waiting.
+func (p *Port) ack(a string) {
+	p.mu.Lock()
+	s := p.state(a)
+	r, n := s.reader, s.seen
+	p.mu.Unlock()
+	if r != nil {
+		_ = r.Ack(p.ackable(a, n))
+	}
+}
+
+// ackable is how far a's records may be acknowledged once seq is handled: up to the first ask still waiting.
+func (p *Port) ackable(a string, seq int64) int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, ask := range p.state(a).asks {
+		if ask.seq <= seq {
+			seq = ask.seq - 1
+		}
+	}
+	return seq
 }
 
 func (p *Port) setActive(a, uuid string, on bool) {

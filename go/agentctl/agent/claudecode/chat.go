@@ -50,9 +50,27 @@ func (Driver) StopTaskLine(id, task string) []byte {
 // Env asks the CLI to say each time its session starts or ends a turn.
 func (Driver) Env() []string { return []string{"CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS=1"} }
 
-func (Driver) Refuse(ask agent.Event, why string) []byte {
+func (Driver) Answer(ask agent.Event, a agent.AskAnswer) []byte {
+	answer := map[string]any{"behavior": "deny", "message": a.Message}
+	if a.Allow {
+		input := a.Input
+		if input == nil {
+			input = ask.Input
+		}
+		if input == nil {
+			input = map[string]any{}
+		}
+		answer = map[string]any{"behavior": "allow", "updatedInput": input}
+		if len(a.Rules) > 0 {
+			rules := make([]any, 0, len(a.Rules))
+			for _, r := range a.Rules {
+				rules = append(rules, map[string]any{"toolName": r.Tool, "ruleContent": r.Content})
+			}
+			answer["updatedPermissions"] = []any{map[string]any{"type": "addRules", "behavior": "allow", "destination": "session", "rules": rules}}
+		}
+	}
 	b, _ := json.Marshal(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "success", "request_id": ask.Request,
-		"response": map[string]any{"behavior": "deny", "message": why}}})
+		"response": answer}})
 	return b
 }
 
@@ -74,8 +92,9 @@ type frame struct {
 	IsError     bool   `json:"is_error"`
 	RequestID   string `json:"request_id"`
 	Request     struct {
-		Subtype  string `json:"subtype"`
-		ToolName string `json:"tool_name"`
+		Subtype  string         `json:"subtype"`
+		ToolName string         `json:"tool_name"`
+		Input    map[string]any `json:"input"`
 	} `json:"request"`
 	Tasks []struct {
 		TaskID      string `json:"task_id"`
@@ -121,9 +140,11 @@ func (Driver) Read(line []byte) agent.Event {
 		return agent.Event{Kind: agent.EventResult, Subtype: f.Subtype, IsError: f.IsError, SessionID: f.SessionID}
 	case "control_request":
 		if f.Request.Subtype == "can_use_tool" {
-			return agent.Event{Kind: agent.EventAsk, Request: f.RequestID, Tool: f.Request.ToolName}
+			return agent.Event{Kind: agent.EventAsk, Request: f.RequestID, Tool: f.Request.ToolName, Input: f.Request.Input}
 		}
 		return agent.Event{Kind: agent.EventRequest, Request: f.RequestID, Subtype: f.Request.Subtype}
+	case "control_cancel_request":
+		return agent.Event{Kind: agent.EventCancel, Request: f.RequestID}
 	}
 	return agent.Event{}
 }

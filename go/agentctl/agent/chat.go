@@ -15,8 +15,8 @@ type Chat interface {
 	Env() []string
 	// Read takes from one frame only the fields an Event allows.
 	Read(frame []byte) Event
-	// Refuse answers an Ask with no, giving why.
-	Refuse(ask Event, why string) []byte
+	// Answer is the line that answers an Ask.
+	Answer(ask Event, a AskAnswer) []byte
 	// Unserved answers any other request as not served, so the CLI never waits on it.
 	Unserved(req Event) []byte
 }
@@ -40,8 +40,10 @@ const (
 	EventEcho
 	// EventResult is a turn's end: IsError and Subtype.
 	EventResult
-	// EventAsk is the CLI waiting on the host to allow a tool: Request (to answer it) and Tool.
+	// EventAsk is the CLI waiting on the host to allow a tool: Request (to answer it), Tool and Input.
 	EventAsk
+	// EventCancel is the CLI no longer waiting on the request it made: Request.
+	EventCancel
 	// EventRequest is any other request the CLI makes of the host: Request.
 	EventRequest
 	// EventState is the session running a turn or idle: State.
@@ -51,6 +53,18 @@ const (
 	// EventLimit is the account's usage limit as the CLI last heard it: Limit.
 	EventLimit
 )
+
+// AskAnswer is the host's answer to an Ask: Allow with Input as the tool runs it (the ask's own when nil) and Rules the running
+// session keeps allowing; or no, with Message as the model reads it.
+type AskAnswer struct {
+	Allow   bool
+	Message string
+	Input   map[string]any
+	Rules   []Rule
+}
+
+// Rule is an allow rule for one tool: Content is its pattern, as Tool(Content).
+type Rule struct{ Tool, Content string }
 
 // Task is one piece of background work.
 type Task struct{ ID, Description string }
@@ -72,6 +86,7 @@ type Event struct {
 	IsError   bool
 	Request   string
 	Tool      string
+	Input     map[string]any
 	Tasks     []Task
 	Limit     Limit
 }

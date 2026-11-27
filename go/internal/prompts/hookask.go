@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -28,25 +29,35 @@ type Decision struct {
 	Allow bool
 	Note  string // why not, for a deny
 	Rule  string // an always-allowed rule the running session applies from now (Tool(content)), "" for none
+	// Answer is a question's answer: the picked labels or the typed text.
+	Answer string
 }
 
-// hookWaits are the permission calls waiting now, by their prompt row, each with the rule its Always allow keeps ("" for none):
-// held here, from the call's own input, since the row's detail is in a database every agent can write.
+// hookWaits are the calls waiting now, by their prompt row, each with the rule its Always allow keeps ("" for none) and a question's
+// option labels: held here, from the call's own input, since the row's detail is in a database every agent can write.
 type hookWaits struct {
-	mu    sync.Mutex
-	by    map[int64]chan Decision
-	rules map[int64]string
+	mu     sync.Mutex
+	by     map[int64]chan Decision
+	rules  map[int64]string
+	labels map[int64][]string
 }
 
-func (w *hookWaits) add(id int64, rule string) chan Decision {
+func (w *hookWaits) add(id int64, rule string, labels []string) chan Decision {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.by == nil {
-		w.by, w.rules = map[int64]chan Decision{}, map[int64]string{}
+		w.by, w.rules, w.labels = map[int64]chan Decision{}, map[int64]string{}, map[int64][]string{}
 	}
 	ch := make(chan Decision, 1)
-	w.by[id], w.rules[id] = ch, rule
+	w.by[id], w.rules[id], w.labels[id] = ch, rule, labels
 	return ch
+}
+
+// optionLabels are the labels of the question the waiting call on id asked.
+func (w *hookWaits) optionLabels(id int64) []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.labels[id]
 }
 
 // rule is the rule the waiting call on id offers, "" for none or no call.
@@ -68,11 +79,9 @@ func (w *hookWaits) take(id int64) chan Decision {
 	ch := w.by[id]
 	delete(w.by, id)
 	delete(w.rules, id)
+	delete(w.labels, id)
 	return ch
 }
-
-// IsHook is whether the row was raised by the hook.
-func (b *Block) IsHook() bool { return b.Detail["source"] == HookSource }
 
 // keepGrants keeps each of grant as agent's always grant, all or none, as the founder's settings change: a kept grant lifts a hide only
 // at launch, so the session starts fresh with it at its next idle moment (tick.ApplySettings).
@@ -114,6 +123,25 @@ func (b *Block) Grant() []string {
 func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[string]any) (d Decision, answered bool, err error) {
 	ctx, cancel := context.WithTimeout(ctx, HookWaitS*time.Second)
 	defer cancel()
+	q, err := e.permissionQuestion(agent, HookSource, tool, input)
+	if err != nil {
+		return d, false, err
+	}
+	return e.raise(ctx, q, true)
+}
+
+// question is one prompt row to raise and wait on.
+type question struct {
+	agent, kind, title string
+	panel              []string
+	detail             map[string]any
+	offered            string   // the rule an Always allow keeps, "" for none
+	labels             []string // a question's options
+}
+
+// permissionQuestion is agent's ask to use tool as a prompt row from source: an Always allow is offered for a read of another agent's
+// files, and for the same exact Bash command asked before.
+func (e *Env) permissionQuestion(agent, source, tool string, input map[string]any) (q question, err error) {
 	command, reason := hooks.ToolCommand(input)
 	title := agent + " wants to use " + tool
 	panel := []string{title}
@@ -123,17 +151,28 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 	if reason != "" {
 		panel = append(panel, reason)
 	}
-	detail := map[string]any{"agent": agent, "vendor": e.vendorOf(agent), "source": HookSource, "tool": tool, "command": command,
+	detail := map[string]any{"agent": agent, "vendor": e.vendorOf(agent), "source": source, "tool": tool, "command": command,
 		"reason": reason, "title": title, "lines": panel}
+	q = question{agent: agent, kind: term.PromptPermission, title: title, panel: panel, detail: detail}
 	if grant := e.ReadGrant(tool, input); grant != nil {
 		detail["grant"] = grant
 	} else if r, ok := e.exactRule(tool, input); ok {
 		// Offered only when this agent was asked the same rule before: a one-off question keeps Allow and Deny.
 		detail["rule"] = r.String()
 		if detail["offer_rule"], err = e.askedBefore(agent, r.String()); err != nil {
-			return d, false, err
+			return q, err
+		}
+		if detail["offer_rule"] == true {
+			q.offered = r.String()
 		}
 	}
+	return q, nil
+}
+
+// raise opens q's row, once no other of its agent's is open, and waits for its answer until ctx ends; the row closes when the wait does.
+// With movedOn, a turn's end or a new prompt of the agent's after the row opened ends the wait too: it was answered at its own dialog.
+func (e *Env) raise(ctx context.Context, q question, movedOn bool) (d Decision, answered bool, err error) {
+	agent := q.agent
 	var since int64 // the agent's latest event now: a turn event after it means the agent has moved on from this question
 	_ = e.DB.QueryRow("SELECT COALESCE(MAX(id), 0) FROM events WHERE agent = ?", agent).Scan(&since)
 	var id, opened int64
@@ -141,8 +180,8 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 		now := e.now().Unix()
 		// The time is in the fingerprint: the same command asked again is another question, and an answer to the last one is stale.
 		res, err := e.DB.Exec("INSERT OR IGNORE INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) "+
-			"VALUES(?,?,?,?,?,?,1,?,?)", agent, term.PromptPermission, Fingerprint(term.PromptPermission, append(panel, fmt.Sprint(now))), title,
-			jsonText(panel), jsonText(detail), now, now)
+			"VALUES(?,?,?,?,?,?,1,?,?)", agent, q.kind, Fingerprint(q.kind, append(slices.Clone(q.panel), fmt.Sprint(now))), q.title,
+			jsonText(q.panel), jsonText(q.detail), now, now)
 		if err != nil {
 			return d, false, err
 		}
@@ -160,11 +199,7 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 		case <-time.After(time.Second):
 		}
 	}
-	offered := ""
-	if detail["offer_rule"] == true {
-		offered, _ = detail["rule"].(string)
-	}
-	ch := e.hooks.add(id, offered)
+	ch := e.hooks.add(id, q.offered, q.labels)
 	e.changed(agent)
 	defer func() {
 		e.hooks.take(id)
@@ -191,6 +226,9 @@ func (e *Env) AskPermission(ctx context.Context, agent, tool string, input map[s
 			// Closed under it, as stale after a sleep or a slow pass: nobody can answer it now, so the agent's own dialog shows instead.
 			if n, _ := res.RowsAffected(); n == 0 {
 				return d, false, nil
+			}
+			if !movedOn {
+				continue
 			}
 			// An agent blocked on this call ends no turn and takes no prompt. One that has done either was answered at its own dialog, or
 			// stopped, so the question is nobody's now. The event's own time is checked too: a spooled hook replays late with a new id.
@@ -225,6 +263,10 @@ func (e *Env) answerHook(row *Block, c Choice) (bool, string) {
 	}
 	said := row.Agent + ": denied"
 	switch {
+	case row.Kind == "question" && c.Yes:
+		said = row.Agent + ": answered: " + c.Answer
+	case row.Kind == "question":
+		said = row.Agent + ": cancelled"
 	case rule != "":
 		said = row.Agent + ": allowed always: " + rule
 	case c.Always:
@@ -234,7 +276,7 @@ func (e *Env) answerHook(row *Block, c Choice) (bool, string) {
 	}
 	// Recorded before the call is let go: the view it writes on closing reads the answer (answered_at) to end the waits it stood for.
 	ok, said := e.record(row, true, said)
-	ch <- Decision{Allow: c.Yes, Note: c.Note, Rule: rule}
+	ch <- Decision{Allow: c.Yes, Note: c.Note, Rule: rule, Answer: c.Answer}
 	return ok, said
 }
 
@@ -245,6 +287,9 @@ func (e *Env) permissionAsk(c *rpc.Conn, params map[string]any) (any, error) {
 		return nil, rpc.Refused("only an agent's own session asks for a permission", "role", "")
 	}
 	agent := c.Caller.Actor()
+	if e.Chat != nil && e.Chat(agent) { // its session asks on its stream at the same moment, and that ask is the one prompt
+		return map[string]any{"behavior": nil}, nil
+	}
 	tool, _ := params["tool"].(string)
 	if tool == "" {
 		return nil, bad("tool is the tool's name", "tool")
@@ -272,20 +317,16 @@ func (e *Env) permissionAsk(c *rpc.Conn, params map[string]any) (any, error) {
 	if d.Allow {
 		return map[string]any{"behavior": "allow"}, nil
 	}
-	msg := "The founder said no."
-	if d.Note != "" {
-		msg = "The founder said no: " + d.Note
-	}
-	return map[string]any{"behavior": "deny", "message": msg}, nil
+	return map[string]any{"behavior": "deny", "message": denyMessage(d.Note)}, nil
 }
 
 func jsonText(v any) string { return jsontext.Spaced(v, true, true) }
 
-// closeOrphans closes agent's open hook questions no call of this daemon waits on: their call went with a daemon that stopped without
-// closing them. One not kept fresh for StaleS only, so a question between its row and its wait is left be.
+// closeOrphans closes agent's open hook and stream questions no call of this daemon waits on: their call went with a daemon that stopped
+// without closing them. One not kept fresh for StaleS only, so a question between its row and its wait is left be.
 func (e *Env) closeOrphans(agent string, now int64) error {
 	rows, err := e.DB.Query("SELECT id FROM prompt_blocks WHERE agent = ? AND gone_at IS NULL AND last_seen < ? AND "+
-		"json_extract(detail, '$.source') = ?", agent, now-StaleS, HookSource)
+		"json_extract(detail, '$.source') IN (?, ?)", agent, now-StaleS, HookSource, StreamSource)
 	if err != nil {
 		return err
 	}

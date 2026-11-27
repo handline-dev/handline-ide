@@ -354,7 +354,7 @@ func optionsOf(kind string, answerable bool, detail map[string]any) []any {
 		if !answerable {
 			return []any{}
 		}
-		if detail["structured"] == true || detail["source"] == "hook" { // asked through a call: allow or deny, nothing on a screen to escape from
+		if detail["source"] == "hook" || detail["source"] == "stream" { // asked through a call: allow or deny, nothing on a screen to escape from
 			out := []any{map[string]any{"key": "allow", "label": "Allow", "answer": "yes", "highlighted": false}}
 			if _, grants := detail["grant"]; grants { // a read of another agent's memory or transcripts (prompts.ReadGrant)
 				out = append(out, map[string]any{"key": "always", "label": "Allow always: every agent's memory and transcripts", "answer": "yes", "highlighted": false})
@@ -462,8 +462,8 @@ func promptOf(name string, r row) map[string]any {
 		"options": optionsOf(r.str("kind"), r.i("answerable") != 0, detail), "since": ts(since),
 		"multi": truthy(detail["multi_select"]),
 	}
-	if detail["source"] == "hook" {
-		p["source"] = "hook"
+	if s := detail["source"]; s == "hook" || s == "stream" {
+		p["source"] = s
 	}
 	return p
 }

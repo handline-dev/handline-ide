@@ -34,6 +34,8 @@ type Env struct {
 	Refresh time.Duration
 	// Changed is told agent's name once one of its prompt rows has opened or gone, so its view follows the card at once. Nil tells nothing.
 	Changed func(agent string)
+	// Chat is whether agent's session runs in Chat mode now, so its asks come on its stream and the hook's are not raised. Nil knows none.
+	Chat func(agent string) bool
 	// Emit puts an event on a topic: access.changed once a rule is kept. Nil emits nothing.
 	Emit func(topic, typ string, data map[string]any) error
 

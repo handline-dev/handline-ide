@@ -2,6 +2,7 @@ package compose
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,10 +13,12 @@ import (
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/scheduler/tick"
 
+	"github.com/handline/handline/go/agentctl/holder"
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/hooks"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/taskboard/supervisor"
@@ -365,5 +368,54 @@ func TestTheLimitDialogIsTheDaemonsOnlyWhileItCanActOnIt(t *testing.T) {
 		if got := limitHandled(c.atLimit, c.t, c.ago, c.failed); got != c.want {
 			t.Errorf("%s: %v", c.name, got)
 		}
+	}
+}
+
+// A Chat agent's need is its open stream prompt alone: its hooks' wait file and Notification name the same ask again.
+func TestAChatAgentNeedsAPersonWhileItsStreamPromptIsOpen(t *testing.T) {
+	home, err := os.MkdirTemp("", "ny") // short: the holder's socket path is bound
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(home) })
+	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	sock := paths.ChatSocket(home, "worker")
+	os.MkdirAll(filepath.Dir(sock), 0o700)
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	os.WriteFile(holder.PidFile(sock), []byte(strconv.Itoa(os.Getpid())), 0o600)
+	if _, err := d.Exec("INSERT INTO agent_state(agent, state, updated) VALUES('worker', 'RUNNING', 1)"); err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Join(home, "waiting"), 0o755)
+	os.WriteFile(filepath.Join(home, "waiting", "worker.json"), []byte(`{"tool": "Bash", "command": "make", "since": 1690}`), 0o644)
+	if err := hooks.Apply(d, home, "worker", "Notification", map[string]any{"notification_type": "permission_prompt"}, "n1", 1700); err != nil {
+		t.Fatal(err)
+	}
+	needs := (&Parts{db: d, home: home, notified: true}).needsYou()
+	if n := needs("worker"); n != nil {
+		t.Fatalf("the hooks raised a Chat agent's card: %+v", n)
+	}
+	if _, err := d.Exec(`INSERT INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen)
+		VALUES('worker', 'permission', 'f1', 't', '[]', '{"source":"stream","tool":"Bash","command":"make"}', 1, 1720, 1720)`); err != nil {
+		t.Fatal(err)
+	}
+	if n := needs("worker"); n == nil || n.Kind != "permission" || n.Source != "stream" || n.Since != 1720 || n.Text != "Bash: make" {
+		t.Fatalf("%+v", n)
+	}
+	d.Exec(`UPDATE prompt_blocks SET kind = 'question', title = 'Pick a color', detail = '{"source":"stream","tool":"AskUserQuestion"}'`)
+	if n := needs("worker"); n == nil || n.Kind != "question" || n.Text != "Pick a color" {
+		t.Fatalf("%+v", n)
+	}
+	d.Exec("UPDATE prompt_blocks SET gone_at = 1730")
+	if n := needs("worker"); n != nil {
+		t.Fatalf("an answered ask still needs someone: %+v", n)
 	}
 }

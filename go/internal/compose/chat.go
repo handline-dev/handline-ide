@@ -1,11 +1,14 @@
 package compose
 
 import (
+	"context"
+
 	"github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/agentctl/chatport"
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/internal/chatterm"
+	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/kit/paths"
 )
 
@@ -24,6 +27,17 @@ func (p *Parts) chatPort(tell peerDelivery) *chatport.Port {
 			Socket:      func(a string) string { return paths.ChatSocket(p.home, a) },
 			OnDelivered: env.OnDelivered,
 			OnFailed:    env.OnFailed,
+			Ask: func(ctx context.Context, a string, ask agent.Event) (agent.AskAnswer, bool) {
+				pr := p.prompts.Load()
+				if pr == nil {
+					return agent.AskAnswer{}, false
+				}
+				answer, ok, err := pr.AskStream(ctx, a, ask.Tool, ask.Input)
+				if err != nil && p.log != nil {
+					p.log("  chat: %s: ask for %s: %v", a, ask.Tool, err)
+				}
+				return answer, ok
+			},
 			OnTurnEnd: func(a string, failed bool) {
 				if p.log != nil {
 					p.log("  chat: %s: turn ended (failed %v)", a, failed)
@@ -34,6 +48,9 @@ func (p *Parts) chatPort(tell peerDelivery) *chatport.Port {
 	p.chatBuilt.Store(p.chat)
 	return p.chat
 }
+
+// SetPrompts gives the parts the daemon's prompt code.
+func (p *Parts) SetPrompts(e *prompts.Env) { p.prompts.Store(e) }
 
 // ChatPort is the port that reads the Chat holders' streams, nil until the parts are bound.
 func (p *Parts) ChatPort() *chatport.Port { return p.chatBuilt.Load() }

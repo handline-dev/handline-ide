@@ -36,15 +36,18 @@ func (e *Env) agentNamed(params map[string]any) (string, error) {
 	return "", err
 }
 
-// answerFor is what Answer takes for choice on this block: allow or deny, the two a hook's question offers, and always when it offers a
-// grant or a rule; bad_request for anything else.
+// answerFor is what Answer takes for choice on this block: allow or deny, the two a permission question offers, and always when it
+// offers a grant or a rule; a question's option keys or text (questionChoice); bad_request for anything else.
 func (e *Env) answerFor(b *Block, choice any) (Choice, error) {
+	if b.Waits() && b.Kind == "question" {
+		return e.questionChoice(b, choice)
+	}
 	c, _ := choice.(string)
 	offers := "allow, deny"
 	if b.Grant() != nil || e.hooks.rule(b.ID) != "" {
 		offers += ", " + AlwaysKey
 	}
-	if !b.IsHook() || !slices.Contains(strings.Split(offers, ", "), c) {
+	if !b.Waits() || !slices.Contains(strings.Split(offers, ", "), c) {
 		return Choice{}, bad(fmt.Sprintf("this prompt offers %s, not %s", offers, quote(fmt.Sprint(choice))), "choice")
 	}
 	return Choice{Yes: c != "deny", Always: c == AlwaysKey}, nil
@@ -103,8 +106,8 @@ func (e *Env) answer(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if note, has := params["note"]; has {
 		text, ok := note.(string)
-		if !ok || !block.IsHook() || pick.Yes {
-			return nil, bad("note is a deny's reason, for a question from the hook", "note")
+		if !ok || !block.Waits() || block.Kind == "question" || pick.Yes {
+			return nil, bad("note is a deny's reason, for a permission question a call waits on", "note")
 		}
 		pick.Note = strings.TrimSpace(text)
 	}

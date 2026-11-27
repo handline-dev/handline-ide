@@ -81,7 +81,9 @@ func fakeCLI() {
 			switch {
 			case text == "ask":
 				open = true
-				emit(map[string]any{"type": "control_request", "request_id": "ask1", "request": map[string]any{"subtype": "can_use_tool", "tool_name": "Bash"}})
+				emit(map[string]any{"type": "control_request", "request_id": "ask1", "request": map[string]any{"subtype": "can_use_tool", "tool_name": "Bash",
+					"input": map[string]any{"command": "ls"}}})
+				emit(map[string]any{"type": "system", "subtype": "session_state_changed", "state": "requires_action"})
 			case text == "long":
 				open = true
 			case text == "bg":
@@ -130,7 +132,10 @@ func (e *events) has(f func() bool) bool {
 	return false
 }
 
-func setup(t *testing.T) (*Port, *events, string) {
+func setup(t *testing.T) (*Port, *events, string) { return setupAsking(t, nil) }
+
+// setupAsking starts a holder over the fake CLI and a port reading it, with ask answering its tool asks.
+func setupAsking(t *testing.T, ask func(context.Context, string, agent.Event) (agent.AskAnswer, bool)) (*Port, *events, string) {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "cp")
 	if err != nil {
@@ -144,8 +149,19 @@ func setup(t *testing.T) (*Port, *events, string) {
 	t.Cleanup(cancel)
 	go holder.Run(ctx, holder.Config{Argv: []string{os.Args[0]}, Env: append(os.Environ(), "CHATPORT_FAKE_CLI=1"), Socket: sock,
 		Init: [][]byte{init}, Secret: secret, Linger: time.Second})
+	p, ev := reading(t, ctx, sock, ask)
+	if !ev.has(func() bool { return p.Ready("a") }) {
+		t.Fatal("not ready")
+	}
+	return p, ev, sock
+}
+
+// reading is a port that reads the holder at sock as agent a, as a daemon does.
+func reading(t *testing.T, ctx context.Context, sock string, ask func(context.Context, string, agent.Event) (agent.AskAnswer, bool)) (*Port, *events) {
+	t.Helper()
+	d := claudecode.Driver{}
 	ev := &events{}
-	p := &Port{Chat: func(string) agent.Chat { return d }, Socket: func(string) string { return sock },
+	p := &Port{Chat: func(string) agent.Chat { return d }, Socket: func(string) string { return sock }, Ask: ask,
 		OnDelivered: func(_, op string) { ev.mu.Lock(); ev.delivered = append(ev.delivered, op); ev.mu.Unlock() },
 		OnFailed: func(_, op, why string, _ bool) {
 			ev.mu.Lock()
@@ -158,10 +174,7 @@ func setup(t *testing.T) (*Port, *events, string) {
 		p.Watch(ctx, "a")
 		time.Sleep(10 * time.Millisecond)
 	}
-	if !ev.has(func() bool { return p.Ready("a") }) {
-		t.Fatal("not ready")
-	}
-	return p, ev, sock
+	return p, ev
 }
 
 func TestASentMessageIsConfirmedByItsUUIDAndTheSessionIsNamed(t *testing.T) {
@@ -222,11 +235,106 @@ func TestPromoteWritesAHeldMessageNow(t *testing.T) {
 	}
 }
 
-func TestAToolAskIsRefusedAtOnceSoTheTurnGoesOn(t *testing.T) {
-	p, ev, _ := setup(t)
+func TestAToolAskWaitsForAPersonAndTheAnswerGoesOnTheStream(t *testing.T) {
+	answer := make(chan agent.AskAnswer)
+	asked := make(chan agent.Event, 1)
+	p, ev, _ := setupAsking(t, func(ctx context.Context, _ string, ask agent.Event) (agent.AskAnswer, bool) {
+		asked <- ask
+		select {
+		case a := <-answer:
+			return a, true
+		case <-ctx.Done():
+			return agent.AskAnswer{}, false
+		}
+	})
 	_, _ = p.Send("a", "ask", "ask", delivery.Now)
+	select {
+	case ask := <-asked:
+		if ask.Request != "ask1" || ask.Tool != "Bash" || ask.Input["command"] != "ls" {
+			t.Fatalf("%+v", ask)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("not asked")
+	}
+	if ev.has(func() bool { return ev.ends > 0 }) {
+		t.Fatal("the turn went on before anyone answered")
+	}
+	answer <- agent.AskAnswer{Allow: true}
 	if !ev.has(func() bool { return ev.ends == 1 }) {
-		t.Fatal("the turn waited on the ask")
+		t.Fatal("the answer did not reach the session")
+	}
+}
+
+func TestAnAskNobodyAnsweredIsReadAgainByTheNextReader(t *testing.T) {
+	first := make(chan context.Context, 1)
+	p, ev, sock := setupAsking(t, func(ctx context.Context, _ string, _ agent.Event) (agent.AskAnswer, bool) {
+		first <- ctx
+		<-ctx.Done()
+		return agent.AskAnswer{}, false
+	})
+	_, _ = p.Send("a", "ask", "ask", delivery.Now)
+	_ = ev.has(func() bool { return len(ev.delivered) == 1 })
+	var gone context.Context
+	select {
+	case gone = <-first:
+	case <-time.After(3 * time.Second):
+		t.Fatal("not asked")
+	}
+	time.Sleep(100 * time.Millisecond) // the records after the ask are read and acknowledged meanwhile
+	again := make(chan string, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	reading(t, ctx, sock, func(_ context.Context, _ string, ask agent.Event) (agent.AskAnswer, bool) {
+		again <- ask.Request
+		return agent.AskAnswer{Message: "no"}, true
+	})
+	select {
+	case id := <-again:
+		if id != "ask1" {
+			t.Fatal(id)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("the next reader was not asked")
+	}
+	select {
+	case <-gone.Done():
+	case <-time.After(3 * time.Second):
+		t.Fatal("the reader that went still waits on its ask")
+	}
+}
+
+func TestAnAskTheCLITakesBackIsNotAnswered(t *testing.T) {
+	d := claudecode.Driver{}
+	var mu sync.Mutex
+	var wrote []string
+	waiting := make(chan context.Context, 1)
+	p := &Port{Chat: func(string) agent.Chat { return d }, Socket: func(string) string { return "" },
+		Write: func(_ string, line []byte) error {
+			mu.Lock()
+			wrote = append(wrote, string(line))
+			mu.Unlock()
+			return nil
+		},
+		Ask: func(ctx context.Context, _ string, _ agent.Event) (agent.AskAnswer, bool) {
+			waiting <- ctx
+			<-ctx.Done()
+			return agent.AskAnswer{Allow: true}, true
+		}}
+	p.handle("a", d, holder.Record{Seq: 4, Line: []byte(`{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash"}}`)})
+	p.handle("a", d, holder.Record{Seq: 5, Line: []byte(`{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash"}}`)})
+	ctx := <-waiting
+	if got := p.ackable("a", 9); got != 3 {
+		t.Fatal("acknowledged past the waiting ask:", got)
+	}
+	p.handle("a", d, holder.Record{Seq: 6, Line: []byte(`{"type":"control_cancel_request","request_id":"r1"}`)})
+	<-ctx.Done()
+	for i := 0; i < 100 && p.ackable("a", 9) != 9; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(wrote) != 0 || len(waiting) != 0 || p.ackable("a", 9) != 9 {
+		t.Fatal("answered a taken back ask, or asked twice:", wrote, len(waiting))
 	}
 }
 
@@ -286,5 +394,54 @@ func TestTheStreamSaysTheTurnTheBackgroundWorkAndTheLimit(t *testing.T) {
 	}
 	if !ev.has(func() bool { tasks, _ := p.Background("a"); return len(tasks) == 0 }) {
 		t.Fatal("still running")
+	}
+}
+
+func TestANewerAskOrATurnsEndEndsAStaleAskAndAReplacedWaitLeavesTheNewEntry(t *testing.T) {
+	d := claudecode.Driver{}
+	waits := make(chan context.Context, 4)
+	p := &Port{Chat: func(string) agent.Chat { return d }, Socket: func(string) string { return "" },
+		Write: func(string, []byte) error { return nil },
+		Ask: func(ctx context.Context, _ string, _ agent.Event) (agent.AskAnswer, bool) {
+			waits <- ctx
+			<-ctx.Done()
+			return agent.AskAnswer{}, false
+		}}
+	askLine := func(id string) holder.Record {
+		return holder.Record{Seq: 1, Line: []byte(`{"type":"control_request","request_id":"` + id + `","request":{"subtype":"can_use_tool","tool_name":"Bash"}}`)}
+	}
+	done := func(ctx context.Context, what string) {
+		select {
+		case <-ctx.Done():
+		case <-time.After(3 * time.Second):
+			t.Fatal(what)
+		}
+	}
+	p.handle("a", d, askLine("r1"))
+	first := <-waits
+	p.handle("a", d, askLine("r2"))
+	second := <-waits
+	done(first, "a newer ask left the older one waiting")
+	p.handle("a", d, holder.Record{Seq: 2, Line: []byte(`{"type":"result","subtype":"success"}`)})
+	done(second, "a turn's end left an ask waiting")
+
+	// A reader that went: its wait ends while the next reader's wait for the same request has begun.
+	p.handle("a", d, askLine("r3"))
+	old := <-waits
+	p.mu.Lock()
+	s := p.state("a")
+	gone := s.asks
+	s.asks = map[string]*pendingAsk{}
+	p.mu.Unlock()
+	p.handle("a", d, askLine("r3"))
+	<-waits
+	gone["r3"].cancel()
+	done(old, "not cancelled")
+	time.Sleep(50 * time.Millisecond)
+	p.mu.Lock()
+	_, kept := s.asks["r3"]
+	p.mu.Unlock()
+	if !kept {
+		t.Fatal("the old wait took the new reader's entry")
 	}
 }

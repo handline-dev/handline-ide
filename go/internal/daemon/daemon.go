@@ -141,6 +141,8 @@ type Config struct {
 	Session func() *sessionrpc.Env
 	// PromptChanged is told an agent whose prompt row opened or went, so its stored view follows the card at once. Nil leaves it to the tick.
 	PromptChanged func(agent string)
+	// OnPrompts is given the prompt code once it is built, so a Chat agent's asks are raised and answered through it. Nil gives it nobody.
+	OnPrompts func(*prompts.Env)
 	// OnOpen is given the database once it is open, for the parts built before it was (the supervisor's ports, the tick), and the
 	// runners linked to this master.
 	OnOpen func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry)
@@ -404,9 +406,19 @@ func Start(cfg Config) (*Daemon, error) {
 	d.logins = newLogins(cfg)
 	d.prompts = prompts.New(db, cfg.Home, &reads.Env{DB: db, Home: cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion()})
 	d.prompts.Changed = cfg.PromptChanged
+	d.prompts.Chat = func(agent string) bool {
+		if cfg.ChatPort == nil {
+			return false
+		}
+		p := cfg.ChatPort()
+		return p != nil && p.Structured(agent)
+	}
 	d.prompts.Emit = func(topic, typ string, data map[string]any) error {
 		_, err := d.hub.Append(stream.Entry{Topic: topic, Type: typ, Data: data})
 		return err
+	}
+	if cfg.OnPrompts != nil {
+		cfg.OnPrompts(d.prompts)
 	}
 	runners := d.nodes.Terminals()
 	d.tchan = termchan.New(db, cfg.Home, func() term.Backend {

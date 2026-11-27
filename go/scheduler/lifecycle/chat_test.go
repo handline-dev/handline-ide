@@ -18,15 +18,15 @@ type chatDriver struct{ fakeDriver }
 
 var cc = claudecode.Driver{}
 
-func (chatDriver) ChatArgv(argv []string) []string         { return cc.ChatArgv(argv) }
-func (chatDriver) Init() ([]byte, string)                  { return cc.Init() }
-func (chatDriver) UserLine(uuid, text string) []byte       { return cc.UserLine(uuid, text) }
-func (chatDriver) InterruptLine(id string) []byte          { return cc.InterruptLine(id) }
-func (chatDriver) StopTaskLine(id, task string) []byte     { return cc.StopTaskLine(id, task) }
-func (chatDriver) Env() []string                           { return cc.Env() }
-func (chatDriver) Read(line []byte) cli.Event              { return cc.Read(line) }
-func (chatDriver) Refuse(ask cli.Event, why string) []byte { return cc.Refuse(ask, why) }
-func (chatDriver) Unserved(req cli.Event) []byte           { return cc.Unserved(req) }
+func (chatDriver) ChatArgv(argv []string) []string              { return cc.ChatArgv(argv) }
+func (chatDriver) Init() ([]byte, string)                       { return cc.Init() }
+func (chatDriver) UserLine(uuid, text string) []byte            { return cc.UserLine(uuid, text) }
+func (chatDriver) InterruptLine(id string) []byte               { return cc.InterruptLine(id) }
+func (chatDriver) StopTaskLine(id, task string) []byte          { return cc.StopTaskLine(id, task) }
+func (chatDriver) Env() []string                                { return cc.Env() }
+func (chatDriver) Read(line []byte) cli.Event                   { return cc.Read(line) }
+func (chatDriver) Answer(ask cli.Event, a cli.AskAnswer) []byte { return cc.Answer(ask, a) }
+func (chatDriver) Unserved(req cli.Event) []byte                { return cc.Unserved(req) }
 
 type chatVendors struct{ fakeVendors }
 

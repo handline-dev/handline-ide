@@ -1148,9 +1148,10 @@
      "source": {
       "type": "string",
       "enum": [
-       "hook"
+       "hook",
+       "stream"
       ],
-      "description": "hook: asked through permission.ask, answered allow or deny (or always, where offered) with no terminal typed into. Absent for a prompt read from the agent's screen."
+      "description": "hook: asked through permission.ask, answered allow or deny (or always, where offered) with no terminal typed into. stream: asked by a Chat agent's session on its stream (a permission or a question), answered the same way through prompt.answer. Absent for a prompt read from the agent's screen."
      }
     },
     "required": [

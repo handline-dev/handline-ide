@@ -101,6 +101,7 @@ func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
 	cfg.Context = parts.Context
 	cfg.ChatPort = parts.ChatPort
 	cfg.PromptChanged = parts.RefreshView
+	cfg.OnPrompts = parts.SetPrompts
 }
 
 // shareLoad has the daemon and the agent views read one process tracker: the daemon serves its load, the views carry its servers.

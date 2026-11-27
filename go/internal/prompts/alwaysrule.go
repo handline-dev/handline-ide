@@ -33,8 +33,8 @@ func (e *Env) exactRule(tool string, input map[string]any) (r SessionRule, ok bo
 // askedBefore is whether agent was asked rule before, on an earlier card.
 func (e *Env) askedBefore(agent, rule string) (bool, error) {
 	var n int
-	err := e.DB.QueryRow("SELECT COUNT(*) FROM prompt_blocks WHERE agent = ? AND json_extract(detail, '$.source') = ? AND "+
-		"json_extract(detail, '$.rule') = ?", agent, HookSource, rule).Scan(&n)
+	err := e.DB.QueryRow("SELECT COUNT(*) FROM prompt_blocks WHERE agent = ? AND json_extract(detail, '$.source') IN (?, ?) AND "+
+		"json_extract(detail, '$.rule') = ?", agent, HookSource, StreamSource, rule).Scan(&n)
 	return n > 0, err
 }
 

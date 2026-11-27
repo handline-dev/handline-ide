@@ -82,6 +82,9 @@ func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 			return &agentview.NeedsYou{Kind: "stuck", Source: "daemon", Since: since, Title: "Stuck after restarts",
 				Text: strings.TrimPrefix(heal.CardText, "stuck: ")}
 		}
+		if p.chatSession(agent) {
+			return streamNeed(q, agent, row)
+		}
 		var sess *sessionRec
 		if rec, _, found := p.terminalSession(agent, p.liveTerminals()); found == sessionFound {
 			sess = &rec
@@ -113,6 +116,26 @@ func (p *Parts) needsYou() func(agent string) *agentview.NeedsYou {
 		}
 		return nil
 	}
+}
+
+// streamNeed is a Chat agent's need of a person: the ask its session made on its stream, while that prompt is open. Its hooks' wait file
+// and Notification say the same ask again, so they are not read.
+func streamNeed(q db.Q, agent string, row *db.AgentState) *agentview.NeedsYou {
+	var kind string
+	var since int64
+	var title string
+	var tool, command sql.NullString
+	err := q.QueryRow("SELECT kind, first_seen, title, json_extract(detail, '$.tool'), json_extract(detail, '$.command') FROM prompt_blocks "+
+		"WHERE agent = ? AND gone_at IS NULL AND json_extract(detail, '$.source') = 'stream' ORDER BY id DESC LIMIT 1", agent).
+		Scan(&kind, &since, &title, &tool, &command)
+	if err != nil {
+		return nil
+	}
+	text := title // a question's own words
+	if kind != "question" {
+		text = agentview.AskLine(tool.String, command.String, worktreepaths.RecordedPath(row.Worktree.String))
+	}
+	return &agentview.NeedsYou{Kind: kind, Source: "stream", Since: since, Title: titles[kind], Text: text}
 }
 
 // answeredAt is when a person last answered one of agent's prompts on its card, 0 for never. A wait the hooks or the session file

@@ -2,15 +2,15 @@ package prompts
 
 import "fmt"
 
-// Choice is what Answer hands a hook's question: Yes allows it, otherwise it is denied, with Note as the reason. Always also keeps
-// the question's grant (Block.Grant).
+// Choice is what Answer hands a waiting question: Yes allows it, otherwise it is denied, with Note as the reason. Always also keeps
+// the question's grant (Block.Grant). Answer is a question's answer: the picked labels or the typed text.
 type Choice struct {
-	Yes, Always bool
-	Note        string
+	Yes, Always  bool
+	Note, Answer string
 }
 
-// Answer answers the question of block blockID with choice. Only the hook's questions are answered here: they are the only prompt rows
-// there are, and each is answered by returning the decision to the call that waits on it.
+// Answer answers the question of block blockID with choice. Only the questions a call waits on are answered here (the hook's, or a Chat
+// session's stream): they are the only prompt rows there are, and each is answered by returning the decision to that call.
 func (e *Env) Answer(blockID int64, c Choice) (bool, string) {
 	row, err := e.get(blockID)
 	if err != nil {
@@ -22,7 +22,7 @@ func (e *Env) Answer(blockID int64, c Choice) (bool, string) {
 	if row.GoneAt.Valid {
 		return e.record(row, false, row.Agent+": the prompt is gone - nothing sent")
 	}
-	if !row.IsHook() {
+	if !row.Waits() {
 		return e.record(row, false, row.Agent+": this prompt was not asked through the hook - answer it in its terminal")
 	}
 	return e.answerHook(row, c)

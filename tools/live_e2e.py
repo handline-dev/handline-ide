@@ -623,6 +623,93 @@ def chat_life(r: Run, home: Path, root: Path, move_to: str) -> None:
               "seconds": round(time.time() - t, 2), "note": f"sessions {before[-1:]} -> {after[-1:]}"})
 
 
+def prompts_for(r: Run, since: float, until: float) -> list[dict]:
+    """The prompts the agent's asks raised from since to until, as prompt_asked carried them."""
+    return [ev["data"] for at, ev in list(r.s.events) if since <= at <= until and ev["type"] == "prompt_asked"
+            and ev["data"].get("agent") == r.agent]
+
+
+def ask_once(r: Run, name: str, body: str, nonce: str, answer, until_word: str | None = None) -> dict | None:
+    """Sends body, waits for the prompt whose lines carry nonce, checks it came from the stream, answers it with answer(prompt) and
+    waits for the agent to say until_word (or go idle); records how many prompts the ask raised."""
+    d, a = r.d, r.agent
+    t = time.time()
+    d.write("chat.send", {"agent": a, "body": body})
+    asked = r.step(f"{name}: one prompt, from the stream", t, lambda ev: ev["type"] == "prompt_asked" and ev["data"].get("agent") == a
+                   and nonce in " ".join(ev["data"].get("lines") or []), model=True,
+                   judge=lambda ev: None if ev["data"].get("source") == "stream" else ("FAIL", f"source {ev['data'].get('source')}"))
+    if not asked:
+        return None
+    prompt = asked["data"]
+    r.answerer.answered.add(prompt["id"])
+    t2 = time.time()
+    choice = answer(prompt)
+    if choice is None:
+        r.fail(f"{name}: the prompt offers the answer", f"options {[o.get('key') for o in prompt.get('options') or []]}")
+        return None
+    d.write("prompt.answer", {"agent": a, "prompt": prompt["id"], **choice})
+    if until_word:
+        r.step(f"{name}: the agent read the answer", t2, said(a, until_word), model=True)
+    r.s.wait(t2, agent_changed(a, "idle"), time.time() + MODEL_S)
+    raised = [p for p in prompts_for(r, t, time.time()) if nonce in " ".join(p.get("lines") or [])]
+    r.record({"step": f"{name}: no second prompt for the ask", "paced_by": "daemon", "result": "pass" if len(raised) == 1 else "FAIL",
+              "seconds": None, "note": f"{len(raised)} prompt(s)"})
+    time.sleep(2)
+    return prompt
+
+
+def chat_asks(r: Run, root: Path) -> None:
+    """Chat mode asks: a Bash ask allowed and one denied with a reason the model quotes, the same command allowed always and then run
+    with no ask, and AskUserQuestion answered with an option and with typed text, each ask one prompt."""
+    d, a, work = r.d, r.agent, root / "work"
+    d.write("agent.set", {"agent": a, "values": {"session_mode": "chat", "mode": "default"}})
+    t = time.time()
+    try:
+        d.write("session.start", {"agent": a})
+    except Refused as e:
+        if "no session is running in it after" not in str(e):
+            raise
+    if not r.step("ready (idle)", t, agent_changed(a, "idle"), model=True):
+        return
+    r.answerer.on.clear()
+    try:
+        asks(r, d, a, work)
+    finally:
+        r.answerer.on.set()
+
+
+def asks(r: Run, d: Daemon, a: str, work: Path) -> None:
+    """chat_asks' steps, with the yes-answerer off."""
+    key = lambda prompt, k: {"choice": k} if any(o["key"] == k for o in prompt.get("options") or []) else None
+    n = uuid.uuid4().hex[:6]
+    ask_once(r, "allow", f"Run this Bash command and nothing else: touch e2e-allow-{n}.txt", f"e2e-allow-{n}", lambda p: key(p, "allow"))
+    r.record({"step": "allow: the command ran", "paced_by": "daemon", "result": "pass" if (work / f"e2e-allow-{n}.txt").exists() else "FAIL",
+              "seconds": None})
+    ask_once(r, "deny", f"Run this Bash command and nothing else: touch e2e-deny-{n}.txt. If it is refused, quote the reason word for word.",
+             f"e2e-deny-{n}", lambda p: {"choice": "deny", "note": "use the word GUAVA instead"}, "GUAVA")
+    r.record({"step": "deny: the command did not run", "paced_by": "daemon", "result": "FAIL" if (work / f"e2e-deny-{n}.txt").exists() else "pass",
+              "seconds": None})
+
+    cmd = f"touch e2e-rule-{n}.txt"
+    ask_once(r, "rule, first ask", f"Run this Bash command and nothing else: {cmd}", f"e2e-rule-{n}", lambda p: key(p, "allow"))
+    second = ask_once(r, "rule, asked again", f"Run the same Bash command once more, exactly: {cmd}", f"e2e-rule-{n}", lambda p: key(p, "always"))
+    if second:
+        t = time.time()
+        d.write("chat.send", {"agent": a, "body": f"Run the same Bash command a third time, exactly: {cmd}, then reply with the single word THIRD."})
+        r.step("rule: the next ask runs with no prompt", t, said(a, "THIRD"), model=True)
+        r.s.wait(t, agent_changed(a, "idle"), time.time() + MODEL_S)
+        raised = [p for p in prompts_for(r, t, time.time()) if f"e2e-rule-{n}" in " ".join(p.get("lines") or [])]
+        r.record({"step": "rule: kept and used", "paced_by": "daemon", "result": "pass" if not raised else "FAIL", "seconds": None,
+                  "note": f"{len(raised)} prompt(s) after Always allow"})
+        time.sleep(2)
+
+    pick = lambda p: next(({"choice": o["key"]} for o in p.get("options") or [] if o.get("label") == "Blue"), None)
+    ask_once(r, "question, an option", f"Use the AskUserQuestion tool to ask me the question 'Pick a color {n}' with the options Red and Blue. "
+             "Then reply with only the color I picked, in capitals.", f"Pick a color {n}", pick, "BLUE")
+    ask_once(r, "question, typed text", f"Use the AskUserQuestion tool to ask me the question 'Pick a shade {n}' with the options Green and Grey. "
+             "Then reply with only my answer, in capitals.", f"Pick a shade {n}", lambda p: {"choice": {"text": "Mauve"}}, "MAUVE")
+
+
 def scratch(root: Path, account: dict) -> tuple[Path, str]:
     """The test daemon's home under root, with its founder key where the daemon looks for one under a test root, the real shared
     settings, and a git checkout for the agent (a worktree of this repository: see the module doc). The account and the agent are
@@ -763,10 +850,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--daemon", help="the handlined binary to test; by default this checkout's is built")
     ap.add_argument("--json", action="store_true", help="print the table as JSON at the end")
-    ap.add_argument("--scenario", choices=["turns", "wake", "chat", "chatlife"], default="turns",
+    ap.add_argument("--scenario", choices=["turns", "wake", "chat", "chatlife", "chatasks"], default="turns",
                     help="turns: a terminal agent's turns timed; wake: a closed agent's message after another agent woke in between; "
                          "chat: a Chat mode agent's task, messages, interrupt and a daemon restart mid-turn; "
-                         "chatlife: a Chat mode agent's close and wake, background work, a folder, a handoff and (HANDLINE_LIVE_MOVE_TO) an account move")
+                         "chatlife: a Chat mode agent's close and wake, background work, a folder, a handoff and (HANDLINE_LIVE_MOVE_TO) an account move; "
+                         "chatasks: a Chat mode agent's permission asks and questions answered from the app")
     ap.add_argument("--keep", action="store_true", help="keep the test root (home, daemon log, worktree) for a look afterwards")
     args = ap.parse_args()
     if os.environ.get("HANDLINE_LIVE") != "1":
@@ -793,6 +881,8 @@ def main() -> int:
         print(f"live-e2e: {AGENT} ({agent}) on a test daemon {d.hello.get('daemon')}, home {home}", flush=True)
         if args.scenario == "wake":
             closed_wake(r, home, pool_agents(home, agent))
+        elif args.scenario == "chatasks":
+            chat_asks(r, root)
         elif args.scenario == "chatlife":
             chat_life(r, home, root, os.environ.get("HANDLINE_LIVE_MOVE_TO", ""))
         elif args.scenario == "chat":

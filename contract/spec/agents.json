@@ -427,7 +427,7 @@
         "type": "null"
        }
       ],
-      "description": "Set while the agent waits on a decision only a person at its terminal can make. Fed by hooks (PermissionRequest and the permission and question Notification kinds) and by the session file saying status `waiting` with `waitingFor` (`permission prompt` is the one measured; the file has no needs or tempo key), never by reading the screen; the tool and its target come from the PermissionRequest hook event; cleared by the hook that follows (PostToolUse, UserPromptSubmit, Stop, SessionEnd) or when the session file stops saying it. While set, except for kind `switch_offer`, `state` is `waiting`, `has_dialog` is true and `attention` is `alert`. null when none."
+      "description": "Set while the agent waits on a decision only a person at its terminal can make. Fed by hooks (PermissionRequest and the permission and question Notification kinds) and by the session file saying status `waiting` with `waitingFor` (`permission prompt` is the one measured; the file has no needs or tempo key), never by reading the screen; for a Chat agent, by its open stream prompt alone (source stream), which goes when it is answered or the session ends, its text the tool and its target or the question asked; for any other agent the tool and its target come from the PermissionRequest hook event; cleared by the hook that follows (PostToolUse, UserPromptSubmit, Stop, SessionEnd) or when the session file stops saying it. While set, except for kind `switch_offer`, `state` is `waiting`, `has_dialog` is true and `attention` is `alert`. null when none."
      },
      "handoff": {
       "oneOf": [
@@ -1183,7 +1183,7 @@
      "title": {
       "type": "string",
       "maxLength": 40,
-      "description": "The card's title: plain, one line, at most 40 characters, chosen from the kind and where it came from. daemon: 'Waiting for folder trust' (trust), 'Stuck at a start-up dialog' (a start-up dialog it will not answer), 'Stuck at a dialog' (a dialog it cannot get past), 'Stuck after restarts' (stuck), 'Won't start' (start_failed), 'Woke but didn't start' (no_session), 'No account has room to spare' (switch_offer). hook, session: 'Waiting for your OK' (permission), 'Asked you a question' (question), 'Usage limit: choose what to do' (usage), 'Waiting at a dialog' (dialog)."
+      "description": "The card's title: plain, one line, at most 40 characters, chosen from the kind and where it came from. daemon: 'Waiting for folder trust' (trust), 'Stuck at a start-up dialog' (a start-up dialog it will not answer), 'Stuck at a dialog' (a dialog it cannot get past), 'Stuck after restarts' (stuck), 'Won't start' (start_failed), 'Woke but didn't start' (no_session), 'No account has room to spare' (switch_offer). hook, session, stream: 'Waiting for your OK' (permission), 'Asked you a question' (question), 'Usage limit: choose what to do' (usage), 'Waiting at a dialog' (dialog)."
      },
      "text": {
       "oneOf": [
@@ -1202,9 +1202,10 @@
        "hook",
        "notification",
        "session",
-       "daemon"
+       "daemon",
+       "stream"
       ],
-      "description": "hook: the PermissionRequest hook. notification: Claude Code's Notification hook, a prompt nobody answered. session: the session's own file (sessions/<pid>.json status waiting and waitingFor). daemon: the daemon's own record (a start-up dialog it will not answer, a dialog it cannot get past, an agent it could not heal); never a task."
+      "description": "hook: the PermissionRequest hook. notification: Claude Code's Notification hook, a prompt nobody answered. session: the session's own file (sessions/<pid>.json status waiting and waitingFor). daemon: the daemon's own record (a start-up dialog it will not answer, a dialog it cannot get past, an agent it could not heal); never a task. stream: a Chat agent's ask on its session's stream, while its prompt is open; for a Chat agent its hooks and session file are not read."
      },
      "account": {
       "type": "string",
@@ -3305,7 +3306,7 @@
     "terminal_lock",
     "input_holder"
    ],
-   "description": "For a structured agent's permission prompt the choice is one of its option keys, allow or deny; yes, no or esc is bad_request (field choice). No terminal lock or input hold applies. A prompt whose source is hook is answered the same way, allow or deny, through the call that is waiting on it (permission.ask); one that also offers always takes it too, from the owner only (refused, field role, for anyone else). For a read of another agent's memory or a transcript: allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them). For a rule (the option carries `rule`): allowed, the running session applies the rule from now, and it is kept as the agent's always-allowed rule (access.list), which each fresh session of the agent and of its temps starts with; access.changed is emitted."
+   "description": "No terminal lock or input hold applies. A permission prompt whose source is hook or stream takes one of its option keys, allow or deny (yes, no or esc is bad_request, field choice), and is answered through the call that is waiting on it: permission.ask for hook, the Chat session's stream for stream, where a deny's note is the message the model reads. A question whose source is stream takes an option key, an array of keys when multi, {text} for the person's own words, or esc to cancel it; the session gets the picked label (labels joined by \", \"), or the text, as the answer to that question. A stream prompt waits for a person with no time limit; it goes when the session ends, when the CLI takes the ask back, or when the session asks again or ends its turn (it asks one at a time, so an older ask is stale). A permission prompt that also offers always, from either source, takes always too. For a read of another agent's memory or a transcript: allowed, and the agents folder and every Claude account's transcripts are kept as the agent's always grants, which its next session reads with (it restarts at its next idle to take them). For a rule (the option carries `rule`): allowed, the running session applies the rule from now, and it is kept as the agent's always-allowed rule (access.list), which each fresh session of the agent and of its temps starts with; access.changed is emitted."
   },
   {
    "name": "permission.ask",
@@ -3347,7 +3348,7 @@
          "type": "null"
         }
        ],
-       "description": "The founder's answer; null when the call ended with none (an hour passed), and the agent's own dialog shows in its terminal."
+       "description": "The founder's answer; null when the call ended with none (an hour passed, or the agent runs in Chat mode), and the agent's own dialog shows in its terminal."
       },
       "message": {
        "type": "string",
@@ -3387,7 +3388,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "Called by `hl hook PermissionRequest`. Raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript, or, labeled \"Always allow <agent> <rule>\" with allow labeled \"Allow once\", for a Bash command this agent was asked in the same exact text before: the rule is Bash(<that command>). Only a plain command is offered: none with a shell character (* \\ ( ) $ ` ' \" ~ ; & | < > { } [ ] ! # or a tab or newline), with words not single-spaced, over 300 characters, or naming tmux, send-keys, osascript, security, a credential, keychain, token, secret, password, .ssh, handline, push, sqlite3, the handline home or the protected store. The rule pressed is the one the daemon worked out from the call's own input, never one read back from the prompt row), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session."
+   "description": "Called by `hl hook PermissionRequest`. For a Chat agent it answers null at once and raises nothing: its session asks on its stream at the same moment, and that ask is its one prompt (Prompt source stream). Otherwise it raises a Prompt of kind permission, source hook, with options allow and deny (and always between them, for a Read, Grep or Glob of another agent's memory or a transcript, or, labeled \"Always allow <agent> <rule>\" with allow labeled \"Allow once\", for a Bash command this agent was asked in the same exact text before: the rule is Bash(<that command>). Only a plain command is offered: none with a shell character (* \\ ( ) $ ` ' \" ~ ; & | < > { } [ ] ! # or a tab or newline), with words not single-spaced, over 300 characters, or naming tmux, send-keys, osascript, security, a credential, keychain, token, secret, password, .ssh, handline, push, sqlite3, the handline home or the protected store. The rule pressed is the one the daemon worked out from the call's own input, never one read back from the prompt row), and holds the call until prompt.answer answers it, the caller hangs up, or an hour passes. One such prompt per agent is open at a time; a second call waits for the first to close. Nothing is typed into the agent's terminal. Refused for a caller that is not an agent's session."
   },
   {
    "name": "input.take",

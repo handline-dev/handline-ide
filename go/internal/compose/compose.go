@@ -17,6 +17,7 @@ import (
 	"github.com/handline/handline/go/internal/agentview"
 	"github.com/handline/handline/go/internal/heal"
 	"github.com/handline/handline/go/internal/nodes"
+	"github.com/handline/handline/go/internal/prompts"
 	"github.com/handline/handline/go/scheduler/keepawake"
 	"github.com/handline/handline/go/scheduler/lifecycle"
 	"github.com/handline/handline/go/scheduler/procload"
@@ -64,6 +65,7 @@ type Parts struct {
 	chatOnce  sync.Once
 	chat      *chatport.Port
 	chatBuilt atomic.Pointer[chatport.Port] // chat, for the readers that may come before it is built
+	prompts   atomic.Pointer[prompts.Env]   // the daemon's prompt code, which a Chat agent's asks are raised through
 
 	Locks *lifecycle.AgentLocks
 	Peer  func(agent string) bool

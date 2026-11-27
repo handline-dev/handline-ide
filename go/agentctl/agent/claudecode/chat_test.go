@@ -25,14 +25,16 @@ func TestChatArgvIsTheTerminalLineOnTheStreamWithoutThePrompt(t *testing.T) {
 func TestReadTakesOnlyAllowedFields(t *testing.T) {
 	d := Driver{}
 	for line, want := range map[string]agent.Event{
-		`{"type":"system","subtype":"init","session_id":"s1","email":"x"}`:                                                {Kind: agent.EventInit, SessionID: "s1"},
-		`{"type":"command_lifecycle","command_uuid":"u1","state":"queued"}`:                                               {Kind: agent.EventCommand, UUID: "u1", State: "queued"},
-		`{"type":"user","uuid":"u1","isReplay":true,"message":{"content":"hi"}}`:                                          {Kind: agent.EventEcho, UUID: "u1"},
-		`{"type":"user","uuid":"u2","message":{"content":"tool result"}}`:                                                 {},
-		`{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"s1"}`:                          {Kind: agent.EventResult, Subtype: "error_during_execution", IsError: true, SessionID: "s1"},
-		`{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{}}}`: {Kind: agent.EventAsk, Request: "r1", Tool: "Bash"},
-		`{"type":"control_request","request_id":"r2","request":{"subtype":"hook_callback"}}`:                              {Kind: agent.EventRequest, Request: "r2", Subtype: "hook_callback"},
-		`{"type":"system","subtype":"session_state_changed","state":"idle"}`:                                              {Kind: agent.EventState, State: "idle"},
+		`{"type":"system","subtype":"init","session_id":"s1","email":"x"}`:                       {Kind: agent.EventInit, SessionID: "s1"},
+		`{"type":"command_lifecycle","command_uuid":"u1","state":"queued"}`:                      {Kind: agent.EventCommand, UUID: "u1", State: "queued"},
+		`{"type":"user","uuid":"u1","isReplay":true,"message":{"content":"hi"}}`:                 {Kind: agent.EventEcho, UUID: "u1"},
+		`{"type":"user","uuid":"u2","message":{"content":"tool result"}}`:                        {},
+		`{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"s1"}`: {Kind: agent.EventResult, Subtype: "error_during_execution", IsError: true, SessionID: "s1"},
+		`{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"ls"},"permission_suggestions":[{}]}}`: {
+			Kind: agent.EventAsk, Request: "r1", Tool: "Bash", Input: map[string]any{"command": "ls"}},
+		`{"type":"control_cancel_request","request_id":"r1"}`:                                {Kind: agent.EventCancel, Request: "r1"},
+		`{"type":"control_request","request_id":"r2","request":{"subtype":"hook_callback"}}`: {Kind: agent.EventRequest, Request: "r2", Subtype: "hook_callback"},
+		`{"type":"system","subtype":"session_state_changed","state":"idle"}`:                 {Kind: agent.EventState, State: "idle"},
 		`{"type":"system","subtype":"background_tasks_changed","tasks":[{"task_id":"b1","description":"sleep 8","run_id":"r"}]}`: {
 			Kind: agent.EventBackground, Tasks: []agent.Task{{ID: "b1", Description: "sleep 8"}}},
 		`{"type":"system","subtype":"background_tasks_changed","tasks":[]}`: {Kind: agent.EventBackground, Tasks: []agent.Task{}},
@@ -62,7 +64,7 @@ func TestTheInitAnswerIsNamedBySecret(t *testing.T) {
 func TestLinesAreJSON(t *testing.T) {
 	d := Driver{}
 	ask := agent.Event{Kind: agent.EventAsk, Request: "r1"}
-	for _, b := range [][]byte{d.UserLine("u", "hi \"there\""), d.InterruptLine("i1"), d.StopTaskLine("s1", "b1"), d.Refuse(ask, "no"), d.Unserved(ask)} {
+	for _, b := range [][]byte{d.UserLine("u", "hi \"there\""), d.InterruptLine("i1"), d.StopTaskLine("s1", "b1"), d.Answer(ask, agent.AskAnswer{Message: "no"}), d.Unserved(ask)} {
 		var m map[string]any
 		if json.Unmarshal(b, &m) != nil || strings.Contains(string(b), "\n") {
 			t.Fatal(string(b))
@@ -75,5 +77,37 @@ func TestLinesAreJSON(t *testing.T) {
 	_ = json.Unmarshal(d.UserLine("u9", "hi"), &u)
 	if u.UUID != "u9" || u.Message.Content != "hi" {
 		t.Fatal(u)
+	}
+}
+
+func TestAnAnswerAllowsWithTheInputAndRulesOrSaysNo(t *testing.T) {
+	d := Driver{}
+	ask := agent.Event{Kind: agent.EventAsk, Request: "r1", Input: map[string]any{"command": "ls"}}
+	read := func(b []byte) map[string]any {
+		var m struct {
+			Response struct {
+				RequestID string `json:"request_id"`
+				Response  map[string]any
+			}
+		}
+		if json.Unmarshal(b, &m) != nil || m.Response.RequestID != "r1" {
+			t.Fatal(string(b))
+		}
+		return m.Response.Response
+	}
+	if got := read(d.Answer(ask, agent.AskAnswer{Allow: true})); got["behavior"] != "allow" || got["updatedInput"].(map[string]any)["command"] != "ls" ||
+		got["updatedPermissions"] != nil {
+		t.Fatal(got)
+	}
+	in := map[string]any{"questions": []any{}, "answers": map[string]any{"Pick a color": "Blue"}}
+	if got := read(d.Answer(ask, agent.AskAnswer{Allow: true, Input: in})); got["updatedInput"].(map[string]any)["answers"] == nil {
+		t.Fatal(got)
+	}
+	got := read(d.Answer(ask, agent.AskAnswer{Allow: true, Rules: []agent.Rule{{Tool: "Bash", Content: "ls"}}}))
+	if b, _ := json.Marshal(got["updatedPermissions"]); string(b) != `[{"behavior":"allow","destination":"session","rules":[{"ruleContent":"ls","toolName":"Bash"}],"type":"addRules"}]` {
+		t.Fatal(string(b))
+	}
+	if got := read(d.Answer(ask, agent.AskAnswer{Message: "no: why"})); got["behavior"] != "deny" || got["message"] != "no: why" {
+		t.Fatal(got)
 	}
 }
