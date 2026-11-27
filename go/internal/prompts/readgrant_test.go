@@ -110,11 +110,15 @@ func TestAllowAlwaysKeepsTheGrantAndAPlainAllowKeepsNothing(t *testing.T) {
 	}
 
 	// A question with no grant takes no always, and offers none.
-	_, b = ask(t, e, "make build")
+	call, b = ask(t, e, "make build")
 	if k := keys(openPrompt(t, e, agent)); !slices.Equal(k, []string{"allow", "deny"}) {
 		t.Fatalf("options %v", k)
 	}
 	refusal(t, mustErr(answers(e, b.Fingerprint, "always")), "bad_request")
+	if _, err := answers(e, b.Fingerprint, "deny"); err != nil {
+		t.Fatal(err)
+	}
+	reply(t, call)
 }
 
 func asOwner() *rpc.Conn {
