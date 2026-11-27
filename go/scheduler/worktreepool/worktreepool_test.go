@@ -154,20 +154,6 @@ func TestTwoTakesAtOnceNeverShareAFolder(t *testing.T) {
 	}
 }
 
-// A free desk from the shared pool goes to the agent that used it last, and to no other that records it.
-func TestAFreeFolderGoesOnlyToItsLastAgent(t *testing.T) {
-	r := newRig(t)
-	d := r.take("ann").Path
-	r.db.Exec("UPDATE worktree_folders SET holder = NULL, last_agent = 'ann' WHERE path = ?", d)
-	r.db.Exec("INSERT INTO agent_state(agent, state, updated, worktree) VALUES('bob','IDLE',1,?)", d)
-	if got := r.take("bob"); got.Path == d {
-		t.Fatal("bob took ann's last folder")
-	}
-	if got := r.take("ann"); got.Path != d || r.holder(d) != "ann" {
-		t.Fatalf("ann's: %+v", got)
-	}
-}
-
 func TestAFounderPinnedFolderGoesToNoAgent(t *testing.T) {
 	r := newRig(t)
 	d := r.take("ann").Path

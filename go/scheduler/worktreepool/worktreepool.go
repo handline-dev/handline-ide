@@ -73,7 +73,7 @@ type Folder struct {
 	LastUsed                                int64
 }
 
-// Taken is the folder a take gave: How is "held" (its own, there), "last" (the shared pool's free desk it used last), "made again" (its
+// Taken is the folder a take gave: How is "held" (its own, there), "made again" (its
 // own, deleted while it slept), "new", "own" for a folder outside the pool the agent keeps, or "plain folder"; Said is what to tell.
 type Taken struct {
 	Path, Branch, How string
@@ -121,10 +121,8 @@ func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err erro
 		return Taken{Path: repo, How: "plain folder"}, "", nil
 	}
 	switch f := mine(folders, agent, last); {
-	case f != nil && exists(f.Path) && f.Holder == agent:
-		t.Path, t.How = f.Path, "held"
 	case f != nil && exists(f.Path):
-		t.Path, t.How = f.Path, "last" // a free desk of the shared pool it used last: detached when let go
+		t.Path, t.How = f.Path, "held"
 	case f != nil:
 		said, why, err := p.make(agent, repo, base, branch, f.Path)
 		if err != nil || why != "" {
@@ -165,8 +163,7 @@ func (p *Pool) TakeFrom(agent, repo, base string) (t Taken, why string, err erro
 	return t, "", p.setAgent(agent, t.Path, t.Branch)
 }
 
-// mine is agent's folder among folders: the one it holds (the one it records first), else the free one it records and used last, which
-// nobody is pinned to but it. nil when it has none: another agent's folder is never its.
+// mine is the folder agent holds among folders, the one it records first; nil when it holds none: another agent's folder is never its.
 func mine(folders []Folder, agent, last string) *Folder {
 	var held *Folder
 	for i, f := range folders {
@@ -177,16 +174,7 @@ func mine(folders []Folder, agent, last string) *Folder {
 			held = &folders[i]
 		}
 	}
-	if held != nil {
-		return held
-	}
-	for i, f := range folders {
-		if last != "" && samePath(f.Path, last) && f.Holder == "" && (f.LastAgent == "" || f.LastAgent == agent) &&
-			(f.PinnedTo == "" || f.PinnedTo == agent) {
-			return &folders[i]
-		}
-	}
-	return nil
+	return held
 }
 
 // unmake takes away a folder t made whose branch could not be checked out, so the next take makes it again rather than leave it
