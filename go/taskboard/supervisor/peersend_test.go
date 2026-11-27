@@ -234,18 +234,56 @@ func TestAMessageNeverWrittenSaysSoAndOneWrittenAndUnseenSaysItMayHaveBeenRead(t
 	}
 }
 
+// callbacks lets a test end only once the port's callbacks in flight have returned; one that starts after is dropped.
+type callbacks struct {
+	mu     sync.Mutex
+	wg     sync.WaitGroup
+	closed bool
+}
+
+func (c *callbacks) enter() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.closed {
+		c.wg.Add(1)
+	}
+	return !c.closed
+}
+
+func (c *callbacks) close() {
+	c.mu.Lock()
+	c.closed = true
+	c.mu.Unlock()
+	c.wg.Wait()
+}
+
 // nextDaemon is the peer port a restarted daemon has: the real inbox watching bob's transcript in dir, through the session find gives.
+// Its watch outlives the test, so the test's end waits out a callback that is running, before the rig puts the clock back.
 func nextDaemon(r *rig, find func(string) (peerinbox.Session, error)) *peerport.Port {
 	in := peerinbox.New()
 	in.Poll, in.Now = 5*time.Millisecond, func() time.Time { return time.Unix(r.clock, 0) }
+	ctx, cancel := context.WithCancel(context.Background())
+	cb := &callbacks{}
+	r.t.Cleanup(func() { cb.close(); cancel() })
 	return &peerport.Port{
+		Ctx:  ctx,
 		Peer: func(a string) bool { return a == r.k("bob") }, Find: find, Sender: in,
 		OnDelivered: func(a, op string) {
+			if !cb.enter() {
+				return
+			}
+			defer cb.wg.Done()
 			if err := r.SessionConfirmed(r.DB, a, op); err != nil {
 				r.t.Error(err)
 			}
 		},
-		OnFailed: func(a, op, why string, written bool) { r.t.Errorf("%s: %s not delivered: %s", a, op, why) },
+		OnFailed: func(a, op, why string, written bool) {
+			if !cb.enter() {
+				return
+			}
+			defer cb.wg.Done()
+			r.t.Errorf("%s: %s not delivered: %s", a, op, why)
+		},
 	}
 }
 
