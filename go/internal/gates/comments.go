@@ -113,7 +113,7 @@ func (s *Sweep) relay(tid, pr int64, c watch.Comment) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec("INSERT INTO pr_comments_told(task_id, comment, memo, told_at) VALUES(?, ?, ?, ?)", tid, c.Key, mid, time.Now().Unix()); err != nil {
+	if _, err := tx.Exec("INSERT INTO pr_comments_told(task_id, comment, task_comment, told_at) VALUES(?, ?, ?, ?)", tid, c.Key, mid, time.Now().Unix()); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

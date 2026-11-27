@@ -735,17 +735,3 @@ func TakeBackSay(q Q, rid int64) (bool, error) {
 	n, err := res.RowsAffected()
 	return n > 0, err
 }
-
-// WithdrawCommentAsksOfEndedTasks closes, once (behind a cursor), the open asks that comments of a done or discarded task raised; it answers how many.
-func WithdrawCommentAsksOfEndedTasks(q Q) (int64, error) {
-	const key = "memo_asks_of_ended_tasks_withdrawn"
-	if done, err := Cursor(q, key); err != nil || done != 0 {
-		return 0, err
-	}
-	n, err := CloseCommentAsks(q, "withdrawn", "id IN (SELECT r.request_id FROM task_requests r JOIN tasks t ON t.id = r.task_id "+
-		"WHERE COALESCE(t.done_evidence, '') != '' OR COALESCE(t.discarded_by, '') != '')")
-	if err != nil {
-		return 0, err
-	}
-	return n, SetCursor(q, key, 1)
-}

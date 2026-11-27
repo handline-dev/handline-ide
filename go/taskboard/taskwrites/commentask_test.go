@@ -124,26 +124,3 @@ func TestTheAskOfACommentEndsWithItsTask(t *testing.T) {
 		}
 	}
 }
-
-func TestWithdrawUnaddressedCommentAsksTakesBackOnlyThoseNotStartingWithHumanOnce(t *testing.T) {
-	t.Parallel()
-	db, err := storetest.OpenAt(t, filepath.Join(t.TempDir(), "db.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.Exec(keyed(db, "INSERT INTO requests(id, requester, target, body, state, kind, comment_id, ts) VALUES(1, 'a', 'p1', '@human which?', 'queued', 'ask', 1, 1), (2, 'a', 'p1', 'thanks @human', 'queued', 'ask', 2, 1)"))
-	if n, err := WithdrawUnaddressedCommentAsks(db); err != nil || n != 1 {
-		t.Fatalf("one stale ask: %d %v", n, err)
-	}
-	var st1, st2 string
-	db.QueryRow(keyed(db, "SELECT state FROM requests WHERE id = 1")).Scan(&st1)
-	db.QueryRow(keyed(db, "SELECT state FROM requests WHERE id = 2")).Scan(&st2)
-	if st1 != "queued" || st2 != "withdrawn" {
-		t.Fatalf("%s %s", st1, st2)
-	}
-	db.Exec(keyed(db, "UPDATE requests SET state = 'queued' WHERE id = 2"))
-	if n, _ := WithdrawUnaddressedCommentAsks(db); n != 0 {
-		t.Fatalf("once: %d", n)
-	}
-}

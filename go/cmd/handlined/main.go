@@ -22,7 +22,6 @@ import (
 	"github.com/handline/handline/go/accounts/usagepoll"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/data/agenthost"
-	dbpkg "github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/homeinit"
 	"github.com/handline/handline/go/internal/compose"
 	"github.com/handline/handline/go/internal/daemon"
@@ -39,7 +38,6 @@ import (
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/sysres"
 	"github.com/handline/handline/go/taskboard/supervisor"
-	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // resolveHome refuses the default home unless it was asked for: this daemon does not yet guard the real
@@ -206,16 +204,6 @@ func main() {
 		cfg.Transcripts = true
 		cfg.OnOpen = func(db *sql.DB, env *supervisor.Env, runners *nodes.Registry) {
 			parts.Bind(db, env)
-			if n, err := dbpkg.WithdrawCommentAsksOfEndedTasks(db); err != nil {
-				log.Printf("withdrawing the comment asks of ended tasks: %v", err)
-			} else if n > 0 {
-				log.Printf("withdrew %d comment asks of ended tasks", n)
-			}
-			if n, err := taskwrites.WithdrawUnaddressedCommentAsks(db); err != nil {
-				log.Printf("withdrawing the comment asks not addressed to the founder: %v", err)
-			} else if n > 0 {
-				log.Printf("withdrew %d comment asks not addressed to the founder", n)
-			}
 			if err := compose.RetryStartStalls(db, log.Printf); err != nil {
 				log.Printf("clearing the start and wake stalls to try again: %v", err)
 			}
