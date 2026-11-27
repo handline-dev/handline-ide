@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
 import type { House, Person } from '#src/town/model.ts';
 import { figuresOf } from '#src/town/people.ts';
-import { inFront, roomOf, WALL_T, type Room } from '#src/town/room.ts';
+import { inFront, roomOf, WALL_H, WALL_T, type Room } from '#src/town/room.ts';
 
 const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0, cached: false });
 const house = (people: Person[]): House => ({ key: 'w', name: 'w', lead: people[0], people, working: 0, decisions: [] });
@@ -74,7 +74,7 @@ describe('roomOf', () => {
     expect(idle(9).d).toBeGreaterThan(idle(4).d);
   });
 
-  it("puts the door in the front wall, the founder's desk beside it, and the sofas behind a wall open at the front", () => {
+  it("puts the door in the front wall, the founder's desk ahead of it, and the sofas behind a low wall, both rooms open to the work room by a doorway", () => {
     const r = roomOf(house([person('a', 'working'), person('b', 'resting'), person('c', 'working')]));
     const door = r.blocks.find((b) => b.kind === 'door')!;
     // The founder comes up from below: the door stands in the front wall, the walk in starts just inside it.
@@ -88,20 +88,44 @@ describe('roomOf', () => {
       [-WALL_T, door.from[0]],
       [door.to[0], r.w + WALL_T],
     ]);
-    // The founder's desk ends just left of the door, in front of the agents' desks and clear of the front wall's cover.
+    // The founder's desk stands straight ahead inside the door, right of every agent's desk and clear of the front wall's cover.
     const mine = r.blocks.find((b) => b.tag === 'desk:you' && b.part?.startsWith('desk:'))!;
-    expect(door.from[0] - mine.to[0]).toBeGreaterThan(0);
-    expect(door.from[0] - mine.to[0]).toBeLessThan(0.3);
+    expect(mine.from[0]).toBeLessThan(door.from[0]);
+    expect(mine.to[0]).toBeGreaterThan(door.to[0]);
     const others = r.blocks.filter((b) => b.tag?.startsWith('desk:') && b.tag !== 'desk:you' && b.part?.startsWith('desk:'));
     expect(Math.max(...others.map((b) => b.to[0]))).toBeLessThan(mine.from[0]);
     expect(mine.to[2]).toBeLessThan(r.d - 1.6);
-    // The rest room's wall stands between the door and every sofa, from the back wall to short of the front, and the founder walks round it.
+    // The rest room's low wall runs from the work room to the right wall, behind the founder's desk and in front of every sofa, and
+    // the founder walks round it.
     const wall = r.blocks.find((b) => b.part === 'wall:rest')!;
     expect(wall.solid).toBe(true);
-    expect([wall.from[2], wall.to[2] < r.d - 1.5]).toEqual([0, true]);
-    expect(wall.from[0]).toBeGreaterThan(door.to[0]);
-    for (const s of r.blocks.filter((b) => b.part?.startsWith('sofa:'))) expect(s.from[0]).toBeGreaterThan(wall.to[0]);
-    expect(r.places.find((p) => p.person.key === 'b')?.x).toBeGreaterThan(wall.to[0]);
+    expect(wall.to[0]).toBe(r.w);
+    expect(wall.from[0]).toBeLessThan(mine.from[0]);
+    expect(wall.to[2]).toBeLessThan(mine.from[2]);
+    expect(wall.to[1]).toBeLessThan(WALL_H);
+    // The two right rooms share the depth half and half (the front wall's cover, 0.8 m, is neither's), the rest room more only for
+    // its sofas.
+    const half = (room: Room) => (room.d - 0.8 - WALL_T) / 2;
+    expect(wall.from[2]).toBeGreaterThan(half(r));
+    const deep = roomOf(house([person('a', 'working'), person('b', 'resting')]), 3, { w: 0, d: 9 });
+    expect(deep.blocks.find((b) => b.part === 'wall:rest')!.from[2]).toBeCloseTo(half(deep));
+    for (const s of r.blocks.filter((b) => b.part?.startsWith('sofa:'))) {
+      expect(s.from[0]).toBeGreaterThan(wall.from[0]);
+      expect(s.to[2]).toBeLessThan(wall.from[2]);
+    }
+    // A low wall parts both right rooms from the work room, from the back wall to the front, with a doorway in the middle of each.
+    const side = r.blocks.filter((b) => b.part === 'wall:right-rooms').sort((a, b) => a.from[2] - b.from[2]);
+    expect(side.every((b) => b.from[0] === wall.from[0] && b.to[1] === wall.to[1] && b.solid)).toBe(true);
+    expect([side[0].from[2], side[side.length - 1].to[2]]).toEqual([0, r.d - WALL_T]);
+    const gaps = side
+      .slice(1)
+      .map((b, i) => [side[i].to[2], b.from[2]])
+      .filter(([a, b]) => b - a > 0.01);
+    expect(gaps.map(([a, b]) => b - a)).toEqual([expect.closeTo(0.9), expect.closeTo(0.9)]);
+    expect(gaps[0][1]).toBeLessThan(wall.from[2]);
+    expect(gaps[1][0]).toBeGreaterThan(wall.to[2]);
+    expect(gaps[1][1]).toBeLessThan(r.d - 0.8);
+    expect(r.places.find((p) => p.person.key === 'b')?.x).toBeGreaterThan(wall.from[0]);
   });
 
   it('gives teammates different figures while there are enough', () => {
