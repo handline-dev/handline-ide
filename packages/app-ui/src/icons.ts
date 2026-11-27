@@ -146,5 +146,3 @@ export const ICON_SPEC = {
 
 export type IconName = keyof typeof ICON_SPEC;
 export type GlyphName = (typeof ICON_SPEC)[IconName][0];
-export const iconLabel = (name: IconName): string => ICON_SPEC[name][1];
-export const isIcon = (name: string): name is IconName => name in ICON_SPEC;

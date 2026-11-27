@@ -1,5 +1,5 @@
 // The sidebar's status row: the machine's level and line, keep-awake, the inbox count and the week's Usage %.
-import { Hooks, useAccounts } from '@handline/app-data';
+import { useAccounts, useRead } from '@handline/app-data';
 import { useMachine } from '#src/settings/data/machine.ts';
 
 export type Level = 'ok' | 'near' | 'held' | 'down';
@@ -11,9 +11,9 @@ export const weekUsagePct = (accounts: { weekly: { used_pct: number } | null }[]
 };
 
 export function useStatusRow() {
-  const status = Hooks.useDaemonStatus();
+  const status = useRead('daemon.status', {});
   // The machine's own name: its name.local without .local (terminal_host is the terminal kind, not the machine).
-  const mdns = Hooks.useConnectionAddresses().data?.addresses.find((a) => a.kind === 'mdns')?.host;
+  const mdns = useRead('connection.addresses', {}).data?.addresses.find((a) => a.kind === 'mdns')?.host;
   const machine = useMachine();
   const accounts = useAccounts();
   const s = status.data;

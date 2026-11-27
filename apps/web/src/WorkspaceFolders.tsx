@@ -1,12 +1,10 @@
-// A workspace's folders in a window of their own: each with its git or plain mark, the default tagged, the agents working in it, a
+// A workspace's folders: each with its git or plain mark, the default tagged, the agents working in it, a
 // remove on hover; Add folder at the end.
-import { Hooks, useAgents, useNameOf, useWrite, why } from '@handline/app-data';
-import type { Workspace } from '@handline/client';
+import { useAgents, useNameOf, useRead, useWrite, why } from '@handline/app-data';
 import { Folder, FolderPlus, GitBranch, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '#src/ui/Button.tsx';
 import { Input } from '#src/ui/Field.tsx';
-import { ModalFrame, openModal } from '#src/ui/modal.tsx';
 import { shell } from '#src/shell.ts';
 
 /** The last row of a folder list: Add folder, by the system's folder chooser (a typed path in a browser). `onAdded` hears the path once
@@ -83,7 +81,7 @@ export function FolderName({ folder: d }: { folder: { name: string; git: boolean
 
 export function Folders({ wsKey }: { wsKey: string }) {
   // Read live, so an added or removed folder shows at once.
-  const ws = Hooks.useWorkspacesList().data?.workspaces.find((w) => w.key === wsKey);
+  const ws = useRead('workspaces.list', {}).data?.workspaces.find((w) => w.key === wsKey);
   const set = useWrite('workspace.set');
   const nameOf = useNameOf();
   const agents = useAgents().data?.agents ?? [];
@@ -117,13 +115,4 @@ export function Folders({ wsKey }: { wsKey: string }) {
       {!!set.error && <p className="text-danger">{why(set.error)}</p>}
     </div>
   );
-}
-
-/** The window of the workspace's folders. */
-export function workspaceFolders(ws: Workspace) {
-  void openModal<void>((close) => (
-    <ModalFrame title={`${ws.name} folders`} onClose={() => close()}>
-      <Folders wsKey={ws.key} />
-    </ModalFrame>
-  ));
 }

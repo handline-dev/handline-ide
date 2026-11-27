@@ -18,10 +18,8 @@ vi.mock('@handline/app-data', () => ({
   useWrite: () => ({ mutate: vi.fn() }),
   classify: (e: unknown) => e,
   sentence: String,
-  Hooks: {
-    useRunList: () => ({ data: { runs: [run], presets: [] } }),
-    useWorkspacesList: () => ({ data: { workspaces: [{ key: 'w1', name: 'handline' }] } }),
-  },
+  useRead: (m: string) =>
+    m === 'run.list' ? { data: { runs: [run], presets: [] } } : { data: { workspaces: [{ key: 'w1', name: 'handline' }] } },
 }));
 vi.mock('#src/settings/data/service.ts', () => ({ useService: () => null }));
 vi.mock('#src/settings/data/machine.ts', () => ({

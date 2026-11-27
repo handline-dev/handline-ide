@@ -1,5 +1,5 @@
 // Connect a device: a one-time code and its one link. The daemon picks the address the link names.
-import { Hooks } from '@handline/app-data';
+import { useWrite } from '@handline/app-data';
 import { useState } from 'react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 
@@ -12,7 +12,7 @@ export interface Pairing {
 }
 
 export function usePair() {
-  const pair = Hooks.useDevicePair();
+  const pair = useWrite('device.pair');
   const { pending, run } = useKeyed();
   const [error, setError] = useState<string | null>(null);
   return {

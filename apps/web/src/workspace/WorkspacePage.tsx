@@ -1,5 +1,5 @@
 // A workspace at a glance: what needs you, five numbers, and who waits on whom; its folders and rules under Settings.
-import { Hooks, useAgents, useTasks, useWorkspaceRules, type RuleRow } from '@handline/app-data';
+import { type RuleRow, useAgents, useRead, useTasks, useWorkspaceRules } from '@handline/app-data';
 import type { AgentView as Agent, PendingRequest, Stats, Task } from '@handline/client';
 import type { ReactNode } from 'react';
 import { useTabState } from '#src/persist/tabState.ts';
@@ -78,8 +78,8 @@ function Overview({ ws }: { ws: string }) {
   const mine = (t: Task) => keys.has(t.to);
   const open = (useTasks({ state: 'open' }).data?.items ?? []).filter(mine);
   const closed = (useTasks({ state: 'closed', order: 'closed' }).data?.items ?? []).filter(mine);
-  const stats = Hooks.useStatsGet({ window: '7d' }).data;
-  const needs = (Hooks.useRequestsPending().data?.answer ?? [])
+  const stats = useRead('stats.get', { window: '7d' }).data;
+  const needs = (useRead('requests.pending', {}).data?.answer ?? [])
     .filter((p: PendingRequest) => p.agent && keys.has(p.agent))
     .sort((a, b) => a.last_at.localeCompare(b.last_at));
   const n = numbersOf(agents, open, closed, stats, needs, useNow());
@@ -163,7 +163,7 @@ function Settings({ ws }: { ws: string }) {
 }
 
 export function WorkspacePage({ ws }: { ws: string }) {
-  const list = Hooks.useWorkspacesList().data;
+  const list = useRead('workspaces.list', {}).data;
   const name = list?.workspaces.find((w) => w.key === ws)?.name;
   const [tab, setTab] = useTabState<'overview' | 'settings'>('view', 'overview');
   if (!list) return null;

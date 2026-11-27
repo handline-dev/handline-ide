@@ -76,7 +76,7 @@ export class FakeAdmin {
     })),
   ];
 
-  /** The machine's own needs-you items in daemon.status (a full disk); `setMachineNeeds` of helpers.ts changes them. */
+  /** The machine's own needs-you items in daemon.status (a full disk). */
   machineNeeds: MachineNeed[] = [];
 
   /** DaemonStatus.missing_tools: the tools agents need that this machine lacks; the first-run seed sets them. */

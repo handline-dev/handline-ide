@@ -1,5 +1,5 @@
 // Where something is: a cluster's or a machine's icon and name, in the sidebar's small muted look.
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import { Laptop, type LucideIcon } from 'lucide-react';
 
 /** An icon and a name; `warn` tints the icon. The icon goes first where there is no room. */
@@ -26,7 +26,7 @@ export function PlaceWord({
 
 /** The board's machines by node id, and whether it has more than one (one machine names none). */
 export function useMachines() {
-  const nodes = Hooks.useNodeStatus().data?.nodes ?? [];
+  const nodes = useRead('node.status', {}).data?.nodes ?? [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
   return {
     many: nodes.length > 1,

@@ -1,6 +1,6 @@
 // This Mac's daemon as the desktop shell reports it, with the shell's Start, Restart and Stop; null in a plain browser and on another device's daemon.
 import type { ShellDaemon } from '@handline/app-core';
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import { useEffect, useState } from 'react';
 import { useKeyed } from '#src/settings/data/keyed.ts';
 import { shell } from '#src/shell.ts';
@@ -9,7 +9,7 @@ type Reply = { ok: true } | { ok: false; message: string };
 const done = (r: Reply) => (r.ok ? Promise.resolve() : Promise.reject(new Error(r.message)));
 
 export function useService() {
-  const status = Hooks.useDaemonStatus();
+  const status = useRead('daemon.status', {});
   const [daemon, setDaemon] = useState<ShellDaemon | null>(null);
   const [build, setBuild] = useState<{ sha: string | null; canRestart: boolean } | null>(null);
   const { pending, run } = useKeyed();

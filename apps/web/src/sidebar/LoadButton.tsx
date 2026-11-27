@@ -1,7 +1,7 @@
 // The status bar's load: an icon that opens what each agent uses now, CPU and memory, heaviest first, under this machine's totals.
 // CPU is a share of the whole machine, as its total is, not of one core. A row opens the agent's chat by the app's one scheme. It reads load.get only while open.
 import { byLoad, bytesText } from '@handline/app-core';
-import { Hooks, useNameOf } from '@handline/app-data';
+import { useNameOf, useRead } from '@handline/app-data';
 import { Activity } from 'lucide-react';
 import { useState, type RefObject } from 'react';
 import { chatOf } from '#src/layout/kinds.tsx';
@@ -39,7 +39,7 @@ export function LoadButton({ bar }: { bar: RefObject<HTMLDivElement | null> }) {
 
 function LoadList() {
   // The daemon samples every few seconds (every_s); reading as often shows each new sample.
-  const load = Hooks.useLoadGet({}, { refetchMs: EVERY_MS }).data;
+  const load = useRead('load.get', {}, { refetchMs: EVERY_MS }).data;
   if (!load) return <p className="w-80 px-2 py-1.5 text-sm text-muted">Reading…</p>;
   const m = load.machine;
   const rows = byLoad(load.agents ?? []);

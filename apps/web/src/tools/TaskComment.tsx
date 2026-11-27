@@ -1,7 +1,7 @@
 // The box under a task: a comment (the chat's own box, with @ and / and files), who it will reach, and someone to hand the task to with it.
 import { foundersTurn, refsIn, renderRefs, toRefs, withImages } from '@handline/app-core';
 import type { TaskDetail } from '@handline/client';
-import { Hooks, knownAttachments, useAgents, useDirectory, useGiveBack, useNameOf, useServes, useWrite, why } from '@handline/app-data';
+import { knownAttachments, useAgents, useDirectory, useGiveBack, useNameOf, useRead, useServes, useWrite, why } from '@handline/app-data';
 import { Who } from '#src/ui/Who.tsx';
 import { Check, CornerDownRight, Eye, Flag, Timer, Trash2, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
@@ -123,7 +123,7 @@ export function CommentBox({
     .map((k) => `<@${k}>`)
     .join(' ');
   const served = useServes('task.comment.recipients').served;
-  const told = Hooks.useTaskCommentRecipients({ task: t.id, text: named }, { enabled: served && !to }).data?.recipients;
+  const told = useRead('task.comment.recipients', { task: t.id, text: named }, { enabled: served && !to }).data?.recipients;
   const reach = !to && told ? told.map((r) => r.agent) : readers(to ?? t.to, sent, known);
   const done = useWrite('task.done');
   const discard = useWrite('task.discard');

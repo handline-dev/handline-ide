@@ -260,7 +260,7 @@ function span(t: Token): ReactNode {
 }
 
 // A task (T1234), a web address, or a path with a / and an extension, from its root (/, ~/) and with an @ in a folder name
-// (/Users/ron/workspaces/@legacy/notes.md); a :line after it is kept on the link.
+// (/home/me/work/@old/notes.md); a :line after it is kept on the link.
 const PATH = String.raw`(?:~?\/)?(?:[\w.@-]+\/)+[\w.@-]+\.[A-Za-z]\w{0,7}(?::\d+)?`;
 const LINKS = new RegExp(
   String.raw`((?<![\w@/.-])@[\w.-]*\w|\bT\d{2,}\b|https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"]|(?<![\w/.@~-])${PATH})`,

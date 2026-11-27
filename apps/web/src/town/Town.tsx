@@ -3,7 +3,7 @@
 // each agent at work, up to a few. The founder's glass HQ holds every decision and the pinned agents. Walking into a building goes inside
 // its office (Inside.tsx).
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Hooks, useAgents, useNav } from '@handline/app-data';
+import { useAgents, useNav, useRead } from '@handline/app-data';
 import { useNow } from '#src/format/time.ts';
 import { useTabState } from '#src/persist/tabState.ts';
 import { useRequests } from '#src/requests/data.ts';
@@ -33,7 +33,7 @@ function useAspect(): [(el: HTMLDivElement | null) => void, number] {
 }
 
 export function TownTab() {
-  const workspaces = Hooks.useWorkspacesList().data?.workspaces;
+  const workspaces = useRead('workspaces.list', {}).data?.workspaces;
   const agents = useAgents().data?.agents;
   const { turn } = useRequests();
   // A prompt cache runs out with no event, so the town looks again each minute.

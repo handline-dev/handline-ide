@@ -4,10 +4,7 @@ import { expect, it, vi } from 'vitest';
 
 let task: unknown = undefined;
 vi.mock('@handline/app-data', () => ({
-  Hooks: {
-    useTaskGet: () => ({ data: task }),
-    useTaskChanges: () => ({ data: { commits: [] } }),
-  },
+  useRead: (m: string) => ({ data: m === 'task.get' ? task : { commits: [] } }),
   useAttachmentUrl: () => null,
   useNameOf: () => (k: string) => k,
   useTasks: () => ({ data: { items: [] } }),

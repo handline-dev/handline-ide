@@ -3,7 +3,7 @@
 // answers its Requests row gives.
 import { Refs } from '#src/ui/refs.tsx';
 import { changeRows, plainRefs, proposalTitle } from '@handline/app-core';
-import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
+import { useDirectory, useNameOf, useProposals, useRead } from '@handline/app-data';
 import type { Proposal } from '@handline/client';
 import { ArrowRight, Lightbulb } from 'lucide-react';
 import { CommandText } from '#src/ui/CommandText.tsx';
@@ -13,7 +13,7 @@ import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 export function ProposalCards({ agent }: { agent: string }) {
   const listed = useProposals().data?.proposals ?? [];
   const asked = (id: string) => listed.find((x) => String(x.id) === id && x.requested_by === agent);
-  const turns = Hooks.useRequestsPending().data?.answer.filter((x) => x.source === 'proposal' && x.id && asked(x.id)) ?? [];
+  const turns = useRead('requests.pending', {}).data?.answer.filter((x) => x.source === 'proposal' && x.id && asked(x.id)) ?? [];
   const nameOf = useNameOf();
   return turns.map((t) => {
     const p = asked(t.id!)!;

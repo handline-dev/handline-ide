@@ -3,7 +3,7 @@
 // while the person's own turn is on top); an agent's worktree has no task, so they go to its chat. A task's drafts are cleared once
 // the comment is on the task; a chat's once the message is the chat's own, which keeps one that did not go and sends it again itself.
 import { commentCount, lineCommentsSummary, lineCommentsText, taskCommentRoute } from '@handline/app-core';
-import { Hooks, useChatActions, useWrite, why } from '@handline/app-data';
+import { useChatActions, useRead, useWrite, why } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { useState, type ReactNode } from 'react';
 import { agentPlace, taskPlace, useLineDrafts } from '#src/changes/lineDrafts.ts';
@@ -31,7 +31,7 @@ const failed = (what: string) => (e: unknown) => toast(`${what}: ${why(e)}`, { t
 /** The drafts on a task's code. The whole text is kept as one comment on the task, which its agent is told in one cut line and reads
  *  whole with `hl task show`; a done task is then opened again, its reason the text's first line. */
 export function TaskCommentBar({ task }: { task: number }) {
-  const t = Hooks.useTaskGet({ task }).data;
+  const t = useRead('task.get', { task }).data;
   const me = useMe();
   const drafts = useLineDrafts(taskPlace(task));
   const add = useWrite('task.comment.add', String(task));

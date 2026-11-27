@@ -1,15 +1,5 @@
 // React bindings for the shared store. No JSX, so the package is plain .ts that Vite and Metro compile as it is.
-import {
-  createContext,
-  createElement,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import type { Store } from '@handline/app-core';
 import { RpcError } from '@handline/client';
 
@@ -97,30 +87,11 @@ export function useSelected<T extends string | number | boolean | null | undefin
 }
 
 export const useConnection = () => useSelector((s) => s.conn);
-export const useError = () => useSelector((s) => s.error);
 /** Who this window is and what the daemon said at hello: read through the store version, so a render is never left with the values from before the hello. */
 export const useMe = () => useSelected((s) => s.me);
 /** This browser's device id from the handshake, when it is a paired device. */
 export const useThisDevice = () => useSelected((s) => s.device);
 export const useHello = () => useSelector((s) => s.client.hello);
-
-/** Runs one async job at a time: a call while it runs does nothing. `going` is true meanwhile, for the buttons to disable. */
-export function useOnce(): [going: boolean, once: (job: () => Promise<void>) => Promise<void>] {
-  const [going, setGoing] = useState(false);
-  const busy = useRef(false);
-  const once = async (job: () => Promise<void>) => {
-    if (busy.current) return;
-    busy.current = true;
-    setGoing(true);
-    try {
-      await job();
-    } finally {
-      busy.current = false;
-      setGoing(false);
-    }
-  };
-  return [going, once];
-}
 
 /**
  * Calls `more` when the sentinel element comes within `margin` px of the scroll box `root` (the top of a chat, the end of a list; `null` for the window): put the

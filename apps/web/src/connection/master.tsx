@@ -1,6 +1,6 @@
 // The master as the page knows it: the machines kept from node.status, the master's name for "Can't reach the master", and
 // making this Mac the master of a joined cluster (the desktop shell's promoteCluster).
-import { Hooks } from '@handline/app-data';
+import { useRead } from '@handline/app-data';
 import type { Node } from '@handline/client';
 import { createContext, useContext, useEffect } from 'react';
 import { shell } from '#src/shell.ts';
@@ -11,7 +11,7 @@ export const MasterName = createContext({ name: '', several: false });
 
 /** Hands node.status to `seen` whenever it changes, so the kept machines follow it. */
 export function KeepMachines({ seen }: { seen: (s: { master: { id: string; number: number }; nodes: Node[] }) => void }) {
-  const status = Hooks.useNodeStatus().data;
+  const status = useRead('node.status', {}).data;
   useEffect(() => {
     if (status) seen(status);
   }, [status, seen]);

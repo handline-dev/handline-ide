@@ -39,19 +39,16 @@ import live_account  # noqa: E402
 import live_e2e as le  # noqa: E402
 import tmuxsock  # noqa: E402
 
-WS = Path.home() / "workspaces"
 # name -> (repository, steps that must pass, run from the worktree). Steps are shell; each is logged under its label.
 REPOS = {
     "handline": (le.REPO, [("go build and test", "cd go && go build ./... && cd agentctl && go test ./agent/claudecode/turns/"),
                                    ("pnpm install", "pnpm install --frozen-lockfile"),
                                    ("app-data tests", "pnpm --dir packages/app-data test")]),
-    "harbor": (WS / "harbor-app", [("xcodebuild logic tests", "xcodebuild test -project apps/ios/Harbor.xcodeproj "
-                                                              "-scheme HarborLogicTests -destination platform=macOS")]),
-    "replaceit": (WS / "replaceit-app", []),
-    "legacy": (WS / "@legacy" / "caricatart-web", [("pnpm install", "pnpm install --frozen-lockfile"),
-                                                    ("typecheck", "pnpm run typecheck")]),
-    "personal": (WS / "@personal", []),
 }
+# More repos of this machine, kept out of the repo: {"name": {"path": "...", "steps": [["label", "command"], ...]}}.
+LOCAL = Path.home() / ".handline" / "live_sandbox_repos.json"
+if LOCAL.exists():
+    REPOS |= {n: (Path(r["path"]).expanduser(), [tuple(x) for x in r.get("steps", [])]) for n, r in json.loads(LOCAL.read_text()).items()}
 # name -> work that must pass in the CLI's own sandbox, each one Bash command the model runs as given, before the steps above.
 SESSION = {"handline": [("go module download", "cd go && go mod download -x"), ("pnpm install", "pnpm install --frozen-lockfile")]}
 # name -> the entries of the agent's sandbox_allow list, and what the session's sandbox must then say.

@@ -19,8 +19,6 @@ export function startTabDrag(e: DragEvent, drag: TabDrag) {
 }
 /** True during dragover too, when the payload itself cannot be read yet. */
 export const isTabDrag = (e: DragEvent) => e.dataTransfer.types.includes(MIME);
-/** A tab moving out of a pane, during dragover too. */
-export const isTabMove = (e: DragEvent) => e.dataTransfer.types.includes(MOVE);
 export function readTabDrag(e: DragEvent): TabDrag | null {
   const raw = e.dataTransfer.getData(MIME);
   return raw ? (JSON.parse(raw) as TabDrag) : null;

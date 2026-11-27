@@ -2,7 +2,7 @@
 import { CommandText } from '#src/ui/CommandText.tsx';
 import { Refs } from '#src/ui/refs.tsx';
 import { plainRefs, proposalTitle } from '@handline/app-core';
-import { Hooks, useDirectory, useNameOf, useProposals } from '@handline/app-data';
+import { useDirectory, useNameOf, useProposals, useRead } from '@handline/app-data';
 import { TurnQuick } from '#src/requests/TurnQuick.tsx';
 import { ago } from '#src/format/time.ts';
 import { DiffLines, diffLines, type Line } from '#src/tools/TaskDiff.tsx';
@@ -46,7 +46,7 @@ export function ProposalView({ id }: { id: number }) {
   const list = useProposals();
   const p = list.data?.proposals.find((x) => x.id === id);
   // The answer buttons are the row's own, from the founder's turn for this proposal.
-  const turn = Hooks.useRequestsPending().data?.answer.find((x) => x.source === 'proposal' && x.id === String(id));
+  const turn = useRead('requests.pending', {}).data?.answer.find((x) => x.source === 'proposal' && x.id === String(id));
   if (!list.data) return null;
   if (!p) return <p className="m-auto text-sm text-muted">This proposal is not listed.</p>;
   // Each step approving makes: a context step as its file's text before and after, any other as its own lines.

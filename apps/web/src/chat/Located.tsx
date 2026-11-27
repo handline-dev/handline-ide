@@ -3,7 +3,7 @@
 // them, so the message shows however far back it is, with no paging to it. It is a still window on the past, not the live chat:
 // Open chat goes there.
 import { chatOfHit } from '@handline/app-core';
-import { Hooks, useNameOf, why } from '@handline/app-data';
+import { useNameOf, useRead, why } from '@handline/app-data';
 import type { Methods } from '@handline/client';
 import { MessageSquare } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
@@ -22,10 +22,10 @@ const WINDOW = 40;
 export function LocatedTab({ request }: { request: number }) {
   // The daemon names the chat of the message's agent end; what an agent said to another agent is drawn in the sender's chat, so that
   // window is read there.
-  const first = Hooks.useChatLocate({ request, limit: WINDOW });
+  const first = useRead('chat.locate', { request, limit: WINDOW });
   const drawnIn = first.data && chatOfHit({ agent: first.data.agent, from: first.data.message.from });
   const elsewhere = !!drawnIn && drawnIn !== first.data?.agent;
-  const second = Hooks.useChatLocate({ request, agent: drawnIn ?? '', limit: WINDOW }, { enabled: elsewhere });
+  const second = useRead('chat.locate', { request, agent: drawnIn ?? '', limit: WINDOW }, { enabled: elsewhere });
   const found = elsewhere ? second : first;
   // A window already drawn stays when reading it again fails: only a first read that fails says so.
   if (found.isError && !found.data)

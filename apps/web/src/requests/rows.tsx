@@ -1,13 +1,9 @@
 import { UnreadDot } from '#src/ui/Dot.tsx';
-import { useNameOf, useProposals, useTask, useWrite } from '@handline/app-data';
-import type { PendingRequest, RequestRow } from '@handline/client';
-import { isUnseen, pickGroup, proposalTitle, requestRow, turnRow, type Picked } from '@handline/app-core';
+import { useNameOf, useProposals, useWrite } from '@handline/app-data';
+import type { PendingRequest } from '@handline/client';
+import { pickGroup, proposalTitle, turnRow, type Picked } from '@handline/app-core';
 import type { HardDrive } from 'lucide-react';
 import {
-  CircleCheck,
-  CircleX,
-  CircleDashed,
-  CircleSlash,
   ListChecks,
   Lightbulb,
   MailWarning,
@@ -27,7 +23,6 @@ import { IconButton } from '#src/ui/IconButton.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { ago } from '#src/format/time.ts';
 import { focusIn } from '#src/layout/focus.ts';
-import type { TaskRequest } from '#src/requests/data.ts';
 import { chatOf, proposalOf, taskOf } from '#src/layout/kinds.tsx';
 import { useNewTab, useOpenable } from '#src/layout/openable.tsx';
 import type { Gesture } from '#src/layout/openTab.tsx';
@@ -35,7 +30,6 @@ import { openSettings } from '#src/settings/open.ts';
 import { agentSettingsOf } from '#src/layout/kinds.tsx';
 import { useCluster } from '#src/connection/clusters.tsx';
 import { goToTurnOf } from '#src/tools/TaskTurn.ts';
-import { failedLine } from '#src/ui/taskLook.tsx';
 import { WARN, WARN_WORD } from '#src/requests/warnings.ts';
 import { useRefs } from '#src/ui/refs.tsx';
 import { spring } from '#src/motion.ts';
@@ -348,50 +342,6 @@ export function TurnLine({
         if (notice) dismiss.mutate({ id: notice });
         // The task opens at what it asks of the founder, as the Your turn click does; a note opens it where it was read last.
         if (p.task !== null && p.kind !== 'warning' && p.kind !== 'note') goToTurnOf(p.task);
-        onOpened?.();
-      }}
-    />
-  );
-}
-
-const STATUS: Record<RequestRow['status'], string> = {
-  waiting_on_you: 'waiting on you',
-  review: 'in review',
-  doing: 'in progress',
-  done: 'done',
-};
-
-/** One of the founder's requests: its title, who works on it now (or how it ended), when it last moved. A click opens its task; a
- * result not seen yet is marked, and opening it marks it seen. */
-export function RequestLine({ r, onOpened }: { r: TaskRequest; onOpened?: () => void }) {
-  const seen = useWrite('task.seen', String(r.task));
-  const nameOf = useNameOf();
-  const who = nameOf(r.now ?? r.holders[0] ?? r.agent);
-  const closed = r.status === 'done';
-  const task = useTask(r.task, { enabled: closed });
-  const failed = closed ? failedLine(task.data?.evidence, task.data?.title) : null;
-  const ended = r.ended?.outcome === 'discarded' ? 'discarded' : STATUS[r.status];
-  const meta = r.status === 'done' ? [failed ?? ended, nameOf(r.agent)] : [who, r.progress || STATUS[r.status]];
-  return (
-    <Line
-      mark={isUnseen(r)}
-      row={requestRow(r)}
-      icon={
-        r.ended?.outcome === 'discarded' ? (
-          <CircleSlash size={16} className="text-muted" />
-        ) : failed ? (
-          <CircleX size={16} className="text-danger" />
-        ) : r.status === 'done' ? (
-          <CircleCheck size={16} className="text-success" />
-        ) : (
-          <CircleDashed size={16} className="text-muted" />
-        )
-      }
-      title={r.title}
-      meta={[...meta, ago(r.ended?.at ?? r.last_activity)].filter(Boolean).join(' · ')}
-      opens={taskOf(r.task)}
-      onOpen={() => {
-        if (isUnseen(r)) seen.mutate({ task: r.task });
         onOpened?.();
       }}
     />

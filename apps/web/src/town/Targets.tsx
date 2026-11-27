@@ -4,7 +4,7 @@
 // elements, not shapes in the picture, so a card and the app's menu can hang on them. A click first walks the founder there; what
 // a tab bar shows stays outlined. Clicks between the targets fall through to the floor.
 import { PreviewCard as P } from '@base-ui/react/preview-card';
-import { Hooks, useAgents } from '@handline/app-data';
+import { useAgents, useRead } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
 import { useState, type CSSProperties } from 'react';
 import { AgentMenu } from '#src/AgentMenu.tsx';
@@ -111,7 +111,7 @@ export function Targets({
   // While the founder walks, by the keys or to where a click sent it, the pointer is not looking at anyone.
   const walking = useFounder(founder, (me) => !!me?.moving);
   const agents = useAgents().data?.agents;
-  const workspace = Hooks.useWorkspacesList().data?.workspaces.find((w) => w.key === house.key);
+  const workspace = useRead('workspaces.list', {}).data?.workspaces.find((w) => w.key === house.key);
   const rows = figuresOf(drawn.stage.people);
   const { mine, hire, desks, papers, spots } = drawn.cast;
   const door = drawn.front.door;

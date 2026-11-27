@@ -57,14 +57,3 @@ export function Setting({
     </div>
   );
 }
-
-/** One line of a list under a setting: an icon and a name at the left, what it is doing at the right. */
-export function LineRow({ icon, who, what, title }: { icon: ReactNode; who: string; what: ReactNode; title?: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs text-muted" title={title}>
-      {icon}
-      <span className="min-w-0 flex-1 truncate text-fg">{who}</span>
-      <span className="shrink-0">{what}</span>
-    </div>
-  );
-}

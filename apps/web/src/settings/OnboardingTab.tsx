@@ -1,7 +1,7 @@
 import { count } from '#src/format/count.ts';
 // Settings > Onboarding: the four setup items, done or not by what is true on this machine, each leading to its own Settings page, and Continue,
 // which opens the setup where it was left.
-import { Hooks, useAgents, useRepos } from '@handline/app-data';
+import { useAgents, useRead, useRepos } from '@handline/app-data';
 import { ArrowRight, Check } from 'lucide-react';
 import { STEPS, type StepId } from '#src/onboarding/data/steps.ts';
 import { openOnboarding, useAiTools, useOnboarding } from '#src/onboarding/data/progress.ts';
@@ -26,7 +26,7 @@ export function OnboardingTab({ go }: { go: (s: Section) => void }) {
   const o = useOnboarding();
   const ai = useAiTools();
   const repos = useRepos().data?.repos.length ?? 0;
-  const found = Hooks.useReposRecent().data?.folders.length ?? 0;
+  const found = useRead('repos.recent', {}).data?.folders.length ?? 0;
   const agents = useAgents().data?.agents.length ?? 0;
   const ready = ai.rows.filter((r) => r.state === 'ready');
   const loaded = o.loaded && !ai.loading;

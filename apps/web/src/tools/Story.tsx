@@ -1,6 +1,6 @@
 // A task's sub-tasks: the Plan box on its page (PlanFlow), and the graph with the open one beside it in a tab of its own (PlanTab).
 import { useSize } from '#src/ui/useSize.ts';
-import { Hooks, useNameOf, useTasks } from '@handline/app-data';
+import { useNameOf, useRead, useTasks } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import type { Task, TaskDetail } from '@handline/client';
 import { Play } from 'lucide-react';
@@ -25,7 +25,7 @@ const fitDetail = (px: number, size: number) => Math.max(360, Math.min(px, size 
 /** A task's sub-tasks as a graph in a tab of its own (plan:<id>); a card opens that sub-task beside the graph (plan:<id>/<sub>), and a
  * pane too narrow for both keeps the graph alone, as Requests does, its cards opening their tasks the standard way. */
 export function PlanTab({ id, sub: picked }: { id: number; sub: number | null }) {
-  const t = Hooks.useTaskGet({ task: id }).data;
+  const t = useRead('task.get', { task: id }).data;
   const route = useContext(TabRoute);
   const [held, setHeld] = useTabState<number | null>('sub', null);
   const shown = route ? picked : held;

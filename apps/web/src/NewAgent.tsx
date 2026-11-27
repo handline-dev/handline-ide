@@ -1,4 +1,4 @@
-import { Hooks, useAgentOptions, useDirectory, useNewAgentForm, useOperation, why } from '@handline/app-data';
+import { useAgentOptions, useDirectory, useNewAgentForm, useOperation, useRead, why } from '@handline/app-data';
 import type { Workspace } from '@handline/client';
 import { Check, Eye } from 'lucide-react';
 import { useState } from 'react';
@@ -23,7 +23,7 @@ function Progress({ operation, name, workspace, close }: { operation: string; na
 /** The workspace's folders to work in, one row each with a git or plain-folder mark; the picked one checked; Add folder last. */
 function Folders({ wsKey, picked, pick }: { wsKey: string; picked: string; pick: (path: string) => void }) {
   // Read live, so a folder added here shows at once.
-  const ws = Hooks.useWorkspacesList().data?.workspaces.find((w) => w.key === wsKey);
+  const ws = useRead('workspaces.list', {}).data?.workspaces.find((w) => w.key === wsKey);
   if (!ws) return null;
   return (
     <div role="radiogroup" aria-label="Folder" className="flex flex-col overflow-hidden rounded-md border border-border">
