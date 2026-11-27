@@ -414,7 +414,7 @@ func TestAColdWakeUnderTheResumeLimitResumes(t *testing.T) {
 func TestAColdWakeTakesItsRecordAndStartsAtOnce(t *testing.T) {
 	m, d, tm := newManager(t)
 	d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, true
-	h := &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}}
+	h := &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext}}
 	m.Handoff = h
 	db.SetTerminal(m.Q, "a", "t1", "/wt")
 	db.SetClosed(m.Q, "a", "sess-1")
@@ -431,7 +431,7 @@ func TestAColdWakeTakesItsRecordAndStartsAtOnce(t *testing.T) {
 func TestARecordAColdWakeTookIsClearedWhenItsLaunchFails(t *testing.T) {
 	m, d, tm := newManager(t)
 	d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, false
-	m.Handoff = &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext, pending: true}, q: m.Q}
+	m.Handoff = &recordingHandoff{fakeHandoff: fakeHandoff{ctx: ResumeMaxContext}, q: m.Q}
 	db.SetTerminal(m.Q, "a", "t1", "/wt")
 	db.SetClosed(m.Q, "a", "sess-1")
 	if ok, _, _ := m.WakeAgentLocked("a", WakeOpts{Force: true}); ok {
@@ -456,11 +456,6 @@ func (h *recordingHandoff) Record(_ db.Q, agent, session string) ([]string, erro
 	}
 	return nil, nil
 }
-func (h *recordingHandoff) NoteFromTranscript(string) bool {
-	h.calls = append(h.calls, "note")
-	return h.pending
-}
-
 func TestAColdWakeIsHandedWhatWokeItAsItsFirstPrompt(t *testing.T) {
 	m, d, tm := newManager(t)
 	d.waitingMsg, d.tookPrompt, tm.launchOK = "Here is your request.", true, true
@@ -1106,21 +1101,18 @@ func TestAWakeAfterACloseOverTheContextLimitStartsFresh(t *testing.T) {
 	}
 }
 
-// A start whose resume is dropped (a full context) goes at once, as a resume does; neither asks for a note.
-func TestAFreshWakeGoesAtOnceAndAsksForNoNote(t *testing.T) {
+// A start whose resume is dropped (a full context) goes at once, as a resume does.
+func TestAFreshWakeGoesAtOnce(t *testing.T) {
 	for _, full := range []bool{true, false} {
 		m, d, tm := newManager(t)
 		d.waitingMsg, d.tookPrompt, tm.launchOK = "hi", true, true
-		h := &recordingHandoff{fakeHandoff: fakeHandoff{full: full, pending: true}}
+		h := &recordingHandoff{fakeHandoff: fakeHandoff{full: full}}
 		m.Handoff = h
 		db.SetTerminal(m.Q, "a", "t1", "/wt")
 		db.SetClosed(m.Q, "a", "sess-1")
 		ok, said, err := m.WakeAgentLocked("a", WakeOpts{Force: true})
 		if err != nil || !ok || len(tm.relaunched) != 1 || strings.Contains(tm.relaunched[0], "--resume") != !full {
 			t.Fatalf("full=%v: %v %q %v %q", full, ok, said, err, tm.relaunched)
-		}
-		if asked := strings.Contains(strings.Join(h.calls, ","), "note"); asked {
-			t.Fatalf("full=%v: the note asked %v: %q", full, asked, h.calls)
 		}
 	}
 }

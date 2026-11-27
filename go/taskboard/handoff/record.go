@@ -57,8 +57,6 @@ type Env struct {
 	Note NoteEnv
 	// Fetch brings the agent's files here from the runner its session is on, before its note is read; nil when every session runs here.
 	Fetch func(agent string) error
-	// Summary writes the note from the transcript when the agent left none (summary.go); nil writes none.
-	Summary *Summarizer
 }
 
 func (e *Env) now() time.Time {
