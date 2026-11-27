@@ -285,7 +285,7 @@ export function ownDaemon(o: {
   buildDaemon?: () => Promise<void>;
 }): Own {
   const log = fs.openSync(path.join(app.getPath('userData'), 'daemon.log'), 'a');
-  // HANDLINE_ATTACH=1: a dev run on a home whose daemon is not this app's to start or stop (hl dev, try-prototype beside the installed app).
+  // HANDLINE_ATTACH=1: a dev run on a home whose daemon is not this app's to start or stop (hl dev beside the installed app).
   const attachOnly = o.env('ATTACH') === '1';
   const mine = !attachOnly;
   // The window's loopback door: the listen port on 127.0.0.1 (windowDaemon).

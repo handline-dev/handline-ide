@@ -61,8 +61,6 @@ def seed_states(home: Path, fakes: bool) -> dict[str, str]:
     output_agent = "s.output"
     ask_agent = ASK_AGENT
     order = {"order_a": names["idle"], "order_b": names["running"], **ORDER}
-    for n in [*names.values(), NEVER_STARTED, output_agent, ask_agent, DOING_AGENT, AGENT, LEAD, *RETIRE, *ORDER.values(), *TURNS]:
-        agent_dir(home, n)
     con = sqlite3.connect(home / "db.sqlite", timeout=5)
     for w, n in [*names.items(), ("idle", NEVER_STARTED)]:
         view = {"name": n, "role": "seeded by conformance_fds", "model": None, "effort": None, "state": w, "state_detail": "",
@@ -131,7 +129,6 @@ def seed_workroom(home: Path, con: sqlite3.Connection) -> None:
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
     for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "first"]):
         subprocess.run(["git", *args], cwd=repo, env=env, check=True)
-    agent_dir(home, WORKROOM["create_parent"])
     subprocess.run(["git", "remote", "add", "origin", "git@github.com:conf/workroom.git"], cwd=repo, check=True)
     extra = []
     for branch, commits, dirty in (("facts/clean", 0, 0), ("facts/dirty", 2, 2), ("facts/failing", 1, 0), ("facts/ready", 1, 0)):
@@ -216,12 +213,6 @@ def seed_doing(con: sqlite3.Connection) -> None:
 RETIRE = ["r.gone", "r", "r.kid"]
 # prefs.json's nav order fixtures: an agent they retire and one a proposal renames (to o.new); neither has a session.
 ORDER = {"order_retire_agent": "o.gone", "order_rename_agent": "o.old"}
-
-
-def agent_dir(home: Path, name: str) -> None:
-    """The agent's folder, with the role text its view shows."""
-    (home / "agents" / name).mkdir(parents=True, exist_ok=True)
-    (home / "agents" / name / "ROLE.md").write_text("seeded by conformance_fds\n")
 
 
 def place(label: str) -> tuple[str, str]:
@@ -311,7 +302,6 @@ def seed_typing_gates(home: Path, con: sqlite3.Connection) -> dict[str, str]:
     whose input another person holds. Returns the --var for each."""
     locked, held = "s.locked", "s.held"
     for n in (locked, held):
-        agent_dir(home, n)
         con.execute("INSERT OR REPLACE INTO agent_state(agent, state, updated, terminal) VALUES(?, 'idle', 0, '%9')", (n,))
     (home / "locks").mkdir(exist_ok=True)
     f = open(home / "locks" / f"{locked}.terminal", "a")

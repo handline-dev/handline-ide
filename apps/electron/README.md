@@ -25,7 +25,7 @@ commit. _Open at login_ (on by default) opens the app at login in the tray only,
 Instead of this Mac's daemon the app can use another device's, paired from the pairing screen (the `handline://` link `hl device pair`
 prints, or an address and a code); Settings > Connection goes back to this Mac's. That pairing and the settings are kept in
 `settings.json` in the app's data folder, mode 0600. `HANDLINE_ATTACH=1` makes a dev run attach to the daemon of its home and never start
-or stop one (`tools/try-prototype.sh`).
+or stop one.
 
 ## On the real daemon
 
@@ -64,9 +64,3 @@ The window always reaches the daemon on its loopback door. Until the person choo
 An agent's run stays in the background: it has no dock or menu bar icon, no update dialog, never takes focus, keeps its window hidden, shows no native notices and does not bring the everyday app forward. An agent is known by `HANDLINE_AGENT` in its shell. `HANDLINE_BACKGROUND=1` asks for it and `HANDLINE_BACKGROUND=0` turns it off. The hidden page keeps drawing, so screenshots go through the DevTools port (`Page.captureScreenshot`), never a screen capture.
 
 `HANDLINE_DEBUG_PORT=9333` opens the DevTools port on localhost for run checks. Any local process can then read the page, its device token included, so use it for checks only, never for the app you use every day.
-
-## Trying a branch next to the installed app
-
-    tools/try-prototype.sh [branch]
-
-Runs a branch (default `story/prototype-apply`) as a second app on the live daemon with the same data. It keeps its own clone (`~/.local/share/handline/try-prototype`), its own app data (`~/.local/share/handline/try-prototype-data`: settings, device token, instance lock) and its own page port (`HANDLINE_WEB_PORT`, default 17445), so the installed app is not touched and quitting this one leaves the daemon running. Run it again to bring the clone to the branch's head.

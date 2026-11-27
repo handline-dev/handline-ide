@@ -143,14 +143,14 @@ class Files(unittest.TestCase):
         self.assertEqual(len(pr_checks.file_problems(base)), 1)
 
     def test_a_large_binary_in_an_asset_path_fails(self):
-        self.write("apps/mobile/assets/big.bin", b"\x00" * (pr_checks.MAX_BINARY_BYTES + 1))
+        self.write("apps/web/public/big.bin", b"\x00" * (pr_checks.MAX_BINARY_BYTES + 1))
         self.commit()
-        self.assertTrue(pr_checks.file_problems(self.base)[0].startswith("apps/mobile/assets/big.bin: a binary file"))
+        self.assertTrue(pr_checks.file_problems(self.base)[0].startswith("apps/web/public/big.bin: a binary file"))
 
     def test_images_binaries_and_scratch(self):
         png = b"\x89PNG\r\n\x1a\n\x00\x00"
         self.write("docs/img/shot.png", png)
-        self.write("apps/mobile/shots/ios/ok.png", png)
+        self.write("apps/web/public/ok.png", png)
         self.write("tools/handlined", b"\x7fELF\x00\x00\x01")
         self.write("notes.orig", "x\n")
         self.commit()

@@ -38,5 +38,4 @@ const rules = (layout) => ({
   },
 });
 
-// legacy/ is the old web, frozen until it is removed: it is not linted.
-export default [{ ignores: ['legacy/**'] }, ...react(import.meta.dirname), rules(false), rules(true), ...test];
+export default [...react(import.meta.dirname), rules(false), rules(true), ...test];

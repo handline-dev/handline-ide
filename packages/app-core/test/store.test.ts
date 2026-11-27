@@ -1,7 +1,7 @@
 // The store keeps the connection, the caller, the error line, the agents' notes and the open agent page. The agent list and detail, events,
 // reconnect refreshes and agent actions moved to the query cache: tested in `@handline/app-data` (test/hooks.test.tsx, writes.test.tsx,
 // bridge.test.ts) and `app-core` test/model.test.ts (prompt answers). The watch count is gone: react-query counts observers.
-// An agent that is gone while its page is open is tested below, in apps/mobile Loadable and apps/web Workspace.
+// An agent that is gone while its page is open is tested below, and in apps/web Workspace.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RpcError } from '@handline/client';

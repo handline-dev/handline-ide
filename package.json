@@ -12,8 +12,8 @@
     "typecheck": "turbo typecheck",
     "build": "turbo build",
     "lint": "turbo lint",
-    "format": "prettier --write \"{packages,apps,web}/**/*.{ts,tsx,js,mjs,json,css}\" \"*.json\"",
-    "format:check": "prettier --check \"{packages,apps,web}/**/*.{ts,tsx,js,mjs,json,css}\" \"*.json\""
+    "format": "prettier --write \"{packages,apps}/**/*.{ts,tsx,js,mjs,json,css}\" \"*.json\"",
+    "format:check": "prettier --check \"{packages,apps}/**/*.{ts,tsx,js,mjs,json,css}\" \"*.json\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
