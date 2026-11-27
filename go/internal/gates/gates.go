@@ -31,8 +31,9 @@ type Sweep struct {
 	Vendors map[string]watch.Vendor
 	// Fetch brings origin's default branch of a roster folder up to date before a merge commit is looked for on it; nil is FetchBase.
 	Fetch    func(repo string) error
-	gone     map[int64]int // gone answers in a row, by gate
-	unlanded map[int64]int // looks in a row that fetched and did not find the merge commit, by gate
+	gone     map[int64]int    // gone answers in a row, by gate
+	unlanded map[int64]int    // looks in a row that fetched and did not find the merge commit, by gate
+	unread   map[int64]string // why a task's pull request's comments could not be read, as last logged, by task
 }
 
 // Run passes every EveryS until stop closes; stop also cuts short a read in hand.
@@ -62,7 +63,8 @@ func (s *Sweep) Run(stop <-chan struct{}) {
 
 // Pass opens every gate whose vendor answered passed or failed, that read gone watch.GoneReads times in a row, or whose deadline passed. A
 // read that fails keeps the gate watching, with the reason on it. A gate that closes a task opens with that close, or stays open while
-// the close cannot be checked. Every open gate is looked at on every pass: what a pass could not finish, the next one does.
+// the close cannot be checked. Every open gate is looked at on every pass: what a pass could not finish, the next one does. Then the
+// comments on open tasks' pull requests are passed on (relayComments).
 func (s *Sweep) Pass(ctx context.Context, now int64) error {
 	ids, watches, deadlines, err := db.OpenGates(s.DB)
 	if err != nil {
@@ -122,7 +124,7 @@ func (s *Sweep) Pass(ctx context.Context, now int64) error {
 		}
 		s.logf("  T%d: gate on %s:%s %s opened - %s", tid, w.Vendor, w.Target, w.Until, evidence)
 	}
-	return nil
+	return s.relayComments(ctx, vendors) // what people wrote on the tasks' pull requests, read on the same clock
 }
 
 // read asks the gate's vendor once: the evidence and result it opens with ("" while it watches), and why the read did not answer.
