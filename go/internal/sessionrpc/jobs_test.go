@@ -127,19 +127,19 @@ func TestStopOneShellEndsItAndNothingAbove(t *testing.T) {
 func TestJobsCPUIsTheJobsOwnGroupsCPUTime(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "b1.output")
 	os.WriteFile(out, nil, 0o644)
-	burn := `import time; e = time.process_time() + 0.4
+	burn := `import time; e = time.process_time() + 1.2
 while time.process_time() < e: pass
 time.sleep(300)`
 	start(t, "python3", "-c", fmt.Sprintf(`import subprocess, sys, time; subprocess.Popen([sys.executable, "-c", %q], stdout=open(%q, "a"), start_new_session=True); time.sleep(300)`, burn, out))
 	r, _, _ := jobsRig(t, nil)
 	started(r, "b1", out)
 	jobs := []RunningJob{{ID: "b1", Type: "shell", Name: "shell: burn"}, {ID: "b2", Type: "shell", Name: "shell: unrecorded"}, {ID: "a1", Type: "agent", Name: "agent: review"}}
-	for end := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+	for end := time.Now().Add(20 * time.Second); ; time.Sleep(50 * time.Millisecond) {
 		got := JobsCPU(r.e.DB, r.ann, os.Getpid(), jobs)
 		if len(got) > 1 {
 			t.Fatalf("only the recorded shell has a CPU time: %v", got)
 		}
-		if got["b1"] >= 0.3 {
+		if got["b1"] >= 1 { // Linux's ps gives whole seconds
 			break
 		}
 		if time.Now().After(end) {
