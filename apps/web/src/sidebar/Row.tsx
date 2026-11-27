@@ -1,4 +1,6 @@
 import { type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { spring as ease } from '#src/motion.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { useSpringOpen } from '#src/ui/springOpen.ts';
 
@@ -20,8 +22,8 @@ export function Row({
   selected?: boolean;
   /** Drawn at the right end, muted (a time). */
   trail?: ReactNode;
-  /** A second line under the title, one line long (an unread message). */
-  note?: string;
+  /** A second line under the title, one line long (an unread message, or what it waits on). */
+  note?: ReactNode;
   /** How many messages the note stands for, shown beside it when more than none. */
   unread?: number;
   /** False when the row sits in a menu of its own (an agent's), which has the open items at its top. */
@@ -45,13 +47,21 @@ export function Row({
         {trail && <span className="shrink-0 text-xs text-muted tabular-nums">{trail}</span>}
       </span>
       {/* Under the title, from the name's left edge. */}
-      {note && (
-        <span className="flex items-center gap-1.5 text-xs text-muted">
-          <span className="w-4 shrink-0" />
-          <span className="flex-1 truncate">{note}</span>
-          {unread > 0 && <span className="shrink-0 rounded-full bg-accent px-1.5 font-medium text-accent-fg tabular-nums">{unread}</span>}
-        </span>
-      )}
+      <AnimatePresence initial={false}>
+        {note && (
+          <motion.span
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={ease}
+            className="flex items-center gap-1.5 overflow-hidden text-xs text-muted"
+          >
+            <span className="w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{note}</span>
+            {unread > 0 && <span className="shrink-0 rounded-full bg-accent px-1.5 font-medium text-accent-fg tabular-nums">{unread}</span>}
+          </motion.span>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

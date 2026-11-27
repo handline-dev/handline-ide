@@ -45,6 +45,13 @@ export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters
   return line ? line[0].toUpperCase() + line.slice(1) : null;
 }
 
+/** What a resting or asleep agent waits on (AgentView.waits_on), or null: it then shows the hourglass and that line, not a plain rest. */
+export function waitsOf(a: Pick<AgentLike, keyof DotFacts> & { waits_on?: { task: number; holder: string | null; more: number } | null }) {
+  if (!a.waits_on) return null;
+  const act = activityOf(a);
+  return act === 'resting' || act === 'asleep' ? a.waits_on : null;
+}
+
 /** Splits the list for the sidebar: the pinned agents in pin order, and the rest as they stood. */
 export function splitPinned<A extends AgentLike>(agents: readonly A[], pins: readonly string[]) {
   const pinned = agents.filter((a) => pins.includes(a.key)).sort((x, y) => pins.indexOf(x.key) - pins.indexOf(y.key));

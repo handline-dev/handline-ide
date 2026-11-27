@@ -191,6 +191,16 @@ describe('activityOf', () => {
     const status = { state: 'running', reason: 'background', text: '', until: null, since: null, tasks: [] };
     expect(activityOf({ ...of('idle'), status })).toBe('working');
   });
+
+  it('waitsOf: a resting or asleep agent with waits_on waits; a working one or one without it does not', async () => {
+    const { waitsOf } = await import('#src/layout/agentList.ts');
+    const waits_on = { task: 7, holder: 'a2', more: 1 };
+    expect(waitsOf({ ...of('idle'), waits_on })).toEqual(waits_on);
+    expect(waitsOf({ ...of('parked'), waits_on })).toEqual(waits_on);
+    expect(waitsOf({ ...of('running'), waits_on })).toBeNull();
+    expect(waitsOf({ ...of('waiting'), waits_on })).toBeNull();
+    expect(waitsOf({ ...of('idle'), waits_on: null })).toBeNull();
+  });
 });
 
 describe('restarting', () => {

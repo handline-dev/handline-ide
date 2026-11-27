@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { RotateCw } from 'lucide-react';
 import { useRefs } from '#src/ui/refs.tsx';
 import { useAccounts, useAgentDetail, useAgents, useUnstall, why } from '@handline/app-data';
-import { activityOf, holdLine, restarting } from '#src/layout/agentList.ts';
+import { activityOf, holdLine, restarting, waitsOf } from '#src/layout/agentList.ts';
+import { WaitsLine, WaitsMark } from '#src/ui/WaitsOn.tsx';
 import { openSettings } from '#src/settings/open.ts';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
@@ -30,8 +31,11 @@ export function useHoldLine(agent: string) {
   const refs = useRefs();
   const asked = !!useAgentDetail(agent).data?.prompt; // the prompt card says it
   const line = a && !restarting(a) && (act === 'waking' ? wakingLine(a) : (holdLine(a) ?? jobsLine(a, act))); // a restart shows in the turn's row already
+  const waits = a ? waitsOf(a) : null;
+  if (a && waits && !asked && !login && a.needs_you?.source !== 'daemon')
+    return { act: act!, line: (<WaitsLine w={waits} />) as ReactNode, waits: true };
   if (!a || !act || !line || login || asked || a.needs_you?.source === 'daemon') return null;
-  return { act, line: refs(line) };
+  return { act, line: refs(line) as ReactNode, waits: false };
 }
 
 /** A closed agent a message woke, until the message is typed: who, and the daemon's step. */
@@ -75,9 +79,7 @@ export function FootRow({
     <div className={`h-5 transition-opacity ${busy || hold ? 'opacity-100' : 'opacity-0'}`} aria-hidden={!busy && !hold}>
       {!busy && hold ? (
         <span className="flex items-center gap-2 text-xs text-muted">
-          <span className="grid size-4 shrink-0 place-items-center">
-            <ActivityIcon act={hold.act} />
-          </span>
+          <span className="grid size-4 shrink-0 place-items-center">{hold.waits ? <WaitsMark /> : <ActivityIcon act={hold.act} />}</span>
           <span className="min-w-0 truncate">{hold.line}</span>
         </span>
       ) : move ? (

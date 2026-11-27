@@ -4,6 +4,16 @@ import type { FakeDaemon } from '#src/daemon.ts';
 type Seed = (d: FakeDaemon) => void;
 
 export const REQUEST_SEEDS: Record<string, Seed> = {
+  /** The architect holds a task that waits on two of term-build's: the sidebar's hourglass and its line. */
+  'waits-on': (d) => {
+    d.tasks.seed({ id: 1684, from: 'human', to: 'handline.architect', title: 'Web UI design', state: 'doing' });
+    d.tasks.seed({ id: 1786, from: 'handline.architect', to: 'handline.term-build', title: 'Split the store', state: 'doing' });
+    d.tasks.seed({ id: 1787, from: 'handline.architect', to: 'handline.term-build', title: 'Tidy the list', state: 'queued' });
+    d.tasks.find(1684).blockers = [
+      { task: 1786, reason: 'needs the store' },
+      { task: 1787, reason: 'needs the list' },
+    ];
+  },
   /** Drafts only the founder can run: one two queued tasks wait on, one its agent left behind, and a founder's turn that holds a task up. */
   'draft-runs': (d) => {
     const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();

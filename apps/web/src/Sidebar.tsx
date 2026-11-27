@@ -18,7 +18,8 @@ import { useRef, useState, type ReactNode } from 'react';
 import { LayoutGroup, motion } from 'framer-motion';
 import { CircleHelp } from 'lucide-react';
 import { spring } from '#src/motion.ts';
-import { activityOf, holdLine, ordered, splitPinned } from '#src/layout/agentList.ts';
+import { activityOf, holdLine, ordered, splitPinned, waitsOf } from '#src/layout/agentList.ts';
+import { WaitsLine, WaitsMark } from '#src/ui/WaitsOn.tsx';
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { Row } from '#src/sidebar/Row.tsx';
@@ -130,7 +131,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
                 title={nameOf(agent.key)}
                 selected={pick.shown.includes(agent.key)}
                 onShow={() => pick.onSelect(agent.key)}
-                icon={<ActivityIcon act={activityOf(agent)} />}
+                icon={waitsOf(agent) ? <WaitsMark /> : <ActivityIcon act={activityOf(agent)} />}
                 // Its queued tasks, and when it last worked: now while running, else since it stopped (state_since).
                 trail={
                   <span className="flex items-center gap-1.5">
@@ -144,7 +145,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
                   </span>
                 }
                 // A mark that is not plain says why first; else the unread message.
-                note={refs(holdLine(agent) ?? '') || unreadNote(agent)}
+                note={waitsOf(agent) ? <WaitsLine w={waitsOf(agent)!} short /> : refs(holdLine(agent) ?? '') || unreadNote(agent)}
                 unread={agent.founder_unread ?? 0}
               />
             </AgentRowCard>
