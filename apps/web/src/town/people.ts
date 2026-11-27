@@ -33,8 +33,6 @@ const TALL: Record<Pose, number[]> = {
 const PEOPLE = TALL.walk_down.length;
 export const SCALE = PERSON_PX / SHEET.walk; // a walking figure of median height stands PERSON_PX tall in the room
 type Pose = (typeof POSES)[number];
-/** How high a turned sitter's figure stands its bottom: the seat's height, less what the knees hang below it. */
-const SEAT = 0.12;
 
 /** A box in picture pixels. */
 export type Box = { x: number; y: number; w: number; h: number };
@@ -168,7 +166,6 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     const top = room.blocks.find((b) => b.tag === tag && b.part?.startsWith('desk:'));
     return top ? [top.from[0], top.to[2] + 0.2] : room.entry;
   };
-  const depthOf = (x: number, y: number, z: number) => -new Vector3(x, y, z).applyMatrix4(frame.camera.matrixWorldInverse).z;
 
   for (const place of [...room.places].sort((a, b) => a.z - b.z)) {
     const p = place.person;
@@ -199,15 +196,6 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
       );
       if (p.activity === 'you') cast.bubbles.push({ key: p.key, x: seen.x + seen.w - 8, y: seen.y - 6, w: BUBBLE_PX, h: BUBBLE_PX });
       cast.names.push({ person: p, x: chair.x + chair.w / 2, y: chair.y + chair.h + 1 });
-      continue;
-    }
-    if (place.how === 'turned' && place.chair) {
-      // Turned round in its chair, the sitter faces the room from the seat's front edge; only what stands nearer than that covers it.
-      const [fx, fy] = frame.toPixel(place.x, SEAT, place.z);
-      const depth = depthByRow(frame.toPixel, depthOf, place.x, place.z);
-      const seen = draw('sit_mug', fx, fy, (i) => pic.depth[i] < depth(Math.floor(i / pic.w)) - 0.05);
-      cast.spots.push({ person: p, ...seen, at: beside(`desk:${p.key}`) });
-      cast.names.push({ person: p, x: seen.x + seen.w / 2, y: seen.y + seen.h + 1 });
       continue;
     }
     const sofa = place.how === 'sofa';

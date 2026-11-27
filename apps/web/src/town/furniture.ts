@@ -40,12 +40,10 @@ export function desk(put: Put, x: number, z: number, tag: string) {
 }
 
 /** A desk chair 0.3 m across: a cross of legs on castors under a post, a seat, a back and two arms. Its back is toward the camera, the
- *  sitter facing the desk, or `turned` round against the desk, the sitter facing the camera. */
-export function chair(put: Put, x: number, z: number, tag: string, turned = false) {
+ *  sitter facing the desk. */
+export function chair(put: Put, x: number, z: number, tag: string) {
   const part = `chair:${x},${z}`;
   const [cx, cz] = [x + 0.142, z - 0.13];
-  // Turned, what stands at a depth `a` before the seat's middle stands as far behind it.
-  const across = (a: number, b: number): [number, number] => (turned ? [2 * (z - 0.145) - b, 2 * (z - 0.145) - a] : [a, b]);
   put([cx - 0.13, 0.02, cz - 0.02], [cx + 0.13, 0.05, cz + 0.02], 'thing', { part, tag, colour: INK });
   put([cx - 0.02, 0.02, cz - 0.13], [cx + 0.02, 0.05, cz + 0.13], 'thing', { part, colour: INK });
   for (const [dx, dz] of [
@@ -57,23 +55,28 @@ export function chair(put: Put, x: number, z: number, tag: string, turned = fals
     put([cx + dx - 0.02, 0, cz + dz - 0.02], [cx + dx + 0.02, 0.03, cz + dz + 0.02], 'thing', { part, colour: INK, round: 'x' });
   put([cx - 0.022, 0.05, cz - 0.022], [cx + 0.022, 0.2, cz + 0.022], 'thing', { part, colour: STEEL, round: 'y' });
   put([x, 0.2, z - 0.27], [x + 0.285, 0.25, z - 0.02], 'thing', { part, colour: CUSHION, solid: true });
-  const back = across(z - 0.06, z);
-  put([x + 0.02, 0.22, back[0]], [x + 0.265, 0.6, back[1]], 'thing', { part, colour: CUSHION });
+  put([x + 0.02, 0.22, z - 0.06], [x + 0.265, 0.6, z], 'thing', { part, colour: CUSHION });
   for (const ax of [x - 0.01, x + 0.265]) {
-    const [arm, post] = [across(z - 0.2, z - 0.06), across(z - 0.15, z - 0.12)];
-    put([ax, 0.25, arm[0]], [ax + 0.03, 0.29, arm[1]], 'thing', { part, colour: INK });
-    put([ax + 0.005, 0.2, post[0]], [ax + 0.025, 0.25, post[1]], 'thing', { part, colour: INK });
+    put([ax, 0.25, z - 0.2], [ax + 0.03, 0.29, z - 0.06], 'thing', { part, colour: INK });
+    put([ax + 0.005, 0.2, z - 0.15], [ax + 0.025, 0.25, z - 0.12], 'thing', { part, colour: INK });
   }
 }
 
-/** A screen on a desk at height y, facing the camera: a foot, a neck and the panel, its picture lit (with lines of text) while `lit`. */
-export function screen(put: Put, x: number, z: number, y: number, lit: boolean) {
+/** A screen on a desk at height y, facing the camera: a foot, a neck and the panel, its picture lit (with lines of text) while `lit`;
+ *  `tag` names the lit picture, a piece of its own then, for one that moves (monitors.tsx). */
+export function screen(put: Put, x: number, z: number, y: number, lit: boolean, tag?: string) {
   const part = `screen:${x},${z}`;
   const mid = x + 0.197;
   put([mid - 0.07, y, z - 0.1], [mid + 0.07, y + 0.01, z - 0.02], 'thing', { part, colour: INK });
   put([mid - 0.018, y, z - 0.09], [mid + 0.018, y + 0.1, z - 0.06], 'thing', { part, colour: INK });
   put([x, y + 0.08, z - 0.06], [x + 0.393, y + 0.294, z - 0.03], 'thing', { part, colour: INK });
-  if (lit) put([x + 0.02, y + 0.1, z - 0.03], [x + 0.373, y + 0.274, z - 0.022], 'lit', { part, colour: SCREEN_LIT, pattern: 3 });
+  if (lit)
+    put([x + 0.02, y + 0.1, z - 0.03], [x + 0.373, y + 0.274, z - 0.022], 'lit', {
+      part: tag ?? part,
+      tag,
+      colour: SCREEN_LIT,
+      pattern: 3,
+    });
   else put([x + 0.02, y + 0.1, z - 0.03], [x + 0.373, y + 0.274, z - 0.022], 'thing', { part, colour: SCREEN_DARK });
 }
 

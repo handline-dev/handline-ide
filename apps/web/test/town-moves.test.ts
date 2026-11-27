@@ -50,13 +50,13 @@ describe('a person whose place changes', () => {
   const was = laid([person('a', 'working'), person('b', 'resting', true), person('c', 'asleep')]);
   const now = laid([person('a', 'resting'), person('b', 'working'), person('c', 'waking')]);
 
-  it('is seen to change only when its place does: a chair turned round is the same place', () => {
+  it('is seen to change only when its place does', () => {
     // a stops working and b starts while their caches live: each stays in its own chair.
-    const turned = laid([person('a', 'resting', true), person('b', 'working'), person('c', 'asleep')]);
-    expect(changesOf(was.seats, turned.seats)).toEqual([]);
+    const resting = laid([person('a', 'resting', true), person('b', 'working'), person('c', 'asleep')]);
+    expect(changesOf(was.seats, resting.seats)).toEqual([]);
     // Once a's cache runs out it goes to a sofa.
     const sofa = laid([person('a', 'resting'), person('b', 'working'), person('c', 'asleep')]);
-    expect(changesOf(turned.seats, sofa.seats).map((c) => c.key)).toEqual(['a']);
+    expect(changesOf(resting.seats, sofa.seats).map((c) => c.key)).toEqual(['a']);
   });
 
   it('walks from its old seat to its new one: up to the floor, along free floor, down into the seat', () => {

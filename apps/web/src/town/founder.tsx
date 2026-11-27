@@ -2,6 +2,7 @@
 // an office it walks where a click sends it, or where the arrow keys (or WASD) push it, running while Shift is held; in an office the
 // room's nearer pixels are laid over it, as over the seated people. Its place lives outside React: only what draws it, or picks something
 // by it, follows it.
+import type { Screen } from '#src/town/monitors.tsx';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
@@ -42,6 +43,8 @@ export type Ground = Walk & {
   depthOf: (x: number, y: number, z: number) => number;
   /** How many picture pixels a sheet pixel of the founder takes here. */
   sprite: number;
+  /** The screens that move (an office's working ones), laid over a walker they stand in front of as they move. */
+  screens?: Screen[];
 };
 export type Walker = { at: Spot; facing: Facing; walked: number; moving: boolean };
 /** The founder's walk in one place: `go` walks to a spot and then does `then`; `put` stands it at a spot at once, facing away, as before
