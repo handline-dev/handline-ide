@@ -128,6 +128,12 @@ export function HoldCard({ agent }: { agent: string }) {
         <div className="flex min-w-0 flex-col gap-0.5 break-words">
           <span className="font-medium">{refs(need?.title ?? holdLine(a) ?? '')}</span>
           {need?.text && <span className="text-muted">{refs(need.text)}</span>}
+          {need?.detail && (
+            <details className="mt-1 text-xs text-muted">
+              <summary className="w-fit cursor-pointer rounded-sm hover:text-fg">Details</summary>
+              <pre className="mt-1 font-mono [overflow-wrap:anywhere] whitespace-pre-wrap">{need.detail}</pre>
+            </details>
+          )}
         </div>
       </div>
       {button && <div className="flex justify-end">{button}</div>}
