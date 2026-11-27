@@ -202,8 +202,7 @@ func (e *Env) tellWaiting(q db.Q, agent, text, reason string) {
 	}
 }
 
-// SweepStopped: an agent that is FATAL, or whose work cannot be given (it is on the founder's list), is told once per spell to whoever waits on
-// it; the mark ends with the spell.
+// SweepStopped: an agent that is FATAL is told once per spell to whoever waits on it; the mark ends with the spell.
 func (e *Env) SweepStopped(now int64) (err error) {
 	defer Catch(&err)
 	q := db.Q(e.DB)
@@ -213,47 +212,27 @@ func (e *Env) SweepStopped(now int64) (err error) {
 			stalled[r.Agent] = r
 		}
 	}
-	blocks := map[string]*db.Block{}
-	for _, b := range must(db.Blocks(q)) {
-		if now >= b.ShowAt {
-			blocks[b.Agent] = b
-		}
-	}
 	agents := append([]string(nil), e.agents()...)
 	sortStrings(agents)
-	for _, kind := range []string{"fatal", "blocked"} {
-		for _, agent := range agents {
-			key := "stopped_told:" + kind + ":" + agent
-			_, in := stalled[agent]
-			if kind == "blocked" {
-				_, in = blocks[agent]
-			}
-			if !in {
-				if must(db.Cursor(q, key)) != 0 {
-					check(db.SetCursor(q, key, 0))
-				}
-				continue
-			}
+	for _, agent := range agents {
+		key := "stopped_told:fatal:" + agent
+		r, in := stalled[agent]
+		if !in {
 			if must(db.Cursor(q, key)) != 0 {
-				continue
+				check(db.SetCursor(q, key, 0))
 			}
-			check(db.SetCursor(q, key, 1))
-			// A block's detail can be empty (a screen that could not be read): its reason says what is in the way.
-			var detail string
-			if kind == "fatal" {
-				detail = stalled[agent].Detail.String
-			} else {
-				detail = e.Dialogs.Reason(blocks[agent].Kind, blocks[agent].Detail)
-			}
-			detail = firstRunes(oneSpace(textsafe.Oneline(detail)), 300)
-			what := "FATAL"
-			if kind == "blocked" {
-				what = "blocked"
-			} else if kind == "fatal" && verdict.ParseStuckKind(stalled[agent].StallKind.String) == verdict.StuckSendDialog {
-				what = "stalled"
-			}
-			e.tellWaiting(q, agent, fmt.Sprintf("%s is %s: %s", addr.Ref(agent), what, detail), "is "+what)
+			continue
 		}
+		if must(db.Cursor(q, key)) != 0 {
+			continue
+		}
+		check(db.SetCursor(q, key, 1))
+		what := "FATAL"
+		if verdict.ParseStuckKind(r.StallKind.String) == verdict.StuckSendDialog {
+			what = "stalled"
+		}
+		detail := firstRunes(oneSpace(textsafe.Oneline(r.Detail.String)), 300)
+		e.tellWaiting(q, agent, fmt.Sprintf("%s is %s: %s", addr.Ref(agent), what, detail), "is "+what)
 	}
 	return nil
 }

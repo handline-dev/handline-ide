@@ -95,9 +95,9 @@ func TestTheFoundersRequestCarriesNoResponseAndItsCloseWakesNobody(t *testing.T)
 	r := newRig(t)
 	rid := r.ask("human", r.k("bob"), "do x", "")
 	var unset bool
-	r.DB.QueryRow("SELECT relation IS NULL AND response IS NULL AND settles IS NULL FROM requests WHERE id = ?", rid).Scan(&unset)
+	r.DB.QueryRow("SELECT relation IS NULL AND response IS NULL FROM requests WHERE id = ?", rid).Scan(&unset)
 	if !unset {
-		t.Fatal("relation, response and settles are written NULL")
+		t.Fatal("relation and response are written NULL")
 	}
 	if ok, msg, err := r.Resolve(r.DB, ResolveIn{RID: rid, Verdict: "done"}); err != nil || !ok {
 		t.Fatalf("%v %q %v", ok, msg, err)

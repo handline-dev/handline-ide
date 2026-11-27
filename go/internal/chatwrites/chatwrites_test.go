@@ -218,8 +218,8 @@ func TestSendUnderAQuestionIsOnlyASayUnderIt(t *testing.T) {
 	}
 	var state string
 	r.db.QueryRow("SELECT state FROM requests WHERE id = ?", asked).Scan(&state)
-	if state != "queued" || r.count("SELECT COUNT(*) FROM requests WHERE settles = ?", asked) != 0 {
-		t.Fatalf("the question is neither answered nor settled: %s", state)
+	if state != "queued" {
+		t.Fatalf("the question is not answered: %s", state)
 	}
 	if r.count("SELECT COUNT(*) FROM requests WHERE parent_id = ? AND body = 'a reference'", asked) != 1 {
 		t.Fatal("the say carries the parent link")

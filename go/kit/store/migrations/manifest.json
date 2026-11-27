@@ -233,5 +233,10 @@
   "version": 146,
   "name": "drop_untracked_told",
   "additive": false
+ },
+ {
+  "version": 147,
+  "name": "drop_unused_schema",
+  "additive": false
  }
 ]

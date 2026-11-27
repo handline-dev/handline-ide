@@ -22,10 +22,6 @@ func TestEveryRowReaderScansItsColumnsAgainstTheSchema(t *testing.T) {
 	if rows, err := AllAgentStates(q); err != nil || len(rows) != 1 || rows[0].Agent != "a" {
 		t.Fatal(rows, err)
 	}
-	BlockOpen(q, "a", "dialog", "d", "w", 10, 20, "tick", "t")
-	if rows, err := Blocks(q); err != nil || len(rows) != 1 || rows[0].Title != "t" {
-		t.Fatal(rows, err)
-	}
 
 	parent := seedTask(t, q, "b", "a")
 	blocker := seedTask(t, q, "c", "a")

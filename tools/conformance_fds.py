@@ -241,8 +241,7 @@ def seed_agents(con: sqlite3.Connection, labels: list[str], folders: dict[str, s
 SEEDED: set[str] = set()
 
 # The columns that name a who: the seeds write labels and human, and rekey puts each agent's key and p1 in their place.
-WHO_COLUMNS = {"agent", "requester", "target", "owner", "opened_by", "reporter", "discarded_by", "author", "pushed_by", "queued_by",
-               "accepted_by", "updated_by"}
+WHO_COLUMNS = {"agent", "requester", "target", "owner", "opened_by", "reporter", "discarded_by", "author", "pushed_by", "queued_by"}
 
 
 def agent_keys(con: sqlite3.Connection) -> dict[str, str]:
