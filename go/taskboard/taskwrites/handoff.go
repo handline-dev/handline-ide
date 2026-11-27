@@ -33,7 +33,7 @@ type Asked struct {
 type AskReq struct {
 	From, To, Body, Kind string
 	NoCard, Notify       bool
-	// System is the daemon's own step, a start-up migration: no team edge is checked. Only code in the daemon sets it, never a caller.
+	// System is the daemon's own step, such as the time box's handoff: no team edge is checked. Only code in the daemon sets it, never a caller.
 	System bool
 	Within func(rid int64) error
 }

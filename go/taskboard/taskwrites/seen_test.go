@@ -55,24 +55,6 @@ func TestSeenMarksATaskWithNoComments(t *testing.T) {
 	}
 }
 
-func TestTheSeenFloorIsSetOnceToTheNewestCommentAndNotMovedAfter(t *testing.T) {
-	t.Parallel()
-	d, _ := discardEnv(t)
-	exec(t, d,
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'worker', 'manager', 1)",
-		"INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(4, 1, 'worker', 'a', 1), (9, 1, 'worker', 'b', 2)")
-	if err := SetSeenFloor(d); err != nil {
-		t.Fatal(err)
-	}
-	exec(t, d, "INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(12, 1, 'worker', 'c', 3)")
-	if err := SetSeenFloor(d); err != nil {
-		t.Fatal(err)
-	}
-	if v, ok, _ := db.Meta(d, db.SeenFloorMeta); !ok || v != "9" {
-		t.Fatalf("the floor is %q (set), want 9 and not moved by the second run", v)
-	}
-}
-
 // task.seen on an ended task marks its result seen, whatever upto says; on an open task it leaves no mark, so the later end is unseen.
 func TestSeenMarksAnEndedTasksResultOnly(t *testing.T) {
 	t.Parallel()
@@ -85,20 +67,6 @@ func TestSeenMarksAnEndedTasksResultOnly(t *testing.T) {
 	}
 	if at, _ := db.Cursor(d, db.ResultSeenKey("p1", 2)); at < 5 {
 		t.Fatalf("the mark %d is before the end at 5, so RequestRow.ended.seen stays false", at)
-	}
-}
-
-func TestTheResultFloorIsSetOnce(t *testing.T) {
-	t.Parallel()
-	d, _ := discardEnv(t)
-	if err := db.SetMeta(d, db.ResultSeenFloorMeta, "7"); err != nil {
-		t.Fatal(err)
-	}
-	if err := SetResultSeenFloor(d); err != nil {
-		t.Fatal(err)
-	}
-	if v, _, _ := db.Meta(d, db.ResultSeenFloorMeta); v != "7" {
-		t.Fatalf("moved to %q", v)
 	}
 }
 

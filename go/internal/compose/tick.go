@@ -2,8 +2,6 @@ package compose
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -30,7 +28,6 @@ import (
 	"github.com/handline/handline/go/taskboard/attachments"
 	"github.com/handline/handline/go/taskboard/handoff"
 	"github.com/handline/handline/go/taskboard/supervisor"
-	"github.com/handline/handline/go/taskboard/taskwrites"
 )
 
 // This file builds the policy tick. With TickConfig.Terminals it supervises the terminal agents, reading their sessions from
@@ -183,23 +180,10 @@ func (p *Parts) Tick(cfg Config, tc TickConfig) *Tick {
 	}}
 	startup := func() {
 		runStartup(logLine, startPorts{Reconcile: reconciler.Reconcile, StartWaiting: t.StartWaiting,
-			Migrate: func() error { return migrateAtStart(q, home, env, logLine) },
+			Migrate: func() error { return env.MigrateOldMessages(q) },
 			Reload:  func() error { return env.ReloadPending(q) }})
 	}
 	return &Tick{Tick: t, Loop: loop, dev: dev, Startup: startup, gates: &gates.Sweep{DB: q, Home: home, Tell: env, Log: cfg.Log}}
-}
-
-// migrateAtStart makes the one-time moves a daemon start makes on the board.
-func migrateAtStart(q *sql.DB, home string, env *supervisor.Env, logLine func(string)) error {
-	moved, err := taskwrites.EndReviews(q, home, env)
-	for _, m := range moved {
-		logLine("  " + m)
-	}
-	back, backErr := taskwrites.ReturnFounderTasks(q, home)
-	for _, m := range back {
-		logLine("  " + m)
-	}
-	return errors.Join(err, backErr, taskwrites.SetSeenFloor(q), taskwrites.SetResultSeenFloor(q), env.MigrateOldMessages(q))
 }
 
 // startPorts are the steps of the daemon's start.

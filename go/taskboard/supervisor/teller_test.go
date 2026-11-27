@@ -234,33 +234,3 @@ func TestTheTellerSendsATaskThatAnEditGaveToANewOwnerAndTellsTheOldOneToStop(t *
 		t.Fatalf("the old owner is told to stop: %q", r.term.typed)
 	}
 }
-
-// A team like the live one: agents reach the founder and the founder reaches them, and nothing else is declared, so no edge leads from the
-// daemon to an agent, and none from one agent to another.
-// The start-up hand-back of the founder's tasks is the daemon's own step: it moves each task to its agent though no edge declares daemon ->
-// agent, and leaves those it must, once.
-func TestFounderTasksGoBackWithNoTeamEdgeFromTheDaemon(t *testing.T) {
-	r := newRig(t)
-	r.founderOnlyTeam()
-	handed := r.newTask(r.k("human"), "eng/alice", "handed by ops/bob")
-	opened := r.newTask(r.k("human"), "eng/alice", "opened by eng/alice")
-	asked := r.newTask(r.k("human"), r.k(("human")), "the founder's own")
-	gone := r.newTask(r.k("human"), r.k(("carol")), "opened by a retired agent")
-	_, err := db.AddEvent(r.DB, r.k("ops/bob"), "task_handoff", db.KV{K: "task_id", V: handed}, db.KV{K: "from", V: r.k("ops/bob")}, db.KV{K: "to", V: r.k(("human"))},
-		db.KV{K: "note", V: "which one?"})
-	r.must(err)
-
-	said, err := taskwrites.ReturnFounderTasks(r.DB, r.home)
-	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d goes back to ops/bob, the founder's turn on it T%d goes back to eng/alice, the founder's turn on it]", handed, opened) {
-		t.Fatalf("%q %v", said, err)
-	}
-	for tid, want := range map[int64]string{handed: r.k("ops/bob"), opened: r.k("eng/alice"), asked: r.k(("human")), gone: r.k(("human"))} {
-		if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != want || task.Acting != r.k(("human")) {
-			t.Errorf("T%d: owner %+v, want %s under the founder's turn", tid, task, want)
-		}
-	}
-	if again, err := taskwrites.ReturnFounderTasks(r.DB, r.home); err != nil || len(again) != 0 {
-		t.Fatalf("it runs once: %q %v", again, err)
-	}
-
-}

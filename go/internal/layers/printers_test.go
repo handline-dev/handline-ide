@@ -18,7 +18,6 @@ var hashAllowed = []struct{ file, line, why string }{
 	{"internal/watcher/tasks.go", `"#" + extra[id]`, "the watcher's separator"},
 	{"taskboard/msgtest/msgtest.go", `fmt.Sprintf("#%d", ids[0])`, "tests read a printed name back as its id"},
 	{"cmd/hl/taskview.go", `PR #%d`, "a task's PR"},
-	{"taskboard/taskwrites/endreviews.go", `PR #%d`, "a task's PR"},
 	{"taskboard/taskwrites/edit.go", `PR #%d`, "a task's PR"},
 	{"taskboard/taskwrites/edit.go", `fmt.Sprintf("%s#%d", repo, pr.Int64)`, "a task's PR, owner/name#N"},
 	{"cmd/hl/taskwait.go", `"%s#%d"`, "a github target, owner/name#N"},

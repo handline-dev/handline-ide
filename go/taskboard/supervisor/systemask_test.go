@@ -77,6 +77,19 @@ func TestAnAgentsHandoffStillNeedsItsEdge(t *testing.T) {
 	}
 }
 
+// The daemon's own handoff is a system step: the task goes to an agent the team knows though no edge leads from the daemon to it.
+func TestTheDaemonsHandoffNeedsNoTeamEdge(t *testing.T) {
+	r := newRig(t)
+	r.founderOnlyTeam()
+	tid := r.newTask("ops/bob", "eng/alice", "left unchanged")
+	if err := taskwrites.HandOffAsDaemon(r.DB, r.home, r.Env, tid, r.k("eng/alice"), "yours again"); err != nil {
+		t.Fatal(err)
+	}
+	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng/alice") {
+		t.Fatalf("%+v", task)
+	}
+}
+
 // A system ask is let past a missing edge only to an agent the team knows.
 func TestASystemAskToAnUnknownTargetIsRefused(t *testing.T) {
 	r := newRig(t)
@@ -87,22 +100,5 @@ func TestASystemAskToAnUnknownTargetIsRefused(t *testing.T) {
 		Within: func(int64) error { return fmt.Errorf("not reached") }})
 	if err != nil || asked.OK || !strings.Contains(asked.Msg, "unknown target") {
 		t.Fatalf("%+v %v", asked, err)
-	}
-}
-
-// The start-up end of reviews is a system step too: a task left in review goes to its opener though no edge leads from the daemon.
-func TestEndReviewsMovesATaskWithNoTeamEdgeFromTheDaemon(t *testing.T) {
-	r := newRig(t)
-	r.founderOnlyTeam()
-	tid := r.newTask("ops/bob", "eng/alice", "reviewed")
-	if _, err := r.DB.Exec("UPDATE tasks SET reported_at = 5, report = 'built it' WHERE id = ?", tid); err != nil {
-		t.Fatal(err)
-	}
-	said, err := taskwrites.EndReviews(r.DB, r.home, r.Env)
-	if err != nil || r.named(fmt.Sprint(said)) != fmt.Sprintf("[T%d left review: handed to eng/alice]", tid) {
-		t.Fatalf("%q %v", said, err)
-	}
-	if task, _ := db.GetTask(r.DB, tid); task == nil || task.Owner != r.k("eng/alice") {
-		t.Fatalf("%+v", task)
 	}
 }

@@ -72,20 +72,6 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	accounts := team.Accounts{Home: home}
 	routing := func() *team.Team { t, _ := team.LoadTeam(home); return t }
 	keptRules := &team.KeptBlocks{Q: q}
-	kept, errs := team.MigratePeerRules(home)
-	for _, f := range kept {
-		cfg.Log("  team rules: %s keeps the old reports wording its team changed", f)
-	}
-	for _, err := range errs {
-		cfg.Log("  team rules: not moved to the peers wording: %v", err)
-	}
-	moved, errs := team.ImportInstructions(home, q) // after MigratePeerRules, which still rewrites the files
-	if len(moved) > 0 {
-		cfg.Log("  instructions: %d files moved into the database", len(moved))
-	}
-	for _, err := range errs {
-		cfg.Log("  instructions: a file not moved into the database: %v", err)
-	}
 	var founderTyped func(agent string) bool // the founder's words typed at the agents the peer inbox reaches
 	if cfg.FounderTyped {
 		founderTyped = p.Peer

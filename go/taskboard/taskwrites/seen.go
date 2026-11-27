@@ -3,32 +3,11 @@ package taskwrites
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/protocol/rpc"
 )
-
-// SetSeenFloor sets once the highest comment number as the floor, so comments from before the markers do not all show as new.
-func SetSeenFloor(q db.Q) error {
-	if _, set, err := db.Meta(q, db.SeenFloorMeta); err != nil || set {
-		return err
-	}
-	var top sql.NullInt64
-	if err := q.QueryRow("SELECT MAX(id) FROM task_memos").Scan(&top); err != nil {
-		return err
-	}
-	return db.SetMeta(q, db.SeenFloorMeta, strconv.FormatInt(top.Int64, 10))
-}
-
-// SetResultSeenFloor sets once the time before which a request that ended counts as seen, so a month of old results does not show as new.
-func SetResultSeenFloor(q db.Q) error {
-	if _, set, err := db.Meta(q, db.ResultSeenFloorMeta); err != nil || set {
-		return err
-	}
-	return db.SetMeta(q, db.ResultSeenFloorMeta, strconv.FormatInt(time.Now().Unix(), 10))
-}
 
 // markResultSeen records that person has seen how the ended task tid ended.
 func markResultSeen(tx db.Q, person string, tid int64) error {

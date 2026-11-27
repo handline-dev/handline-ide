@@ -13,7 +13,6 @@ import (
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/states"
-	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/storetest"
 	"github.com/handline/handline/go/scheduler/session"
 )
@@ -397,35 +396,5 @@ func TestARunningSessionEndsTheStreakOfFailedAttempts(t *testing.T) {
 	}
 	if row, _ := db.GetAgentState(r.Q, "a"); row.FailedAttempts != 0 {
 		t.Fatalf("the streak outlived the running session: %+v", row)
-	}
-}
-
-// A [dialog stall] card an older daemon raised stays while its agent is stalled on a start-up dialog and is resolved once it is not, even
-// with no terminal to look at.
-func TestAStaleDialogStallCardIsResolved(t *testing.T) {
-	r, _ := newRec(t, map[string]session.Observed{})
-	var resolved []int64
-	r.Ports.Resolve = func(id int64, _ string) error { resolved = append(resolved, id); return nil }
-	for _, stmt := range []string{
-		"INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'dialog', ?, 'a', 1)",
-		"INSERT INTO requests(id, requester, target, kind, state, ts, body) VALUES(10, 'a', ?, 'task', 'queued', 1, '" + DialogDecision + " a is at a dialog')",
-		"INSERT INTO task_requests(task_id, request_id) VALUES(1, 10)",
-	} {
-		var args []any
-		if strings.Contains(stmt, "?") {
-			args = append(args, actor.OwnerKey)
-		}
-		if _, err := r.Q.Exec(stmt, args...); err != nil {
-			t.Fatal(err)
-		}
-	}
-	db.SetStalled(r.Q, "a", "dialog", "a's terminal is showing a "+DialogStall, nil)
-	var acts []string
-	if err := r.Sweep(&acts); err != nil || len(resolved) != 0 {
-		t.Fatalf("the card stays while the stall does: %v %v", err, resolved)
-	}
-	db.SetAgentState(r.Q, "a", states.Idle, 0, "")
-	if err := r.Sweep(&acts); err != nil || len(resolved) != 1 || resolved[0] != 10 {
-		t.Fatalf("a stale card is resolved: %v %v", err, resolved)
 	}
 }

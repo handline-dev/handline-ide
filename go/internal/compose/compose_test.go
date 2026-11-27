@@ -382,27 +382,6 @@ func TestAgentsSharingABrokenRepoAreOneNotice(t *testing.T) {
 	}
 }
 
-// A daemon start sets the floor under the founder's read markers, so the comments from before the markers do not all count as new.
-func TestADaemonStartSetsTheSeenFloor(t *testing.T) {
-	p, home := rig(t)
-	if _, err := p.db.Exec("INSERT INTO tasks(id, title, owner, opened_by, created_at) VALUES(1, 'one', 'bob', 'amy', 1)"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.db.Exec("INSERT INTO task_memos(id, task_id, author, body, created_at) VALUES(7, 1, 'bob', 'a', 1)"); err != nil {
-		t.Fatal(err)
-	}
-	env := &supervisor.Env{DB: p.db, Home: home, Log: func(string, ...any) {}}
-	if err := migrateAtStart(p.db, home, env, func(string) {}); err != nil {
-		t.Fatal(err)
-	}
-	if v, ok, err := dbpkg.Meta(p.db, dbpkg.SeenFloorMeta); err != nil || !ok || v != "7" {
-		t.Fatalf("floor %q set %v err %v", v, ok, err)
-	}
-	if _, ok, err := dbpkg.Meta(p.db, dbpkg.ResultSeenFloorMeta); err != nil || !ok {
-		t.Fatalf("result floor set %v err %v", ok, err)
-	}
-}
-
 // The rules an agent's session is told carry its workspace's kept rules under the team's text.
 func TestTheTeamRulesCarryTheKeptRules(t *testing.T) {
 	p, home := rig(t)
