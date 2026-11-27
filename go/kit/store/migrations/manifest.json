@@ -268,5 +268,10 @@
   "version": 153,
   "name": "agent_no_silence_reminder",
   "additive": true
+ },
+ {
+  "version": 154,
+  "name": "drop_usage_window_columns",
+  "additive": false
  }
 ]
