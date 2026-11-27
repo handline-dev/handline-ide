@@ -338,9 +338,14 @@ func TestUnstallOfAnAgentThatIsNotStalledLeavesItsDialogMark(t *testing.T) {
 func TestUnstallLeavesTheAgentQueuedWithItsCountersAndDialogMarksCleared(t *testing.T) {
 	r := newRig(t)
 	seedStall(t, r.e.DB, r.ann, "STALLED")
+	var refreshed []string
+	r.e.RefreshView = func(agent string) { refreshed = append(refreshed, agent) }
 	cleared, said, err := r.e.Unstall(r.ann)
 	if err != nil || !cleared || said != r.ann+": STALLED -> QUEUED" {
 		t.Fatalf("%v %q %v", cleared, said, err)
+	}
+	if len(refreshed) != 1 || refreshed[0] != r.ann {
+		t.Fatalf("its view (the card) is stored again at once: %v", refreshed)
 	}
 	var state, detail string
 	var failed, throttle, wake int

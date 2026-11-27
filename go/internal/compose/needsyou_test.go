@@ -288,12 +288,23 @@ func TestADialogStallAndAnUnhealedAgentAreOneCardEachAndGoWhenTheirCauseDoes(t *
 		t.Fatalf("a dialog Handline cannot get past is a dialog card too: %+v", n)
 	}
 	set("STALLED", "start", "3 "+lifecycle.StartStall+": the repo is no git checkout", "why", "the repo is no git checkout")
-	if n := needs("worker"); n == nil || n.Kind != "start_failed" || n.Title != "Won't start" || n.Text != "The last 3 starts failed: the repo is no git checkout." {
-		t.Fatalf("starts that failed: %+v", n)
+	if n := needs("worker"); n == nil || n.Kind != "start_failed" || n.Title != "Won't start" || n.Text != "Could not start: the repo is no git checkout." || n.Detail != "the repo is no git checkout" {
+		t.Fatalf("starts that failed: a reason the card has no words for is said as it is: %+v", n)
 	}
-	set("STALLED", "wake", "3 "+lifecycle.WakeStall+": the terminal did not open", "why", "the terminal did not open")
-	if n := needs("worker"); n == nil || n.Kind != "no_session" || n.Title != "Woke but didn't start" || n.Text != "It was woken 3 times and no session started: the terminal did not open." {
-		t.Fatalf("wakes that started nothing: %+v", n)
+	if _, err := d.Exec("INSERT INTO nodes(id, name, joined_at, lending) VALUES('cbe5b4619359618b', 'MacBook Air', 1, 'run')"); err != nil {
+		t.Fatal(err)
+	}
+	for why, text := range map[string]string{
+		"could not send the launch command: node cbe5b4619359618b is not linked to this master": "Could not start: its machine (MacBook Air) is offline.",
+		"account 'x' is not logged in on node cbe5b4619359618b.":                                "Could not start: its account is not logged in on MacBook Air.",
+		"could not type into %1: no server running on /private/tmp/tmux-501/handline-85e06073":  "Could not start: its terminal is gone.",
+		"the terminal did not open":                          "Could not start: the terminal did not open.",
+		"node 0123456789abcdef is not linked to this master": "Could not start: its machine is offline.",
+	} {
+		set("STALLED", "wake", "3 "+lifecycle.WakeStall+": "+why, "why", why)
+		if n := needs("worker"); n == nil || n.Kind != "no_session" || n.Title != "Woke but didn't start" || n.Text != text || n.Detail != why {
+			t.Fatalf("wakes that started nothing, in plain words: %+v", n)
+		}
 	}
 	set("STALLED", "trust", "worker's terminal is showing claude's "+lifecycle.TrustStall+" for /w/tree (account a, recorded worktree /w/tree) - nothing was typed into it", "folder", "/w/tree")
 	if n := needs("worker"); n == nil || n.Kind != "trust" || n.Title != "Waiting for folder trust" ||

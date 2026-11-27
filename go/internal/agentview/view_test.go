@@ -190,8 +190,8 @@ func TestNeedsYouIsReadOnceAndNeverForAnAgentWithNoRow(t *testing.T) {
 	}
 	r.env.RefreshOne("long")
 	n := r.stored(t, "long")["needs_you"].(map[string]any)
-	if reads != 1 || strings.Contains(n["text"].(string), "\n") || len([]rune(n["text"].(string))) != needsTextCap {
-		t.Errorf("read %d times; text %q", reads, n["text"])
+	if reads != 1 || strings.Contains(n["text"].(string), "\n") || !strings.HasSuffix(n["text"].(string), strings.Repeat("x", 300)) {
+		t.Errorf("read %d times, one line and whole, for the card to wrap; text %q", reads, n["text"])
 	}
 }
 
