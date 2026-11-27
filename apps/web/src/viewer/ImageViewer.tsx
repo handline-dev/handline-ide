@@ -20,6 +20,7 @@ import { count } from '#src/format/count.ts';
 import { useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { copy } from '#src/ui/copy.ts';
 import { toast } from '#src/ui/toast.tsx';
+import { useEscape } from '#src/ui/useEscape.ts';
 import { bake } from '#src/viewer/bake.ts';
 import { Stage, type StageControls } from '#src/viewer/Stage.tsx';
 
@@ -112,13 +113,13 @@ export function ImageViewer({
   };
 
   const step = (by: number) => setAt((a) => Math.min(pictures.length - 1, Math.max(0, a + by)));
-  const live = useRef({ step, onClose, dispatch, canMark, marks, url, done, canSend });
-  useEffect(() => void (live.current = { step, onClose, dispatch, canMark, marks, url, done, canSend }));
+  const live = useRef({ step, dispatch, canMark, url, done, canSend });
+  useEffect(() => void (live.current = { step, dispatch, canMark, url, done, canSend }));
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     root.current?.focus();
     const key = (e: KeyboardEvent) => {
-      const { step, onClose, dispatch, canMark, marks, url, done, canSend } = live.current;
+      const { step, dispatch, canMark, url, done, canSend } = live.current;
       // Cmd+Enter, in a note too: the marks go into the message, and it is sent where the caller can.
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && canMark && !e.isComposing) {
         e.preventDefault();
@@ -129,9 +130,6 @@ export function ImageViewer({
       if ((e.metaKey || e.ctrlKey) && letterOf(e) === 'z') {
         e.preventDefault();
         dispatch({ type: 'undo' });
-      } else if (e.key === 'Escape') {
-        if (marks.open !== null) dispatch({ type: 'open', id: null });
-        else onClose();
       } else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowRight') step(1);
       else if (letterOf(e) === 'm' && !e.metaKey && !e.ctrlKey && canMark && url) setMarking((v) => !v);
@@ -158,6 +156,9 @@ export function ImageViewer({
   };
 
   useWindowLayer(true);
+  // Two Esc layers: the open note over the viewer, so Esc closes the note first and the viewer next.
+  useEscape(true, onClose, root);
+  useEscape(marks.open !== null, () => dispatch({ type: 'open', id: null }), root);
   return createPortal(
     <div
       ref={root}

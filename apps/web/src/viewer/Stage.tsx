@@ -75,7 +75,7 @@ const Badge = ({ n }: { n: number }) => (
   </span>
 );
 
-/** The open mark's note: its number, the words, and remove. Enter or Escape closes it. */
+/** The open mark's note: its number, the words, and remove. Enter closes it; Esc does through the viewer's layers. */
 function NoteBox({ n, mark, dispatch, style }: { n: number; mark: Mark; dispatch: Dispatch<MarksAction>; style: CSSProperties }) {
   return (
     <div
@@ -95,7 +95,7 @@ function NoteBox({ n, mark, dispatch, style }: { n: number; mark: Mark; dispatch
         onKeyDown={(e) => {
           // Cmd+Enter goes on to the viewer, which adds the marks and sends.
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) return;
-          if ((e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) || e.key === 'Escape') {
+          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             e.stopPropagation();
             dispatch({ type: 'open', id: null });
