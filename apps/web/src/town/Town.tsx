@@ -8,7 +8,8 @@ import { useNow } from '#src/format/time.ts';
 import { useTabState } from '#src/persist/tabState.ts';
 import { useRequests } from '#src/requests/data.ts';
 import { townOf, type House } from '#src/town/model.ts';
-import { TownWindows } from '#src/town/Windows.tsx';
+import { TownWindows, useTownShown } from '#src/town/Windows.tsx';
+import { setTownGo, townGo } from '#src/town/goto.ts';
 import { Face } from '#src/town/face.tsx';
 import { figuresOf } from '#src/town/people.ts';
 import { Inside } from '#src/town/Inside.tsx';
@@ -70,9 +71,22 @@ export function TownTab() {
     setLeft(key);
     setPicked(key);
   };
+  /** Into a house from the city; one found by a person's name brings up that person's chat there too. */
+  const enterFor = (key: string, person?: string) => {
+    const who = houseOf(key)?.people.find((p) => p.key === person);
+    if (who) townGo(key, who);
+    else enter(key);
+  };
   const signs = useMemo(() => {
     const out: Record<string, Sign> = {
-      [HQ]: { name: 'Your HQ', sub: `All ${town.decisions.length} decisions`, decisions: town.decisions.length, waiting: 0, more: 0 },
+      [HQ]: {
+        name: 'Your HQ',
+        sub: `All ${town.decisions.length} decisions`,
+        decisions: town.decisions.length,
+        waiting: 0,
+        stopped: 0,
+        more: 0,
+      },
     };
     for (const h of town.houses) {
       const lot = city.lots.find((l) => l.key === h.key);
@@ -81,6 +95,7 @@ export function TownTab() {
         sub: statusOf(h),
         decisions: h.decisions.length,
         waiting: h.people.filter((p) => p.activity === 'you').length,
+        stopped: h.people.filter((p) => p.activity === 'error').length,
         more: lot ? Math.max(0, h.people.length - seatsOf(lot.w)) : 0,
       };
     }
@@ -89,12 +104,13 @@ export function TownTab() {
 
   return (
     <TownWindows iconFor={iconFor}>
+      <GoTo enter={enter} />
       {house ? (
         <Inside key={house.key} house={house} cameIn={left === house.key} onBack={() => setPicked(null)} />
       ) : (
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div ref={pane} className="flex min-h-0 flex-1">
-            <CityView city={city} cars={Math.min(working, MAX_CARS)} signs={signs} left={left} onEnter={enter} />
+            <CityView city={city} cars={Math.min(working, MAX_CARS)} signs={signs} houses={town.houses} left={left} onEnter={enterFor} />
           </div>
           <Legend />
         </div>
@@ -103,7 +119,18 @@ export function TownTab() {
   );
 }
 
-/** What the windows and badges mean, under the city. */
+/** Takes the top strip's picks (goto.ts): into the house, and the person's chat in the town's windows. */
+function GoTo({ enter }: { enter: (key: string) => void }) {
+  const { show } = useTownShown();
+  setTownGo((house, person) => {
+    enter(house);
+    if (person) show(`chat:${person.key}`, person.name);
+  });
+  return null;
+}
+
+/** What the windows and badges mean, under the city: in full where the pane is wide, in a word or two where it is narrow, so it never
+ *  takes more than two rows. */
 function Legend() {
   const square = (background: string) => <span className="size-3 rounded-sm" style={{ background }} />;
   const pin = (fill: string, text: string) => (
@@ -114,21 +141,26 @@ function Legend() {
       {text}
     </span>
   );
-  const rows: [ReactNode, string][] = [
-    [square(SWATCH.lit), 'A window per agent: working'],
-    [square(SWATCH.dark), 'Idle or asleep'],
-    [square(SWATCH.empty), 'Nobody at work'],
-    [pin('var(--warning)', '!'), 'Waiting for you'],
-    [pin('var(--danger)', '1'), 'Decisions for you'],
+  // Each mark, what it means in full, and in short.
+  const rows: [ReactNode, string, string][] = [
+    [square(SWATCH.lit), 'A window per agent: working', 'Working'],
+    [square(SWATCH.dark), 'Idle or asleep', 'Idle or asleep'],
+    [square(SWATCH.stopped), 'Stopped', 'Stopped'],
+    [square(SWATCH.empty), 'Nobody at work', 'Nobody at work'],
+    [pin('var(--warning)', '!'), 'Waiting for you', 'Waiting for you'],
+    [pin('var(--danger)', '1'), 'Decisions for you', 'Decisions'],
   ];
   return (
-    <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 text-xs text-muted">
-      {rows.map(([mark, word]) => (
-        <span key={word} className="flex items-center gap-1.5">
-          {mark}
-          {word}
-        </span>
-      ))}
+    <div className="@container shrink-0 border-t border-border text-xs text-muted">
+      <div className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
+        {rows.map(([mark, word, short]) => (
+          <span key={word} className="flex items-center gap-1.5 whitespace-nowrap">
+            {mark}
+            <span className="hidden @4xl:inline">{word}</span>
+            <span className="@4xl:hidden">{short}</span>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

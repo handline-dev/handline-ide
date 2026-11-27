@@ -23,6 +23,41 @@ describe('townOf', () => {
     expect(t.decisions.map((d) => d.task)).toEqual([1, 2, 3]);
   });
 
+  it('knows the task each one holds, and why one on hold or stopped waits', () => {
+    const status = (state: string, reason: string, text: string) => ({ state, reason, text, until: null, since: '', tasks: [] });
+    const on = (key: string, more: object) => ({ ...agent(key, key, 'w'), ...more }) as unknown as AgentView;
+    const t = townOf(
+      [ws('w', 'core', null)],
+      [
+        on('a', { state: 'running', task: { id: 7, title: 'Plan the notes' }, doing: { text: 'Bash runs the tests', at: '' } }),
+        on('b', { status: status('waiting', 'wall', 'usage limit, back at 14:00') }),
+        on('c', { status: status('stopped', 'stalled', 'Start failed') }),
+        on('d', { status: status('off', '', '') }),
+      ],
+      [],
+    );
+    expect(t.houses[0].people.map((p) => [p.key, p.activity, p.doing, p.task, p.why])).toEqual([
+      // The task's title names the work, over the tool call of the moment.
+      ['a', 'working', 'Plan the notes', 7, null],
+      ['b', 'held', null, null, 'Usage limit, back at 14:00'],
+      ['c', 'error', null, null, 'Start failed'],
+      ['d', 'asleep', null, null, null],
+    ]);
+  });
+
+  it("carries what a person's card says: its team, role, model, effort and context use", () => {
+    const more = { role: ' Reviews every change before it lands ', model: 'sonnet', effort: 'high', ctx_pct: 25 };
+    const t = townOf(
+      [ws('w', 'core', null)],
+      [{ ...agent('a', 'reviewer', 'w'), ...more } as unknown as AgentView, agent('b', 'ui', 'w')],
+      [],
+    );
+    const [a, b] = t.houses[0].people;
+    expect([a.team, a.role, a.model, a.effort, a.ctx]).toEqual(['core', 'Reviews every change before it lands', 'sonnet', 'high', 25]);
+    // What the daemon does not say stays empty, so the card leaves the line out.
+    expect([b.team, b.role, b.model, b.effort, b.ctx]).toEqual(['core', '', null, null, null]);
+  });
+
   it('knows whose prompt cache still holds its conversation, at the time it is asked', () => {
     const now = Date.parse('2026-01-01T12:00:00Z');
     const until = (key: string, at: string | null) => ({ ...agent(key, key, 'w'), cache_until: at }) as unknown as AgentView;

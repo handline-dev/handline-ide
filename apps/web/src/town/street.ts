@@ -1,7 +1,10 @@
 // The city in metres, built from boxes and cylinders as the office is (scene3d.ts draws it): city.ts's layout, a tile to U metres, with
-// each workspace a building as wide as its team, a window per seat lit while that agent works, and the street things between them.
-import { HQ, ROAD, type City, type Lot } from '#src/town/city.ts';
+// each workspace a building as wide as its team, a window per seat lit while that agent works and red while it is stopped on a fault, the
+// building site where a new team is added (site.ts), and the street things between them.
+import { HQ, ROAD, SITE, type City, type Lot } from '#src/town/city.ts';
+import { STOPPED_GLOW } from '#src/town/palette.ts';
 import { DOOR, pen, type Kind, type Put, type Room } from '#src/town/room.ts';
+import { buildSite } from '#src/town/site.ts';
 
 type RGB = [number, number, number];
 
@@ -49,7 +52,7 @@ function building(put: Put, lot: Lot, front: number) {
   put([x0, top, front - p], [x1, top + 0.2, front], 'side', { part: `${part}:roof`, colour: STONE });
   put([x0, top, z0], [x0 + p, top + 0.2, front], 'side', { part: `${part}:roof`, colour: STONE });
   put([x1 - p, top, z0], [x1, top + 0.2, front], 'side', { part: `${part}:roof`, colour: STONE });
-  put([x0 - 0.04, top - 0.12, front], [x1 + 0.04, top, front + 0.08], 'side', { colour: STONE });
+  put([x0 - 0.04, top - 0.12, front], [x1 + 0.04, top, front + 0.08], 'side', { colour: STONE, tag: `eave:${lot.key}` });
   // On the roof: an air unit with its fan, and a vent.
   const ax = x0 + 0.35 + (lot.look % 3) * 0.3;
   put([ax, top, z0 + 0.5], [ax + 0.6, top + 0.42, z0 + 1.1], 'side', { colour: [196, 200, 206] });
@@ -68,7 +71,8 @@ function building(put: Put, lot: Lot, front: number) {
   }
   // Floor bands between the storeys.
   for (let f = 1; f < floors; f++) put([x0, f * FH - 0.04, front], [x1, f * FH + 0.04, front + 0.05], 'side', { colour: STONE });
-  // A window per seat over the ground floor, the top storey first: frame, glass (lit while its agent works) and a sill.
+  // A window per seat over the ground floor, the top storey first: frame, glass (lit while its agent works, a dim red while it is
+  // stopped on a fault) and a sill.
   const across = lot.w - 2;
   for (let r = 0; r < floors - 1; r++)
     for (let c = 0; c < across; c++) {
@@ -78,7 +82,13 @@ function building(put: Put, lot: Lot, front: number) {
       const lit = lot.seats[k] === 'working' || lot.seats[k] === 'waking';
       // The glass stands out from the wall inside a frame of four bars standing farther out, so no two faces meet.
       const part = `win:${lot.key}:${k}`;
-      put([cx - 0.17, y + 0.05, front], [cx + 0.17, y + 0.57, front + 0.025], lit ? 'lit' : 'win');
+      const stopped = lot.seats[k] === 'error';
+      put(
+        [cx - 0.17, y + 0.05, front],
+        [cx + 0.17, y + 0.57, front + 0.025],
+        lit || stopped ? 'lit' : 'win',
+        stopped ? { colour: STOPPED_GLOW } : {},
+      );
       put([cx - 0.22, y, front], [cx - 0.17, y + 0.62, front + 0.06], 'frame', { part, colour: FRAME });
       put([cx + 0.17, y, front], [cx + 0.22, y + 0.62, front + 0.06], 'frame', { part, colour: FRAME });
       put([cx - 0.17, y + 0.57, front], [cx + 0.17, y + 0.62, front + 0.06], 'frame', { part, colour: FRAME });
@@ -199,7 +209,8 @@ export type Door = {
   x1: number;
   front: number;
 };
-export type CityRoom = Room & { doors: Door[] };
+/** `site`: where the founder stands before the building site's board, as before a door; it has no doorway to go through. */
+export type CityRoom = Room & { doors: Door[]; site: Door | null };
 
 const CAR_COLOURS: RGB[] = [
   [70, 120, 200],
@@ -230,6 +241,7 @@ export function cityRoom(city: City, cars: number): CityRoom {
     for (let z = 0.3; z < D - 0.6; z += 1.2) if (!onRoad(z) && !onRoad(z + 0.6)) put([x - 0.04, 0, z], [x + 0.04, 0.004, z + 0.6], 'lane');
   }
   const doors: Door[] = [];
+  let site: Door | null = null;
   for (const b of city.blocks) {
     const [bx0, bz0, bx1, bz1] = [b.x * U, b.y * U, (b.x + b.w) * U, (b.y + b.h) * U];
     put([bx0, 0, bz0], [bx1, CURB, bz1], 'walk', { pattern: 5 });
@@ -249,6 +261,13 @@ export function cityRoom(city: City, cars: number): CityRoom {
         x1: mid + 0.4,
         front,
       });
+    }
+    if (inside(city.site.x, city.site.y)) {
+      const [sx0, sx1] = [city.site.x * U + 0.15, (city.site.x + city.site.w) * U - 0.15];
+      buildSite(put, [sx0, sx1], [front - DEPTH, front], CURB);
+      const mid = (sx0 + sx1) / 2;
+      const at: [number, number] = [mid, front + 0.5];
+      site = { key: SITE, at, in: at, out: at, x0: mid - 0.4, x1: mid + 0.4, front };
     }
     // A park where the buildings leave room: grass, rows of trees, a bench facing the street.
     for (const p of city.parks.filter((p) => inside(p.x, p.y))) {
@@ -297,5 +316,6 @@ export function cityRoom(city: City, cars: number): CityRoom {
     places: [],
     entry: hq?.at ?? [W / 2, D / 2],
     doors,
+    site,
   };
 }

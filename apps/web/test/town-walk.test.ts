@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { floorOf, freeAt, pathTo, step } from '#src/town/walk.ts';
+import { floorOf, freeAt, pathTo, reach, step } from '#src/town/walk.ts';
 
 // A 4 x 3 m room with a table across its middle, open only along the left wall.
 const floor = floorOf(4, 3, [{ x0: 0.6, z0: 1.4, x1: 4, z1: 1.6 }]);
@@ -38,5 +38,15 @@ describe('walking in an office', () => {
     const at = step(floor, [2, 1.27], [1, 1], 0.05);
     expect(at[1]).toBe(1.27);
     expect(at[0]).toBeGreaterThan(2);
+  });
+
+  it('goes twice as far in the same time running, and a run is still stopped by what stands in the way', () => {
+    expect(reach(2.4, 0.05, false)).toBeCloseTo(0.12);
+    expect(reach(2.4, 0.05, true)).toBeCloseTo(0.24);
+    const from: [number, number] = [2, 0.6];
+    const walked = step(floor, from, [1, 0], reach(2.4, 0.05, false));
+    const ran = step(floor, from, [1, 0], reach(2.4, 0.05, true));
+    expect(ran[0] - from[0]).toBeCloseTo(2 * (walked[0] - from[0]));
+    expect(step(floor, [2, 1.2], [0, 1], reach(2.4, 0.05, true))).toEqual([2, 1.2]);
   });
 });

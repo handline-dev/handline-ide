@@ -158,6 +158,31 @@ function across(w: Windows, from: string, tabs: string[], shown: string, to: Tar
   return onTree(rest, to.pane, (n) => placeTabs(n, pane.tabs, pane.active, to));
 }
 
+/** The windows on a phone's width: every floating tab bar's tabs join the dock's first tab bar (the dock is then a sheet under the
+ *  picture), so nothing covers the picture and the sheet is never split into slivers. */
+export function sheetOf(w: Windows): Windows {
+  return w.floats
+    .flatMap((f) => panes(f.root))
+    .reduce((v, p) => {
+      const what = { from: p.id, tabs: p.tabs.map((t) => t.id), shown: p.active };
+      if (!v.dock) return reduceWindows(v, { type: 'dock', what, side: v.side });
+      const got = take(v, what);
+      if (!got?.[0].dock) return v;
+      const [rest, pane] = got;
+      return prune({ ...rest, dock: placeTabs(rest.dock!, pane.tabs, pane.active, { pane: panes(rest.dock!)[0].id }) });
+    }, w);
+}
+
+/** Where a new floating tab bar opens, as shares of the town: at the top of the side away from `clickedX` (the share of the width last
+ *  pressed at), so it does not cover who was clicked; each one more (`nth`) a little down and toward the middle. `wide`: the tab bar's
+ *  width as a share of the town's. */
+export function spotAway(clickedX: number, wide: number, nth: number): { x: number; y: number } {
+  const step = 0.03 * (nth % 6);
+  const room = Math.max(0, 1 - wide);
+  const x = clickedX > 0.5 ? Math.min(room, 0.02 + step) : Math.max(0, room - 0.02 - step);
+  return { x, y: 0.06 + step };
+}
+
 /** The keys of the agents whose chat a tab bar shows now. */
 export function chatsShown(w: Windows): Set<string> {
   const keys = trees(w)

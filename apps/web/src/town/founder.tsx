@@ -1,11 +1,12 @@
 // The founder, from public/town/founder.png: standing, left foot and right foot, facing down, up and left (right is left mirrored). In the city and in
-// an office it walks where a click sends it, or where the arrow keys (or WASD) push it; in an office the room's nearer pixels are laid
-// over it, as over the seated people. Its place lives outside React: only what draws it, or picks something by it, follows it.
+// an office it walks where a click sends it, or where the arrow keys (or WASD) push it, running while Shift is held; in an office the
+// room's nearer pixels are laid over it, as over the seated people. Its place lives outside React: only what draws it, or picks something
+// by it, follows it.
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Box } from '#src/town/people.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
-import { freeAt, nearestFree, pathTo, step, type Floor, type Spot } from '#src/town/walk.ts';
+import { freeAt, nearestFree, pathTo, reach, step, type Floor, type Spot } from '#src/town/walk.ts';
 
 export const FOUNDER_SHEET = `${import.meta.env.BASE_URL}town/founder.png`;
 const CELL = [144, 228] as const;
@@ -43,14 +44,22 @@ export type Ground = Walk & {
   sprite: number;
 };
 export type Walker = { at: Spot; facing: Facing; walked: number; moving: boolean };
-/** The founder's walk in one place: `go` walks to a spot and then does `then`; `get` and `subscribe` follow where it is. */
-export type Founder = { go: (to: Spot, then?: () => void) => void; get: () => Walker | null; subscribe: (l: () => void) => () => void };
+/** The founder's walk in one place: `go` walks to a spot and then does `then`; `put` stands it at a spot at once, facing away, as before
+ *  a door; `get` and `subscribe` follow where it is. */
+export type Founder = {
+  go: (to: Spot, then?: () => void) => void;
+  put: (to: Spot) => void;
+  get: () => Walker | null;
+  subscribe: (l: () => void) => () => void;
+};
 
 const facingOf = ([dx, dz]: Spot, was: Facing): Facing =>
   Math.abs(dx) > Math.abs(dz) ? (dx < 0 ? 'left' : 'right') : dz < 0 ? 'up' : dz > 0 ? 'down' : was;
-/** Keys typed into a field, or anywhere in a floating window, are the window's, not the founder's. */
-const notMine = (t: EventTarget | null) =>
-  t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || !!t.closest('[data-no-walk]'));
+/** Keys typed into a field, or anywhere in a floating window, are the window's, not the founder's; and while a form or a panel is open
+ *  over the town (a modal, a popover), every key is that one's. */
+export const notMine = (t: EventTarget | null) =>
+  !!document.querySelector('[role="dialog"], [role="alertdialog"]') ||
+  (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || !!t.closest('[data-no-walk]')));
 const sameFloor = (a: Floor, b: Floor) =>
   a === b || (a.cols === b.cols && a.rows === b.rows && a.cell === b.cell && a.free.every((v, i) => v === b.free[i]));
 const standing = (at: Spot): Walker => ({ at, facing: 'down', walked: 0, moving: false });
@@ -67,6 +76,7 @@ function walkerOf() {
     ground: null as Walk | null,
     plan: null as { path: Spot[]; then?: () => void } | null,
     held: new Set<string>(),
+    running: false,
     frame: 0,
     last: 0,
   };
@@ -87,7 +97,7 @@ function walkerOf() {
     let next = m;
     if (dir[0] || dir[1]) {
       s.plan = null;
-      const at = step(g.floor, m.at, dir, g.speed * dt);
+      const at = step(g.floor, m.at, dir, reach(g.speed, dt, s.running));
       if (at === m.at) bump.current?.(m.at, dir, founder);
       next = { at, facing: facingOf(dir, m.facing), walked: m.walked + Math.hypot(at[0] - m.at[0], at[1] - m.at[1]), moving: true };
     } else if (s.plan?.path.length) {
@@ -122,6 +132,12 @@ function walkerOf() {
       s.plan = path ? { path, then } : null;
       wake();
     },
+    put: (to) => {
+      if (!s.ground || !s.me) return;
+      s.plan = null;
+      s.me = { ...s.me, at: nearestFree(s.ground.floor, to) ?? s.me.at, facing: 'up', moving: false };
+      emit();
+    },
     get: () => s.me,
     subscribe: (l) => (all.add(l), () => void all.delete(l)),
   };
@@ -149,17 +165,24 @@ function walkerOf() {
       if (s.me) kept.set(where, { entry, me: s.me });
     };
   };
-  /** Walks the founder by the keys while on. A key held from before (it walked the founder into this place) only repeats here: it does
-   *  not walk the founder on. */
+  /** Walks the founder by the keys while on, at a run while Shift is down. A key held from before (it walked the founder into this place)
+   *  only repeats here: it does not walk the founder on. */
   const listen = () => {
     const down = (e: KeyboardEvent) => {
+      s.running = e.shiftKey;
       if (!KEYS[e.code] || e.repeat || !s.ground || notMine(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       e.preventDefault();
       s.held.add(e.code);
       wake();
     };
-    const up = (e: KeyboardEvent) => s.held.delete(e.code);
-    const blur = () => s.held.clear();
+    const up = (e: KeyboardEvent) => {
+      s.running = e.shiftKey;
+      s.held.delete(e.code);
+    };
+    const blur = () => {
+      s.running = false;
+      s.held.clear();
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);

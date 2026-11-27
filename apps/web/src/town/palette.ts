@@ -9,10 +9,21 @@ type RGB = [number, number, number];
 const css = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`;
 export const NAME_INK = css([74, 64, 56]);
 export const NAME_HALO = css([255, 250, 240]);
-/** The legend's marks: a lit and a dark window, and a building nobody works in. */
-export const SWATCH = { lit: css([255, 214, 112]), dark: css([76, 88, 106]), empty: css([168, 168, 168]) };
+/** What a person is doing, under its name, and the marks of one on hold or asleep: the names' ink, quieter. */
+export const NAME_MUTED = css([100, 87, 77]);
+/** The name under the empty desk of an agent that is away: lighter still, so it never reads as one of those present. */
+export const NAME_AWAY = css([146, 130, 116]);
+/** The steps done of a task, on the bar over its agent's head, and the steps left. */
+export const STEP_LEFT = css([222, 210, 194]);
+export const STEP_DONE = css([72, 150, 92]);
+/** The window of an agent stopped on a fault: a dim red glow, not the warm yellow of one at work. */
+export const STOPPED_GLOW: RGB = [208, 72, 64];
+/** The legend's marks: a lit and a dark window, the window of one stopped, and a building nobody works in. */
+export const SWATCH = { lit: css([255, 214, 112]), dark: css([76, 88, 106]), stopped: css(STOPPED_GLOW), empty: css([168, 168, 168]) };
 /** A building's name on its dark sign. */
 export const SIGN_INK = css([244, 239, 226]);
+/** A sign's plate, drawn over the building's own where the city is shown too small for a name to fit that one. */
+export const SIGN_PLATE = css([58, 62, 72]);
 /** What shows through an open door, a building's from the street or an office's: the dark beyond it. */
 export const THROUGH = css([58, 50, 46]);
 

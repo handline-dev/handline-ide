@@ -4,7 +4,7 @@
 // a sofa with a mug; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
 // a sofa's arm) is laid back over it. Each person is one of the sheet's people, teammates different ones while there are enough.
 import type { Person } from '#src/town/model.ts';
-import { MY_DESK, papersOf, type Room } from '#src/town/room.ts';
+import { HIRE_DESK, MY_DESK, papersOf, type Room } from '#src/town/room.ts';
 import type { Frame } from '#src/town/scene3d.ts';
 import type { Picture } from '#src/town/shade.ts';
 import { Vector3 } from 'three';
@@ -41,14 +41,17 @@ export type Box = { x: number; y: number; w: number; h: number };
 /** What a click opens an agent's chat from, in picture pixels: its figure, or its desk with its chair; `at` is the floor spot (metres)
  *  the founder walks to first. */
 export type Spot = Box & { person: Person; at: [number, number] };
-/** A person's name, centred on x with its top at y. */
-export type Name = { person: Person; x: number; y: number };
+/** A person's name, centred on x with its top at y; `away` under the empty desk of one who is not in the room. */
+export type Name = { person: Person; x: number; y: number; away?: boolean };
 /** A person drawn: its cell of the sheet (`col`, `row`) in `box`, the room's nearer pixels to lay over it as an image in `front`, and how
  *  far into the room it is (`z`), so the founder walks in front of or behind it. */
 export type Figure = { person: Person; col: number; row: number; box: Box; z: number; front?: { url: string } & Box };
+/** Where a mark over a person goes: the middle of its head's top, or of its chair's when nobody sits at its desk. */
+export type Head = { key: string; x: number; y: number };
 /** `mine`: the founder's desk, with where its name goes. */
 export type Cast = {
   figures: Figure[];
+  heads: Head[];
   bubbles: (Box & { key: string })[];
   spots: Spot[];
   desks: Spot[];
@@ -56,6 +59,8 @@ export type Cast = {
   papers: Spot[];
   names: Name[];
   mine?: Box & { name: [number, number]; at: [number, number] };
+  /** The empty desk where the founder hires the next agent, with where its label goes. */
+  hire?: Box & { name: [number, number]; at: [number, number] };
 };
 
 /** What lies flat on the floor, under a standing person's feet. */
@@ -145,7 +150,7 @@ function frontOf(pic: Picture, box: Box, covers: (i: number) => boolean): Figure
 
 /** Where every placed person is drawn, back to front, and where each is for clicks and names; door shadows go into the picture. */
 export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
-  const cast: Cast = { figures: [], bubbles: [], spots: [], desks: [], papers: [], names: [] };
+  const cast: Cast = { figures: [], heads: [], bubbles: [], spots: [], desks: [], papers: [], names: [] };
   const rows = figuresOf(room.people);
   const depthAt = (x: number, z: number) => {
     const [px, py] = frame.toPixel(x, 0.5, z).map(Math.round);
@@ -173,6 +178,7 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
       const tall = TALL[pose][row] * SCALE;
       const figure: Figure = { person: p, col: POSES.indexOf(pose), row, box, z: place.z, front: frontOf(pic, box, covers) };
       cast.figures.push(figure);
+      cast.heads.push({ key: p.key, x: cx, y: bottom - tall });
       return { x: cx - box.w / 2, y: bottom - tall, w: box.w, h: tall };
     };
     if (place.how === 'desk' && place.chair) {
@@ -222,7 +228,14 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
     if (desk) cast.desks.push({ ...desk, person, at: beside(`desk:${person.key}`) });
     const papers = boxOf(pic, frame, papersOf(`desk:${person.key}`));
     if (papers) cast.papers.push({ ...papers, person, at: beside(`desk:${person.key}`) });
+    // Nobody at this desk: a mark for its agent goes over the empty chair.
+    const chair = cast.heads.some((h) => h.key === person.key) ? null : boxOf(pic, frame, `chair:${person.key}`);
+    if (chair) cast.heads.push({ key: person.key, x: chair.x + chair.w / 2, y: chair.y });
+    // Its name still stands under the chair, so one can tell whose empty desk it is.
+    if (chair) cast.names.push({ person, x: chair.x + chair.w / 2, y: chair.y + chair.h + 1, away: true });
   }
+  const hire = boxOf(pic, frame, HIRE_DESK);
+  if (hire) cast.hire = { ...hire, name: [hire.x + hire.w / 2, hire.y + hire.h + 1], at: beside(HIRE_DESK) };
   // The founder's desk opens their decisions whether its papers or the desk itself is clicked.
   const mine = union(boxOf(pic, frame, MY_DESK), boxOf(pic, frame, papersOf(MY_DESK)));
   if (mine) cast.mine = { ...mine, name: [mine.x + mine.w / 2, mine.y + mine.h + 1], at: beside(MY_DESK) };

@@ -166,6 +166,11 @@ export function pathTo(f: Floor, from: Spot, to: Spot): Spot[] | null {
   return turns;
 }
 
+/** How many times a walk's speed a run is. */
+const RUN = 2;
+/** How far held keys take the founder in `dt` seconds at a walk of `speed`, twice as far running. */
+export const reach = (speed: number, dt: number, running: boolean) => speed * dt * (running ? RUN : 1);
+
 /** One step of `dist` metres along (dx, dz) from `at`; blocked one way, it slides along the other. */
 export function step(f: Floor, at: Spot, [dx, dz]: Spot, dist: number): Spot {
   const len = Math.hypot(dx, dz) || 1;

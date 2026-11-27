@@ -1,12 +1,14 @@
 // The people in an office's picture (Inside.tsx): each seated or standing where its place is, or walking to a new one (crowd.ts), and the
-// founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them; the bubbles of those
-// waiting for the founder.
+// founder among them, all drawn back to front so whoever is nearer covers whoever is behind; the names under them, each with what its
+// person is doing (Marks.tsx); the bubbles of those waiting for the founder.
 import { useSyncExternalStore } from 'react';
 import { talking, useMovers, type Crowd, type Mover } from '#src/town/crowd.ts';
 import { FounderDrawing, founderBox, useFounder, type Founder } from '#src/town/founder.tsx';
+import { DoingLines } from '#src/town/Marks.tsx';
+import type { Person } from '#src/town/model.ts';
 import type { Door } from '#src/town/moves.ts';
 import { touches, type Drawn } from '#src/town/office.ts';
-import { NAME_HALO, NAME_INK } from '#src/town/palette.ts';
+import { NAME_AWAY, NAME_HALO, NAME_INK } from '#src/town/palette.ts';
 import { BUBBLE, PEOPLE_SHEET, SHEET, WALK, WALK_SHEET, walkColumn, type Figure } from '#src/town/people.ts';
 import { boxOn, WalkingFigure, type Sheet } from '#src/town/walking.tsx';
 
@@ -15,7 +17,20 @@ const WALKERS: Sheet = { url: WALK_SHEET, cell: WALK.cell, size: WALK.size };
 /** Metres between the two feet frames. */
 const STRIDE = 0.16;
 
-export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder: Founder; crowd: Crowd; scale: number }) {
+/** `people`: the newest of each, for what it is doing; the drawing keeps them as they were when it was last drawn. */
+export function People({
+  drawn,
+  founder,
+  crowd,
+  scale,
+  people,
+}: {
+  drawn: Drawn;
+  founder: Founder;
+  crowd: Crowd;
+  scale: number;
+  people: readonly Person[];
+}) {
   const movers = useMovers(crowd);
   const font = nameSize(scale);
   const items = [
@@ -29,10 +44,14 @@ export function People({ drawn, founder, crowd, scale }: { drawn: Drawn; founder
   const behind = useFounder(founder, (me) => (me ? items.filter((i) => i.z <= me.at[1]).length : 0));
   const names = drawn.cast.names
     .filter((n) => !movers.has(n.person.key))
-    .map((n) => <Label key={`name:${n.person.key}`} x={n.x} y={n.y} font={font} text={n.person.name} />);
+    // The name under an empty desk is quieter: its agent is away.
+    .map((n) => (
+      <Label key={`name:${n.person.key}`} x={n.x} y={n.y} font={font} text={n.person.name} fill={n.away ? NAME_AWAY : NAME_INK} />
+    ));
   return [
     ...items.slice(0, behind).map((i) => i.el),
     ...names,
+    <DoingLines key="doing" drawn={drawn} people={people} walking={movers} scale={scale} below={font} />,
     <FounderDrawing key="founder" founder={founder} ground={drawn.ground} />,
     ...items.slice(behind).map((i) => i.el),
   ];
@@ -110,8 +129,8 @@ export const nameSize = (scale: number) => Math.min(11 / scale, 6.5);
 /** A name's halo, for its size. */
 const HALO = 2.5 / 11;
 
-/** A name under a person or desk, `font` picture pixels tall. */
-export function Label({ x, y, font, text }: { x: number; y: number; font: number; text: string }) {
+/** A name under a person or desk, `font` picture pixels tall, in the names' ink unless `fill` gives another. */
+export function Label({ x, y, font, text, fill = NAME_INK }: { x: number; y: number; font: number; text: string; fill?: string }) {
   return (
     <text
       x={x}
@@ -119,7 +138,7 @@ export function Label({ x, y, font, text }: { x: number; y: number; font: number
       textAnchor="middle"
       fontSize={font}
       fontWeight={600}
-      fill={NAME_INK}
+      fill={fill}
       stroke={NAME_HALO}
       strokeWidth={font * HALO}
       paintOrder="stroke"

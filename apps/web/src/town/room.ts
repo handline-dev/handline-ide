@@ -2,7 +2,8 @@
 // z = 0, a desk per agent in rows of benches (the lead first), the founder's desk by the door, and a rest room of sofas behind a wall
 // right of them. An agent at work sits at its desk, its screen lit while it works or waits for the founder; an idle one sits in the rest
 // room; one starting stands at the door; an asleep
-// one's desk is empty. The furniture is built in code (furniture.ts).
+// one's desk is empty. After the last agent's desk a team has one more, empty, where the founder hires the next agent. The furniture is
+// built in code (furniture.ts).
 import type { Activity } from '#src/layout/agentList.ts';
 import * as F from '#src/town/furniture.ts';
 import type { House, Person } from '#src/town/model.ts';
@@ -94,6 +95,8 @@ const SHEET_T = 0.022; // one paper of a stack
 const MOST_SHEETS = 14; // a stack stops growing here, however long the queue
 /** The founder's desk's tag; it holds the founder's decisions. */
 export const MY_DESK = 'desk:you';
+/** The tag of the empty desk a team's office keeps for the next agent, and of its chair: a click there hires one. */
+export const HIRE_DESK = 'desk:hire';
 /** The tag of the stack of papers on a desk (by the desk's tag): its queued tasks, or the founder's decisions. */
 export const papersOf = (desk: string) => `papers:${desk.slice('desk:'.length)}`;
 /** The tag of the door the founder comes in and goes out by; a building's in the city is `door:<its key>`. */
@@ -111,8 +114,9 @@ const LIT: Activity[] = ['working', 'you'];
  *  people (the pinned agents) stand together, `cols` to a row, wherever their desks are. */
 export function roomOf(house: House, cols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(house.people.length))))): Room {
   const people = house.lead ? [house.lead, ...house.people.filter((p) => p !== house.lead)] : house.people;
-  const rows = Math.max(1, Math.ceil(people.length / cols));
   const hq = house.hq === true;
+  // A team's benches hold one desk more than it has agents: the empty one, where the founder hires.
+  const rows = Math.max(1, Math.ceil((people.length + (hq ? 0 : 1)) / cols));
   // Resting while its prompt cache lives, an agent stays at its desk, its chair turned round to face the room; after, it goes to a sofa.
   const turned = (p: Person) => p.activity === 'resting' && p.cached;
   const idle = hq ? [] : people.filter((p) => p.activity === 'resting' && !p.cached);
@@ -143,7 +147,7 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(2, Math.ceil(Ma
     people.forEach((p, i) => {
       places.push({ person: p, x: x0 + 0.37 + (i % cols) * PITCH, z: FIRST + Math.floor(i / cols) * STAND_ROW, how: 'door' });
     });
-  else
+  else {
     people.forEach((p, i) => {
       const x = x0 + (i % cols) * PITCH;
       const z = FIRST + Math.floor(i / cols) * ROW;
@@ -156,6 +160,14 @@ export function roomOf(house: House, cols = Math.min(5, Math.max(2, Math.ceil(Ma
       if (AT_DESK.includes(p.activity)) places.push({ person: p, x: x + 0.367, z: z + 0.2, how: 'desk', chair });
       if (turned(p)) places.push({ person: p, x: x + 0.367, z: z + 0.2 + TURN, how: 'turned', chair });
     });
+    // The desk after the last agent's, where the next agent's would stand: an empty chair at a dark screen. The agents' desks are laid
+    // out as if it were not there, so nobody's moves for it; only the room grows a row when the last bench is full.
+    const [hx, hz] = [x0 + (people.length % cols) * PITCH, FIRST + Math.floor(people.length / cols) * ROW];
+    desk(hx, hz, HIRE_DESK, 0);
+    F.screen(put, hx + 0.17, hz - 0.2, F.DESK_TOP, false);
+    F.keyboard(put, hx + 0.22, hz - 0.08, F.DESK_TOP, 0.34);
+    F.chair(put, hx + 0.225, hz + 0.3, HIRE_DESK);
+  }
 
   // The founder's desk, just inside the door at its left, with a paper for every decision waiting on the founder and an empty chair.
   const mine = { x: door - 0.85, z: d - FRONT - 1.1 };

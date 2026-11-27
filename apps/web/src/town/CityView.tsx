@@ -1,60 +1,35 @@
-// The city drawn as the offices are (street.ts builds it, scene3d.ts and shade.ts draw it), smaller than an office, the view following
-// the founder when the city is larger than the pane. Each building has its name on its sign and its counts beside it; a click on one
-// walks the founder to its door, which opens, and in, as walking up into a door does; a click on the street walks there. Coming back out
-// of a building, the founder steps out of its open door, which shuts behind it.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { WebGLRenderer } from 'three';
-import type { City } from '#src/town/city.ts';
-import { FounderDrawing, useFounder, useWalker, type Founder, type Ground } from '#src/town/founder.tsx';
-import { groundOf } from '#src/town/ground.ts';
-import { SIGN_INK, THROUGH } from '#src/town/palette.ts';
-import { boxesOf, type Box } from '#src/town/people.ts';
-import { DoorSwing, leavesOf, type Leaves, type Way } from '#src/town/door.tsx';
+// The city drawn as the offices are (street.ts builds it, scene3d.ts and shade.ts draw it), smaller than an office. The wheel, the corner
+// buttons and M zoom it between the whole town in the pane and the close-up, where the view follows the founder (camera.tsx). Each
+// building has its name on its sign and its counts beside it (Signs.tsx); a click on one walks the founder to its door, which opens, and
+// in, as walking up into a door does; a click on the street walks there. A double click, any click with the whole town in view, and a
+// pick from Find (Find.tsx) stand the founder at that door at once. Coming back out of a building, the founder steps out of its open
+// door, which shuts behind it. The building site is gone to as a building is; arriving there opens the form that adds a workspace.
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { newWorkspace } from '#src/NewWorkspace.tsx';
+import { Placed, useCamera, useCityKeys, useWheelZoom } from '#src/town/camera.tsx';
+import { HQ, SITE, type City } from '#src/town/city.ts';
+import { CityControls } from '#src/town/CityControls.tsx';
+import { useDrawn } from '#src/town/cityPicture.ts';
+import { Find } from '#src/town/Find.tsx';
+import type { Found } from '#src/town/find.ts';
+import { FounderDrawing, useFounder, useWalker, type Founder } from '#src/town/founder.tsx';
+import type { House } from '#src/town/model.ts';
+import { THROUGH } from '#src/town/palette.ts';
+import { DoorSwing, type Way } from '#src/town/door.tsx';
 import { DOOR } from '#src/town/room.ts';
-import { drawRoom } from '#src/town/scene3d.ts';
-import { shade } from '#src/town/shade.ts';
-import { cityRoom, type Door } from '#src/town/street.ts';
+import { Signs, YouTag, type Sign } from '#src/town/Signs.tsx';
+import type { Door } from '#src/town/street.ts';
 import { useSize } from '#src/ui/useSize.ts';
-import { nearestFree, type Spot } from '#src/town/walk.ts';
+import type { Spot } from '#src/town/walk.ts';
 
-/** What the city shows of a building besides its windows: its name, a line for its tooltip, and its counts. */
-export type Sign = { name: string; sub: string; decisions: number; waiting: number; more: number };
+export type { Sign };
 
-type Drawn = { url: string; w: number; h: number; ground: Ground; doors: (Door & { leaves: Leaves | null })[]; boxes: Map<string, Box> };
-
-let renderer: WebGLRenderer | null = null;
-let kept: { sig: string; drawn: Drawn } | null = null;
-
-/** The city drawn, again only when its layout, its lit windows or its cars change. */
-function useDrawn(city: City, cars: number): Drawn {
-  const sig = `${city.w}x${city.h} ${cars} ${city.lots.map((l) => `${l.key}:${l.x}:${l.y}:${l.w}:${l.h}:${l.empty}:${l.seats.join(',')}`).join(' ')}`;
-  const lay = () => ({ sig, city, cars });
-  const [laid, setLaid] = useState(lay);
-  if (laid.sig !== sig) setLaid(lay());
-  return useMemo(() => drawCity(laid), [laid]);
-}
-
-/** The city for a layout: the kept drawing when it shows the same, else drawn now and kept. */
-function drawCity({ sig, city, cars }: { sig: string; city: City; cars: number }): Drawn {
-  if (kept?.sig === sig) return kept.drawn;
-  const room = cityRoom(city, cars);
-  renderer ??= new WebGLRenderer({ antialias: false, alpha: true });
-  const frame = drawRoom(renderer, room);
-  const pic = shade(frame);
-  const canvas = document.createElement('canvas');
-  [canvas.width, canvas.height] = [pic.w, pic.h];
-  canvas.getContext('2d')?.putImageData(new ImageData(pic.rgba, pic.w, pic.h), 0, 0);
-  const ground = groundOf(pic, frame, room, { speed: 2.4, stride: 0.2, grid: { cell: 0.1, body: 0.15, top: 0 } });
-  // A doorway's spot is in the building's front, so the founder walks to the nearest it can stand on.
-  const doors = room.doors.map((d) => ({
-    ...d,
-    in: nearestFree(ground.floor, d.in) ?? d.at,
-    leaves: leavesOf(room.blocks, `${DOOR}:${d.key}`, 'left'),
-  }));
-  const drawn = { url: canvas.toDataURL(), w: pic.w, h: pic.h, ground, doors, boxes: boxesOf(pic, frame) };
-  kept = { sig, drawn };
-  return drawn;
-}
+/** The building site's sign: what a click on it does. */
+const SITE_SIGN: Sign = { name: '+ New team', short: '+', sub: '', decisions: 0, waiting: 0, stopped: 0, more: 0, action: true };
+/** Narrower than this, the pane shows Find as an icon. */
+const NARROW = 520;
+/** How long after the click that asks for it the form that adds a team opens. */
+const FORM_MS = 250;
 
 /** How close below a building's front the founder must be, in metres, to be at its door: walking up there takes it in, and its door
  *  stays open while it is there. */
@@ -69,15 +44,19 @@ export function CityView({
   city,
   cars,
   signs,
+  houses,
   left,
   onEnter,
 }: {
   city: City;
   cars: number;
   signs: Record<string, Sign>;
+  /** The teams and their people, for Find. */
+  houses: readonly House[];
   /** The building the founder last came out of: it steps out of that door. None when the city is first shown. */
   left: string | null;
-  onEnter: (key: string) => void;
+  /** The founder goes into a building; `person` is who was looked for there, when it was found by a person. */
+  onEnter: (key: string, person?: string) => void;
 }) {
   const drawn = useDrawn(city, cars);
   const [pane, setPane] = useState<HTMLDivElement | null>(null);
@@ -96,11 +75,14 @@ export function CityView({
     live.current = next;
     setSwing(next);
   };
+  // Who Find was asked for, and in which building: told when the founder goes in there, forgotten when it is sent elsewhere.
+  const sought = useRef<{ house: string; person?: string } | null>(null);
+  const goIn = (key: string) => onEnter(key, sought.current?.house === key ? sought.current.person : undefined);
   /** Through an open door: in at once from its doorstep, else walking into the doorway first. */
   const walkIn = (f: Founder, d: Door) => {
     const me = f.get();
-    if (!me || me.at[1] - d.front < DOORSTEP) onEnter(d.key);
-    else f.go(d.in, () => onEnter(d.key));
+    if (!me || me.at[1] - d.front < DOORSTEP) goIn(d.key);
+    else f.go(d.in, () => goIn(d.key));
   };
   /** At a door: it opens, and the founder goes in once it is open. Another door swinging snaps shut. */
   const enter = (f: Founder, d: Door) => {
@@ -112,6 +94,10 @@ export function CityView({
     const door = dz < 0 && drawn.doors.find((d) => atDoor(d, at));
     if (door) enter(f, door);
   });
+  const { camera, level, scale, can, whole } = useCamera(founder, walk, [drawn.w, drawn.h], [pw, ph]);
+  useWheelZoom(pane, camera);
+  const field = useRef<HTMLInputElement>(null);
+  useCityKeys({ find: () => field.current?.focus(), toggle: () => can && camera.toggle() });
   const swung = drawn.doors.find((d) => d.key === swing?.key);
   const near = useFounder(founder, (me) => !me || !swung || atDoor(swung, me.at));
   // Out of the door the founder came out of; it shuts once the founder is past the doorstep.
@@ -123,14 +109,36 @@ export function CityView({
     founder.go(d.out);
   }, [walk, drawn, founder]);
   const way = swing && (swing.way === 'held' && !near ? 'shut' : swing.way);
+  // The form opens a moment after the click that asks for it, so the second click of a double click does not land on it and close it.
+  const opening = useRef(0);
+  useEffect(() => () => clearTimeout(opening.current), []);
+  const addTeam = () => {
+    clearTimeout(opening.current);
+    opening.current = window.setTimeout(newWorkspace, FORM_MS);
+  };
   if (pw === 0) return <div ref={setPane} className="min-h-0 flex-1" />;
-  // The offices' size, larger when the whole city fits the pane larger.
-  const scale = Math.max(1, Math.min(pw / drawn.w, ph / drawn.h));
-  const box = (tag: string) => drawn.boxes.get(tag);
-  const doorway = swung && box(`${DOOR}:${swung.key}`);
+  /** What arriving before a building does: its door opens and the founder goes in; at the building site, the form that adds a team. */
+  const arrive = (d: Door) => (d.key === SITE ? addTeam() : enter(founder, d));
+  /** To a building with no walk: the founder stands at its door. */
+  const rush = (d: Door, person?: string) => {
+    sought.current = { house: d.key, person };
+    founder.put(d.at);
+    arrive(d);
+  };
+  const pick = (d: Door, twice: boolean) => {
+    if (twice || whole) return rush(d);
+    sought.current = null;
+    founder.go(d.at, () => arrive(d));
+  };
+  const places = drawn.site ? [...drawn.doors, drawn.site] : drawn.doors;
+  const find = (found: Found) => {
+    const d = places.find((d) => d.key === found.house);
+    if (d) rush(d, found.person);
+  };
+  const doorway = swung && drawn.boxes.get(`${DOOR}:${swung.key}`);
   return (
     <div ref={setPane} className="relative min-h-0 flex-1 overflow-hidden">
-      <Follow founder={founder} ground={walk} scale={scale} size={[drawn.w, drawn.h]} pane={[pw, ph]}>
+      <Placed camera={camera}>
         <svg
           width={drawn.w * scale}
           height={drawn.h * scale}
@@ -145,6 +153,7 @@ export function CityView({
             style={{ imageRendering: 'pixelated' }}
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
+              sought.current = null;
               founder.go(walk.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
             }}
           />
@@ -159,112 +168,26 @@ export function CityView({
                 if (way === 'shut') return swingTo(null);
                 if (way !== 'open') return;
                 swingTo({ key: swung.key, way: 'held' });
-                // Sent somewhere else while it opened: the door shuts as it walks away.
+                // Sent somewhere else while it opened: the door shuts as it walks away, and nobody is looked for any more.
                 const me = founder.get();
                 const from = swing?.from;
                 if (me && from && Math.hypot(me.at[0] - from[0], me.at[1] - from[1]) < 0.05) walkIn(founder, swung);
+                else sought.current = null;
               }}
             />
           )}
-          {drawn.doors.map((d) => {
-            const s = signs[d.key];
-            const house = box(`house:${d.key}`);
-            const sign = box(`sign:${d.key}`);
-            if (!s || !house) return null;
-            return (
-              <g key={d.key} className="cursor-pointer" onClick={() => founder.go(d.at, () => enter(founder, d))}>
-                <title>{`${s.name} · ${s.sub}`}</title>
-                <rect
-                  x={house.x - 1}
-                  y={house.y - 1}
-                  width={house.w + 2}
-                  height={house.h + 2}
-                  rx={2}
-                  fill="transparent"
-                  stroke="transparent"
-                  strokeWidth={1.5}
-                  className="hover:stroke-accent"
-                />
-                {sign && (
-                  <text
-                    x={sign.x + sign.w / 2}
-                    y={sign.y + sign.h / 2 + 3}
-                    textAnchor="middle"
-                    fontSize={8.5}
-                    fontWeight={700}
-                    fill={SIGN_INK}
-                    className="pointer-events-none"
-                  >
-                    {s.name}
-                  </text>
-                )}
-                {sign && <Badges at={[sign.x + sign.w + 3, sign.y + sign.h / 2]} sign={s} />}
-              </g>
-            );
-          })}
-          <FounderDrawing founder={founder} ground={walk} label="You" />
+          <Signs doors={places} signs={{ ...signs, [SITE]: SITE_SIGN }} boxes={drawn.boxes} scale={scale} onPick={pick} />
+          <FounderDrawing founder={founder} ground={walk} label={scale < 1 ? undefined : 'You'} />
+          {scale < 1 && <YouTag founder={founder} ground={walk} scale={scale} />}
         </svg>
-      </Follow>
+      </Placed>
+      <Find
+        field={field}
+        houses={[{ key: HQ, name: signs[HQ]?.name ?? 'Your HQ', people: [] }, ...houses]}
+        compact={pw < NARROW}
+        onPick={find}
+      />
+      {can && <CityControls level={level} onStep={camera.step} onToggle={camera.toggle} />}
     </div>
   );
 }
-
-/** The city placed in the pane: centred when it fits, else moved so the founder stays in view; only this follows each step. */
-function Follow({
-  founder,
-  ground,
-  scale,
-  size: [w, h],
-  pane: [pw, ph],
-  children,
-}: {
-  founder: Founder;
-  ground: Ground;
-  scale: number;
-  size: readonly [number, number];
-  pane: readonly [number, number];
-  children: ReactNode;
-}) {
-  const at = useFounder(founder, (me) => {
-    if (!me) return '0,0';
-    const [fx, fy] = ground.toPixel(me.at[0], 0, me.at[1]);
-    return `${Math.round(fx * scale)},${Math.round(fy * scale)}`;
-  });
-  const [fx, fy] = at.split(',').map(Number);
-  const shift = (size: number, pane: number, f: number) =>
-    size <= pane ? (pane - size) / 2 : -Math.min(size - pane, Math.max(0, f - pane / 2));
-  return (
-    <div className="absolute top-0 left-0" style={{ transform: `translate(${shift(w * scale, pw, fx)}px, ${shift(h * scale, ph, fy)}px)` }}>
-      {children}
-    </div>
-  );
-}
-
-/** A building's counts in a row from `at` (the right end of its name sign): decisions, agents waiting, agents past its windows. */
-function Badges({ at: [x0, y], sign }: { at: [number, number]; sign: Sign }) {
-  const marks = [
-    sign.decisions > 0 && { text: String(sign.decisions), fill: 'var(--danger)' },
-    sign.waiting > 0 && { text: `!${sign.waiting > 1 ? sign.waiting : ''}`, fill: 'var(--warning)' },
-    sign.more > 0 && { text: `+${sign.more}`, fill: 'var(--muted)' },
-  ].filter((m) => m !== false);
-  let x = x0;
-  return marks.map((m) => {
-    const w = badgeWidth(m.text);
-    x += w + 2;
-    return <Badge key={m.fill} x={x - w / 2 - 2} y={y} text={m.text} fill={m.fill} />;
-  });
-}
-
-const badgeWidth = (text: string) => Math.max(16, text.length * 6.5 + 8);
-
-const Badge = ({ x, y, text, fill }: { x: number; y: number; text: string; fill: string }) => {
-  const w = badgeWidth(text);
-  return (
-    <g className="pointer-events-none">
-      <rect x={x - w / 2} y={y - 8} width={w} height={16} rx={8} fill={fill} stroke="var(--bg)" strokeWidth={1.5} />
-      <text x={x} y={y + 3.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--accent-fg)">
-        {text}
-      </text>
-    </g>
-  );
-};

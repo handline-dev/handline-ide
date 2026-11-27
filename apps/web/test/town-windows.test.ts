@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { panes, snapRatio, stepStop, type Node } from '#src/layout/tree.ts';
-import { NONE, chatsShown, focusIn, reduceWindows, type WindowAction, type Windows } from '#src/town/windows.ts';
+import { NONE, chatsShown, focusIn, reduceWindows, sheetOf, spotAway, type WindowAction, type Windows } from '#src/town/windows.ts';
 
 const run = (w: Windows, ...actions: WindowAction[]) => actions.reduce(reduceWindows, w);
 const show = (opens: string): WindowAction => ({ type: 'show', opens, title: opens });
@@ -112,5 +112,38 @@ describe('town windows', () => {
     expect(focusIn(w, 'gone')).toBe(first(w.dock!).id);
     expect(focusIn(run(w, { type: 'closeDock' }), 'gone')).toBe(f.id);
     expect(focusIn(NONE, 'gone')).toBe('');
+  });
+});
+
+describe('on a phone width', () => {
+  const at = { x: 0.3, y: 0.1 };
+  it('puts every floating tab bar into one tab bar of the sheet, keeping what the dock showed first', () => {
+    const w = run(
+      NONE,
+      { type: 'show', opens: 'chat:api', title: 'api', at },
+      { type: 'float', what: { opens: 'chat:web', title: 'web' }, ...at },
+    );
+    expect(w.floats).toHaveLength(2);
+    const sheet = sheetOf(w);
+    expect(sheet.floats).toEqual([]);
+    expect(opens(sheet.dock)).toEqual([['chat:api', 'chat:web']]);
+    const docked = run(NONE, show('requests'), { type: 'float', what: { opens: 'chat:web', title: 'web' }, ...at });
+    expect(opens(sheetOf(docked).dock)).toEqual([['requests', 'chat:web']]);
+  });
+  it('leaves windows with nothing floating as they are', () => {
+    const w = run(NONE, show('chat:api'));
+    expect(sheetOf(w)).toBe(w);
+  });
+});
+
+describe('where a window opens', () => {
+  it('opens on the side away from the click, inside the town, each one more a little further in', () => {
+    expect(spotAway(0.2, 0.3, 0).x).toBeCloseTo(0.68);
+    expect(spotAway(0.8, 0.3, 0).x).toBeCloseTo(0.02);
+    expect(spotAway(0.8, 0.3, 2).x).toBeCloseTo(0.08);
+    expect(spotAway(0.2, 0.3, 2)).toEqual({ x: expect.closeTo(0.62), y: expect.closeTo(0.12) });
+    // A town narrower than the window: it starts at the left edge.
+    expect(spotAway(0.2, 1.4, 0).x).toBe(0);
+    expect(spotAway(0.8, 1.4, 3).x).toBe(0);
   });
 });

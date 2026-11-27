@@ -2,12 +2,14 @@
 // scene3d.ts and shade.ts draw it, people.ts seats the people), the same room whatever the pane's size, drawn to fill it.
 // The founder walks in it (founder.tsx): a click on the floor walks there, one on a person or a desk walks up to it and brings up that
 // agent's chat in the town's windows (Windows.tsx), one on the papers on its desk its tasks, one on the founder's own desk the
-// decisions; what a tab bar shows stays outlined. The door the founder came in by shuts behind it, and opens when it walks up into it or
+// decisions, one on the empty desk hires an agent; what a tab bar shows stays outlined (Targets.tsx lays these over the picture). Marks over the heads and a line under each name say who is on hold, stopped, asleep,
+// and what each one does (Marks.tsx). The door the founder came in by shuts behind it, and opens when it walks up into it or
 // the door is clicked, to go back out; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useRef, useState } from 'react';
-import { WORDS, type House, type Person } from '#src/town/model.ts';
+import type { House } from '#src/town/model.ts';
+import { Marks } from '#src/town/Marks.tsx';
+import { DESK, Targets } from '#src/town/Targets.tsx';
 import { useTownShown } from '#src/town/Windows.tsx';
-import type { Spot } from '#src/town/people.ts';
 import { THROUGH } from '#src/town/palette.ts';
 import { DoorSwing, type Way } from '#src/town/door.tsx';
 import { useWalker } from '#src/town/founder.tsx';
@@ -18,8 +20,6 @@ import { useGivenWork } from '#src/town/errands.ts';
 import { Bubbles, Label, nameSize, People, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
-/** What the founder's own desk opens: the decisions waiting for them. */
-const DESK = { opens: 'requests', title: 'Requests' };
 /** How much of the front wall shows while a person reaches into it. */
 const SEE_THROUGH = 0.4;
 
@@ -37,8 +37,6 @@ function useSize(): [React.RefObject<HTMLDivElement | null>, [number, number]] {
   return [ref, size];
 }
 
-const tipOf = (p: Person) => `${p.name} · ${p.doing ?? WORDS[p.activity]}`;
-
 export function Inside({
   house,
   cameIn,
@@ -49,7 +47,7 @@ export function Inside({
   cameIn: boolean;
   onBack: () => void;
 }) {
-  const { show, shows } = useTownShown();
+  const { show } = useTownShown();
   const [pane, [pw, ph]] = useSize();
   // The same room whatever the space: a smaller pane shows it smaller.
   const drawn = useDrawn(house);
@@ -86,31 +84,6 @@ export function Inside({
     if (entry) founder.go(entry, () => setLeaving(founder.get()?.at ?? entry));
   };
 
-  /** A click target over `s` that walks up to it and brings up `opens` in the town's windows. */
-  const hit = (s: Spot, key: string, opens: string, title: string, tip: string) => (
-    <rect
-      key={key}
-      x={s.x - 1}
-      y={s.y - 1}
-      width={s.w + 2}
-      height={s.h + 2}
-      rx={2}
-      fill="transparent"
-      stroke="transparent"
-      strokeWidth={1 / scale}
-      // What a tab bar shows stays outlined, wherever the founder walks.
-      className={shows(opens) ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
-      onClick={() => {
-        founder.go(s.at);
-        show(opens, title);
-      }}
-    >
-      <title>{tip}</title>
-    </rect>
-  );
-  const chatAt = (s: Spot, key: string) =>
-    hit(s, key, `chat:${s.person.key}`, s.person.name, tipOf(house.people.find((p) => p.key === s.person.key) ?? s.person));
-
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2 text-sm">
@@ -134,88 +107,56 @@ export function Inside({
       <div className="relative flex min-h-0 flex-1 p-4">
         <div ref={pane} className="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden">
           {drawn && pw > 0 && (
-            <svg
-              width={drawn.w * scale}
-              height={drawn.h * scale}
-              viewBox={`0 0 ${drawn.w} ${drawn.h}`}
-              className="shrink-0"
-              role="img"
-              aria-label={`${house.name}'s office`}
-            >
-              <image
-                href={drawn.url}
-                width={drawn.w}
-                height={drawn.h}
-                style={PIXEL}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
-                }}
-              />
-              <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} />
-              <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
-                <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
-                {drawn.front.door && drawn.leaves && swing && (
-                  <DoorSwing
-                    pic={drawn.front.pic}
-                    door={{ box: drawn.front.door, through: THROUGH, leaves: drawn.leaves }}
-                    toPixel={drawn.ground.toPixel}
-                    way={swing.way}
-                    out={swing.out}
-                    onDone={() => {
-                      if (swing.crowd && swing.way === 'open') return; // held open till they are through
-                      if (swing.way !== 'open') return setSwing(null);
-                      // Sent somewhere else while it opened: it shuts again.
-                      const [me, from] = [founder.get()?.at, swing.from];
-                      if (me && from && Math.hypot(me[0] - from[0], me[1] - from[1]) < 0.05) onBack();
-                      else setSwing({ way: 'shut', out: true });
-                    }}
-                  />
+            <div className="relative shrink-0" style={{ width: drawn.w * scale, height: drawn.h * scale }}>
+              <svg
+                width={drawn.w * scale}
+                height={drawn.h * scale}
+                viewBox={`0 0 ${drawn.w} ${drawn.h}`}
+                className="block"
+                role="img"
+                aria-label={`${house.name}'s office`}
+              >
+                <image
+                  href={drawn.url}
+                  width={drawn.w}
+                  height={drawn.h}
+                  style={PIXEL}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
+                  }}
+                />
+                <People drawn={drawn} founder={founder} crowd={crowd} scale={scale} people={house.people} />
+                <g opacity={seeThrough ? SEE_THROUGH : 1} style={{ transition: 'opacity 150ms' }} className="pointer-events-none">
+                  <image href={drawn.front.url} width={drawn.w} height={drawn.h} style={PIXEL} />
+                  {drawn.front.door && drawn.leaves && swing && (
+                    <DoorSwing
+                      pic={drawn.front.pic}
+                      door={{ box: drawn.front.door, through: THROUGH, leaves: drawn.leaves }}
+                      toPixel={drawn.ground.toPixel}
+                      way={swing.way}
+                      out={swing.out}
+                      onDone={() => {
+                        if (swing.crowd && swing.way === 'open') return; // held open till they are through
+                        if (swing.way !== 'open') return setSwing(null);
+                        // Sent somewhere else while it opened: it shuts again.
+                        const [me, from] = [founder.get()?.at, swing.from];
+                        if (me && from && Math.hypot(me[0] - from[0], me[1] - from[1]) < 0.05) onBack();
+                        else setSwing({ way: 'shut', out: true });
+                      }}
+                    />
+                  )}
+                </g>
+                <Bubbles drawn={drawn} crowd={crowd} />
+                <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} />
+                {drawn.cast.mine && <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} text="You" />}
+                {/* In the accent colour: something to do, not somebody. */}
+                {drawn.cast.hire && (
+                  <Label x={drawn.cast.hire.name[0]} y={drawn.cast.hire.name[1]} font={font} text="+ Hire" fill="var(--accent)" />
                 )}
-              </g>
-              <Bubbles drawn={drawn} crowd={crowd} />
-              {drawn.cast.mine && (
-                <>
-                  <Label x={drawn.cast.mine.name[0]} y={drawn.cast.mine.name[1]} font={font} text="You" />
-                  <rect
-                    x={drawn.cast.mine.x - 1}
-                    y={drawn.cast.mine.y - 1}
-                    width={drawn.cast.mine.w + 2}
-                    height={drawn.cast.mine.h + 2}
-                    rx={2}
-                    fill="transparent"
-                    stroke="transparent"
-                    strokeWidth={1 / scale}
-                    className={shows(DESK.opens) ? 'cursor-pointer stroke-accent' : 'cursor-pointer hover:stroke-accent'}
-                    onClick={() => {
-                      if (!drawn.cast.mine) return;
-                      founder.go(drawn.cast.mine.at);
-                      show(DESK.opens, DESK.title);
-                    }}
-                  >
-                    <title>{`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}</title>
-                  </rect>
-                </>
-              )}
-              {drawn.cast.desks.map((d) => chatAt(d, `desk-${d.person.key}`))}
-              {drawn.cast.papers.map((p) =>
-                hit(p, `papers-${p.person.key}`, `tasks|${p.person.key}`, `Tasks · ${p.person.name}`, `${p.person.name}'s tasks`),
-              )}
-              {drawn.cast.spots.map((s) => chatAt(s, `at-${s.person.key}`))}
-              {drawn.front.door && (
-                <rect
-                  x={drawn.front.door.x}
-                  y={drawn.front.door.y}
-                  width={drawn.front.door.w}
-                  height={drawn.front.door.h}
-                  fill="transparent"
-                  className="cursor-pointer"
-                  onClick={goOut}
-                >
-                  <title>Go out</title>
-                </rect>
-              )}
-            </svg>
+              </svg>
+              <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} />
+            </div>
           )}
         </div>
       </div>

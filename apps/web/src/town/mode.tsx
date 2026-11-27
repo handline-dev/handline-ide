@@ -1,9 +1,11 @@
 // Town mode: the town over the whole app in place of the sidebar and the tabs (the status row stays, as under Settings), opened from the
-// sidebar's Town and left by Leave in its top strip. The founder works from inside it: chats float over it, so it needs no tab.
+// sidebar's Town and left by Leave in its top strip, which also counts who is at work, waiting, stopped and on hold (StatusBar.tsx). The
+// founder works from inside it: chats float over it, so it needs no tab.
 import { AnimatePresence, motion } from 'framer-motion';
 import { createStore } from '#src/persist/store.ts';
 import { CONTROLS_STRIP, useWindowLayer } from '#src/layout/windowLayer.tsx';
 import { useBackCloses } from '#src/ui/backCloses.ts';
+import { TownStatus } from '#src/town/StatusBar.tsx';
 import { TownTab } from '#src/town/Town.tsx';
 
 const open = createStore(false);
@@ -42,6 +44,7 @@ function Frame() {
         style={{ height: CONTROLS_STRIP, paddingLeft: 'calc(16px + var(--lights-w, 0px))' }}
       >
         <span className="font-medium">Town</span>
+        <TownStatus />
         <span className="flex-1" />
         <button type="button" onClick={closeTown} className="app-no-drag rounded-md px-1.5 py-0.5 text-muted hover:bg-hover hover:text-fg">
           Leave

@@ -4,7 +4,17 @@
 // splits work in it as on the main screen. A tab, a link or a whole bar (its handle, layout/paneGrip.tsx) let go on open space of the
 // picture becomes a new floating tab bar there; on the picture's left or right edge it docks there; on another bar it joins it.
 import { AnimatePresence, motion } from 'framer-motion';
-import { createContext, useContext, useEffect, useRef, useState, type DragEvent, type ReactNode, type RefObject } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { Workspace, type Grip, type IconFor } from '#src/Workspace.tsx';
 import { labelOf } from '#src/layout/kinds.tsx';
 import { useOpensOver } from '#src/layout/openTab.tsx';
@@ -16,7 +26,18 @@ import { DROP_AREA, isTabDrag, readTabDrag, showBox, showZone, sideAt } from '#s
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
 import { FloatWindow, FLOAT_H, FLOAT_W } from '#src/town/FloatWindow.tsx';
-import { NONE, focusIn, paneShowing, reduceWindows, type Moving, type Side, type WindowAction, type Windows } from '#src/town/windows.ts';
+import {
+  NONE,
+  focusIn,
+  paneShowing,
+  reduceWindows,
+  sheetOf,
+  spotAway,
+  type Moving,
+  type Side,
+  type WindowAction,
+  type Windows,
+} from '#src/town/windows.ts';
 
 /** Below this share the dock is let go of and closes, as a split view's side pushed off the screen. */
 const CLOSES = 0.18;
@@ -29,12 +50,19 @@ export const useTownShown = () => useContext(TownShown);
 
 /** Narrower than this, the town is a phone's: the dock goes under the picture. */
 const PHONE = 640;
-function useNarrow(area: RefObject<HTMLDivElement | null>) {
+/** Whether the town is as narrow as a phone; `onNarrow` is called as it becomes so. */
+function useNarrow(area: RefObject<HTMLDivElement | null>, onNarrow: () => void) {
   const [narrow, setNarrow] = useState(false);
+  const became = useEffectEvent(onNarrow);
   useEffect(() => {
     const el = area.current;
     if (!el) return;
-    const seen = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < PHONE));
+    const seen = new ResizeObserver(([e]) => {
+      // Not yet laid out (a width of none) is not narrow: the floats would join the sheet for good.
+      const now = e.contentRect.width > 0 && e.contentRect.width < PHONE;
+      setNarrow(now);
+      if (now) became();
+    });
     seen.observe(el);
     return () => seen.disconnect();
   }, [area]);
@@ -55,7 +83,10 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
     setWant(null);
   };
   const area = useRef<HTMLDivElement>(null);
-  const narrow = useNarrow(area);
+  // On a phone's width nothing floats: what floated goes into the sheet under the picture.
+  const narrow = useNarrow(area, () => setW(sheetOf));
+  // Where the town was last pressed, as a share of its width: a window opened by that press goes to the other side.
+  const pressed = useRef(0);
   // The dock's share while its divider is dragged; it rests at the nearest stop when let go.
   const [drag, setDrag] = useState<number | null>(null);
   const act = (a: WindowAction) => {
@@ -66,11 +97,8 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
     if (asked.type === 'select') setFocus(asked.pane);
   };
   const rect = () => area.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 1, 1);
-  /** Where a new floating tab bar opens: in the middle near the top, each one more a little down and right so none hides another. */
-  const spot = () => {
-    const step = 0.03 * (w.floats.length % 6);
-    return { x: Math.max(0, 0.5 - FLOAT_W / 2 / rect().width) + step, y: 0.06 + step };
-  };
+  /** Where a new floating tab bar opens: away from what was clicked, each one more a little further in so none hides another. */
+  const spot = () => spotAway(pressed.current, FLOAT_W / rect().width, w.floats.length);
   /** Opens a tab: in the tab bar with the keys, else in a new floating one (on a phone's width, the dock). */
   const open = (opens: string, title: string) =>
     narrow
@@ -94,8 +122,10 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
     return { x: (b.left - r.left) / r.width, y: (b.top - r.top) / r.height };
   };
   /** Where `what` goes, let go on the picture: its left or right edge docks it there, anywhere else floats it at the pointer. */
-  const onScene = (what: Moving, zone: PaneDrop['zone'], at: At) =>
+  const onScene = (what: Moving, zone: PaneDrop['zone'], at: At) => {
+    if (narrow) return act({ type: 'dock', what, side: w.side });
     act(zone === 'left' || zone === 'right' ? { type: 'dock', what, side: zone } : { type: 'float', what, ...floatAt(at) });
+  };
   /** The handle of tab bar `pane` let go: `moved` is a float's own move, kept when it lands on nothing that takes it. */
   const placed = (pane: Pane, drop: PaneDrop | null, at: At, moved?: () => void) => {
     if (drop && 'place' in drop) return drop.zone === 'center' && moved ? moved() : onScene(all(pane), drop.zone, at);
@@ -105,7 +135,7 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
   };
   const keyed = (pane: Pane) => (k: string) => {
     if (k === 'ArrowLeft' || k === 'ArrowRight') act({ type: 'dock', what: all(pane), side: k === 'ArrowLeft' ? 'left' : 'right' });
-    if (k === 'ArrowUp') act({ type: 'float', what: all(pane), ...spot() });
+    if (k === 'ArrowUp' && !narrow) act({ type: 'float', what: all(pane), ...spot() });
   };
   const dockGrip: Grip = (pane) => ({ onDrop: (drop, at) => placed(pane, drop, at), onKey: keyed(pane), hint: HINT, floatBox });
   const tree = (a: Action) => act({ type: 'tree', action: a });
@@ -175,7 +205,15 @@ export function TownWindows({ iconFor, children }: { iconFor: IconFor; children:
   };
   return (
     <TownShown.Provider value={shown}>
-      <div ref={area} {...{ [DROP_AREA]: '' }} className={`relative flex min-h-0 min-w-0 flex-1 ${at === 'bottom' ? 'flex-col' : ''}`}>
+      <div
+        ref={area}
+        {...{ [DROP_AREA]: '' }}
+        onPointerDownCapture={(e) => {
+          const r = rect();
+          pressed.current = (e.clientX - r.left) / r.width;
+        }}
+        className={`relative flex min-h-0 min-w-0 flex-1 ${at === 'bottom' ? 'flex-col' : ''}`}
+      >
         <AnimatePresence initial={false}>{at === 'left' && dock}</AnimatePresence>
         {at === 'left' && divider}
         <div {...{ [PANE_PLACE]: SCENE }} className="relative flex min-h-0 min-w-0 flex-1" {...sceneDrop.handlers}>

@@ -29,7 +29,7 @@ describe('roomOf', () => {
         { ...person('g', 'resting'), cached: true },
       ]),
     );
-    expect(desks(r)).toEqual([...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((k) => `desk:${k}`), 'desk:you']);
+    expect(desks(r)).toEqual([...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((k) => `desk:${k}`), 'desk:hire', 'desk:you']);
     // At their desks: working, waiting for the founder and on hold; the idle one whose prompt cache lives at its desk turned to face the
     // room, the one whose cache ran out on a sofa; the starting one at the door, the asleep nowhere.
     const where = Object.fromEntries(r.places.map((p) => [p.person.key, p.how]));
@@ -43,6 +43,30 @@ describe('roomOf', () => {
     expect([back('a'), back('g')]).toEqual(['camera', 'desk']);
     // Only the working and the waiting agents' screens are lit.
     expect(r.blocks.filter((b) => b.kind === 'lit')).toHaveLength(2);
+  });
+
+  it('keeps one empty desk after the last agent for hiring, and moves nobody for it', () => {
+    const team = (n: number) => house(Array.from({ length: n }, (_, i) => person(`p${i}`, 'working')));
+    const top = (r: Room, tag: string) => r.blocks.find((b) => b.tag === tag && b.part?.startsWith('desk:'))!;
+    const at = (r: Room, tag: string) => [top(r, tag).from[0], top(r, tag).to[2]].map((v) => +v.toFixed(3));
+    // Three desks a bench: with five agents the empty desk is the sixth, right of the fifth on the second bench.
+    const five = roomOf(team(5), 3);
+    expect(at(five, 'desk:hire')).toEqual([+(at(five, 'desk:p4')[0] + 0.734).toFixed(3), at(five, 'desk:p4')[1]]);
+    // A dark screen and an empty chair at it, and no papers.
+    expect(five.places.map((p) => p.person.key)).toEqual(['p0', 'p1', 'p2', 'p3', 'p4']);
+    expect(five.blocks.filter((b) => b.kind === 'lit')).toHaveLength(5);
+    expect(five.blocks.some((b) => b.tag === 'papers:hire')).toBe(false);
+    expect(five.blocks.some((b) => b.tag === 'desk:hire' && b.part?.startsWith('chair:'))).toBe(true);
+    // With the last bench full it starts a bench of its own: the room is a row deeper, as wide as before, every agent where it was.
+    const six = roomOf(team(6), 3);
+    expect(at(six, 'desk:hire')).toEqual([at(six, 'desk:p0')[0], +(at(six, 'desk:p3')[1] + 1.75).toFixed(3)]);
+    expect([six.w, six.d > five.d]).toEqual([five.w, true]);
+    for (const k of ['p0', 'p1', 'p2', 'p3', 'p4']) expect(at(six, `desk:${k}`)).toEqual(at(five, `desk:${k}`));
+    // The bench is as wide as the team alone makes it, the empty desk not counted: four agents sit two by two, with or without it.
+    expect(at(roomOf(team(4)), 'desk:p3')).toEqual(at(roomOf(team(4), 2), 'desk:p3'));
+    expect(at(roomOf(team(4)), 'desk:hire')[0]).toBe(at(roomOf(team(4)), 'desk:p0')[0]);
+    // A team of nobody still has it, first on the first bench.
+    expect(desks(roomOf(house([])))).toEqual(['desk:hire', 'desk:you']);
   });
 
   it('adds a row of sofas for every four idle agents and deepens the room for them', () => {
