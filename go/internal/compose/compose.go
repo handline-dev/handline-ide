@@ -20,7 +20,6 @@ import (
 	"github.com/handline/handline/go/scheduler/procload"
 	"github.com/handline/handline/go/scheduler/sysres"
 	"github.com/handline/handline/go/scheduler/tick"
-	"github.com/handline/handline/go/taskboard/handoff"
 )
 
 // Config is what the daemon main knows and the parts need.
@@ -75,7 +74,6 @@ type Parts struct {
 	view     atomic.Pointer[agentview.Env] // the tick's too; a move reached over RPC may ask for it first
 	awake    *keepawake.Holder
 	plans    []*subscriptions.Env // each tick's subscriptions pass, whose plan question runs off it
-	summary  *handoff.Summarizer  // the handoff notes Handline writes off the tick
 	acts     *tick.Acts           // agents the tick loop supervises at once between ticks (ActNow)
 }
 
@@ -84,7 +82,6 @@ func (p *Parts) Wait() {
 	if p.healer != nil {
 		p.healer.Wait()
 	}
-	p.summary.Stop()
 }
 
 // WaitForPlanAsks returns once the plan questions the ticks started have ended (tests: one may run for as long as the vendor's CLI).

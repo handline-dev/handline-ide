@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/accounts/usage"
-	"github.com/handline/handline/go/accounts/usagepoll"
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/agentctl/term"
@@ -137,11 +136,6 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 		}}
 	settings := &settings.Settings{Home: home, Roster: roster}
 	ho.Note = handoff.NoteEnv{Settings: noteSettings{settings, roster}, Telling: lc.Env, Log: cfg.Log}
-	if cfg.CLI != "" {
-		meter := &usagepoll.Meter{Home: home, Claude: cfg.CLI, Env: cfg.Env, Now: cfg.Now}
-		ho.Summary = &handoff.Summarizer{Log: cfg.Log, Run: summaryRun(home, launcher.MayStartHere, meter, uenv, q)}
-		p.summary = ho.Summary
-	}
 	tm := cfg.Term
 	if tm == nil {
 		tm = newTerm(home, q, cfg.Nodes)
@@ -592,8 +586,6 @@ func (h *handoffPort) Capture(_ db.Q, agent string) (string, []string, error) {
 func (h *handoffPort) Record(_ db.Q, agent, closedSession string) ([]string, error) {
 	return h.env.Record(agent, closedSession)
 }
-
-func (h *handoffPort) NoteFromTranscript(agent string) bool { return h.env.NoteFromTranscript(agent) }
 
 func (h *handoffPort) MemoryLine(agent string) string {
 	if h.env.MemoryLine == nil {

@@ -74,7 +74,7 @@ func wakePromptText(t *testing.T, m *Manager) string {
 func TestAFailedResumeStartsFreshAtOnce(t *testing.T) {
 	m, tm, _ := closedWithDesk(t, "/wt")
 	tm.failResume = true
-	h := &recordingHandoff{fakeHandoff: fakeHandoff{pending: true}, q: m.Q}
+	h := &recordingHandoff{fakeHandoff: fakeHandoff{}, q: m.Q}
 	m.Handoff = h
 	if ok, said, err := m.WakeAgent("a", WakeOpts{Force: true}); err != nil || !ok {
 		t.Fatalf("%v %q %v", ok, said, err)

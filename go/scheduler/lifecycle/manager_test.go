@@ -54,12 +54,9 @@ func (f *fakeDelivery) WaitForSession(string, int, string) bool { return f.tookP
 // fakeHandoff: ctx is the session's context size, 0 for none read.
 type fakeHandoff struct {
 	HandoffPort
-	ctx     int64
-	full    bool
-	pending bool // a note being written from the transcript
+	ctx  int64
+	full bool
 }
-
-func (f fakeHandoff) NoteFromTranscript(string) bool { return f.pending }
 
 func (fakeHandoff) AnsweredTurn(db.Q, string) bool                 { return false }
 func (fakeHandoff) Capture(db.Q, string) (string, []string, error) { return "record", nil, nil }
