@@ -1,4 +1,5 @@
 import { Bar } from '#src/ui/Meter.tsx';
+import { MachinesOf } from '#src/connection/PlaceWord.tsx';
 import { pct } from '#src/format/count.ts';
 // Under the Usage graph, one of four views at a time: the accounts, who used it (by agent), which models used it (each agent's use under
 // the model it runs on now), and the cost per day stacked by agent. The figures are the daemon's (stats.get, stats.outlook).
@@ -49,12 +50,15 @@ export function RowsLoading({ rows = 5 }: { rows?: number }) {
 function Ranked({
   name,
   sub,
+  place,
   figures,
   fill,
   tone = 'bg-accent',
 }: {
   name: ReactNode;
   sub?: string;
+  /** The machines that spent it, under the name. */
+  place?: ReactNode;
   figures: string;
   fill: number;
   tone?: string;
@@ -64,6 +68,7 @@ function Ranked({
       <div className="flex w-44 min-w-0 flex-col">
         <span className="truncate text-fg">{name}</span>
         {sub && <span className="truncate text-xs text-muted">{sub}</span>}
+        {place}
       </div>
       <Bar pct={Math.min(1, fill) * 100} fill={tone} />
       <span className="w-36 shrink-0 text-right text-muted tabular-nums">{figures}</span>
@@ -87,19 +92,20 @@ export function ByAgent({ win }: { win: Win }) {
   const s = useStats(win).data;
   const [shut, setShut] = useTabState<string[]>('shut', []);
   const dir = useDirectory();
-  type Agent = Use & { name: string; accounts: { account: string; use: Use }[] };
+  type Agent = Use & { name: string; accounts: { account: string; use: Use }[]; machines: Set<string> };
   const agents = new Map<string, Agent>();
   // Plan money: each line's week share of its account's weekly budget, not the calls' list price.
   const budgets = weekBudgets(useOutlook('7d').data?.budget);
   for (const line of s?.use ?? []) {
     const u = { ...line, cost: planUsd(line.week_pct, budgets.get(line.account)) };
     const name = u.agent || NO_AGENT;
-    const a = agents.get(name) ?? { name, cost: 0, week: null, accounts: [] };
+    const a = agents.get(name) ?? { name, cost: 0, week: null, accounts: [], machines: new Set<string>() };
     Object.assign(a, add(a, u));
     // use has a row per machine: an account the agent spent on from two machines is one entry with both summed.
     const held = a.accounts.find((x) => x.account === u.account);
     if (held) held.use = add(held.use, u);
     else a.accounts.push({ account: u.account, use: add({ cost: 0, week: null }, u) });
+    if (u.node) a.machines.add(u.node);
     agents.set(name, a);
   }
   // A team is the agent's workspace, by name; an agent the lists do not hold yet stands as its own.
@@ -153,6 +159,7 @@ export function ByAgent({ win }: { win: Win }) {
                           .sort((x, y) => size(y.use) - size(x.use))
                           .map((c) => `${c.account} ${figures(c.use)}`)
                           .join(' · ')}
+                        place={<MachinesOf ids={[...a.machines]} />}
                         figures={figures(a)}
                         fill={size(a) / top}
                         tone="bg-muted"
@@ -183,13 +190,14 @@ export function ByModel({ win }: { win: Win }) {
   const s = useStats(win).data;
   const agents = useAgents().data?.agents ?? [];
   const modelOf = new Map(agents.map((a) => [a.key, [a.model, a.effort].filter(Boolean).join(' ') || 'Unknown']));
-  const by = new Map<string, { cost: number; week: number | null; agents: Set<string> }>();
+  const by = new Map<string, { cost: number; week: number | null; agents: Set<string>; machines: Set<string> }>();
   for (const u of s?.use ?? []) {
     const m = modelOf.get(u.agent) ?? 'Unknown';
-    const v = by.get(m) ?? { cost: 0, week: null, agents: new Set<string>() };
+    const v = by.get(m) ?? { cost: 0, week: null, agents: new Set<string>(), machines: new Set<string>() };
     v.cost += u.cost;
     if (u.week_pct !== null) v.week = (v.week ?? 0) + u.week_pct;
     if (u.agent) v.agents.add(u.agent);
+    if (u.node) v.machines.add(u.node);
     by.set(m, v);
   }
   const rows = [...by].sort((a, b) => (b[1].week ?? b[1].cost) - (a[1].week ?? a[1].cost));
@@ -203,6 +211,7 @@ export function ByModel({ win }: { win: Win }) {
             key={m}
             name={m}
             sub={`${v.agents.size} agents`}
+            place={<MachinesOf ids={[...v.machines]} />}
             figures={spentText({ weekPct: v.week, cost: v.cost })}
             fill={(v.week ?? v.cost) / top}
           />

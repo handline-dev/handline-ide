@@ -8,6 +8,7 @@ import { chatOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { AccountEmail } from '#src/usage/AccountEmail.tsx';
+import { MachinesOf } from '#src/connection/PlaceWord.tsx';
 import { StopTime } from '#src/usage/StopTime.tsx';
 import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 
@@ -66,6 +67,7 @@ export function AccountFacts({
             {ends && <span className="shrink-0">{`${a.email ? '· ' : ''}ends ${ends}`}</span>}
           </span>
         )}
+        {bars && <MachinesOf ids={a.machines ?? []} lead="Logged in on" />}
         {note}
       </div>
       {bars && !out && (

@@ -1,5 +1,6 @@
 // Whose a row is, when this Mac shows several clusters: another cluster's icon and name.
 import { Laptop, Network, TriangleAlert } from 'lucide-react';
+import { PlaceWord } from '#src/connection/PlaceWord.tsx';
 import { useCluster, useClusterName, useJoined, useOnline, type Joined } from '#src/connection/clusters.tsx';
 
 /** Whose a workspace is: another cluster's icon (a device for one machine, a cluster for several) and name, or `<name> · offline` with
@@ -9,12 +10,7 @@ export function ClusterWord({ cluster }: { cluster: Joined }) {
   const name = said?.name || cluster.name;
   const on = useOnline(cluster);
   const Icon = !on ? TriangleAlert : (said?.machines ?? 1) > 1 ? Network : Laptop;
-  return (
-    <span className="ml-auto flex min-w-0 shrink items-center gap-1 text-xs text-muted">
-      <Icon size={12} className={`hidden shrink-0 @[12rem]:block ${on ? '' : 'text-warning'}`} />
-      <span className="truncate">{on ? name : `${name} · offline`}</span>
-    </span>
-  );
+  return <PlaceWord icon={Icon} name={on ? name : `${name} · offline`} warn={!on} className="ml-auto" iconClass="hidden @[12rem]:block" />;
 }
 
 /** The word for a row drawn in its cluster (InCluster): another cluster's, nothing for this Mac's. */

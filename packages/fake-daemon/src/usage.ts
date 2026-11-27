@@ -8,7 +8,7 @@ export const DAY = 24 * HOUR;
 export const AGENTS = ['handline.architect', 'handline.auditor', 'handline.term-build'];
 /** The fake's own machine (node.status) and a runner some calls were spent on. */
 export const SELF_NODE = 'm-fake';
-export const RUNNER_NODE = 'r-fake';
+export const RUNNER_NODE = 'n-d-studio'; // the devices seed's lent Studio, so node.status names it
 
 /** What the outlook_agent_use fixtures name (--var outlook_agent=grp.one): two agents, grp.one on two machines. */
 const AGENT_USE = [
