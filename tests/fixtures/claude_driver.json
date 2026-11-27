@@ -25,7 +25,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -45,7 +45,7 @@
     "--append-system-prompt",
     "You are a.one.\nBe brief: é",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -66,7 +66,7 @@
     "/m.json",
     "--strict-mcp-config",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -87,7 +87,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"autoMemoryDirectory\": \"/h/agents/a/memory\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/h/tokens/\", \"/h/keys\"], \"denyWrite\": [\"/h/db.sqlite\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//h/tokens/**)\", \"Read(//h/keys/**)\", \"Edit(//h/db.sqlite)\"]}}"
+    "{\"autoMemoryDirectory\": \"/h/agents/a/memory\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/h/tokens/\", \"/h/keys\"], \"denyWrite\": [\"/h/db.sqlite\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//h/tokens/**)\", \"Read(//h/keys/**)\", \"Edit(//h/db.sqlite)\"]}}"
    ]
   },
   {
@@ -101,7 +101,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -118,7 +118,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/x\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//x/**)\"]}}"
+    "{\"sandbox\": {\"filesystem\": {\"denyRead\": [\"/x\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//x/**)\"]}}"
    ]
   },
   {
@@ -139,7 +139,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}, \"autoMode\": {\"environment\": [\"$defaults\", \"Source control: github.com/acme\", \"\\\"quoted\\\"\"]}, \"enabledMcpjsonServers\": [\"a\", \"b\"]}"
+    "{\"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}, \"autoMode\": {\"environment\": [\"$defaults\", \"Source control: github.com/acme\", \"\\\"quoted\\\"\"]}, \"enabledMcpjsonServers\": [\"a\", \"b\"]}"
    ]
   },
   {
@@ -156,7 +156,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -177,7 +177,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"filesystem\": {\"allowWrite\": [\"/r/.git\", \"/h/caches/a\"]}, \"network\": {\"allowedDomains\": [\"registry.npmjs.org\", \"expo.dev\"]}, \"enabled\": true}, \"env\": {\"GOCACHE\": \"/h/caches/a/go-build\", \"GOMODCACHE\": \"/h/caches/a/go-mod\", \"GOPATH\": \"/h/caches/a/go-path\", \"npm_config_cache\": \"/h/caches/a/npm\", \"npm_config_store_dir\": \"/h/caches/a/pnpm-store\", \"npm_config_cache_dir\": \"/h/caches/a/pnpm-cache\", \"npm_config_state_dir\": \"/h/caches/a/pnpm-state\"}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"filesystem\": {\"allowWrite\": [\"/r/.git\", \"/h/caches/a\"]}, \"network\": {\"allowedDomains\": [\"registry.npmjs.org\", \"expo.dev\"]}, \"enabled\": true}, \"env\": {\"GOCACHE\": \"/h/caches/a/go-build\", \"GOMODCACHE\": \"/h/caches/a/go-mod\", \"GOPATH\": \"/h/caches/a/go-path\", \"npm_config_cache\": \"/h/caches/a/npm\", \"npm_config_store_dir\": \"/h/caches/a/pnpm-store\", \"npm_config_cache_dir\": \"/h/caches/a/pnpm-cache\", \"npm_config_state_dir\": \"/h/caches/a/pnpm-state\"}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -196,7 +196,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"filesystem\": {\"allowWrite\": [\"/h/caches/a\"]}, \"enabled\": true, \"enableWeakerNetworkIsolation\": true, \"excludedCommands\": [\"pnpm install\", \"pnpm install --frozen-lockfile\"]}, \"env\": {\"GOCACHE\": \"/h/caches/a/go-build\", \"GOMODCACHE\": \"/h/caches/a/go-mod\", \"GOPATH\": \"/h/caches/a/go-path\", \"npm_config_cache\": \"/h/caches/a/npm\", \"npm_config_store_dir\": \"/h/caches/a/pnpm-store\", \"npm_config_cache_dir\": \"/h/caches/a/pnpm-cache\", \"npm_config_state_dir\": \"/h/caches/a/pnpm-state\"}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
+    "{\"sandbox\": {\"filesystem\": {\"allowWrite\": [\"/h/caches/a\"]}, \"enabled\": true, \"enableWeakerNetworkIsolation\": true, \"excludedCommands\": [\"pnpm install\", \"pnpm install --frozen-lockfile\"]}, \"env\": {\"GOCACHE\": \"/h/caches/a/go-build\", \"GOMODCACHE\": \"/h/caches/a/go-mod\", \"GOPATH\": \"/h/caches/a/go-path\", \"npm_config_cache\": \"/h/caches/a/npm\", \"npm_config_store_dir\": \"/h/caches/a/pnpm-store\", \"npm_config_cache_dir\": \"/h/caches/a/pnpm-cache\", \"npm_config_state_dir\": \"/h/caches/a/pnpm-state\"}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\"]}}"
    ]
   },
   {
@@ -218,7 +218,7 @@
     "high",
     "--no-chrome",
     "--settings",
-    "{\"tui\": \"default\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/k\"], \"allowWrite\": [\"/r/.git\"]}, \"network\": {\"allowedDomains\": [\"sum.golang.org\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//k/**)\"]}}"
+    "{\"sandbox\": {\"filesystem\": {\"denyRead\": [\"/k\"], \"allowWrite\": [\"/r/.git\"]}, \"network\": {\"allowedDomains\": [\"sum.golang.org\"]}, \"enabled\": true}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//k/**)\"]}}"
    ]
   },
   {
@@ -252,7 +252,7 @@
     "--append-system-prompt",
     "p",
     "--settings",
-    "{\"tui\": \"default\", \"autoMemoryDirectory\": \"/m\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/a/\"], \"denyWrite\": [\"/b\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//a/**)\", \"Edit(//b)\"]}, \"autoMode\": {\"environment\": [\"$defaults\", \"t\"]}, \"enabledMcpjsonServers\": [\"s\"]}"
+    "{\"autoMemoryDirectory\": \"/m\", \"sandbox\": {\"filesystem\": {\"denyRead\": [\"/a/\"], \"denyWrite\": [\"/b\"]}, \"enabled\": false}, \"permissions\": {\"deny\": [\"Bash(go clean:*)\", \"Read(//a/**)\", \"Edit(//b)\"]}, \"autoMode\": {\"environment\": [\"$defaults\", \"t\"]}, \"enabledMcpjsonServers\": [\"s\"]}"
    ]
   }
  ],
