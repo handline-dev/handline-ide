@@ -127,7 +127,7 @@ func (r *Registry) Online(node string) bool {
 		return true
 	}
 	_, at, ok := r.Heard(node)
-	return ok && r.now().Sub(at) <= OfflineAfter
+	return ok && r.Now().Sub(at) <= OfflineAfter
 }
 
 // Takes is "" when a new session may open on node now, else why not: it is offline, on another Handline version than the master, or
@@ -184,7 +184,7 @@ func (r *Registry) heartbeat(c *rpc.Conn, p map[string]any) (any, error) {
 	if err != nil || json.Unmarshal(raw, &b) != nil {
 		return nil, rpc.BadRequestError("the heartbeat is a runner's beat", "beat", rpc.InvalidParams)
 	}
-	now := r.now()
+	now := r.Now()
 	accounts := r.boardAccounts(node, b)
 	r.mu.Lock()
 	before, had := r.beats[node]
@@ -297,7 +297,7 @@ type Reclaimed struct {
 
 // Sweep takes back the sessions of each runner offline past reclaimS (Reclaim).
 func (r *Registry) Sweep(reclaimS int64) ([]Reclaimed, error) {
-	now := r.now()
+	now := r.Now()
 	type gone struct {
 		node string
 		why  string
@@ -446,7 +446,7 @@ func (r *Registry) battery(node string, on bool) error {
 	n, _ := res.RowsAffected()
 	switch {
 	case on && n > 0:
-		err = db.SetCursor(r.DB, mark, r.now().Unix())
+		err = db.SetCursor(r.DB, mark, r.Now().Unix())
 	case !on:
 		err = db.ClearCursor(r.DB, mark)
 	}

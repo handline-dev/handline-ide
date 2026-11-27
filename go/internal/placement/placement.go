@@ -424,8 +424,8 @@ func (p *Placer) needOf(key string) (need, error) {
 }
 
 func (p *Placer) now() int64 {
-	if p.Reg != nil && p.Reg.Clock != nil {
-		return p.Reg.Clock().Unix()
+	if p.Reg != nil {
+		return p.Reg.Now().Unix()
 	}
 	return time.Now().Unix()
 }
