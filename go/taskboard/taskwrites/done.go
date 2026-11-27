@@ -83,8 +83,19 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 		// git is asked about the sha and the commit here, before the write: the transaction below holds no git process.
 		in.Sha, in.Words, in.Request, in.Repo = sha, words, request, repo
 		in = in.Looked()
+		w, err := mergeWatch(c.Server().DB, home, by, tid, in)
+		if err != nil {
+			return nil, err
+		}
+		unwatched := ""
+		if w != nil {
+			if err := watchReady(w); err != nil { // GitHub is not set up here: the done closes now, and says so
+				unwatched, w = err.Error(), nil
+			}
+		}
 		var done *DoneResult
 		var decided func()
+		var gw gateWait
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 			if request != nil {
 				var err error
@@ -95,6 +106,26 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 				if err != nil {
 					return nil, err
 				}
+			}
+			if w != nil {
+				// the merge will close it with a commit: what would refuse that done refuses this one now
+				t, err := getTask(tx, tid)
+				if err != nil {
+					return nil, err
+				}
+				if t != nil && !t.ended() { // an ended one is refused by MarkDone, in its words
+					if err := mayCloseRefusal(tx, by, t); err != nil {
+						return nil, err
+					}
+					if err := waitsRefusal(tx, by, t, true); err != nil {
+						return nil, err
+					}
+					if gw, err = waitOn(tx, home, tell, by, tid, w, mergeWaitTitle(tid, w), team.LandedDeadline(home)); err != nil {
+						return nil, err
+					}
+					return accepted(gw.said, map[string]any{"gate": gw.gate}), nil
+				}
+				w = nil
 			}
 			if decide != nil && by == actor.OwnerKey && words != "" && in.Commit == "" && len(in.Shots) == 0 {
 				handled, said, then, err := decide(tx, tid, words)
@@ -111,8 +142,15 @@ func doneMethod(home string, tell Teller, decide CardDecider) func(*rpc.Conn, ma
 				return nil, err
 			}
 			done = res
+			if unwatched != "" {
+				return accepted(res.Said+"; its pull request's merge is not watched ("+unwatched+")", nil), nil
+			}
 			return accepted(res.Said, nil), nil
 		})
+		if err == nil && w != nil {
+			gw.tell(tell, tid)
+			return out, nil
+		}
 		if err == nil && done != nil && done.Keep != nil {
 			if kerr := done.Keep(); kerr != nil {
 				return nil, fmt.Errorf("task T%d is done, but its screenshots could not be put in place: %w", tid, kerr)
@@ -200,6 +238,46 @@ func lookUp(in DoneIn) *shaLook {
 	return lk
 }
 
+// mayCloseRefusal refuses a done of t by who may not mark it done.
+func mayCloseRefusal(tx *sql.Tx, by string, t *task) error {
+	if ok, err := mayClose(tx, by, t); err != nil || ok {
+		return err
+	}
+	return refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner or the founder", t.ID, addr.Ref(t.Owner), addr.Ref(t.reporter())))
+}
+
+// waitsRefusal refuses a done of t while something holds it: open children, or blockers for anyone but the founder; and, for a done
+// that lands a commit, a review the workspace asks for that it lacks.
+func waitsRefusal(tx *sql.Tx, by string, t *task, landsCommit bool) error {
+	kids, err := openChildren(tx, t.ID)
+	if err != nil {
+		return err
+	}
+	if len(kids) > 0 {
+		return openChildrenRefusal(tx, t.ID, kids)
+	}
+	blockers, err := taskBlockers(tx, t.ID)
+	if err != nil {
+		return err
+	}
+	if len(blockers) > 0 && by != actor.OwnerKey {
+		var waits []int64
+		for _, b := range blockers {
+			waits = append(waits, b.ID)
+		}
+		return refusal(fmt.Sprintf("task T%d is waiting on %s - it is done only once they are", t.ID, taskList(waits)))
+	}
+	if landsCommit {
+		if why, err := reviewMissing(tx, by, t); err != nil || why != "" {
+			if err == nil {
+				err = refusal(why)
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 // DoneResult is what a MarkDone leaves for the telling that follows the commit. Finished is false when only a leftover request of an
 // already done task was settled.
 type DoneResult struct {
@@ -243,10 +321,8 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 		}
 		return nil, refusal(fmt.Sprintf("task T%d is already done (%s)", tid, t.DoneEvidence.String))
 	}
-	if ok, err := mayClose(tx, by, t); err != nil {
+	if err := mayCloseRefusal(tx, by, t); err != nil {
 		return nil, err
-	} else if !ok {
-		return nil, refusal(fmt.Sprintf("task T%d can only be marked done by its assignee (%s), owner (%s), its parent's owner or the founder", tid, addr.Ref(t.Owner), addr.Ref(t.reporter())))
 	}
 	in.looked = in.look() // already asked by a caller that used Looked; else git is asked here, as it always was
 	var mark, via string
@@ -271,30 +347,8 @@ func MarkDone(tx *sql.Tx, home, by string, in DoneIn) (*DoneResult, error) {
 	default:
 		mark, via = words, "reason"
 	}
-	kids, err := openChildren(tx, tid)
-	if err != nil {
+	if err := waitsRefusal(tx, by, t, sha != "" || in.Commit != ""); err != nil {
 		return nil, err
-	}
-	if len(kids) > 0 {
-		return nil, openChildrenRefusal(tx, tid, kids)
-	}
-	blockers, err := taskBlockers(tx, tid)
-	if err != nil {
-		return nil, err
-	}
-	if len(blockers) > 0 && by != actor.OwnerKey {
-		var waits []int64
-		for _, b := range blockers {
-			waits = append(waits, b.ID)
-		}
-		return nil, refusal(fmt.Sprintf("task T%d is waiting on %s - it is done only once they are", tid, taskList(waits)))
-	}
-	if sha != "" || in.Commit != "" {
-		if why, err := reviewMissing(tx, by, t); err != nil {
-			return nil, err
-		} else if why != "" {
-			return nil, refusal(why)
-		}
 	}
 	result, finalize, err := doneResult(tx, home, by, t, in, via, mark)
 	if err != nil {

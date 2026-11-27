@@ -21,6 +21,7 @@ var hashAllowed = []struct{ file, line, why string }{
 	{"taskboard/taskwrites/edit.go", `PR #%d`, "a task's PR"},
 	{"taskboard/taskwrites/edit.go", `fmt.Sprintf("%s#%d", repo, pr.Int64)`, "a task's PR, owner/name#N"},
 	{"cmd/hl/taskwait.go", `"%s#%d"`, "a github target, owner/name#N"},
+	{"taskboard/watch/repo.go", `m[1] + "#" + m[2]`, "a github target, owner/name#N"},
 }
 
 // A # before a verb (with flags, a width or an argument index: #%-5d, #%[1]d), a "#" joined by + , a "#" argument of a Sprint or Print

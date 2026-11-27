@@ -45,6 +45,9 @@ failed or that changes were requested: it cannot read the pull request itself (`
 ## A gate that closes its task (`--then done`)
 
 `hl task wait T<n> --pr <n> --until landed --then done` opens a gate that names the task it closes (`TaskWatch.closes`).
+An agent's `hl task done` whose words link to one pull request of its own repository (the GitHub origin of the acting agent's
+folder), with no `--commit` or shots, opens the same gate in place of closing the task; what would refuse the merge's done
+(open children, blockers, a review the workspace asks for) refuses it at once.
 Only a watch whose pass names a merge commit can: a pull request until `landed`. The gate closes the task in its holder's
 name, so asking for it is asking for a done: `task.wait` refuses `then done` from anyone who may not mark the task done (its
 assignee, its owner, its parent's owner, the founder). Anyone may still make a task wait without it. When it passes:

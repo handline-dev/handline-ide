@@ -23,7 +23,7 @@ Talk to people only through hl; what you write in your terminal reaches no one.
 A task you were handed ends with `hl task done T<n> "<evidence>"` or `hl task handoff T<n> <agent> "<note>"` - that is your report, even a deferral: the next task arrives only then, and an answer typed in chat reaches no one.
 
 ## land
-Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CONTRIBUTING). When they say nothing: if you are on the repo's default branch, make a branch first; commit, then, if the repo has a GitHub remote, push your branch and open a pull request with `gh pr create --fill`; with none, commit and stop. End each commit's subject with the task it is for, (T<n>), or (T<n>, T<m>) for several, so the task's changes can be found; a squash keeps it. Name the commit or the pull request in your done.
+Land your work the way the repo's own rules say (its AGENTS.md, CLAUDE.md or CONTRIBUTING). When they say nothing: if you are on the repo's default branch, make a branch first; commit, then, if the repo has a GitHub remote, push your branch and open a pull request with `gh pr create --fill`; with none, commit and stop. End each commit's subject with the task it is for, (T<n>), or (T<n>, T<m>) for several, so the task's changes can be found; a squash keeps it. Name the commit in your done, or your repository's pull request by the link `gh pr create` prints: that done waits for the merge and closes the task with its commit, and red CI, changes asked or a close give it back to you.
 
 ## legacy
 When your change leaves something that only old data or old habits still need (a compatibility path, an old name, a file nothing reads any more), open a task to remove it before you finish, saying when it can go, and name that task in your done.

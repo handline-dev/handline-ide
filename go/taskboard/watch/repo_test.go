@@ -64,3 +64,12 @@ func TestARemotesRepositoryIsReadOnlyFromAGitHubURL(t *testing.T) {
 		t.Fatal("SameRepo")
 	}
 }
+
+// A pull request link is owner/name#N, each once whatever its case, in order; a link to anything else, or a bad name, is none.
+func TestPullLinksAreThePullRequestsATextLinksTo(t *testing.T) {
+	got := PullLinks("see https://github.com/acme/app/pull/12, https://github.com/Acme/App/pull/12/files, " +
+		"https://github.com/acme/web/pull/3 and https://github.com/acme/app/issues/4 or https://github.com/./x/pull/5")
+	if len(got) != 2 || got[0] != "acme/app#12" || got[1] != "acme/web#3" {
+		t.Fatalf("%q", got)
+	}
+}

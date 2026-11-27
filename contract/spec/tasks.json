@@ -3703,7 +3703,20 @@
    "result": {
     "name": "result",
     "schema": {
-     "$ref": "#/components/schemas/Accepted"
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "gate": {
+         "type": "integer",
+         "description": "The gate opened when the done waits on its pull request's merge; absent when the done closed the task."
+        }
+       }
+      }
+     ]
     }
    },
    "x-role": "agent",
@@ -3727,7 +3740,7 @@
      "$ref": "#/components/errors/bad_request"
     }
    ],
-   "description": "Exactly one of evidence, request or reason-with-evidence; none or two is bad_request. A commit and shots are optional, for any task; when given they are kept with the task (task.get result). A done by the assignee, the owner (who the task answers to, the opener unless another is named) or the founder closes the task: nothing waits on an accept. The founder's done with evidence words on a task they own whose card still waits on them decides that card with the words, so the asker is told and what waits on the answer (a trust proposal) is applied; it says `T<n> decided`. The agent acting on the task (Task.acting) may close it as its assignee may. A done clears its turns and tells the agents that held them."
+   "description": "Exactly one of evidence, request or reason-with-evidence; none or two is bad_request. A commit and shots are optional, for any task; when given they are kept with the task (task.get result). A done by the assignee, the owner (who the task answers to, the opener unless another is named) or the founder closes the task: nothing waits on an accept. The founder's done with evidence words on a task they own whose card still waits on them decides that card with the words, so the asker is told and what waits on the answer (a trust proposal) is applied; it says `T<n> decided`. The agent acting on the task (Task.acting) may close it as its assignee may. A done clears its turns and tells the agents that held them. An agent's done whose evidence words link to exactly one pull request of the GitHub origin of the folder of the agent acting on the task, with no commit or shots, does not close the task: what would refuse the done its merge makes (open children, blockers, a review the workspace asks for) refuses it now; else it opens the gate task.wait then done opens on that pull request until landed, so the merge closes the task with its commit and red CI, changes asked or a close give it back; it says the gate, and result.gate is its id. Where GitHub is not set up the done closes the task now and says so."
   },
   {
    "name": "task.reopen",

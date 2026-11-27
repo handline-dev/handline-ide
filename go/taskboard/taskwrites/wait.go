@@ -52,63 +52,83 @@ func waitMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			return nil, err
 		}
 		me := c.Caller.Actor()
-		var (
-			r     released
-			gate  int64
-			freed bool
-		)
+		var gw gateWait
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			r, freed = released{}, false
 			var err error
-			if w.Closes != 0 {
-				if why, err := closeRefusal(tx, me, tid); err != nil || why != "" {
-					if err == nil {
-						err = refusal(why)
-					}
-					return nil, err
-				}
-			}
-			gate, _, err = OpenTask(tx, tell, me, NewIn{Owner: db.Gate, Title: title, Secs: secs, Prio: db.DefaultPriority, Expects: "report", Watch: w})
-			if err != nil {
+			if gw, err = waitOn(tx, home, tell, me, tid, w, title, secs); err != nil {
 				return nil, err
 			}
-			said := fmt.Sprintf("T%d waits on gate T%d (watching %s)", tid, gate, w.Label)
-			if w.Closes != 0 {
-				said = fmt.Sprintf("T%d waits on gate T%d (watching %s; a merge closes T%d with its commit)", tid, gate, w.Label, tid)
-			}
-			t, err := getTask(tx, tid)
-			if err != nil {
-				return nil, err
-			}
-			// Read before the gate blocks it: a blocked task never reads doing.
-			if st, err := state(tx, t); err != nil {
-				return nil, err
-			} else if st == "doing" {
-				if r, err = releaseTask(tx, home, me, tid, fmt.Sprintf("waits on gate T%d", gate)); err != nil {
-					return nil, err
-				}
-				freed = true
-				said += "; " + r.said()
-			}
-			if why, err := recordBlock(tx, tid, gate, me); err != nil || why != "" {
-				if err == nil {
-					err = refusal(why)
-				}
-				return nil, err
-			}
-			// A pull request the task waits on is the task's pull request: named here, by the one who knows, never guessed from a branch.
-			if repo, pr, ok := watch.PullOf(*w); ok {
-				if _, _, err := linkPR(tx, t, me, pr, repo); err != nil {
-					return nil, err
-				}
-			}
-			return accepted(said, map[string]any{"gate": gate}), nil
+			return accepted(gw.said, map[string]any{"gate": gw.gate}), nil
 		})
-		if err == nil && tell != nil && freed {
-			r.tell(tell, tid)
+		if err == nil {
+			gw.tell(tell, tid)
 		}
 		return out, err
 	}
+}
+
+// gateWait is what waitOn wrote: the gate, the sentence for the caller, and the release to tell when the task was being done.
+type gateWait struct {
+	gate  int64
+	said  string
+	r     released
+	freed bool
+}
+
+func (g gateWait) tell(tell Teller, tid int64) {
+	if tell != nil && g.freed {
+		g.r.tell(tell, tid)
+	}
+}
+
+// waitOn is task.wait's write in tx: a gate on w titled title, task tid blocked by it and, when doing, released; a watch on a pull
+// request names it as the task's. A w that closes tid asks who may mark it done (closeRefusal).
+func waitOn(tx *sql.Tx, home string, tell Teller, me string, tid int64, w *db.Watch, title string, secs int64) (gateWait, error) {
+	var g gateWait
+	if w.Closes != 0 {
+		if why, err := closeRefusal(tx, me, tid); err != nil || why != "" {
+			if err == nil {
+				err = refusal(why)
+			}
+			return g, err
+		}
+	}
+	gate, _, err := OpenTask(tx, tell, me, NewIn{Owner: db.Gate, Title: title, Secs: secs, Prio: db.DefaultPriority, Expects: "report", Watch: w})
+	if err != nil {
+		return g, err
+	}
+	g.gate = gate
+	g.said = fmt.Sprintf("T%d waits on gate T%d (watching %s)", tid, gate, w.Label)
+	if w.Closes != 0 {
+		g.said = fmt.Sprintf("T%d waits on gate T%d (watching %s; a merge closes T%d with its commit)", tid, gate, w.Label, tid)
+	}
+	t, err := getTask(tx, tid)
+	if err != nil {
+		return g, err
+	}
+	// Read before the gate blocks it: a blocked task never reads doing.
+	if st, err := state(tx, t); err != nil {
+		return g, err
+	} else if st == "doing" {
+		if g.r, err = releaseTask(tx, home, me, tid, fmt.Sprintf("waits on gate T%d", gate)); err != nil {
+			return g, err
+		}
+		g.freed = true
+		g.said += "; " + g.r.said()
+	}
+	if why, err := recordBlock(tx, tid, gate, me); err != nil || why != "" {
+		if err == nil {
+			err = refusal(why)
+		}
+		return g, err
+	}
+	// A pull request the task waits on is the task's pull request: named here, by the one who knows, never guessed from a branch.
+	if repo, pr, ok := watch.PullOf(*w); ok {
+		if _, _, err := linkPR(tx, t, me, pr, repo); err != nil {
+			return g, err
+		}
+	}
+	return g, nil
 }
 
 // closeRefusal is why `by` may not have a merge close task tid, "" when it may: the gate closes the task in the name of the agent

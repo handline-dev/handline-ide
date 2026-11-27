@@ -813,7 +813,10 @@ export interface TasksMethods {
   /** Absolute paths of PNG files, at most 10 MiB each. An agent names files under its worktree, its folder in the daemon's home or the scratch folder; the founder any file. The daemon copies them under its home (shots/T<n>/<k>.png, outside any repo) once the task's end has committed. */
   shots?: string[];
   request_id: RequestId;
-}; result: Accepted };
+}; result: Accepted & {
+    /** The gate opened when the done waits on its pull request's merge; absent when the done closed the task. */
+    gate?: number;
+  } };
   "task.reopen": { params: {
   task: number;
   note?: string;
