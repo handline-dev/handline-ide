@@ -145,7 +145,8 @@ export function WebPages() {
 }
 
 // Under the menus, dialogs and Settings (z-40, z-50); hidden until the loop lays it over its slot.
-const STYLE = { position: 'fixed', zIndex: 1, visibility: 'hidden', border: 0 } as const;
+// White under the page, as a browser draws one that sets no background; the page's own background still covers it.
+const STYLE = { position: 'fixed', zIndex: 1, visibility: 'hidden', border: 0, background: '#fff' } as const;
 
 function Laid({ page: { tab, url, reload } }: { page: Page }) {
   const ref = (el: HTMLElement | null) => {
@@ -156,6 +157,6 @@ function Laid({ page: { tab, url, reload } }: { page: Page }) {
   return WEBVIEW ? (
     <webview ref={ref} src={url} partition="preview" style={STYLE} />
   ) : (
-    <iframe key={reload} ref={ref} src={url} title={url} style={STYLE} className="bg-bg" />
+    <iframe key={reload} ref={ref} src={url} title={url} style={STYLE} />
   );
 }
