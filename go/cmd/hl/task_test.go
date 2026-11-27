@@ -65,12 +65,11 @@ func TestEachTaskWriteSendsItsMethodAndParams(t *testing.T) {
 		{"piped note", []string{"task", "handoff", "T3", "b.two"}, []string{`task.handoff {"note":"piped note","task":3,"to":"b.two"}`}},
 		{"", []string{"task", "start", "T3"}, []string{`task.start {"task":3}`}},
 		{"", []string{"task", "note", "T3", "hi"}, []string{`task.comment.add {"task":3,"text":"hi"}`}},
-		{"", []string{"task", "memo", "T3", "add", "hi"}, []string{`task.comment.add {"task":3,"text":"hi"}`}},
-		{"", []string{"task", "memo", "T3", "add", "hi", "--now"}, []string{`task.comment.add {"now":true,"task":3,"text":"hi"}`}},
-		{"", []string{"task", "memo", "T3", "add", "hi", "--attach", "/x/a.png", "--attach", "/x/b.md"},
+		{"", []string{"task", "comment", "T3", "add", "hi", "--now"}, []string{`task.comment.add {"now":true,"task":3,"text":"hi"}`}},
+		{"", []string{"task", "comment", "T3", "add", "hi", "--attach", "/x/a.png", "--attach", "/x/b.md"},
 			[]string{`task.comment.add {"files":["/x/a.png","/x/b.md"],"task":3,"text":"hi"}`}},
-		{"from stdin", []string{"task", "memo", "T3", "edit", "4", "-"}, []string{`task.comment.edit {"memo":4,"task":3,"text":"from stdin"}`}},
-		{"", []string{"task", "memo", "T3", "delete", "4"}, []string{`task.comment.delete {"memo":4,"task":3}`}},
+		{"from stdin", []string{"task", "comment", "T3", "edit", "4", "-"}, []string{`task.comment.edit {"memo":4,"task":3,"text":"from stdin"}`}},
+		{"", []string{"task", "comment", "T3", "delete", "4"}, []string{`task.comment.delete {"memo":4,"task":3}`}},
 		{"", []string{"task", "comment", "T3", "add", "hi"}, []string{`task.comment.add {"task":3,"text":"hi"}`}},
 		{"", []string{"task", "comment", "T3", "add", "hi", "--reply", "7"}, []string{`task.comment.add {"reply":7,"task":3,"text":"hi"}`}},
 		{"", []string{"task", "comment", "T3", "add", "A or B?", "--turn", "human"}, []string{`task.comment.add {"task":3,"text":"A or B?","turn":"human"}`}},
@@ -166,11 +165,11 @@ func TestTaskRefusalsBeforeAnyCall(t *testing.T) {
 		{asAgent, []string{"task", "edit", "T3", "--owner", "b.two"}, "--owner is who answers for a task, not who works it, so it needs --assign too. To move the work:\n" +
 			"  hl task edit T3 --assign b.two\nTo change only who answers for it, name the assignee it keeps:\n  hl task edit T3 --owner b.two --assign <its assignee>\n"},
 		{asAgent, []string{"task", "edit", "T3"}, "edit needs a new assignee, a new owner, a new title, --body, --priority, --estimate, --blocked-by, --unblock, --timeout, --tag, --untag, --pr, --parent or --no-parent\n"},
-		{asAgent, []string{"task", "memo", "T3", "add"}, "add takes the comment text\n"},
+		{asAgent, []string{"task", "comment", "T3", "add"}, "add takes the comment text\n"},
 		{asAgent, []string{"task", "plan", "T3"}, "give the plan with --file PATH, or mark it with --ok or --not-ok:\n  hl task plan T3 --file plan.md\n"},
 		{asAgent, []string{"task", "plan", "T3", "--ok", "--file", "p"}, "give the plan with --file PATH, or mark it with --ok or --not-ok:\n  hl task plan T3 --file plan.md\n"},
-		{asAgent, []string{"task", "memo", "T3", "delete", "4", "--now"}, "--now goes with add\n"},
-		{asAgent, []string{"task", "memo", "T3", "edit", "4"}, "edit takes the comment id, then the new text\n"},
+		{asAgent, []string{"task", "comment", "T3", "delete", "4", "--now"}, "--now goes with add\n"},
+		{asAgent, []string{"task", "comment", "T3", "edit", "4"}, "edit takes the comment id, then the new text\n"},
 		{nil, []string{"task", "start", "T3"}, "cannot tell who is start a tasking this: HANDLINE_AGENT is unset and this is not an " +
 			"interactive shell. Agents are started by the daemon, which sets it.\n"},
 	}
@@ -188,11 +187,11 @@ func TestWhatTheTaskPortDoesNotParseIsRefused(t *testing.T) {
 	r := newRig(t)
 	calls := r.daemon(nil)
 	for _, args := range [][]string{
-		{"task"}, {"task", "frob"}, {"task", "show", "12"}, {"task", "show", "T1", "x"}, {"task", "show", "T1", "-h"},
+		{"task"}, {"task", "frob"}, {"task", "memo", "T1", "add", "hi"}, {"task", "show", "12"}, {"task", "show", "T1", "x"}, {"task", "show", "T1", "-h"},
 		{"task", "new", "--assi", "b.two", "-t", "1h", "x"}, {"task", "new", "--assign", "b", "-t", "five", "x"},
 		{"task", "new", "--assign", "b", "-t", "1h", "x", "--reply", "1", "hi"}, {"task", "new", "--assign", "b", "-t", "1h", "x", "--", "y"},
 		{"task", "list", "--state", "nope"}, {"task", "begin", "x", "--chat", "a", "--why", "w"}, {"task", "begin", "x", "--why", "w"}, {"task", "begin", "x"},
-		{"task", "memo", "T1", "bogus"}, {"task", "memo", "T1", "delete", "abc"}, {"task", "done", "T1", "--request", "x"},
+		{"task", "comment", "T1", "bogus"}, {"task", "comment", "T1", "delete", "abc"}, {"task", "done", "T1", "--request", "x"},
 		{"task", "edit", "T1", "--title"}, {"task", "queue"}, {"task", "merge", "T1"},
 		{"task", "edit", "T1", "--estimate", "big"}, {"task", "new", "--assign", "b", "--estimate", "none", "x"},
 		{"task", "edit", "T1", "--parent", "T2", "--no-parent"},
