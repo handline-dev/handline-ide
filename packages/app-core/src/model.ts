@@ -4,16 +4,16 @@ import { dotOfStatus } from '#src/status.ts';
 
 export type Dot = 'running' | 'waking' | 'idle' | 'waiting' | 'blocked' | 'parked' | 'none';
 
-/** Why an agent's mark is a warning, in the daemon's words: a blocker, the wall it hit, or the state's own detail; null when it says none. */
-export const whyOf = (a: Pick<AgentView, 'blocker' | 'wall_reason' | 'state_detail'>): string | null =>
-  [a.blocker, a.wall_reason, a.state_detail].map((t) => t?.trim()).find(Boolean) ?? null;
+/** Why an agent's mark is a warning, in the daemon's words: the wall it hit, or the state's own detail; null when it says none. */
+export const whyOf = (a: Pick<AgentView, 'wall_reason' | 'state_detail'>): string | null =>
+  [a.wall_reason, a.state_detail].map((t) => t?.trim()).find(Boolean) ?? null;
 
-/** The rail dot: the daemon's status when it sends one, else its state word plus its block kinds and a handoff that is starting a new session. Unknown words read as idle. */
-export function dotOf(a: Pick<AgentView, 'state' | 'has_dialog' | 'block' | 'handoff' | 'status'>): Dot {
+/** The rail dot: the daemon's status when it sends one, else its state word plus a handoff that is starting a new session. Unknown words read as idle. */
+export function dotOf(a: Pick<AgentView, 'state' | 'has_dialog' | 'handoff' | 'status'>): Dot {
   const s = a.status && dotOfStatus(a.status);
   if (s) return s;
   if (a.has_dialog || a.state === 'waiting') return 'waiting';
-  if (a.block || a.state === 'stalled' || a.state === 'blocked') return 'blocked';
+  if (a.state === 'stalled') return 'blocked';
   if (a.state === 'no_terminal') return 'none';
   if (a.state === 'queued' || a.state === 'starting' || a.handoff?.phase === 'starting') return 'waking'; // a restarting agent is coming back, whatever state word it carries
   if (a.state === 'parked') return 'parked';

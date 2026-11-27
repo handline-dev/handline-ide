@@ -182,7 +182,7 @@ describe('activityOf', () => {
     const words = (l: string[]) => l.map((w) => activityOf(of(w)));
     expect(words(['running', 'starting', 'queued'])).toEqual(['working', 'waking', 'waking']);
     expect(words(['parked', 'no_terminal'])).toEqual(['asleep', 'asleep']);
-    expect(words(['stalled', 'blocked', 'waiting'])).toEqual(['error', 'error', 'you']);
+    expect(words(['stalled', 'waiting'])).toEqual(['error', 'you']);
     expect(words(['idle', 'something-new'])).toEqual(['resting', 'resting']);
   });
 

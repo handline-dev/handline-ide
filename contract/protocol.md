@@ -197,7 +197,6 @@ AgentView.state is one of these lower-case words. The set is open: a client trea
 | `parked` | Waits for a time: the usage window rolling over, a park a person asked for, a throttle or degraded retry, or an account move settling. state_detail is the clock (`due` once it has passed; `moving` for an account move, which has no clock). |
 | `waiting` | A person must answer: a dialog or a prompt is open (has_dialog is true). |
 | `stalled` | Stopped until a person unstalls it (the daemon will not wake it). |
-| `blocked` | Reserved: waiting on a blocker the view names in `block`. The daemon does not send it today; a client draws it as blocked. |
 | `no_terminal` | Registered but with no terminal to show: never started or its terminal closed, and nothing waits for it. Checked before idle; a closed agent with work waiting is queued or parked. |
 
 What the daemon sends for each of its own states:

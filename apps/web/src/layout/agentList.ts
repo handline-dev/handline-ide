@@ -41,7 +41,7 @@ export function holdLine(a: Pick<AgentLike, keyof DotFacts> & Partial<Parameters
   if (act !== 'you' && act !== 'held' && act !== 'error') return null;
   const tasks = a.status?.reason === 'task' ? a.status.tasks : [];
   if (tasks.length) return `Waiting on ${tasks.map((t) => `T${t}`).join(', ')}`;
-  const line = a.status?.text.trim() || whyOf({ blocker: a.blocker, wall_reason: a.wall_reason, state_detail: a.state_detail ?? '' });
+  const line = a.status?.text.trim() || whyOf({ wall_reason: a.wall_reason, state_detail: a.state_detail ?? '' });
   return line ? line[0].toUpperCase() + line.slice(1) : null;
 }
 
