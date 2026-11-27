@@ -109,3 +109,11 @@ export class TerminalView {
     for (const fn of this.listeners) fn();
   }
 }
+
+/** A terminal notice applied to the view it is for. */
+export function applyNotice(v: TerminalView, method: 'frame' | 'resize' | 'holder' | 'marker', params: unknown): void {
+  if (method === 'frame') v.applyFrame(params as Notifications['frame']);
+  else if (method === 'resize') v.applyResize(params as Notifications['resize']);
+  else if (method === 'holder') v.applyHolders(params as Notifications['holder']);
+  else v.applyMarker(params as Notifications['marker']);
+}

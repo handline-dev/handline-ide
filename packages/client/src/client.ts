@@ -15,7 +15,7 @@ import type { Resumed, Transport } from '#src/transport.ts';
 import { RpcError } from '#src/errors.ts';
 import { BytesChannel } from '#src/bytes-channel.ts';
 import { toBase64 } from '#src/byte-terminal-view.ts';
-import { TerminalView } from '#src/terminal-view.ts';
+import { applyNotice, TerminalView } from '#src/terminal-view.ts';
 import { Listeners } from '#src/listeners.ts';
 import { belowFloor } from '#src/master.ts';
 import type { CallParams, ClientOptions, ConnectionState, DocNotice, Handler, HelloResult, Pending } from '#src/client-options.ts';
@@ -29,6 +29,8 @@ export class DaemonClient {
     return Object.keys(this.opts.relay ?? {});
   }
   hello: HelloResult | null = null;
+  /** Why the client stopped for good: the daemon's refusal that a retry would not change. */
+  refusal: RpcError | null = null;
 
   private transport: Transport | null = null;
   private nextId = 1;
@@ -177,7 +179,11 @@ export class DaemonClient {
         await this.open();
         return;
       } catch (e) {
-        if (e instanceof RpcError && e.code === 'protocol') {
+        // Neither changes on a retry: a daemon this client cannot speak to, and a device it no longer knows.
+        if (e instanceof RpcError && (e.code === 'protocol' || e.gate === 'unpaired')) {
+          this.refusal = e;
+          this.closing = true;
+          this.setState('closed');
           this.failPending(e);
           return;
         }
@@ -336,10 +342,7 @@ export class DaemonClient {
           void this.attach(v).catch(() => {});
           return;
         } // missed one: take a fresh frame
-        if (method === 'frame') v.applyFrame(params as Notifications['frame']);
-        else if (method === 'resize') v.applyResize(params as Notifications['resize']);
-        else if (method === 'holder') v.applyHolders(params as Notifications['holder']);
-        else v.applyMarker(params as Notifications['marker']);
+        applyNotice(v, method, params);
         break;
       }
     }
