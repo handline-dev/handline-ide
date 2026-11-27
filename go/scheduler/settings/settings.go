@@ -39,6 +39,10 @@ const CompactAtTaskEndKey = "compact_at_task_end"
 // default.
 const CompactNowStopsKey = "compact_now_stops_turn"
 
+// NoSilenceReminderKey: an agent's CLI does not remind it, after turns with no text, to say what it is doing; a session takes it at its
+// next start. Global and per agent; off by default.
+const NoSilenceReminderKey = "no_silence_reminder"
+
 // ClusterNameKey is the cluster's name, kept on the board (meta): two random words given at the first start without one, changed by
 // the owner.
 const ClusterNameKey = "cluster_name"

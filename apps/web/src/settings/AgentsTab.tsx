@@ -12,7 +12,7 @@ import { useOpenable } from '#src/layout/openable.tsx';
 import { closeSettings } from '#src/settings/open.ts';
 import type { ReactNode } from 'react';
 import { Block, Setting } from '#src/settings/Meter.tsx';
-import { CompactionSettings } from '#src/settings/Compaction.tsx';
+import { CompactionSettings, QuietSettings } from '#src/settings/Compaction.tsx';
 import { ScreenCaptureAll } from '#src/settings/ScreenCapture.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
@@ -75,6 +75,7 @@ export function AgentsTab() {
       )}
       <ScreenCaptureAll />
       <CompactionSettings />
+      <QuietSettings />
       {me && <Lessons agent={me} founder />}
       <AgentRows />
       {!!save.error && (

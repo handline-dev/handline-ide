@@ -26,6 +26,7 @@ const KEYS = [
   'block_screen_capture',
   'compact_at_task_end',
   'compact_now_stops_turn',
+  'no_silence_reminder',
   'screencapture_via_handline',
   'agent_placement',
   'review_flow',

@@ -29,7 +29,7 @@ import (
 
 // perAgent is rpc_settings.PER_AGENT: the settings an agent's row may override.
 var perAgent = []string{"park_timeout_s", "ignore_cache_expiry", "bg_notice_s", "bg_grace_s", "bg_check_s", "notice_digest_s", handoff.PromptKey, usage.SplitKey, screen.BlockKey,
-	settings.MoveBackgroundWaitKey, settings.CompactAtTaskEndKey, settings.CompactNowStopsKey}
+	settings.MoveBackgroundWaitKey, settings.CompactAtTaskEndKey, settings.CompactNowStopsKey, settings.NoSilenceReminderKey}
 
 // hooksWanted is the events our hook is installed for: claudecode.Wanted, which a test keeps equal.
 var hooksWanted = []string{"SessionStart", "SessionEnd", "Stop", "StopFailure", "SubagentStop", "PostCompact", "UserPromptSubmit",
@@ -154,6 +154,7 @@ func (e *Env) settingsValues() map[string]any {
 		screen.ViaKey:                   s.Flag(screen.ViaKey, false),
 		settings.CompactAtTaskEndKey:    s.Flag(settings.CompactAtTaskEndKey, false),
 		settings.CompactNowStopsKey:     s.Flag(settings.CompactNowStopsKey, false),
+		settings.NoSilenceReminderKey:   s.Flag(settings.NoSilenceReminderKey, false),
 		worktreepool.AgentsMemoryMaxKey: worktreepool.GB(cfg, worktreepool.AgentsMemoryMaxKey) >> 30,
 		worktreepool.RemoveOnSleepKey:   s.Flag(worktreepool.RemoveOnSleepKey, false),
 		nodes.BatteryKey:                s.Flag(nodes.BatteryKey, false),

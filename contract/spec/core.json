@@ -2429,6 +2429,11 @@
       "description": "A person's Compact now stops the turn under way, then the agent writes its note and starts fresh. Off: it waits for the turn to end. Per agent with `agent`: that agent's own switch, over the global one.",
       "default": false
      },
+     "no_silence_reminder": {
+      "type": "boolean",
+      "description": "Claude Code is not to remind the agent, after five turns with no text, to tell the person what it is doing (nobody reads its terminal). A running session takes it at its next start. Off: Claude Code's own choice. Per agent with `agent`: that agent's own switch, over the global one.",
+      "default": false
+     },
      "screencapture_via_handline": {
       "type": "boolean",
       "description": "Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs.",
@@ -3035,6 +3040,17 @@
        }
       ],
       "description": "A person's Compact now stops the turn under way, then the agent writes its note and starts fresh. Off: it waits for the turn to end. Per agent with `agent`: that agent's own switch, over the global one. null removes the key (back to the default)."
+     },
+     "no_silence_reminder": {
+      "oneOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Claude Code is not to remind the agent, after five turns with no text, to tell the person what it is doing (nobody reads its terminal). A running session takes it at its next start. Off: Claude Code's own choice. Per agent with `agent`: that agent's own switch, over the global one. null removes the key (back to the default)."
      },
      "screencapture_via_handline": {
       "oneOf": [
@@ -6035,7 +6051,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/Who",
-      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s, compact_at_task_end, compact_now_stops_turn. Any other key with `agent` is bad_request."
+      "description": "Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s, compact_at_task_end, compact_now_stops_turn, no_silence_reminder. Any other key with `agent` is bad_request."
      }
     },
     {

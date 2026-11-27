@@ -111,3 +111,12 @@ func TestAnAnswerAllowsWithTheInputAndRulesOrSaysNo(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestTheLaunchEnvTurnsTheSilentTurnReminderOffOnlyWhenAsked(t *testing.T) {
+	if env := (Driver{}).LaunchEnv(agent.LaunchEnvArgs{}); len(env) != 0 {
+		t.Fatal("unset leaves Claude Code's own choice:", env)
+	}
+	if env := (Driver{}).LaunchEnv(agent.LaunchEnvArgs{NoSilenceReminder: true}); env["CLAUDE_CODE_SILENT_TURN_REMINDER"] != "0" || len(env) != 1 {
+		t.Fatal(env)
+	}
+}

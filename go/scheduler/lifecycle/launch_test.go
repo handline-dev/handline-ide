@@ -46,9 +46,14 @@ func (fakeDriver) PermissionModeArgv(m string) []string { return []string{"--per
 func (fakeDriver) LaunchArgv(exe string, o cli.LaunchArgs) []string {
 	return []string{exe, "--effort", o.Effort, "--disallowed", o.Disallowed}
 }
-func (fakeDriver) LaunchEnv(string, string, string) map[string]string { return nil }
-func (fakeDriver) PromptArgv(p string) []string                       { return []string{"--", p} }
-func (fakeDriver) TranscriptDir(string, string) (string, bool)        { return "", false }
+func (fakeDriver) LaunchEnv(o cli.LaunchEnvArgs) map[string]string {
+	if o.NoSilenceReminder {
+		return map[string]string{"QUIET_TURNS": "1"}
+	}
+	return nil
+}
+func (fakeDriver) PromptArgv(p string) []string                { return []string{"--", p} }
+func (fakeDriver) TranscriptDir(string, string) (string, bool) { return "", false }
 
 type fakeVendors struct{ account string }
 

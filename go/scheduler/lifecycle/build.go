@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/scheduler/access"
+	"github.com/handline/handline/go/scheduler/settings"
 )
 
 // Site is where a launch runs, as the caller's process knows it: the daemon builds the launch for a terminal that is not its own, so
@@ -271,7 +272,8 @@ func (l *Launcher) Build(site *Site, agent string, extra []string, force bool, a
 	if site.Node != "" {
 		env[team.ConfigDirEnv(drv.Name())] = m.dirs[acct] // the runner's own folder for the account (checked above)
 	}
-	for k, v := range drv.LaunchEnv(preamble, l.disallowed(agent), paths.AgentDir(l.Home, agent)) {
+	quiet := (&settings.Settings{Home: l.Home, Roster: l.Roster}).AgentFlag(agent, settings.NoSilenceReminderKey, false)
+	for k, v := range drv.LaunchEnv(cli.LaunchEnvArgs{NoSilenceReminder: quiet}) {
 		env[k] = v
 	}
 	if site.Node == "" && len(confined.NoWrite) > 0 {

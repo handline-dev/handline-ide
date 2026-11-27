@@ -47,7 +47,7 @@ func (d Driver) Hooks() agent.Hooks { return Hooks{d.Host} }
 func (Driver) AutoModeArgv() []string             { return nil }
 func (Driver) PermissionModeArgv(string) []string { return nil }
 
-func (Driver) LaunchEnv(string, string, string) map[string]string { return map[string]string{} }
+func (Driver) LaunchEnv(agent.LaunchEnvArgs) map[string]string { return map[string]string{} }
 
 // PromptArgv ends the options first, so a prompt that starts with a dash is the prompt.
 func (Driver) PromptArgv(prompt string) []string { return []string{"--", prompt} }

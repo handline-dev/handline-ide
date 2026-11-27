@@ -39,23 +39,23 @@ func init() {
 
 var _ agent.Agent = Agent{}
 
-func (Agent) Name() string                                { return Vendor }
-func (Agent) ConfigDirName() string                       { return ".fake" }
-func (Agent) ConfigDirEnv() string                        { return "HANDLINE_FAKE_CONFIG_DIR" }
-func (Agent) LoginArgv() []string                         { return []string{"true"} }
-func (Agent) LogoutArgv() []string                        { return []string{"true"} }
-func (Agent) WebLoginArgv() ([]string, bool)              { return nil, false }
-func (Agent) CredentialPresent(string) (bool, bool)       { return true, true }
-func (Agent) CredentialModified(string) *float64          { return nil }
-func (Agent) IsResume([]string) bool                      { return false }
-func (Agent) Binary() string                              { return "/bin/sh" }
-func (Agent) Screen() term.Driver                         { return Screen{} }
-func (Agent) Hooks() agent.Hooks                          { return nil }
-func (Agent) AutoModeArgv() []string                      { return nil }
-func (Agent) PermissionModeArgv(string) []string          { return nil }
-func (Agent) LaunchEnv(_, _, _ string) map[string]string  { return map[string]string{} }
-func (Agent) PromptArgv(prompt string) []string           { return []string{prompt} }
-func (Agent) TranscriptDir(string, string) (string, bool) { return "", false }
+func (Agent) Name() string                                    { return Vendor }
+func (Agent) ConfigDirName() string                           { return ".fake" }
+func (Agent) ConfigDirEnv() string                            { return "HANDLINE_FAKE_CONFIG_DIR" }
+func (Agent) LoginArgv() []string                             { return []string{"true"} }
+func (Agent) LogoutArgv() []string                            { return []string{"true"} }
+func (Agent) WebLoginArgv() ([]string, bool)                  { return nil, false }
+func (Agent) CredentialPresent(string) (bool, bool)           { return true, true }
+func (Agent) CredentialModified(string) *float64              { return nil }
+func (Agent) IsResume([]string) bool                          { return false }
+func (Agent) Binary() string                                  { return "/bin/sh" }
+func (Agent) Screen() term.Driver                             { return Screen{} }
+func (Agent) Hooks() agent.Hooks                              { return nil }
+func (Agent) AutoModeArgv() []string                          { return nil }
+func (Agent) PermissionModeArgv(string) []string              { return nil }
+func (Agent) LaunchEnv(agent.LaunchEnvArgs) map[string]string { return map[string]string{} }
+func (Agent) PromptArgv(prompt string) []string               { return []string{prompt} }
+func (Agent) TranscriptDir(string, string) (string, bool)     { return "", false }
 
 // LaunchArgv runs the script; what follows it (PromptArgv) is its $1.
 func (Agent) LaunchArgv(exe string, _ agent.LaunchArgs) []string {

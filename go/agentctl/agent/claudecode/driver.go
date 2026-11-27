@@ -59,7 +59,13 @@ func (Driver) PermissionModeArgv(mode string) []string {
 	return nil
 }
 
-func (Driver) LaunchEnv(string, string, string) map[string]string { return map[string]string{} }
+// LaunchEnv turns off, when asked, the reminder Claude Code adds after five turns with no text; unset leaves Claude Code's own choice.
+func (Driver) LaunchEnv(o agent.LaunchEnvArgs) map[string]string {
+	if o.NoSilenceReminder {
+		return map[string]string{"CLAUDE_CODE_SILENT_TURN_REMINDER": "0"}
+	}
+	return map[string]string{}
+}
 
 // PromptArgv ends the options first, so a prompt that starts with a dash is read as the prompt and not as an unknown option.
 func (Driver) PromptArgv(prompt string) []string { return []string{"--", prompt} }

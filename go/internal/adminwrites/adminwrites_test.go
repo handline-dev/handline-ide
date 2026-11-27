@@ -154,7 +154,7 @@ func TestSettingsSetWritesEveryKeyOrNoneAndClearsOnNull(t *testing.T) {
 	if r.setting("alice", "block_screen_capture") != "true" || strings.Contains(r.file("config.yaml"), "block_screen_capture") {
 		t.Fatal("block_screen_capture is the agent's own, not the config's")
 	}
-	for i, key := range []string{"compact_at_task_end", "compact_now_stops_turn"} {
+	for i, key := range []string{"compact_at_task_end", "compact_now_stops_turn", "no_silence_reminder"} {
 		r.result(r.one("settings.set", `{"changes":{"`+key+`":true},"agent":"alice","request_id":"c`+string(rune('0'+i))+`"}`))
 		if r.setting("alice", key) != "true" || strings.Contains(r.file("config.yaml"), key) {
 			t.Fatalf("%s is the agent's own, not the config's", key)

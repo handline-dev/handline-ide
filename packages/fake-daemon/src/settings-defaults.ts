@@ -28,6 +28,7 @@ export const DEFAULTS: Settings['values'] = {
   block_screen_capture: false,
   compact_at_task_end: false,
   compact_now_stops_turn: false,
+  no_silence_reminder: false,
   screencapture_via_handline: false,
   agent_placement: 'auto',
   review_flow: false,

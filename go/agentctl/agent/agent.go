@@ -17,13 +17,20 @@ type Agent interface {
 	AutoModeArgv() []string
 	PermissionModeArgv(mode string) []string
 	LaunchArgv(exe string, o LaunchArgs) []string
-	LaunchEnv(preamble, disallowed, agentDir string) map[string]string
+	LaunchEnv(o LaunchEnvArgs) map[string]string
 	PromptArgv(prompt string) []string
 	// TranscriptDir is where a session in worktree keeps its transcripts under a config directory.
 	TranscriptDir(configDir, worktree string) (string, bool)
 	// Deliver is the port that gets messages into this CLI's sessions. A CLI with no inbox may type a message into its terminal, but it
 	// settles that as unknown (written, the sender told it may have arrived), never as delivered: typing cannot be confirmed.
 	Deliver(env DeliverEnv) Port
+}
+
+// LaunchEnvArgs are what a vendor's launch environment is built from.
+type LaunchEnvArgs struct {
+	// NoSilenceReminder: the CLI does not remind the model, after turns with no text, to tell the person what it is doing; nobody reads
+	// the terminal.
+	NoSilenceReminder bool
 }
 
 // LaunchArgs are what a vendor's launch line is built from.

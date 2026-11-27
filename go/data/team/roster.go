@@ -50,7 +50,7 @@ var settingKinds = map[string]byte{
 	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b', "account_split": 's', "block_screen_capture": 'b',
 	"session_mode":           's',
 	"move_background_wait_s": 'i',
-	"compact_at_task_end":    'b', "compact_now_stops_turn": 'b',
+	"compact_at_task_end":    'b', "compact_now_stops_turn": 'b', "no_silence_reminder": 'b',
 }
 
 // settingKeys is settingKinds' keys in order, for the SELECT.
