@@ -22,8 +22,11 @@ func (p *Parts) typedOp(agent, op string) bool {
 // typeable is "" when the founder's words may be typed at agent now, else why not: its hooks must have said where its turn is (idle, or
 // mid-turn, where the line is queued into the turn), nothing on its screen may be what a typed line would answer, and no shell may be left
 // in place of its session (term.ShellLeft). A person or device holding its input does not stop it: the typing takes the terminal lock,
-// so it never lands between someone's keys.
+// so it never lands between someone's keys. A Chat session takes them on its stream like any message, with no screen to read.
 func (p *Parts) typeable(agent string) string {
+	if p.chatSession(agent) {
+		return ""
+	}
 	if p.turns == nil || p.turns.State(agent) == turns.Unknown {
 		return "its turn is not known from its hooks yet"
 	}

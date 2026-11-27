@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/internal/chatterm"
 	"github.com/handline/handline/go/internal/inputhold"
 	"github.com/handline/handline/go/kit/lock"
 	"github.com/handline/handline/go/protocol/rpc"
@@ -131,6 +132,9 @@ func (e *Env) input(c *rpc.Conn, params map[string]any) (any, error) {
 	}
 	if agent == "" {
 		return nil, rpc.Refused("no agent has this terminal, so it has no input holder to take its keystrokes", "input_holder", "")
+	}
+	if chatterm.Running(e.Home, agent) {
+		return nil, rpc.Refused(agent+" runs in Chat mode: its terminal takes no keys; write in its chat", "state", "")
 	}
 	hold := lock.TakeTerminal(e.Home, agent)
 	if hold == nil {

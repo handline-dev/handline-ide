@@ -167,7 +167,8 @@ func (p *Parts) agentsPort() supervisor.Agents {
 		}
 	}
 	return vendorAgents{
-		claude:   mixedAgents{none: noSessionPort{}, peer: port(claudecode.Driver{Host: agenthost.Host(p.home)}), isPeer: p.Peer},
+		claude: mixedAgents{none: noSessionPort{}, peer: port(claudecode.Driver{Host: agenthost.Host(p.home)}), isPeer: p.Peer,
+			chat: p.chatPort(peerTell{p}), isChat: p.chatSession},
 		others:   others,
 		vendorOf: vendors{home: p.home, roster: team.NewRoster(p.home)}.AgentVendor,
 	}

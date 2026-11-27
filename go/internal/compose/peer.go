@@ -75,6 +75,12 @@ type peerDelivery interface {
 // goes to tell. typed is how the founder's own words are typed at the terminal.
 func NewPeerPort(ag agent.Agent, home string, d *sql.DB, peer func(agent string) bool, panePid func(handle string) int, tell peerDelivery,
 	typed agent.DeliverEnv, log func(string, ...any)) agent.Port {
+	return ag.Deliver(NewPeerEnv(home, d, peer, panePid, tell, typed, log))
+}
+
+// NewPeerEnv is what NewPeerPort gives the vendor's port: where the session is, who wrote a message, and where its outcome goes.
+func NewPeerEnv(home string, d *sql.DB, peer func(agent string) bool, panePid func(handle string) int, tell peerDelivery,
+	typed agent.DeliverEnv, log func(string, ...any)) agent.DeliverEnv {
 	env := typed
 	env.Peer = peer
 	env.Where = func(a string) (agent.Place, error) { return agentPlace(home, d, a, panePid) }
@@ -92,7 +98,7 @@ func NewPeerPort(ag agent.Agent, home string, d *sql.DB, peer func(agent string)
 			log("  %s: telling that %s was not delivered failed: %v", a, op, err)
 		}
 	}
-	return ag.Deliver(env)
+	return env
 }
 
 // inTx runs fn in a transaction: the ledger move, the event and the sender's note of one outcome are one write.
@@ -155,11 +161,17 @@ type mixedAgents struct {
 	none   supervisor.Agents
 	peer   supervisor.Agents
 	isPeer func(agent string) bool
+	// chat is the port of an agent whose session runs in Chat mode (isChat), before any other.
+	chat   supervisor.Agents
+	isChat func(agent string) bool
 }
 
 var _ supervisor.Agents = mixedAgents{}
 
 func (m mixedAgents) of(agent string) supervisor.Agents {
+	if m.isChat != nil && m.isChat(agent) {
+		return m.chat
+	}
 	if m.isPeer(agent) {
 		return m.peer
 	}

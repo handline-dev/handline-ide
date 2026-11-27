@@ -343,6 +343,15 @@ func (l *Launcher) keepWhatItStartsWith(site *Site, agent string, extra []string
 type Prepared struct {
 	Argv []string
 	Env  []string
+	// Hold is set for a Chat session: hl launch runs Argv under the holder instead of becoming it.
+	Hold *Hold
+}
+
+// Hold is what the holder of a Chat session is given: its socket, the lines that open the session, and what names the one answer it never keeps.
+type Hold struct {
+	Socket string
+	Init   []string
+	Secret string
 }
 
 // place is ChooseAccount and the hold of the slot it chose (wake_reserved, source launch) as one step under placeMu.
@@ -411,7 +420,13 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	if err := l.keepWhatItStartsWith(site, agent, extra, prompt, why, by); err != nil {
 		return nil, err // only the waiting handoff's read fails a launch; the rest of the bookkeeping warns
 	}
-	if prompt != "" {
+	hold, err := l.chatHold(site, agent, prompt)
+	if err != nil {
+		return nil, err
+	}
+	if hold != nil {
+		argv = l.chatArgv(agent, argv)
+	} else if prompt != "" {
 		drv, err := l.Ports.Vendors.ForAgent(agent)
 		if err != nil {
 			return nil, err
@@ -440,7 +455,7 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 	for _, k := range keys {
 		flat = append(flat, k+"="+env[k])
 	}
-	return &Prepared{Argv: argv, Env: flat}, nil
+	return &Prepared{Argv: argv, Env: flat, Hold: hold}, nil
 }
 
 // refuseOthersPane refuses a launch from a pane the daemon opened for another agent: the pane is that agent's terminal, not ours to take.

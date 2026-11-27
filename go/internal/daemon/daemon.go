@@ -26,6 +26,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/boardcopy"
+	"github.com/handline/handline/go/internal/chatterm"
 	"github.com/handline/handline/go/internal/chatwrites"
 	"github.com/handline/handline/go/internal/deskrpc"
 	"github.com/handline/handline/go/internal/filerw"
@@ -255,16 +256,19 @@ func Start(cfg Config) (*Daemon, error) {
 	d := &Daemon{cfg: cfg, db: db, started: time.Now(), conns: map[net.Conn]struct{}{}, stop: make(chan struct{}), master: newMastership()}
 	if cfg.Turns != nil {
 		cfg.Turns.Agent = func(handle string) string { a, _ := dbpkg.AgentOfTerminal(db, handle); return a }
-		cfg.Turns.Lines = func(agent, session string) func([]byte) {
-			if !transcriptRows(cfg.Home) {
+		// A Chat agent's rows are always kept: its chat is its only view.
+		rows := func(agent, session, parent string) func([]byte) {
+			if !transcriptRows(cfg.Home) && !chatterm.Running(cfg.Home, agent) {
 				return nil
 			}
 			return func(line []byte) {
-				if err := transcript.Record(db, agent, session, line); err != nil {
+				if err := transcript.RecordUnder(db, agent, session, parent, line); err != nil {
 					cfg.Log("  turns: %s: transcript row not stored: %v", agent, err)
 				}
 			}
 		}
+		cfg.Turns.Lines = func(agent, session string) func([]byte) { return rows(agent, session, "") }
+		cfg.Turns.SubLines = rows
 		cfg.Turns.Interrupted = func(agent string) {
 			if err := hooks.MarkInterrupted(db, cfg.Home, agent); err != nil {
 				cfg.Log("  turns: %s: %v", agent, err)
@@ -803,6 +807,7 @@ func (d *Daemon) typing() *sessionrpc.Env {
 	if d.cfg.Terminal != nil {
 		t = term.New(d.cfg.Terminal, screens)
 	}
+	t.Chat = chatterm.New(d.cfg.Home, t)
 	env := &sessionrpc.Env{DB: d.db, Home: d.cfg.Home, Holds: d.holds, Term: t, Marker: d.tchan.Marker,
 		Wall: func(agent string) string { why, _ := d.env().WallReason(d.db, agent, nil); return why }}
 	if d.cfg.Turns != nil {

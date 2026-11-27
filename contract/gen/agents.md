@@ -31,7 +31,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.job.stop` | owner | yes | `agent`, `job`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, type, state, terminal_lock, input_holder | uncached: stop job |
 | `agent.jobs.stop` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, state, screen_blocker, wall, terminal_lock, input_holder | uncached: stop all jobs |
 | `session.interrupt` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder | decided: interrupt |
-| `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings}` | `refused`, `not_found` | role, state | not cached |
+| `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings, hold}` | `refused`, `not_found` | role, state | not cached |
 | `prompt.list` | member |  | `agent` | `{prompts} & ReadCursor` | `not_found` |  | `prompts` by agent, fed by notifications |
 | `prompt.answer` | owner | yes | `agent`, `prompt`, `choice`, `note?`, `request_id` | `Accepted` | `refused`, `not_found`, `stale_prompt` | role, terminal_lock, input_holder | decided: answer |
 | `permission.ask` | agent |  | `tool`, `input` | `{behavior, message, rule}` | `bad_request`, `refused` |  | not cached |

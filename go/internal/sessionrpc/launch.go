@@ -18,6 +18,14 @@ type LaunchRequest struct {
 // LaunchResult is the command line and environment the caller becomes, and what it should tell the person first.
 type LaunchResult struct {
 	Argv, Env, Warnings []string
+	Hold                *Hold
+}
+
+// Hold is a Chat session's holder: hl launch runs Argv under it.
+type Hold struct {
+	Socket string   `json:"socket"`
+	Init   []string `json:"init"`
+	Secret string   `json:"secret"`
 }
 
 // LaunchRefusal is a launch that must not go ahead, in words for the person at the terminal.
@@ -46,7 +54,11 @@ func (e *Env) launchPrepare(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"argv": res.Argv, "env": res.Env, "warnings": res.Warnings}, nil
+	out := map[string]any{"argv": res.Argv, "env": res.Env, "warnings": res.Warnings}
+	if res.Hold != nil {
+		out["hold"] = res.Hold
+	}
+	return out, nil
 }
 
 // ParseLaunch is session.launch_prepare's params but the agent, checked: what hl launch knows of where it runs.

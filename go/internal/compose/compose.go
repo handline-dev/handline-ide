@@ -5,11 +5,13 @@ package compose
 
 import (
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/handline/handline/go/accounts/subscriptions"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
+	"github.com/handline/handline/go/agentctl/chatport"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/internal/agentview"
@@ -59,6 +61,9 @@ type Config struct {
 
 // Parts is what New builds. Locks goes to lifecycle.Manager.Locks and Spawns.Locks alike.
 type Parts struct {
+	chatOnce sync.Once
+	chat     *chatport.Port
+
 	Locks *lifecycle.AgentLocks
 	Peer  func(agent string) bool
 	// LC is the lifecycle, once Lifecycle has built it.

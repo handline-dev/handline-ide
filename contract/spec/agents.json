@@ -1112,6 +1112,14 @@
      "device": {
       "type": "string",
       "description": "The device the agent is pinned to, a node id as node.status lists it; \"\" for none. Read only while agent_placement is manual: its sessions then start on that device whatever their load, or here, with the reason, while the device cannot take one. A device that lacks something the agent needs may be pinned."
+     },
+     "session_mode": {
+      "type": "string",
+      "enum": [
+       "terminal",
+       "chat"
+      ],
+      "description": "How the agent's sessions run: terminal (Claude Code's screen in a terminal) or chat (headless, its work shown in the chat). Read at each session start."
      }
     }
    },
@@ -3059,6 +3067,32 @@
         "type": "string"
        },
        "description": "What the person at the terminal should read before it starts."
+      },
+      "hold": {
+       "type": "object",
+       "properties": {
+        "socket": {
+         "type": "string",
+         "description": "The unix socket the holder serves the session's frames on."
+        },
+        "init": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "description": "The lines written to the CLI first, in order."
+        },
+        "secret": {
+         "type": "string",
+         "description": "Text naming the one output line the holder never keeps (the answer to the first line, which carries account details)."
+        }
+       },
+       "required": [
+        "socket",
+        "init",
+        "secret"
+       ],
+       "description": "Set for an agent whose sessions run in Chat mode: hl launch runs argv under a holder that owns its stdin and stdout, instead of becoming it."
       }
      },
      "required": [

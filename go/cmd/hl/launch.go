@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
+	"time"
 
 	_ "github.com/handline/handline/go/agentctl/agent/vendors"
+	"github.com/handline/handline/go/agentctl/holder"
 	"github.com/handline/handline/go/data/agenthost"
 	"github.com/handline/handline/go/internal/hlclient"
 	"github.com/handline/handline/go/kit/paths"
@@ -78,8 +82,34 @@ func launch(c *hlclient.Client, args []string) (int, bool) {
 	if err := holdWorktree(cwd, agent, os.Getpid()); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: the worktree is not locked for %s: %v\n", agent, err)
 	}
+	if h, ok := got["hold"].(map[string]any); ok {
+		return hold(agent, argv, env, cwd, h), true
+	}
 	fmt.Fprintf(os.Stderr, "hl launch: %v\n", syscall.Exec(argv[0], argv, env))
 	return 1, true
+}
+
+// hold runs a Chat agent's session under the holder in place of becoming it: this process stays the pane's, and the window shows one
+// status line and takes no keystrokes.
+func hold(agent string, argv, env []string, cwd string, h map[string]any) int {
+	sock, _ := h["socket"].(string)
+	secret, _ := h["secret"].(string)
+	var init [][]byte
+	for _, l := range textList(h["init"]) {
+		init = append(init, []byte(l))
+	}
+	fmt.Printf("%s runs in Chat mode: its work shows in the app's chat. This window takes no keys.\n", agent)
+	// A closed window (SIGHUP) or a stop ends the CLI and lets the holder take its socket away, so no dead socket names a Chat session.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+	code, err := holder.Run(ctx, holder.Config{Argv: argv, Env: env, Dir: cwd, Socket: sock, Init: init, Secret: secret,
+		Linger: 10 * time.Minute, Status: os.Stderr})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hl launch: %v\n", err)
+		return 1
+	}
+	fmt.Printf("%s's session ended (exit %d).\n", agent, code)
+	return code
 }
 
 func holdWorktree(dir, agent string, pid int) error {

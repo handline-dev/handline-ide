@@ -266,6 +266,8 @@ export type AgentSettingValues = {
   sandbox_allow?: string;
   /** The device the agent is pinned to, a node id as node.status lists it; "" for none. Read only while agent_placement is manual: its sessions then start on that device whatever their load, or here, with the reason, while the device cannot take one. A device that lacks something the agent needs may be pinned. */
   device?: string;
+  /** How the agent's sessions run: terminal (Claude Code's screen in a terminal) or chat (headless, its work shown in the chat). Read at each session start. */
+  session_mode?: "terminal" | "chat";
 };
 
 export type NeedsYou = {
@@ -557,6 +559,15 @@ export interface AgentsMethods {
     env: string[];
     /** What the person at the terminal should read before it starts. */
     warnings: string[];
+    /** Set for an agent whose sessions run in Chat mode: hl launch runs argv under a holder that owns its stdin and stdout, instead of becoming it. */
+    hold?: {
+      /** The unix socket the holder serves the session's frames on. */
+      socket: string;
+      /** The lines written to the CLI first, in order. */
+      init: string[];
+      /** Text naming the one output line the holder never keeps (the answer to the first line, which carries account details). */
+      secret: string;
+    };
   } };
   "prompt.list": { params: {
   agent: Who;

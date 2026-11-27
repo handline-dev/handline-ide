@@ -48,6 +48,7 @@ var settingKinds = map[string]byte{
 	"mcp_config": 's', "schedules": 's', "peer_inbox": 'b', "account": 's', "ignore_cache_expiry": 'b', "bg_notice_s": 'i',
 	"bg_grace_s": 'i', "bg_check_s": 'i', "notice_digest_s": 'i', "handoff_prompt": 's', "cache_renewal": 'b', "idle_fold": 'b',
 	"idle_fold_tokens": 'i', "idle_fold_after_s": 'i', "fresh_after_task": 'b', "account_split": 's', "block_screen_capture": 'b',
+	"session_mode": 's',
 }
 
 // settingKeys is settingKinds' keys in order, for the SELECT.
@@ -302,6 +303,8 @@ type RegisterOpts struct {
 	SandboxAllow *string
 	// Device pins the agent to a device (a node id) for Manual placement; "" clears it.
 	Device *string
+	// SessionMode is how its sessions run (SessionModes); "" is Terminal.
+	SessionMode *string
 }
 
 func strp(s string) *string { return &s }
@@ -441,6 +444,9 @@ func (r *Roster) register(q db.Q, name string, o RegisterOpts, mcp string) (made
 	}
 	if o.Device != nil {
 		add("device", nilIf(*o.Device, ""))
+	}
+	if o.SessionMode != nil {
+		add("session_mode", nilIf(*o.SessionMode, ""))
 	}
 	if o.Chrome != nil {
 		add("chrome", nilIfFalse(*o.Chrome))
