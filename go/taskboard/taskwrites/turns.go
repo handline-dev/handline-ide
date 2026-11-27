@@ -88,7 +88,10 @@ func pushTurn(tx *sql.Tx, tell Teller, tid int64, by, to, ask string, memo int64
 	}
 	asked, err := tell.TaskAsk(tx, AskReq{From: by, To: to, Kind: "task", Body: body, Within: func(rid int64) error {
 		h.RID = rid
-		return shiftTask(tx, tell, &h, "turn to "+to, true, push)
+		if err := shiftTask(tx, tell, &h, "turn to "+to, true, push); err != nil || memo == 0 {
+			return err
+		}
+		return db.LinkMemoTell(tx, memo, to, rid) // the delivery carries the comment: its tell
 	}})
 	return h, asked, err
 }

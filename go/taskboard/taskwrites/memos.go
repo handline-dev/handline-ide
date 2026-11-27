@@ -300,10 +300,11 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 				if evidence != "" {
 					onPass = db.TurnOnPassDone
 				}
-				ask, drop := body, ""
-				if to, ask, drop, err = seatTurn(tx, tid, c.Caller.Actor(), to, body); err != nil {
+				ask, drop, asked0 := body, "", to
+				if to, ask, drop, err = seatTurn(tx, tid, mid, c.Caller.Actor(), to, body); err != nil {
 					return nil, err
 				}
+				relayed := to != asked0 // a temp's question to a person goes first to the agent it stands in for
 				if pushed, asked, err = pushTurn(tx, tell, tid, c.Caller.Actor(), to, ask, mid, onPass, evidence); err != nil {
 					return nil, err
 				}
@@ -315,9 +316,12 @@ func memoAdd(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, err
 						return nil, err
 					}
 				}
-				if asked.Reask {
+				switch {
+				case asked.Reask:
 					said += ": " + asked.Msg
-				} else {
+				case relayed:
+					said += fmt.Sprintf("; your question goes first to %s, the agent you stand in for: it answers or puts it to the founder, and the answer comes back to you", addr.Ref(to))
+				default:
 					said += fmt.Sprintf(", and T%d is %s's turn now: %s", tid, addr.Ref(to), asked.Msg)
 				}
 			}
