@@ -140,7 +140,8 @@ function block(t: Token): ReactNode {
     case 'list':
       return <List list={t as Tokens.List} />;
     case 'code':
-      return <Code t={t as Tokens.Code} />;
+      // A marked picture's rects (app-core markLines) are for the agent; the numbered lines above say them to a person.
+      return (t as Tokens.Code).lang === 'marks' ? null : <Code t={t as Tokens.Code} />;
     case 'blockquote':
       return <blockquote className="flex flex-col gap-2 border-l-2 border-border pl-3 text-muted">{blocks(t.tokens ?? [])}</blockquote>;
     case 'hr':

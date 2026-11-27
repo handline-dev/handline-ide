@@ -275,6 +275,18 @@ export const CHAT_SEEDS: Record<string, Seed> = {
   },
 
   /** The architect is working; one message of the founder is taken as a task, one still waits to be sent, and an answered request sits in the chat. */
+  /** The founder's message with a marked picture's lines and its marks block: the bubble shows the lines only. */
+  'chat-marks': (d) => {
+    const text = 'Why does the Ultra reset not lift the line?';
+    const block = JSON.stringify([{ n: 1, shape: 'box', x: 1976, y: 218, w: 49, h: 501, text }]);
+    d.chat.seed(ARCH, {
+      from: ME,
+      to: ARCH,
+      body: `1. ${text}\n\`\`\`marks\n${block}\n\`\`\``,
+      at: new Date(Date.now() - 120_000).toISOString(),
+      landing: 'delivered',
+    });
+  },
   'chat-live': (d) => {
     const at = Date.now();
     const iso = (min: number) => new Date(at + min * 60_000).toISOString();

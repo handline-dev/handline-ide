@@ -23,6 +23,14 @@ function render(node: React.ReactNode) {
 import { Markdown } from '#src/ui/Markdown.tsx';
 
 describe('Markdown', () => {
+  it('leaves out a marks block and keeps its numbered lines', () => {
+    const { container } = render(
+      <Markdown text={'1. Too low\n```marks\n[{"n":1,"shape":"box","x":1,"y":2,"w":3,"h":4,"text":"Too low"}]\n```'} />,
+    );
+    expect(container.textContent).toContain('Too low');
+    expect(container.textContent).not.toContain('"shape"');
+  });
+
   it('keeps list numbers as written', () => {
     const { container } = render(<Markdown text={'1) one\n2) two\n\n3. three'} />);
     expect(container.textContent).toContain('1)one');
