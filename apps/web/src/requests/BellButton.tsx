@@ -1,27 +1,20 @@
 import { UnreadDot } from '#src/ui/Dot.tsx';
 import { Inbox } from 'lucide-react';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { useRequests } from '#src/requests/data.ts';
-import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
+import { InCluster } from '#src/connection/clusters.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
 import { ServiceRow, useServiceDown } from '#src/requests/ServiceRow.tsx';
+import { useAllRequests, useTurnCount } from '#src/requests/shared.tsx';
 
 const SHOWN = 5;
 
 /** The Requests mark (its tab's inbox), the one way into Requests: its number is what waits on the founder's action in every cluster; a click opens Requests
  * as a tab, by the app's one scheme, and resting on it shows the first Your turn rows. A dot marks an unread note or notice, or a finished request not yet seen. */
 export function BellButton() {
-  return (
-    <Across hook={useRequests} sig={(r) => JSON.stringify([r.count, r.notes.length, r.unseen, r.turn.slice(0, SHOWN)])}>
-      {(all) => <Bell all={all} />}
-    </Across>
-  );
-}
-
-function Bell({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
+  const all = useAllRequests() ?? [];
   const down = useServiceDown();
-  const count = all.reduce((n, a) => n + a.data.count, 0) + (down ? 1 : 0);
+  const count = useTurnCount();
   const fresh = all.some((a) => a.data.unseen > 0 || a.data.notes.length > 0);
   const open = useOpenable('requests');
   const rows = all.flatMap((a) => a.data.turn.map((p) => ({ cluster: a.cluster, p }))).slice(0, SHOWN);

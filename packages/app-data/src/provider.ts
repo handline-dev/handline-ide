@@ -1,6 +1,6 @@
 // The data layer's root: the query client, which daemon the keys belong to, and the event bridge that keeps the cache current.
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { useSelected, useStore } from '@handline/app-react';
 import type { Topic } from '@handline/client';
 import { createBridge, resume, resync } from '#src/bridge.ts';
@@ -65,6 +65,9 @@ export function DataScope(props: { daemonId: string; client: QueryClient; childr
     createElement(DataContext.Provider, { value: { daemon: props.daemonId } }, props.children),
   );
 }
+
+/** The query cache of the daemon this subtree reads, to scope another subtree to it again. */
+export const useQueries = () => useQueryClient();
 
 export function useData(): Data {
   const data = useContext(DataContext);

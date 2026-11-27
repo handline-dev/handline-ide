@@ -22,6 +22,7 @@ import { useScreenLayout } from '#src/layout/screenLayout.ts';
 import { Workspace } from '#src/Workspace.tsx';
 import { openTown, TownMode, useTownOpen } from '#src/town/mode.tsx';
 import { StatusRow } from '#src/sidebar/StatusRow.tsx';
+import { RequestsAcross } from '#src/requests/shared.tsx';
 import { Onboarding } from '#src/onboarding/Onboarding.tsx';
 import { Settings } from '#src/settings/Settings.tsx';
 import { openSettings } from '#src/settings/open.ts';
@@ -75,7 +76,7 @@ function App() {
   }, []);
 
   return (
-    <>
+    <RequestsAcross>
       <div className="flex h-full flex-col">
         <div ref={root} className="flex min-h-0 flex-1">
           <motion.div
@@ -142,7 +143,7 @@ function App() {
       <div className="app-no-drag fixed z-30" style={{ top: 'var(--controls-top, 6px)', left: 'calc(8px + var(--lights-w, 0px))' }}>
         <SidebarControls onToggle={toggle} />
       </div>
-    </>
+    </RequestsAcross>
   );
 }
 

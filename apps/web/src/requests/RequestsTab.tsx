@@ -30,8 +30,9 @@ import {
 } from '@handline/app-core';
 import { goToTurnOf, showMemo } from '#src/tools/TaskTurn.ts';
 import { ServiceRow, useServiceDown } from '#src/requests/ServiceRow.tsx';
-import { useRequests } from '#src/requests/data.ts';
-import { Across, InCluster, type Of } from '#src/connection/clusters.tsx';
+import type { useRequests } from '#src/requests/data.ts';
+import { InCluster } from '#src/connection/clusters.tsx';
+import { useAllRequests, useTurnCount, type AllRequests } from '#src/requests/shared.tsx';
 import { HereWord } from '#src/connection/ClusterWord.tsx';
 import { BulkButtons, NoPick, PickProvider, usePick } from '#src/requests/RowMenu.tsx';
 import { TurnLine } from '#src/requests/rows.tsx';
@@ -121,9 +122,7 @@ const isProposal = (p: PendingRequest) => p.source === 'proposal' && !!p.id;
 export function RequestsTab() {
   return (
     <PickProvider>
-      <Across hook={useRequests} sig={(r) => JSON.stringify([r.loaded, r.failed, r.turn, r.notes, r.later])}>
-        {(all) => <Requests all={all} />}
-      </Across>
+      <Requests all={useAllRequests() ?? []} />
     </PickProvider>
   );
 }
@@ -136,8 +135,9 @@ const keyOf = (x: At) => (x.cluster ? `${x.cluster}/${turnKey(x.p)}` : turnKey(x
 const fitList = (px: number, size: number) => Math.max(320, Math.min(px, size - 360));
 
 /** Every cluster's requests in one list: with several, newest first, each joined one's row with its name; only this Mac's are picked. */
-function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
+function Requests({ all }: { all: AllRequests }) {
   const down = useServiceDown();
+  const turnCount = useTurnCount();
   const own = all.find((a) => a.cluster === '')?.data;
   const several = all.length > 1;
   const merged = (of: (d: ReturnType<typeof useRequests>) => PendingRequest[]): At[] => {
@@ -254,7 +254,7 @@ function Requests({ all }: { all: Of<ReturnType<typeof useRequests>>[] }) {
             {r.failed && !down && <p className="px-2 text-danger">Requests did not load.</p>}
             {!r.loaded && !r.failed && !down && <ListLoading label="Loading requests" />}
             {(r.loaded || down) && (
-              <Section title="Your turn" rows={rows.turn} count={r.turn.length + (down ? 1 : 0)} empty="Nothing waits on you.">
+              <Section title="Your turn" rows={rows.turn} count={turnCount} empty="Nothing waits on you.">
                 {down && <ServiceRow key="service" />}
                 {r.turn.map((p) => line(p))}
               </Section>

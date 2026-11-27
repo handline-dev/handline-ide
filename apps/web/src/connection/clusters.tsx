@@ -1,8 +1,8 @@
 // The clusters this Mac joined (the desktop shell's list), each with a store of its own kept connected beside this Mac's, and the scope
 // that makes a subtree read one of them. This Mac's own cluster is id ''.
 import { Store, type ShellCluster } from '@handline/app-core';
-import { DataProvider, DataScope, makeQueryClient, useRead } from '@handline/app-data';
-import { DaemonProvider, useSelected } from '@handline/app-react';
+import { DataProvider, DataScope, makeQueryClient, useData, useQueries, useRead } from '@handline/app-data';
+import { DaemonProvider, useSelected, useStore } from '@handline/app-react';
 import { DaemonClient, webSocketTransport } from '@handline/client';
 import {
   createContext,
@@ -26,6 +26,9 @@ const JoinedContext = createContext<Joined[]>([]);
 const ReadyContext = createContext(true);
 /** The cluster a subtree reads: '' for this Mac's. */
 const HereContext = createContext('');
+/** This Mac's own daemon, so a subtree inside a joined cluster's scope can read this Mac's again. */
+type Home = { store: Store; queries: ReturnType<typeof makeQueryClient>; daemon: string };
+const HomeContext = createContext<Home | null>(null);
 
 /** The clusters this Mac joined, in the shell's order; none outside the desktop shell. */
 export const useJoined = () => useContext(JoinedContext);
@@ -69,29 +72,33 @@ export function JoinedClusters({ children }: { children: ReactNode }) {
   const applied = useSyncExternalStore(onAlias, () => homeAlias);
   useLayoutEffect(() => setHomeAlias(alias), [alias]);
   const listed = home ? joined.filter((j) => j !== home) : joined;
+  const here: Home = { store: useStore(), queries: useQueries(), daemon: useData().daemon };
+  const mine = home ? { store: home.store, queries: home.queries, daemon: home.daemon } : here;
   // Nothing draws before the shell's list and this Mac's workspaces are known, so it never starts on the wrong daemon.
   const decided = ready && (!joined.length || own !== undefined || ownList.isError) && applied === alias;
   return (
     <ReadyContext.Provider value={ready && decided}>
-      <JoinedContext.Provider value={listed}>
-        {/* Every press says its cluster, this Mac's here and a joined one's in its InCluster (later in the capture), for the modal it opens. */}
-        <div className="contents" onPointerDownCapture={() => pressedIn('')} onKeyDownCapture={() => pressedIn('')}>
-          {joined.map((j) => (
-            <DaemonProvider key={j.id} store={j.store} where={j.daemon} notify={false}>
-              <DataProvider daemonId={j.daemon} client={j.queries} />
-            </DaemonProvider>
-          ))}
-          {!decided ? null : home ? (
-            <DaemonProvider store={home.store} connect={false}>
-              <DataScope daemonId={home.daemon} client={home.queries}>
-                {children}
-              </DataScope>
-            </DaemonProvider>
-          ) : (
-            children
-          )}
-        </div>
-      </JoinedContext.Provider>
+      <HomeContext.Provider value={mine}>
+        <JoinedContext.Provider value={listed}>
+          {/* Every press says its cluster, this Mac's here and a joined one's in its InCluster (later in the capture), for the modal it opens. */}
+          <div className="contents" onPointerDownCapture={() => pressedIn('')} onKeyDownCapture={() => pressedIn('')}>
+            {joined.map((j) => (
+              <DaemonProvider key={j.id} store={j.store} where={j.daemon} notify={false}>
+                <DataProvider daemonId={j.daemon} client={j.queries} />
+              </DaemonProvider>
+            ))}
+            {!decided ? null : home ? (
+              <DaemonProvider store={home.store} connect={false}>
+                <DataScope daemonId={home.daemon} client={home.queries}>
+                  {children}
+                </DataScope>
+              </DaemonProvider>
+            ) : (
+              children
+            )}
+          </div>
+        </JoinedContext.Provider>
+      </HomeContext.Provider>
     </ReadyContext.Provider>
   );
 }
@@ -100,7 +107,21 @@ export function JoinedClusters({ children }: { children: ReactNode }) {
  * fade to 40% while it does not answer. */
 export function InCluster({ id, dim, children }: { id: string; dim?: boolean; children: ReactNode }) {
   const j = useJoined().find((c) => c.id === id);
-  if (!id) return children;
+  const at = useCluster();
+  const home = useContext(HomeContext);
+  if (!id) {
+    // Inside a joined cluster's scope, '' reads this Mac's again.
+    if (!at || !home) return children;
+    return (
+      <HereContext.Provider value="">
+        <DaemonProvider store={home.store} connect={false}>
+          <DataScope daemonId={home.daemon} client={home.queries}>
+            {children}
+          </DataScope>
+        </DaemonProvider>
+      </HereContext.Provider>
+    );
+  }
   if (!j) return null;
   return (
     <HereContext.Provider value={id}>
@@ -164,7 +185,13 @@ export function Across<T>({
   const all = ['', ...joined.map((j) => j.id)].flatMap((c) => (c in got ? [{ cluster: c, data: got[c]! }] : []));
   return (
     <>
-      <Probe cluster="" hook={hook} sig={sig} put={put} />
+      {alone ? (
+        <Probe cluster="" hook={hook} sig={sig} put={put} />
+      ) : (
+        <InCluster id="">
+          <Probe cluster="" hook={hook} sig={sig} put={put} />
+        </InCluster>
+      )}
       {joined.map((j) => (
         <InCluster key={j.id} id={j.id}>
           <Probe cluster={j.id} hook={hook} sig={sig} put={put} />

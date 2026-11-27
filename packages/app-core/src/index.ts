@@ -22,6 +22,7 @@ export * from '#src/my-turn.ts';
 export * from '#src/later.ts';
 export * from '#src/tab-dot.ts';
 export * from '#src/requests-pick.ts';
+export * from '#src/turn-count.ts';
 export * from '#src/unread.ts';
 export * from '#src/usage-lines.ts';
 export * from '#src/request-open.ts';
