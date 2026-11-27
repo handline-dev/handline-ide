@@ -11,7 +11,7 @@ import { townOf, type House } from '#src/town/model.ts';
 import { TownWindows, useTownShown } from '#src/town/Windows.tsx';
 import { setTownGo, townGo } from '#src/town/goto.ts';
 import { Face } from '#src/town/face.tsx';
-import { figuresOf } from '#src/town/people.ts';
+import { figuresOf } from '#src/town/sheet.ts';
 import { Inside } from '#src/town/Inside.tsx';
 import { CityView, type Sign } from '#src/town/CityView.tsx';
 import { cityOf, HQ, seatsOf } from '#src/town/city.ts';

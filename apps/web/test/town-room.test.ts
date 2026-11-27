@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Activity } from '#src/layout/agentList.ts';
 import type { House, Person } from '#src/town/model.ts';
-import { figuresOf } from '#src/town/people.ts';
+import { figuresOf } from '#src/town/sheet.ts';
 import { inFront, roomOf, WALL_T, type Room } from '#src/town/room.ts';
 
 const person = (key: string, activity: Activity): Person => ({ key, name: key, activity, doing: null, queue: 0, cached: false });

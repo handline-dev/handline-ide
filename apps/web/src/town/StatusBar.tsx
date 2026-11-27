@@ -13,7 +13,7 @@ import { Popover } from '#src/ui/Popover.tsx';
 import { Face } from '#src/town/face.tsx';
 import { townGo } from '#src/town/goto.ts';
 import { townOf, WORDS } from '#src/town/model.ts';
-import { figuresOf } from '#src/town/people.ts';
+import { figuresOf } from '#src/town/sheet.ts';
 import { GROUPS, GROUP_WORDS, doneToday, rollCallOf, type Called, type Finished, type Group } from '#src/town/rollcall.ts';
 
 const NONE: never[] = [];

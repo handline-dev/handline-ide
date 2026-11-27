@@ -4,7 +4,8 @@
 // walk. Lives outside React, as the founder's walk does: only what draws a mover follows it.
 import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import type { Person } from '#src/town/model.ts';
-import { figuresOf, type Facing } from '#src/town/people.ts';
+import { type Facing } from '#src/town/people.ts';
+import { figuresOf } from '#src/town/sheet.ts';
 import { changesOf, routeOf, standingAt, type Door, type Seat } from '#src/town/moves.ts';
 import type { Floor, Spot } from '#src/town/walk.ts';
 
