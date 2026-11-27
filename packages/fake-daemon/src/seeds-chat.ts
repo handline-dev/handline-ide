@@ -184,6 +184,24 @@ export const CHAT_SEEDS: Record<string, Seed> = {
     line(1, 'sleep 600', { done: false });
   },
 
+  /** The founder's message made into a task: its delivery carries the same words and draws as the task card only. */
+  'founder-task': (d) => {
+    const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const words = 'Make Back and Forward work inside Town too.';
+    d.tasks.seed({ id: 1690, from: ME, to: ARCH, title: 'Town: Back and Forward work inside Town', state: 'doing' });
+    d.chat.seed(ARCH, { from: ME, to: ARCH, body: words, at: iso(6), landing: 'delivered' });
+    d.chat.seed(ARCH, {
+      from: ME,
+      to: ARCH,
+      kind: 'task',
+      tasks: [{ id: 1690, title: 'Town: Back and Forward work inside Town' }],
+      body: words,
+      at: iso(5),
+      landing: 'delivered',
+    });
+    d.chat.seed(ARCH, { from: ARCH, to: ME, body: 'Made it T1690; on it now.', at: iso(4), landing: 'delivered' });
+  },
+
   /** Tasks given to the architect, one assigned and one handed on, and a turn running 4 minutes on the one it holds (T8705). */
   'start-card': (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

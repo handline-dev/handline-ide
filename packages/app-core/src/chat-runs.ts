@@ -1,6 +1,6 @@
 // How the chat's lines become what is drawn: task notices, task comments and task changes heard live gathered into task cards, each task
 // in one card only; and which lines draw nothing at all.
-import { isPerson, unblockedStart, type TimelineEntry, type TurnRecord } from '#src/chat.ts';
+import { isPerson, isTaskDelivery, unblockedStart, type TimelineEntry, type TurnRecord } from '#src/chat.ts';
 import { isSystem } from '#src/task-people.ts';
 
 /** `start`: a task this agent was given, by its maker or handed on by its holder; `comment`: a comment on it, its detail "Who: first line";
@@ -45,6 +45,8 @@ export function drawsNothing(e: TimelineEntry, agent: string, me: string): boole
   if (e.message.from === SCHEDULE_SENDER) return !scheduledText(e.message.body).trim();
   // The daemon's own bookkeeping (sys digests and nudges) is not shown anywhere.
   if (isSystem(e.message.from)) return true;
+  // A task the person gave is drawn as its task card; its words already show once, from their own message.
+  if (isPerson(e.message.from, me) && isTaskDelivery(e.message)) return true;
   if (!isPerson(e.message.from, me) && !isPerson(e.message.to, me)) return e.message.from !== agent;
   const text = e.message.parts ? e.message.parts.some((p) => 'text' in p && p.text.trim()) : !!e.message.body;
   return !text && !(e.message.attachments ?? []).some((a) => a.mime.startsWith('image/'));
