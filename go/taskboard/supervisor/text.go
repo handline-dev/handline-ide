@@ -40,7 +40,7 @@ func emptyBody(q db.Q, r *db.Request) string {
 // another agent's request by a reply that names it; a say or a report asks nothing.
 func answerVerb(q db.Q, head *db.Request) string { return must(states.AnswerVerb(q, head)) }
 
-// FoldedNotices are the notices the next typed delivery to the agent carries; the caller marks them shown once the send went through.
+// foldedNotices are the notices the next typed delivery to the agent carries; the caller marks them shown once the send went through.
 func foldedNotices(q db.Q, agent string) []*db.Request {
 	rows := must(db.PendingNotices(q, agent))
 	if len(rows) > NoticesShown {
@@ -77,7 +77,7 @@ func noticesText(q db.Q, agent string, folded []*db.Request) string {
 	return " Also: " + strings.Join(lines, " | ") + more
 }
 
-// InReplyTo is `in reply to msg_<hash>: <first line of it>` for a request with a parent; "" for one without, or whose parent is gone.
+// inReplyTo is `in reply to msg_<hash>: <first line of it>` for a request with a parent; "" for one without, or whose parent is gone.
 func inReplyTo(q db.Q, r *db.Request) string {
 	if !r.ParentID.Valid {
 		return ""
@@ -110,8 +110,8 @@ func splitLines(s string) []string {
 	return lines
 }
 
-// TellText is the message that tells an agent about head, as typed. aheadOf is the head a "send now" request is jumping, or with parked
-// the open head the task is queued behind. folded is FoldedNotices, carried on the same line.
+// tellText is the message that tells an agent about head, as typed. aheadOf is the head a "send now" request is jumping, or with parked
+// the open head the task is queued behind. folded is foldedNotices, carried on the same line.
 func tellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked bool, folded []*db.Request, images string) string {
 	more := depth - 1
 	var shown string

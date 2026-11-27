@@ -169,10 +169,3 @@ func (Screen) TrustAnswer() string { return "" }
 
 // FirstRunScreen: no first-run screen of codex's is known here.
 func (Screen) FirstRunScreen([]string) bool { return false }
-
-// Answering an approval from Handline is not built: it stays for the person at the terminal, which ScreenBlocker shows.
-func (Screen) Confirmation(*term.Dialog) *term.Confirmation                 { return nil }
-func (Screen) AskQuestion([]string) *term.Question                          { return nil }
-func (Screen) AnswerQuestionKeys(*term.Question, []int, *string) []string   { return nil }
-func (Screen) QuestionToggleKeys(*term.Question, []int) []string            { return nil }
-func (Screen) QuestionOtherAfterToggleKeys(*term.Question, string) []string { return nil }

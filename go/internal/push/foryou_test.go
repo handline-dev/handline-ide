@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/handline/handline/go/kit/storetest"
 	"reflect"
 	"strings"
 	"testing"
@@ -142,9 +143,14 @@ func TestNoSenderHasNoPlatforms(t *testing.T) {
 // A note of a person's item goes to that person's devices only: Kim's turn to her phone, the founder's to theirs.
 func TestANoteGoesToItsPersonsDevicesOnly(t *testing.T) {
 	prod := newFake(t)
-	store := devices.NewMemStore()
+	store := devices.SQLStore{DB: storetest.Open(t)}
+	if _, err := store.DB.Exec("INSERT INTO people(id, display_name, role, created_at) VALUES(2, 'Kim', 'member', 0)"); err != nil {
+		t.Fatal(err)
+	}
 	for _, d := range []struct{ id, person, token string }{{"founder", "", "aaa"}, {"kim", "p2", "kkk"}} {
-		store.Add(devices.Device{ID: d.id, Name: d.id, Person: d.person}, "hash"+d.id)
+		if err := store.Add(devices.Device{ID: d.id, Name: d.id, Person: d.person}, "hash"+d.id); err != nil {
+			t.Fatal(err)
+		}
 		store.SetPush(d.id, devices.Push{Platform: "apns", Token: d.token})
 	}
 	ec, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

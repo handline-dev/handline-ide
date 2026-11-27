@@ -16,46 +16,27 @@ func TestAFailedStatementComesBackAsAnErrorFromEveryExportedReader(t *testing.T)
 	r.agentUp(r.k("bob"))
 	row, _ := db.GetAgentState(r.DB, r.k(("bob")))
 	req := r.ask(r.k("alice"), r.k(("bob")), "x", "ask")
-	task, _ := db.GetTask(r.DB, r.newTask(r.k("bob"), r.k(("alice")), "job"))
 	head, _ := db.GetRequest(r.DB, req)
 	r.breakDB()
 	q := db.Q(r.DB)
 	calls := map[string]func() error{
-		"AgentReason":           func() error { _, _, err := r.AgentReason(q, r.k(("bob")), 1); return err },
-		"BgHolds":               func() error { _, err := r.BgHolds(q, r.k(("bob")), 1); return err },
-		"BgLastShown":           func() error { _, _, err := r.BgLastShown(q, r.k(("bob"))); return err },
-		"BgMayStop":             func() error { _, err := r.BgMayStop(q, r.k(("bob")), 1); return err },
-		"BgOwesNothing":         func() error { _, err := r.BgOwesNothing(q, r.k(("bob"))); return err },
-		"BgPromptedAt":          func() error { _, err := r.BgPromptedAt(q, r.k(("bob"))); return err },
-		"BgSilentS":             func() error { _, _, err := r.BgSilentS(q, r.k(("bob")), 1); return err },
-		"BgSince":               func() error { _, _, err := r.BgSince(q, r.k(("bob"))); return err },
-		"BgStale":               func() error { _, err := r.BgStale(q, r.k(("bob")), 1); return err },
-		"ClearOwed":             func() error { _, err := r.ClearOwed(q, r.k(("bob"))); return err },
-		"EffectiveHead":         func() error { _, err := r.EffectiveHead(q, r.k(("bob"))); return err },
-		"EffectiveHeadOrMarked": func() error { _, err := r.EffectiveHeadOrMarked(q, r.k(("bob"))); return err },
-		"EffectiveTaskHead":     func() error { _, err := r.EffectiveTaskHead(q, r.k(("bob"))); return err },
-		"FoldedNotices":         func() error { _, err := FoldedNotices(q, r.k(("bob"))); return err },
-		"ForgottenResolve":      func() error { _, err := r.ForgottenResolve(q, r.k(("bob")), row, 1); return err },
-		"HasBackgroundWork":     func() error { _, err := r.HasBackgroundWork(q, r.k(("bob"))); return err },
-		"HeadTaskBlocked":       func() error { _, err := r.HeadTaskBlocked(q, r.k(("bob")), head); return err },
-		"IdleSince":             func() error { _, _, err := r.IdleSince(q, r.k(("bob"))); return err },
-		"InReplyTo": func() error {
-			c := *head
-			c.ParentID.Valid, c.ParentID.Int64 = true, head.ID
-			_, err := InReplyTo(q, &c)
-			return err
-		},
-		"LandedAlready":      func() error { _, err := r.LandedAlready(q, r.k(("bob")), req); return err },
-		"LinkDelivery":       func() error { return r.LinkDelivery(q, task.ID, r.k(("bob")), req) },
-		"NudgeCount":         func() error { _, err := r.NudgeCount(q, r.k(("bob")), 1); return err },
+		"BgHolds":            func() error { _, err := r.BgHolds(q, r.k(("bob")), 1); return err },
+		"BgMayStop":          func() error { _, err := r.BgMayStop(q, r.k(("bob")), 1); return err },
+		"BgOwesNothing":      func() error { _, err := r.BgOwesNothing(q, r.k(("bob"))); return err },
+		"BgPromptedAt":       func() error { _, err := r.BgPromptedAt(q, r.k(("bob"))); return err },
+		"BgSilentS":          func() error { _, _, err := r.BgSilentS(q, r.k(("bob")), 1); return err },
+		"BgSince":            func() error { _, _, err := r.BgSince(q, r.k(("bob"))); return err },
+		"BgStale":            func() error { _, err := r.BgStale(q, r.k(("bob")), 1); return err },
+		"EffectiveHead":      func() error { _, err := r.EffectiveHead(q, r.k(("bob"))); return err },
+		"EffectiveTaskHead":  func() error { _, err := r.EffectiveTaskHead(q, r.k(("bob"))); return err },
+		"ForgottenResolve":   func() error { _, err := r.ForgottenResolve(q, r.k(("bob")), row, 1); return err },
+		"HasBackgroundWork":  func() error { _, err := r.HasBackgroundWork(q, r.k(("bob"))); return err },
+		"HeadTaskBlocked":    func() error { _, err := r.HeadTaskBlocked(q, r.k(("bob")), head); return err },
+		"IdleSince":          func() error { _, _, err := r.IdleSince(q, r.k(("bob"))); return err },
 		"NudgeExhausted":     func() error { _, err := r.NudgeExhausted(q, r.k(("bob")), 1); return err },
 		"RaiseDecision":      func() error { _, err := r.RaiseDecision(q, r.k(("bob")), "t", "r", "", "", 0, 0); return err },
 		"Report":             func() error { _, err := r.Report(q, r.k(("bob")), "t", "r"); return err },
-		"ScreenDrawsSession": func() error { _, err := r.ScreenDrawsSession(r.k("bob")); return err },
 		"SessionChanged":     func() error { _, err := r.SessionChanged(q, r.k(("bob"))); return err },
-		"StalledOnDialog":    func() error { _, err := r.StalledOnDialog(q, r.k(("bob")), "x"); return err },
-		"TaskReason":         func() error { _, _, _, _, err := r.TaskReason(q, task, 1); return err },
-		"TypeSay":            func() error { return r.TypeSay(q, r.k(("bob")), "x", "y") },
 		"WallReason":         func() error { _, err := r.WallReason(q, r.k(("bob")), nil); return err },
 		"DeliverQueued":      func() error { _, err := r.DeliverQueued(q, r.k(("bob"))); return err },
 		"TellNow":            func() error { _, err := r.TellNow(q, req); return err },
@@ -186,13 +167,13 @@ func TestTheExportedReadersAnswerTheirValueWhenNothingFails(t *testing.T) {
 		!strings.Contains(v, "goes on the task it is about with `--turn human`") {
 		t.Fatalf("%q %v", v, err)
 	}
-	if v, err := TellText(r.DB, head, 1, nil, false, nil, ""); err != nil || !strings.HasPrefix(r.ids(v), "#1 from alice/lead, waiting for you:\nq\n") {
-		t.Fatalf("%q %v", v, err)
+	if v := tellText(r.DB, head, 1, nil, false, nil, ""); !strings.HasPrefix(r.ids(v), "#1 from alice/lead, waiting for you:\nq\n") {
+		t.Fatalf("%q", v)
 	}
 	if v, err := r.EffectiveHead(r.DB, r.k(("bob"))); err != nil || v == nil || v.ID != rid {
 		t.Fatal(v, err)
 	}
-	if why, able, err := r.AgentReason(r.DB, r.k(("bob")), r.clock); err != nil || why != "" || !able {
-		t.Fatal(why, able, err)
+	if why, able := r.agentReason(r.DB, r.k(("bob")), r.clock); why != "" || !able {
+		t.Fatal(why, able)
 	}
 }

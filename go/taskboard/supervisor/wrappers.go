@@ -53,13 +53,6 @@ func (e *Env) BgSince(q db.Q, agent string) (r0 int64, r1 bool, err error) {
 	return r0, r1, nil
 }
 
-// BgLastShown is bgLastShown with a failed statement returned as the error.
-func (e *Env) BgLastShown(q db.Q, agent string) (r0 int64, r1 bool, err error) {
-	defer Catch(&err)
-	r0, r1 = e.bgLastShown(q, agent)
-	return r0, r1, nil
-}
-
 // BgSilentS is bgSilentS with a failed statement returned as the error.
 func (e *Env) BgSilentS(q db.Q, agent string, now int64) (r0 int64, r1 bool, err error) {
 	defer Catch(&err)
@@ -95,13 +88,6 @@ func (e *Env) ForgottenResolve(q db.Q, agent string, row *db.AgentState, now int
 	return r0, nil
 }
 
-// NudgeCount is nudgeCount with a failed statement returned as the error.
-func (e *Env) NudgeCount(q db.Q, agent string, headID int64) (r0 int64, err error) {
-	defer Catch(&err)
-	r0 = e.nudgeCount(q, agent, headID)
-	return r0, nil
-}
-
 // NudgeExhausted is nudgeExhausted with a failed statement returned as the error.
 func (e *Env) NudgeExhausted(q db.Q, agent string, headID int64) (r0 bool, err error) {
 	defer Catch(&err)
@@ -123,13 +109,6 @@ func (e *Env) EffectiveHead(q db.Q, agent string) (r0 *db.Request, err error) {
 	return r0, nil
 }
 
-// EffectiveHeadOrMarked is effectiveHeadOrMarked with a failed statement returned as the error.
-func (e *Env) EffectiveHeadOrMarked(q db.Q, agent string) (r0 *db.Request, err error) {
-	defer Catch(&err)
-	r0 = e.effectiveHeadOrMarked(q, agent)
-	return r0, nil
-}
-
 // EffectiveTaskHead is effectiveTaskHead with a failed statement returned as the error.
 func (e *Env) EffectiveTaskHead(q db.Q, agent string) (r0 *db.Request, err error) {
 	defer Catch(&err)
@@ -137,52 +116,10 @@ func (e *Env) EffectiveTaskHead(q db.Q, agent string) (r0 *db.Request, err error
 	return r0, nil
 }
 
-// AgentReason is agentReason with a failed statement returned as the error.
-func (e *Env) AgentReason(q db.Q, agent string, now int64) (r0 string, r1 bool, err error) {
-	defer Catch(&err)
-	r0, r1 = e.agentReason(q, agent, now)
-	return r0, r1, nil
-}
-
-// TaskReason is taskReason with a failed statement returned as the error.
-func (e *Env) TaskReason(q db.Q, t *db.Task, now int64) (r0, r1 string, r2 bool, r3 bool, err error) {
-	defer Catch(&err)
-	r0, r1, r2, r3 = e.taskReason(q, t, now)
-	return r0, r1, r2, r3, nil
-}
-
-// LandedAlready is landedAlready with a failed statement returned as the error.
-func (e *Env) LandedAlready(q db.Q, agent string, rid int64) (r0 bool, err error) {
-	defer Catch(&err)
-	r0 = e.landedAlready(q, agent, rid)
-	return r0, nil
-}
-
-// ScreenDrawsSession is screenDrawsSession with a failed statement returned as the error.
-func (e *Env) ScreenDrawsSession(agent string) (r0 bool, err error) {
-	defer Catch(&err)
-	r0 = e.screenDrawsSession(agent)
-	return r0, nil
-}
-
 // SessionPresent is sessionPresent with a failed statement returned as the error.
 func (e *Env) SessionPresent(agent string) (r0 bool, err error) {
 	defer Catch(&err)
 	r0 = e.sessionPresent(agent)
-	return r0, nil
-}
-
-// StalledOnDialog is stalledOnDialog with a failed statement returned as the error.
-func (e *Env) StalledOnDialog(q db.Q, agent, why string) (r0 bool, err error) {
-	defer Catch(&err)
-	r0 = e.stalledOnDialog(q, agent, why)
-	return r0, nil
-}
-
-// ClearOwed is clearOwed with a failed statement returned as the error.
-func (e *Env) ClearOwed(q db.Q, agent string) (r0 int64, err error) {
-	defer Catch(&err)
-	r0 = e.clearOwed(q, agent)
 	return r0, nil
 }
 
@@ -197,41 +134,6 @@ func (e *Env) WallReason(q db.Q, agent string, row *db.AgentState) (r0 string, e
 func (e *Env) SessionChanged(q db.Q, agent string) (r0 bool, err error) {
 	defer Catch(&err)
 	r0 = e.sessionChanged(q, agent)
-	return r0, nil
-}
-
-// LinkDelivery is linkDelivery with a failed statement returned as the error.
-func (e *Env) LinkDelivery(q db.Q, tid int64, owner string, rid int64) (err error) {
-	defer Catch(&err)
-	e.linkDelivery(q, tid, owner, rid)
-	return nil
-}
-
-// TypeSay is typeSay with a failed statement returned as the error.
-func (e *Env) TypeSay(q db.Q, owner, body, why string) (err error) {
-	defer Catch(&err)
-	e.typeSay(q, owner, body, why)
-	return nil
-}
-
-// FoldedNotices is foldedNotices with a failed statement returned as the error.
-func FoldedNotices(q db.Q, agent string) (r0 []*db.Request, err error) {
-	defer Catch(&err)
-	r0 = foldedNotices(q, agent)
-	return r0, nil
-}
-
-// InReplyTo is inReplyTo with a failed statement returned as the error.
-func InReplyTo(q db.Q, r *db.Request) (r0 string, err error) {
-	defer Catch(&err)
-	r0 = inReplyTo(q, r)
-	return r0, nil
-}
-
-// TellText is tellText with a failed statement returned as the error.
-func TellText(q db.Q, head *db.Request, depth int, aheadOf *db.Request, parked bool, folded []*db.Request, images string) (r0 string, err error) {
-	defer Catch(&err)
-	r0 = tellText(q, head, depth, aheadOf, parked, folded, images)
 	return r0, nil
 }
 

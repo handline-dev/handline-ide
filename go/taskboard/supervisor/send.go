@@ -47,7 +47,7 @@ func (e *Env) TableListsSession(agent string) (yes, known bool) {
 	return sessions[agent], true
 }
 
-// ScreenDrawsSession is whether the agent's terminal draws a session right now: the screen's word, held DrawnFreshS.
+// screenDrawsSession is whether the agent's terminal draws a session right now: the screen's word, held DrawnFreshS.
 func (e *Env) screenDrawsSession(agent string) bool {
 	e.init()
 	e.mu.Lock()
@@ -153,7 +153,7 @@ func (e *Env) pastDialog(q db.Q, agent string, onlyLimit bool) string {
 	return why
 }
 
-// StalledOnDialog: a dialog Handline cannot get past, standing as long as a block takes to be raised with the founder, stops the agent.
+// stalledOnDialog: a dialog Handline cannot get past, standing as long as a block takes to be raised with the founder, stops the agent.
 func (e *Env) stalledOnDialog(q db.Q, agent, why string) bool {
 	since := must(db.Cursor(q, "dialog_since:"+agent))
 	if since == 0 || e.now()-since < e.Dialogs.DecisionAfterS() {
@@ -164,7 +164,7 @@ func (e *Env) stalledOnDialog(q db.Q, agent, why string) bool {
 	return true
 }
 
-// ClearOwed is when the agent was told its clear is coming, 0 when none is owed.
+// clearOwed is when the agent was told its clear is coming, 0 when none is owed.
 func (e *Env) clearOwed(q db.Q, agent string) int64 { return must(db.Cursor(q, "clear_owed:"+agent)) }
 
 // WallReason is why typing at this agent's open session would only spend quota, "" for none. Checked where the keystrokes are sent.

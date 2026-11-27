@@ -5690,7 +5690,7 @@
      "$ref": "#/components/errors/refused"
     }
    ],
-   "description": "A pin or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins and order (and sends prefs.changed); a rename (proposals) carries it over in place."
+   "description": "A pin or an order entry naming an agent the daemon does not know, or a name given twice, is bad_request naming the field. Once stored, a prefs.changed event on the prefs topic carries the whole Prefs. agent.retire drops the agent from pins and order (and sends prefs.changed); a rename keeps the agent's key, so its pins and order stay as they are."
   },
   {
    "name": "hook.record",

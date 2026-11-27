@@ -1,5 +1,3 @@
-//go:build !windows
-
 // Package tmux is the terminal host on macOS and Linux: terminals are windows of one session on a tmux server the program owns
 // (term.Place.Socket), driven through the tmux CLI.
 package tmux

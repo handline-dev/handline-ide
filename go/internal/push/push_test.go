@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/handline/handline/go/kit/storetest"
 	"io"
 	"math/big"
 	"net"
@@ -131,8 +132,8 @@ func claimsOf(t *testing.T, token string, verify func(input, sig []byte) bool) (
 }
 
 // phones is a store with a production APNs device, a sandbox APNs one, an FCM one and one that gave no token.
-func phones(t *testing.T) *devices.MemStore {
-	s := devices.NewMemStore()
+func phones(t *testing.T) devices.SQLStore {
+	s := devices.SQLStore{DB: storetest.Open(t)}
 	for i, p := range []*devices.Push{
 		{Platform: "apns", Token: "aaa"}, {Platform: "apns", Token: "bbb", Sandbox: true}, {Platform: "fcm", Token: "ccc"}, nil,
 	} {
@@ -145,7 +146,7 @@ func phones(t *testing.T) *devices.MemStore {
 	return s
 }
 
-func tokens(t *testing.T, s *devices.MemStore) map[string]string {
+func tokens(t *testing.T, s devices.SQLStore) map[string]string {
 	ds, err := s.List()
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +164,7 @@ var open = Note{Title: "Decide · bob", Body: "Ship the build?", Data: map[strin
 
 // With no credentials named push is off; a platform named without the rest of its keys, or a file that cannot be read, is an error.
 func TestNoCredentialsMeansPushIsOff(t *testing.T) {
-	s, err := FromConfig(usage.Config{"keep_awake": "on"}, devices.NewMemStore())
+	s, err := FromConfig(usage.Config{"keep_awake": "on"}, devices.SQLStore{DB: storetest.Open(t)})
 	if s != nil || err != nil || s.On("apns") || s.On("fcm") {
 		t.Fatalf("no credentials: %v %v", s, err)
 	}
@@ -191,14 +192,14 @@ func TestNoCredentialsMeansPushIsOff(t *testing.T) {
 			string(must(json.Marshal(writePEM(t, ec))))+`}`)},
 		"APNs key is RSA": {KeyAPNsKey: writeFile(t, "rsa.p8", rsaKey), KeyAPNsKeyID: "KID", KeyAPNsTeamID: "TEAM"},
 	} {
-		if s, err := FromConfig(cfg, devices.NewMemStore()); s != nil || err == nil {
+		if s, err := FromConfig(cfg, devices.SQLStore{DB: storetest.Open(t)}); s != nil || err == nil {
 			t.Errorf("%s: %v %v", name, s, err)
 		}
 	}
-	if s, err := FromConfig(usage.Config{KeyFCM: account("")}, devices.NewMemStore()); err != nil || !s.On("fcm") {
+	if s, err := FromConfig(usage.Config{KeyFCM: account("")}, devices.SQLStore{DB: storetest.Open(t)}); err != nil || !s.On("fcm") {
 		t.Fatalf("a whole service account: %v %v", s, err)
 	}
-	s, err = FromConfig(usage.Config{KeyAPNsKey: key, KeyAPNsKeyID: "KID", KeyAPNsTeamID: "TEAM"}, devices.NewMemStore())
+	s, err = FromConfig(usage.Config{KeyAPNsKey: key, KeyAPNsKeyID: "KID", KeyAPNsTeamID: "TEAM"}, devices.SQLStore{DB: storetest.Open(t)})
 	if err != nil || !s.On("apns") || s.On("fcm") {
 		t.Fatalf("APNs credentials: %v %v", s, err)
 	}

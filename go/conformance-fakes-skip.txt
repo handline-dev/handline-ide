@@ -1,8 +1,8 @@
 # The fakes run's skip list (tools/test-go.sh --fakes: the -tags fakes binary, agents on the fake CLI, the terminal tick on).
 # Each fixture here pins a view, a doing window, a token call or a worktree row that tools/conformance_fds.py seeds into the
 # database for the tick-off run; with the tick on the daemon recomputes it ("seeded view, recomputed by the tick"). The tick-off
-# run on the shipped binary still plays them. prefs.set.a_renamed_agent_keeps_its_place_in_the_order is on go/conformance-skip.txt
-# for its own reason. contract/conformance.py --skip-file reads one per line; one that passes fails the run, so the list only shrinks.
+# run on the shipped binary still plays them.
+# contract/conformance.py --skip-file reads one per line; one that passes fails the run, so the list only shrinks.
 agent.get.doing_names_the_tool_call
 agent.get.state_idle
 agent.get.state_parked
@@ -20,5 +20,4 @@ files.list.best_matches_first
 files.list.every_file_in_path_order
 files.list.limit_and_more
 files.list.nothing_matches
-prefs.set.a_renamed_agent_keeps_its_place_in_the_order
 stats.retro.only_calls_inside_a_doing_window_count

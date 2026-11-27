@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 )
 
-// SendOp is one message to a structured session as the session's ledger keeps it (structured.DBLedger): the operations row
+// SendOp is one message to a structured session as its session keeps it: the operations row
 // `send:<agent>:<op>`. found is false when the session never recorded the operation.
 func SendOp(q Q, agent, op string) (state, uuid string, found bool, err error) {
 	var st, res sql.NullString

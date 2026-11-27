@@ -1,5 +1,3 @@
-//go:build !windows
-
 package tmux_test
 
 import (

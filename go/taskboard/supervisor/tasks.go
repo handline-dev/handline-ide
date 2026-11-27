@@ -20,7 +20,7 @@ import (
 // The task subset of actions/tasks.py the supervisor calls: the owner's current task and advancing it, the "unblocked" and result notices,
 // memo says. They run after the write that caused them has committed, on the database itself.
 
-// LinkDelivery links a task to the request that delivers it, and makes it the owner's current task if it holds none yet.
+// linkDelivery links a task to the request that delivers it, and makes it the owner's current task if it holds none yet.
 func (e *Env) linkDelivery(q db.Q, tid int64, owner string, rid int64) {
 	check(db.LinkRequest(q, tid, rid))
 	if !actor.IsPerson(owner) {
@@ -490,7 +490,7 @@ func (e *Env) releaseOne(tid int64, how string) (waiting []int64, err error) {
 
 // ---------------------------------------------------------------- memos
 
-// TypeSay writes a say from the task board to owner, typed at once.
+// typeSay writes a say from the task board to owner, typed at once.
 func (e *Env) typeSay(q db.Q, owner, body, why string) int64 {
 	if actor.IsPerson(owner) {
 		return 0
