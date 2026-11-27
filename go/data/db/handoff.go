@@ -144,17 +144,21 @@ func LastBoundSessionStart(q Q, agent string) (int64, error) {
 // RestartHeld is whether nothing more is typed at the agent now: a handoff note is being written, a handoff trigger is deferred behind a
 // running turn, a clear is owed, or a handoff of the agent is in flight (decided, not yet released). Each counts only for NoteWaitStaleS
 // since it began, or since the row's last step, so one that stuck holds for that long at most; the reconciler gives a row up sooner, at
-// its deadline.
+// its deadline. A deferral MarkCompactDue holds counts until the compact runs or its trigger stops firing.
 func RestartHeld(q Q, agent string, now int64) (bool, error) {
 	if _, _, kept, err := NoteWaitKept(q, agent, now); err != nil || kept {
 		return kept, err
+	}
+	hold, err := Cursor(q, compactHoldKey(agent))
+	if err != nil {
+		return false, err
 	}
 	for _, key := range []string{deferredKey(agent), "clear_owed:" + agent} {
 		since, err := Cursor(q, key)
 		if err != nil {
 			return false, err
 		}
-		if since != 0 && now-since <= NoteWaitStaleS {
+		if since != 0 && (now-since <= NoteWaitStaleS || (hold != 0 && key == deferredKey(agent))) {
 			return true, nil
 		}
 	}
@@ -173,8 +177,47 @@ func MarkDeferred(q Q, agent string, now int64) error {
 	return SetCursor(q, deferredKey(agent), now)
 }
 
-// ClearDeferred ends the wait MarkDeferred kept: the handoff opened its row, or its trigger no longer fires.
-func ClearDeferred(q Q, agent string) error { return ClearCursor(q, deferredKey(agent)) }
+// ClearDeferred ends the wait MarkDeferred kept, and the compact MarkCompactDue kept: the handoff opened its row, or its trigger no longer
+// fires.
+func ClearDeferred(q Q, agent string) error {
+	for _, key := range []string{deferredKey(agent), compactDueKey(agent), compactHoldKey(agent)} {
+		if err := ClearCursor(q, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// LetDeferredIn ends MarkDeferred's hold and keeps the compact due: a turn that has ended while its task is in progress may wait on
+// what was held.
+func LetDeferredIn(q Q, agent string) error {
+	if err := ClearCursor(q, compactHoldKey(agent)); err != nil {
+		return err
+	}
+	return ClearCursor(q, deferredKey(agent))
+}
+
+func compactDueKey(agent string) string  { return "compact_due:" + agent }
+func compactHoldKey(agent string) string { return "compact_hold:" + agent }
+
+// MarkCompactDue keeps that a context compact is due and waits, since now (the first time is kept). hold keeps MarkDeferred's hold
+// until the compact runs instead of NoteWaitStaleS (compact_at_task_end).
+func MarkCompactDue(q Q, agent string, now int64, hold bool) error {
+	if since, err := Cursor(q, compactDueKey(agent)); err != nil {
+		return err
+	} else if since == 0 {
+		if err := SetCursor(q, compactDueKey(agent), now); err != nil {
+			return err
+		}
+	}
+	if !hold {
+		return ClearCursor(q, compactHoldKey(agent))
+	}
+	return SetCursor(q, compactHoldKey(agent), 1)
+}
+
+// CompactDueSince is when a due context compact began to wait, 0 for none.
+func CompactDueSince(q Q, agent string) (int64, error) { return Cursor(q, compactDueKey(agent)) }
 
 func noteWaitKey(agent string) string { return "handoff_note_wait:" + agent }
 

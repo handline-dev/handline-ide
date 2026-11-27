@@ -47,8 +47,9 @@ type Controls interface {
 	Restart(c Call, agent string, fresh, force bool) (ok bool, said string, err error)
 	// Park is control.park_result: record a handoff, park until the window rolls over.
 	Park(c Call, agent string) (ok bool, said string, err error)
-	// Compact asks for the handoff a full context runs: note, record, a fresh session. It answers before any of it.
-	Compact(c Call, agent string) (ok bool, said string, err error)
+	// Compact asks for the handoff a full context runs: note, record, a fresh session. It answers before any of it. stop ends a turn
+	// under way, for an agent whose Compact now does not wait for it.
+	Compact(c Call, agent string, stop func() error) (ok bool, said string, err error)
 }
 
 // Env is what the methods run on.
@@ -105,7 +106,7 @@ func Register(s *rpc.Server, e *Env) {
 		s.Register("session.start", rpc.Method{Handler: e.start})
 		s.Register("session.wake", rpc.Method{Handler: e.wake})
 		s.Register("session.restart", rpc.Method{Handler: e.restart})
-		s.Register("session.compact", rpc.Method{Handler: e.verb("session.compact", e.Controls.Compact)})
+		s.Register("session.compact", rpc.Method{Handler: e.compact})
 		s.Register("session.park", rpc.Method{Handler: e.verb("session.park", e.Controls.Park)})
 		s.Register("session.stop", rpc.Method{Handler: e.stop})
 	}
@@ -315,6 +316,18 @@ func (e *Env) moveNow(c *rpc.Conn, params map[string]any) (any, error) {
 	account, _ := params["account"].(string)
 	return e.run(c, "agent.move_now", params, func(call Call, agent string) (map[string]any, error) {
 		return done(e.MoveNow(call, agent, account, func() error {
+			if e.InterruptTerminal == nil {
+				return errors.New("no terminal to stop it in")
+			}
+			return e.InterruptTerminal(c, agent)
+		}))
+	})
+}
+
+// compact is session.compact; stop interrupts the turn as session.interrupt does.
+func (e *Env) compact(c *rpc.Conn, params map[string]any) (any, error) {
+	return e.run(c, "session.compact", params, func(call Call, agent string) (map[string]any, error) {
+		return done(e.Controls.Compact(call, agent, func() error {
 			if e.InterruptTerminal == nil {
 				return errors.New("no terminal to stop it in")
 			}

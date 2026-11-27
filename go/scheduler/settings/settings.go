@@ -18,6 +18,14 @@ const Never = 0
 // ClearPastBackgroundKey lets a context clear go ahead once the turn has ended with only background work running. Off by default.
 const ClearPastBackgroundKey = "context_clear_past_background"
 
+// CompactAtTaskEndKey: once the context passes the compact line, nothing more is typed into a running turn (it goes to the fresh
+// session), and a task in progress closes before the compact runs. Global and per agent; off by default.
+const CompactAtTaskEndKey = "compact_at_task_end"
+
+// CompactNowStopsKey: a person's Compact now stops the turn under way instead of waiting for it to end. Global and per agent; off by
+// default.
+const CompactNowStopsKey = "compact_now_stops_turn"
+
 // ClusterNameKey is the cluster's name, kept on the board (meta): two random words given at the first start without one, changed by
 // the owner.
 const ClusterNameKey = "cluster_name"
@@ -227,6 +235,14 @@ func (s *Settings) SecondsSetting(agent, key string, def int64) int64 {
 		return n
 	}
 	return def
+}
+
+// AgentFlag is a true/false setting: the agent's own column wins, then config.yaml's, then def.
+func (s *Settings) AgentFlag(agent, key string, def bool) bool {
+	if b, ok := s.agentConfig(agent)[key].(bool); ok {
+		return b
+	}
+	return s.Flag(key, def)
 }
 
 // TextSetting is a text setting: the agent's own when it sets one that is not empty, then config.yaml's, "" for neither.

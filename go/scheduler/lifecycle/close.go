@@ -505,9 +505,9 @@ func (m *Manager) RestartRetryNote(agent string, row *db.AgentState) (note strin
 }
 
 // Compact is session.compact: the handoff a full context runs, asked for by a person. It writes the ask and returns; the tick fires it
-// once the turn under way has ended (note, record, a fresh session). A closed agent has no session to write a note: it starts fresh from
-// its record at once.
-func (m *Manager) Compact(agent string, st SessionStatus, by string) (ok bool, said string, err error) {
+// once the turn under way has ended (note, record, a fresh session), and with compact_now_stops_turn stop ends that turn first. A
+// closed agent has no session to write a note: it starts fresh from its record at once.
+func (m *Manager) Compact(agent string, st SessionStatus, by string, stop func() error) (ok bool, said string, err error) {
 	defer catch(&err)
 	if by == "" {
 		by = actor.OwnerKey
@@ -523,6 +523,13 @@ func (m *Manager) Compact(agent string, st SessionStatus, by string) (ok bool, s
 		return false, "it is mid-handoff", nil
 	}
 	must(db.AddEvent(m.Q, agent, states.CompactAskedKind, db.KV{K: "by", V: by}))
+	if m.turnRunning(agent) && m.Settings.AgentFlag(agent, settings.CompactNowStopsKey, false) {
+		err := stop()
+		if err == nil {
+			return true, "its turn is stopped: it writes its note and starts fresh", nil
+		}
+		m.Log("  %s: compact asked, its turn could not be stopped: %v", agent, err)
+	}
 	return true, "it hands off and starts fresh once its turn ends", nil
 }
 

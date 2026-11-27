@@ -75,6 +75,17 @@
        }
       ]
      },
+     "compact_waiting_since": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/Timestamp"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Since when a context compact that is due has waited: for the turn under way to end, or with compact_at_task_end for the task in progress to close. null when none is waiting. Absent from a daemon that does not serve it."
+     },
      "background": {
       "type": "array",
       "items": {

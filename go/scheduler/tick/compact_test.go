@@ -110,3 +110,23 @@ func TestSavingEndsWhenTheWallItSavedForIsGoneButNotWhileANoteIsAwaited(t *testi
 		t.Fatal("a note is awaited: the handoff is still on")
 	}
 }
+
+func TestAFullContextWaitsWhileItsCompactWaitsForTheTaskButAPersonsAskDoesNot(t *testing.T) {
+	tk, w := newWorld(t)
+	over := 250_000
+	w.status = Status{TrustedCtxUsed: &over}
+	w.performOK, w.compactWait = true, true
+	if actions := supervise(tk, "a"); w.did("handoff a context") || has(actions, "handoff") {
+		t.Fatalf("handed off while its task is in progress: %v %v", w.calls, actions)
+	}
+	askCompact(t, tk, "a", tk.Now())
+	if supervise(tk, "a"); !w.did("handoff a context") {
+		t.Fatalf("a person's compact waited for the task: %v", w.calls)
+	}
+	tk, w = newWorld(t)
+	w.status = Status{TrustedCtxUsed: &over}
+	w.performOK = true
+	if supervise(tk, "a"); !w.did("handoff a context") {
+		t.Fatalf("its task closed and it did not compact: %v", w.calls)
+	}
+}

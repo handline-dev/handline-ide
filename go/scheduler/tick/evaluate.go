@@ -415,6 +415,9 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 
 	// What sits at the other end of a closed agent is a shell prompt, and a handoff document is full of backticks. An agent woken in
 	// this tick is judged on the next one: st was read before the wake and a closed agent's snapshot is stale by construction.
+	if !t.Lifecycle.TriggersApply(row) && must(db.CompactDueSince(q, agent)) != 0 {
+		check(db.ClearDeferred(q, agent)) // a closed session has no turn to hold anything from
+	}
 	if wokeNow || afterHandoff || !t.Lifecycle.TriggersApply(row) {
 		return
 	}
@@ -440,8 +443,11 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 	if !trig.Fired && !in.NoteKept {
 		check(db.ClearSavingSwitch(q, agent)) // the wall it was saving for is gone
 	}
-	if !trig.Fired && must(db.Cursor(q, "handoff_deferred:"+agent)) != 0 {
+	if !trig.Fired && (must(db.Cursor(q, "handoff_deferred:"+agent)) != 0 || must(db.CompactDueSince(q, agent)) != 0) {
 		check(db.ClearDeferred(q, agent)) // a trigger deferred behind a turn that no longer fires holds nothing
+	}
+	if trig.Fired && trig == in.Eval && trig.Kind == "context" && in.CompactBy == "" && !in.NoteKept && t.Handoff.CompactWaits(q, agent) {
+		return
 	}
 	dest := ""
 	if trig.Fired && trig.Kind == states.EarlyUsageTrigger {

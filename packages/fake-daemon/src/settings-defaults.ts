@@ -25,6 +25,8 @@ export const DEFAULTS: Settings['values'] = {
   push_sound: true,
   account_split: 'auto',
   block_screen_capture: false,
+  compact_at_task_end: false,
+  compact_now_stops_turn: false,
   screencapture_via_handline: false,
   agent_placement: 'auto',
   review_flow: false,
