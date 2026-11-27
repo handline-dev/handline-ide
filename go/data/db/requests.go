@@ -531,8 +531,16 @@ func MarkLanded(q Q, rid int64) error {
 	if err := StampTaskDelivered(q, rid); err != nil {
 		return err
 	}
-	if _, err := q.Exec("UPDATE requests SET state = 'landed', state_at = ? WHERE id = ? AND state = 'queued' AND target != ?", now, rid, actor.OwnerKey); err != nil {
+	res, err := q.Exec("UPDATE requests SET state = 'landed', state_at = ? WHERE id = ? AND state = 'queued' AND target != ?", now, rid, actor.OwnerKey)
+	if err != nil {
 		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n > 0 {
+		if err := RefreshSentOfRequest(q, rid); err != nil { // no longer queued, so its task may be sent no more
+			return err
+		}
 	}
 	return settleSendLedger(q, rid)
 }
@@ -623,13 +631,16 @@ func CloseIfQueued(q Q, rid int64, state, verdict string) (bool, error) {
 	return closeWhere(q, rid, state, verdict, "")
 }
 
-// closeWhere closes request rid if it is still queued and matches the condition and.
+// closeWhere closes request rid if it is still queued and matches the condition and, which binds no parameters.
 func closeWhere(q Q, rid int64, state, verdict, and string) (bool, error) {
 	stored, err := StoredState(q, rid, state)
 	if err != nil {
 		return false, err
 	}
-	res, err := q.Exec("UPDATE requests SET state = ?, state_at = ?, queue_order = NULL WHERE id = ? AND state = 'queued'"+and, stored, Now(), rid)
+	// State landed carries landed_at: a typed row closed before the sweep confirmed it landed by its typing, so a reply since counts as its answer.
+	res, err := q.Exec("UPDATE requests SET state = ?1, state_at = ?2, queue_order = NULL, "+
+		"landed_at = CASE WHEN ?1 = 'landed' AND target != ?3 THEN COALESCE(landed_at, typed_at) ELSE landed_at END "+
+		"WHERE id = ?4 AND state = 'queued'"+and, stored, Now(), actor.OwnerKey, rid)
 	if err != nil {
 		return false, err
 	}

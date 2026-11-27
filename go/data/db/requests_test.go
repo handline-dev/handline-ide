@@ -103,6 +103,36 @@ func TestClosingARequestKeepsItsVerdictAsTheReasonOnceAndWritesNoAnswerRow(t *te
 	}
 }
 
+func TestATypedRequestClosedBeforeItsLandingIsSeenLandsAtItsTyping(t *testing.T) {
+	q := open(t)
+	say, refused, gone, untyped := ask(t, q, "a", "b", "typed", "say"), ask(t, q, "a", "b", "refused", "ask"),
+		ask(t, q, "a", "b", "taken back", "say"), ask(t, q, "a", "b", "untyped", "say")
+	for _, rid := range []int64{say, refused, gone} {
+		if _, err := MarkDelivered(q, rid); err != nil {
+			t.Fatal(err)
+		}
+		if err := MarkTyped(q, rid, "s1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	Now = func() int64 { return 1500 } // closed later than typed
+	for rid, state := range map[int64]string{say: "done", refused: "rejected", gone: "withdrawn", untyped: "done"} {
+		if ok, err := CloseIfQueued(q, rid, state, ""); !ok || err != nil {
+			t.Fatal(rid, ok, err)
+		}
+	}
+	for _, rid := range []int64{say, refused} {
+		if r, _ := GetRequest(q, rid); r.State != Landed || r.LandedAt.Int64 != 1000 || r.StateAt.Int64 != 1500 {
+			t.Fatalf("lands at its typing: %+v", r)
+		}
+	}
+	for _, rid := range []int64{gone, untyped} {
+		if r, _ := GetRequest(q, rid); r.LandedAt.Valid {
+			t.Fatalf("never seen to arrive, so no landing: %+v", r)
+		}
+	}
+}
+
 func TestADecisionTaskStaysOpenWhenItsCardLeavesTheQueue(t *testing.T) {
 	q := open(t)
 	tid, _ := NewTask(q, "decide", actor.OwnerKey, "a", 0, DefaultPriority, "", 0, "")
@@ -114,6 +144,23 @@ func TestADecisionTaskStaysOpenWhenItsCardLeavesTheQueue(t *testing.T) {
 	CloseIfQueued(q, card, "done", "the first")
 	if task, _ := GetTask(q, tid); task.Ended() {
 		t.Fatalf("a decision ends by task.done, not by its card: %+v", task)
+	}
+}
+
+func TestASayOnATaskThatLandsLeavesTheTaskSentNoMore(t *testing.T) {
+	q := open(t)
+	tid, _ := NewTask(q, "work", "b", "a", 0, DefaultPriority, "", 0, "")
+	rid := ask(t, q, "a", "b", "how is it going?", "say")
+	LinkRequest(q, tid, rid)
+	if task, _ := GetTask(q, tid); !task.SentAt.Valid {
+		t.Fatal("a queued say marks the task sent")
+	}
+	MarkDelivered(q, rid)
+	if err := MarkLanded(q, rid); err != nil {
+		t.Fatal(err)
+	}
+	if task, _ := GetTask(q, tid); task.SentAt.Valid {
+		t.Fatalf("a landed say still marks its task sent: %+v", task)
 	}
 }
 

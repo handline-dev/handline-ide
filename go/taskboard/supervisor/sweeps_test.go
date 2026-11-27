@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -431,5 +432,36 @@ func TestAFreshStartsWakePromptLandsByItsHooksSessionAndItsBlockedTaskIsNotNudge
 	}
 	if f := r.forgottenResolve(r.DB, r.k("bob"), state, r.clock+700); f != nil {
 		t.Fatalf("read, and its task waits on another: not nudged: %+v", f)
+	}
+}
+
+// A say the wake prompt carries stays queued until the woken session's transcript shows it, and lands then.
+func TestASayTheWakePromptCarriesLandsOnceItsTranscriptShowsIt(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	db.SetAccount(r.DB, r.k("bob"), "acct", "recorded")
+	tr := filepath.Join(r.home, "s1.jsonl")
+	r.sessions.transcripts = map[string]string{"s1": tr}
+	r.must(os.WriteFile(tr, nil, 0o644))
+	rid := r.ask(r.k("alice"), r.k("bob"), "are you there", "say")
+	text, told, ok, err := r.WaitingPrompt(r.DB, r.k("bob"))
+	r.must(err)
+	if !ok {
+		t.Fatal("nothing waits")
+	}
+	r.must(told("", false)) // a fresh start
+	if row, _ := db.GetRequest(r.DB, rid); row.State != "queued" || !row.TypedAt.Valid || row.LandedAt.Valid {
+		t.Fatalf("closed before its transcript showed it: %+v", row)
+	}
+	r.must(r.LandingSweep(r.DB, r.k("bob")))
+	if row, _ := db.GetRequest(r.DB, rid); row.State != "queued" {
+		t.Fatalf("landed with nothing in its transcript: %+v", row)
+	}
+	line, _ := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"content": text}})
+	r.must(os.WriteFile(tr, append(line, '\n'), 0o644))
+	r.clock += 3
+	r.must(r.LandingSweep(r.DB, r.k("bob")))
+	if row, _ := db.GetRequest(r.DB, rid); row.State != db.Landed || !row.LandedAt.Valid {
+		t.Fatalf("%+v", row)
 	}
 }

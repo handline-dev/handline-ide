@@ -41,7 +41,7 @@ type Delivery interface {
 	SessionStillDrawn(handle string, wait bool) bool
 	WaitSessionGone(agent string) bool
 	WaitForSession(agent string, timeoutS int, promptFile string) bool
-	WaitingPrompt(q db.Q, agent string) (text string, told func(session string) error, ok bool, err error)
+	WaitingPrompt(q db.Q, agent string) (text string, told func(session string, settled bool) error, ok bool, err error)
 	EnforceEdges(q db.Q, agent string) (bool, error)
 	SessionPresent(agent string) (bool, error)
 	PastDialog(q db.Q, agent string) (string, error) // gets past a dialog on screen: "", else why not

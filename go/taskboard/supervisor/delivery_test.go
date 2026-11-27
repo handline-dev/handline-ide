@@ -225,7 +225,7 @@ func TestWaitingPromptIsTheTellTheNextTickWouldType(t *testing.T) {
 	if row, _ := db.GetRequest(r.DB, rid); !row.DeliveredAt.Valid {
 		t.Fatal("not marked delivered before the launch")
 	}
-	told("s7")
+	told("s7", false)
 	if n, _ := db.Cursor(r.DB, "notify:"+r.k("bob")); n != rid {
 		t.Fatal(n)
 	}
@@ -235,7 +235,7 @@ func TestWaitingPromptIsTheTellTheNextTickWouldType(t *testing.T) {
 	r.must(db.MarkLanded(r.DB, rid)) // the resumed session read it: it leaves the line
 	rid = r.ask(r.k("alice"), r.k(("bob")), "start fresh", "ask")
 	_, told, _, _ = r.WaitingPrompt(r.DB, r.k(("bob")))
-	told("") // a fresh start: recorded as told to the session now live, so it is not told again
+	told("", false) // a fresh start: recorded as told to the session now live, so it is not told again
 	if s, _ := db.NotifiedSession(r.DB, r.k(("bob"))); s != "s1" {
 		t.Fatal(s)
 	}
@@ -245,7 +245,7 @@ func TestWaitingPromptIsTheTellTheNextTickWouldType(t *testing.T) {
 	if !ok || text != "a bare line" {
 		t.Fatal(text)
 	}
-	told("s7")
+	told("s7", false)
 	if rows, _ := db.ListPending(r.DB, r.k(("bob"))); len(rows) != 0 {
 		t.Fatal("pending row kept")
 	}

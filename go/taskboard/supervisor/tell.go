@@ -111,7 +111,7 @@ func (e *Env) tellBatch(q db.Q, agent string, batch []*db.Request, depth int, ah
 // WaitingPrompt is the message waiting for a parked agent, as the first prompt of the session that resumes or restarts it, and what to record
 // once that session is up (told, called with the session id, "" for a fresh one; q must stay usable until then); ok false when nothing waits.
 // It is the tell DeliverQueued would type on the next tick. Marked delivered here, before the launch, for the reason tellBatch is.
-func (e *Env) WaitingPrompt(q db.Q, agent string) (text string, told func(session string) error, ok bool, err error) {
+func (e *Env) WaitingPrompt(q db.Q, agent string) (text string, told func(session string, settled bool) error, ok bool, err error) {
 	defer Catch(&err)
 	if edges, err := e.EnforceEdges(q, agent); !edges || err != nil {
 		return "", nil, false, err
@@ -119,13 +119,20 @@ func (e *Env) WaitingPrompt(q db.Q, agent string) (text string, told func(sessio
 	if head := e.untoldHead(q, agent); head != nil {
 		depth := must(db.QueueDepth(q, agent))
 		folded := foldedNotices(q, agent)
-		return e.arrivalLine(q, agent, tellText(q, head, depth, nil, false, folded, e.imageLines(q, head)), requestOp(head.ID)), func(session string) (err error) {
+		text := tellText(q, head, depth, nil, false, folded, e.imageLines(q, head))
+		typed := e.typedRow(q, head)
+		if typed && !strings.HasPrefix(head.Body, "!") { // the founder's words as his prompt, as the landing sweep looks for them
+			folded, text = nil, founderText(q, head, e.imageLines(q, head))
+		}
+		return e.arrivalLine(q, agent, text, requestOp(head.ID)), func(session string, settled bool) (err error) {
 			defer Catch(&err)
 			if session == "" { // a fresh start: its id is the live session's
 				session = e.liveSession(q, agent)
 			}
 			e.recordTold(q, agent, head, depth, session, nil, false)
-			if head.Kind.String == "say" {
+			// A say stays queued for the landing sweep, unless nothing will show it: a launch held at a screen, or a founder's ! line,
+			// which the wake wraps and the sweep looks for bare.
+			if head.Kind.String == "say" && (settled || typed && strings.HasPrefix(head.Body, "!")) {
 				e.FinishSay(q, head)
 			}
 			check(db.MarkNoticesShown(q, requestIDs(folded), session))
@@ -135,7 +142,7 @@ func (e *Env) WaitingPrompt(q db.Q, agent string) (text string, told func(sessio
 	// A pending message is the same kind of "owed" as a head. Typed as-is, not wrapped like a request's tell.
 	if pending := must(db.ListPending(q, agent)); len(pending) > 0 {
 		row := pending[0]
-		return e.arrivalLine(q, agent, row.Text, fmt.Sprintf("pending:%d", row.ID)), func(string) (err error) { defer Catch(&err); return db.DeletePending(q, row.ID) }, true, nil
+		return e.arrivalLine(q, agent, row.Text, fmt.Sprintf("pending:%d", row.ID)), func(string, bool) (err error) { defer Catch(&err); return db.DeletePending(q, row.ID) }, true, nil
 	}
 	return "", nil, false, nil
 }

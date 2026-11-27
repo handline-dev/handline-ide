@@ -103,7 +103,13 @@ func TestAFoundersUnansweredMessageHoldsTheStopOncePerMessage(t *testing.T) {
 	if out := stop(false); out != held(third) {
 		t.Fatalf("the held stop left the message unanswered: %s", out)
 	}
-	typed(111)
+	stopped(111)
+	woke := typed(0)
+	exec("UPDATE requests SET landed_at = NULL, state = 'queued', typed_at = 112 WHERE id = ?", woke)
+	if out := stop(false); out != held(woke) {
+		t.Fatalf("a wake's message the sweep has yet to see land is this turn's by its typing: %s", out)
+	}
+	typed(113)
 	exec("DROP TABLE task_requests")
 	if out := stop(false); out != "" {
 		t.Fatalf("an error lets the stop through: %s", out)

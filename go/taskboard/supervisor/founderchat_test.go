@@ -1,10 +1,14 @@
 package supervisor
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/peerinbox"
 	"github.com/handline/handline/go/agentctl/peerport"
@@ -178,5 +182,58 @@ func TestAnAgentAskingItselfIsToldHowTheFoundersMessageGoesToATemp(t *testing.T)
 	r.must(db.LinkRequest(r.DB, tid, rid))
 	if got := selfAsk(); got != general {
 		t.Fatalf("once the message is a task: %q", got)
+	}
+}
+
+// The wake prompt hands a founder-typed agent his words as he wrote them, so the woken session's record of them lands the message.
+func TestAWakeHandsTheFoundersWordsAsTypedAndTheirRecordLandsThem(t *testing.T) {
+	r, _, _ := typedRig(t)
+	db.SetAccount(r.DB, r.k("bob"), "acct", "recorded")
+	tr := filepath.Join(r.home, "s1.jsonl")
+	r.sessions.transcripts = map[string]string{"s1": tr}
+	r.must(os.WriteFile(tr, nil, 0o644))
+	rid := r.founderSays(r.k("bob"), "are you there?")
+	text, told, ok, err := r.WaitingPrompt(r.DB, r.k("bob"))
+	r.must(err)
+	if !ok || text != "are you there?" {
+		t.Fatalf("%v %q", ok, text)
+	}
+	r.must(told("", false))
+	line, _ := json.Marshal(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"},
+		"message": map[string]any{"content": "Your session was closed.\n\nThis is what woke you; take it first:\n\n" + text}})
+	r.must(os.WriteFile(tr, append(line, '\n'), 0o644))
+	r.must(r.LandingSweep(r.DB, r.k("bob")))
+	if row, _ := db.GetRequest(r.DB, rid); row.State != db.Landed || !row.LandedAt.Valid {
+		t.Fatalf("%+v", row)
+	}
+}
+
+func TestAWakeThatNoTranscriptWillShowLandsTheFoundersLineAtOnce(t *testing.T) {
+	for _, c := range []struct {
+		body    string
+		settled bool
+	}{{"!git status", false}, {"are you there?", true}} {
+		r, _, _ := typedRig(t)
+		db.SetAccount(r.DB, r.k("bob"), "acct", "recorded")
+		tr := filepath.Join(r.home, "s1.jsonl")
+		r.sessions.transcripts = map[string]string{"s1": tr}
+		r.must(os.WriteFile(tr, nil, 0o644))
+		rid := r.founderSays(r.k("bob"), c.body)
+		text, told, ok, err := r.WaitingPrompt(r.DB, r.k("bob"))
+		r.must(err)
+		if !ok || strings.HasPrefix(text, "!") {
+			t.Fatalf("%v %q", ok, text)
+		}
+		r.must(told("", c.settled))
+		line, _ := json.Marshal(map[string]any{"type": "user", "origin": map[string]any{"kind": "human"},
+			"message": map[string]any{"content": "Your session was closed.\n\nThis is what woke you; take it first:\n\n" + text}})
+		if !c.settled { // a launch held at a screen writes nothing yet
+			r.must(os.WriteFile(tr, append(line, '\n'), 0o644))
+		}
+		r.Now = func() time.Time { return time.Now().Add((LandingWaitS + 1) * time.Second) }
+		r.must(r.LandingSweep(r.DB, r.k("bob")))
+		if row, _ := db.GetRequest(r.DB, rid); row.State != db.Landed || !row.LandedAt.Valid {
+			t.Fatalf("%q settled=%v is owed again: %+v", c.body, c.settled, row)
+		}
 	}
 }

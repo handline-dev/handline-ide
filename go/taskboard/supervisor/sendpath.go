@@ -135,7 +135,7 @@ func (e *Env) sendOnce(q db.Q, agent, op, text string, d delivery.Delivery) (Sen
 }
 
 // arrivedDuringRestart is the line that heads a message held while its agent restarted, so the new session knows why it comes first.
-const arrivedDuringRestart = "(This arrived while you were restarting for a handoff.)\n"
+const arrivedDuringRestart = "(This arrived while you were restarting for a handoff.)\n\n" // a blank line: the founder's words still end the prompt as typed
 
 // handingOff is why nothing more is typed at agent's session: from the moment a handoff is decided (its row, or the wait for its note)
 // until the session is closed, what arrives goes to the session that follows. ops are the operations held back; each is marked, and

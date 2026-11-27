@@ -50,8 +50,8 @@ func (f *fakeDelivery) WaitSessionGone(string) bool             { return f.gone 
 func (f *fakeDelivery) SessionStillDrawn(string, bool) bool     { return false }
 func (f *fakeDelivery) PastDialog(db.Q, string) (string, error) { return "", nil }
 func (f *fakeDelivery) EnforceEdges(db.Q, string) (bool, error) { return true, nil }
-func (f *fakeDelivery) WaitingPrompt(db.Q, string) (string, func(string) error, bool, error) {
-	return f.waitingMsg, func(s string) error { f.told = append(f.told, s); return nil }, f.waitingMsg != "", nil
+func (f *fakeDelivery) WaitingPrompt(db.Q, string) (string, func(string, bool) error, bool, error) {
+	return f.waitingMsg, func(s string, _ bool) error { f.told = append(f.told, s); return nil }, f.waitingMsg != "", nil
 }
 func (f *fakeDelivery) WaitForSession(string, int, string) bool { return f.tookPrompt }
 

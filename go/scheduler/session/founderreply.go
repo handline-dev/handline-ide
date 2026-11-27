@@ -18,16 +18,16 @@ const FounderNudgeKind = "founder_nudged"
 // message stays this turn's for the Stop after it, whatever that Stop's lists hold.
 const FounderDeferKind = "founder_nudge_deferred"
 
-// UnansweredFounder is the founder's typed message to agent that landed since agent's last recorded Stop or was deferred, was never nudged, and has no
-// answer: no say or other request from agent to the founder since it landed, and no task made from it. 0 when none.
+// UnansweredFounder is the founder's typed message to agent that arrived (arrivedAt) since agent's last recorded Stop or was deferred, was never nudged, and has no
+// answer: no say or other request from agent to the founder since it arrived, and no task made from it. 0 when none.
 func (e *Env) UnansweredFounder(agent string) (int64, error) {
 	var rid int64
 	err := e.DB.QueryRow("SELECT r.id FROM requests r WHERE r.requester = ? AND r.target = ? AND r.kind = 'say' AND r.founder_auth = 1 "+
-		"AND (r.landed_at >= (SELECT COALESCE(MAX(ts), 0) FROM events WHERE agent = ? AND kind IN ('Stop', 'StopFailure')) "+
+		"AND ("+arrivedAt+" >= (SELECT COALESCE(MAX(ts), 0) FROM events WHERE agent = ? AND kind IN ('Stop', 'StopFailure')) "+
 		"OR EXISTS (SELECT 1 FROM events d WHERE d.dedup_key = ?||r.id)) "+
 		"AND NOT EXISTS (SELECT 1 FROM task_requests l WHERE l.request_id = r.id) "+
 		"AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.from_request = r.id) "+
-		"AND NOT EXISTS (SELECT 1 FROM requests a WHERE a.requester = r.target AND a.target = ? AND a.ts >= r.landed_at) "+
+		"AND NOT EXISTS (SELECT 1 FROM requests a WHERE a.requester = r.target AND a.target = ? AND a.ts >= "+arrivedAt+") "+
 		"AND NOT EXISTS (SELECT 1 FROM events e WHERE e.dedup_key = ?||r.id) "+
 		"ORDER BY r.id DESC LIMIT 1", actor.OwnerKey, agent, agent, founderDeferKey, actor.OwnerKey, founderNudgeKey).Scan(&rid)
 	if err == sql.ErrNoRows {
@@ -35,6 +35,10 @@ func (e *Env) UnansweredFounder(agent string) (int64, error) {
 	}
 	return rid, err
 }
+
+// arrivedAt is when the message reached the session: its landing, or its typing while the sweep has yet to confirm it (a wake's prompt,
+// which the turn may answer and stop on first).
+const arrivedAt = "COALESCE(r.landed_at, r.typed_at)"
 
 const founderNudgeKey, founderDeferKey = "founder_nudge:", "founder_nudge_deferred:"
 

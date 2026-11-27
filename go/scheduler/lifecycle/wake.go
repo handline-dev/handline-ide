@@ -855,7 +855,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	}
 	var waiting struct {
 		text string
-		told func(string) error
+		told func(string, bool) error
 		ok   bool
 	}
 	ok, paneGone := false, false
@@ -918,7 +918,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 		// nobody. Only that screen is read here: a shell's leftover numbered lines can read as another dialog.
 		if h := must(db.Terminal(m.Q, agent)); h != "" && m.Term.TrustPromptShowing(h) {
 			if taken && waiting.ok {
-				check(waiting.told(ifTrue(resume, session)))
+				check(waiting.told(ifTrue(resume, session), true)) // no transcript shows it until the screen is passed
 			}
 			_, w := m.raiseTrustPrompt(agent, m.Term.TrustPromptFolder(h), wt)
 			return false, w
@@ -976,8 +976,8 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	if !cleared {
 		if waiting.ok {
 			// The session took the message as its first prompt and reads it once past the screen. Recorded now, after the closed mark came
-			// off, so nothing later voids it and has it told twice.
-			check(waiting.told(ifTrue(resumed, session)))
+			// off, so nothing later voids it and has it told twice. Left to the landing sweep: the screen stalls the agent, which skips the sweep.
+			check(waiting.told(ifTrue(resumed, session), false))
 		}
 		return false, w
 	}
@@ -989,7 +989,7 @@ func (m *Manager) launchClosed(agent string, row *db.AgentState, wt, session str
 	}
 	if waiting.ok {
 		// After clear_closed, which voids what a session was told. A fresh session's id is the live one's.
-		check(waiting.told(ifTrue(resumed, session)))
+		check(waiting.told(ifTrue(resumed, session), false))
 	}
 	payload := []db.KV{{K: "resumed_session", V: nilIfEmpty(ifTrue(resumed, session))}}
 	if cold {

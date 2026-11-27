@@ -89,7 +89,7 @@ func TestWaitingPromptsToldStepReturnsItsFailure(t *testing.T) {
 		t.Fatal("nothing waits")
 	}
 	r.breakDB()
-	if err := told("s1"); err == nil {
+	if err := told("s1", false); err == nil {
 		t.Fatal("a failed record was swallowed")
 	}
 }
