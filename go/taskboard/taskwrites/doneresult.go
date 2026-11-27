@@ -45,7 +45,8 @@ func resultParams(p map[string]any) (commit string, shots []string, err error) {
 	return
 }
 
-// doneResult is what the end of task t keeps beyond its evidence: the commit (checked to exist in the repo, and whether main reaches it),
+// doneResult is what the end of task t keeps beyond its evidence: the commit (checked to exist in the repo, and whether its default
+// branch reaches it),
 // and the screenshots, copied into the daemon's folder. Neither is required. Nothing is written but the screenshots' copies; the caller
 // records the result. What git says of the commit is in's own (DoneIn.look): asked before the write when the caller did so.
 func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) (res taskresult.Result, finalize func() error, err error) {
@@ -55,9 +56,9 @@ func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) 
 		if lk.commitFull == "" {
 			return res, nil, refusal(fmt.Sprintf("%s is not a commit in this repo (%s)", in.Commit, lk.commitWhy))
 		}
-		res.Commit, res.OnMain = lk.commitFull, lk.commitOnBase
+		res.Commit, res.Branch, res.Landed = lk.commitFull, lk.branch, lk.commitOnBase
 	case via == "sha":
-		res.Commit, res.OnMain = mark, true
+		res.Commit, res.Branch, res.Landed = mark, in.look().branch, true
 	}
 	if len(in.Shots) > 0 {
 		var roots []string
@@ -72,7 +73,7 @@ func doneResult(tx db.Q, home, by string, t *task, in DoneIn, via, mark string) 
 }
 
 // commitIn is the full sha that sha names in repo, and whether base, its default branch, reaches it; "" and why when it names no commit.
-func commitIn(repo, sha string, base gitrun.Base) (full string, onMain bool, why string) {
+func commitIn(repo, sha string, base gitrun.Base) (full string, landed bool, why string) {
 	r := gitrun.Run(repo, "rev-parse", "--verify", "--quiet", sha+"^{commit}")
 	if r.RC != 0 {
 		if r.RC < 0 {
@@ -81,6 +82,6 @@ func commitIn(repo, sha string, base gitrun.Base) (full string, onMain bool, why
 		return "", false, "no such commit"
 	}
 	full = strings.TrimSpace(r.Stdout)
-	onMain, _ = base.Reaches(repo, full)
-	return full, onMain, ""
+	landed, _ = base.Reaches(repo, full)
+	return full, landed, ""
 }

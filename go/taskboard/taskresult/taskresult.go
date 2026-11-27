@@ -25,10 +25,12 @@ type Shot struct {
 	Bytes int64 `json:"bytes"`
 }
 
-// Result is what a finished task carries. Commit is the full sha it was done at, OnMain whether main reaches it.
+// Result is what a finished task carries. Commit is the full sha it was done at, Branch its repo's default branch, Landed whether
+// that branch reached it.
 type Result struct {
 	Commit string `json:"commit,omitempty"`
-	OnMain bool   `json:"on_main,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	Landed bool   `json:"landed,omitempty"`
 	Shots  []Shot `json:"shots,omitempty"`
 }
 

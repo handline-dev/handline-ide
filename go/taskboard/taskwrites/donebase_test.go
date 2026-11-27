@@ -105,13 +105,13 @@ func TestDoneTakesAShaOnTheRepositorysDefaultBranchWhateverItsName(t *testing.T)
 		t.Fatalf("a sha off master: %q", got)
 	}
 	accepted("a sha on master", done(1, on, master, ""))
-	if got := result(1); got.Commit != on || !got.OnMain {
+	if got := result(1); got.Commit != on || !got.Landed || got.Branch != "master" {
 		t.Fatalf("a sha on master: %+v", got)
 	}
 	// the commit a done names beside its words is marked by the same branch
 	accepted("words with a commit on master", done(2, "built", master, fmt.Sprintf(`,"commit":%q`, on)))
 	accepted("words with a commit off master", done(3, "built", master, fmt.Sprintf(`,"commit":%q`, off)))
-	if result(2).Commit != on || !result(2).OnMain || result(3).Commit != off || result(3).OnMain {
+	if result(2).Commit != on || !result(2).Landed || result(3).Commit != off || result(3).Landed || result(3).Branch != "master" {
 		t.Fatalf("on master %+v, off master %+v", result(2), result(3))
 	}
 
@@ -179,7 +179,7 @@ func TestDoneTakesAShaOnOriginsCopyAsTheCloneKnowsItAndFetchesNothing(t *testing
 		t.Fatalf("merged on the remote and fetched: %v", r)
 	}
 	behind(first)
-	if got := result(1); got.Commit != first || !got.OnMain {
+	if got := result(1); got.Commit != first || !got.Landed {
 		t.Fatalf("%+v", got)
 	}
 
@@ -230,7 +230,7 @@ func TestADonesShasAreLookedUpBeforeTheWriteAndCarriedIntoIt(t *testing.T) {
 
 	// not looked up first: MarkDone asks git itself, with the same answers
 	refused("a sha off master, not looked up first", direct(DoneIn{Task: 1, Sha: off, Repo: repo}), off+" is not an ancestor of master")
-	if err := direct(DoneIn{Task: 1, Sha: on[:12], Repo: repo}); err != nil || result(1).Commit != on || !result(1).OnMain {
+	if err := direct(DoneIn{Task: 1, Sha: on[:12], Repo: repo}); err != nil || result(1).Commit != on || !result(1).Landed {
 		t.Fatalf("a sha on master, not looked up first: %v %+v", err, result(1))
 	}
 
@@ -242,10 +242,10 @@ func TestADonesShasAreLookedUpBeforeTheWriteAndCarriedIntoIt(t *testing.T) {
 	if err := os.Rename(repo, repo+".gone"); err != nil {
 		t.Fatal(err)
 	}
-	if err := direct(sha); err != nil || result(2).Commit != on || !result(2).OnMain {
+	if err := direct(sha); err != nil || result(2).Commit != on || !result(2).Landed {
 		t.Fatalf("a sha looked up before the write: %v %+v", err, result(2))
 	}
-	if err := direct(commit); err != nil || result(3).Commit != off || result(3).OnMain {
+	if err := direct(commit); err != nil || result(3).Commit != off || result(3).Landed {
 		t.Fatalf("a commit looked up before the write: %v %+v", err, result(3))
 	}
 	refused("a refusal looked up before the write", direct(late), off+" is not an ancestor of master")

@@ -210,7 +210,8 @@ export const STORY_SEEDS: Record<string, Seed> = {
         subject: `Unread count on each chat (T${ready})`,
         agent: TERM,
         at: iso(40),
-        on_main: false,
+        branch: 'main',
+        landed: false,
         files: [
           file(
             'packages/app-data/src/chats.ts',

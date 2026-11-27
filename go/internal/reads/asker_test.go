@@ -65,7 +65,7 @@ func TestATaskGetCarriesWhatItsEndKeptAndWhetherItIsAUITask(t *testing.T) {
 	if err := taskresult.MarkUI(e.DB, 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := taskresult.Save(e.DB, 1, taskresult.Result{Commit: "abc", OnMain: true, Shots: []taskresult.Shot{{N: 1, Bytes: 9}}}); err != nil {
+	if err := taskresult.Save(e.DB, 1, taskresult.Result{Commit: "abc", Branch: "develop", Landed: true, Shots: []taskresult.Shot{{N: 1, Bytes: 9}}}); err != nil {
 		t.Fatal(err)
 	}
 	get := func(id string) map[string]any {
@@ -78,7 +78,7 @@ func TestATaskGetCarriesWhatItsEndKeptAndWhetherItIsAUITask(t *testing.T) {
 	one := get("1")
 	res, _ := one["result"].(map[string]any)
 	shots, _ := res["shots"].([]any)
-	if one["ui"] != true || res["commit"] != "abc" || res["on_main"] != true || len(shots) != 1 || shots[0].(map[string]any)["bytes"] != int64(9) {
+	if one["ui"] != true || res["commit"] != "abc" || res["branch"] != "develop" || res["landed"] != true || len(shots) != 1 || shots[0].(map[string]any)["bytes"] != int64(9) {
 		t.Fatalf("%v", one)
 	}
 	if plain := get("2"); plain["result"] != nil || plain["ui"] != nil {

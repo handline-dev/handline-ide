@@ -39,7 +39,8 @@ type taskCommit struct {
 	parents        []string
 	at             int64
 	seq            int // topological place, landed first: the tie-break within one second
-	onMain         bool
+	branch         string // the repo's default branch
+	landed         bool   // on branch
 	agent          string
 	files          []changedFile
 	added, deleted int
@@ -105,7 +106,7 @@ func (e *Env) taskChanges(_ *rpc.Conn, params map[string]any) (any, error) {
 			agent = c.agent
 		}
 		outCommits[i] = map[string]any{"sha": c.sha, "repo": filepath.Base(c.root), "subject": c.subject, "agent": agent, "at": ts(c.at),
-			"on_main": c.onMain, "files": len(c.files), "added": c.added, "deleted": c.deleted}
+			"branch": c.branch, "landed": c.landed, "files": len(c.files), "added": c.added, "deleted": c.deleted}
 	}
 	var diff strings.Builder
 	outFiles, leftOut := []any{}, []any{}
@@ -129,19 +130,17 @@ func (e *Env) taskRepos(owner string) []string {
 	return worktreeprune.Repos(e.Home)
 }
 
-// changesBase is the ref landed commits are on: origin/<default branch>, else the local default branch; "" when there is neither.
-func changesBase(root string) string { return gitrun.BaseOf(root).Ref() }
-
 // commitsNaming are root's commits whose subject names tid, one per change: a copy on the base first, else the newest.
 func commitsNaming(root string, tid int64, kn known) ([]*taskCommit, error) {
-	base := changesBase(root)
+	b := gitrun.BaseOf(root)
+	base := b.Ref()
 	if base == "" {
 		return nil, nil
 	}
 	grep := []string{"log", "--no-merges", "--topo-order", "--reverse", "-F", "--grep=T" + strconv.FormatInt(tid, 10), "--format=%H%x1f%P%x1f%ct%x1f%s"}
 	var all []*taskCommit
 	for _, side := range []struct {
-		onMain bool
+		landed bool
 		revs   []string
 	}{{true, []string{base}}, {false, []string{"--branches", "--not", base}}} {
 		ok, out := git(root, append(grep, side.revs...)...)
@@ -154,7 +153,7 @@ func commitsNaming(root string, tid int64, kn known) ([]*taskCommit, error) {
 				continue
 			}
 			at, _ := strconv.ParseInt(f[2], 10, 64)
-			all = append(all, &taskCommit{root: root, sha: f[0], parents: strings.Fields(f[1]), at: at, seq: len(all), subject: f[3], onMain: side.onMain})
+			all = append(all, &taskCommit{root: root, sha: f[0], parents: strings.Fields(f[1]), at: at, seq: len(all), subject: f[3], branch: b.Branch, landed: side.landed})
 		}
 	}
 	if len(all) == 0 {
@@ -172,7 +171,7 @@ func commitsNaming(root string, tid int64, kn known) ([]*taskCommit, error) {
 			out = append(out, c)
 			continue
 		}
-		if k := kept[id]; k == nil || (!k.onMain && c.at > k.at) { // the landed come first: a landed copy stays
+		if k := kept[id]; k == nil || (!k.landed && c.at > k.at) { // the landed come first: a landed copy stays
 			kept[id] = c
 		}
 	}
@@ -364,7 +363,7 @@ func agentsOf(root string, cs []*taskCommit, kn known) {
 		return
 	}
 	for _, c := range cs {
-		if c.onMain {
+		if c.landed {
 			continue
 		}
 		_, out := git(root, "for-each-ref", "--contains", c.sha, "--format=%(refname:short)", "refs/heads")

@@ -100,8 +100,8 @@ export function TaskCode({ task }: { task: number }) {
             <span className="shrink-0 text-xs text-muted">
               <Ago at={c.at} />
             </span>
-            <span className={`shrink-0 text-xs ${c.on_main ? 'text-muted' : 'text-warning'}`}>
-              {c.on_main ? 'on main' : 'not on main yet'}
+            <span className={`shrink-0 text-xs ${c.landed ? 'text-muted' : 'text-warning'}`}>
+              {c.landed ? `on ${c.branch}` : `not on ${c.branch} yet`}
             </span>
             <Lines added={c.added} deleted={c.deleted} />
           </button>

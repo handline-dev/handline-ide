@@ -291,6 +291,46 @@ func TestTheLeaseMaxRuleIsDropped(t *testing.T) {
 	}
 }
 
+// A kept task result's on_main becomes the branch it was measured against, main, and whether it landed there.
+func TestATaskResultNamesItsBranch(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ms, err := migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var step migration
+	for _, m := range ms {
+		if m.name == "task_result_branch" {
+			step = m
+		}
+	}
+	for _, q := range []string{
+		`INSERT INTO meta(name, value, updated) VALUES('task-result:1', '{"commit":"a","on_main":true}', 1),
+			('task-result:2', '{"commit":"b","shots":[{"n":1,"bytes":2}]}', 1), ('task-result:3', '{"shots":[{"n":1,"bytes":2}]}', 1),
+			('other', '{"on_main":true}', 1)`,
+		step.sql,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, want := range map[string]string{
+		"task-result:1": `{"commit":"a","branch":"main","landed":true}`,
+		"task-result:2": `{"commit":"b","shots":[{"n":1,"bytes":2}],"branch":"main","landed":false}`,
+		"task-result:3": `{"shots":[{"n":1,"bytes":2}]}`,
+		"other":         `{"on_main":true}`,
+	} {
+		var got string
+		if err := db.QueryRow("SELECT value FROM meta WHERE name = ?", name).Scan(&got); err != nil || got != want {
+			t.Fatalf("%s: %s, %v", name, got, err)
+		}
+	}
+}
+
 // Every connection the store opens leaves the WAL's checkpoints to the board's copy until AutoCheckpointPages.
 func TestAWriterLeavesCheckpointsToTheBoardsCopy(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "db.sqlite"))

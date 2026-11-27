@@ -168,7 +168,7 @@ func TestAGateThatPassesClosesItsTaskWithTheMergeCommit(t *testing.T) {
 		if e, _, by, _ := r.task(1); e != "merged "+sha || by != db.Gate {
 			t.Fatalf("%s: the gate: %q by %q", branch, e, by)
 		}
-		if res, err := taskresult.Get(r.d, 2); err != nil || res.Commit != sha || !res.OnMain {
+		if res, err := taskresult.Get(r.d, 2); err != nil || res.Commit != sha || !res.Landed || res.Branch != branch {
 			t.Fatalf("%s: result %+v %v", branch, res, err)
 		}
 		if len(r.tell.done) != 2 || r.tell.done[0] != 1 || r.tell.done[1] != 2 {

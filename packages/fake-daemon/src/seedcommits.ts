@@ -8,7 +8,8 @@ export const termBuildCommits = (ago: (min: number) => string): SeedCommit[] => 
     subject: 'Terminal pane reads the bytes channel (T1688)', // local-ref-ok
     agent: null,
     at: ago(150),
-    on_main: true,
+    branch: 'main',
+    landed: true,
     files: [
       {
         path: 'apps/web/src/term/Pane.tsx',
@@ -36,7 +37,8 @@ export const termBuildCommits = (ago: (min: number) => string): SeedCommit[] => 
     subject: 'Terminal pane keeps its scroll on resize (T1688)', // local-ref-ok
     agent: 'handline.term-build',
     at: ago(30),
-    on_main: false,
+    branch: 'main',
+    landed: false,
     files: [
       {
         path: 'apps/web/src/term/Pane.tsx',
@@ -85,7 +87,8 @@ export const fixtureCommits = (ago: (min: number) => string): SeedCommit[] => [
     subject: 'A fixture that is missing says so (T1650)', // local-ref-ok
     agent: null,
     at: ago(1700),
-    on_main: true,
+    branch: 'main',
+    landed: true,
     files: [
       {
         path: 'contract/fixtures/schema.sql',
@@ -137,7 +140,8 @@ export const fixtureCommits = (ago: (min: number) => string): SeedCommit[] => [
     subject: 'A fixture carries a result or an error (T1650)', // local-ref-ok
     agent: null,
     at: ago(1600),
-    on_main: true,
+    branch: 'main',
+    landed: true,
     files: [
       {
         path: 'contract/fixtures/README.md',

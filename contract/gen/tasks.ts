@@ -231,8 +231,10 @@ export type TaskDetail = Task & {
   result?: {
     /** The full sha it was done at. */
     commit?: string;
-    /** Whether main reaches commit. */
-    on_main?: boolean;
+    /** The default branch of commit's repo, which work lands on. */
+    branch?: string;
+    /** Whether branch reached commit when the task was done. */
+    landed?: boolean;
     /** Shot k is the file shots/T<n>/<k>.png under the daemon's home. */
     shots: {
       n: number;
@@ -713,7 +715,10 @@ export interface TasksMethods {
       agent: string | null;
       /** Its commit time. */
       at: Timestamp;
-      on_main: boolean;
+      /** The default branch of its repo, which work lands on. */
+      branch: string;
+      /** Whether branch reaches it. */
+      landed: boolean;
       files: number;
       added: number;
       deleted: number;

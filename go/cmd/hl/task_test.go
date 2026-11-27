@@ -236,7 +236,7 @@ func TestTaskShowListAndBoardRead(t *testing.T) {
 		"task.get": `{"id":7,"title":"Fix it","state":"done","to":"b.two","from":"a.one","priority":1,"parent":3,"tags":["be","fe"],
 			"created":"2026-10-01T10:00:00Z","time":{"length_s":3600,"default":false,"start":null,"end":null,"overdue_since":null,"told":0},
 			"evidence":"abc123","done":"2026-10-02T11:30:00Z","discarded":null,"body":"the brief",
-			"result":{"commit":"abc1234def","on_main":false,"shots":[{"n":1,"bytes":2048},{"n":2,"bytes":10}]},
+			"result":{"commit":"abc1234def","branch":"develop","landed":false,"shots":[{"n":1,"bytes":2048},{"n":2,"bytes":10}]},
 			"memos":[{"id":5,"author":"a.one","at":"2026-10-01T12:00:00Z","text":"a comment","edited_at":null}],
 			"blockers":[{"task":9,"owner":"c","title":"first"}],"subtasks":[{"id":8,"owner":"d","state":"doing","title":"child"}],
 			"handoffs":[{"at":"2026-10-01T13:00:00Z","from":"a.one","to":"b.two","note":"over to you"}],
@@ -253,7 +253,7 @@ state done   assignee b.two   owner a.one   P1   parent T3   #be #fe   created 2
 timeout 1h00m
 timeout paused: waiting on T9, T8
 done 2026-10-02 11:30: abc123
-commit abc1234def (not on main)
+commit abc1234def (not on develop)
 shot ` + r.home + `/shots/T7/1.png (2048 bytes)
 shot ` + r.home + `/shots/T7/2.png (10 bytes)
 

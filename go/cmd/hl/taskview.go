@@ -305,14 +305,14 @@ func fileLines(files []obj, indent string) []string {
 	return out
 }
 
-// resultLines are what the task's end kept: the commit and whether main reaches it, and the screenshots where the daemon keeps
-// them (shots/T<n>/<k>.png under its home).
+// resultLines are what the task's end kept: the commit and whether its repo's default branch had it, and the screenshots where the
+// daemon keeps them (shots/T<n>/<k>.png under its home).
 func resultLines(r obj, tid int64, home string) []string {
 	var out []string
 	if given(r, "commit") {
-		where := "not on main"
-		if r["on_main"] == true {
-			where = "on main"
+		where := "not on " + str(r, "branch")
+		if r["landed"] == true {
+			where = "on " + str(r, "branch")
 		}
 		out = append(out, fmt.Sprintf("commit %s (%s)", str(r, "commit"), where))
 	}

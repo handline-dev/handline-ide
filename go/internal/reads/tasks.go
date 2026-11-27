@@ -1017,7 +1017,7 @@ func (e *Env) taskResultOf(tid int64, task map[string]any) error {
 	if !res.Empty() {
 		out := map[string]any{}
 		if res.Commit != "" {
-			out["commit"], out["on_main"] = res.Commit, res.OnMain
+			out["commit"], out["branch"], out["landed"] = res.Commit, res.Branch, res.Landed
 		}
 		shots := make([]any, len(res.Shots))
 		for i, s := range res.Shots {

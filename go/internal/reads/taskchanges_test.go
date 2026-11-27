@@ -125,10 +125,10 @@ func TestATasksCommitsAreFoundByTheirSubjectOnMainAndOnAnyBranch(t *testing.T) {
 	}
 	cs := got["commits"].([]any)
 	first, second := cs[0].(map[string]any), cs[1].(map[string]any)
-	if first["sha"] != landed || first["on_main"] != true || first["agent"] != nil || first["repo"] != "proj" {
+	if first["sha"] != landed || first["landed"] != true || first["branch"] != "main" || first["agent"] != nil || first["repo"] != "proj" {
 		t.Fatalf("the landed copy, not the lander's: %v", first)
 	}
-	if second["on_main"] != false || second["sha"] != copyOfBoth || second["agent"] != nil || second["files"] != float64(1) || second["added"] != float64(1) {
+	if second["landed"] != false || second["branch"] != "main" || second["sha"] != copyOfBoth || second["agent"] != nil || second["files"] != float64(1) || second["added"] != float64(1) {
 		t.Fatalf("the newest copy of the branch's commit, the lander's, which no agent's worktree has checked out: %v", second)
 	}
 	r.git(r.repo, "checkout", "-q", "main")

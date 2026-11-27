@@ -153,9 +153,10 @@ type shaLook struct {
 	sha, commit, repo string // what was asked: an answer is used only for the same question
 	// full is the whole sha Sha names when the repo's default branch reaches it; else refusal says why not, as the caller is told.
 	full, refusal string
-	// commitFull is the whole sha Commit names, "" with commitWhy when it names none, and commitOnBase whether the default branch reaches it.
-	commitFull, commitWhy string
-	commitOnBase          bool
+	// commitFull is the whole sha Commit names, "" with commitWhy when it names none, and commitOnBase whether branch, the default
+	// branch, reaches it.
+	commitFull, commitWhy, branch string
+	commitOnBase                  bool
 }
 
 // Looked is in with its Sha and Commit looked up in Repo now. A caller runs it before it opens the transaction it hands MarkDone, which
@@ -179,6 +180,7 @@ func lookUp(in DoneIn) *shaLook {
 		return lk
 	}
 	base := gitrun.BaseOf(in.Repo)
+	lk.branch = base.Branch
 	if in.Sha != "" {
 		var why string
 		if lk.full, why = shaOnBase(in.Repo, in.Sha, base); lk.full == "" {

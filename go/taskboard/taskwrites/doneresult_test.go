@@ -82,12 +82,12 @@ func TestDoneKeepsTheCommitItWasDoneAt(t *testing.T) {
 	}
 	// a commit that is on no branch main reaches is kept as it is, with its place said
 	ok(done("w", "r1", 1, fmt.Sprintf(`,"evidence":"built","commit":%q,"repo":%q`, offMain[:10], repo)))
-	if got := resultOf(1); got.Commit != offMain || got.OnMain {
+	if got := resultOf(1); got.Commit != offMain || got.Landed {
 		t.Fatalf("%+v", got)
 	}
 	// a sha as evidence is a commit on main
 	ok(done("w", "r2", 5, fmt.Sprintf(`,"evidence":%q,"repo":%q`, onMain, repo)))
-	if got := resultOf(5); got.Commit != onMain || !got.OnMain {
+	if got := resultOf(5); got.Commit != onMain || !got.Landed || got.Branch != "main" {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -129,7 +129,7 @@ func TestADoneShaPushedToOriginsMainIsOnMainWithTheLocalMainBehind(t *testing.T)
 	if r := done("w", "o1", 5, fmt.Sprintf(`,"evidence":%q,"repo":%q`, offMain, repo)); r["result"] == nil {
 		t.Fatalf("refused: %v", r)
 	}
-	if got := resultOf(5); got.Commit != offMain || !got.OnMain {
+	if got := resultOf(5); got.Commit != offMain || !got.Landed {
 		t.Fatalf("%+v", got)
 	}
 	git("commit", "-q", "--allow-empty", "-m", "not pushed")

@@ -1029,9 +1029,13 @@
           "type": "string",
           "description": "The full sha it was done at."
          },
-         "on_main": {
+         "branch": {
+          "type": "string",
+          "description": "The default branch of commit's repo, which work lands on."
+         },
+         "landed": {
           "type": "boolean",
-          "description": "Whether main reaches commit."
+          "description": "Whether branch reached commit when the task was done."
          },
          "shots": {
           "type": "array",
@@ -3133,8 +3137,13 @@
           "$ref": "#/components/schemas/Timestamp",
           "description": "Its commit time."
          },
-         "on_main": {
-          "type": "boolean"
+         "branch": {
+          "type": "string",
+          "description": "The default branch of its repo, which work lands on."
+         },
+         "landed": {
+          "type": "boolean",
+          "description": "Whether branch reaches it."
          },
          "files": {
           "type": "integer"
@@ -3152,7 +3161,8 @@
          "subject",
          "agent",
          "at",
-         "on_main",
+         "branch",
+         "landed",
          "files",
          "added",
          "deleted"

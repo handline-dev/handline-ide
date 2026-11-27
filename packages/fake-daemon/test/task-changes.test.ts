@@ -8,10 +8,10 @@ test("task.changes serves a seeded task's two commits, the whole task's files an
   await s.client.start();
   const all = await s.client.call('task.changes', { task: 1688 });
   assert.deepEqual(
-    all.commits.map((c) => [c.on_main, c.files, c.added]),
+    all.commits.map((c) => [c.landed, c.branch, c.files, c.added]),
     [
-      [true, 1, 2],
-      [false, 2, 2],
+      [true, 'main', 1, 2],
+      [false, 'main', 2, 2],
     ],
   );
   assert.deepEqual(
