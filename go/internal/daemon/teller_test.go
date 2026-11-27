@@ -118,7 +118,7 @@ func wiredDaemon(t *testing.T, ports bool, proposals func(*sql.DB, string) super
 	return d, agents
 }
 
-func TestAMemoOnADoingTaskIsTypedAtItsHolderWhenThePortsAreWired(t *testing.T) {
+func TestACommentOnADoingTaskIsTypedAtItsHolderWhenThePortsAreWired(t *testing.T) {
 	d, agents := tellDaemon(t, true)
 	doing(t, d, "bob")
 	f := pipeTo(t, d, "")

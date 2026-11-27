@@ -39,7 +39,7 @@ var taskExtras = []struct {
 		"substr(name, 11) || '=' || row_id AS mark FROM cursors WHERE name LIKE 'task_seen:%' ORDER BY name) GROUP BY task", false},
 }
 
-// Tasks is the tasks topic: a task that appeared or changed (its fields, a memo, a request linked to it), as the spec's Task. Its
+// Tasks is the tasks topic: a task that appeared or changed (its fields, a comment, a request linked to it), as the spec's Task. Its
 // first look says nothing.
 type Tasks struct {
 	Reads *reads.Env

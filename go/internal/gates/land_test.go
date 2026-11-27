@@ -125,7 +125,7 @@ func (r *landRig) task(id int64) (evidence, via, by string, blockers int) {
 	return e.String, v.String, who.String, len(bs)
 }
 
-func (r *landRig) memos() string {
+func (r *landRig) comments() string {
 	r.t.Helper()
 	rows, err := r.d.Query("SELECT author || ': ' || body FROM task_comments WHERE task_id = 2 ORDER BY id")
 	if err != nil {
@@ -174,8 +174,8 @@ func TestAGateThatPassesClosesItsTaskWithTheMergeCommit(t *testing.T) {
 		if len(r.tell.done) != 2 || r.tell.done[0] != 1 || r.tell.done[1] != 2 {
 			t.Fatalf("%s: told of %v", branch, r.tell.done)
 		}
-		if r.memos() != "" {
-			t.Fatalf("%s: a close needs no comment: %s", branch, r.memos())
+		if r.comments() != "" {
+			t.Fatalf("%s: a close needs no comment: %s", branch, r.comments())
 		}
 	}
 }
@@ -218,7 +218,7 @@ func TestTheReviewRuleHoldsAGatesCloseAsItHoldsAnyDone(t *testing.T) {
 	if e != "" || blockers != 0 || !strings.HasPrefix(gate, "merged "+sha+"; T2 not closed: task T2 has commits, and its workspace's rule review_required") {
 		t.Fatalf("T2 %q (%d blockers), the gate %q", e, blockers, gate)
 	}
-	if m := r.memos(); !strings.HasPrefix(m, "daemon: Gate T1 passed (merged "+sha+") and did not close this task: task T2 has commits") {
+	if m := r.comments(); !strings.HasPrefix(m, "daemon: Gate T1 passed (merged "+sha+") and did not close this task: task T2 has commits") {
 		t.Fatalf("comment: %s", m)
 	}
 	if len(r.tell.done) != 1 || r.tell.done[0] != 1 {
@@ -235,8 +235,8 @@ func TestTheReviewRuleHoldsAGatesCloseAsItHoldsAnyDone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	memo, _ := res.LastInsertId()
-	if _, _, ok, err := db.PopTurn(r.d, 2, r.rev, db.TurnPass, "looks right", 0, memo); err != nil || !ok {
+	comment, _ := res.LastInsertId()
+	if _, _, ok, err := db.PopTurn(r.d, 2, r.rev, db.TurnPass, "looks right", 0, comment); err != nil || !ok {
 		t.Fatal(ok, err)
 	}
 	sha = r.merge("main")
@@ -258,7 +258,7 @@ func TestARefusedCloseGivesTheTaskBackWithTheRefusal(t *testing.T) {
 	if e != "" || blockers != 0 || gate != "merged "+sha+"; T2 not closed: task T2 still has open child tasks - it is done once they are closed:" {
 		t.Fatalf("an open sub-task: T2 %q (%d blockers), the gate %q", e, blockers, gate)
 	}
-	if m := r.memos(); !strings.Contains(m, "T3  queued") || !strings.Contains(m, "hl task done T3") {
+	if m := r.comments(); !strings.Contains(m, "T3  queued") || !strings.Contains(m, "hl task done T3") {
 		t.Fatalf("the comment names the sub-task and what closes it: %s", m)
 	}
 
@@ -293,8 +293,8 @@ func TestAMergeThatCannotBeCheckedYetIsTriedAgainNotClosedInWords(t *testing.T) 
 	if why := r.watchError(); why != "passed, merged "+sha+"; not closing T2 yet: git fetch: fatal: unable to access the remote: Could not resolve host" {
 		t.Fatalf("the gate says %q", why)
 	}
-	if len(r.tell.done) != 0 || r.memos() != "" {
-		t.Fatalf("told of %v, comments %q", r.tell.done, r.memos())
+	if len(r.tell.done) != 0 || r.comments() != "" {
+		t.Fatalf("told of %v, comments %q", r.tell.done, r.comments())
 	}
 	r.fetchErr = nil
 	r.s = r.sweep() // the daemon died and started again
@@ -333,8 +333,8 @@ func TestAGateClosesOnlyATaskThatStillWaitsOnItAndIsAnAgents(t *testing.T) {
 	r.exec("DELETE FROM task_blocks WHERE task_id = 2")
 	sha := r.merge("main")
 	r.pass(1000)
-	if e, _, _, _ := r.task(2); e != "" || r.memos() != "" {
-		t.Fatalf("taken off the gate: T2 %q, comments %q", e, r.memos())
+	if e, _, _, _ := r.task(2); e != "" || r.comments() != "" {
+		t.Fatalf("taken off the gate: T2 %q, comments %q", e, r.comments())
 	}
 	if e, _, _, _ := r.task(1); e != "merged "+sha {
 		t.Fatalf("the gate: %q", e)

@@ -31,7 +31,7 @@ func TestAGateHeldAsPassedOpensAtItsDeadlineWithTheMergeItSaw(t *testing.T) {
 	if err := r.d.QueryRow("SELECT watch_result FROM tasks WHERE id = 1").Scan(&result); err != nil || result != "passed" {
 		t.Fatalf("the gate's result: %q %v", result, err)
 	}
-	if m := r.memos(); m != "daemon: Gate T1 passed (merged "+sha+") and did not close this task: git fetch: fatal: unable to access the remote: "+
+	if m := r.comments(); m != "daemon: Gate T1 passed (merged "+sha+") and did not close this task: git fetch: fatal: unable to access the remote: "+
 		"Could not resolve host (tried until the gate's deadline)" {
 		t.Fatalf("the comment: %s", m)
 	}
@@ -72,8 +72,8 @@ func TestAHeldGateWhoseTaskLeftItOpensAsPassedAndTouchesNothing(t *testing.T) {
 	r.pass(1000)
 	r.exec("DELETE FROM task_blocks WHERE task_id = 2")
 	r.pass(5000)
-	if e, _, _, _ := r.task(1); e != "merged "+sha || r.memos() != "" {
-		t.Fatalf("the gate %q, comments %q", e, r.memos())
+	if e, _, _, _ := r.task(1); e != "merged "+sha || r.comments() != "" {
+		t.Fatalf("the gate %q, comments %q", e, r.comments())
 	}
 }
 

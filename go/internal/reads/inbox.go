@@ -27,14 +27,14 @@ func shownVerdict(r row) (string, bool) {
 
 // mailbox is one row of the founder's mailbox: a request that waits for them. gate is a decision: the card of a task the founder owns.
 type mailbox struct {
-	id   int64
-	ts   int64
-	ref  string
-	from string
-	kind string
-	body string
-	gate bool
-	memo int64 // the comment that raised this ask (requests.comment_id); 0 for any other
+	id      int64
+	ts      int64
+	ref     string
+	from    string
+	kind    string
+	body    string
+	gate    bool
+	comment int64 // the comment that raised this ask (requests.comment_id); 0 for any other
 	// kept is a say already read, still listed for readSayKeepS.
 	kept bool
 }
@@ -63,14 +63,14 @@ func (e *Env) mailboxRowsKept(kept bool) ([]mailbox, error) {
 		where = "(" + founderOpen + " OR (kind = 'say' AND state = 'landed' AND read_at IS NOT NULL AND read_at >= ?))"
 		args = append(args, time.Now().Unix()-readSayKeepS)
 	}
-	rows, err := query(e.DB, "SELECT id, ref, ts, requester, kind, body, read_at, COALESCE(comment_id, 0) AS memo FROM requests WHERE target = ? AND "+where+" ORDER BY id", args...)
+	rows, err := query(e.DB, "SELECT id, ref, ts, requester, kind, body, read_at, COALESCE(comment_id, 0) AS comment FROM requests WHERE target = ? AND "+where+" ORDER BY id", args...)
 	if err != nil {
 		return nil, err
 	}
 	var out []mailbox
 	for _, r := range rows {
 		out = append(out, mailbox{id: r.i("id"), ref: r.str("ref"), ts: r.i("ts"), from: r.str("requester"), kind: r.str("kind"),
-			body: r.str("body"), gate: gates[r.i("id")], memo: r.i("memo"), kept: kept && r.str("kind") == "say" && r.i("read_at") != 0})
+			body: r.str("body"), gate: gates[r.i("id")], comment: r.i("comment"), kept: kept && r.str("kind") == "say" && r.i("read_at") != 0})
 	}
 	return out, nil
 }
@@ -127,7 +127,7 @@ func (e *Env) founderItemsKept(since int64, kept bool) ([]map[string]any, error)
 
 // itemHead is what an inbox item shows before its task and fix are looked up: enough to filter and page on.
 type itemHead struct {
-	id, at, memo           int64
+	id, at, comment        int64
 	ref, kind, agent, body string
 	read                   bool
 }
@@ -140,8 +140,8 @@ func (e *Env) items(heads []itemHead) ([]map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if h.memo != 0 {
-			it["comment"] = h.memo
+		if h.comment != 0 {
+			it["comment"] = h.comment
 		}
 		out = append(out, it)
 	}
@@ -175,8 +175,8 @@ func (e *Env) founderHeads(since int64, kept bool) ([]itemHead, error) {
 		} else if kind == "" {
 			kind = "ask"
 		}
-		out = append(out, itemHead{id: m.id, ref: m.ref, kind: kind, agent: m.from, body: m.body, at: m.ts, memo: m.memo,
-			read: (m.id <= cursor && m.memo == 0) || (m.kept && !m.gate)})
+		out = append(out, itemHead{id: m.id, ref: m.ref, kind: kind, agent: m.from, body: m.body, at: m.ts, comment: m.comment,
+			read: (m.id <= cursor && m.comment == 0) || (m.kept && !m.gate)})
 	}
 	return out, nil
 }

@@ -133,12 +133,12 @@ func TestAStoppedRunnerIsOfflineThenItsSessionIsTakenBackAndItsLeftoversRescued(
 	if err != nil || len(got) != 1 || got[0].Agent != bob || got[0].Task != 1 {
 		t.Fatalf("the sweep took back %+v (%v)", got, err)
 	}
-	var memo string
-	master.db.QueryRow("SELECT body FROM task_comments WHERE task_id = 1").Scan(&memo)
-	if !strings.Contains(memo, pushed[:9]) || !strings.Contains(memo, "on work") || !strings.Contains(memo, "box") {
-		t.Fatalf("the task's memo: %q", memo)
+	var comment string
+	master.db.QueryRow("SELECT body FROM task_comments WHERE task_id = 1").Scan(&comment)
+	if !strings.Contains(comment, pushed[:9]) || !strings.Contains(comment, "on work") || !strings.Contains(comment, "box") {
+		t.Fatalf("the task's comment: %q", comment)
 	}
-	t.Logf("memo: %s", memo)
+	t.Logf("comment: %s", comment)
 	if hs, _ := tm.Terminals(node); len(hs) != 0 {
 		t.Fatalf("a taken back session still reads running: %v", hs)
 	}

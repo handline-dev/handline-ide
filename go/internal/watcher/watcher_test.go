@@ -67,7 +67,7 @@ func TestTheFirstLookSaysNothingAndEachChangeIsOneTaskChangedRow(t *testing.T) {
 	}
 	exec(t, d, "INSERT INTO task_comments(task_id, author, body, created_at) VALUES(1, 'bob', 'note', 5)")
 	if err := tk.Scan(d, emit); err != nil || len(rows(t, l)) != 3 {
-		t.Fatalf("a memo is a change: %v %d", err, len(rows(t, l)))
+		t.Fatalf("a comment is a change: %v %d", err, len(rows(t, l)))
 	}
 }
 

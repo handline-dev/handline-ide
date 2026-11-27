@@ -65,8 +65,8 @@ func TestARevokedRunnersSessionsAreTakenBackAtOnce(t *testing.T) {
 	if err != nil || len(got) != 1 || got[0].Agent != "bob" || got[0].Task != 1 {
 		t.Fatalf("taken back %+v (%v)", got, err)
 	}
-	if !strings.Contains(got[0].Memo, "revoked") || !strings.Contains(got[0].Memo, "Nothing on work was pushed") {
-		t.Fatalf("memo %q", got[0].Memo)
+	if !strings.Contains(got[0].Comment, "revoked") || !strings.Contains(got[0].Comment, "Nothing on work was pushed") {
+		t.Fatalf("comment %q", got[0].Comment)
 	}
 	if again, _ := r.Reclaim("n1", "again"); len(again) != 0 {
 		t.Fatalf("taken back twice: %+v", again)

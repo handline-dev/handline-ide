@@ -106,7 +106,7 @@ func (e *Env) founderFields(f *viewFields) error {
 			cur = cr.i("row_id")
 			seen[m.from] = cur
 		}
-		if m.id > cur && m.memo == 0 { // an ask a comment raised has a card of its own
+		if m.id > cur && m.comment == 0 { // an ask a comment raised has a card of its own
 			f.founderUnread[m.from]++
 		}
 	}

@@ -44,8 +44,8 @@ func TestATaskThatChangedWhileItsMergeWasCheckedIsNotClosedOnTheOldReading(t *te
 		if e, _, by, _ := r.task(2); by != "" || (e != "" && e != "by hand") {
 			t.Fatalf("%s: T2 closed on the old reading: %q by %q", c.name, e, by)
 		}
-		if e, _, _, _ := r.task(1); e != "" || len(r.tell.done) != 0 || r.memos() != "" {
-			t.Fatalf("%s: the look that found it changed wrote something: the gate %q, told of %v, comments %q", c.name, e, r.tell.done, r.memos())
+		if e, _, _, _ := r.task(1); e != "" || len(r.tell.done) != 0 || r.comments() != "" {
+			t.Fatalf("%s: the look that found it changed wrote something: the gate %q, told of %v, comments %q", c.name, e, r.tell.done, r.comments())
 		}
 		r.pass(1060)
 		want, by := c.task, ""

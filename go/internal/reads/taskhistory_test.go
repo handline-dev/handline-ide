@@ -8,7 +8,7 @@ import (
 )
 
 // Every change to a task is a row of who, field, was, now and when, newest first, read from the events its writes keep: an edit is one row
-// per field, a state row's was is the state before it, a memo keeps its text after it is deleted, and another task's events are not shown.
+// per field, a state row's was is the state before it, a comment keeps its text after it is deleted, and another task's events are not shown.
 func TestTaskHistoryListsEveryChangeAsRowsNewestFirst(t *testing.T) {
 	t.Parallel()
 	e := testEnv(t)

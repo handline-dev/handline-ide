@@ -32,8 +32,8 @@ func TestAnOriginTheDaemonMayNotFetchGivesTheTaskBackAfterItsLooks(t *testing.T)
 		!strings.HasSuffix(gate, "and the daemon cannot fetch that repository's origin to look again (git fetch: transport 'file' not allowed: it fetches over https, ssh, git only)") {
 		t.Fatalf("T2 %q (%d blockers), the gate %q", e, blockers, gate)
 	}
-	if !strings.Contains(r.memos(), "transport 'file' not allowed") {
-		t.Fatalf("the comment says why: %s", r.memos())
+	if !strings.Contains(r.comments(), "transport 'file' not allowed") {
+		t.Fatalf("the comment says why: %s", r.comments())
 	}
 
 	r = newLandRig(t, "main")

@@ -18,10 +18,10 @@ const maxIDs = 200
 
 // mailRow is one row of the person's mailbox as the writes need it: who it is from and whether it is a decision.
 type mailRow struct {
-	id   int64
-	from string
-	gate bool
-	memo bool // an ask a task comment raised (requests.comment_id): read away only by naming it
+	id      int64
+	from    string
+	gate    bool
+	comment bool // an ask a task comment raised (requests.comment_id): read away only by naming it
 }
 
 func mailbox(q db.Q) ([]mailRow, error) {
@@ -42,11 +42,11 @@ func mailbox(q db.Q) ([]mailRow, error) {
 	for rows.Next() {
 		var id int64
 		var requester string
-		var memo bool
-		if err := rows.Scan(&id, &requester, &memo); err != nil {
+		var comment bool
+		if err := rows.Scan(&id, &requester, &comment); err != nil {
 			return nil, err
 		}
-		out = append(out, mailRow{id: id, from: requester, gate: isGate[id], memo: memo})
+		out = append(out, mailRow{id: id, from: requester, gate: isGate[id], comment: comment})
 	}
 	return out, rows.Err()
 }
@@ -157,8 +157,8 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 			var inBox []int64
 			closed := 0
 			for _, i := range ids {
-				if m, in := box[i]; in && m.memo {
-					if err := closeMemoAsk(tx, i); err != nil {
+				if m, in := box[i]; in && m.comment {
+					if err := closeCommentAsk(tx, i); err != nil {
 						return nil, err
 					}
 					closed++
@@ -182,14 +182,14 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 				}
 				owed := int64(0)
 				for _, m := range byAgent[a] {
-					if m.gate && (owed == 0 || m.id < owed) { // a memo ask is not owed: reading past it leaves it open
+					if m.gate && (owed == 0 || m.id < owed) { // a comment ask is not owed: reading past it leaves it open
 						owed = m.id
 					}
 				}
 				var top int64
 				n := 0
 				for _, m := range byAgent[a] {
-					if m.id <= upto && !m.gate && !m.memo && (owed == 0 || m.id < owed) {
+					if m.id <= upto && !m.gate && !m.comment && (owed == 0 || m.id < owed) {
 						n++
 						if m.id > top {
 							top = m.id
@@ -230,28 +230,28 @@ func (w *writes) markRead(c *rpc.Conn, p map[string]any) (any, error) {
 // answerAsk is the founder's reply to rid, once sent: when rid is an ask a task comment raised, the reply is the founder's comment on that task
 // (a reply to the comment) and closes the ask. Any other request is left as it is.
 func (w *writes) answerAsk(tx *sql.Tx, res *Result, me string, rid int64, body string) (*Result, error) {
-	var tid, memo sql.NullInt64
-	if err := tx.QueryRow("SELECT comment_id, (SELECT MIN(task_id) FROM task_requests WHERE request_id = id) FROM requests WHERE id = ?", rid).Scan(&memo, &tid); err != nil {
+	var tid, comment sql.NullInt64
+	if err := tx.QueryRow("SELECT comment_id, (SELECT MIN(task_id) FROM task_requests WHERE request_id = id) FROM requests WHERE id = ?", rid).Scan(&comment, &tid); err != nil {
 		return nil, err
 	}
-	if !memo.Valid || !tid.Valid {
+	if !comment.Valid || !tid.Valid {
 		return res, nil
 	}
-	mid, err := db.AddMemo(tx, tid.Int64, me, body)
+	mid, err := db.AddComment(tx, tid.Int64, me, body)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec("UPDATE task_comments SET reply_to = ? WHERE id = ?", memo.Int64, mid); err != nil {
+	if _, err := tx.Exec("UPDATE task_comments SET reply_to = ? WHERE id = ?", comment.Int64, mid); err != nil {
 		return nil, err
 	}
-	if err := closeMemoAsk(tx, rid); err != nil {
+	if err := closeCommentAsk(tx, rid); err != nil {
 		return nil, err
 	}
 	tell := res.Tell
 	res.Tell = func() string {
 		out := tell()
 		if w.tell != nil && w.e.Wired() {
-			w.tell.MemoChanged(tid.Int64, mid, me, "added", body, true, nil)
+			w.tell.CommentChanged(tid.Int64, mid, me, "added", body, true, nil)
 		}
 		return out
 	}

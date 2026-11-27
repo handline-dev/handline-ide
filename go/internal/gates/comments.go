@@ -109,7 +109,7 @@ func (s *Sweep) relay(tid, pr int64, c watch.Comment) error {
 		return err
 	}
 	text := commentText(pr, c)
-	mid, err := db.AddMemo(tx, tid, daemonAuthor, text)
+	mid, err := db.AddComment(tx, tid, daemonAuthor, text)
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func (s *Sweep) relay(tid, pr int64, c watch.Comment) error {
 		return err
 	}
 	if s.Tell != nil {
-		s.Tell.MemoChanged(tid, mid, daemonAuthor, "added", text, false, nil)
+		s.Tell.CommentChanged(tid, mid, daemonAuthor, "added", text, false, nil)
 	}
 	return nil
 }

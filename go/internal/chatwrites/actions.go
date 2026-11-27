@@ -274,8 +274,8 @@ func ForYouSeen(q db.Q, agent string, upto int64) error {
 	return db.MarkRead(q, ids)
 }
 
-// closeMemoAsk closes the ask a task comment raised, as answered: the founder read it by name, or replied.
-func closeMemoAsk(q db.Q, rid int64) error {
-	_, err := db.CloseMemoAsks(q, "landed", "id = ?", rid)
+// closeCommentAsk closes the ask a task comment raised, as answered: the founder read it by name, or replied.
+func closeCommentAsk(q db.Q, rid int64) error {
+	_, err := db.CloseCommentAsks(q, "landed", "id = ?", rid)
 	return err
 }

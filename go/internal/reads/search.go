@@ -123,11 +123,11 @@ func (e *Env) search(_ *rpc.Conn, params map[string]any) (any, error) {
 	for _, t := range cut(tasks) {
 		hits = append(hits, taskHit(t, text))
 	}
-	memos, err := query(e.DB, searchCommentsSQL, like, limit+1)
+	comments, err := query(e.DB, searchCommentsSQL, like, limit+1)
 	if err != nil {
 		return nil, err
 	}
-	for _, m := range cut(memos) {
+	for _, m := range cut(comments) {
 		hits = append(hits, map[string]any{"kind": "comment", "at": ts(m["created_at"]), "snippet": snippetOf(m.str("body"), text),
 			"task": m.i("task_id"), "title": m.str("title"), "comment": m.i("id"), "from": m.str("author")})
 	}

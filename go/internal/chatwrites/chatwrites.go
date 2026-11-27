@@ -369,7 +369,7 @@ func quoteParam(p map[string]any, parent int64) (string, error) {
 // collapsed is s with each run of whitespace one space, trimmed.
 func collapsed(s string) string { return strings.Join(strings.Fields(s), " ") }
 
-// sendUnder is a message that replies to parent: a say to the agent with the parent link, whoever it is between. Under a memo ask it is the answer to it (answerAsk); under anything else it settles nothing.
+// sendUnder is a message that replies to parent: a say to the agent with the parent link, whoever it is between. Under a comment ask it is the answer to it (answerAsk); under anything else it settles nothing.
 // A quote must be words of the parent, whitespace aside, so the message never shows the parent saying what it did not.
 func (w *writes) sendUnder(tx *sql.Tx, me, agent string, parent int64, quote, body string, act func(rid int64)) (*Result, error) {
 	row, err := message(tx, parent)
