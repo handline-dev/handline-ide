@@ -1,16 +1,12 @@
-// A tab bar floating over the town (Windows.tsx): one tab bar on its own follows its handle as it is dragged and stays where it is let
-// go; one split in two carries its title instead, as a docked one does. It never leaves the town's area.
-import { motion, useMotionValue } from 'framer-motion';
-import { useLayoutEffect, useRef } from 'react';
+// A tab bar floating over the town (Windows.tsx), the town's full height: one tab bar on its own follows its handle sideways as it is
+// dragged and stays where it is let go; one split in two carries its title instead, as a docked one does. Either edge drags its width.
+// It never leaves the town's area.
+import { motion, useMotionValue, type MotionValue } from 'framer-motion';
+import { useLayoutEffect, useRef, type PointerEvent } from 'react';
 import { Workspace, type Dispatch, type IconFor } from '#src/Workspace.tsx';
 import type { GripProps } from '#src/layout/paneGrip.tsx';
 import { holds, panes, type Pane } from '#src/layout/tree.ts';
-import type { Float } from '#src/town/windows.ts';
-
-export const FLOAT_W = 400;
-export const FLOAT_H = 560;
-/** As tall as it may be, and never past the town's bottom edge. */
-const HEIGHT = `min(${FLOAT_H}px, calc(100% - 24px))`;
+import { FLOAT_MIN, type Float } from '#src/town/windows.ts';
 
 export function FloatWindow({
   float: f,
@@ -20,7 +16,7 @@ export function FloatWindow({
   dispatch,
   iconFor,
   grip,
-  onMoved,
+  onPlaced,
 }: {
   float: Float;
   area: () => DOMRect;
@@ -30,44 +26,45 @@ export function FloatWindow({
   iconFor: IconFor;
   /** `moved` keeps the float's own move when it is let go on nothing that takes a tab bar. */
   grip: (pane: Pane, moved?: () => void) => Omit<GripProps, 'label'>;
-  onMoved: (x: number, y: number) => void;
+  /** Its new left edge, as a share of the town's width, and its width in px. */
+  onPlaced: (x: number, w: number) => void;
 }) {
-  // While its handle is dragged it follows the pointer by these offsets, which draw without rendering the tabs again.
+  // While its handle or an edge is dragged it follows the pointer by these, which draw without rendering the tabs again.
   const dx = useMotionValue(0);
-  const dy = useMotionValue(0);
+  const wide = useMotionValue(f.w);
   const box = useRef<HTMLDivElement>(null);
   const single = f.root.kind === 'pane';
   const home = () => {
     dx.set(0);
-    dy.set(0);
+    wide.set(f.w);
   };
   // Let go, it rests where it was carried: its place is kept, and the offsets go back to none as it is drawn there.
-  useLayoutEffect(home, [f.x, f.y, dx, dy]);
-  const moved = () => {
+  useLayoutEffect(home, [f.x, f.w, dx, wide]);
+  /** Its left edge as drawn, a share of the town's width: kept inside a town that got narrower than where it was put. */
+  const x0 = (width: number) => Math.min(f.x, Math.max(0, 1 - f.w / width));
+  const placed = () => {
     const r = area();
-    const x = Math.min(1 - FLOAT_W / r.width, Math.max(0, f.x + dx.get() / r.width));
-    const y = Math.min(0.9, Math.max(0, f.y + dy.get() / r.height));
-    if (x === f.x && y === f.y) home();
-    else onMoved(x, y);
+    const w = Math.min(wide.get(), r.width);
+    const x = Math.min(1 - w / r.width, Math.max(0, x0(r.width) + dx.get() / r.width));
+    if (x === f.x && w === f.w) home();
+    else onPlaced(x, w);
   };
   return (
     <motion.div
       ref={box}
       data-no-walk
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
+      exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.14, ease: 'easeOut' }}
       onPointerDownCapture={() => onFocus(focus && holds(f.root, focus) ? focus : firstPane(f))}
       style={{
         x: dx,
-        y: dy,
-        left: `clamp(0px, ${f.x * 100}%, max(0px, calc(100% - ${FLOAT_W}px)))`,
-        top: `clamp(0px, ${f.y * 100}%, calc(100% - ${HEIGHT}))`,
-        width: `min(${FLOAT_W}px, 100%)`,
-        height: HEIGHT,
+        width: wide,
+        left: `clamp(0px, ${f.x * 100}%, max(0px, calc(100% - ${f.w}px)))`,
+        maxWidth: '100%',
       }}
-      className="absolute z-20 flex overflow-hidden rounded-lg border border-border bg-bg shadow-xl"
+      className="absolute inset-y-0 z-20 flex overflow-hidden border-x border-border bg-bg shadow-xl"
     >
       <Workspace
         root={f.root}
@@ -80,7 +77,7 @@ export function FloatWindow({
         iconFor={iconFor}
         grip={(pane) => {
           if (!single) return grip(pane);
-          const g = grip(pane, moved);
+          const g = grip(pane, placed);
           return {
             ...g,
             // A drop that leaves it where it was (on nothing that takes it) draws it back home; one that moves it is reset as it lands.
@@ -91,14 +88,60 @@ export function FloatWindow({
             onMove: (at) => {
               // Carried, it lets the pointer through to what is under it, which says where it would land.
               if (box.current) box.current.style.pointerEvents = at ? 'none' : '';
-              if (!at) return;
-              dx.set(at.x);
-              dy.set(at.y);
+              if (at) dx.set(at.x);
             },
           };
         }}
       />
+      <Edge side="left" dx={dx} wide={wide} room={() => x0(area().width) * area().width} onDone={placed} />
+      <Edge side="right" dx={dx} wide={wide} room={() => area().width * (1 - x0(area().width))} onDone={placed} />
     </motion.div>
+  );
+}
+
+/** A float's left or right edge, dragged to widen or narrow it; `room` is how wide it may grow that way, in px. */
+function Edge({
+  side,
+  dx,
+  wide,
+  room,
+  onDone,
+}: {
+  side: 'left' | 'right';
+  dx: MotionValue<number>;
+  wide: MotionValue<number>;
+  room: () => number;
+  onDone: () => void;
+}) {
+  const from = useRef<{ x: number; w: number; most: number } | null>(null);
+  const drag = (e: PointerEvent) => {
+    const s = from.current;
+    if (!s) return;
+    const d = e.clientX - s.x;
+    const w = Math.max(Math.min(FLOAT_MIN, s.w), Math.min(s.most, side === 'left' ? s.w - d : s.w + d));
+    wide.set(w);
+    if (side === 'left') dx.set(s.w - w);
+  };
+  return (
+    <div
+      aria-hidden
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const w = wide.get();
+        from.current = { x: e.clientX, w, most: side === 'left' ? w + room() : room() };
+        document.body.style.cursor = 'col-resize';
+      }}
+      onPointerMove={drag}
+      onLostPointerCapture={() => {
+        if (!from.current) return;
+        from.current = null;
+        document.body.style.cursor = '';
+        onDone();
+      }}
+      className={`absolute inset-y-0 z-20 w-1.5 cursor-col-resize hover:bg-accent/40 ${side === 'left' ? 'left-0' : 'right-0'}`}
+    />
   );
 }
 

@@ -1,7 +1,8 @@
-// A tab bar's handle, the dots at the top of its middle as on a tablet: dragged, the whole tab bar goes where it is let go, onto another
+// A tab bar's handle, the dots at the top of its middle as on a tablet: clicked or right-clicked, it opens its menu when it has one; dragged, the whole tab bar goes where it is let go, onto another
 // pane (its middle joins the tabs, an edge splits there) or onto a place that takes tab bars (the town's scene). Pointer-driven, so a
 // floating tab bar can follow the pointer itself; else its shown tab's title does.
-import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { MenuAt } from '#src/ui/Menu.tsx';
 import { hideZone, showBox, showZone, sideAt, zoneAt, type Zone } from '#src/ui/dnd.tsx';
 
 /** On a pane's body: its id. */
@@ -36,6 +37,8 @@ export type GripProps = {
   hint?: string;
   /** Where on screen the bar would float, let go at a place's middle; outlined while it is carried there. */
   floatBox?: (at: At) => { left: number; top: number; width: number; height: number };
+  /** The items a click or a right-click on the handle opens. */
+  menu?: ReactNode;
 };
 
 /** The shown tab's title under the pointer while a docked tab bar is carried: a plain element, as the tab drag's own picture is. */
@@ -51,8 +54,12 @@ function chipAt(chip: HTMLElement | null, text: string, p: At): HTMLElement {
   return el;
 }
 
-export function PaneGrip({ label, onDrop, onMove, onKey, hint = 'Drag to move this tab bar', floatBox }: GripProps) {
+export function PaneGrip({ label, onDrop, onMove, onKey, hint = 'Drag to move this tab bar', floatBox, menu }: GripProps) {
   const start = useRef<At | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  // A press let go where it began is a click: it opens the menu once the click itself is over, so the click does not close it again.
+  const clicked = useRef(false);
   const moved = useRef(false);
   const chip = useRef<HTMLElement | null>(null);
   // A tab bar that goes while it is carried takes its label with it.
@@ -82,39 +89,62 @@ export function PaneGrip({ label, onDrop, onMove, onKey, hint = 'Drag to move th
     onMove?.(null);
     hideZone();
     if (dragged && p) onDrop(drop, p);
+    clicked.current = !dragged && !!p;
   };
   return (
-    <button
-      type="button"
-      aria-label={hint}
-      title={hint}
-      className="app-no-drag absolute top-0 left-1/2 z-10 flex h-3 w-10 -translate-x-1/2 cursor-grab touch-none items-center justify-center gap-0.5 rounded-b-md outline-none hover:bg-hover focus-visible:bg-hover active:cursor-grabbing"
-      onPointerDown={(e: PointerEvent) => {
-        e.preventDefault();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        start.current = { x: e.clientX, y: e.clientY };
-      }}
-      onPointerMove={(e) => {
-        const s = start.current;
-        if (!s) return;
-        const p = { x: e.clientX, y: e.clientY };
-        if (!moved.current && Math.hypot(p.x - s.x, p.y - s.y) < SLOP) return;
-        moved.current = true;
-        if (onMove) onMove({ x: p.x - s.x, y: p.y - s.y });
-        else chip.current = chipAt(chip.current, label, p);
-        over(p);
-      }}
-      onPointerUp={(e) => end({ x: e.clientX, y: e.clientY })}
-      onLostPointerCapture={() => start.current && end(null)}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (!onKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(e.key)) return;
-        e.preventDefault();
-        onKey(e.key as 'ArrowLeft');
-      }}
-    >
-      {[0, 1, 2].map((i) => (
-        <span key={i} className="size-1 rounded-full bg-muted" />
-      ))}
-    </button>
+    <>
+      <button
+        ref={button}
+        type="button"
+        aria-label={hint}
+        title={hint}
+        className="app-no-drag absolute top-0 left-1/2 z-10 flex h-3 w-10 -translate-x-1/2 cursor-grab touch-none items-center justify-center gap-0.5 rounded-b-md outline-none hover:bg-hover focus-visible:bg-hover active:cursor-grabbing"
+        onPointerDown={(e: PointerEvent) => {
+          if (e.button !== 0) return; // a right press opens the menu, never a drag
+          e.preventDefault();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          start.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerMove={(e) => {
+          const s = start.current;
+          if (!s) return;
+          const p = { x: e.clientX, y: e.clientY };
+          if (!moved.current && Math.hypot(p.x - s.x, p.y - s.y) < SLOP) return;
+          moved.current = true;
+          if (onMove) onMove({ x: p.x - s.x, y: p.y - s.y });
+          else chip.current = chipAt(chip.current, label, p);
+          over(p);
+        }}
+        onPointerUp={(e) => end({ x: e.clientX, y: e.clientY })}
+        onLostPointerCapture={() => start.current && end(null)}
+        onClick={() => {
+          if (clicked.current && menu) setOpen(true);
+          clicked.current = false;
+        }}
+        onContextMenu={(e) => {
+          if (!menu) return;
+          e.preventDefault();
+          setOpen(true);
+        }}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (menu && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            setOpen(true);
+          }
+          if (!onKey || !['ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(e.key)) return;
+          e.preventDefault();
+          onKey(e.key as 'ArrowLeft');
+        }}
+      >
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="size-1 rounded-full bg-muted" />
+        ))}
+      </button>
+      {menu && (
+        <MenuAt anchor={button} open={open} onOpenChange={setOpen}>
+          {menu}
+        </MenuAt>
+      )}
+    </>
   );
 }

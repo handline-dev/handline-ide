@@ -64,11 +64,12 @@ export type Founder = {
 
 const facingOf = ([dx, dz]: Spot, was: Facing): Facing =>
   Math.abs(dx) > Math.abs(dz) ? (dx < 0 ? 'left' : 'right') : dz < 0 ? 'up' : dz > 0 ? 'down' : was;
-/** Keys typed into a field, or anywhere in a floating window, are the window's, not the founder's; and while a form or a panel is open
- *  over the town (a modal, a popover), every key is that one's. */
+/** Keys typed into a field, anywhere in a floating window or in a menu, are theirs, not the founder's; and while a form or a panel is
+ *  open over the town (a modal, a popover), every key is that one's. */
 export const notMine = (t: EventTarget | null) =>
   !!document.querySelector('[role="dialog"], [role="alertdialog"]') ||
-  (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || !!t.closest('[data-no-walk]')));
+  (t instanceof HTMLElement &&
+    (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || !!t.closest('[data-no-walk], [role="menu"]')));
 const sameFloor = (a: Floor, b: Floor) =>
   a === b || (a.cols === b.cols && a.rows === b.rows && a.cell === b.cell && a.free.every((v, i) => v === b.free[i]));
 const standing = (at: Spot): Walker => ({ at, facing: 'down', walked: 0, moving: false });
