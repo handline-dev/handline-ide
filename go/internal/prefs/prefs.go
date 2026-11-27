@@ -1,5 +1,5 @@
-// Package prefs keeps each person's view preferences (contract Prefs): prefs.get, prefs.set, and the cleanup when an agent goes or is
-// renamed. The watcher's Prefs detector tells the prefs topic.
+// Package prefs keeps each person's view preferences (contract Prefs): prefs.get, prefs.set, and the cleanup when an agent goes. A
+// rename keeps the agent's key, which is what pins and order hold. The watcher's Prefs detector tells the prefs topic.
 package prefs
 
 import (
@@ -266,18 +266,6 @@ func uniqueNames(v any) ([]string, bool) {
 func Forget(tx *sql.Tx, agent string) error {
 	return each(tx, func(names []string) []string {
 		return slices.DeleteFunc(names, func(s string) bool { return s == agent })
-	})
-}
-
-// Rename makes old new in every person's pins and order, in place.
-func Rename(tx *sql.Tx, old, new string) error {
-	return each(tx, func(names []string) []string {
-		for i, s := range names {
-			if s == old {
-				names[i] = new
-			}
-		}
-		return names
 	})
 }
 

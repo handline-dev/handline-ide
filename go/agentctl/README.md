@@ -15,7 +15,7 @@ It imports no package of the daemon: what it must know of the program that runs 
 | `agent` | The interface an agent CLI meets, and its account facts |
 | `agent/claudecode`, `agent/codex`, `agent/opencode`, `agent/fake` | The CLIs (`fake` is the `-tags fakes` build's) |
 | `agent/vendors` | Links every CLI, so each registers itself |
-| `term`, `term/hosts`, `term/tmux`, `term/windows`, `term/fake` | Terminal hosts (tmux; a Windows build's, which refuses to start an agent; the fakes build's in-process one), screen reading and key presses |
+| `term`, `term/hosts`, `term/tmux`, `term/fake` | Terminal hosts (tmux; the fakes build's in-process one), screen reading and key presses |
 | `delivery`, `peerport`, `peerinbox` | How a message reaches a session, and its receipt |
 | `verdict` | Pure judgements of an agent's state |
 | `ansi` | Styled screen rows |

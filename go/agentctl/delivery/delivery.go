@@ -1,5 +1,5 @@
-// Package delivery is how a message reaches an agent and is recorded: the delivery mode, the states of a send, the receipt a retry
-// gets back, and the ledger that keeps them across a restart. Terminal agents' peer sends and the CLI client (package claudecli) share it.
+// Package delivery is how a message reaches an agent and is recorded: the delivery mode, the states of a send, and the receipt a retry
+// gets back. Terminal agents' peer sends and the CLI client (package claudecli) share it.
 package delivery
 
 import (

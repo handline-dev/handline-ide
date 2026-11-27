@@ -104,7 +104,7 @@ func (e *Env) bgSince(q db.Q, agent string) (int64, bool) {
 	return ok2(db.CursorUpdated(q, "bgwork:"+agent))
 }
 
-// BgLastShown is when the agent last showed anything, not counting the turns that answered a background check: each check asks for an answer,
+// bgLastShown is when the agent last showed anything, not counting the turns that answered a background check: each check asks for an answer,
 // and an agent that gives one every N minutes would otherwise never be silent long enough to be told to stop, or to be stale.
 func (e *Env) bgLastShown(q db.Q, agent string) (int64, bool) {
 	since, _ := e.bgSince(q, agent)
@@ -265,7 +265,7 @@ func (e *Env) forgottenResolve(q db.Q, agent string, row *db.AgentState, now int
 	return &Forgotten{Head: head, IdleS: idle, Behind: depth - 1}
 }
 
-// NudgeCount is how many times the current head has already been nudged: 0 for a head that is not the one the nudge cursor names.
+// nudgeCount is how many times the current head has already been nudged: 0 for a head that is not the one the nudge cursor names.
 func (e *Env) nudgeCount(q db.Q, agent string, headID int64) int64 {
 	if must(db.Cursor(q, "nudge:"+agent)) == headID {
 		return must(db.Cursor(q, "nudge_count:"+agent))

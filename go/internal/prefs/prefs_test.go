@@ -79,7 +79,7 @@ func TestABadChangeIsRefusedNamingItsFieldAndKeepsNothing(t *testing.T) {
 	}
 }
 
-func TestARetiredAgentLeavesPinsAndOrderAndARenamedOneKeepsItsPlace(t *testing.T) {
+func TestARetiredAgentLeavesPinsAndOrder(t *testing.T) {
 	d := storetest.Open(t)
 	agents := []string{"a", "b", "c"}
 	if err := set(t, d, "human", map[string]any{"pins": []any{"a", "b", "c"}, "order": []any{"c", "b", "a"}}, agents); err != nil {
@@ -92,15 +92,12 @@ func TestARetiredAgentLeavesPinsAndOrderAndARenamedOneKeepsItsPlace(t *testing.T
 	if err := Forget(tx, "b"); err != nil {
 		t.Fatal(err)
 	}
-	if err := Rename(tx, "a", "z"); err != nil {
-		t.Fatal(err)
-	}
 	tx.Commit()
 	n, _ := navOf(d, "human")
-	if !slices.Equal(n.Pins, []string{"z", "c"}) || !slices.Equal(n.Order, []string{"c", "z"}) {
+	if !slices.Equal(n.Pins, []string{"a", "c"}) || !slices.Equal(n.Order, []string{"c", "a"}) {
 		t.Fatalf("%+v", n)
 	}
-	if n, _ := navOf(d, "other"); !slices.Equal(n.Order, []string{"z", "c"}) {
+	if n, _ := navOf(d, "other"); !slices.Equal(n.Order, []string{"a", "c"}) {
 		t.Fatalf("an order-only change was not stored: %+v", n)
 	}
 }

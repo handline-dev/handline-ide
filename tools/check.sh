@@ -110,10 +110,6 @@ group_go() {
     fi
     local r=0
     [ -z "$pkgs" ] || gotest $pkgs || r=1
-    # agentctl picks its terminal host per OS (term/hosts): it must keep building for Windows, which has no tmux.
-    if grep -qxF agentctl <<< "$mods" && { [ -z "$shard" ] || [ "$shard" = agentctl ]; }; then
-        GOOS=windows go -C go/agentctl build ./... || r=1
-    fi
     return "$r"
 }
 

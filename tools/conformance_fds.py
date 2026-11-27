@@ -83,10 +83,10 @@ def seed_states(home: Path, fakes: bool) -> dict[str, str]:
     con.close()
     seeded = {**{f"state_{w}": n for w, n in names.items()}, "output_agent": output_agent, "session_agent": output_agent,
             "ask_agent": ask_agent, "never_started_agent": NEVER_STARTED, "doing_agent": DOING_AGENT, "view_plain_agent": names["idle"], "retire_agent": RETIRE[0],
-            "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order, "order_rename_to": "o.new",
+            "retire_parent": RETIRE[1], "files_agent": FILES_AGENT, **WORKROOM, **typing, **order,
             **{f"turn_{k}": n for k, n in zip("abc", TURNS)}}
-    # an agent's var is its key, as the daemon names it in what it answers; a name it has yet to take stays a name
-    return {k: v if k == "order_rename_to" else keys.get(v, v) for k, v in seeded.items()}
+    # an agent's var is its key, as the daemon names it in what it answers
+    return {k: keys.get(v, v) for k, v in seeded.items()}
 
 
 def wait_served(conn: socket.socket, daemon: subprocess.Popen) -> None:
@@ -211,8 +211,8 @@ def seed_doing(con: sqlite3.Connection) -> None:
     con.execute("INSERT OR REPLACE INTO agent_view(agent, view, updated) VALUES(?, ?, 0)", (DOING_AGENT, json.dumps(view)))
 # agent_retire.json: an agent nothing depends on, which it retires, and a workspace lead with an agent under it, which it may not.
 RETIRE = ["r.gone", "r", "r.kid"]
-# prefs.json's nav order fixtures: an agent they retire and one a proposal renames (to o.new); neither has a session.
-ORDER = {"order_retire_agent": "o.gone", "order_rename_agent": "o.old"}
+# prefs.json's nav order fixtures: an agent they retire, which has no session.
+ORDER = {"order_retire_agent": "o.gone"}
 
 
 def place(label: str) -> tuple[str, str]:

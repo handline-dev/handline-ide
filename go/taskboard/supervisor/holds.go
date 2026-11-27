@@ -87,7 +87,7 @@ func (r *holdRec) write(q db.Q, tid int64) {
 	check(db.SetMeta(q, holdKey(tid), "{"+strings.Join(parts, ", ")+"}"))
 }
 
-// AgentReason is why work is not reaching the agent, and whether it looks able to take it: the daemon's own gates in the order it meets them.
+// agentReason is why work is not reaching the agent, and whether it looks able to take it: the daemon's own gates in the order it meets them.
 // ("", true) when nothing is in the way.
 func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
 	row := stateOf(q, agent)
@@ -113,7 +113,7 @@ func (e *Env) agentReason(q db.Q, agent string, now int64) (string, bool) {
 	return "", true
 }
 
-// TaskReason is why the task, queued or doing, has not been given to its owner, its cause (task, wall, full or owner), and whether the owner
+// taskReason is why the task, queued or doing, has not been given to its owner, its cause (task, wall, full or owner), and whether the owner
 // looks able to take it. ok false when it has been (typed, or nothing is waiting to type).
 func (e *Env) taskReason(q db.Q, t *db.Task, now int64) (why, cause string, able, ok bool) {
 	tid, agent := t.ID, t.Acting

@@ -1,8 +1,6 @@
 package term
 
 import (
-	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,10 +21,6 @@ const (
 	dialogReadMax   = 400
 
 	PromptPermission = "permission"
-	PromptQuestion   = "question"
-	PromptDialog     = "dialog"
-	PromptNone       = "none"
-	PromptUnreadable = "unreadable"
 )
 
 // Term reads and presses one host's terminals. Driver says which vendor's wording a handle's screen is read by: the agent the
@@ -36,7 +30,6 @@ type Term struct {
 	Backend Backend
 	Driver  func(handle string) Driver
 	Settle  time.Duration
-	Gap     time.Duration // between the keys of one question answer
 	// Sleep and Now are the clock the waits on a screen run on; nil is the time package's. A test gives them a fake one.
 	Sleep func(time.Duration)
 	Now   func() time.Time
@@ -51,12 +44,11 @@ const (
 	// How long a dialog is given to go after Esc, read again each time.
 	PressSettle      = 500 * time.Millisecond
 	pressSettleReads = 4
-	questionKeyGap   = 100 * time.Millisecond
 )
 
 // New is a Term on b with the driver lookup drv: the agent CLI's wording of the screen of a handle. A handle it gives none for is read blind.
 func New(b Backend, drv func(handle string) Driver) *Term {
-	return &Term{Backend: b, Driver: drv, Settle: PressSettle, Gap: questionKeyGap}
+	return &Term{Backend: b, Driver: drv, Settle: PressSettle}
 }
 
 func (t *Term) driver(handle string) Driver {
@@ -240,200 +232,6 @@ func (t *Term) AnswerDialog(handle string, choose func(vendor string, d *Dialog)
 		return Cleared, title, ""
 	}
 	return StillOpen, title, why
-}
-
-// ConfirmationOnScreen is the vendor's one-time permission prompt this terminal shows now, or nil.
-func (t *Term) ConfirmationOnScreen(handle string) *Confirmation {
-	d := t.DialogOnScreen(handle)
-	if d == nil {
-		return nil
-	}
-	return t.driver(handle).Confirmation(d)
-}
-
-// AnswerConfirmation sends a person's Yes or No to the permission prompt on this terminal. Pressed only when the screen just read
-// is a recognized prompt whose lines are exactly seen, the lines the person answered, and sameWait(), asked at that same moment,
-// says it is still the very prompt they were shown: identical words are not identity. The key is the number of the plain Yes or
-// of the No, never "don't ask again".
-func (t *Term) AnswerConfirmation(handle string, yes bool, seen []string, sameWait func() bool) (string, string, string) {
-	drv := t.driver(handle)
-	var refused string
-	choose := func(_ string, d *Dialog) int {
-		found := drv.Confirmation(d)
-		switch {
-		case found == nil:
-			refused = "the screen is not a permission prompt the daemon recognizes"
-		case !slices.Equal(found.Lines, seen) || (sameWait != nil && !sameWait()):
-			refused = "the prompt is not the one that was answered"
-		default:
-			if yes {
-				return found.Yes
-			}
-			return found.No
-		}
-		return 0
-	}
-	outcome, title, why := t.AnswerDialog(handle, choose)
-	if refused != "" && outcome == NotPressed {
-		why = refused
-	}
-	return outcome, title, why
-}
-
-// PromptOnScreen is the ONE prompt this terminal shows now, read once: a permission prompt (Confirmation), a question
-// (Question), a dialog (Dialog), none or unreadable. A permission prompt outranks a question, which outranks a plain dialog, so a
-// screen that more than one recognizer accepts is one prompt, not several. The folder-trust screen is not one of them: it has its
-// own path, and reads as none. An idle screen costs a single read.
-func (t *Term) PromptOnScreen(handle string) (kind string, confirmation *Confirmation, question *Question, dialog *Dialog) {
-	scr := t.screen(handle, 40)
-	if scr == nil {
-		return PromptUnreadable, nil, nil, nil
-	}
-	drv := t.driver(handle)
-	if _, shown := drv.TrustScreen(scr.Tail); shown {
-		return PromptNone, nil, nil, nil
-	}
-	_, _, d := t.readDialog(handle, true, scr)
-	if d != nil {
-		if c := drv.Confirmation(d); c != nil {
-			return PromptPermission, c, nil, nil
-		}
-	}
-	if q := drv.AskQuestion(scr.Tail); q != nil {
-		return PromptQuestion, nil, q, nil
-	}
-	if d != nil {
-		return PromptDialog, nil, nil, d
-	}
-	return PromptNone, nil, nil, nil
-}
-
-func (t *Term) sendQuestionKeys(handle string, keys []string) (bool, string) {
-	for _, k := range keys {
-		if ok, out := t.sendKey(handle, k); !ok {
-			return false, "a key could not be sent: " + Cut(out, 120)
-		}
-		time.Sleep(t.Gap)
-	}
-	return true, ""
-}
-
-func (t *Term) questionCleared(handle string, drv Driver) bool {
-	for i := 0; i < pressSettleReads; i++ {
-		time.Sleep(t.Settle)
-		scr := t.screen(handle, 40)
-		if scr == nil {
-			continue
-		}
-		if drv.AskQuestion(scr.Tail) == nil {
-			return true
-		}
-	}
-	return false
-}
-
-func sortedChecked(q *Question) []int {
-	out := []int{}
-	for i, o := range q.Options {
-		if o.Checked {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
-func sameSet(a, b []int) bool {
-	m := map[int]bool{}
-	for _, x := range a {
-		m[x] = true
-	}
-	n := map[int]bool{}
-	for _, x := range b {
-		n[x] = true
-	}
-	if len(m) != len(n) {
-		return false
-	}
-	for x := range m {
-		if !n[x] {
-			return false
-		}
-	}
-	return true
-}
-
-// answerToggleAndOther is a multiSelect question's boxes checked and Other typed together: toggling a box moves the cursor too,
-// so this sends only the toggles first, re-reads the real screen for where the cursor actually landed, and only then reaches for
-// Other from there, never the whole guess in one blind sequence.
-func (t *Term) answerToggleAndOther(handle string, drv Driver, found *Question, choices []int, text string) (string, string, string) {
-	toggle := drv.QuestionToggleKeys(found, choices)
-	if toggle == nil {
-		return NotPressed, found.Header, "this answer is not one the daemon sends"
-	}
-	if ok, why := t.sendQuestionKeys(handle, toggle); !ok {
-		return NotPressed, found.Header, why
-	}
-	time.Sleep(t.Settle)
-	scr := t.screen(handle, 40)
-	if scr == nil {
-		return StillOpen, found.Header, "the screen could not be re-read after toggling " + pyList(toggle)
-	}
-	after := drv.AskQuestion(scr.Tail)
-	if after == nil {
-		return StillOpen, found.Header, "the question closed on its own after toggling " + pyList(toggle)
-	}
-	read := sortedChecked(after)
-	want := append([]int{}, choices...)
-	sortInts(want)
-	trail := "toggled " + pyList(toggle) + " -> checked " + pyInts(read) + ", cursor now " + strconv.Itoa(after.Cursor) + " (wanted " + pyInts(want) + ")"
-	if !sameSet(read, choices) {
-		return StillOpen, found.Header, trail + " - not what was toggled, not sent further"
-	}
-	other := drv.QuestionOtherAfterToggleKeys(after, text)
-	if other == nil {
-		return NotPressed, found.Header, trail + " - this answer is not one the daemon sends"
-	}
-	trail += ", then Other's own keys " + pyList(other)
-	if ok, why := t.sendQuestionKeys(handle, other); !ok {
-		return NotPressed, found.Header, trail + " - " + why
-	}
-	if t.questionCleared(handle, drv) {
-		return Cleared, found.Header, trail
-	}
-	return StillOpen, found.Header, trail + " - the question is still on screen after its answer"
-}
-
-// AnswerQuestion sends a person's answer to the AskUserQuestion prompt on this terminal. Pressed only when the screen just read
-// is a recognized prompt whose lines are exactly seen. Unlike a permission prompt's one key, an answer is several keys in a row,
-// so the match is made once here, before the first: a key already sent cannot be un-sent on a later mismatch. Whether it landed
-// is read off the question card itself going, never off the "Review your answers" screen a multiSelect answer passes through.
-func (t *Term) AnswerQuestion(handle string, seen []string, choices []int, text *string) (string, string, string) {
-	drv := t.driver(handle)
-	scr := t.screen(handle, 40)
-	if scr == nil {
-		return NotPressed, "", ScreenUnread
-	}
-	found := drv.AskQuestion(scr.Tail)
-	if found == nil {
-		return NotPressed, "", NoDialog
-	}
-	if !slices.Equal(found.Lines, seen) {
-		return NotPressed, found.Header, "the question is not the one that was answered"
-	}
-	if len(choices) > 0 && text != nil && found.MultiSelect {
-		return t.answerToggleAndOther(handle, drv, found, choices, *text)
-	}
-	keys := drv.AnswerQuestionKeys(found, choices, text)
-	if keys == nil {
-		return NotPressed, found.Header, "this answer is not one the daemon sends"
-	}
-	if ok, why := t.sendQuestionKeys(handle, keys); !ok {
-		return NotPressed, found.Header, why
-	}
-	if t.questionCleared(handle, drv) {
-		return Cleared, found.Header, ""
-	}
-	return StillOpen, found.Header, "the question is still on screen after its answer"
 }
 
 // ---- trust screens

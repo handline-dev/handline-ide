@@ -57,7 +57,7 @@ func (e *Env) effectiveHead(q db.Q, agent string) *db.Request {
 	return must(db.EffectiveHead(q, agent))
 }
 
-// EffectiveHeadOrMarked is EffectiveHead, or with none the oldest send_now_pending row (a say is never a head, but is still the one thing waiting).
+// effectiveHeadOrMarked is EffectiveHead, or with none the oldest send_now_pending row (a say is never a head, but is still the one thing waiting).
 func (e *Env) effectiveHeadOrMarked(q db.Q, agent string) *db.Request {
 	if h := e.effectiveHead(q, agent); h != nil {
 		return h

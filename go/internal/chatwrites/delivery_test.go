@@ -26,8 +26,8 @@ type fakeSessions struct {
 func (f *fakeSessions) Structured(a string) bool { return a != f.r.k("alice") }
 func (f *fakeSessions) Live(a string) bool       { return a != f.r.k("alice") }
 
-func (f *fakeSessions) ledger(a string) *delivery.DBLedger {
-	return &delivery.DBLedger{DB: f.r.db, Agent: a}
+func (f *fakeSessions) ledger(a string) *sendLedger {
+	return &sendLedger{DB: f.r.db, Agent: a}
 }
 
 func (f *fakeSessions) Send(a, op, text string, d delivery.Delivery) (delivery.Receipt, error) {
@@ -37,7 +37,7 @@ func (f *fakeSessions) Send(a, op, text string, d delivery.Delivery) (delivery.R
 	if o, _ := l.Get(op); o != nil {
 		return delivery.Receipt{Op: o.ID, UUID: o.UUID, State: o.State}, nil
 	}
-	o := delivery.Op{ID: op, UUID: delivery.UUIDFor(op), Text: text, Delivery: d, State: delivery.Sent}
+	o := sendOp{ID: op, UUID: delivery.UUIDFor(op), Text: text, Delivery: d, State: delivery.Sent}
 	switch {
 	case d == delivery.Queue && (f.busy || f.busyFor[a]):
 		o.State = delivery.Queued

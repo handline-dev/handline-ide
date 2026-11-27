@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/actor"
 )
 
@@ -101,44 +100,6 @@ func TestNotifyCancelledVerbOnlyForADeliveredRequestClosedUnderIt(t *testing.T) 
 		t.Fatalf("%v %q %q", ok, msg, r.term.typed)
 	}
 	_ = plan
-}
-
-func TestMemoEditAndDeleteAreForTheAuthorOrTheFounder(t *testing.T) {
-	r := newRig(t)
-	tid := r.newTask(r.k("bob"), r.k(("alice")), "job")
-	ok, msg, mid, err := r.MemoAdd(r.DB, tid, r.k(("alice")), "first")
-	r.must(err)
-	if !ok || r.named(msg) != "comment 1 added to T1" || mid != 1 {
-		t.Fatal(ok, msg)
-	}
-	if ok, msg, _, _ := r.MemoAdd(r.DB, 9, r.k(("alice")), "x"); ok || r.named(msg) != "no task T9" {
-		t.Fatal(msg)
-	}
-	if ok, msg, _, _ := r.MemoAdd(r.DB, tid, r.k(("alice")), "  "); ok || r.named(msg) != "a comment needs some text" {
-		t.Fatal(msg)
-	}
-	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, r.k(("bob")), "mine now"); ok || r.named(msg) != "comment 1 is alice's: only its author or the founder edits or deletes it" {
-		t.Fatal(msg)
-	}
-	if ok, msg, _, _ := r.MemoEdit(r.DB, mid, r.k(("alice")), "first"); ok || r.named(msg) != "comment 1 already reads that way - nothing to edit" {
-		t.Fatal(msg)
-	}
-	ok, msg, got, _ := r.MemoEdit(r.DB, mid, r.k(("human")), "second")
-	if !ok || r.named(msg) != "comment 1 on T1 edited" || got != tid {
-		t.Fatal(ok, msg)
-	}
-	if m, _ := db.GetMemo(r.DB, mid); m.Body != "second" || !m.EditedAt.Valid {
-		t.Fatalf("%+v", m)
-	}
-	if ok, msg, _, _ := r.MemoDelete(r.DB, 9, r.k(("alice"))); ok || r.named(msg) != "no comment 9" {
-		t.Fatal(msg)
-	}
-	if ok, msg, _, _ := r.MemoDelete(r.DB, mid, r.k(("alice"))); !ok || r.named(msg) != "comment 1 deleted from T1" {
-		t.Fatal(msg)
-	}
-	if m, _ := db.GetMemo(r.DB, mid); m != nil {
-		t.Fatal("memo kept")
-	}
 }
 
 func TestASayToTheFounderThatNamesAMessageIsRefusedAndAsksForWords(t *testing.T) {
