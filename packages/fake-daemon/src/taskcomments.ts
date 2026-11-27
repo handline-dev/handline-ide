@@ -162,14 +162,14 @@ export class TaskComments extends TaskStore {
       });
     // The founder's turn on a task is a row to decide, its ask the first line of what was asked.
     for (const t of this.rows) {
-      if (t.state === 'done' || t.state === 'discarded') continue;
+      if (t.state === 'done' || t.state === 'discarded' || (t.state === 'draft' && t.to === 'human')) continue;
       const top = t.turns?.at(-1);
       const v = this.view(t);
       if (top?.agent === 'p1' && !answer.has(`task:${t.id}`))
         answer.set(`task:${t.id}`, {
           task: t.id,
           title: t.title,
-          kind: 'decide',
+          kind: t.state === 'draft' ? 'run' : 'decide', // a draft its opener asks on: Run is one answer
           source: 'task',
           id: String(t.id),
           agent: top.by,

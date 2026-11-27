@@ -150,6 +150,7 @@ export class FakeTasks extends TaskReviews {
         ? { blockers: [...t.blockers, { task: waitOn, reason: '', at: this.now() }] }
         : {}),
       ...(p.owner !== undefined ? { to: String(p.owner) } : {}),
+      ...(p.owner !== undefined && this.openerAsked(t) ? { turns: [], acting: String(p.owner) } : {}), // its opener's question goes with the old assignee
       ...fieldsOf(p),
     });
   }

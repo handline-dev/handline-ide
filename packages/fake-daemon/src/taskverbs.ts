@@ -1,6 +1,6 @@
 // The verbs of the daemon's task plan (D3), served only when the fake is asked to.
 import { FOUNDER, TaskComments } from '#src/taskcomments.ts';
-import { TaskFailure } from '#src/taskstore.ts';
+import { TaskFailure, type Row } from '#src/taskstore.ts';
 
 export class TaskVerbs extends TaskComments {
   /** A done closes the task; a review is a task.handoff of the task itself. */
@@ -59,7 +59,12 @@ export class TaskVerbs extends TaskComments {
     if (top?.agent !== FOUNDER) throw new TaskFailure('refused', `task ${t.id} is not the founder's turn`);
     if (t.review?.ready) throw new TaskFailure('refused', `T${t.id} is Ready for you: answer it with OK, merge or Redo`);
     const log = [...(t.turnLog ?? []), { at: this.now(), who: `human → ${top.by}`, text: '', turn: 'pop' as const }];
-    this.change(t, { turns: t.turns!.slice(0, -1), acting: top.by, turnLog: log });
+    const back = this.openerAsked(t) && t.turns!.length === 1 ? t.to : top.by; // a draft goes back to no one: its opener is told
+    this.change(t, { turns: t.turns!.slice(0, -1), acting: back, turnLog: log });
+  }
+  /** As the daemon: a draft whose turns rest on the agent that opened it, who asked a person on it; it stays a draft. */
+  protected openerAsked(t: Row): boolean {
+    return t.state === 'draft' && this.isAgent(t.from) && this.isAgent(t.to) && t.turns?.[0]?.by === t.from;
   }
   /** Anyone may reopen a done task, as the daemon lets them; a discarded one comes back as a draft. */
   reopen(p: Record<string, unknown>): void {
@@ -72,7 +77,7 @@ export class TaskVerbs extends TaskComments {
     const rows = ((p.tasks as number[]) ?? []).map((id) => this.find(id));
     const bad = rows.find((t) => !from.includes(t.state));
     if (bad) throw new TaskFailure('refused', `task ${bad.id} is ${bad.state}, not ${from.join(' or ')}`);
-    for (const t of rows) this.change(t, { state: to });
+    for (const t of rows) this.change(t, { state: to, turns: [], acting: t.to }); // a draft is nobody's turn; Run answers its opener's question
   }
   discard(p: Record<string, unknown>): void {
     const t = this.find(p.task);
