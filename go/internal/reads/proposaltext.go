@@ -55,119 +55,29 @@ func (f flat) truthy(k string) bool {
 	return true
 }
 
-var (
-	hexInt = regexp.MustCompile(`^[-+]?0x[0-9a-fA-F]+$`)
-	decInt = regexp.MustCompile(`^[-+]?(0|[1-9][0-9]*)$`)
-	pyTrue = map[string]bool{"true": true, "True": true, "TRUE": true, "yes": true, "Yes": true, "YES": true, "on": true, "On": true, "ON": true}
-	pyFals = map[string]bool{"false": true, "False": true, "FALSE": true, "no": true, "No": true, "NO": true, "off": true, "Off": true, "OFF": true}
-)
-
-// parseFlat reads one flat `key: scalar` file the way handline/infra/yamlcompat.py does for what dump writes:
-// plain, single- or double-quoted scalars, integers, booleans and null. Anything else is an error, and the file is skipped.
+// parseFlat reads one proposal file: a map of null, booleans, integers and text, as the roster's dump writes it. A nested, flow
+// or float value is an error, and the file is skipped.
 func parseFlat(text string) (flat, error) {
 	f := flat{m: map[string]any{}}
-	for n, raw := range strings.Split(strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(text), "\n") {
-		t := strings.TrimSpace(raw)
-		if t == "" || strings.HasPrefix(t, "#") || t == "---" || t == "..." {
-			continue
+	pairs, ok, err := yamlcompat.ParsePairs(text)
+	if err != nil {
+		return f, err
+	}
+	if !ok {
+		return f, fmt.Errorf("not a map")
+	}
+	for _, p := range pairs {
+		switch p.Val.(type) {
+		case nil, bool, int64, string:
+		case float64:
+			return f, fmt.Errorf("%s: number that is not an integer", p.Key)
+		default:
+			return f, fmt.Errorf("%s: nested or flow value", p.Key)
 		}
-		if raw[0] == ' ' || raw[0] == '\t' {
-			return f, fmt.Errorf("line %d: nested", n+1)
-		}
-		k, v, ok := splitKey(t)
-		if !ok {
-			return f, fmt.Errorf("line %d: not a key", n+1)
-		}
-		val, err := scalar(v)
-		if err != nil {
-			return f, fmt.Errorf("line %d: %w", n+1, err)
-		}
-		if _, dup := f.m[k]; !dup {
-			f.keys = append(f.keys, k)
-		}
-		f.m[k] = val
+		f.keys = append(f.keys, p.Key)
+		f.m[p.Key] = p.Val
 	}
 	return f, nil
-}
-
-func splitKey(s string) (string, string, bool) {
-	var quote byte
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch {
-		case quote != 0:
-			if c == '\\' && quote == '"' {
-				i++
-			} else if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == ':' && (i+1 == len(s) || s[i+1] == ' ' || s[i+1] == '\t'):
-			key, err := scalar(s[:i])
-			ks, isStr := key.(string)
-			if err != nil || !isStr {
-				return "", "", false
-			}
-			return ks, s[i+1:], true
-		}
-	}
-	return "", "", false
-}
-
-func scalar(tok string) (any, error) {
-	t := strings.TrimSpace(tok)
-	if t == "" || t == "null" || t == "Null" || t == "NULL" || t == "~" {
-		return nil, nil
-	}
-	if t[0] == '"' || t[0] == '\'' {
-		return unquote(t)
-	}
-	if i := strings.Index(t, " #"); i >= 0 {
-		t = strings.TrimSpace(t[:i])
-	}
-	switch {
-	case pyTrue[t]:
-		return true, nil
-	case pyFals[t]:
-		return false, nil
-	case hexInt.MatchString(t), decInt.MatchString(t):
-		n, err := strconv.ParseInt(t, 0, 64)
-		return n, err
-	case strings.ContainsAny(t, "[]{}"):
-		return nil, fmt.Errorf("flow value")
-	}
-	if yamlcompat.IsFloat(t) {
-		return nil, fmt.Errorf("number that is not an integer")
-	}
-	return t, nil
-}
-
-func unquote(t string) (any, error) {
-	q := t[0]
-	if len(t) < 2 {
-		return nil, fmt.Errorf("unclosed quote")
-	}
-	var b strings.Builder
-	for i := 1; i < len(t); i++ {
-		c := t[i]
-		switch {
-		case q == '"' && c == '\\' && i+1 < len(t) && (t[i+1] == '"' || t[i+1] == '\\'):
-			i++
-			b.WriteByte(t[i])
-		case c == q && q == '\'' && i+1 < len(t) && t[i+1] == '\'':
-			i++
-			b.WriteByte('\'')
-		case c == q:
-			if i != len(t)-1 {
-				return nil, fmt.Errorf("text after the closing quote")
-			}
-			return b.String(), nil
-		default:
-			b.WriteByte(c)
-		}
-	}
-	return nil, fmt.Errorf("unclosed quote")
 }
 
 var itemKey = regexp.MustCompile(`^i(\d+)\.(.+)$`)

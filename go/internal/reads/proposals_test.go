@@ -258,8 +258,11 @@ func TestAProposalWhoseIdLooksLikeAnExponentIsListed(t *testing.T) {
 	if ids := proposalIDs(t, e, map[string]any{}); len(ids) != 1 || ids[0] != 0x149628e2 {
 		t.Fatalf("%v", ids)
 	}
-	if _, err := scalar("1.5"); err == nil {
+	if _, err := parseFlat("id: \"0000000a\"\nn: 1.5\n"); err == nil {
 		t.Fatal("a float is still no field value")
+	}
+	if _, err := parseFlat("id: \"0000000a\"\nn: [a]\n"); err == nil {
+		t.Fatal("a flow value is still no field value")
 	}
 }
 
