@@ -186,26 +186,6 @@ func (e *Env) oweAgain(q db.Q, agent string, rid int64) {
 
 func (e *Env) accountOf(q db.Q, agent string) string { return must(team.CurrentAccount(q, agent)) }
 
-// landedAlready: the transcript first. Is rid already in the agent's session? Then it is landed and typing it again would only repeat
-// it. False when nothing says where to look.
-func (e *Env) landedAlready(q db.Q, agent string, rid int64) bool {
-	acct := e.accountOf(q, agent)
-	if acct == "" || !e.Sessions.KeepsTranscripts(acct) {
-		return false
-	}
-	row := must(db.GetRequest(q, rid))
-	if row == nil {
-		return false
-	}
-	launched := func() string { return must(db.LaunchSession(q, agent)) }
-	for _, p := range e.transcriptsOf(landingSessions(row, e.liveSession(q, agent), launched), acct) {
-		if e.shownIn(q, row, p, false) {
-			return true
-		}
-	}
-	return false
-}
-
 // landingSessions are the sessions whose transcripts may show row: the one it was typed into and the live one; when neither is known
 // (a fresh start's wake prompt is typed before its session has an id on record), the latest launch's session as its hooks report it
 // (launched, read once by the caller).
