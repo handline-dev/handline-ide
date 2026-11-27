@@ -35,12 +35,13 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 			}
 		}
 		var (
-			done  []int64
-			notes []told
-			set   map[int64]queuedSet
+			done     []int64
+			notes    []told
+			set      map[int64]queuedSet
+			answered []Popped
 		)
 		out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-			done, notes, set = nil, nil, map[int64]queuedSet{}
+			done, notes, set, answered = nil, nil, map[int64]queuedSet{}, nil
 			var said []string
 			seen := map[int64]bool{}
 			for _, tid := range tids {
@@ -57,14 +58,21 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 				done = append(done, tid)
 			}
 			if queued {
-				for _, tid := range done {
-					if err := passRunTurn(tx, tid, by); err != nil {
-						return nil, err
-					}
+				var err error
+				if answered, err = answerDrafts(tx, home, tell, by, "Ran", done); err != nil {
+					return nil, err
+				}
+				for _, p := range answered {
+					said = append(said, p.said())
 				}
 			}
 			return accepted(strings.Join(said, "\n"), nil), nil
 		})
+		if err == nil {
+			for _, p := range answered {
+				p.tell(tell)
+			}
+		}
 		if err == nil && tell != nil && len(done) > 0 {
 			// Queuing also delivers: the task goes out now if its owner is free. The reply says what happened to each; a replay of this call
 			// is answered with what was kept, which says only that the tasks are queued.
@@ -75,36 +83,11 @@ func queueMethod(home string, tell Teller, queued bool) func(*rpc.Conn, map[stri
 					delivered[i] += " - " + strings.Join(tell.Released(tid, draftWhy(tid, by), closed), "; ")
 				}
 			}
-			out["said"] = strings.Join(delivered, "\n")
+			out["said"] = saidWith(strings.Join(delivered, "\n"), answered)
 			tell.Notified(notes)
 		}
 		return out, err
 	}
-}
-
-// passRunTurn takes by's turn off the parent of draft tid that by just Ran: the Run is their answer. The parent, now waiting on its
-// children, goes back to the one below with no delivery and no message; a child's end brings it back as it does any parent.
-func passRunTurn(tx *sql.Tx, tid int64, by string) error {
-	if !actor.IsPerson(by) {
-		return nil
-	}
-	child, err := getTask(tx, tid)
-	if err != nil || !child.Parent.Valid {
-		return err
-	}
-	pid := child.Parent.Int64
-	t, err := getTask(tx, pid)
-	if err != nil || t == nil || t.ended() || t.Acting != by { // a person acts on a task only by its top turn
-		return err
-	}
-	if ready, err := readyNow(tx, pid); err != nil || ready { // a Ready task waits for OK or Redo
-		return err
-	}
-	if err := db.EndHeld(tx, pid, by); err != nil {
-		return err
-	}
-	_, _, _, err = db.PopTurn(tx, pid, by, db.TurnPass, "", 0, 0)
-	return err
 }
 
 func taskIDs(p map[string]any, key string) ([]int64, error) {

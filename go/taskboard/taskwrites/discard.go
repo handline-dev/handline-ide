@@ -72,16 +72,28 @@ func discard(c *rpc.Conn, p map[string]any, home string, tell Teller, reason str
 		return nil, err
 	}
 	by := c.Caller.Actor()
-	var d *discarded
+	var (
+		d        *discarded
+		answered []Popped
+	)
 	out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
-		var err error
+		drafts, err := draftsOf(tx, []int64{tid})
+		if err != nil {
+			return nil, err
+		}
 		if d, err = discardOne(tx, home, by, tid, reason, "", own); err != nil {
 			return nil, err
 		}
-		return accepted(d.said, nil), nil
+		if answered, err = answerDrafts(tx, home, tell, by, "Discarded", drafts); err != nil {
+			return nil, err
+		}
+		return accepted(saidWith(d.said, answered), nil), nil
 	})
 	if err == nil {
 		d.tell(tell, by)
+		for _, p := range answered {
+			p.tell(tell)
+		}
 	}
 	return out, err
 }
@@ -114,9 +126,16 @@ func discardBatch(c *rpc.Conn, p map[string]any, home string, tell Teller) (any,
 	}
 	by := c.Caller.Actor()
 	batch := newBatchID()
-	var done []*discarded
+	var (
+		done     []*discarded
+		answered []Popped
+	)
 	out, err := c.Effect(func(tx *sql.Tx) (map[string]any, error) {
 		done = nil
+		drafts, err := draftsOf(tx, tids)
+		if err != nil {
+			return nil, err
+		}
 		var cards []any
 		var lines []string
 		seen := map[int64]bool{}
@@ -140,11 +159,17 @@ func discardBatch(c *rpc.Conn, p map[string]any, home string, tell Teller) (any,
 		if err := addEvent(tx, by, "discard_batch", kv{"batch", batch}, kv{"tasks", cards}); err != nil {
 			return nil, err
 		}
-		return accepted(strings.Join(lines, "\n"), map[string]any{"batch": batch}), nil
+		if answered, err = answerDrafts(tx, home, tell, by, "Discarded", drafts); err != nil {
+			return nil, err
+		}
+		return accepted(saidWith(strings.Join(lines, "\n"), answered), map[string]any{"batch": batch}), nil
 	})
 	if err == nil {
 		for _, d := range done {
 			d.tell(tell, by)
+		}
+		for _, p := range answered {
+			p.tell(tell)
 		}
 	}
 	return out, err
