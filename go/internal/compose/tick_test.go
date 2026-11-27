@@ -80,7 +80,7 @@ func TestShutdownWaitsForTheTickInHandBeforeTheDatabaseCloses(t *testing.T) {
 func TestTheTickRunsItsPassesWithoutHarmingAnAgent(t *testing.T) {
 	p, _, _, _ := wired(t)
 	tk := p.Tick(cfgOf(p), TickConfig{})
-	if len(tk.Tick.Passes) != 19 {
+	if len(tk.Tick.Passes) != 18 {
 		t.Fatalf("passes: %d", len(tk.Tick.Passes))
 	}
 	var mu sync.Mutex // the plan question logs from its own goroutine

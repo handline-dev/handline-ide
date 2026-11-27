@@ -456,3 +456,13 @@ func TestCommitsOnNoBranchKeepTheFolder(t *testing.T) {
 		t.Fatalf("%+v", g)
 	}
 }
+
+// free is a desk let go as the shared pool did before each agent kept its own: detached, held by nobody, last used now.
+func (r *rig) free(agent string) {
+	r.t.Helper()
+	var d string
+	r.db.QueryRow("SELECT path FROM worktree_folders WHERE holder = ?", agent).Scan(&d)
+	r.git(d, "checkout", "-q", "--detach")
+	r.at++
+	r.db.Exec("UPDATE worktree_folders SET holder = NULL, last_agent = ?, last_used = ? WHERE path = ?", agent, r.at, d)
+}

@@ -1,6 +1,17 @@
 package compose
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func setConfig(t *testing.T, home, text string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(home, "config.yaml"), []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // The memory cap is off until set; set, a reading over it is acted on once, and the next reading is looked at again.
 func TestTheMemoryCapIsReadFromTheSettingAndEachReadingOnce(t *testing.T) {
