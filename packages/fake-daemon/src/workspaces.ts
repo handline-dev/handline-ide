@@ -213,6 +213,8 @@ export class FakeWorkspaces {
     };
     const fails = other && `${repo.path} is the folder of workspace ${this.names.get(other) ?? other}`;
     const id = this.host.work.launch('workspace.create', fx, repo.default_branch, repo, fails);
+    // The daemon's workspaces table has the new row at once, and its watcher says so.
+    if (!other) this.host.emit('workspaces', 'workspaces.changed', { data: {} });
     return ok(`Creating workspace ${name}.`, { operation: id });
   }
 

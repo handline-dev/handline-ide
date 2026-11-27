@@ -16,9 +16,11 @@ test('workspace.create starts its lead as agent.create does, and the workspace i
   const { client, daemon } = setup();
   await client.start();
   const seen: Event[] = [];
-  client.onEvent((e) => e.topic === 'operations' && seen.push(e));
-  await client.subscribe(['operations']);
+  client.onEvent((e) => (e.topic === 'operations' || e.type === 'workspaces.changed') && seen.push(e));
+  await client.subscribe(['operations', 'workspaces']);
   const r = await client.call('workspace.create', { name: 'garden', folder: '~/code/garden/src', request_id: 'wc-1' });
+  // As the daemon's watcher does when the row is written, so a client lists the new workspace at once.
+  await until(() => seen.some((e) => e.type === 'workspaces.changed'), 'workspaces.changed');
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'done'), 'done');
   const op = await client.call('operation.get', { operation: r.operation });
   assert.deepEqual([op.kind, op.agent, op.state], ['workspace.create', 'garden', 'done']);
