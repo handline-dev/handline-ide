@@ -239,9 +239,9 @@ func TestTheFoundersMessageToABusyAgentSaysWhatRunsBesideIt(t *testing.T) {
 	if got, err := r.TellNow(r.DB, plain); err != nil || got != "sent" {
 		t.Fatalf("%q %v", got, err)
 	}
-	eventually(t, func() bool { return len(*typed) == 1 })
-	if (*typed)[0] != "hi" {
-		t.Fatalf("a free agent with no seat at work: %q", (*typed)[0])
+	eventually(t, func() bool { return len(typed()) == 1 })
+	if typed()[0] != "hi" {
+		t.Fatalf("a free agent with no seat at work: %q", typed()[0])
 	}
 	r.must(db.SetAgentState(r.DB, bob, states.Running, 0, ""))
 	footer := r.newTask("bob", "carol", "the footer")
@@ -250,13 +250,13 @@ func TestTheFoundersMessageToABusyAgentSaysWhatRunsBesideIt(t *testing.T) {
 	if got, err := r.TellNow(r.DB, rid); err != nil || got != "sent" {
 		t.Fatalf("%q %v", got, err)
 	}
-	eventually(t, func() bool { return len(*typed) == 2 })
+	eventually(t, func() bool { return len(typed()) == 2 })
 	row, err := db.GetRequest(r.DB, rid)
 	r.must(err)
 	want := fmt.Sprintf("Your temps are on T%d \"the footer\"; a word for one goes there: `hl task comment T<n> add \"...\"`. "+
 		"If this is new work apart from your current task, `hl task request %s \"<title>\"` makes it a task a temp takes.\n\nand the header?", footer, row.Ref)
-	if (*typed)[1] != want {
-		t.Fatalf("typed %q\nwant  %q", (*typed)[1], want)
+	if typed()[1] != want {
+		t.Fatalf("typed %q\nwant  %q", typed()[1], want)
 	}
 	eventually(t, func() bool { row, _ := db.GetRequest(r.DB, rid); return row.LandedAt.Valid })
 }
