@@ -92,6 +92,10 @@ describe('lostByAccount', () => {
     ]);
     assert.deepEqual(lostAtLastReset(two), { account: 'beta', at: '2026-10-26T18:00:00Z', pct: 70 });
   });
+  it('reads the point before the reset, not one at it, which has refilled', () => {
+    const at = { ...by, future: [w('2026-10-26T14:00:00Z', 40), w('2026-10-26T15:00:00Z', 100), w('2026-10-26T16:00:00Z', 98)] };
+    assert.deepEqual(lostByAccount({ now: o.now, by_account: [at] }), [{ account: 'alpha', at: '2026-10-26T15:00:00Z', pct: 40 }]);
+  });
   it('is nothing for an account whose guess stops before its reset, or a daemon without by_account', () => {
     const short = { ...by, future: by.future.slice(0, 2) };
     assert.deepEqual(lostByAccount({ now: o.now, by_account: [short] }), []);

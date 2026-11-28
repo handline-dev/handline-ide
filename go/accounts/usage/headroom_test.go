@@ -119,7 +119,7 @@ func TestABurstDayDoesNotSwingTheGuess(t *testing.T) {
 		ts := now - 86400 + i*3600
 		rows = append(rows, headroomRow("burst", ts, 0, now+2*3600, 10+float64(i)*1.25, reset))
 	}
-	a := HeadroomKeepStale(rows, now, now-3600, reset+3600, 3600, nil, nil).Accounts[0]
+	a := HeadroomKeepStale(rows, now, now-3600, reset+3600, 3600, 3600, nil, nil).Accounts[0]
 	if f := a.Forecast; f == nil || f.At != reset || !near(&f.Unused, 20) {
 		t.Fatalf("forecast %+v", f)
 	}
@@ -133,11 +133,11 @@ func TestAWeekThatEndsUnusedReportsItsShare(t *testing.T) {
 	now := int64(1_800_000_000)
 	reset := now + 86400
 	rows := []sampleRow{headroomRow("quiet", now-3600, 0, 0, 9.9, reset), headroomRow("quiet", now, 0, 0, 10, reset)}
-	f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, nil, nil).Accounts[0].Forecast
+	f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, 3600, nil, nil).Accounts[0].Forecast
 	if f == nil || !near(&f.Unused, 100-10-10.0/(6*86400)*86400) {
 		t.Fatalf("forecast %+v", f)
 	}
-	if f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, map[string]float64{"quiet": float64(now + 3600)}, nil).Accounts[0].Forecast; f != nil {
+	if f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, 3600, map[string]float64{"quiet": float64(now + 3600)}, nil).Accounts[0].Forecast; f != nil {
 		t.Errorf("an account that ends before its reset has no forecast at it: %+v", f)
 	}
 }
@@ -147,13 +147,13 @@ func TestTheForecastIsAtTheNextResetAndNeedsAFreshReading(t *testing.T) {
 	now := int64(1_800_000_000)
 	passed := now - 600
 	rows := []sampleRow{headroomRow("p", now-3600, 0, 0, 89, passed), headroomRow("p", now-1800, 0, 0, 90, passed)}
-	f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, nil, nil).Accounts[0].Forecast
+	f := HeadroomKeepStale(rows, now, now-3600, now+3600, 3600, 3600, nil, nil).Accounts[0].Forecast
 	pace := 90.0 / float64(now-1800-(passed-WeekS))
 	if f == nil || f.At != passed+WeekS || !near(&f.Unused, 100-min(100, pace*WeekS)) {
 		t.Fatalf("forecast %+v", f)
 	}
 	stale := []sampleRow{headroomRow("s", now-5*3600, 0, 0, 30, now+86400)}
-	if f := HeadroomKeepStale(stale, now, now-3600, now+3600, 3600, nil, nil).Accounts[0].Forecast; f != nil {
+	if f := HeadroomKeepStale(stale, now, now-3600, now+3600, 3600, 3600, nil, nil).Accounts[0].Forecast; f != nil {
 		t.Errorf("a reading five hours old has no forecast: %+v", f)
 	}
 }
@@ -172,7 +172,7 @@ func TestTheFiveHourWindowRunsOutOrHasNoFigures(t *testing.T) {
 	rows := []sampleRow{ultraRow("ultra", now-3600, 4, reset), ultraRow("ultra", now, 5, reset),
 		headroomRow("soon", now-2*3600, 30, now+6*3600, 10, reset), headroomRow("soon", now, 50, now+6*3600, 12, reset),
 		headroomRow("lasts", now-2*3600, 30, now+3*3600, 10, reset), headroomRow("lasts", now, 50, now+3*3600, 12, reset)}
-	h := HeadroomKeepStale(rows, now, now-3600, now+3600, 1800, nil, nil)
+	h := HeadroomKeepStale(rows, now, now-3600, now+3600, 1800, 1800, nil, nil)
 	by := map[string]AccountHeadroom{}
 	for _, a := range h.Accounts {
 		by[a.Account] = a
@@ -205,13 +205,34 @@ func TestAStaleAccountKeepsItsLastReadingUntilItsReset(t *testing.T) {
 	now := int64(1_800_000_000)
 	reset := now + 86400
 	rows := []sampleRow{headroomRow("walled", now-10*3600, 100, now-5*3600, 99, reset)}
-	h := HeadroomKeepStale(rows, now, now-3600, now+2*86400, 3600, nil, nil)
+	h := HeadroomKeepStale(rows, now, now-3600, now+2*86400, 3600, 3600, nil, nil)
 	f := h.Accounts[0].Future
 	if p := pointAt(t, f, now+3600); !near(p.Week, 1) {
 		t.Errorf("before its reset it keeps 99 used: %v", p.Week)
 	}
 	if p := pointAt(t, f, reset+3600); !near(p.Week, 100) {
 		t.Errorf("after its reset it starts from nothing: %v", p.Week)
+	}
+}
+
+// The guess keeps its own step: an hour back is read every 15 minutes, the week ahead every 6 hours, to its end, refilling at its reset.
+func TestTheGuessGoesAtItsOwnStep(t *testing.T) {
+	now := int64(1_800_000_000)
+	reset := now + 2*86400
+	rows := []sampleRow{headroomRow("a", now-1800, 10, now+3600, 40, reset)}
+	a := HeadroomKeepStale(rows, now, now-3600, now+WeekS, 900, 6*3600, nil, nil).Accounts[0]
+	if len(a.Past) != 5 || len(a.Future) != 28 || a.Future[0].At != now+6*3600 || a.Future[27].At != now+WeekS {
+		t.Fatalf("%d back, %d ahead, from %d to %d", len(a.Past), len(a.Future), a.Future[0].At-now, a.Future[len(a.Future)-1].At-now)
+	}
+	if p := pointAt(t, a.Future, reset); p.Week == nil || *p.Week < 99 {
+		t.Errorf("the week refills at its reset: %v", p.Week)
+	}
+	// now off the back grid: the guess still starts a step past now.
+	if f := HeadroomKeepStale(rows, now, now-3600-300, now+WeekS, 900, 6*3600, nil, nil).Accounts[0].Future; f[0].At != now+6*3600 {
+		t.Errorf("the guess starts %ds past now", f[0].At-now)
+	}
+	if h := HeadroomKeepStale(rows, now, now-3600, now+WeekS, 900, 0, nil, nil); len(h.Past)+len(h.Future) != 0 {
+		t.Errorf("a step of 0 draws nothing: %d points", len(h.Past)+len(h.Future))
 	}
 }
 
@@ -301,7 +322,7 @@ func TestAWindowObservedAWeekBeforeItsRowIsStale(t *testing.T) {
 	w, wf := WeeklyOutlook(all, now, 12, nil, nil, nil), WeeklyOutlook(fresh, now, 12, nil, nil, nil)
 	same("past", w.Past, wf.Past)
 	same("future", w.Future, wf.Future)
-	h, hf := HeadroomKeepStale(all, now, now-12*3600, now+12*3600, 900, nil, nil), HeadroomKeepStale(fresh, now, now-12*3600, now+12*3600, 900, nil, nil)
+	h, hf := HeadroomKeepStale(all, now, now-12*3600, now+12*3600, 900, 900, nil, nil), HeadroomKeepStale(fresh, now, now-12*3600, now+12*3600, 900, 900, nil, nil)
 	same("headroom past", h.Past, hf.Past)
 	same("headroom future", h.Future, hf.Future)
 }
@@ -320,7 +341,7 @@ func TestALoggedOutAccountWithAnOldReadingStillCountsAsNothingLeft(t *testing.T)
 	if p := WeeklyOutlook(rows, now, 12, nil, nil, nil).Past; p[len(p)-1].Left == nil || *p[len(p)-1].Left != 40 {
 		t.Fatalf("the week line at now: %v, want 40 (in's 80 and out's nothing)", p[len(p)-1].Left)
 	}
-	h := HeadroomKeepStale(rows, now, now-12*3600, now+12*3600, 900, nil, nil)
+	h := HeadroomKeepStale(rows, now, now-12*3600, now+12*3600, 900, 900, nil, nil)
 	if len(h.Accounts) != 2 {
 		t.Fatalf("the logged-out account left the headroom: %d accounts", len(h.Accounts))
 	}

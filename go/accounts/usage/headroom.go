@@ -170,16 +170,33 @@ func leftOf(v float64) *float64 { return &v }
 // looking ahead nothing left. An account whose last reading is stale has no guess, and the average ahead leaves it out. An account that
 // could not be used (loggedOut; outSince is from when, for one that cannot now) has nothing left then, and ahead.
 func HeadroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64) HeadroomSpan {
-	return headroomOver(rows, now, from, to, step, ends, outSince, false)
+	return headroomOver(rows, now, from, to, step, step, ends, outSince, false)
 }
 
 // HeadroomKeepStale is HeadroomOver as stats.outlook's by_account guesses: the week at its pace since it began (sinceWeekBegan), the 5-hour
-// window at its use over the last day, and an account whose last reading is stale keeps it until its reset. rows reach back a day.
-func HeadroomKeepStale(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64) HeadroomSpan {
-	return headroomOver(rows, now, from, to, step, ends, outSince, true)
+// window at its use over the last day, and an account whose last reading is stale keeps it until its reset. rows reach back a day. The
+// guess goes every aheadStep seconds, so a guess longer or shorter than the span back keeps as many points.
+func HeadroomKeepStale(rows []sampleRow, now, from, to, step, aheadStep int64, ends, outSince map[string]float64) HeadroomSpan {
+	return headroomOver(rows, now, from, to, step, aheadStep, ends, outSince, true)
 }
 
-func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince map[string]float64, keepStale bool) HeadroomSpan {
+// grid is the moments from from every step up to now, then from now every aheadStep up to to; none for a step that is not positive.
+func grid(from, now, to, step, aheadStep int64) []int64 {
+	if step <= 0 || aheadStep <= 0 {
+		return nil
+	}
+	var out []int64
+	for t := from; t <= now; t += step {
+		out = append(out, t)
+	}
+	for t := max(from, now+aheadStep); t <= to; t += aheadStep {
+		out = append(out, t)
+	}
+	return out
+}
+
+func headroomOver(rows []sampleRow, now, from, to, step, aheadStep int64, ends, outSince map[string]float64, keepStale bool) HeadroomSpan {
+	times := grid(from, now, to, step, aheadStep)
 	fives, weeks := map[string][]windowPoint{}, map[string][]windowPoint{}
 	for _, r := range rows {
 		a, _ := r["account"].(string)
@@ -244,7 +261,7 @@ func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince ma
 				paceW = sinceWeekBegan(w, now)
 			}
 		}
-		for t := from; t <= to; t += step {
+		for _, t := range times {
 			p := HeadroomPoint{At: t}
 			gone := ended && float64(t) >= end
 			switch {
@@ -293,7 +310,7 @@ func headroomOver(rows []sampleRow, now, from, to, step int64, ends, outSince ma
 		sort.SliceStable(h.Resets, func(i, j int) bool { return h.Resets[i].At < h.Resets[j].At })
 		out.Accounts = append(out.Accounts, h)
 	}
-	for i, t := 0, from; t <= to; i, t = i+1, t+step {
+	for i, t := range times {
 		p := averaged(out.Accounts, i, t)
 		if t <= now {
 			out.Past = append(out.Past, p)

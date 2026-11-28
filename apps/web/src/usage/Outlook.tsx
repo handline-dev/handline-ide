@@ -31,12 +31,6 @@ const named = (l: Labels, a: string) => l[a] ?? a;
 /** "Fri 09:00". */
 const resetAt = (at: string) => new Date(at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
-/** The guess ends at the last guessed reset: past it the daemon's line goes on as if the week did not reset. */
-function clipAtReset(o: Data): Data {
-  const end = lostAtLastReset(o);
-  return end ? { ...o, future: o.future.filter((p) => Date.parse(p.at) <= Date.parse(end.at)) } : o;
-}
-
 type Lost = { account: string; at: string; pct: number; usd?: number | null } | null;
 type Mine = NonNullable<Data['by_account']>[number];
 
@@ -135,13 +129,10 @@ function FivePlot({ five, now }: { five: Mine; now: string }) {
   );
 }
 
-function Plot({ o: full, lost, labels }: { o: Data; lost: Lost; labels: Labels }) {
-  const o = clipAtReset(full);
-  // The range back from now to the end of the guess, readings or not: a span with none stays empty.
+function Plot({ o, lost, labels }: { o: Data; lost: Lost; labels: Labels }) {
+  // The range back from now to the end of the daemon's guess, a week ahead, readings or not: a span with none stays empty.
   const t0 = Date.parse((o.past[0] ?? { at: o.now }).at);
-  const ahead = Date.parse((full.future.at(-1) ?? { at: o.now }).at);
-  const reset = lost && Date.parse(lost.at) <= ahead ? Date.parse(lost.at) : 0;
-  const t1 = Math.max(Date.parse((o.future.at(-1) ?? { at: o.now }).at), reset);
+  const t1 = Date.parse((o.future.at(-1) ?? { at: o.now }).at);
   const x = (at: string) => (t1 === t0 ? 0 : ((Date.parse(at) - t0) / (t1 - t0)) * W);
   const pct = (at: string) => (t1 === t0 ? 0 : ((Date.parse(at) - t0) / (t1 - t0)) * 100);
   const y = (p: number) => H - (p / 100) * H;

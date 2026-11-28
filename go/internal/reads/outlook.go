@@ -281,10 +281,11 @@ func budgetOf(bs []usage.AccountBudget) map[string]any {
 }
 
 // outlookByAccount is stats.outlook's by_account, and its future: the accounts' weekly guess averaged by w, each going as
-// usage.HeadroomKeepStale does. rows are the samples from at least a day back; weekUSD is each account's weekly plan budget.
+// usage.HeadroomKeepStale does, a week past now whatever the range. rows are the samples from at least a day back; weekUSD is each account's weekly plan budget.
 func outlookByAccount(rows usage.Samples, now int64, hours int, ends, outSince, weekUSD map[string]float64, w usage.WeekWeights) ([]any, []usage.OutlookPoint, []any) {
 	span := int64(hours) * 3600
-	h := usage.HeadroomKeepStale(rows, now, now-span, now+span, max(900, span*2/usage.OutlookPoints), ends, outSince)
+	h := usage.HeadroomKeepStale(rows, now, now-span, now+usage.GuessS, max(900, span*2/usage.OutlookPoints), usage.GuessS/usage.OutlookPoints,
+		ends, outSince)
 	byAccount := []any{}
 	var future []usage.OutlookPoint
 	for _, a := range h.Accounts {

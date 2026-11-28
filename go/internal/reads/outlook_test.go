@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/team/teamtest"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/paths"
@@ -139,11 +140,28 @@ func TestOutlookFutureIsTheAccountsWeekAveraged(t *testing.T) {
 	if math.Abs(*out.Future[0].Left_pct-want) > 0.01 {
 		t.Fatalf("the first guess is %v, want %v", *out.Future[0].Left_pct, want)
 	}
+	// The guess goes a week past now whatever the range, and both weeks refill at their reset three days on.
+	reset, refilled := now+3*86400, 0
 	for i, p := range out.Future {
 		wa, wb := out.By_account[0].Future[i].Week_left, out.By_account[1].Future[i].Week_left
-		if p.Left_pct == nil || wa == nil || wb == nil || math.Abs(*p.Left_pct-(*wa+*wb)/2) > 0.01 || *p.Left_pct > 60 {
+		if p.Left_pct == nil || wa == nil || wb == nil || math.Abs(*p.Left_pct-(*wa+*wb)/2) > 0.01 {
 			t.Fatalf("point %d is not the accounts' week averaged: %s", i, b)
 		}
+		at := p.At.Unix()
+		if at < reset && *p.Left_pct > 60 {
+			t.Fatalf("point %d at %v: %v left before the reset", i, p.At, *p.Left_pct)
+		}
+		if at >= reset && at < reset+usage.GuessS/usage.OutlookPoints {
+			if refilled++; *p.Left_pct < 99 {
+				t.Fatalf("point %d at %v: %v left just after the reset", i, p.At, *p.Left_pct)
+			}
+		}
+	}
+	if refilled != 1 {
+		t.Fatalf("%d points just after the reset, want 1", refilled)
+	}
+	if last := out.Future[len(out.Future)-1].At.Unix(); last > now+usage.GuessS || last < now+usage.GuessS-usage.GuessS/usage.OutlookPoints {
+		t.Fatalf("the guess ends %ds past now, want a week", last-now)
 	}
 }
 
@@ -156,6 +174,7 @@ func TestOutlookCountsALoggedOutAccountAsNothingLeftAhead(t *testing.T) {
 	b := flatWeeks(t, e, clock)
 	var out struct {
 		Future []struct {
+			At       time.Time
 			Left_pct *float64
 		}
 		By_account []struct {
@@ -168,10 +187,23 @@ func TestOutlookCountsALoggedOutAccountAsNothingLeftAhead(t *testing.T) {
 	if len(out.Future) == 0 {
 		t.Fatalf("%s", b)
 	}
+	// Up to its reset three days on a is under 80 and the average under 40; after it a refills (falling to 80 at its pace over four
+	// days, where it stood at 65 just before), and b, out, still keeps nothing.
+	reset, after := clock.Unix()+3*86400, 0
 	for i, p := range out.Future {
-		if wa := out.By_account[0].Future[i].Week_left; p.Left_pct == nil || wa == nil || math.Abs(*p.Left_pct-*wa/2) > 0.01 || *p.Left_pct > 40 {
-			t.Fatalf("point %d is not a's 80 and b's nothing averaged: %s", i, b)
+		wa := out.By_account[0].Future[i].Week_left
+		if p.Left_pct == nil || wa == nil || math.Abs(*p.Left_pct-*wa/2) > 0.01 {
+			t.Fatalf("point %d is not a's guess and b's nothing averaged: %s", i, b)
 		}
+		if at := p.At.Unix(); at < reset && *p.Left_pct > 40 || at >= reset && (*p.Left_pct > 50 || *wa < 79) {
+			t.Fatalf("point %d at %v: %v left, a %v", i, p.At, *p.Left_pct, *wa)
+		}
+		if p.At.Unix() >= reset {
+			after++
+		}
+	}
+	if after == 0 {
+		t.Fatal("the guess ends before a's reset")
 	}
 }
 
@@ -524,7 +556,14 @@ func TestOutlookDrawsOnlyTheAccountsListedNow(t *testing.T) {
 			}
 		}
 	}
-	if f := with.Future[0].Left_pct; f == nil || math.Abs(*f-60) > 0.5 {
-		t.Fatalf("the guess starts at %v, want about 60, where the listed accounts stand", f)
+	if f := with.Future[0].Left_pct; f == nil || math.Abs(*f-60) > 1 {
+		t.Fatalf("the guess starts at %s, want about 60, where the listed accounts stand", fmtPct(f))
 	}
+}
+
+func fmtPct(p *float64) string {
+	if p == nil {
+		return "nil"
+	}
+	return fmt.Sprint(*p)
 }

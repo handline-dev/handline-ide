@@ -24,6 +24,8 @@ const OVERLAYS: Record<string, number[]> = {
 const FIVE = 5 * HOUR;
 /** How long beta's 5h window lasts at its pace: less than the hour to its reset, so a page shows when its agents stop. */
 const BETA_RUNS_OUT_S = 25 * 60;
+const WEEK = 7 * DAY;
+const ALPHA_RESET = 70 * HOUR;
 
 /** What an account's 5h window had left at t: it fills from `low` toward `high` used through each 5h window, so a graph shows the sawtooth the real samples make. */
 function fiveLeft(t: number, low: number, high: number): number {
@@ -56,7 +58,7 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
       week_left: p.left_pct === null ? null : Math.min(100, Math.max(0, p.left_pct + d)),
       line_left: null,
     }));
-  const reset = now + 70 * HOUR; // the same reset alpha's account row carries
+  const reset = now + ALPHA_RESET; // the same reset alpha's account row carries
   const week = (pts: ReturnType<typeof points>) => pts.map((p) => ({ at: p.at, left: p.week_left }));
   const from = past.length ? Date.parse(past[0]!.at) : now;
   const byTime = (a: { at: Timestamp }, b: { at: Timestamp }) => Date.parse(a.at) - Date.parse(b.at);
@@ -73,7 +75,7 @@ function byAccount(past: Outlook['past'], future: Outlook['future'], now: number
       resets: [
         ...fiveResets(now - head, now),
         { at: new Date(now - head / 2).toISOString(), window: '7d' as const },
-        ...(reset <= now + head ? [{ at: new Date(reset).toISOString(), window: '7d' as const }] : []),
+        { at: new Date(reset).toISOString(), window: '7d' as const },
       ].sort(byTime),
     },
     {
@@ -182,10 +184,15 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     at: at(now - head + (head * i) / steps),
     left_pct: 90 - (i * (90 - end)) / steps,
   }));
-  const future = Array.from({ length: steps }, (_, i) => ({
-    at: at(now + (head * (i + 1)) / steps),
-    left_pct: Math.max(0, end - ((i + 1) * end) / steps),
-  }));
+  // The guess goes a week ahead whatever the range, as the daemon's does, and refills at alpha's reset.
+  const guess = (t: number) => {
+    const paced = Math.max(0, end - ((t - now) / WEEK) * end);
+    return t >= now + ALPHA_RESET ? Math.min(100, paced + (100 - paced) / 3) : paced;
+  };
+  const future = Array.from({ length: 24 }, (_, i) => {
+    const t = now + (WEEK * (i + 1)) / 24;
+    return { at: at(t), left_pct: guess(t) };
+  });
   if (pick !== undefined && typeof pick !== 'string') throw badRequest('agent is a string', 'agent');
   const cost_per_day = costPerDay(nowIso, range);
   return {
@@ -196,7 +203,7 @@ export function outlookOf(nowIso: Timestamp, range: Outlook['range'], pick?: unk
     future,
     trace: past.map((p) => ({ at: p.at, left: p.left_pct })),
     runway: [
-      { account: 'alpha', runs_out_in_seconds: null, week_resets_at: at(now + 70 * HOUR) },
+      { account: 'alpha', runs_out_in_seconds: null, week_resets_at: at(now + ALPHA_RESET) },
       { account: 'beta', runs_out_in_seconds: BETA_RUNS_OUT_S, week_resets_at: null },
     ],
     cost_per_day,

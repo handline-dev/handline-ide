@@ -35,7 +35,7 @@ export function lostByAccount(o: Pick<Outlook, 'now' | 'by_account'>): { account
     const future = a.future ?? []; // an older daemon sends an account with no guess line
     const reset = a.resets.find((r) => r.window === '7d' && Date.parse(r.at) > Date.parse(o.now));
     if (!reset || !future.some((p) => Date.parse(p.at) > Date.parse(reset.at))) return [];
-    const before = future.filter((p) => p.week_left !== null && Date.parse(p.at) <= Date.parse(reset.at)).at(-1);
+    const before = future.filter((p) => p.week_left !== null && Date.parse(p.at) < Date.parse(reset.at)).at(-1); // at the reset it has refilled
     return before ? [{ account: a.account, at: reset.at, pct: before.week_left! }] : [];
   });
 }

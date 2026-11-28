@@ -20,6 +20,8 @@ const (
 	OutlookMaxAgeS = 2 * 3600
 	// OutlookMinSpanS: less than this is not a pace.
 	OutlookMinSpanS = 3600
+	// GuessS is how far past now the week's guess goes, whatever the range back.
+	GuessS = WeekS
 )
 
 // OutlookPoint is the headroom left at a moment, in percent; Left nil where no account had a reading.
