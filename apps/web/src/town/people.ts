@@ -1,5 +1,5 @@
-// The people in the 3D room, as the image model drew them: public/town/people.png holds a row per person and a column per pose, each
-// figure bottom-centred in its cell at half the generated size, with only the background taken out. They are drawn over the room's
+// The people in the 3D room, as stacked pixel-art layers: public/town/people.png holds a row per person and a column per pose, each
+// figure bottom-centred in its cell, composed from a body and a head layer on one dot grid (3 sheet pixels a dot). They are drawn over the room's
 // pixels at the screen's own resolution, never snapped to the room's grid. One at its desk sits with its back to us; an idle one sits on
 // a sofa with a mug; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
 // a sofa's arm) is laid back over it. Each person is one of the sheet's people, teammates different ones while there are enough.
@@ -16,7 +16,7 @@ export const BUBBLE_PX = 19;
 /** The walking sheet, public/town/people-walk.png: a row per person, in the order of the sitting sheet, and nine columns: down, up and
  *  left, each standing, left foot, right foot (right is left mirrored). Every cell keeps one empty row under the feet. */
 export const WALK_SHEET = `${import.meta.env.BASE_URL}town/people-walk.png`;
-export const WALK = { cell: [156, 234], size: [1404, 1404] } as const;
+export const WALK = { cell: [144, 240], size: [1296, 3120] } as const;
 export type Facing = 'down' | 'up' | 'left' | 'right';
 const WALK_COL: Record<Facing, number> = { down: 0, up: 3, left: 6, right: 6 };
 const WALK_STEPS = [0, 1, 0, 2] as const;
@@ -25,9 +25,9 @@ export const walkColumn = (facing: Facing, strides: number): number => WALK_COL[
 const POSES = ['sit_back', 'sit_mug', 'walk_down'] as const;
 /** Each person's figure height per pose in sheet pixels (from the script that cut the sheet). */
 const TALL: Record<Pose, number[]> = {
-  sit_back: [195, 226, 194, 227, 195, 201],
-  sit_mug: [208, 226, 206, 222, 208, 202],
-  walk_down: [220, 226, 220, 230, 220, 211],
+  sit_back: [168, 189, 156, 222, 186, 162, 156, 195, 183, 168, 162, 234, 174],
+  sit_mug: [195, 195, 168, 234, 189, 186, 180, 204, 189, 183, 174, 234, 180],
+  walk_down: [198, 183, 198, 210, 201, 189, 183, 192, 177, 213, 204, 219, 192],
 };
 export const SCALE = PERSON_PX / SHEET.walk; // a walking figure of median height stands PERSON_PX tall in the room
 type Pose = (typeof POSES)[number];
@@ -73,9 +73,9 @@ export type Cast = {
 };
 
 /** The sheet's row whose figure the HQ's dotted outline takes: the plainest outline. */
-const JOIN_ROW = 2;
+const JOIN_ROW = 0;
 /** That figure's columns in its walking-down cell, in sheet pixels, measured on the sheet. */
-const JOIN_SPAN = [12, 128] as const;
+const JOIN_SPAN = [24, 126] as const;
 
 /** What lies flat on the floor, under a standing person's feet. */
 export const FLAT = new Set(['floor', 'baseboard', 'rug', 'road', 'walk', 'grass', 'lane']);

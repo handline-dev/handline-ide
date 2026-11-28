@@ -1,7 +1,7 @@
 // The town's people sheet and which person each agent is, apart from the 3D room, so any screen can draw an agent's face cheaply.
 export const PEOPLE_SHEET = `${import.meta.env.BASE_URL}town/people.png`;
 /** The sheet's cells: a row per person, a column per pose. */
-export const SHEET = { cell: [140, 232], size: [420, 1392], walk: 220 } as const;
+export const SHEET = { cell: [144, 240], size: [432, 3120], walk: 198 } as const;
 /** How many people the sheet holds. */
 export const PEOPLE = SHEET.size[1] / SHEET.cell[1];
 

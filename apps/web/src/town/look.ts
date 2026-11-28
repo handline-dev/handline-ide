@@ -19,7 +19,7 @@ const OWN: Sheet = { url: FOUNDER_SHEET, cell: [144, 228], size: [1296, 228] };
 export const WALKERS: Sheet = { url: WALK_SHEET, cell: WALK.cell, size: WALK.size };
 const sitting = (top: number, cell: number): Sitting => ({ chair: MY_CHAIR, head: top / cell, seat: 0.25 });
 /** Where each walking person's head starts facing away, in sheet pixels (from the sheet itself). */
-const WALK_HEADS = [30, 36, 24, 30, 30, 30];
+const WALK_HEADS = [39, 51, 36, 27, 33, 45, 51, 45, 57, 24, 30, 15, 45];
 
 /** The looks to pick from: the founder's own first, then each of the agents' people. */
 export const LOOKS: Look[] = [

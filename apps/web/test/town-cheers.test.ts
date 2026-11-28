@@ -58,7 +58,7 @@ describe("the founder's look", () => {
 
   it('is its own figure first, then each of the walking people', () => {
     expect(LOOKS[0].sheet.url).toMatch(/founder\.png$/);
-    expect(LOOKS.slice(1).map((l) => l.row)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(LOOKS.slice(1).map((l) => l.row)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
   it('is kept on this device, and a pick that is no look is its own', () => {
     pickLook(3);
