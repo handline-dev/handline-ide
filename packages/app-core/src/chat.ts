@@ -21,7 +21,8 @@ export function noticeOf(m: ChatMessage): { kind: 'task'; task: number } | { kin
 }
 
 /** A permission request is a tool step (what the agent asked to run), so it is Activity's like the tool line; other dialogs stay in Chat. */
-const isToolStep = (i: TranscriptItem) => i.kind === 'tool' || (i.kind === 'prompt' && i.prompt?.kind === 'permission');
+const isToolStep = (i: TranscriptItem) =>
+  i.kind === 'tool' || i.kind === 'thinking' || (i.kind === 'prompt' && i.prompt?.kind === 'permission');
 
 /** Everything on screen for one agent, oldest first: the messages and the agent's transcript by time. In the agent's own chat (`mine`) nothing the task board sent and no tool line is shown: they still reach the agent and stay on the Activity tab. */
 export function timeline(
