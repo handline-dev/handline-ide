@@ -76,3 +76,18 @@ test('agent.open_terminal mid-turn moves the Chat agent into its terminal when t
   assert.deepEqual([d.structured ?? false, d.terminal !== null], [false, true]);
   client.close();
 });
+
+test('agents.list and agent.get say how the open session runs now: chat, terminal after Open terminal, null once closed', async () => {
+  const { client } = setup();
+  await client.start();
+  const now = async () => {
+    const row = (await client.call('agents.list', {})).agents.find((a) => a.key === AUD);
+    return [row?.session_mode_now, (await client.call('agent.get', { agent: AUD })).session_mode_now];
+  };
+  assert.deepEqual(await now(), ['chat', 'chat']);
+  await client.call('agent.open_terminal', { agent: AUD, request_id: 'n1' });
+  assert.deepEqual(await now(), ['terminal', 'terminal']);
+  await client.call('session.stop', { agent: AUD, mode: 'close', request_id: 'n2' });
+  assert.deepEqual(await now(), [null, null]);
+  client.close();
+});

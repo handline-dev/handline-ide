@@ -451,7 +451,7 @@ def main(argv: list[str]) -> int:
             main_dir = seed_account(home, "main") / ".claude"  # a logged-in account: it has a credential file
             main_dir.mkdir()
             (main_dir / ".credentials.json").write_text("{}")
-            seeded |= {"account": "main", "schedule_agent": seeded["ask_agent"], "task_owner": seeded["ask_agent"]}
+            seeded |= {"account": "main", "schedule_agent": seeded["ask_agent"], "task_owner": seeded["ask_agent"], "page_agent": seeded["ask_agent"]}
             rc = conformance.main(["--var", f"founder_key={key}", "--var", "dialogs_retired=1",
                                    *(a for k, v in seeded.items() for a in ("--var", f"{k}={v}")), *rest],
                                   connectors={"founder": local, "anonymous": local, "agent": taker(mine), "unpaired": taker(net_pairs)})

@@ -141,13 +141,13 @@ export function view(s: Session, tasks: TaskCounter): AgentView {
     waits_on: s.state === 'running' ? null : tasks.waitsOn(s.fx.name, s.fx.task?.id ?? null),
     steps: tasks.steps(s.fx.task?.id ?? null),
     held_on: null,
+    session_mode_now: s.open ? (s.structured ? 'chat' : 'terminal') : null, // as agent.open_terminal tells it
     ...s.fx.view,
   };
 }
 
 /** agent.get; its session_mode in force is its own, else its workspace's (wsMode). */
 export function detail(s: Session, tasks: TaskCounter, wsMode: 'terminal' | 'chat' = 'terminal'): AgentDetail {
-  const inForce = s.settings.session_mode || wsMode;
   return {
     ...view(s, tasks),
     worktree: { path: s.fx.worktree, branch: s.fx.branch, repo: s.fx.repo ?? null },
@@ -155,11 +155,10 @@ export function detail(s: Session, tasks: TaskCounter, wsMode: 'terminal' | 'cha
     terminal: s.hasTerminal ? tid(s) : null,
     session_id: s.sessionId,
     session_open: s.open,
-    session_mode_now: s.open ? (inForce === 'chat' && s.terminalHold !== 'on' ? 'chat' : 'terminal') : null,
     input_holders: s.structured ? [] : [s.holder],
     account_pick: { account: s.fx.account, reason: 'fixture' },
     prompt: s.prompt,
-    settings: { ...s.settings, session_mode_in_force: inForce } as AgentDetail['settings'],
+    settings: { ...s.settings, session_mode_in_force: s.settings.session_mode || wsMode } as AgentDetail['settings'],
   };
 }
 
