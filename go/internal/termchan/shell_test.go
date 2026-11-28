@@ -22,6 +22,7 @@ type shellHost struct {
 	closed []string
 	runs   []string
 	ended  map[string]term.PaneRun // run windows tmux keeps after their command
+	tags   map[string]string       // handle -> the tag CreateRun gave its window
 }
 
 func newShellHost(h *fakeHost) *shellHost { return &shellHost{fakeHost: h, panes: map[string]string{}} }
@@ -176,6 +177,10 @@ func TestShellCloseClosesAShellAndNothingElse(t *testing.T) {
 func (h *shellHost) CreateRun(cwd, title, agent, tag, command string, _ bool) (string, string) {
 	handle, why := h.CreateShell(cwd, title, agent)
 	h.runs = append(h.runs, tag+" "+command)
+	if h.tags == nil {
+		h.tags = map[string]string{}
+	}
+	h.tags[handle] = tag
 	return handle, why
 }
 
@@ -268,9 +273,9 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 		return got.(map[string]any)["terminal"].(string)
 	}
 	first := open("5:0")
-	h.ended[first] = term.PaneRun{Tag: cmdruns.Run{Block: "5:0", Started: cmdruns.Now()}.Tag()}
+	h.ended[first] = term.PaneRun{Tag: h.tags[first]} // ended, keeping the tag it was made with, as tmux does
 	other := open("5:1")
-	h.ended[other] = term.PaneRun{Tag: cmdruns.Run{Block: "5:1", Started: cmdruns.Now()}.Tag()}
+	h.ended[other] = term.PaneRun{Tag: h.tags[other]}
 	if again := open("5:0"); len(h.closed) != 1 || h.closed[0] != first || again == first || other == first {
 		t.Fatalf("a rerun of a block closes the window it had: %v", h.closed)
 	}
@@ -279,7 +284,7 @@ func TestAFinishedRunsWindowIsNotAShellInUseAndARerunClosesItsOld(t *testing.T) 
 		t.Fatal(err)
 	}
 	reply := open("r5000:0")
-	h.ended[reply] = term.PaneRun{Tag: cmdruns.Run{Block: "r5000:0", Started: cmdruns.Now()}.Tag()}
+	h.ended[reply] = term.PaneRun{Tag: h.tags[reply]}
 	if open("r5000:0"); len(h.closed) != 2 || h.closed[1] != reply {
 		t.Fatalf("a rerun of a reply's block closes the window it had: %v", h.closed)
 	}
