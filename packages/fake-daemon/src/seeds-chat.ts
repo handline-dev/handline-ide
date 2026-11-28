@@ -245,8 +245,25 @@ export const CHAT_SEEDS: Record<string, Seed> = {
           text: 'The check fires 1 ms before the until; running the two tests under load.',
         },
       ],
-      [3, { kind: 'tool', tool: 'Bash', text: 'Run the two pause tests 30 times under load' }],
-      [2, { kind: 'tool', tool: 'Edit', text: 'go/internal/daemon/pause.go' }],
+      [
+        3,
+        {
+          kind: 'tool',
+          tool: 'Bash',
+          text: 'Run the two pause tests 30 times under load',
+          output:
+            '--- FAIL: TestPauseUntil (0.00s)\n    pause_test.go:88: woke at 10:00:00, want 10:00:01\nFAIL\nFAIL\thandline/internal/daemon\t0.41s',
+        },
+      ],
+      [
+        2,
+        {
+          kind: 'tool',
+          tool: 'Edit',
+          text: 'go/internal/daemon/pause.go',
+          output: '-\tif now.Before(until) {\n+\tif !now.After(until) {',
+        },
+      ],
       [1, { kind: 'tool', tool: 'Bash', text: 'Run the two pause tests 30 times under load' }],
     ];
     for (const [min, it] of steps) d.chat.seedItem(ARCH, { at: iso(min), kind: 'tool', ...it });

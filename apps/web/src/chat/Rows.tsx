@@ -1,11 +1,12 @@
 // A chat's rows, from its messages and transcript to what is drawn: the live stream and a found message's window draw the same lines.
 import { chatView, foldBash, foldTurns, onePerTask, taskRuns, type ChatSource, type TaskEvent } from '@handline/app-core';
-import { useNameOf } from '@handline/app-data';
+import { useAgentDetail, useNameOf } from '@handline/app-data';
 import { useMe } from '@handline/app-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { moveNoteAfter } from '#src/chat/agent/AccountSwitch.tsx';
 import { ChatLine, type Reply } from '#src/chat/ChatLine.tsx';
 import { TaskActivity } from '#src/chat/TaskActivity.tsx';
+import { StepRows } from '#src/chat/StepRows.tsx';
 import { TurnRecord } from '#src/chat/TurnRecord.tsx';
 import { spring } from '#src/motion.ts';
 
@@ -43,6 +44,8 @@ export function ChatRows({
   onReply?: (r: Reply) => void;
 }) {
   const { rows, bash, words, me } = lines;
+  // A Chat agent has no terminal: its chat shows every step, not one folded line.
+  const steps = useAgentDetail(agent).data?.settings?.session_mode === 'chat';
   return (
     <AnimatePresence initial={false}>
       {rows.map((r, i, all) =>
@@ -58,7 +61,11 @@ export function ChatRows({
             <TaskActivity events={r.events} />
           </motion.div>
         ) : r.kind === 'record' ? (
-          <TurnRecord key={`record:${r.id}`} r={r} fade={i > known} />
+          steps ? (
+            <StepRows key={`record:${r.id}`} items={r.items.filter((x) => !(x.kind === 'prompt' && x.open))} />
+          ) : (
+            <TurnRecord key={`record:${r.id}`} r={r} fade={i > known} />
+          )
         ) : (
           <ChatLine
             key={`${r.kind}:${r.id}`}
