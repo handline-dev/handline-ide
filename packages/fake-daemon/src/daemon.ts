@@ -35,6 +35,7 @@ import { byTerminal, newSession, type Session } from '#src/session.ts';
 import { EventLog } from '#src/eventlog.ts';
 import { coreCall, endInstall, hello, mayCall } from '#src/core.ts';
 import { moduleCall } from '#src/modules.ts';
+import { FakeScreens } from '#src/screens.ts';
 
 export class FakeDaemon {
   readonly sessions = new Map<string, Session>();
@@ -69,6 +70,10 @@ export class FakeDaemon {
   readonly context = new FakeAgentContext(this);
   /** The recurring messages schedules.list gives; a seed or a test puts its rows in. */
   readonly schedules = new FakeSchedules(this);
+  readonly screens = new FakeScreens(
+    (c, m, p) => this.notify(c, m, p),
+    () => this.iso(),
+  );
   /** hello's capabilities.transcript: chat.send takes parent_item. */
   readonly replyItems: boolean;
   readonly serveChat: boolean;

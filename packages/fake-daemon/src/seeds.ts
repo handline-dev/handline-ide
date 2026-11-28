@@ -372,6 +372,19 @@ export const SEEDS: Record<string, Seed> = {
 
   ...SWITCH_SEEDS,
 
+  /** The architect uses its browser, a simulator open beside it: its screen view shows each click and what it types. */
+  'screen-view': (d) => {
+    const s = d.sessions.get(ARCH)!;
+    s.fx.view = {
+      ...s.fx.view,
+      screens: [
+        { source: 'browser', in_use: true },
+        { source: 'sim', in_use: false },
+      ],
+    };
+    d.screens.busy = { agent: ARCH, source: 'browser' };
+  },
+
   /** Three more accounts whose 5-hour number cannot be read as it stands: read 14 minutes ago, its window ended, no window open. */
   'usage-stale': (d) => {
     const h = (n: number) => new Date(Date.now() + n * 3_600_000).toISOString();

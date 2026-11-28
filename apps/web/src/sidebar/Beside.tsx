@@ -2,7 +2,7 @@
 import { withSeats } from '@handline/app-core';
 import { useRead } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
-import { Layers } from 'lucide-react';
+import { Layers, Monitor } from 'lucide-react';
 import { useMemo } from 'react';
 import { AlongsideStrip } from '#src/chat/agent/AlongsideStrip.tsx';
 
@@ -41,6 +41,11 @@ export function BesideCount({ n }: { n: number }) {
       {n}
     </span>
   );
+}
+
+/** While the agent uses a screen (its browser, its simulator): a mark; the chat's screen button opens it. */
+export function ScreenMark({ agent }: { agent: AgentView }) {
+  return agent.screens?.some((s) => s.in_use) ? <Monitor size={12} className="text-accent" aria-label="using its screen" /> : null;
 }
 
 /** The hover card's list of those tasks, as the chat's Working alongside strip draws them. */

@@ -25,7 +25,7 @@ import { useTaskActivity } from '#src/chat/TaskActivity.tsx';
 import { useAttachments } from '#src/chat/attachments.tsx';
 import type { Reply } from '#src/chat/ChatLine.tsx';
 import { ChatRows, useChatRows } from '#src/chat/Rows.tsx';
-import { CornerDownRight, FoldVertical, Square, SquareTerminal, X } from 'lucide-react';
+import { CornerDownRight, FoldVertical, Monitor, Square, SquareTerminal, X } from 'lucide-react';
 import { ChatSkeleton } from '#src/chat/ChatSkeleton.tsx';
 import { Composer } from '#src/chat/Composer.tsx';
 import { AlongsideStrip, useAlongside } from '#src/chat/agent/AlongsideStrip.tsx';
@@ -70,6 +70,7 @@ export function Chat({ agent }: { agent: string }) {
       run: () => (compactNow ? compactNow() : toast('Compact is not open now.', { tone: 'warning' })),
     },
     { name: 'terminal', hint: 'Open the terminal beside', icon: <SquareTerminal size={14} />, run: () => openTab('shell', 'side') },
+    { name: 'screen', hint: 'Open the screen beside', icon: <Monitor size={14} />, run: () => openTab('screen', 'side') },
   ];
   const [draft, setDraft] = useDraft(agent);
   const attach = useAttachments(agent);

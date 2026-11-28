@@ -43,6 +43,7 @@ export interface AgentFixture {
       | 'servers'
       | 'hired_from'
       | 'held_on'
+      | 'screens'
     >
   >;
 }
