@@ -17,10 +17,13 @@ const Source = "sim"
 // The longest side of a frame in pixels and its JPEG quality: the driver takes about 175 ms a frame at this size, so about 5 a second.
 const castMax, castQuality = 800, 0.7
 
-// framer is a platform that can picture its screen for the pipeline; Android cannot yet.
+// framer is a platform that can picture its screen for the pipeline.
 type framer interface {
+	pictures(b *Booted) bool
 	frame(b *Booted, max int, quality float64) (screenpipe.Frame, error)
 }
+
+func (i *ios) pictures(*Booted) bool { return true }
 
 func (i *ios) frame(b *Booted, max int, quality float64) (screenpipe.Frame, error) {
 	got, err := i.call(b, map[string]any{"op": "frame", "max": max, "quality": quality})
@@ -65,17 +68,23 @@ func Opener(home string) screenpipe.Opener {
 	}
 }
 
-// Pictured is whether a platform's devices are a screen source.
+// Pictured is whether a platform's devices can be a screen source.
 func Pictured(platform string) bool {
 	_, ok := (&Env{}).backend(platform).(framer)
 	return ok
+}
+
+// pictured is whether this booted device is one: a phone on adb has no console to picture it.
+func pictured(b *Booted) bool {
+	f, ok := (&Env{}).backend(b.Platform).(framer)
+	return ok && f.pictures(b)
 }
 
 // Cast is the device agent's source shows: the pictured one it booted last, nil when it has none.
 func (e *Env) Cast(agent string) *Booted {
 	var last *Booted
 	for _, b := range e.All() {
-		if b.Agent == agent && Pictured(b.Platform) && (last == nil || b.Since > last.Since) {
+		if b.Agent == agent && pictured(b) && (last == nil || b.Since > last.Since) {
 			last = b
 		}
 	}

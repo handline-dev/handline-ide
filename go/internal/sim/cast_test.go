@@ -95,15 +95,19 @@ func TestAnAgentsDeviceIsItsSourceAndNoOneElsesIs(t *testing.T) {
 	e := &Env{Home: t.TempDir()}
 	_ = e.save(&Booted{Platform: "ios", ID: "U1", Agent: "a1", Since: 1})
 	_ = e.save(&Booted{Platform: "ios", ID: "U2", Agent: "a1", Since: 5})
-	_ = e.save(&Booted{Platform: "android", ID: "emu", Agent: "a2", Since: 9})
+	_ = e.save(&Booted{Platform: "android", ID: "emu", Agent: "a2", Since: 9, Serial: "emulator-5554"})
+	_ = e.save(&Booted{Platform: "android", ID: "phone", Agent: "a2", Since: 10, Serial: "R58M123", Adopted: true})
 	open := Opener(e.Home)
 	s, err := open("a1", Source)
 	if err != nil || s.(*Cast).b.ID != "U2" {
 		t.Fatalf("a1's source = %v, %v: the device it booted last", s, err)
 	}
-	for _, c := range [][2]string{{"a2", Source}, {"a3", Source}, {"a1", "browser"}} {
+	if s, err := open("a2", Source); err != nil || s.(*Cast).b.ID != "emu" {
+		t.Errorf("a2's source = %v, %v: its emulator", s, err)
+	}
+	for _, c := range [][2]string{{"a3", Source}, {"a1", "browser"}} {
 		if _, err := open(c[0], c[1]); !errors.Is(err, screenpipe.ErrNotOpen) {
-			t.Errorf("%s's %s = %v, want not open (an emulator is not pictured yet)", c[0], c[1], err)
+			t.Errorf("%s's %s = %v, want not open", c[0], c[1], err)
 		}
 	}
 }
