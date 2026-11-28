@@ -33,7 +33,7 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 	if !ok {
 		return 0, false
 	}
-	agent := os.Getenv("HANDLINE_AGENT")
+	agent := hlclient.Agent() // the session's key: a name a rename has given away since would share another's device
 	if agent == "" {
 		agent = "founder"
 	}

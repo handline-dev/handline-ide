@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/textsafe"
 )
 
 // The instructions a launch gives an agent that people write: its role and standing context, and its workspace's rules. Each is kept as
@@ -51,6 +52,18 @@ func InstructionText(q Q, owner, part string) (string, error) {
 		return "", err
 	}
 	return in.Text, nil
+}
+
+// InstructionRefusal is why text cannot be a new version of part, "" when it can: it is the whole new text, so not empty, and carries no
+// control character but tab and newline.
+func InstructionRefusal(part, text string) string {
+	if strings.TrimSpace(text) == "" {
+		return part + " is the whole new text, not empty"
+	}
+	if textsafe.HasUnsafe(strings.NewReplacer("\t", "", "\n", "").Replace(text)) {
+		return part + " carries a control character"
+	}
+	return ""
 }
 
 // SetInstruction keeps text as owner's part in force, written by actor and OK'd by approver at at. Text the same as the version in force

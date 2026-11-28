@@ -231,6 +231,10 @@ export interface TeamMethods {
   folder?: string;
   /** An account to pin the lead to: it runs that account's vendor and never moves off it. Needed for a codex account, which the pick never places an unpinned agent on. Omitted: the lead is placed as any agent. An unknown account is not_found, what account; one not logged in is accepted, and the lead waits for its login as any agent pinned to a logged-out account does. */
   account?: string;
+  /** The lead's role, its first version, written by the caller before the lead starts, so its first session reads it (agent.context.set's text). Empty or with a control character but tab and newline: bad_request, field role. Omitted: the lead starts with the role it is seeded with. */
+  role?: string;
+  /** The lead's standing context, its first version, kept as role is. Empty or with a control character but tab and newline: bad_request, field base. */
+  base?: string;
   request_id: RequestId;
 }; result: OperationStarted };
   "workspace.set": { params: {

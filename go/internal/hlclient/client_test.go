@@ -19,6 +19,7 @@ import (
 	"github.com/handline/handline/go/internal/contracttest"
 	"github.com/handline/handline/go/kit/protected"
 	"github.com/handline/handline/go/protocol/pairsock"
+	"github.com/handline/handline/go/protocol/sessiontoken"
 )
 
 // hangUp is an answer that closes the connection instead.
@@ -349,5 +350,29 @@ func TestAgentIsTheKeyOfTheNameInTheEnvironment(t *testing.T) {
 		if got := Agent(); got != want {
 			t.Errorf("HANDLINE_AGENT=%q: %q, want %q", env, got, want)
 		}
+	}
+}
+
+// A session's processes are the agent they descend from, whatever name $HANDLINE_AGENT kept: after a workspace rename it names no one,
+// or once the old name is taken, someone else.
+func TestAgentIsTheSessionThisProcessDescendsFrom(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HANDLINE_HOME", home)
+	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	t.Setenv("HANDLINE_AGENT", "")
+	teamtest.Seed(t, home, "shop/lead", "bob/lead")
+	lead := teamtest.Key(t, home, "shop/lead")
+	if !sessiontoken.New(home).Record(lead, 0) {
+		t.Fatal("not recorded")
+	}
+	for _, env := range []string{"mart/lead", "bob/lead", "shop/lead"} {
+		t.Setenv("HANDLINE_AGENT", env)
+		if got := Agent(); got != lead {
+			t.Errorf("HANDLINE_AGENT=%q: %q, want the session's %q", env, got, lead)
+		}
+	}
+	t.Setenv("HANDLINE_AGENT", "")
+	if got := Agent(); got != "" {
+		t.Errorf("no HANDLINE_AGENT: %q", got)
 	}
 }

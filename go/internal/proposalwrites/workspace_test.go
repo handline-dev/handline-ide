@@ -218,20 +218,23 @@ func TestWorkspaceDeleteListsEveryAgentsHeldWork(t *testing.T) {
 }
 
 // A rename that would change a name in use is refused: a session running, or an open proposal naming an agent as workspace/name.
-func TestWorkspaceSetRefusesWhileANameIsInUse(t *testing.T) {
+func TestWorkspaceSetRenamesUnderARunningSessionButNotWhileAProposalNamesOne(t *testing.T) {
 	t.Parallel()
 	r := newRig(t)
 	bobWithKid(t, r)
-	r.setLive("bob/kid", true)
-	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s1"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "session running") {
+	kid := r.who("bob/kid")
+	r.setLive("bob/kid", true) // its session goes on: the daemon names it by its process
+	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s1"}`); m["result"] == nil {
 		t.Fatalf("%v", m)
 	}
-	r.setLive("bob/kid", false)
-	r.propose("0a01", "kind", "add", "agent", "bob/helper")
-	if m := r.call("workspace.set", `{"workspace":"bob","name":"shop","request_id":"s2"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "names bob/helper") {
-		t.Fatalf("%v", m)
-	}
-	if r.who("bob/kid") == "bob/kid" {
+	if r.who("shop/kid") != kid {
 		t.Fatal("not renamed")
+	}
+	r.propose("0a01", "kind", "add", "agent", "shop/helper")
+	if m := r.call("workspace.set", `{"workspace":"shop","name":"mart","request_id":"s2"}`); gate(m) != "state" || !strings.Contains(refusalOf(m), "names shop/helper") {
+		t.Fatalf("%v", m)
+	}
+	if r.who("shop/kid") != kid {
+		t.Fatal("renamed while a proposal names one of its agents")
 	}
 }

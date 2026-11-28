@@ -10,13 +10,19 @@ import (
 	"github.com/handline/handline/go/protocol/sessiontoken"
 )
 
-// Agent is the key of the agent $HANDLINE_AGENT names, "" when unset; a name no agent has, as given, for the daemon to refuse.
+// Agent is the key of the agent whose session this is, "" when $HANDLINE_AGENT is unset: the one this process descends from, as the
+// daemon proves it, else the one $HANDLINE_AGENT names, else that name as given, for the daemon to refuse. The proof comes first because
+// the name is the one the session started under, which a workspace rename leaves naming no one, or someone else.
 func Agent() string {
 	v, _ := paths.Getenv("AGENT")
 	if v == "" || v == Human {
 		return v
 	}
-	if k, err := paths.AgentKeyReadOnly(paths.Home(), v); err == nil && k != "" {
+	home := paths.Home()
+	if k := sessiontoken.New(home).AgentOf(os.Getpid()); k != "" {
+		return k
+	}
+	if k, err := paths.AgentKeyReadOnly(home, v); err == nil && k != "" {
 		return k
 	}
 	return v

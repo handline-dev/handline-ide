@@ -30,6 +30,8 @@ type controls struct {
 	ok    bool
 	said  string
 	hold  chan struct{} // when set, Start waits until it is closed
+	// entered, when set, is told each Start as it begins.
+	entered chan struct{}
 }
 
 func (c *controls) rec(name string, args ...any) (bool, string, error) {
@@ -41,6 +43,9 @@ func (c *controls) rec(name string, args ...any) (bool, string, error) {
 	return c.ok, c.said, nil
 }
 func (c *controls) Start(cl Call, a, repo, base string) (bool, string, error) {
+	if c.entered != nil {
+		c.entered <- struct{}{}
+	}
 	if c.hold != nil {
 		<-c.hold
 	}

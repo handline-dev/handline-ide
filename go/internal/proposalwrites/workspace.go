@@ -129,21 +129,9 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 	})
 }
 
-// refuseRename refuses a rename that would change a name in use: while one of the agents has a session (an identity does not change
-// under a running session, as for an agent's rename), or an open proposal names one as workspace/name, which would then reach nobody.
+// refuseRename refuses a rename while an open proposal names one of the agents as workspace/name, which would then reach nobody. A
+// running session goes on: hl names its agent by the session its process descends from, not by the name it started under.
 func (e *Env) refuseRename(w workspaceAt) error {
-	live, ok := map[string]bool(nil), false
-	if e.Live != nil {
-		live, ok = e.Live()
-	}
-	if !ok {
-		return rpc.Refused("could not confirm whether the agents of "+w.name+" have a session running just now - try again in a moment.", "state", "")
-	}
-	for _, a := range w.agents {
-		if live[a] {
-			return rpc.Refused(fmt.Sprintf("%s has a session running: stop it before renaming %s.", addr.Ref(a), w.name), "state", "")
-		}
-	}
 	for _, p := range e.listing() {
 		if st := p.str("state"); st != "proposed" && st != "approved" && st != applying {
 			continue
