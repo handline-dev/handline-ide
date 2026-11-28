@@ -416,3 +416,23 @@ func TestASeatsResultReachesItsAgentAsANotice(t *testing.T) {
 		t.Fatalf("ui's notices: %q", bodies)
 	}
 }
+
+// A task given to a seat goes to its agent, idle or at work on another task; the seat at work on that task keeps it.
+func TestATaskForASeatGoesToItsAgentUnlessItIsAtWorkOnIt(t *testing.T) {
+	r := newRig(t)
+	ui := r.key("team/ui")
+	seat, tid := r.hire(ui)
+	for _, c := range []struct {
+		key  string
+		task int64
+		want string
+	}{{seat, tid, seat}, {seat, tid + 1, ui}, {ui, tid, ui}} {
+		if to, err := paths.TakesTask(r.db, c.key, c.task); err != nil || to != c.want {
+			t.Fatalf("T%d to %s goes to %s (%v), want %s", c.task, c.key, to, err, c.want)
+		}
+	}
+	r.must(team.SetHiredFor(r.db, seat, 0))
+	if to, _ := paths.TakesTask(r.db, seat, tid); to != ui {
+		t.Fatalf("T%d to the idle seat goes to %s", tid, to)
+	}
+}

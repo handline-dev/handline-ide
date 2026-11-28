@@ -32,6 +32,24 @@ func Reaches(q rowQ, key string) (string, error) {
 	return from, nil
 }
 
+// TakesTask is who task tid given to key goes to: the agent a seat was hired from, unless the seat is at work on tid itself; else key.
+func TakesTask(q rowQ, key string, tid int64) (string, error) {
+	k, id, ok := actor.Parse(key)
+	if !ok || k != actor.Agent {
+		return key, nil
+	}
+	var f sql.NullString
+	var task sql.NullInt64
+	err := q.QueryRow("SELECT hired_from, hired_for FROM agents WHERE id = ?", id).Scan(&f, &task)
+	if errors.Is(err, sql.ErrNoRows) {
+		return key, nil
+	}
+	if err != nil || f.String == "" || (task.Valid && task.Int64 == tid) {
+		return key, err
+	}
+	return f.String, nil
+}
+
 // StandsInFor is the agent the seat key stands in for while it is at work (agents.hired_for set), "" for an idle seat or an agent of its own.
 func StandsInFor(q rowQ, key string) (string, error) {
 	from, at, err := seat(q, key)

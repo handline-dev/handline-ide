@@ -136,6 +136,9 @@ func newMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, e
 		if owner != actor.OwnerKey && owner != db.Gate && !contains(paths.ListAgents(home), owner) {
 			return nil, agentNotFound(owner)
 		}
+		if owner, err = paths.TakesTask(c.Server().DB, owner, 0); err != nil { // a task given to a seat goes to its agent
+			return nil, err
+		}
 		watched, err := watchParam(p, owner)
 		if err != nil {
 			return nil, err
@@ -379,7 +382,11 @@ func watchReady(w *db.Watch) error {
 // the event land with the delivery. A refusal before anything is opened is the error; an owner the routing refuses is asked.OK false, with
 // the writes of the refusal standing, and the caller decides how to commit them. The caller calls tell.Opened once it has committed.
 func OpenTask(tx *sql.Tx, tell Teller, me string, in NewIn) (tid int64, asked *Asked, err error) {
-	owner, body, prio, expects, secs := in.Owner, in.Body, in.Prio, in.Expects, in.Secs
+	owner, err := paths.TakesTask(tx, in.Owner, 0)
+	if err != nil {
+		return 0, nil, err
+	}
+	body, prio, expects, secs := in.Body, in.Prio, in.Expects, in.Secs
 	parent, hasParent := in.Parent, in.HasParent
 	clean := in.Title
 	for _, blocker := range in.Blockers { // refused before anything is opened, as the command does

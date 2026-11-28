@@ -291,3 +291,22 @@ func TestProposeSandboxAsksForOneEntryOfTheAgentsOwnList(t *testing.T) {
 		t.Errorf("calls %v", got)
 	}
 }
+
+// A seat is no row of its own: its agent's row says how many of its seats are at work and on which tasks.
+func TestTeamListsSeatsUnderTheirAgent(t *testing.T) {
+	r := newRig(t)
+	r.daemon(map[string]string{
+		"team.get": `{"agents":[{"key":"a1","name":"one"},{"key":"a2","name":"ui"},{"key":"a3","name":"ui-2"},{"key":"a4","name":"ui-3"},{"key":"a5","name":"ui-4"}]}`,
+		"agents.list": `{"agents":[{"key":"a2","started":true,"has_repo":true,"has_terminal":true,"screen_word":"WORKING"},
+			{"key":"a3","hired_from":"a2","hired_for":12},{"key":"a4","hired_from":"a2","hired_for":9},
+			{"key":"a5","hired_from":"a2","task":{"id":7,"title":"reopened"}}]}`,
+		"whoami": `{"caller":{"kind":"agent","name":"a1"}}`,
+	})
+	out, errs, code := r.run(asAgent, "team")
+	if code != 0 || errs != "" {
+		t.Fatalf("%d %q %q", code, out, errs)
+	}
+	if !strings.Contains(out, "WORKING (+2: T9, T12)") || strings.Contains(out, "ui-2") || strings.Contains(out, "ui-4") {
+		t.Fatalf("team:\n%s", out)
+	}
+}

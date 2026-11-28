@@ -494,6 +494,13 @@ func editMethod(home string, tell Teller) func(*rpc.Conn, map[string]any) (any, 
 			} else if t != nil {
 				done.WasOwner = t.Owner
 			}
+			if owner != nil { // a task given to a seat goes to its agent
+				to, err := paths.TakesTask(tx, *owner, tid)
+				if err != nil {
+					return nil, err
+				}
+				owner = &to
+			}
 			var msgs, tellMsgs []string
 			// a new assignee while turns are open replaces the one acting, and an agent's to the founder is the founder's turn: both move as a
 			// handoff does, and the rest of the edit goes on without it

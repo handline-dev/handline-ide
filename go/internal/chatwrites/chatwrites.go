@@ -556,7 +556,11 @@ func (w *writes) sendTask(c *rpc.Conn, agent, body string, task any) (any, error
 		if !asked.OK {
 			return nil, &rpc.CommitThen{Err: rpc.Refused(asked.Msg, "", "")}
 		}
-		return map[string]any{"accepted": true, "said": fmt.Sprintf("task T%d opened for %s", tid, addr.Ref(agent)), "request": asked.RID}, nil
+		to, err := paths.TakesTask(tx, agent, 0) // a seat's task went to its agent
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true, "said": fmt.Sprintf("task T%d opened for %s", tid, addr.Ref(to)), "request": asked.RID}, nil
 	})
 	if asked != nil && !asked.OK && asked.After != nil {
 		guarded(w.e, "telling after a refused task", func() (string, error) { return asked.After(), nil }) // the refusal's writes stood

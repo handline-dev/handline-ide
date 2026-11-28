@@ -282,3 +282,42 @@ func TestTheFoundersNewWorkForABusyAgentGoesToASeatThroughTaskRequest(t *testing
 		t.Fatalf("alice holds %d, not her own T%d", cur, first)
 	}
 }
+
+// Work given to a seat goes to its agent, idle or at work on another task: by task.new, an assignee change and a handoff. A seat at work
+// on that same task keeps it, and the daemon's own hire still reaches the seat.
+func TestATaskGivenToASeatGoesToItsAgent(t *testing.T) {
+	r, temps, _, second := tempRig(t, false)
+	r.must(r.SweepTaskQueue(r.clock))
+	seat := temps.hired[0]
+	alice := r.k("alice")
+	if got := r.acting(second); got != seat {
+		t.Fatalf("the daemon's hire: T%d is %s's, want the seat %s's", second, got, seat)
+	}
+	out := r.turnCall("carol", "task.new", fmt.Sprintf(`{"owner":%q,"title":"a third typo","body":"b","time_box":"1h","no_parent":true,"request_id":"n1"}`, seat))
+	opened := int64(out["result"].(map[string]any)["task"].(float64))
+	if got := r.owner(opened); got != alice {
+		t.Fatalf("task.new to the seat at work on T%d: assignee %s", second, got)
+	}
+	edited := r.newTask("carol", "carol", "a fourth typo")
+	r.turnCall("carol", "task.edit", fmt.Sprintf(`{"task":%d,"owner":%q,"request_id":"e1"}`, edited, seat))
+	if got := r.owner(edited); got != alice {
+		t.Fatalf("assignee changed to the seat: %s", got)
+	}
+	handed := r.newTask("carol", "carol", "a fifth typo")
+	r.must(taskwrites.HandOffAsDaemon(r.DB, r.home, r.Env, handed, seat, "yours"))
+	if got := r.acting(handed); got != alice {
+		t.Fatalf("handed to the seat at work on another task, T%d is %s's", handed, got)
+	}
+	// the seat at work on it keeps it: naming it again changes nothing, where a move to alice would be an edit
+	r.refusedCall("carol", "task.edit", fmt.Sprintf(`{"task":%d,"owner":%q,"request_id":"e2"}`, second, seat), "nothing to edit")
+	if got := r.owner(second); got != seat {
+		t.Fatalf("the seat at work on T%d lost it: %s", second, got)
+	}
+}
+
+func (r *rig) owner(tid int64) string {
+	r.t.Helper()
+	var o string
+	r.must(r.DB.QueryRow("SELECT owner FROM tasks WHERE id = ?", tid).Scan(&o))
+	return o
+}

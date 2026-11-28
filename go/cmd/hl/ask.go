@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -346,17 +347,21 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 	type row struct{ name, rel, doing string }
 	var rows []row
 	var names []string
+	seats := seatsAtWork(lines)
 	for _, a := range list(got, "agents") {
 		k := str(a, "key")
 		if k == self {
 			me = str(a, "name")
 			continue
 		}
+		if str(lines[k], "hired_from") != "" {
+			continue // a seat is its agent's: work given to it goes to the agent
+		}
 		rel := "peer"
 		if contacts[k] {
 			rel = "contact"
 		}
-		rows = append(rows, row{str(a, "name"), rel, doing(lines[k])})
+		rows = append(rows, row{str(a, "name"), rel, doing(lines[k]) + seats[k]})
 		names = append(names, str(a, "name"))
 	}
 	w := nameCol(names)
@@ -388,6 +393,27 @@ func teamCmd(c *hlclient.Client, args []string) (int, bool) {
 	fmt.Println("\n`hl task new --assign <name> -t <time> \"<title>\" \"<body>\"` gives one work, and `hl say <name> \"...\"` sends a message. " +
 		"A task is the only way to give an agent work:\na subagent is for research or review inside your own task.")
 	return 0, true
+}
+
+// seatsAtWork is, by agent key, how many of its seats are at work and on which tasks (" (+2: T5, T7)"), from agents.list rows.
+func seatsAtWork(lines map[string]map[string]any) map[string]string {
+	tasks := map[string][]int64{}
+	for _, l := range lines {
+		from := str(l, "hired_from")
+		if at := num(l, "hired_for"); from != "" && at != 0 {
+			tasks[from] = append(tasks[from], at)
+		}
+	}
+	out := map[string]string{}
+	for k, ids := range tasks {
+		slices.Sort(ids)
+		refs := make([]string, len(ids))
+		for i, id := range ids {
+			refs[i] = fmt.Sprintf("T%d", id)
+		}
+		out[k] = fmt.Sprintf(" (+%d: %s)", len(ids), strings.Join(refs, ", "))
+	}
+	return out
 }
 
 // doing is one line on what an agent is doing, from its agents.list status line ("?" when the daemon gave none).

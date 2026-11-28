@@ -13,12 +13,15 @@ import (
 )
 
 // Ident is who an agent is, as its view says it: its name within its workspace, the workspace's key, its owner's key, and for a temp
-// the key of the agent it was hired from ("" for an agent of its own).
-type Ident struct{ Name, Workspace, Owner, HiredFrom string }
+// the key of the agent it was hired from ("" for an agent of its own) and the task it is at work on (0 when idle).
+type Ident struct {
+	Name, Workspace, Owner, HiredFrom string
+	HiredFor                          int64
+}
 
 // Idents is every agent's Ident by its key.
 func Idents(q db.Q) (map[string]Ident, error) {
-	rs, err := q.Query("SELECT id, name, workspace, owner, COALESCE(hired_from, '') FROM agents")
+	rs, err := q.Query("SELECT id, name, workspace, owner, COALESCE(hired_from, ''), COALESCE(hired_for, 0) FROM agents")
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +30,7 @@ func Idents(q db.Q) (map[string]Ident, error) {
 	for rs.Next() {
 		var id, ws int64
 		var it Ident
-		if err := rs.Scan(&id, &it.Name, &ws, &it.Owner, &it.HiredFrom); err != nil {
+		if err := rs.Scan(&id, &it.Name, &ws, &it.Owner, &it.HiredFrom, &it.HiredFor); err != nil {
 			return nil, err
 		}
 		it.Workspace = actor.Key(actor.Workspace, ws)
@@ -46,6 +49,9 @@ func WithIdent(view map[string]any, key string, ids map[string]Ident) {
 	view["key"], view["name"], view["workspace"], view["owner"] = key, it.Name, it.Workspace, it.Owner
 	if it.HiredFrom != "" {
 		view["hired_from"] = it.HiredFrom
+	}
+	if it.HiredFor != 0 {
+		view["hired_for"] = it.HiredFor
 	}
 }
 

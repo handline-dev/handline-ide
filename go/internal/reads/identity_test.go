@@ -97,3 +97,23 @@ func TestWorkspaceRulesFollowsAnAgentToItsWorkspace(t *testing.T) {
 		t.Errorf("an agent in no workspace gets the machine's: %s", b)
 	}
 }
+
+// A seat's view names the agent it is of and, while it is at work, the task it was hired for.
+func TestASeatsViewSaysTheTaskItIsAtWorkOn(t *testing.T) {
+	t.Parallel()
+	e := testEnv(t)
+	run(t, e, "INSERT INTO workspaces(id, name, folder, added_folders, created_at) VALUES(5, 'shop', '/p', '[]', 0)")
+	run(t, e, "INSERT INTO agents(id, workspace, name, owner, created_at, hired_from, hired_for) VALUES"+
+		"(7, 5, 'ui', 'p1', 0, NULL, NULL), (8, 5, 'ui-2', 'p1', 0, 'a7', 12), (9, 5, 'ui-3', 'p1', 0, 'a7', NULL)")
+	ids, err := Idents(e.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]any{"a7": nil, "a8": int64(12), "a9": nil} {
+		view := map[string]any{}
+		WithIdent(view, key, ids)
+		if view["hired_for"] != want {
+			t.Fatalf("%s: hired_for %v, want %v", key, view["hired_for"], want)
+		}
+	}
+}

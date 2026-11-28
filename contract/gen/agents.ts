@@ -14,6 +14,8 @@ export type AgentView = {
   owner: string;
   /** For a seat, the key of the agent it is of (a<n>): it does a task that came to that agent mid-turn, and stays, idle, once the task is over, for the agent's next. Name it as that agent: the founder sees no seat, only the agent's concurrent work. A word sent to an idle seat reaches the agent; a message to the agent's name reaches the agent, never its seats. Absent for an agent of its own. */
   hired_from?: string;
+  /** For a seat at work, the task it was hired for; absent for an idle seat and an agent of its own. */
+  hired_for?: number;
   /** The first line of the agent's role that is not blank and not a heading, as one line, at most 160 characters; empty when there is none. */
   role: string;
   model: string | null;

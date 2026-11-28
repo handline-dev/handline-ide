@@ -123,7 +123,7 @@ func holdHandoff(tx *sql.Tx, tell Teller, tid int64, by, to, note string, agents
 	if err != nil || t == nil {
 		return nil, err
 	}
-	if to, err = paths.Reaches(tx, to); err != nil {
+	if to, err = paths.TakesTask(tx, to, tid); err != nil {
 		return nil, err
 	}
 	if why := handoffRefusal(t, to, agents); why != "" {
