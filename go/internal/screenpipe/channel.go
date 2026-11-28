@@ -365,12 +365,8 @@ func (h *Hub) giveBack(k key) error {
 
 // holder is the spec's ScreenHolder of k: the person or device holding it, else the agent.
 func (h *Hub) holder(k key) map[string]any {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if hd := h.holds[k]; hd != nil {
-		return map[string]any{"kind": hd.kind, "name": hd.name, "since": hd.since.UTC().Format("2006-01-02T15:04:05Z")}
-	}
-	return map[string]any{"kind": "agent", "name": k.agent, "since": nil}
+	holder, _ := h.whoHas(k)
+	return holder
 }
 
 func (h *Hub) holderChanged(k key) {

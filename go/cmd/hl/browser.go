@@ -56,12 +56,22 @@ func browserCmd(c *hlclient.Client, args []string) (int, bool) {
 		}
 		return 0, true
 	}
+	if verb == "list" {
+		if len(rest) != 0 {
+			return wrongArgs("list takes nothing")
+		}
+		if err := browserList(c, dir); err != nil {
+			fmt.Fprintln(os.Stderr, "hl browser list: "+err.Error())
+			return 1, true
+		}
+		return 0, true
+	}
 	if verb == keepVerb && len(rest) == 3 {
 		return keep(dir, rest)
 	}
 	v, known := browserVerbs[verb]
 	if !known {
-		names := append(slices.Sorted(maps.Keys(browserVerbs)), "close")
+		names := append(slices.Sorted(maps.Keys(browserVerbs)), "close", "list")
 		return wrongArgs("%s is not one of %s", verb, strings.Join(names, ", "))
 	}
 	p, ok := parse(rest, v.valued, v.flags, nil)

@@ -99,6 +99,15 @@ export interface ScreenMethods {
   /** The target's box on the source. A browser's click, type, hover, drag, select, scroll and download, and a device's tap, are called once before the target is found, which only checks the hold, and once with its box (drag with each end's), which is shown. */
   box?: ScreenBox;
 }; result: Accepted };
+  "screen.status": { params: {
+  source: ScreenSource;
+}; result: {
+    holder: ScreenHolder;
+    /** The name of each person or device watching it now, once each, sorted; [] when no one does. */
+    watchers: string[];
+    /** The runner it runs on, by its name; null for the master's own machine. */
+    machine: unknown;
+  } };
 }
 
 export const SCREEN_METHODS: { [K in keyof ScreenMethods]: { role: Role; callers: Role[] | null; write: boolean; since: number } } = {
@@ -108,13 +117,15 @@ export const SCREEN_METHODS: { [K in keyof ScreenMethods]: { role: Role; callers
   "screen.give_back": { role: "owner", callers: null, write: true, since: 1 },
   "screen.input": { role: "owner", callers: null, write: true, since: 1 },
   "screen.act": { role: "agent", callers: null, write: false, since: 1 },
+  "screen.status": { role: "agent", callers: null, write: false, since: 1 },
 };
 
 /** x-app-cache of each read (x-app in core.json). */
-export const SCREEN_APP_CACHE: { [K in "screen.attach" | "screen.detach" | "screen.act"]: { resource: string; id?: string; feed: Topic | null } | false } = {
+export const SCREEN_APP_CACHE: { [K in "screen.attach" | "screen.detach" | "screen.act" | "screen.status"]: { resource: string; id?: string; feed: Topic | null } | false } = {
   "screen.attach": false,
   "screen.detach": false,
   "screen.act": false,
+  "screen.status": false,
 };
 
 /** x-app-write of each write (x-app in core.json). */

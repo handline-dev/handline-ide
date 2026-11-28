@@ -12,6 +12,7 @@ Your own headless Chrome: no other agent shares it, it keeps its pages between c
 - `scroll down [600] [--in e4]`; `back`, `forward`, `reload`; `viewport 390 844`.
 - `wait --text "Saved"` or `wait '#result'` (10 s unless `--timeout 30s`).
 - `tab` lists tabs; `tab new <url>`, `tab 2`, `tab close 2`.
+- `list` shows what is open, its tabs and who has it or watches it; it acts on nothing, so it works while a person has the page.
 - `upload e8 file.pdf` and `download e6 [dir]` use paths inside your worktree.
 - A dialog the page opens is answered at once and printed; `dialog accept [reply]` or `dialog dismiss` (the default) sets the answer.
 - `console` shows the page's logs and errors; `network` what it loaded, with each status.

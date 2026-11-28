@@ -568,6 +568,66 @@
     "input_holder"
    ],
    "description": "The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page` (a device: `has the device`). Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box."
+  },
+  {
+   "name": "screen.status",
+   "summary": "An agent's own read of its source (hl browser list): who holds it, who watches it, and the machine it runs on.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "holder": {
+       "$ref": "#/components/schemas/ScreenHolder"
+      },
+      "watchers": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "The name of each person or device watching it now, once each, sorted; [] when no one does."
+      },
+      "machine": {
+       "type": [
+        "string",
+        "null"
+       ],
+       "description": "The runner it runs on, by its name; null for the master's own machine."
+      }
+     },
+     "required": [
+      "holder",
+      "watchers",
+      "machine"
+     ]
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role"
+   ],
+   "description": "The caller is the agent itself. It acts on nothing: it is answered while a person holds the source, sends watchers nothing, and neither opens the source nor counts as its use."
   }
  ]
 }

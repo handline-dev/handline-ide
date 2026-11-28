@@ -17,8 +17,8 @@ import (
 )
 
 // aBrowserRuns records a stand-in for the agent's Chrome: a process whose command line names its profile, and a DevTools port that
-// answers /json/version and nothing else, so a verb that reached the page would fail.
-func aBrowserRuns(t *testing.T, home, agent string) {
+// answers /json/version, /json/list with pages when given, and nothing else, so a verb that reached the page would fail.
+func aBrowserRuns(t *testing.T, home, agent string, pages ...string) {
 	t.Helper()
 	dir := browser.AgentDir(home, agent)
 	prof := filepath.Join(dir, "profile")
@@ -31,6 +31,10 @@ func aBrowserRuns(t *testing.T, home, agent string) {
 	}
 	t.Cleanup(func() { proc.Process.Kill(); proc.Wait() })
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/json/list" && len(pages) > 0 {
+			fmt.Fprint(w, pages[0])
+			return
+		}
 		if r.URL.Path != "/json/version" {
 			http.Error(w, "no page here", http.StatusNotFound)
 		}

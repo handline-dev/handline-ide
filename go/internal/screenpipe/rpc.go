@@ -9,7 +9,7 @@ import (
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
-// Register adds screen.attach, detach, input, take, give_back and act.
+// Register adds screen.attach, detach, input, take, give_back, act and status.
 func (h *Hub) Register(s *rpc.Server) {
 	s.Register("screen.attach", rpc.Method{Verbatim: true, Handler: h.attach})
 	s.Register("screen.detach", rpc.Method{Handler: h.detach})
@@ -17,6 +17,7 @@ func (h *Hub) Register(s *rpc.Server) {
 	s.Register("screen.take", rpc.Method{Handler: h.take})
 	s.Register("screen.give_back", rpc.Method{Handler: h.giveBackCall})
 	s.Register("screen.act", rpc.Method{Handler: h.act})
+	s.Register("screen.status", rpc.Method{Read: true, Handler: h.status})
 }
 
 func bad(msg, field string) error { return rpc.BadRequestError(msg, field, rpc.InvalidParams) }
@@ -35,7 +36,7 @@ func keyOf(c *rpc.Conn, params map[string]any, own bool) (key, error) {
 	}
 	if own {
 		if c.Caller.Kind != "agent" {
-			return key{}, rpc.Refused("screen.act is an agent's own call", "role", "")
+			return key{}, rpc.Refused("this is an agent's own call, on its own source", "role", "")
 		}
 		return key{c.Caller.Key, source}, nil
 	}

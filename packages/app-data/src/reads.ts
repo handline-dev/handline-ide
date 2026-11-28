@@ -49,10 +49,11 @@ export const NOT_QUERIES = [
   'terminal.attach',
   'terminal.history',
   'terminal.detach',
-  // An agent's screen source is a stream like the terminal; screen.act is hl browser's own check before each verb.
+  // An agent's screen source is a stream like the terminal; screen.act is hl browser's own check before each verb, screen.status its list.
   'screen.attach',
   'screen.detach',
   'screen.act',
+  'screen.status',
   // A shared document is a stream like the terminal: the editor holds it (doc.open, doc.pull catch-up, doc.close).
   'doc.open',
   'doc.pull',

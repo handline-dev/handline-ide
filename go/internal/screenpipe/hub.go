@@ -17,6 +17,8 @@ type Hub struct {
 	Open Opener
 	// Node is the runner agent runs on, "" for this machine; nil is this machine for everyone.
 	Node func(agent string) string
+	// NodeName is a runner's name as its owner sees it; nil names it by its id.
+	NodeName func(node string) string
 	// Stream and Call reach a runner's sources over its link; nil: there are no runners.
 	Stream Stream
 	Call   Call

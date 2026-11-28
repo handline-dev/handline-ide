@@ -11,6 +11,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `screen.give_back` | owner | yes | `agent`, `source`, `request_id` | `Accepted & {holder}` | `refused`, `bad_request` | role, input_holder | decided: return control |
 | `screen.input` | owner | yes | `agent`, `source`, `event`, `request_id` | `Accepted` | `refused`, `bad_request` | role, input_holder, state | uncached: key |
 | `screen.act` | agent |  | `source`, `kind`, `box?` | `Accepted` | `refused`, `bad_request` | role, input_holder | not cached |
+| `screen.status` | agent |  | `source` | `{holder, watchers, machine}` | `refused`, `bad_request` | role | not cached |
 
 ### `screen.attach`
 
@@ -35,4 +36,8 @@ A mouse, wheel, key or text event into the source, from its holder only. Refused
 ### `screen.act`
 
 An agent's own call before it uses its source (hl browser runs it before each verb, hl sim before each verb that acts): refused while a person holds it, otherwise shown to watchers. The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page` (a device: `has the device`). Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box.
+
+### `screen.status`
+
+An agent's own read of its source (hl browser list): who holds it, who watches it, and the machine it runs on. The caller is the agent itself. It acts on nothing: it is answered while a person holds the source, sends watchers nothing, and neither opens the source nor counts as its use.
 

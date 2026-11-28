@@ -19,7 +19,7 @@ func (d *Daemon) screenHub() *screenpipe.Hub {
 	h.Open = screenpipe.ByKind(map[string]screenpipe.Opener{"browser": browser.Opener(d.cfg.Home), sim.Source: sim.Opener(d.cfg.Home)})
 	h.Log = d.cfg.Log
 	if d.nodes != nil {
-		h.Stream, h.Call = d.nodes.Stream, d.nodes.Call
+		h.Stream, h.Call, h.NodeName = d.nodes.Stream, d.nodes.Call, d.nodes.NodeName
 		h.Node = func(agent string) string {
 			var t sql.NullString
 			if err := d.db.QueryRow("SELECT terminal FROM agent_state WHERE agent = ?", agent).Scan(&t); err != nil {
