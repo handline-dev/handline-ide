@@ -14,10 +14,11 @@ import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 function MainTask({ id, title }: { id: number; title?: string }) {
   const open = useOpenable(taskOf(id));
   return (
-    <button type="button" {...open} className="text-fg hover:underline">
+    // A span, not a button: a button is one box and cannot flow or truncate inside the line.
+    <span role="link" tabIndex={0} {...open} className="cursor-pointer text-fg hover:underline">
       T{id}
       {title && ` ${title}`}
-    </button>
+    </span>
   );
 }
 
@@ -60,7 +61,7 @@ function Alongside({
   );
   return (
     <div className="flex flex-col gap-2 text-sm text-muted">
-      <p>
+      <p className="truncate" title={main ? `${nameOf(agent)} is busy on T${main.id}${main.title ? ` ${main.title}` : ''}` : undefined}>
         <span className="mr-1.5 inline-flex align-middle">
           <ActivityIcon act={open ? 'working' : 'resting'} />
         </span>
