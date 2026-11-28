@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/handline/handline/go/internal/screenpipe"
@@ -26,6 +27,8 @@ type Cast struct {
 	cast    *conn
 	in      *conn
 	stopped bool
+	// answered is how many dialogs a person opened that the cast answered.
+	answered atomic.Int64
 }
 
 // OpenCast is the browser in dir as a source; screenpipe.ErrNotOpen when none runs.
@@ -84,6 +87,7 @@ func (s *Cast) read(c *conn, frame func(screenpipe.Frame), ended func()) {
 				accept, reply = accept || b.Accept, b.Reply
 			}
 			answer(c, accept, reply)
+			s.answered.Add(1)
 			continue
 		}
 		if m.Method != "Page.screencastFrame" {

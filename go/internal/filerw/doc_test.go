@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/kit/actor"
+	"github.com/handline/handline/go/kit/testfiles"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -84,11 +85,7 @@ func (e *client) told(method string) []map[string]any {
 
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
-	for end := time.Now().Add(5 * time.Second); !ok(); time.Sleep(5 * time.Millisecond) {
-		if time.Now().After(end) {
-			t.Fatalf("no %s within 5s", what)
-		}
-	}
+	testfiles.Until(t, what, 5*time.Second, 5*time.Millisecond, ok)
 }
 
 func (e *client) open(rel string) (id string, version float64, text string) {

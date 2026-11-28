@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/handline/handline/go/kit/testfiles"
 )
 
 // testEngine is the machine's Chrome, else the one HANDLINE_TEST_CHROME names; the test is skipped without either.
@@ -105,6 +107,12 @@ func page(t *testing.T, b *Browser) *Page {
 	}
 	t.Cleanup(p.Close)
 	return p
+}
+
+// until waits for ok, up to 10 seconds.
+func until(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	testfiles.Until(t, what, 10*time.Second, 20*time.Millisecond, ok)
 }
 
 func evalIs(t *testing.T, p *Page, script, want string) {
@@ -231,8 +239,18 @@ func TestEachActionOnALocalPage(t *testing.T) {
 		p = page(t, b) // hl browser dialog tells the page too
 		p.Eval(`setTimeout(() => alert("later"), 0); ""`)
 		p.Close()
-		time.Sleep(100 * time.Millisecond)
-		again := page(t, b) // a timer's dialog, between commands
+		var again *Page // a timer's dialog, between commands: the first command after it says what it asked
+		until(t, "the timer's alert", func() bool {
+			if again != nil {
+				again.Close()
+			}
+			var err error
+			if again, err = b.Page(); err != nil {
+				t.Fatal(err)
+			}
+			return len(again.Asked) > 0
+		})
+		t.Cleanup(again.Close)
 		if want := []string{`alert "later" accepted`}; !slices.Equal(again.Asked, want) {
 			t.Errorf("asked between commands = %q, want %q", again.Asked, want)
 		}

@@ -93,8 +93,8 @@ func TestCastSendsFramesTakesInputAndEmptiesWhatAPersonTyped(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	time.Sleep(200 * time.Millisecond)
-	again, err := b.Page()
+	until(t, "the cast's answer to the dialog a person's click opened", func() bool { return cast.answered.Load() > 0 })
+	again, err := b.Page() // only now: a command's session would answer the dialog itself
 	if err != nil {
 		t.Fatalf("the dialog a person's click opened holds the page: %v", err)
 	}
