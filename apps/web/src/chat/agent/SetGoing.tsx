@@ -9,6 +9,7 @@ import { useAccountLabel } from '#src/usage/AccountName.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { uuid } from '#src/ui/uuid.ts';
+import { useOpenTerminal } from '#src/chat/agent/openTerminal.ts';
 
 /** `room`: the whole percent left on that account in its tighter window, null when not known. */
 export type Going = { go: SetGoing; account: string | null; room: number | null };
@@ -44,6 +45,7 @@ export function SetGoingButton({
   const start = useWrite('session.start', agent);
   const switchNow = useWrite('agent.switch_now', agent);
   const run = useAction();
+  const moveIn = useOpenTerminal(agent);
   const call = (f: () => Promise<unknown>) => void run.go(() => f().catch((e: unknown) => toast(why(e), { tone: 'warning' })));
   if (go === 'retry')
     return (
@@ -61,7 +63,18 @@ export function SetGoingButton({
     );
   if (go === 'login')
     return <Button onClick={() => openSettings({ section: 'accounts', account: a?.account ?? undefined })}>Log in</Button>;
-  if (go === 'terminal') return <Button {...terminal}>Open terminal</Button>;
+  if (go === 'terminal') {
+    // A Chat agent's conversation moves into its terminal first; the terminal opens here either way.
+    const onClick: typeof terminal.onClick = (e) => {
+      if (moveIn.chat) moveIn.open();
+      terminal.onClick?.(e);
+    };
+    return (
+      <Button {...terminal} onClick={onClick}>
+        Open terminal
+      </Button>
+    );
+  }
   return (
     <Button busy={switchNow.isPending} onClick={() => account && call(() => switchNow.mutateAsync({ agent, account, request_id: uuid() }))}>
       <ArrowRightLeft size={14} />

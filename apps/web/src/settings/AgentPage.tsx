@@ -20,6 +20,7 @@ import { Sandbox } from '#src/settings/SandboxBlock.tsx';
 import { Schedules } from '#src/settings/Schedules.tsx';
 import { CompactionSettings, QuietSettings } from '#src/settings/Compaction.tsx';
 import { ScreenCaptureAgent } from '#src/settings/ScreenCapture.tsx';
+import { AgentSessionMode } from '#src/settings/SessionMode.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { useAccountPin } from '#src/chat/agent/accountPin.ts';
@@ -65,6 +66,7 @@ export function AgentPage({ agent }: { agent: string }) {
       <Lessons agent={agent} />
       <Schedules agent={agent} />
       <AllowRules agent={agent} />
+      <AgentSessionMode agent={agent} />
       <AccountPin agent={agent} />
       <Sandbox agent={agent} />
       <ScreenCaptureAgent agent={agent} />

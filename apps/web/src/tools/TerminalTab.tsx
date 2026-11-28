@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { paneKey, type AgentDetail, type ByteListener, type ByteTerminalView, type ByteViewState } from '@handline/client';
 import { useStore } from '@handline/app-react';
 import { useAgentDetail, useNameOf, useWrite } from '@handline/app-data';
+import { useOpenTerminal } from '#src/chat/agent/openTerminal.ts';
 import { RESIZE_MS } from '@handline/app-core';
 import { keep, reclaim } from '#src/terminal/keep.ts';
 import {
@@ -47,6 +48,16 @@ const reasonOf = (e: unknown) => (e as { reason?: string }).reason ?? (e as Erro
 export function TerminalTab({ agent }: { agent: string }) {
   const q = useAgentDetail(agent);
   const word = useNameOf()(agent);
+  const chat = useOpenTerminal(agent);
+  // A Chat agent's session has no screen: the tab offers to move it into its terminal instead.
+  if (chat.chat)
+    return (
+      <div className="grid min-h-0 flex-1 place-items-center bg-term-bg">
+        <Button variant="primary" busy={chat.busy} onClick={chat.open}>
+          Open terminal
+        </Button>
+      </div>
+    );
   if (!q.data)
     return (
       <div className="grid min-h-0 flex-1 place-items-center bg-term-bg text-xs text-term-ink">

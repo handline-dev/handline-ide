@@ -16,6 +16,7 @@ import { CompactionSettings, QuietSettings } from '#src/settings/Compaction.tsx'
 import { ScreenCaptureAll } from '#src/settings/ScreenCapture.tsx';
 import { SettingsPage } from '#src/settings/SettingsPage.tsx';
 import { Input, Select } from '#src/ui/Field.tsx';
+import { WorkspaceSessionMode } from '#src/settings/SessionMode.tsx';
 import { ToolLogo } from '#src/ui/ToolLogo.tsx';
 import { Toggle } from '#src/ui/Toggle.tsx';
 
@@ -44,7 +45,7 @@ export function AgentsTab() {
     );
   };
   return (
-    <SettingsPage keep="settings-agents" title="Agents" note="The model and effort a new agent gets. Agents you already have keep theirs.">
+    <SettingsPage keep="settings-agents" title="Agents" note="What agents start with and how they run.">
       {values && opts && (
         <Block title="New agents start with">
           <Setting title="Claude Code" icon={<ToolLogo tool="claude" />}>
@@ -61,6 +62,7 @@ export function AgentsTab() {
           </Setting>
         </Block>
       )}
+      <WorkspaceSessionMode />
       {values && (
         <Block title="Review">
           <Setting title="Check finished work before it lands">

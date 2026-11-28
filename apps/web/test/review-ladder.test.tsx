@@ -28,6 +28,7 @@ vi.mock('@handline/app-data', () => ({
   useAgentMemory: () => ({ data: undefined }),
   useAgentReview: () => ok({ agent: 'ui', ladder, lessons: 0 }),
   useAgentDetail: () => ok({ settings: { ...settings } }),
+  useAgents: () => ok({ agents: [] }),
   useLessons: () => ok({ items: [] }),
   useRead: (m: string) => ({ data: m === 'access.list' ? { rules: [] } : undefined }),
   useSettings: () => ({ isSuccess: false }),
