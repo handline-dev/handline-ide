@@ -3,6 +3,7 @@ package sim
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,5 +135,44 @@ func TestASessionsEndShutsDownWhatItBootedAndLeavesWhatItFound(t *testing.T) {
 		if strings.Contains(c, "emulator-5556") || strings.Contains(c, "emulator-5558") {
 			t.Errorf("a device a did not boot was touched: %s", c)
 		}
+	}
+}
+
+func TestAndroidLaunchStartsTheLauncherActivityAndRotateLocksTheDisplayWithWm(t *testing.T) {
+	sdk := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sdk, "platform-tools"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sdk, "platform-tools", "adb"), nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANDROID_HOME", sdk)
+	var calls []string
+	noWm := false
+	e := &Env{Home: t.TempDir(), Run: func(name string, args ...string) ([]byte, error) {
+		c := strings.Join(args, " ")
+		calls = append(calls, c)
+		switch {
+		case strings.Contains(c, "resolve-activity"):
+			return []byte("priority=0 preferredOrder=0\ncom.android.settings/.Settings\n"), nil
+		case strings.Contains(c, "wm user-rotation") && noWm:
+			return []byte("Unknown command"), errors.New("exit status 255")
+		}
+		return []byte("Status: ok"), nil
+	}}
+	a, b := &android{e: e}, &Booted{Serial: "emulator-5554"}
+	if err := a.launch(b, "com.android.settings"); err != nil {
+		t.Fatal(err)
+	}
+	if want := "-s emulator-5554 shell am start -W -n com.android.settings/.Settings"; calls[len(calls)-1] != want {
+		t.Errorf("launch ran %q, want %q", calls, want)
+	}
+	calls = nil
+	if err := a.rotate(b, "left"); err != nil || len(calls) != 1 || calls[0] != "-s emulator-5554 shell wm user-rotation lock 1" {
+		t.Errorf("rotate left ran %q, %v", calls, err)
+	}
+	calls, noWm = nil, true
+	if err := a.rotate(b, "right"); err != nil || len(calls) != 3 || calls[2] != "-s emulator-5554 shell settings put system user_rotation 3" {
+		t.Errorf("rotate right with no wm user-rotation ran %q, %v", calls, err)
 	}
 }
