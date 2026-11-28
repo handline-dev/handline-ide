@@ -1,6 +1,7 @@
 // Lent machines for Settings › Devices: a Mac on Run with an agent and one it cannot run, a server on Pause, a Mac on another build, a Mac
 // offline since a while ago, and another Mac on Off. The master's own Mac stays first, with the seeded phones after.
 import type { FakeDaemon } from '#src/daemon.ts';
+import { holdPlaced } from '#src/heldon.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
@@ -38,5 +39,6 @@ export const DEVICE_SEEDS: Record<string, Seed> = {
       lent: { online: false, last_seen: ago(48) },
     });
     d.admin.lend({ id: 'd-air', name: 'Air', kind: 'mac', lending: 'off' });
+    holdPlaced(d);
   },
 };

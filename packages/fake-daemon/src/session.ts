@@ -140,6 +140,7 @@ export function view(s: Session, tasks: TaskCounter): AgentView {
     task_count: tasks.taskCount(s.fx.name, s.fx.task?.id ?? null),
     waits_on: s.state === 'running' ? null : tasks.waitsOn(s.fx.name, s.fx.task?.id ?? null),
     steps: tasks.steps(s.fx.task?.id ?? null),
+    held_on: null,
     ...s.fx.view,
   };
 }

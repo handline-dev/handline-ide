@@ -129,6 +129,15 @@ export class ChatStore {
     t.items.push({ id, at: item.at ?? this.now(), ...item });
     return id;
   }
+  /** A transcript item the daemon writes now, sent as chat.transcript. */
+  addItem(agent: string, item: Omit<TranscriptItem, 'id' | 'at'>): void {
+    const id = this.seedItem(agent, item);
+    this.emit(
+      'chat.transcript',
+      agent,
+      this.thread(agent).items.find((i) => i.id === id)!,
+    );
+  }
   /** A question from the agent to the person, waiting for the person. */
   ask(agent: string, body: string, person: string): number {
     const at = this.now();

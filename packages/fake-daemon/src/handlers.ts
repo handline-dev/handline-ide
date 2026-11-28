@@ -142,11 +142,6 @@ const BASE: Record<string, (h: Call) => unknown> = {
     script.setState(s, 'running', actor);
     return script.accepted(`${s.fx.name}: started`);
   },
-  // As the daemon with no runners: every session is on this machine, so the press is always refused.
-  'agent.restart_here': ({ agent }) => {
-    agent();
-    throw refused('state', 'its session is not on another machine');
-  },
   'agent.retire': ({ p, actor, script, agent }) => script.retire(agent(), actor, p.worktree as string | undefined),
   'session.stop': (h) => {
     const { p, actor, script, agent } = h;
