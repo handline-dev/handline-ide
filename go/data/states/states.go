@@ -48,6 +48,8 @@ const (
 	MoveBeforeWeekPct = 98
 	// FoldKind is the event the tick writes when it closes an idle session fresh for its full context, and the cost-pilot switch for it.
 	FoldKind = "idle_fold"
+	// FreshAfterTaskKey is the switch that starts a new session between unrelated tasks; global and per agent, off by default.
+	FreshAfterTaskKey = "fresh_after_task"
 	// CompactAskedKind is the event session.compact writes: the tick hands the agent off as for a full context until a handoff or a new
 	// session comes after it.
 	CompactAskedKind = "compact_asked"

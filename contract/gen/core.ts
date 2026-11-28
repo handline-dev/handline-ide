@@ -483,6 +483,8 @@ export type SettingsValues = {
   no_silence_reminder?: boolean;
   /** An agent the reclaim takes back from a machine offline past node_reclaim_s, still holding a task or with requests waiting, is started again at once on a machine that can take it, fresh from its handoff. Off: it stays closed until a request wakes it. Per agent with `agent`: that agent's own switch, over the global one. */
   restart_reclaimed?: boolean;
+  /** Before an agent's next task, when it is unrelated to the task the agent just closed (not the same task, not the same parent, neither the other's parent, not begun in this session), the agent writes its handoff note and starts a new session, and the task is delivered there. Off: one session runs on across tasks. Per agent with `agent`: that agent's own switch, over the global one. */
+  fresh_after_task?: boolean;
   /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. */
   screencapture_via_handline?: boolean;
 };
@@ -599,6 +601,8 @@ export type SettingsChanges = {
   no_silence_reminder?: boolean | null;
   /** An agent the reclaim takes back from a machine offline past node_reclaim_s, still holding a task or with requests waiting, is started again at once on a machine that can take it, fresh from its handoff. Off: it stays closed until a request wakes it. Per agent with `agent`: that agent's own switch, over the global one. null removes the key (back to the default). */
   restart_reclaimed?: boolean | null;
+  /** Before an agent's next task, when it is unrelated to the task the agent just closed (not the same task, not the same parent, neither the other's parent, not begun in this session), the agent writes its handoff note and starts a new session, and the task is delivered there. Off: one session runs on across tasks. Per agent with `agent`: that agent's own switch, over the global one. null removes the key (back to the default). */
+  fresh_after_task?: boolean | null;
   /** Refuse a shell screencapture in an agent's Bash command and name the way through Handline instead: hl screen for a window, hl browser shot for a web page, hl sim screenshot for a phone app, node tools/app.mjs shot for Handline's own test app. Off: the command runs. null removes the key (back to the default). */
   screencapture_via_handline?: boolean | null;
   /** The model a new claude agent gets when it is made without one: an agent.options model alias or a full model id, passed to the CLI as is. One word, not starting with -. Existing agents keep theirs. null removes the key (back to the default). */
@@ -1263,7 +1267,7 @@ export interface CoreMethods {
 }; result: Settings };
   "settings.set": { params: {
   changes: SettingsChanges;
-  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s, compact_at_task_end, compact_now_stops_turn, no_silence_reminder, restart_reclaimed. Any other key with `agent` is bad_request. */
+  /** Write the per-agent override of: park_timeout_s, ignore_cache_expiry, bg_notice_s, bg_grace_s, bg_check_s, notice_digest_s, handoff_prompt, account_split, block_screen_capture, move_background_wait_s, compact_at_task_end, compact_now_stops_turn, no_silence_reminder, restart_reclaimed, fresh_after_task. Any other key with `agent` is bad_request. */
   agent?: Who;
   request_id: RequestId;
 }; result: Accepted };

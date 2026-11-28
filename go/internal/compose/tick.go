@@ -751,6 +751,7 @@ func (c tickConfig) AgentConfig(agent string) map[string]any {
 	return cfg
 }
 func (c tickConfig) Seconds(key string, def int64) int64 { return c.set.ConfigSeconds(key, def) }
+func (c tickConfig) Flag(key string, def bool) bool      { return c.set.Flag(key, def) }
 func (c tickConfig) MoveBeforePct() int {
 	return c.set.PercentOr(usage.MoveBeforeKey, usage.MoveBeforeDefault)
 }

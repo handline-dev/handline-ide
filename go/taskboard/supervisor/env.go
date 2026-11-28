@@ -28,6 +28,9 @@ type Env struct {
 	Sleep func(time.Duration)
 	// LoadHeld is why the machine's load holds new work for an agent, "" when it does not (loadgate); nil holds nothing.
 	LoadHeld func(agent string) string
+	// FreshDue is whether agent starts a new session before its next task (the cost pilot's fresh_after_task): the task waits for that
+	// session. Nil is never.
+	FreshDue func(q db.Q, agent string) (bool, error)
 	// Paused is the founder's pause of new work (package pause), "" when there is none; nil is never. It holds a message an agent or the
 	// daemon sends to an agent not mid-turn: told, it would start a turn.
 	Paused func() string

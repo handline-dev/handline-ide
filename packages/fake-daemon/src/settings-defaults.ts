@@ -30,6 +30,7 @@ export const DEFAULTS: Settings['values'] = {
   compact_now_stops_turn: false,
   no_silence_reminder: false,
   restart_reclaimed: false,
+  fresh_after_task: false,
   screencapture_via_handline: false,
   agent_placement: 'auto',
   review_flow: false,

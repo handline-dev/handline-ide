@@ -15,9 +15,9 @@ import (
 const (
 	RenewalKey = "cache_renewal"
 	FoldKey    = states.FoldKind
-	// FreshKey (fresh_after_task: true) starts a new session after each finished task: the context handoff, once the agent holds no
-	// other task. Off until an agent's own setting turns it on; the auditors, whose every review is a fresh look, are who it is for.
-	FreshKey = "fresh_after_task"
+	// FreshKey (fresh_after_task: true) starts a new session between unrelated tasks (FreshDue): the context handoff, before the next
+	// task is delivered. The agent's own setting, else config.yaml's; off by default.
+	FreshKey = states.FreshAfterTaskKey
 	// FreshKind is the kind a handoff for it carries: not a wall and not a full context, so it parks for no time and wakes at once.
 	FreshKind = "task_done"
 	// RenewLeadS: a renewal is asked in the last stretch of the cache's life, wide enough that one 30-second tick cannot step over it.
@@ -42,7 +42,7 @@ type CostPorts interface {
 	ReadCache(transcriptPath string) *CacheClock
 }
 
-// CostPilot reads an agent's own switches; there is no global one, and absent means off.
+// CostPilot reads an agent's own switches, and config.yaml's for FreshKey; absent means off.
 type CostPilot struct{ Ports CostPorts }
 
 func (c *CostPilot) own(t *Tick, agent, key string) any { return t.Config.AgentConfig(agent)[key] }
@@ -223,27 +223,86 @@ func (c *CostPilot) Fold(t *Tick, agent string, now int64, st Status) (bool, str
 	return ok, why
 }
 
-// FreshDue is whether this agent is owed a fresh session: its switch is on, its session is open, it finished a task (done, or handed on
-// to another owner) since its last session began or was handed off, and it holds no other open task. Mid-turn is the handoff's own concern: it defers to the turn's end
-// and asks for the note first, as it does for a full context. A level read from the record, never an edge: it is due on every tick until a
-// handoff or a new session is recorded after the task was done.
-func (c *CostPilot) FreshDue(t *Tick, agent string, row *db.AgentState) bool {
-	if !c.flag(t, agent, FreshKey) || closedAt(row) {
+// FreshDue is whether this agent is owed a fresh session before its next task: its switch is on (its own, else config.yaml's), its
+// session is open, it closed a task (done, or handed on) since its last session began or was handed off, it has no task in progress, and
+// the task at the head of its queue is unrelated to the one it closed. Related is the same task, the same parent, one the other's
+// parent, or one this session already began. A task that only waits (blocked, or on another's turn) is not in progress. A level read
+// from the record, never an edge: due on every tick until a handoff or a new session comes after the close; the delivery holds the head
+// while it is due (FreshHeld), so the task goes to the new session.
+func FreshDue(q db.Q, cfg Config, agent string, row *db.AgentState) bool {
+	if row == nil || closedAt(row) || !freshOn(cfg, agent) {
 		return false
 	}
-	var doneAt sql.NullInt64 // the later of its last done task and the last task it handed on
-	check(t.Q.QueryRow("SELECT MAX(at) FROM (SELECT MAX(done_at) AS at FROM tasks WHERE owner = ? AND done_evidence IS NOT NULL "+
-		"UNION ALL SELECT MAX(ts) FROM events WHERE kind = 'task_handoff' AND json_extract(payload, '$.from') = ?)", agent, agent).Scan(&doneAt))
-	if !doneAt.Valid {
+	var last sql.NullInt64 // the task it closed last
+	var closed int64       // and when
+	err := q.QueryRow("SELECT id, at FROM (SELECT id, done_at AS at FROM tasks WHERE owner = ? AND done_evidence IS NOT NULL AND done_at IS NOT NULL "+
+		"UNION ALL SELECT json_extract(payload, '$.task_id'), ts FROM events "+
+		"WHERE kind = 'task_handoff' AND json_valid(payload) AND json_extract(payload, '$.from') = ?) "+
+		"ORDER BY at DESC LIMIT 1", agent, agent).Scan(&last, &closed)
+	if err == sql.ErrNoRows {
 		return false
 	}
-	var open int
-	check(t.Q.QueryRow("SELECT COUNT(*) FROM tasks WHERE owner = ? AND "+db.OpenSQL, agent).Scan(&open))
-	if open > 0 {
-		return false
-	}
+	check(err)
 	var began sql.NullInt64 // the later of the last handoff and the last session start
-	check(t.Q.QueryRow("SELECT MAX(at) FROM (SELECT MAX(updated) AS at FROM handoff WHERE agent = ? "+
+	check(q.QueryRow("SELECT MAX(at) FROM (SELECT MAX(updated) AS at FROM handoff WHERE agent = ? "+
 		"UNION ALL SELECT MAX(ts) FROM events WHERE agent = ? AND kind = 'SessionStart')", agent, agent).Scan(&began))
-	return !began.Valid || doneAt.Int64 > began.Int64
+	if began.Valid && closed <= began.Int64 {
+		return false
+	}
+	if inProgress(q, agent) {
+		return false
+	}
+	head := must(db.EffectiveTaskHead(q, agent))
+	if head == nil {
+		return false // nothing to start fresh for yet: decided when the next task comes
+	}
+	var prev *db.Task
+	if last.Valid {
+		prev = must(db.GetTask(q, last.Int64))
+	}
+	for _, next := range must(db.TasksForRequest(q, head.ID)) {
+		if next.Acting == agent && !related(prev, next) && !must(db.BegunSince(q, next.ID, began.Int64)) {
+			return true
+		}
+	}
+	return false
+}
+
+// FreshHeld is whether the delivery holds agent's next task for a fresh session: FreshDue, only while the tick can hand the agent off
+// (applies is the tick's TriggersApply, and the agent is not stalled) and no context compact is due, which goes first. A failure is the
+// error.
+func FreshHeld(q db.Q, cfg Config, agent string, applies func(*db.AgentState) bool) (held bool, err error) {
+	err = guard(func() {
+		row := must(db.GetAgentState(q, agent))
+		if row == nil || !applies(row) || row.State == states.Stalled || must(db.CompactDueSince(q, agent)) != 0 {
+			return
+		}
+		held = FreshDue(q, cfg, agent, row)
+	})
+	return held, err
+}
+
+func freshOn(cfg Config, agent string) bool {
+	if b, ok := cfg.AgentConfig(agent)[FreshKey].(bool); ok {
+		return b
+	}
+	return cfg.Flag(FreshKey, false)
+}
+
+// inProgress: the agent's current task is open, its own to act on, and waits on nothing.
+func inProgress(q db.Q, agent string) bool {
+	tid, ok := must2(db.CurrentTask(q, agent))
+	if !ok {
+		return false
+	}
+	t := must(db.GetTask(q, tid))
+	return t != nil && !t.Ended() && t.Acting == agent && !must(db.TaskWaits(q, tid))
+}
+
+func related(a, b *db.Task) bool {
+	if a == nil {
+		return false
+	}
+	pa, pb := a.ParentTask, b.ParentTask
+	return a.ID == b.ID || pa.Valid && pb.Valid && pa.Int64 == pb.Int64 || pa.Valid && pa.Int64 == b.ID || pb.Valid && pb.Int64 == a.ID
 }

@@ -37,6 +37,16 @@ func Begun(q Q, tid int64) (bool, error) {
 	return err == nil, err
 }
 
+// BegunSince is whether the task was begun (task_begin, task_self_start) at since or later.
+func BegunSince(q Q, tid, since int64) (bool, error) {
+	var one int
+	err := q.QueryRow("SELECT 1 FROM events WHERE kind IN ('task_begin', 'task_self_start') AND "+eventTask+" = ? AND ts >= ? LIMIT 1", tid, since).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // ReadsDoing is whether the task has been sent to its owner, or it was begun on a founder message (TaskFacts.Asked).
 func ReadsDoing(q Q, tid int64) (bool, error) {
 	t, err := GetTask(q, tid)

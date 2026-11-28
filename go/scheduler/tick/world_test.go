@@ -47,6 +47,7 @@ type world struct {
 	idleHave    bool
 	delivered   bool
 	cfg         map[string]any
+	global      map[string]any // config.yaml
 	noteEnabled bool
 	asked       bool
 	askedTurns  int
@@ -205,6 +206,12 @@ type wConfig struct{ w *world }
 func (c wConfig) AgentConfig(string) map[string]any { return c.w.cfg }
 func (c wConfig) Seconds(_ string, def int64) int64 { return def }
 func (c wConfig) MoveBeforePct() int                { return c.w.moveBefore }
+func (c wConfig) Flag(key string, def bool) bool {
+	if b, ok := c.w.global[key].(bool); ok {
+		return b
+	}
+	return def
+}
 
 type wCost struct{ w *world }
 

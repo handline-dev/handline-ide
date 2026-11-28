@@ -47,6 +47,10 @@ const NoSilenceReminderKey = "no_silence_reminder"
 // started again at once on a machine that can take it. Global and per agent; off by default.
 const RestartReclaimedKey = "restart_reclaimed"
 
+// FreshAfterTaskKey: before an agent's next task, when it is unrelated to the task the agent just closed, the agent writes its note and
+// starts a new session, which the task goes to. Global and per agent; off by default.
+const FreshAfterTaskKey = states.FreshAfterTaskKey
+
 // ClusterNameKey is the cluster's name, kept on the board (meta): two random words given at the first start without one, changed by
 // the owner.
 const ClusterNameKey = "cluster_name"

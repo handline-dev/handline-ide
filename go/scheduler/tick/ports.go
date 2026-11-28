@@ -149,4 +149,6 @@ type Config interface {
 	Seconds(key string, def int64) int64
 	// MoveBeforePct is usage_move_before_pct (usage.MoveBeforeKey), the 5-hour window's; 0 is off.
 	MoveBeforePct() int
+	// Flag is a config.yaml switch, def when it is not set.
+	Flag(key string, def bool) bool
 }

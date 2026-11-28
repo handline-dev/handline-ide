@@ -28,6 +28,7 @@ const KEYS = [
   'compact_now_stops_turn',
   'no_silence_reminder',
   'restart_reclaimed',
+  'fresh_after_task',
   'screencapture_via_handline',
   'agent_placement',
   'review_flow',

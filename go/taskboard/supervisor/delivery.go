@@ -164,6 +164,9 @@ func (e *Env) DeliverQueued(q db.Q, agent string) (sent bool, err error) {
 	if why := e.handingOff(q, agent, batchOps(batch)...); why != "" {
 		return e.holdBack(agent, head, why), nil
 	}
+	if e.FreshDue != nil && must(e.FreshDue(q, agent)) {
+		return e.holdBack(agent, head, "held for the fresh session that starts before it"), nil
+	}
 	// Only a structured or peer session takes a write; nothing is typed at a terminal.
 	if !e.structuredAgent(agent) || !e.Agents.Live(agent) {
 		why := "no live session"

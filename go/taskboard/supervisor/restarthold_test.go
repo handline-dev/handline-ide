@@ -196,3 +196,19 @@ func TestAMessageWhileACompactIsHeldStaysQueuedPastTheCeilingAndGoesToTheFreshSe
 		t.Fatalf("no arrival line: %q", last)
 	}
 }
+
+// A task the cost pilot starts a fresh session for is not told to the session about to close; once it is no longer due, it is told.
+func TestATaskWaitsForTheFreshSessionDueBeforeIt(t *testing.T) {
+	r := newRig(t)
+	r.agentUp(r.k("bob"))
+	due := true
+	r.FreshDue = func(db.Q, string) (bool, error) { return due, nil }
+	r.task(r.k("bob"), r.k("alice"), "a task")
+	if sent, _ := r.DeliverQueued(r.DB, r.k("bob")); sent || r.term.last() != "" {
+		t.Fatalf("told the session that is to close: %q", r.term.last())
+	}
+	due = false
+	if sent, _ := r.DeliverQueued(r.DB, r.k("bob")); !sent {
+		t.Fatal("not told once the fresh session is up")
+	}
+}

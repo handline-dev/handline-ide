@@ -429,7 +429,7 @@ func (t *Tick) supervise(agent string, now int64, actions *[]string, afterHandof
 	if _, _, kept := must3(db.NoteWaitKept(q, agent, now)); !kept {
 		in.CompactBy = compactAsked(q, agent) // a note already awaited goes on as its own kind, and its handoff spends the ask
 	}
-	in.FreshDue = atWall == nil && !trig.Fired && t.Cost.FreshDue(t, agent, row)
+	in.FreshDue = atWall == nil && !trig.Fired && FreshDue(q, t.Config, agent, row)
 	if t.OffMachine != nil {
 		in.OffMachine = t.OffMachine(agent)
 	}

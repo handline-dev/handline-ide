@@ -29,6 +29,7 @@ import (
 	"github.com/handline/handline/go/scheduler/loadgate"
 	"github.com/handline/handline/go/scheduler/pause"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/tick"
 	"github.com/handline/handline/go/scheduler/worktreelock"
 	"github.com/handline/handline/go/scheduler/worktreepool"
 	"github.com/handline/handline/go/taskboard/handoff"
@@ -191,6 +192,10 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	}
 	lc.Env.LoadHeld = forWork
 	lc.Env.Paused = gate.Paused
+	freshCfg := tickConfig{roster: roster, set: settings}
+	lc.Env.FreshDue = func(q db.Q, agent string) (bool, error) {
+		return tick.FreshHeld(q, freshCfg, agent, lifecycle.TriggersApply)
+	}
 	lc.Env.ActNow = p.ActNow
 	desks := &worktreepool.Pool{DB: q, Setup: spawns.Prepare, Now: cfg.Now,
 		Running: func(repo, desk string) bool { return worktreelock.Held(repo, desk, worktreelock.Running) != "" },
