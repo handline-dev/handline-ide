@@ -23,3 +23,22 @@ func TestTheToldCommentAndItsLeadCursorSayComment(t *testing.T) {
 		t.Fatalf("told in %d; cursors %q", told, names)
 	}
 }
+
+// The cursors the removed once-only sweeps kept are dropped, and any other cursor stays.
+func TestTheRemovedSweepsCursorsGo(t *testing.T) {
+	db := atVersion(t, 155)
+	for _, q := range []string{
+		"INSERT INTO cursors(name, row_id, updated) VALUES ('memo_asks_of_ended_tasks_withdrawn', 1, 1), " +
+			"('memo_asks_unaddressed_withdrawn', 1, 1), ('other', 2, 1)",
+		step(t, "drop_sweep_cursors"),
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	var names string
+	db.QueryRow("SELECT group_concat(name, ',') FROM cursors").Scan(&names)
+	if names != "other" {
+		t.Fatalf("cursors %q", names)
+	}
+}
