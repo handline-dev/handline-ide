@@ -13,6 +13,7 @@
   --color-surface: var(--surface);
   --color-hover: var(--hover);
   --color-selected: var(--selected);
+  --color-selected-other: color-mix(in srgb, var(--selected) 45%, var(--surface));
   --color-border: var(--border);
   --color-fg: var(--fg);
   --color-muted: var(--muted);

@@ -19,7 +19,8 @@ export function Row({
   opens: string;
   title: string;
   icon: ReactNode;
-  selected?: boolean;
+  /** True for the focused pane's item; 'other' for one another pane shows, lit more quietly. */
+  selected?: boolean | 'other';
   /** Drawn at the right end, muted (a time). */
   trail?: ReactNode;
   /** A second line under the title, one line long (an unread message, or what it waits on). */
@@ -36,10 +37,11 @@ export function Row({
     <div
       {...spring.props}
       role="button"
-      aria-current={selected || undefined}
+      aria-current={selected === true || undefined}
+      data-other={selected === 'other' || undefined}
       tabIndex={0}
       {...useOpenable(opens, { here: onShow, menu })}
-      className="group flex cursor-default flex-col rounded-md px-2 py-0.5 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[spring]:bg-hover"
+      className="group flex cursor-default flex-col rounded-md px-2 py-0.5 text-base text-fg outline-none select-none focus-visible:bg-hover aria-[current]:bg-selected data-[other]:bg-selected-other data-[spring]:bg-hover"
     >
       <span className="flex h-5 items-center gap-1.5 group-aria-[current]:font-medium">
         <span className="grid size-4 shrink-0 place-items-center text-muted">{icon}</span>
@@ -65,3 +67,7 @@ export function Row({
     </div>
   );
 }
+
+/** How a row is marked: lit when the focused pane shows it, lit quietly when another pane does. */
+export const markOf = (shown: string[], here: string | undefined, key: string): boolean | 'other' =>
+  shown.includes(key) ? (key === here ? true : 'other') : false;

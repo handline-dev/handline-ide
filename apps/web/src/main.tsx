@@ -43,7 +43,7 @@ function App() {
   const townOpen = useTownOpen();
   const [width, setWidth] = useState(sidebarWidth.initial);
   const [dragging, setDragging] = useState(false);
-  const { shown, agent, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
+  const { shown, agent, page, onScreen, layout, focus, setFocus, select, selectPage, dispatch, reopenClosed } = useScreenLayout();
   // What the focused tab shows is what the palette offers again, newest first.
   useEffect(() => noteRecent(shown), [shown]);
   const root = useRef<HTMLDivElement>(null);
@@ -87,7 +87,11 @@ function App() {
             className="flex shrink-0 flex-col overflow-hidden bg-surface"
           >
             <div className="app-drag shrink-0" style={{ height: 'max(40px, calc(var(--controls-top, 6px) + 34px))' }} />
-            {ready ? <Sidebar width={width} onScreen={onScreen} onSelectPage={goPage} onSelectAgent={select} /> : <SidebarSkeleton />}
+            {ready ? (
+              <Sidebar width={width} onScreen={onScreen} here={agent ?? page ?? undefined} onSelectPage={goPage} onSelectAgent={select} />
+            ) : (
+              <SidebarSkeleton />
+            )}
           </motion.div>
           {open && (
             <Splitter

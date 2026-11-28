@@ -8,7 +8,7 @@ import { MessageSquareDot } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { activityOf, holdLine, type Activity } from '#src/layout/agentList.ts';
 import { chatOf } from '#src/layout/kinds.tsx';
-import { Row } from '#src/sidebar/Row.tsx';
+import { markOf, Row } from '#src/sidebar/Row.tsx';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
 import { IconButton } from '#src/ui/IconButton.tsx';
 
@@ -37,7 +37,7 @@ export function UnreadButton() {
 
 /** The unread view: the agents that wrote to the founder, newest first, as workspace/agent; one read here stays until the view is
  * left. Esc, like a second click, goes back. */
-export function UnreadList({ shown, onSelect }: { shown: string[]; onSelect: (name: string) => void }) {
+export function UnreadList({ shown, here, onSelect }: { shown: string[]; here?: string; onSelect: (name: string) => void }) {
   const agents = useAgents().data?.agents ?? [];
   const { change } = useNav();
   const nameOf = useNameOf();
@@ -67,7 +67,7 @@ export function UnreadList({ shown, onSelect }: { shown: string[]; onSelect: (na
           opens={chatOf(a.key)}
           title={names.get(a.key) ? `${names.get(a.key)}/${nameOf(a.key)}` : nameOf(a.key)}
           icon={<ActivityIcon act={activityOf(a)} />}
-          selected={shown.includes(a.key)}
+          selected={markOf(shown, here, a.key)}
           onShow={() => onSelect(a.key)}
           note={holdLine(a) ?? noteOf(a)}
           unread={a.founder_unread ?? 0}

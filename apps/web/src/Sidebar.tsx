@@ -23,7 +23,7 @@ import { activityOf, holdLine, ordered, splitPinned, waitsOf } from '#src/layout
 import { WaitsLine, WaitsMark } from '#src/ui/WaitsOn.tsx';
 import { chatOf, footerPages, pages, workspaceOf } from '#src/layout/kinds.tsx';
 import { useOpenable } from '#src/layout/openable.tsx';
-import { Row } from '#src/sidebar/Row.tsx';
+import { markOf, Row } from '#src/sidebar/Row.tsx';
 import { SearchRow } from '#src/palette/SearchRow.tsx';
 import { FoldMarks, UnreadButton, UnreadList } from '#src/sidebar/Unread.tsx';
 import { SetupCard } from '#src/onboarding/SetupCard.tsx';
@@ -73,6 +73,8 @@ function AgentRowCard({ agent, jobs, beside = [], children }: { agent: string; j
 type Pick = {
   /** The agents on screen (every pane's shown tab), each marked as picked. */
   shown: string[];
+  /** The one the focused pane shows. */
+  here?: string;
   onSelect: (name: string) => void;
 };
 
@@ -131,7 +133,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: Merged[]; pick: Pic
                 opens={opens}
                 menu={false}
                 title={nameOf(agent.key)}
-                selected={pick.shown.includes(agent.key)}
+                selected={markOf(pick.shown, pick.here, agent.key)}
                 onShow={() => pick.onSelect(agent.key)}
                 icon={waitsOf(agent) ? <WaitsMark /> : <ActivityIcon act={activityOf(agent)} />}
                 // Its queued tasks, and when it last worked: now while running, else since it stopped (state_since).
@@ -311,6 +313,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
 function JoinedAgents({ joined, pick }: { joined: Joined; pick: Pick }) {
   const inIt: Pick = {
     shown: pick.shown.map(splitSpace).flatMap((h) => (h.cluster === joined.id ? [h.agent] : [])),
+    here: pick.here && splitSpace(pick.here).cluster === joined.id ? splitSpace(pick.here).agent : undefined,
     onSelect: (name) => pick.onSelect(spaceOf(joined.id, name)),
   };
   return (
@@ -325,12 +328,15 @@ function JoinedAgents({ joined, pick }: { joined: Joined; pick: Pick }) {
 export function Sidebar({
   width,
   onScreen,
+  here,
   onSelectPage,
   onSelectAgent,
 }: {
   width: number;
   /** What the panes show (agents' keys, pages' kinds): each is marked as picked. */
   onScreen: string[];
+  /** What the focused pane shows. */
+  here?: string;
   onSelectPage: (kind: string, title: string) => void;
   onSelectAgent: (name: string) => void;
 }) {
@@ -350,22 +356,22 @@ export function Sidebar({
             opens={p.kind}
             title={p.label}
             icon={p.icon}
-            selected={onScreen.includes(p.kind)}
+            selected={markOf(onScreen, here, p.kind)}
             onShow={() => onSelectPage(p.kind, p.label)}
           />
         ))}
       </nav>
       <div ref={scroller} style={fade} className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2">
         {unreadOnly ? (
-          <UnreadList shown={onScreen} onSelect={onSelectAgent} />
+          <UnreadList shown={onScreen} here={here} onSelect={onSelectAgent} />
         ) : (
           <>
             <Agents
-              pick={{ shown: onScreen, onSelect: onSelectAgent }}
+              pick={{ shown: onScreen, here, onSelect: onSelectAgent }}
               onNew={(ws) => void newAgent(ws).then((name) => name && onSelectAgent(name))}
             />
             {joined.map((j) => (
-              <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, onSelect: onSelectAgent }} />
+              <JoinedAgents key={j.id} joined={j} pick={{ shown: onScreen, here, onSelect: onSelectAgent }} />
             ))}
           </>
         )}
