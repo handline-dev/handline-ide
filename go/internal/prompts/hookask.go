@@ -42,15 +42,21 @@ type hookWaits struct {
 	labels map[int64][]string
 }
 
-func (w *hookWaits) add(id int64, rule string, labels []string) chan Decision {
+// open runs insert, which opens a row and gives its id (0 when none opened), and holds the row's wait
+// in the same lock: an answer that finds the row finds its wait too.
+func (w *hookWaits) open(insert func() (int64, error), rule string, labels []string) (int64, chan Decision, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	id, err := insert()
+	if err != nil || id == 0 {
+		return 0, nil, err
+	}
 	if w.by == nil {
 		w.by, w.rules, w.labels = map[int64]chan Decision{}, map[int64]string{}, map[int64][]string{}
 	}
 	ch := make(chan Decision, 1)
 	w.by[id], w.rules[id], w.labels[id] = ch, rule, labels
-	return ch
+	return id, ch, nil
 }
 
 // optionLabels are the labels of the question the waiting call on id asked.
@@ -176,17 +182,26 @@ func (e *Env) raise(ctx context.Context, q question, movedOn bool) (d Decision, 
 	var since int64 // the agent's latest event now: a turn event after it means the agent has moved on from this question
 	_ = e.DB.QueryRow("SELECT COALESCE(MAX(id), 0) FROM events WHERE agent = ?", agent).Scan(&since)
 	var id, opened int64
+	var ch chan Decision
 	for id == 0 {
 		now := e.now().Unix()
-		// The time is in the fingerprint: the same command asked again is another question, and an answer to the last one is stale.
-		res, err := e.DB.Exec("INSERT OR IGNORE INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) "+
-			"VALUES(?,?,?,?,?,?,1,?,?)", agent, q.kind, Fingerprint(q.kind, append(slices.Clone(q.panel), fmt.Sprint(now))), q.title,
-			jsonText(q.panel), jsonText(q.detail), now, now)
+		id, ch, err = e.hooks.open(func() (int64, error) {
+			// The time is in the fingerprint: the same command asked again is another question, and an answer to the last one is stale.
+			res, err := e.DB.Exec("INSERT OR IGNORE INTO prompt_blocks(agent, kind, fingerprint, title, panel, detail, answerable, first_seen, last_seen) "+
+				"VALUES(?,?,?,?,?,?,1,?,?)", agent, q.kind, Fingerprint(q.kind, append(slices.Clone(q.panel), fmt.Sprint(now))), q.title,
+				jsonText(q.panel), jsonText(q.detail), now, now)
+			if err != nil {
+				return 0, err
+			}
+			if n, _ := res.RowsAffected(); n != 1 {
+				return 0, nil
+			}
+			return res.LastInsertId()
+		}, q.offered, q.labels)
 		if err != nil {
 			return d, false, err
 		}
-		if n, _ := res.RowsAffected(); n == 1 {
-			id, _ = res.LastInsertId()
+		if id != 0 {
 			opened = now
 			break
 		}
@@ -199,7 +214,6 @@ func (e *Env) raise(ctx context.Context, q question, movedOn bool) (d Decision, 
 		case <-time.After(time.Second):
 		}
 	}
-	ch := e.hooks.add(id, q.offered, q.labels)
 	e.changed(agent)
 	defer func() {
 		e.hooks.take(id)
@@ -323,7 +337,7 @@ func (e *Env) permissionAsk(c *rpc.Conn, params map[string]any) (any, error) {
 func jsonText(v any) string { return jsontext.Spaced(v, true, true) }
 
 // closeOrphans closes agent's open hook and stream questions no call of this daemon waits on: their call went with a daemon that stopped
-// without closing them. One not kept fresh for StaleS only, so a question between its row and its wait is left be.
+// without closing them. Only one not kept fresh for StaleS.
 func (e *Env) closeOrphans(agent string, now int64) error {
 	rows, err := e.DB.Query("SELECT id FROM prompt_blocks WHERE agent = ? AND gone_at IS NULL AND last_seen < ? AND "+
 		"json_extract(detail, '$.source') IN (?, ?)", agent, now-StaleS, HookSource, StreamSource)
