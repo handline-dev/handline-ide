@@ -43,6 +43,7 @@ export const DEFAULTS: Settings['values'] = {
   agents_memory_max_gb: 0,
   node_battery_switch: false,
   node_reclaim_s: 1800,
+  restart_reclaimed: false,
   cluster_name: 'Blue Harbor',
   node_build_auto: true,
   port_range: null,

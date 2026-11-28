@@ -42,6 +42,7 @@ const KEYS = [
   'node_battery_switch',
   'node_build_auto',
   'node_reclaim_s',
+  'restart_reclaimed',
   'cluster_name',
   'port_range',
   'network_addresses',
@@ -126,5 +127,17 @@ test('lease.get gives each shared run as a pool: its at_once, who holds a turn a
   const build = kinds['mac:ios-build'];
   assert.deepEqual([build?.max, build?.held.length, build?.queue.map((w) => w.agent)], [1, 1, ['handline.term-build']]);
   assert.equal(kinds['w1:check']?.max, 2);
+  client.close();
+});
+
+test('restart_reclaimed is off until set, globally and for one agent over it', async () => {
+  const { client } = setup();
+  await client.start();
+  assert.equal((await client.call('settings.get', {})).values.restart_reclaimed, false);
+  await client.call('settings.set', { changes: { restart_reclaimed: true }, request_id: 'r1-a' });
+  assert.equal((await client.call('settings.get', {})).values.restart_reclaimed, true);
+  const agent = (await client.call('agents.list', {})).agents[0]!.key;
+  await client.call('settings.set', { agent, changes: { restart_reclaimed: false }, request_id: 'r1-b' });
+  assert.deepEqual((await client.call('settings.get', { agent })).overrides, { restart_reclaimed: false });
   client.close();
 });
