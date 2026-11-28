@@ -142,11 +142,10 @@ func TestADeviceSendsAFrameOnlyWhenItChangesAndStopsAskingWhenStopped(t *testing
 		t.Errorf("frames %v, want %v: a frame like the last is not sent", got, want)
 	}
 	mu.Unlock()
-	time.Sleep(20 * time.Millisecond) // a frame asked before the stop may still land
-	n := d.frames()
-	time.Sleep(50 * time.Millisecond)
-	if d.frames() != n {
-		t.Error("the device is still asked for frames after Stop")
+	select {
+	case <-c.looped: // nothing asks for a frame once the loop is gone
+	case <-time.After(5 * time.Second):
+		t.Fatal("the device is still asked for frames after Stop")
 	}
 }
 
