@@ -21,15 +21,17 @@ import (
 func Running(home, agent string) bool { return holder.Alive(paths.ChatSocket(home, agent)) }
 
 // New is term.Chat for t: a terminal is headless while the agent stamped on it runs under a Chat holder. port is what reads the
-// holders' streams; nil, or a port not built yet, knows nothing of them.
-func New(home string, t *term.Term, port func() *chatport.Port) term.Chat {
-	return chatTerm{home: home, t: t, port: port}
+// holders' streams; nil, or a port not built yet, knows nothing of them. A runner's terminal is stamped there, not here: onRunner is
+// the agent whose terminal it is (a relay serves its holder here, package chatrelay).
+func New(home string, t *term.Term, port func() *chatport.Port, onRunner func(handle string) string) term.Chat {
+	return chatTerm{home: home, t: t, port: port, onRunner: onRunner}
 }
 
 type chatTerm struct {
-	home string
-	t    *term.Term
-	port func() *chatport.Port
+	home     string
+	t        *term.Term
+	port     func() *chatport.Port
+	onRunner func(handle string) string
 }
 
 func (c chatTerm) stream() *chatport.Port {
@@ -68,7 +70,9 @@ func (c chatTerm) AtLimit(handle string) bool {
 	return atLimit(p.Limit(c.agent(handle)), time.Now().Unix())
 }
 
-func atLimit(l agent.Limit, now int64) bool { return l.Blocked && (l.ResetsAt == 0 || now < l.ResetsAt) }
+func atLimit(l agent.Limit, now int64) bool {
+	return l.Blocked && (l.ResetsAt == 0 || now < l.ResetsAt)
+}
 
 func (c chatTerm) StopBackground(handle string, ids []string) (int, error) {
 	p := c.stream()
@@ -79,6 +83,12 @@ func (c chatTerm) StopBackground(handle string, ids []string) (int, error) {
 }
 
 func (c chatTerm) agent(handle string) string {
+	if _, _, ok := term.OnRunner(handle); ok {
+		if c.onRunner == nil {
+			return ""
+		}
+		return c.onRunner(handle)
+	}
 	a, _ := c.t.PaneAgent(handle)
 	return a
 }

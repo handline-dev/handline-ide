@@ -204,6 +204,35 @@ func (r *Registry) agentsOn(node string) []string {
 	return out
 }
 
+// SessionsOn is the agents whose sessions are on node: each as the master opened it, mapped to its key.
+func (r *Registry) SessionsOn(node string) (map[string]string, error) {
+	rs, err := r.DB.Query("SELECT agent FROM node_sessions WHERE node = ?", node)
+	if err != nil {
+		return nil, err
+	}
+	var on []string
+	for rs.Next() {
+		var a string
+		if err := rs.Scan(&a); err != nil {
+			rs.Close()
+			return nil, err
+		}
+		on = append(on, a)
+	}
+	if err := errors.Join(rs.Err(), rs.Close()); err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(on))
+	for _, a := range on {
+		key := a
+		if r.local != nil {
+			key = r.local().AgentCaller(a).Key
+		}
+		out[a] = key
+	}
+	return out, nil
+}
+
 // Elsewhere is whether agent's session is on a runner. agent is its key; node_sessions keeps the agent as the master opened it, read
 // as a key the way the master's server reads it.
 func (r *Registry) Elsewhere(agent string) bool {
@@ -277,11 +306,20 @@ func (r *Registry) Stream(node, method string, params map[string]any, on func(ma
 
 // Call calls method on node over its link.
 func (r *Registry) Call(node, method string, params map[string]any) (map[string]any, error) {
+	return r.callWithin(node, method, params, CallWait)
+}
+
+// Quick is Call with ReadWait, for a read made every tick.
+func (r *Registry) Quick(node, method string, params map[string]any) (map[string]any, error) {
+	return r.callWithin(node, method, params, ReadWait)
+}
+
+func (r *Registry) callWithin(node, method string, params map[string]any, wait time.Duration) (map[string]any, error) {
 	run, err := r.Runner(node)
 	if err != nil {
 		return nil, err
 	}
-	return run.c.Call(method, params, CallWait)
+	return run.c.Call(method, params, wait)
 }
 
 // NodeOf is the node whose link c is; "" for any other connection.

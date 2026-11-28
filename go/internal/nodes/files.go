@@ -18,7 +18,17 @@ import (
 )
 
 // Launched is a launch the master built for an agent on a runner, its paths still the master's: what hl execs there.
-type Launched struct{ Argv, Env, Warnings []string }
+type Launched struct {
+	Argv, Env, Warnings []string
+	// Hold is a Chat session's holder, nil for a terminal one; its socket is the master's path.
+	Hold *Hold
+}
+
+// Hold is what hl launch runs a Chat session's CLI under.
+type Hold struct {
+	Socket, Secret string
+	Init           []string
+}
 
 // LaunchFunc builds the launch hl launch on node asks for agent (session.launch_prepare's params): a refusal is an *rpc.Error.
 type LaunchFunc func(node, agent string, params map[string]any) (*Launched, error)
@@ -417,8 +427,12 @@ func (r *Registry) launch(c *rpc.Conn, p map[string]any) (any, error) {
 	if err := r.sendFiles(node, files, nil); err != nil { // ahead of the answer, in messages the link takes
 		return nil, err
 	}
-	return map[string]any{"argv": swapAll(got.Argv, r.Home, home), "env": swapAll(got.Env, r.Home, home),
-		"warnings": swapAll(got.Warnings, r.Home, home), "files": homefiles.Wire(inAnswer), "shipped": shipped, "agent_dir": dir}, nil
+	out := map[string]any{"argv": swapAll(got.Argv, r.Home, home), "env": swapAll(got.Env, r.Home, home),
+		"warnings": swapAll(got.Warnings, r.Home, home), "files": homefiles.Wire(inAnswer), "shipped": shipped, "agent_dir": dir}
+	if h := got.Hold; h != nil {
+		out["hold"] = map[string]any{"socket": swap(h.Socket, r.Home, home), "init": swapAll(h.Init, r.Home, home), "secret": h.Secret}
+	}
+	return out, nil
 }
 
 // agentFiles is node.agent_files: the agent's memory and handoff note as its session on the runner wrote them.

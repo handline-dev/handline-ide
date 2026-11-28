@@ -2,6 +2,7 @@
 package daemon
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -27,6 +28,7 @@ import (
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/internal/adminwrites"
 	"github.com/handline/handline/go/internal/boardcopy"
+	"github.com/handline/handline/go/internal/chatrelay"
 	"github.com/handline/handline/go/internal/chatterm"
 	"github.com/handline/handline/go/internal/chatwrites"
 	"github.com/handline/handline/go/internal/deskrpc"
@@ -587,6 +589,13 @@ func Start(cfg Config) (*Daemon, error) {
 		d.nodes.WatchShared(d.stop)
 	}()
 	d.wg.Add(1)
+	go func() { // the Chat holders on runners, served here as if they ran here
+		defer d.wg.Done()
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() { <-d.stop; cancel() }()
+		(&chatrelay.Relays{Home: cfg.Home, Runners: d.nodes, Log: cfg.Log}).Run(ctx, time.Second)
+	}()
+	d.wg.Add(1)
 	go d.usageLoop()
 	if w != nil {
 		if notes != nil {
@@ -827,7 +836,7 @@ func (d *Daemon) typing() *sessionrpc.Env {
 	if d.cfg.Terminal != nil {
 		t = term.New(d.cfg.Terminal, screens)
 	}
-	t.Chat = chatterm.New(d.cfg.Home, t, d.cfg.ChatPort)
+	t.Chat = chatterm.New(d.cfg.Home, t, d.cfg.ChatPort, func(h string) string { a, _ := dbpkg.AgentOfTerminal(d.db, h); return a })
 	env := &sessionrpc.Env{DB: d.db, Home: d.cfg.Home, Holds: d.holds, Term: t, Marker: d.tchan.Marker,
 		Wall: func(agent string) string { why, _ := d.env().WallReason(d.db, agent, nil); return why }}
 	if d.cfg.Turns != nil {
