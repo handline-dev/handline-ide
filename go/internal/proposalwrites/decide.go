@@ -28,7 +28,7 @@ type Env struct {
 	Home string
 	// Say tells the proposer how it went (the telling layer); nil tells nobody. The decision is made either way.
 	Say *supervisor.Env
-	// Live is the agents with a running session; ok is false when the process table could not be read. A rename needs it, and without it is refused.
+	// Live is the agents with a running session; ok is false when the process table could not be read. An agent's rename needs it, and without it is refused.
 	Live func() (sessions map[string]bool, ok bool)
 	Log  func(format string, args ...any)
 	// Ask opens a task for the founder with title, body and tags and answers its number; nil asks nothing.

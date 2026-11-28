@@ -932,6 +932,22 @@
      }
     },
     {
+     "name": "role",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The lead's role, its first version, written by the caller before the lead starts, so its first session reads it (agent.context.set's text). Empty or with a control character but tab and newline: bad_request, field role. Omitted: the lead starts with the role it is seeded with."
+     }
+    },
+    {
+     "name": "base",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "description": "The lead's standing context, its first version, kept as role is. Empty or with a control character but tab and newline: bad_request, field base."
+     }
+    },
+    {
      "name": "request_id",
      "required": true,
      "schema": {
@@ -969,7 +985,7 @@
   },
   {
    "name": "workspace.set",
-   "summary": "Rename a workspace, add a folder to it or take one away. Keys never change; each agent's workspace/name follows a new name, and the old one no longer resolves. A rename is refused (gate state) while one of its agents has a session running, while an open proposal names one as workspace/name, or for a name the rules refuse or a workspace or person's handle has; the same name is no change. A folder is added after the others (one it has is no change) and refused (gate state) when it is not there or another workspace's folder holds it or is in it; taking one is refused (gate state) while an agent works in it, and taking the default makes the next folder the default. Owner only.",
+   "summary": "Rename a workspace, add a folder to it or take one away. Keys never change; each agent's workspace/name follows a new name, and the old one no longer resolves. A rename goes through while its agents' sessions run (each is still its agent, and sees the new name at its next fresh start); it is refused (gate state) while an open proposal names one as workspace/name, or for a name the rules refuse or a workspace or person's handle has; the same name is no change. A folder is added after the others (one it has is no change) and refused (gate state) when it is not there or another workspace's folder holds it or is in it; taking one is refused (gate state) while an agent works in it, and taking the default makes the next folder the default. Owner only.",
    "paramStructure": "by-name",
    "params": [
     {

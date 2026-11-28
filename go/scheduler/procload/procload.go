@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/handline/handline/go/kit/paths"
+	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -132,11 +133,30 @@ func (t *Tracker) agentOf(pid int) (string, bool) {
 	}
 	agent, ok := read(pid)
 	if agent != "" {
-		if k := paths.AgentKey(t.Home, agent); k != "" {
+		k := paths.AgentKey(t.Home, agent)
+		if k == "" || !t.descends(k, pid) {
+			if s := t.sessionOf(pid); s != "" {
+				k = s // a session started under a name a rename has taken since, or given to another: the agent it descends from
+			}
+		}
+		if k != "" {
 			agent = k
 		}
 	}
 	return agent, ok
+}
+
+// sessionOf is the agent whose recorded session process pid descends from, "" for none or with no home to read them in.
+func (t *Tracker) sessionOf(pid int) string {
+	if t.Home == "" {
+		return ""
+	}
+	return sessiontoken.New(t.Home).AgentOf(pid)
+}
+
+// descends is whether pid descends from a session recorded for agent: one record read, where sessionOf reads them all.
+func (t *Tracker) descends(agent string, pid int) bool {
+	return t.Home != "" && sessiontoken.New(t.Home).Verify(agent, pid)
 }
 
 // Sample measures every process once; now is epoch seconds.

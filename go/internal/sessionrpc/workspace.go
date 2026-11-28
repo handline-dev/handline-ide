@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/actor"
 	"github.com/handline/handline/go/kit/names"
@@ -35,6 +37,21 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 	folder, err := createText(params, "folder", false)
 	if err != nil {
 		return nil, err
+	}
+	texts := map[string]string{} // the lead's first role and standing context, kept before it starts
+	for _, part := range []string{db.PartRole, db.PartBase} {
+		v, ok := params[part]
+		if !ok || v == nil {
+			continue
+		}
+		t, isText := v.(string)
+		if !isText {
+			return nil, bad(part+" is text", part)
+		}
+		if why := db.InstructionRefusal(part, t); why != "" {
+			return nil, bad(why, part)
+		}
+		texts[part] = t
 	}
 	top := ""
 	if folder != "" {
@@ -69,19 +86,54 @@ func (e *Env) workspaceCreate(c *rpc.Conn, params map[string]any) (any, error) {
 			return nil, err
 		}
 	}
+	by := c.Caller.Actor()     // read here: the operation runs beside the connection, which a later hello changes
+	var registered atomic.Bool // set beside this call, which a timed-out wait leaves running
 	res, err := e.operate(c, workspaceCreateKind, name, top, "", func() error {
 		if _, err := e.Roster.Create(name, top); err != nil {
 			return err
+		}
+		registered.Store(true)
+		if err := e.leadTexts(name, texts, by); err != nil {
+			return fmt.Errorf("workspace %s was made, but its lead's role and standing context were not kept, so it was not started: "+
+				"set them with agent.context.set, then start it: %w", name, err)
 		}
 		if e.WorkspaceAdded != nil {
 			e.WorkspaceAdded(name)
 		}
 		return nil
 	})
-	if err != nil && made {
+	if err != nil && made && !registered.Load() {
 		os.Remove(top) // the empty folder this call made, as nothing took it; Remove takes no folder with anything in it
 	}
 	return res, err
+}
+
+// leadTexts keeps texts as the new workspace's lead's role and standing context, written and OK'd by who: the founder made the team.
+func (e *Env) leadTexts(ws string, texts map[string]string, who string) error {
+	if len(texts) == 0 {
+		return nil
+	}
+	lead, err := paths.AgentKeyIn(e.DB, ws+"/"+names.Lead)
+	if err != nil {
+		return err
+	}
+	if lead == "" {
+		return errors.New("the lead of " + ws + " is not registered")
+	}
+	tx, err := e.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := e.now().Unix()
+	for _, part := range []string{db.PartRole, db.PartBase} {
+		if t, ok := texts[part]; ok {
+			if _, err := db.SetInstruction(tx, lead, part, t, who, who, now); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
 }
 
 // madeFolder is a new workspace's folder under paths.Projects: <name>, or <name>-2 and so on past one that holds anything or is

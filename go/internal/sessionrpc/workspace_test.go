@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/gitrun"
 	"github.com/handline/handline/go/kit/paths"
@@ -140,5 +142,45 @@ func TestWorkspaceCreateMakesNoFolderItCannotUse(t *testing.T) {
 	}
 	if len(r.ctl.calls) != 0 || len(sn.got) != 0 {
 		t.Fatalf("no operation started: %v %v", r.ctl.calls, sn.got)
+	}
+}
+
+// A role and standing context given to workspace.create are the lead's before it starts, so its first session reads them; a bad one is
+// refused before any operation starts, and without them the lead starts with the role it is seeded with.
+func TestWorkspaceCreateGivesItsLeadARoleBeforeItStarts(t *testing.T) {
+	r, sn, c := createRig(t)
+	for i, bad := range []map[string]any{{"role": "  "}, {"base": "a\x01b"}} {
+		bad["name"], bad["folder"], bad["request_id"] = "shop", testfiles.GitCheckout(t), rid("wb"+string(rune('a'+i)))
+		if m := c.call("workspace.create", bad); badField(m) == "" {
+			t.Errorf("%v: %v", bad, m)
+		}
+	}
+	if len(r.ctl.calls) != 0 || len(sn.got) != 0 {
+		t.Fatalf("no operation started: %v %v", r.ctl.calls, sn.got)
+	}
+	r.ctl.hold, r.ctl.entered = make(chan struct{}), make(chan struct{}, 1)
+	done := make(chan map[string]any, 1)
+	go func() {
+		done <- c.call("workspace.create", map[string]any{"name": "shop", "folder": testfiles.GitCheckout(t), "role": "You write the docs.",
+			"base": "Keep it short.", "request_id": rid("wr")})
+	}()
+	select {
+	case <-r.ctl.entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the lead's start never came")
+	}
+	lead := paths.AgentKey(r.e.Home, "shop/lead")
+	for part, want := range map[string]string{db.PartRole: "You write the docs.", db.PartBase: "Keep it short."} {
+		if in, err := db.CurrentInstruction(r.e.DB, lead, part); err != nil || in == nil || in.Text != want {
+			t.Errorf("the lead's %s as it starts: %+v %v", part, in, err)
+		}
+	}
+	close(r.ctl.hold)
+	result(t, <-done)
+
+	r.ctl.hold, r.ctl.entered = nil, nil
+	result(t, c.call("workspace.create", map[string]any{"name": "web", "folder": t.TempDir(), "request_id": rid("wn")}))
+	if in, err := db.CurrentInstruction(r.e.DB, paths.AgentKey(r.e.Home, "web/lead"), db.PartRole); err != nil || in == nil || in.Actor != "Handline" {
+		t.Fatalf("a lead made without a role has another than its seed: %+v %v", in, err)
 	}
 }

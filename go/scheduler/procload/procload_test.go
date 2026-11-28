@@ -3,12 +3,14 @@ package procload
 import (
 	"database/sql"
 	"encoding/binary"
+	"os"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 
 	"github.com/handline/handline/go/data/team/teamtest"
+	"github.com/handline/handline/go/protocol/sessiontoken"
 	"github.com/handline/handline/go/scheduler/sysres"
 )
 
@@ -229,5 +231,27 @@ func TestAProcessMarkedWithANameIsOwnedByTheKey(t *testing.T) {
 	v, _ := tr.View()
 	if p := find(v, 100); p.Agent != quill || p.Via != ViaEnv {
 		t.Fatalf("%+v", p)
+	}
+}
+
+// A process whose HANDLINE_AGENT names no one since a rename, or another agent who took the name, is the agent whose session it descends
+// from.
+func TestAProcessUnderARenamedSessionIsItsAgent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HANDLINE_TEST_ROOT", t.TempDir())
+	t.Setenv("HANDLINE_AGENT", "")
+	teamtest.Seed(t, home, "shop/lead", "bob/lead")
+	lead, bob := teamtest.Key(t, home, "shop/lead"), teamtest.Key(t, home, "bob/lead")
+	if !sessiontoken.New(home).Record(lead, 0) {
+		t.Fatal("not recorded")
+	}
+	for _, name := range []string{"mart/lead", "bob/lead"} {
+		tr := &Tracker{Home: home, AgentOf: fakeEnv(map[int]string{os.Getpid(): name, 1: "bob/lead"})}
+		if got, _ := tr.agentOf(os.Getpid()); got != lead {
+			t.Errorf("%s under the session: %q, want %q", name, got, lead)
+		}
+		if got, _ := tr.agentOf(1); got != bob {
+			t.Errorf("no session's: %q, want the name's %q", got, bob)
+		}
 	}
 }

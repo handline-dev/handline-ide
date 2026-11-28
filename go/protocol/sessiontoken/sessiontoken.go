@@ -151,10 +151,23 @@ func (t *Tokens) AgentOf(pid int) string {
 		names = append(names, e.Name())
 	}
 	sort.Strings(names)
+	recorded := map[session]string{} // each recorded session and its agent, the first by name where two record one
 	for _, n := range names {
-		if t.Verify(n, pid) {
+		for _, s := range t.sessions(n) {
+			if _, ok := recorded[s]; !ok {
+				recorded[s] = n
+			}
+		}
+	}
+	for i := 0; i < maxDepth && pid > 1; i++ { // the nearest recorded session above pid
+		p, ok := t.Lookup(pid)
+		if !ok {
+			break
+		}
+		if n, ok := recorded[session{pid, p.Start}]; ok {
 			return n
 		}
+		pid = p.PPid
 	}
 	return ""
 }

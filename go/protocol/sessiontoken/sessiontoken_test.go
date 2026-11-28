@@ -161,3 +161,17 @@ func TestSessionsReadableIsAnErrorOnlyWhenTheDirectoryExistsAndCannotBeRead(t *t
 		t.Fatal("an unreadable directory was read as fine")
 	}
 }
+
+// A process under two recorded sessions is the nearer one's.
+func TestAgentOfIsTheNearestSession(t *testing.T) {
+	tk := tokens(t, map[int]peer.Proc{300: P(2, "1.0"), 400: P(300, "2.0"), 500: P(400, "3.0")})
+	if !tk.Record("a", 300) || !tk.Record("b", 400) {
+		t.Fatal("not recorded")
+	}
+	if got := tk.AgentOf(500); got != "b" {
+		t.Fatalf("%q, want b", got)
+	}
+	if got := tk.AgentOf(300); got != "a" {
+		t.Fatalf("%q, want a", got)
+	}
+}

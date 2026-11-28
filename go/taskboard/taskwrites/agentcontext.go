@@ -13,7 +13,6 @@ import (
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/paths"
-	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/protocol/rpc"
 )
 
@@ -86,11 +85,8 @@ func contextSet(c *rpc.Conn, p map[string]any) (any, error) {
 			continue
 		}
 		s, _ := v.(string)
-		if strings.TrimSpace(s) == "" {
-			return nil, badParam(part+" is the whole new text, not empty", part)
-		}
-		if textsafe.HasUnsafe(strings.NewReplacer("\t", "", "\n", "").Replace(s)) {
-			return nil, badParam(part+" carries a control character", part)
+		if why := db.InstructionRefusal(part, s); why != "" {
+			return nil, badParam(why, part)
 		}
 		texts[part] = s
 	}
