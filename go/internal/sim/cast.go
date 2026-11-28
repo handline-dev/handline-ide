@@ -52,6 +52,7 @@ type Cast struct {
 
 	mu      sync.Mutex
 	stop    chan struct{} // closed by Stop
+	looped  chan struct{} // closed when the frame loop has returned
 	stopped bool
 	acts    chan func() error // a person's gestures, done in order off the caller: one takes the driver most of a second
 	down    *[2]float64
@@ -98,7 +99,7 @@ func (e *Env) OpenCast(agent string) (*Cast, error) {
 		return nil, screenpipe.ErrNotOpen
 	}
 	return &Cast{e: e, b: b, fr: e.backend(b.Platform).(framer), Every: 100 * time.Millisecond, Retry: 500 * time.Millisecond, Fails: 3,
-		stop: make(chan struct{}), acts: make(chan func() error, maxActs)}, nil
+		stop: make(chan struct{}), looped: make(chan struct{}), acts: make(chan func() error, maxActs)}, nil
 }
 
 // maxActs is how many gestures may wait for the driver before the next is refused.
@@ -118,6 +119,7 @@ func (s *Cast) Start(frame func(screenpipe.Frame), ended func()) error {
 
 // loop asks for a frame after each one and passes on one that differs from the last; a driver that stops answering ends the source.
 func (s *Cast) loop(frame func(screenpipe.Frame), ended func()) {
+	defer close(s.looped)
 	var last []byte
 	fails := 0
 	var wait time.Duration
