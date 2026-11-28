@@ -94,9 +94,9 @@ export interface ScreenMethods {
 }; result: Accepted };
   "screen.act": { params: {
   source: ScreenSource;
-  /** open, click, type, key, scroll, eval and close act on the source and are sent to watchers as screen_action; read, wait and shot only read it. */
-  kind: "open" | "click" | "type" | "key" | "scroll" | "eval" | "close" | "read" | "wait" | "shot";
-  /** The target's box on the page. click and type are called once before the target is found, which only checks the hold, and once with its box, which is shown. */
+  /** open, click, type, press, hover, drag, select, scroll, back, forward, reload, tab, viewport, upload, download, dialog, eval and close act on the source and are sent to watchers as screen_action; read, wait, console, network and shot only read it. */
+  kind: "open" | "click" | "type" | "press" | "hover" | "drag" | "select" | "scroll" | "back" | "forward" | "reload" | "tab" | "viewport" | "upload" | "download" | "dialog" | "eval" | "close" | "read" | "wait" | "console" | "network" | "shot";
+  /** The target's box on the page. click, type, hover, drag, select, scroll and download are called once before the target is found, which only checks the hold, and once with its box (drag with each end's), which is shown. */
   box?: ScreenBox;
 }; result: Accepted };
 }

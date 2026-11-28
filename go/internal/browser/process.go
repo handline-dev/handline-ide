@@ -16,11 +16,14 @@ import (
 
 // Browser is one agent's running Chrome: its folder (the profile and the state), its process, its DevTools port and the page it works in.
 type Browser struct {
-	Dir    string `json:"-"`
-	PID    int    `json:"pid"`
-	Port   int    `json:"port"`
-	Show   bool   `json:"show"`
-	PageID string `json:"page,omitempty"`
+	Dir    string   `json:"-"`
+	PID    int      `json:"pid"`
+	Port   int      `json:"port"`
+	Show   bool     `json:"show"`
+	PageID string   `json:"page,omitempty"`
+	Tabs   []string `json:"tabs,omitempty"`   // the pages in the order hl browser tab numbers them
+	Accept bool     `json:"accept,omitempty"` // how the page's dialogs are answered: accepted, else dismissed
+	Reply  string   `json:"reply,omitempty"`  // what an accepted prompt answers
 }
 
 // startWithin is how long a starting Chrome has to open its DevTools port.
@@ -164,9 +167,25 @@ func start(dir, engine string, show bool) (*Browser, error) {
 	return b, nil
 }
 
+// save writes the state whole, by a rename, so a reader never sees half of it.
 func (b *Browser) save() error {
 	state, _ := json.Marshal(b)
-	return os.WriteFile(stateFile(b.Dir), state, 0o600)
+	tmp := stateFile(b.Dir) + ".new"
+	if err := os.WriteFile(tmp, state, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, stateFile(b.Dir))
+}
+
+// update changes the state as it is now on disk, under the lock, and leaves b as saved: another command may have changed it since b was read.
+func (b *Browser) update(change func(*Browser)) error {
+	return held(b.Dir, func() error {
+		if k := kept(b.Dir); k != nil {
+			*b = *k
+		}
+		change(b)
+		return b.save()
+	})
 }
 
 // Close closes the browser in dir, if one runs, and says whether one did.

@@ -19,6 +19,7 @@ type conn struct {
 	next   int
 	within time.Duration // how long one call may take
 	loaded map[string]bool
+	on     func(message) // sees each event read
 }
 
 type message struct {
@@ -90,6 +91,9 @@ func (c *conn) read(deadline time.Time) (message, error) {
 	if err := c.ws.ReadJSON(&m); err != nil {
 		return m, err
 	}
+	if m.Method != "" && c.on != nil {
+		c.on(m)
+	}
 	switch m.Method {
 	case "Page.lifecycleEvent":
 		var e struct{ Name, LoaderID string }
@@ -103,10 +107,11 @@ func (c *conn) read(deadline time.Time) (message, error) {
 }
 
 type target struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
-	URL  string `json:"url"`
-	WS   string `json:"webSocketDebuggerUrl"`
+	ID    string `json:"id"`
+	Type  string `json:"type"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+	WS    string `json:"webSocketDebuggerUrl"`
 }
 
 func (b *Browser) endpoint(path, method string) (*http.Response, error) {
@@ -185,8 +190,8 @@ func (b *Browser) dialPageOr(open bool) (*conn, error) {
 		}
 	}
 	if pick.ID != b.PageID {
-		b.PageID = pick.ID
-		_ = held(b.Dir, b.save)
+		id := pick.ID
+		_ = b.update(func(b *Browser) { b.PageID = id })
 	}
 	return dial(pick.WS)
 }

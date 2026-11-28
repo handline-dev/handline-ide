@@ -76,6 +76,16 @@ func (s *Cast) read(c *conn, frame func(screenpipe.Frame), ended func()) {
 		if m.Method == "Inspector.detached" || m.Method == "Inspector.targetCrashed" {
 			break
 		}
+		if m.Method == "Page.javascriptDialogOpening" { // a person's click opened it; nothing else can answer it
+			var d struct{ Type string }
+			_ = json.Unmarshal(m.Params, &d)
+			accept, reply := d.Type == "beforeunload", "" // a leave the agent asked for goes on
+			if b := kept(s.b.Dir); b != nil {
+				accept, reply = accept || b.Accept, b.Reply
+			}
+			answer(c, accept, reply)
+			continue
+		}
 		if m.Method != "Page.screencastFrame" {
 			continue
 		}

@@ -82,12 +82,8 @@ func TestUnzipRefusesAPathOutside(t *testing.T) {
 	}
 }
 
-// TestDrivesAPageInItsOwnProfile runs the machine's Chrome, so it is skipped on one without.
 func TestDrivesAPageInItsOwnProfile(t *testing.T) {
-	engine := machineChrome()
-	if engine == "" {
-		t.Skip("no Chrome on this machine")
-	}
+	engine := testEngine(t)
 	tmp, err := os.MkdirTemp("/tmp", "hlc") // short: Chrome's socket under it must fit a unix socket path; what Chrome leaves goes with it
 	if err != nil {
 		t.Fatal(err)
