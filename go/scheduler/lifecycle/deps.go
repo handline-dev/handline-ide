@@ -132,6 +132,8 @@ type Launch interface {
 	ManualSplit(agent string) bool
 	// AccountUsage is the account's usage as a launch reads it.
 	AccountUsage(acct string) AccountStatus
+	// AccountLabel is the account's name as a person sees it, the key when it has none.
+	AccountLabel(acct string) string
 	// RoomNow is a person's start off skip: the account with the most headroom, no older waiter ahead of it.
 	RoomNow(q db.Q, agent string, skip string) (account, why string)
 }
@@ -199,10 +201,10 @@ type Manager struct {
 	Spawn    Spawner
 	// Runners is the runner Macs a closed agent's terminal may be on; nil is none.
 	Runners RunnersPort
-	Agents   AgentsPort
-	Status   StatusPort
-	Observe  Observer
-	Typing   Typing
+	Agents  AgentsPort
+	Status  StatusPort
+	Observe Observer
+	Typing  Typing
 	// TermRun is the terminal agents' sessions as their session files report them; nil keeps a handoff from finding one.
 	TermRun TermSessions
 	// Desks is the project's worktree pool (worktreepool.Pool): a start or a closed agent's wake takes a desk there. nil keeps each agent

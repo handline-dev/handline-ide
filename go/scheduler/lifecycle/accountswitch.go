@@ -90,6 +90,11 @@ func (v *Mover) SwitchOffer(agent string) (to string, since int64, err error) {
 	return m.Launch.ClosestRoom(m.Q, agent, row, v.moveExclude(agent, wait.From)), wait.Since, nil
 }
 
+// OfferWords is the switch offer's line for a person, to named as they see it.
+func (v *Mover) OfferWords(to string) string {
+	return v.M.name(to) + " is the closest, and may reach its limit again soon."
+}
+
 // SwitchNow is a person's answer to the offer: the agent waiting at its wall starts on dest, or with dest "" on the closest account, now,
 // whatever the room test says of it; a wall, a full account and a pin still refuse. A start that fails leaves it waiting, on a fresh session
 // if the old one had to close. by is recorded on the log line.
@@ -113,10 +118,10 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 		}
 	}
 	if dest == wait.From {
-		return false, fmt.Sprintf("%s is already on %s", addr.Ref(agent), dest), nil
+		return false, fmt.Sprintf("%s is already on %s", addr.Ref(agent), m.name(dest)), nil
 	}
 	if why := m.Launch.RoomPastFit(m.Q, agent, row, dest); why != "" {
-		return false, fmt.Sprintf("%s %s - not moving %s there", dest, why, addr.Ref(agent)), nil
+		return false, fmt.Sprintf("%s %s - not moving %s there", m.name(dest), why, addr.Ref(agent)), nil
 	}
 	alive := m.sessionAlive(agent)
 	if !alive && !isClosed(row) {
@@ -136,14 +141,14 @@ func (v *Mover) SwitchNow(agent, dest, by string) (ok bool, said string, err err
 	m.noteSwitch(agent, wait.Cause, wait.From, dest, db.SwitchSwitching)
 	if alive {
 		if closed, why := v.closeFor(agent, "forced"); !closed {
-			return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), wait.From, why), nil
+			return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), m.name(wait.From), why), nil
 		}
 	}
 	reason := "switched now by " + by
 	landed, why := v.land(agent, HandoffTrigger{Kind: wait.Cause, Reason: reason}, wait.From, dest, reason, "", true)
 	if !landed {
-		return false, fmt.Sprintf("%s could not start on %s: %s", addr.Ref(agent), dest, clip(why, 120)), nil
+		return false, fmt.Sprintf("%s could not start on %s: %s", addr.Ref(agent), m.name(dest), clip(why, 120)), nil
 	}
 	started = true
-	return true, fmt.Sprintf("%s moved %s -> %s (%s)", addr.Ref(agent), wait.From, dest, reason), nil
+	return true, fmt.Sprintf("%s moved %s -> %s (%s)", addr.Ref(agent), m.name(wait.From), m.name(dest), reason), nil
 }

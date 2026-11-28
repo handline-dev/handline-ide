@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/data/team"
@@ -32,6 +33,14 @@ const (
 	eventsCursor  = "stream:events"
 	promptsCursor = "stream:prompts"
 )
+
+// labelOf is the account's name as a person sees it, the key on an env with no home.
+func (n *Notifications) labelOf(acct string) string {
+	if n.Reads == nil || n.Reads.Home == "" {
+		return acct
+	}
+	return usage.LoadConfig(n.Reads.Home).LabelOf(acct)
+}
 
 // payloadOf is an event's payload when it is a JSON object, else nothing.
 func payloadOf(s sql.NullString) map[string]any {
@@ -162,11 +171,12 @@ func (n *Notifications) Scan(q *sql.DB, emit Emit) error {
 				acct = e.account.String
 			}
 			// A refused login keeps the recorded words (the parity test holds them); any other stall says its reason.
-			title := acct + " needs logging in"
+			label := n.labelOf(acct)
+			title := label + " needs logging in"
 			if why, _ := payload["error"].(string); why != "" && why != "authentication_failed" {
-				title = acct + " stalled: " + team.StallWord(why)
+				title = label + " stalled: " + team.StallWord(why)
 			}
-			if _, err := emit(stream.Entry{Topic: "notifications", Type: "account_out", Data: map[string]any{"account": acct}, Agent: e.agent,
+			if _, err := emit(stream.Entry{Topic: "notifications", Type: "account_out", Data: map[string]any{"account": acct, "label": label}, Agent: e.agent,
 				Title: title, Target: map[string]any{"screen": "account", "id": acct}}); err != nil {
 				return err
 			}

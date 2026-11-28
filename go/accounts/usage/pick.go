@@ -65,7 +65,7 @@ func (e *Env) PausedWhy(acct string) string {
 	if !cfg.Paused(acct) {
 		return ""
 	}
-	return "paused - not picked; resume it in the app's settings for " + acct
+	return "paused - not picked; resume it in the app's settings for " + cfg.LabelOf(acct)
 }
 
 // EndedWhy is why the account is out for good now, "" while it is not.
@@ -76,7 +76,7 @@ func (e *Env) EndedWhy(acct string) string {
 		return ""
 	}
 	return fmt.Sprintf("subscription ended %s (month cycle) - not picked; after resubscribing, set the new end day in the app's settings for %s",
-		cfg.EndDate(acct), acct)
+		cfg.EndDate(acct), cfg.LabelOf(acct))
 }
 
 // Runway is an estimate of how long an account's headroom lasts.

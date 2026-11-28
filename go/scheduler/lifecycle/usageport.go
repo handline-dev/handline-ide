@@ -70,6 +70,9 @@ func (u *UsageAdapter) Admit(acct, agent, vendor string) verdict.Admission {
 // Urgency is usage.Urgency of the account.
 func (u *UsageAdapter) Urgency(acct string) (float64, bool) { return usage.Urgency(u.Env.Read(acct)) }
 
+// Label is the account's name as a person sees it.
+func (u *UsageAdapter) Label(acct string) string { return u.Env.LabelOf(acct) }
+
 // ManualSplit is usage.ManualSplit of the config now.
 func (u *UsageAdapter) ManualSplit() bool { return usage.ManualSplit(u.Env.CurrentConfig()) }
 

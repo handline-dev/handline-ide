@@ -169,7 +169,7 @@ func (v *Mover) plan(agent, kind string, starting bool) (dest, why string, rooml
 		resetIn = &d
 	}
 	if !outTrigger(kind) && m.Launch.ManualSplit(agent) {
-		return "", "account_split is manual - it waits on " + here + " for its reset", false
+		return "", "account_split is manual - it waits on " + m.name(here) + " for its reset", false
 	}
 	work := starting || len(must(db.QueuedFor(m.Q, agent))) > 0
 	if !outTrigger(kind) {
@@ -218,7 +218,7 @@ func (v *Mover) forcedPlan(agent, dest string) (string, string) {
 	m := v.M
 	row := must(db.GetAgentState(m.Q, agent))
 	if why := m.Launch.RoomOn(m.Q, agent, row, dest); why != "" {
-		return "", dest + " " + why
+		return "", m.name(dest) + " " + why
 	}
 	return dest, "it has room"
 }
@@ -313,7 +313,7 @@ func (v *Mover) land(agent string, t HandoffTrigger, here, there, why, stopped s
 	m := v.M
 	m.noteSwitch(agent, t.Kind, here, there, db.SwitchStarting)
 	// HANDOFF protects the session that just ended; it comes off before the wake so the new session's own first turn can set RUNNING.
-	check(db.SetParked(m.Q, agent, states.Queued, 0, string(verdict.ParkMoving), fmt.Sprintf("%s %s -> %s", states.MovingMark, here, there)))
+	check(db.SetParked(m.Q, agent, states.Queued, 0, string(verdict.ParkMoving), fmt.Sprintf("%s %s -> %s", states.MovingMark, m.name(here), m.name(there))))
 	m.Agents.MeasureBegin(m.Q, agent, there)
 	woke, wakeWhy := m.wakeAgent(agent, WakeOpts{MovedTo: there, PastFit: pastFit, Person: pastFit, Stopped: stopped})
 	landed := must(db.GetAgentState(m.Q, agent))
@@ -322,7 +322,7 @@ func (v *Mover) land(agent string, t HandoffTrigger, here, there, why, stopped s
 		return false, wakeWhy
 	}
 	check(db.SetAccount(m.Q, agent, there, ""))
-	hookRunning := !must(db.SetStateUnlessRunning(m.Q, agent, states.Queued, fmt.Sprintf("moved %s -> %s (%s)", here, there, t.Kind)))
+	hookRunning := !must(db.SetStateUnlessRunning(m.Q, agent, states.Queued, fmt.Sprintf("moved %s -> %s (%s)", m.name(here), m.name(there), t.Kind)))
 	if hookRunning {
 		if fresh := must(db.GetAgentState(m.Q, agent)); fresh != nil && isClosed(fresh) {
 			check(db.ClearClosed(m.Q, agent))

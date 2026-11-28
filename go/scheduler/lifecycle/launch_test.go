@@ -76,6 +76,7 @@ type fakeUsage struct {
 	manual  bool               // account_split manual
 	unfit   map[string]int     // StartFit: room of each account that does not fit
 	asked   *[]string          // the candidates PickAccount was given
+	names   map[string]string  // Label by account; unlisted is its key
 }
 
 func (u fakeUsage) ManualSplit() bool { return u.manual }
@@ -114,7 +115,13 @@ func (u fakeUsage) Read(acct string) AccountStatus {
 	return u.st
 }
 func (fakeUsage) ShortBlock() int { return 95 }
-func (fakeUsage) LongBlock() int  { return 98 }
+func (u fakeUsage) Label(acct string) string {
+	if n, ok := u.names[acct]; ok {
+		return n
+	}
+	return acct
+}
+func (fakeUsage) LongBlock() int { return 98 }
 func (u fakeUsage) PickAccount(c []string, _ string) string {
 	if u.asked != nil {
 		*u.asked = c

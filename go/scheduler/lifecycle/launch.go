@@ -74,6 +74,8 @@ type UsagePort interface {
 	Urgency(acct string) (float64, bool)
 	// ManualSplit is account_split manual: the daemon places and moves no agent; each stays on its account and waits at its wall.
 	ManualSplit() bool
+	// Label is the account's name as a person sees it, the key when it has none.
+	Label(acct string) string
 	// Headroom is what the account's weekly bucket still holds as a share of the week's quota, ok false when the pace cannot be read. The
 	// larger, the slower-paced.
 	Headroom(acct string) (float64, bool)
@@ -330,18 +332,18 @@ func (l *Launcher) pinnedWhy(m machine, agent, pin string) string {
 	vendor, theirs := l.Ports.Vendors.AgentVendor(agent), l.Ports.Vendors.AccountVendor(pin)
 	switch out := l.leftOut(agent, pin); {
 	case theirs != vendor:
-		return fmt.Sprintf("it is pinned to %s, a %s account, but it runs %s", pin, theirs, vendor)
+		return fmt.Sprintf("it is pinned to %s, a %s account, but it runs %s", l.Ports.Usage.Label(pin), theirs, vendor)
 	case out != "":
-		return fmt.Sprintf("it is pinned to %s, which %s", pin, out)
+		return fmt.Sprintf("it is pinned to %s, which %s", l.Ports.Usage.Label(pin), out)
 	case !slices.Contains(l.mayStartOn(m, agent), pin):
-		return fmt.Sprintf("it is pinned to %s, which is not logged in or may not start", pin)
+		return fmt.Sprintf("it is pinned to %s, which is not logged in or may not start", l.Ports.Usage.Label(pin))
 	case l.Ports.Usage.Read(pin).Paused:
-		return fmt.Sprintf("it is pinned to %s, which is paused", pin)
+		return fmt.Sprintf("it is pinned to %s, which is paused", l.Ports.Usage.Label(pin))
 	case l.Ports.Usage.Read(pin).Unmetered:
 		return ""
 	}
 	if adm := l.Ports.Usage.Admit(pin, agent, vendor); !adm.Fits {
-		return fmt.Sprintf("it is pinned to %s, which cannot take it: %s", pin, strings.Join(adm.Reasons, ", "))
+		return fmt.Sprintf("it is pinned to %s, which cannot take it: %s", l.Ports.Usage.Label(pin), strings.Join(adm.Reasons, ", "))
 	}
 	return ""
 }
@@ -401,6 +403,7 @@ func (l *Launcher) chooseOn(m machine, agent string, resuming bool, account stri
 // WakeWait is a closed agent's wake walled behind an account's 5h or weekly wall, its slots, or its workspace's agent_cap.
 type WakeWait struct {
 	Account string
+	Label   string // Account's name as a person sees it; "" says the key
 	Pct     int
 	Reset   int64 // when the walled window rolls over; 0 unknown
 	// Assumed is true when Account is a guess (one written before a launch confirmed it) rather than the account this resume is tied to.
@@ -420,6 +423,15 @@ type WakeWait struct {
 // wall is the window this account is walled behind, the shortest first: an account walled on both reports the shortest one's rollover,
 // and once that passes it is refused again on the longest still standing.
 func (l *Launcher) wall(acct string, assumed bool) *WakeWait {
+	w := l.wallOf(acct, assumed)
+	if w != nil {
+		w.Label = l.Ports.Usage.Label(acct)
+	}
+	return w
+}
+
+// wallOf is wall with no name looked up, for a caller that keeps only one of many.
+func (l *Launcher) wallOf(acct string, assumed bool) *WakeWait {
 	st := l.Ports.Usage.Read(acct)
 	if st.ShortTrusted != nil && *st.ShortTrusted >= l.Ports.Usage.ShortBlock() {
 		return &WakeWait{Account: acct, Pct: *st.ShortTrusted, Reset: st.ShortReset, Assumed: assumed, Window: st.ShortLabel}
@@ -432,6 +444,15 @@ func (l *Launcher) wall(acct string, assumed bool) *WakeWait {
 
 // paused is the wait of a start on acct while it is paused, nil when it is not.
 func (l *Launcher) paused(acct string, assumed bool) *WakeWait {
+	w := l.pausedOf(acct, assumed)
+	if w != nil {
+		w.Label = l.Ports.Usage.Label(acct)
+	}
+	return w
+}
+
+// pausedOf is paused with no name looked up.
+func (l *Launcher) pausedOf(acct string, assumed bool) *WakeWait {
 	if l.Ports.Usage.Read(acct).Paused {
 		return &WakeWait{Account: acct, Assumed: assumed, Window: "slot", Slot: true, Paused: true}
 	}
@@ -607,13 +628,16 @@ func (l *Launcher) freesFirst(m machine, agent string) *WakeWait {
 		if l.Ports.Usage.NotFor(a, vendor) {
 			continue
 		}
-		w := l.wall(a, false)
+		w := l.wallOf(a, false)
 		if w == nil {
-			w = l.paused(a, false)
+			w = l.pausedOf(a, false)
 		}
 		if w != nil && (best == nil || rank(w) < rank(best)) {
 			best = w
 		}
+	}
+	if best != nil && best.Account != "" {
+		best.Label = l.Ports.Usage.Label(best.Account)
 	}
 	return best
 }
@@ -644,7 +668,7 @@ func (l *Launcher) noRoom(m machine, agent string) string {
 	why := "no account can take one more agent"
 	var each []string
 	for _, r := range l.Ports.Usage.PickReasons(l.mayStartOn(m, agent), agent) {
-		each = append(each, r.Account+": "+r.Why)
+		each = append(each, l.Ports.Usage.Label(r.Account)+": "+r.Why)
 	}
 	if len(each) > 0 {
 		why += " (" + strings.Join(each, "; ") + ")"
@@ -759,17 +783,25 @@ func WaitClock(w *WakeWait, unknown string) string {
 	return time.Unix(w.Reset, 0).Local().Format(layout)
 }
 
+// Name is the walled account as a person sees it.
+func (w *WakeWait) Name() string {
+	if w.Label != "" {
+		return w.Label
+	}
+	return w.Account
+}
+
 // DescribeWakeWait is the wording for a wait already computed, so a caller that holds one does not recompute it.
 func DescribeWakeWait(w *WakeWait) string {
 	if w.Workspace != "" {
 		return fmt.Sprintf("waiting for a slot in workspace %s (%d of %d of its agents mid-turn; its rule %s)", w.Workspace, w.Busy, w.Full, w.Rule.Words())
 	}
 	if w.Paused {
-		return fmt.Sprintf("waiting for %s: it is paused; resume it in the app's settings", w.Account)
+		return fmt.Sprintf("waiting for %s: it is paused; resume it in the app's settings", w.Name())
 	}
-	who := w.Account
+	who := w.Name()
 	if w.Assumed {
-		who = "assumed account " + w.Account
+		who = "assumed account " + who
 	}
 	return fmt.Sprintf("waiting for %s's %s window (%d%%, rolls over %s)", who, w.Window, w.Pct, WaitClock(w, "unknown"))
 }
@@ -1748,6 +1780,8 @@ func (p LaunchPort) Placing() func() { return p.L.Placing() }
 func (p LaunchPort) ManualSplit(agent string) bool { return p.L.ManualSplit(agent) }
 
 func (p LaunchPort) AccountUsage(acct string) AccountStatus { return p.L.Ports.Usage.Read(acct) }
+
+func (p LaunchPort) AccountLabel(acct string) string { return p.L.Ports.Usage.Label(acct) }
 
 func (p LaunchPort) SlowestPaced(q db.Q, agent string, skip string) string {
 	return p.L.SlowestPaced(q, agent, skip)

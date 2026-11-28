@@ -63,7 +63,7 @@ export function noticeFor(e: Event): Notice | null {
       };
     case 'account_out':
       return {
-        title: `Account ${text(e.data.account)} is out`,
+        title: `Account ${text(e.data.label ?? e.data.account)} is out`,
         body: e.title ?? 'It has hit its limit',
         agent: e.agent,
         target: e.target,
