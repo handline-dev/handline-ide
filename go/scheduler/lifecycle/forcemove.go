@@ -35,7 +35,7 @@ func (v *Mover) ForceMove(agent, dest, by string) (ok bool, said string, err err
 		return ok, said, nil
 	}
 	v.reserve(agent, dest, by, db.SwitchScheduled)
-	return true, fmt.Sprintf("%s is mid-turn: it moves to %s when the turn ends (by %s)", addr.Ref(agent), dest, addr.Ref(by)), nil
+	return true, fmt.Sprintf("%s is mid-turn: it moves to %s when the turn ends (by %s)", addr.Ref(agent), m.name(dest), addr.Ref(by)), nil
 }
 
 // MoveNow is agent.move_now: the agent's move, to dest or with dest "" the one it keeps, starts now. A turn under way is ended by stop,
@@ -72,11 +72,11 @@ func (v *Mover) MoveNow(agent, dest, by string, stop func() error) (ok bool, sai
 	if m.sessionBusy(agent) {
 		if err := stop(); err != nil {
 			v.reserve(agent, dest, by, db.SwitchScheduled)
-			return true, fmt.Sprintf("%s's turn could not be stopped (%v): it moves to %s when the turn ends (by %s)", addr.Ref(agent), err, dest, addr.Ref(by)), nil
+			return true, fmt.Sprintf("%s's turn could not be stopped (%v): it moves to %s when the turn ends (by %s)", addr.Ref(agent), err, m.name(dest), addr.Ref(by)), nil
 		}
 	}
 	v.reserve(agent, dest, by, db.SwitchStopping)
-	return true, fmt.Sprintf("%s moves to %s once its handoff note is in (by %s)", addr.Ref(agent), dest, addr.Ref(by)), nil
+	return true, fmt.Sprintf("%s moves to %s once its handoff note is in (by %s)", addr.Ref(agent), m.name(dest), addr.Ref(by)), nil
 }
 
 // moveOffBackground is MoveNow on a wall move that waits on the agent's background work: the move goes at once, to dest or with dest ""
@@ -91,18 +91,18 @@ func (v *Mover) moveOffBackground(agent, dest, by string, s *db.AccountSwitch, r
 	}
 	there, why := v.closePlan(agent, s.Cause, dest)
 	if there == "" {
-		return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), s.From, why)
+		return false, fmt.Sprintf("%s stays on %s: %s", addr.Ref(agent), m.name(s.From), why)
 	}
 	bg, now := v.E.BackgroundWork(m.Q, agent), m.now()
 	waited := now - v.backgroundWaitSince(agent, now)
 	v.log("  %s: move now by %s past background work (%s) after %s: %s", agent, by, bg.Words, timefmt.Ago(waited), bg.Lines)
-	v.perform(agent, HandoffTrigger{Kind: s.Cause, Reason: fmt.Sprintf("moved now by %s past background work: %s -> %s", by, s.From, there)}, dest)
+	v.perform(agent, HandoffTrigger{Kind: s.Cause, Reason: fmt.Sprintf("moved now by %s past background work: %s -> %s", by, m.name(s.From), m.name(there))}, dest)
 	if landed := must(db.GetAgentState(m.Q, agent)); landed != nil && landed.Account.Valid && landed.Account.String != s.From {
 		must(db.AddEventAt(m.Q, now, agent, MovedPastBackgroundKind, db.KV{K: "kind", V: s.Cause}, db.KV{K: "jobs", V: bg.Words},
 			db.KV{K: "waited_s", V: waited}, db.KV{K: "by", V: by}))
-		return true, fmt.Sprintf("%s moved %s -> %s (by %s); its background work was stopped", addr.Ref(agent), s.From, landed.Account.String, addr.Ref(by))
+		return true, fmt.Sprintf("%s moved %s -> %s (by %s); its background work was stopped", addr.Ref(agent), m.name(s.From), m.name(landed.Account.String), addr.Ref(by))
 	}
-	return false, fmt.Sprintf("%s did not move: its session did not close, or the new one did not start on %s - it stays on %s", addr.Ref(agent), there, s.From)
+	return false, fmt.Sprintf("%s did not move: its session did not close, or the new one did not start on %s - it stays on %s", addr.Ref(agent), m.name(there), m.name(s.From))
 }
 
 // CancelMove is agent.move_cancel: the move the agent keeps for its turn's end is dropped. Too late once move_now has stopped the turn.
@@ -115,12 +115,12 @@ func (v *Mover) CancelMove(agent string) (ok bool, said string, err error) {
 	case !s.Pending():
 		return false, addr.Ref(agent) + " has no move waiting", nil
 	case s.Phase == db.SwitchStopping:
-		return false, fmt.Sprintf("too late: %s's turn was stopped for the move to %s and its note is being written", addr.Ref(agent), s.To), nil
+		return false, fmt.Sprintf("too late: %s's turn was stopped for the move to %s and its note is being written", addr.Ref(agent), m.name(s.To)), nil
 	}
 	check(db.ClearSwitch(m.Q, agent))
 	m.refreshView(agent)
 	v.log("  %s: the move to %s is cancelled", agent, s.To)
-	return true, fmt.Sprintf("%s stays on %s: the move to %s is cancelled", addr.Ref(agent), s.From, s.To), nil
+	return true, fmt.Sprintf("%s stays on %s: the move to %s is cancelled", addr.Ref(agent), m.name(s.From), m.name(s.To)), nil
 }
 
 // RunPendingMove runs the person's move the agent keeps once what it waits for is over: the turn's end for a scheduled one; for one
@@ -191,7 +191,7 @@ func (v *Mover) livePhase(row *db.AgentState) string {
 	if s == nil || s.Phase == db.SwitchWaiting || s.Phase == db.SwitchScheduled {
 		return ""
 	}
-	return fmt.Sprintf("%s is already switching accounts (%s %s -> %s)", addr.Ref(row.Agent), s.Phase, s.From, s.To)
+	return fmt.Sprintf("%s is already switching accounts (%s %s -> %s)", addr.Ref(row.Agent), s.Phase, m.name(s.From), m.name(s.To))
 }
 
 // moveRefused is why a person's move of the agent to dest cannot happen now, "" when it can: an account that is not there or not logged
@@ -203,7 +203,7 @@ func (v *Mover) moveRefused(agent, dest string, row *db.AgentState) string {
 	case !slices.Contains(paths.ListAccounts(m.Home), dest) || !accts.LoggedIn(dest):
 		return fmt.Sprintf("account '%s' does not exist or is not logged in", dest)
 	case m.Agents.CurrentAccount(m.Q, agent) == dest:
-		return fmt.Sprintf("%s is already on %s", addr.Ref(agent), dest)
+		return fmt.Sprintf("%s is already on %s", addr.Ref(agent), m.name(dest))
 	case row == nil || !(isClosed(row) || m.sessionAlive(agent)):
 		return addr.Ref(agent) + " has no session to move"
 	case row.State == states.Handoff || row.State == states.Stalled:
@@ -224,15 +224,15 @@ func (v *Mover) moveIdle(agent, dest, by string, row *db.AgentState) (bool, stri
 	if isClosed(row) {
 		must(db.AddEvent(m.Q, agent, MoveOwedKind, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))
 		m.refreshView(agent)
-		return true, fmt.Sprintf("%s is closed: its next wake starts it on %s (moved by %s)", addr.Ref(agent), dest, addr.Ref(by))
+		return true, fmt.Sprintf("%s is closed: its next wake starts it on %s (moved by %s)", addr.Ref(agent), m.name(dest), addr.Ref(by))
 	}
-	if _, err := v.performHandoff(agent, HandoffTrigger{Kind: "forced", Reason: fmt.Sprintf("forced by %s: %s -> %s", by, here, dest)}, dest); err != nil {
+	if _, err := v.performHandoff(agent, HandoffTrigger{Kind: "forced", Reason: fmt.Sprintf("forced by %s: %s -> %s", by, m.name(here), m.name(dest))}, dest); err != nil {
 		return false, err.Error()
 	}
 	landed := must(db.GetAgentState(m.Q, agent))
 	if landed == nil || landed.Account.String != dest {
-		return false, fmt.Sprintf("%s did not move (mid-turn, or the new session did not start on %s) - it stays on %s", addr.Ref(agent), dest, here)
+		return false, fmt.Sprintf("%s did not move (mid-turn, or the new session did not start on %s) - it stays on %s", addr.Ref(agent), m.name(dest), m.name(here))
 	}
 	must(db.AddEvent(m.Q, agent, "forced_move", db.KV{K: "from", V: here}, db.KV{K: "to", V: dest}, db.KV{K: "by", V: by}))
-	return true, fmt.Sprintf("%s moved %s -> %s (forced by %s)", addr.Ref(agent), here, dest, addr.Ref(by))
+	return true, fmt.Sprintf("%s moved %s -> %s (forced by %s)", addr.Ref(agent), m.name(here), m.name(dest), addr.Ref(by))
 }

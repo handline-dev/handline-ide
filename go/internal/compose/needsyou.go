@@ -52,7 +52,7 @@ func (p *Parts) switchOffer(agent string) *agentview.NeedsYou {
 		return nil
 	}
 	return &agentview.NeedsYou{Kind: dialogs.SwitchOffer, Source: "daemon", Since: since, Account: to, Title: "No account has room to spare",
-		Text: to + " is the closest, and may reach its limit again soon."}
+		Text: p.LC.Mover.OfferWords(to)}
 }
 
 // needsYou is where an agent's need of a person comes from, never the screen: its session file saying waiting (terminalSession, the one

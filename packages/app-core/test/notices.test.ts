@@ -161,6 +161,10 @@ test('an event is a line unless it asks for a decision, and one cursor is taken 
     [['a.b is blocked', 1]],
   );
   assert.equal(eventText(ev(4, 'notifications', 'account_out', { data: { account: 'alpha' } })), 'Account alpha is out of usage');
+  assert.equal(
+    eventText(ev(4, 'notifications', 'account_out', { data: { account: 'alpha', label: 'Work' } })),
+    'Account Work is out of usage',
+  );
 });
 
 test('agent events are filed under team, results under system', () => {

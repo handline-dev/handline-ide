@@ -92,7 +92,7 @@ export const isMyTurn = (e: Pick<WireEvent, 'topic' | 'type'>): boolean =>
 /** The line for an event worth knowing about, or null for one that is not (a decision, or a topic the list does not carry). */
 export function eventText(e: Pick<WireEvent, 'topic' | 'type' | 'agent' | 'title' | 'data'>): string | null {
   if (isMyTurn(e)) return null;
-  const d = e.data as { task?: unknown; task_title?: unknown; account?: unknown };
+  const d = e.data as { task?: unknown; task_title?: unknown; account?: unknown; label?: unknown };
   switch (e.type) {
     case 'task_done':
       return typeof d.task === 'number'
@@ -101,7 +101,7 @@ export function eventText(e: Pick<WireEvent, 'topic' | 'type' | 'agent' | 'title
     case 'stall':
       return e.title ?? `${e.agent ?? 'An agent'} is blocked`;
     case 'account_out':
-      return e.title ?? `Account ${d.account ?? ''} is out of usage`.replace('  ', ' ');
+      return e.title ?? `Account ${d.label ?? d.account ?? ''} is out of usage`.replace('  ', ' ');
     case 'proposal.settled':
       return e.title ?? 'A proposal was settled';
     default:

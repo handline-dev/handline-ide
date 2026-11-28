@@ -3,11 +3,14 @@ package watcher
 import (
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/data/stream"
 	"github.com/handline/handline/go/internal/reads"
+	"github.com/handline/handline/go/kit/storetest"
 )
 
 func notes(t *testing.T, l *stream.Log) []*stream.Event {
@@ -52,10 +55,10 @@ func TestNotificationsAreSaidOnceFromTheCursorsAndHistoryIsNotNews(t *testing.T)
 	if got[0].Type != "task_done" || string(got[0].Data) != `{"from_founder":true,"reporter":"p1","task":7,"task_title":"t"}` || *got[0].Title != "task 7 done" || string(got[0].Target) != `{"id":"7","screen":"task"}` || *got[0].Agent != "bob" {
 		t.Fatalf("%+v %s", got[0], got[0].Data)
 	}
-	if got[1].Type != "account_out" || string(got[1].Data) != `{"account":"main"}` || *got[1].Title != "main needs logging in" || string(got[1].Target) != `{"id":"main","screen":"account"}` {
+	if got[1].Type != "account_out" || string(got[1].Data) != `{"account":"main","label":"main"}` || *got[1].Title != "main needs logging in" || string(got[1].Target) != `{"id":"main","screen":"account"}` {
 		t.Fatalf("%+v %s", got[1], got[1].Data)
 	}
-	if string(got[2].Data) != `{"account":"alt"}` {
+	if string(got[2].Data) != `{"account":"alt","label":"alt"}` {
 		t.Fatalf("%s", got[2].Data)
 	}
 	if got[3].Type != "prompt_asked" || *got[3].Agent != "amy" || *got[3].Title != "amy asks: Allow ls?" || string(got[3].Target) != `{"id":"amy","screen":"agent"}` {
@@ -251,5 +254,35 @@ func TestATaskDoneSaysWhoTheTaskAnswersToAndWhetherTheFounderGaveIt(t *testing.T
 		if string(e.Data) != want[i] {
 			t.Errorf("notice %d: %s, want %s", i, e.Data, want[i])
 		}
+	}
+}
+
+// An account with a name is said by it; one without, by its key. The key stays the id the notice opens.
+func TestAnAccountOutIsSaidByItsName(t *testing.T) {
+	home := t.TempDir()
+	d, err := storetest.OpenAt(t, filepath.Join(home, "db.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	if err := usage.SetAccount(d, "gamma", map[string]any{"label": "Work"}); err != nil {
+		t.Fatal(err)
+	}
+	l := &stream.Log{DB: d}
+	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
+	n := &Notifications{Reads: &reads.Env{DB: d, Home: home}}
+	if err := n.Scan(d, emit); err != nil {
+		t.Fatal(err)
+	}
+	exec(t, d, "INSERT INTO events(ts, agent, account, kind, payload) VALUES(1, 'amy', 'gamma', 'login_expired', '{\"account\": \"gamma\"}')")
+	exec(t, d, "INSERT INTO events(ts, agent, account, kind, payload) VALUES(2, 'bob', 'main', 'login_expired', '{\"account\": \"main\"}')")
+	exec(t, d, "INSERT INTO events(ts, agent, account, kind, payload) VALUES(3, 'amy', 'gamma', 'login_expired', '{\"account\": \"gamma\", \"error\": \"oauth_org_not_allowed\"}')")
+	if err := n.Scan(d, emit); err != nil {
+		t.Fatal(err)
+	}
+	got := notes(t, l)
+	if len(got) != 3 || *got[2].Title != "Work stalled: oauth_org_not_allowed" || *got[0].Title != "Work needs logging in" || string(got[0].Data) != `{"account":"gamma","label":"Work"}` ||
+		string(got[0].Target) != `{"id":"gamma","screen":"account"}` || *got[1].Title != "main needs logging in" {
+		t.Fatalf("%+v", got)
 	}
 }

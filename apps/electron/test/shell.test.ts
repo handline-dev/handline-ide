@@ -50,6 +50,10 @@ test('the four notifications events raise a notice naming what happened; other e
   assert.equal(noticeFor(ev({ type: 'task_done', data: { task: 12 }, title: 'Chat tab' }))?.title, 'Task 12 done');
   assert.equal(noticeFor(ev({ type: 'stall' }))?.title, 'handline.architect is stalled');
   assert.equal(noticeFor(ev({ type: 'account_out', agent: null, data: { account: 'alpha' } }))?.title, 'Account alpha is out');
+  assert.equal(
+    noticeFor(ev({ type: 'account_out', agent: null, data: { account: 'alpha', label: 'Work' } }))?.title,
+    'Account Work is out',
+  );
   assert.equal(noticeFor(ev({ type: 'inbox.added', topic: 'inbox' })), null);
   assert.equal(noticeFor(ev({ type: 'something_new' })), null);
 });

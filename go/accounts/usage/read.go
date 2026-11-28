@@ -37,6 +37,9 @@ func (e *Env) now() float64 {
 	return float64(time.Now().UnixNano()) / 1e9
 }
 
+// LabelOf is the account's name as a person sees it (Config.LabelOf).
+func (e *Env) LabelOf(acct string) string { return e.config().LabelOf(acct) }
+
 // CurrentConfig is config.yaml as the readers see it.
 func (e *Env) CurrentConfig() Config { return e.config() }
 

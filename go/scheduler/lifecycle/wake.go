@@ -529,7 +529,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 		to, _ := owed["to"].(string)
 		by, _ := owed["by"].(string)
 		if why := m.Launch.RoomOn(m.Q, agent, row, to); why != "" {
-			return false, fmt.Sprintf("%s %s - waiting to start %s there (moved by %s)", to, why, agent, by)
+			return false, fmt.Sprintf("%s %s - waiting to start %s there (moved by %s)", m.name(to), why, agent, by)
 		}
 		if row.ResumeSession.String != "" {
 			m.recordUnlessKept(agent, row.ResumeSession.String, "moved with no handoff")

@@ -8,9 +8,9 @@ import (
 
 // moveReason is the sentence a move keeps for a person (moved_account's reason): why it left from, with the numbers read off from now.
 func (m *Manager) moveReason(trigger, from string) string {
-	st := m.Launch.AccountUsage(from)
-	short := &WakeWait{Account: from, Window: st.ShortLabel, Reset: st.ShortReset}
-	long := &WakeWait{Account: from, Window: st.LongLabel, Reset: st.LongReset, IsLong: true}
+	st, name := m.Launch.AccountUsage(from), m.Launch.AccountLabel(from)
+	short := &WakeWait{Account: from, Label: name, Window: st.ShortLabel, Reset: st.ShortReset}
+	long := &WakeWait{Account: from, Label: name, Window: st.LongLabel, Reset: st.LongReset, IsLong: true}
 	switch trigger {
 	case "usage":
 		if st.ShortTrusted != nil {
@@ -31,19 +31,22 @@ func (m *Manager) moveReason(trigger, from string) string {
 		case st.ShortTrusted != nil:
 			w.Pct = *st.ShortTrusted
 		default:
-			return states.MovedWhy(trigger, from)
+			return states.MovedWhy(trigger, name)
 		}
-		return fmt.Sprintf("%s's %s was at %d%%, so it moved before running out%s.", from, windowWords(w.Window), w.Pct, resets(w, " (resets %s)"))
+		return fmt.Sprintf("%s's %s was at %d%%, so it moved before running out%s.", name, windowWords(w.Window), w.Pct, resets(w, " (resets %s)"))
 	}
-	return states.MovedWhy(trigger, from)
+	return states.MovedWhy(trigger, name)
 }
+
+// name is the account as a person sees it.
+func (m *Manager) name(acct string) string { return m.Launch.AccountLabel(acct) }
 
 // waitReason is a launch's move off the account w kept it from, said for a person.
 func waitReason(w *WakeWait) string {
 	if w.Paused {
-		return w.Account + " was paused."
+		return w.Name() + " was paused."
 	}
-	return fmt.Sprintf("%s's %s was at %d%%%s.", w.Account, windowWords(w.Window), w.Pct, resets(w, " (resets %s)"))
+	return fmt.Sprintf("%s's %s was at %d%%%s.", w.Name(), windowWords(w.Window), w.Pct, resets(w, " (resets %s)"))
 }
 
 // resets is f with w's reset clock in it, "" when the reset is unknown.
@@ -75,5 +78,5 @@ func (m *Manager) repickReason(to string) string {
 	if st.LongTrusted != nil {
 		said = fmt.Sprintf(" (%d%% used%s)", *st.LongTrusted, resets(&WakeWait{Reset: st.LongReset, IsLong: true}, ", resets %s"))
 	}
-	return "Its prompt cache had expired, so it moved to " + to + ", whose week resets sooner" + said + "."
+	return "Its prompt cache had expired, so it moved to " + m.Launch.AccountLabel(to) + ", whose week resets sooner" + said + "."
 }
