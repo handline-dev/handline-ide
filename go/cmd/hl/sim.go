@@ -12,6 +12,11 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 )
 
+// simActs is the screen.act kind of each verb that acts on the device: each is refused while a person holds it, and shown to whoever
+// watches. A read (tree, screenshot) is not.
+var simActs = map[string]string{"install": "install", "launch": "launch", "tap": "tap", "swipe": "swipe", "type": "type",
+	"button": "button", "rotate": "rotate", "shutdown": "close"}
+
 // simCmd is hl sim: an iOS Simulator or Android emulator an agent drives from the command line (internal/sim).
 func simCmd(c *hlclient.Client, args []string) (int, bool) {
 	if len(args) == 0 {
@@ -87,6 +92,9 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 		if err != nil {
 			return fail(err)
 		}
+		if err := screenAct(c, sim.Source, "open", nil); err != nil {
+			return fail(err)
+		}
 		fmt.Printf("booted %s (%s); it shuts down when your session ends, or hl sim shutdown\n", b.Name, b.Platform)
 		return 0, true
 	}
@@ -98,6 +106,11 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 			return fail(err)
 		}
 		return 0, false
+	}
+	if kind, ok := simActs[verb]; ok {
+		if err := screenAct(c, sim.Source, kind, nil); err != nil {
+			return fail(err)
+		}
 	}
 	var done string
 	switch verb {
@@ -139,10 +152,15 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 		} else if len(p.pos) != 0 {
 			return 0, false
 		}
+		x, y := 0.0, 0.0
 		if len(xy) == 2 {
-			done, err = e.Tap(b, sel, xy[0], xy[1])
-		} else {
-			done, err = e.Tap(b, sel, 0, 0)
+			x, y = xy[0], xy[1]
+		}
+		var at sim.Frame
+		if done, at, err = e.Target(b, sel, x, y); err == nil {
+			if err = screenAct(c, sim.Source, "tap", (*[4]float64)(&at)); err == nil {
+				err = e.Tap(b, at)
+			}
 		}
 		if err == nil {
 			fmt.Println("tapped", done)

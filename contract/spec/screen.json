@@ -4,9 +4,10 @@
    "ScreenSource": {
     "type": "string",
     "enum": [
-     "browser"
+     "browser",
+     "sim"
     ],
-    "description": "A kind of screen an agent can have open: its browser (hl browser). Later kinds arrive on the same methods."
+    "description": "A kind of screen an agent can have open: its browser (hl browser), or the iOS Simulator it booted last (hl sim), which takes a press and release as a tap or a swipe and typed keys and text as typing. Later kinds arrive on the same methods."
    },
    "ScreenFrame": {
     "type": "object",
@@ -482,11 +483,11 @@
     "input_holder",
     "state"
    ],
-   "description": "Refused, gate input_holder, unless the caller holds the source (screen.take), and gate state unless it watches it. Coordinates are in the units of the frame's width and height (the page's CSS pixels for a browser), from its top left. Its reply is never kept for a retry."
+   "description": "Refused, gate input_holder, unless the caller holds the source (screen.take), and gate state unless it watches it. Coordinates are in the units of the frame's width and height (the page's CSS pixels for a browser, the screen's points for a device), from its top left. Its reply is never kept for a retry."
   },
   {
    "name": "screen.act",
-   "summary": "An agent's own call before it uses its source (hl browser runs it before each verb): refused while a person holds it, otherwise shown to watchers.",
+   "summary": "An agent's own call before it uses its source (hl browser runs it before each verb, hl sim before each verb that acts): refused while a person holds it, otherwise shown to watchers.",
    "paramStructure": "by-name",
    "params": [
     {
@@ -509,11 +510,17 @@
        "scroll",
        "eval",
        "close",
+       "tap",
+       "swipe",
+       "button",
+       "rotate",
+       "launch",
+       "install",
        "read",
        "wait",
        "shot"
       ],
-      "description": "open, click, type, key, scroll, eval and close act on the source and are sent to watchers as screen_action; read, wait and shot only read it."
+      "description": "open, click, type, key, scroll, eval, close, tap, swipe, button, rotate, launch and install act on the source and are sent to watchers as screen_action; read, wait and shot only read it."
      }
     },
     {
@@ -521,7 +528,7 @@
      "required": false,
      "schema": {
       "$ref": "#/components/schemas/ScreenBox",
-      "description": "The target's box on the page. click and type are called once before the target is found, which only checks the hold, and once with its box, which is shown."
+      "description": "The target's box on the source. A browser's click and type, and a device's tap, are called once before the target is found, which only checks the hold, and once with its box, which is shown."
      }
     }
    ],
@@ -547,7 +554,7 @@
     "role",
     "input_holder"
    ],
-   "description": "The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page`. Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box."
+   "description": "The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page` (a device: `has the device`). Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box."
   }
  ]
 }

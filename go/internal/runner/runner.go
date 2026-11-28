@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/handline/handline/go/internal/browser"
 	"github.com/handline/handline/go/internal/screenpipe"
+	"github.com/handline/handline/go/internal/sim"
 	"net"
 	"os"
 	"path/filepath"
@@ -61,7 +62,7 @@ type Config struct {
 	Master            joined.Master
 	Term              Terminals
 	Control           func() (termchan.Proc, error)
-	// Screens is this machine's agents' screen sources; nil is their browsers under Home.
+	// Screens is this machine's agents' screen sources; nil is their browsers and devices under Home.
 	Screens screenpipe.Opener
 	Auth    authority.Authority
 	Tokens  Tokens
@@ -183,7 +184,7 @@ func Start(cfg Config) (*Runner, error) {
 	r.streams = termchan.NewStreams(func() *termchan.ControlLink { return control })
 	screens := cfg.Screens
 	if screens == nil {
-		screens = browser.Opener(cfg.Home)
+		screens = screenpipe.ByKind(map[string]screenpipe.Opener{"browser": browser.Opener(cfg.Home), sim.Source: sim.Opener(cfg.Home)})
 	}
 	r.screens = &screenpipe.Streams{Open: screens}
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {

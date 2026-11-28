@@ -171,8 +171,11 @@ func (h *Hub) input(c *rpc.Conn, params map[string]any) (any, error) {
 
 // pageWord is what a refusal calls the source.
 func pageWord(source string) string {
-	if source == "browser" {
+	switch source {
+	case "browser":
 		return "page"
+	case "sim":
+		return "device"
 	}
 	return source
 }
@@ -223,10 +226,11 @@ func (h *Hub) giveBackCall(c *rpc.Conn, params map[string]any) (any, error) {
 
 // Kinds is what an agent does with a source (screen.act): the acting ones are shown to watchers, the reading ones only checked.
 var (
-	acting  = []string{"open", "click", "type", "key", "scroll", "eval", "close"}
+	acting  = []string{"open", "click", "type", "key", "scroll", "eval", "close", "tap", "swipe", "button", "rotate", "launch", "install"}
 	reading = []string{"read", "wait", "shot"}
-	// boxed are the kinds whose target has a box: the call before it is known only checks the hold, and the one with it is shown.
-	boxed = []string{"click", "type"}
+	// boxed are each source's kinds whose target has a box: the call before it is known only checks the hold, and the one with it is
+	// shown.
+	boxed = map[string][]string{"browser": {"click", "type"}, "sim": {"tap"}}
 )
 
 // act is the agent about to use its source: refused while a person holds it, else marked in use and, when it acts, shown to watchers.
@@ -259,7 +263,7 @@ func (h *Hub) act(c *rpc.Conn, params map[string]any) (any, error) {
 		h.opened(k)
 		h.use(k)
 	}
-	if slices.Contains(acting, kind) && (box != nil || !slices.Contains(boxed, kind)) {
+	if slices.Contains(acting, kind) && (box != nil || !slices.Contains(boxed[k.source], kind)) {
 		go notify(h.watchers(k), "screen_action", map[string]any{"agent": k.agent, "source": k.source, "kind": kind, "box": box,
 			"at": h.now().UTC().Format("2006-01-02T15:04:05Z")})
 	}

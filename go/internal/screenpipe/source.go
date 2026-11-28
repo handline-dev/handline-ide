@@ -40,5 +40,15 @@ var ErrNotOpen = errors.New("not open")
 // Opener is the source an agent has open on this machine, ErrNotOpen when it has none.
 type Opener func(agent, source string) (Source, error)
 
-// Sources is every source kind there is.
-var Sources = []string{"browser"}
+// Sources is every source kind there is: an agent's browser (hl browser) and its booted simulator (hl sim).
+var Sources = []string{"browser", "sim"}
+
+// ByKind is one opener per source kind.
+func ByKind(open map[string]Opener) Opener {
+	return func(agent, source string) (Source, error) {
+		if o := open[source]; o != nil {
+			return o(agent, source)
+		}
+		return nil, ErrNotOpen
+	}
+}

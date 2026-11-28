@@ -245,22 +245,27 @@ func (e *Env) Launch(b *Booted, app string) error {
 // Tree is what is on the screen now.
 func (e *Env) Tree(b *Booted) (*Node, error) { return e.backend(b.Platform).tree(b) }
 
-// Tap taps the element sel names, or the point (x, y) when sel is empty.
-func (e *Env) Tap(b *Booted, sel Selector, x, y float64) (string, error) {
-	be := e.backend(b.Platform)
-	if !sel.empty() {
-		root, err := be.tree(b)
-		if err != nil {
-			return "", err
-		}
-		n, ok := Find(root, sel)
-		if !ok {
-			return "", fmt.Errorf("nothing enabled on the screen matches %s (hl sim tree shows what is there)", sel.String())
-		}
-		x, y = n.Frame.Center()
-		return n.line(), be.tap(b, x, y)
+// Target is what a tap lands on: the element sel names, or the point (x, y) when sel is empty, as a line and its frame (a point's is
+// empty).
+func (e *Env) Target(b *Booted, sel Selector, x, y float64) (string, Frame, error) {
+	if sel.empty() {
+		return fmt.Sprintf("point %.0f,%.0f", x, y), Frame{x, y, 0, 0}, nil
 	}
-	return fmt.Sprintf("point %.0f,%.0f", x, y), be.tap(b, x, y)
+	root, err := e.backend(b.Platform).tree(b)
+	if err != nil {
+		return "", Frame{}, err
+	}
+	n, ok := Find(root, sel)
+	if !ok {
+		return "", Frame{}, fmt.Errorf("nothing enabled on the screen matches %s (hl sim tree shows what is there)", sel.String())
+	}
+	return n.line(), n.Frame, nil
+}
+
+// Tap taps the centre of f.
+func (e *Env) Tap(b *Booted, f Frame) error {
+	x, y := f.Center()
+	return e.backend(b.Platform).tap(b, x, y)
 }
 
 func (s Selector) String() string {

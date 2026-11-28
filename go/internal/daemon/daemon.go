@@ -400,7 +400,10 @@ func Start(cfg Config) (*Daemon, error) {
 		// A hold lasts the turn; a session's end also ends the commands' leases its hl use processes did not give back.
 		if kind == "SessionEnd" {
 			d.leases.ReleaseAgent(agent, "", false, "the session ended")
-			go (&sim.Env{Home: cfg.Home}).Reap(agent) // the simulators and emulators it booted
+			go func() {
+				(&sim.Env{Home: cfg.Home}).Reap(agent) // the simulators and emulators it booted
+				d.screens.Closed(agent, sim.Source)
+			}()
 		} else {
 			d.leases.ReleaseAgent(agent, "", true, "the turn ended")
 		}

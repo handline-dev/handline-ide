@@ -38,7 +38,6 @@ var layer = map[string]int{
 	"layers":                 0,
 	"homefiles":              0,
 	"screenpipe":             0,
-	"sim":                    0,
 	"outcome":                0,
 	"status":                 0,
 	"scheduler/staymove":     0,
@@ -48,6 +47,7 @@ var layer = map[string]int{
 	"scheduler/worktreelock": 0,
 	// L1 wire and infra
 	"browser":            1,
+	"sim":                1,
 	"data/agenthost":     1,
 	"data/homeinit":      1,
 	"accounts/claudecli": 1,

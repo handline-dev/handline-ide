@@ -101,6 +101,19 @@ final class Driver: XCTestCase {
                                                       "right": .landscapeRight]
             guard let o = to[(req["to"] as? String) ?? ""] else { throw Failure("to is portrait, upsidedown, left or right") }
             XCUIDevice.shared.orientation = o
+        case "frame":
+            let img = XCUIScreen.main.screenshot().image
+            let pts = UIScreen.main.bounds.size
+            let px = CGSize(width: img.size.width * img.scale, height: img.size.height * img.scale)
+            let fit = min(1, ((req["max"] as? Double) ?? 1280) / Double(max(px.width, px.height)))
+            let to = CGSize(width: (px.width * fit).rounded(), height: (px.height * fit).rounded())
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let small = UIGraphicsImageRenderer(size: to, format: format).image { _ in img.draw(in: CGRect(origin: .zero, size: to)) }
+            guard let jpeg = small.jpegData(compressionQuality: (req["quality"] as? Double) ?? 0.7) else { throw Failure("no frame") }
+            out["jpeg"] = jpeg.base64EncodedString()
+            out["width"] = Double(pts.width)
+            out["height"] = Double(pts.height)
         case "quit":
             done.fulfill()
         default:
