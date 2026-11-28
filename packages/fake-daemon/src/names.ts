@@ -25,7 +25,7 @@ export function identOf(key: string): { key: string; name: string; workspace: st
 
 /** workspaces.list over the agents' keys, oldest first; a workspace renamed or made at a folder has its name, folder or added folders
  * by segment. Its lead is the agent named by the segment; once that one is retired, its oldest other agent that is not a seat leads it,
- * as the daemon hands a retired lead's workspace to next_lead. */
+ * as the daemon hands a retired lead's workspace to next_lead. Its session_mode is terminal unless set. */
 export function workspacesOf(
   agents: readonly string[],
   seats: ReadonlySet<string> = new Set(),
@@ -33,6 +33,7 @@ export function workspacesOf(
   folders: ReadonlyMap<string, string> = new Map(),
   added: ReadonlyMap<string, readonly string[]> = new Map(),
   plain: (path: string) => boolean = () => false,
+  modes: ReadonlyMap<string, Workspace['session_mode']> = new Map(),
 ): Workspace[] {
   const segs = [...new Set(agents.map(segment))];
   return segs
@@ -50,7 +51,7 @@ export function workspacesOf(
         folders: all.map((path, i) => ({ path, name: path.split('/').pop()!, git: !plain(path), default: i === 0 })),
         lead,
         next_lead: leads.find((a) => a !== lead) ?? null,
-        session_mode: 'terminal' as const,
+        session_mode: modes.get(seg) ?? 'terminal',
       };
     })
     .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));

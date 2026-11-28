@@ -86,6 +86,11 @@ export class ScriptCore {
     const from = s.state;
     s.state = state;
     s.since = this.host.iso();
+    if (s.terminalHold === 'asked' && s.open && state !== 'running' && state !== 'waiting') {
+      s.terminalHold = 'on';
+      s.structured = false;
+      s.hasTerminal = true;
+    }
     if (from !== state) this.host.moved(s, from);
     this.host.emit('agents', 'agent.changed', {
       agent: s.fx.name,
@@ -277,6 +282,8 @@ export class ScriptCore {
     s.prompt = null;
     s.queue = [];
     s.open = false;
+    if (s.terminalHold) s.structured = true; // the next session follows session_mode again
+    s.terminalHold = undefined;
     if (mode === 'kill') s.hasTerminal = false;
     else this.write(s, '(session ended)');
     this.setState(s, mode === 'kill' ? 'no_terminal' : 'parked', actor);

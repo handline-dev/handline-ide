@@ -71,6 +71,7 @@ export class FakeWorkspaces {
   private names = new Map<string, string>();
   private folders = new Map<string, string>();
   private added = new Map<string, string[]>(SEEDED_ADDED);
+  private modes = new Map<string, Workspace['session_mode']>();
   /** The folder each agent works in, when it is not its workspace's default. */
   private works = new Map<string, string>();
   /** Segments whose lead is being made: their name and folder are taken before the lead is registered. */
@@ -87,13 +88,26 @@ export class FakeWorkspaces {
 
   list(): Workspace[] {
     const seats = new Set([...this.host.sessions].filter(([, s]) => s.fx.view?.hired_from).map(([k]) => k));
-    return workspacesOf([...this.host.sessions.keys()], seats, this.names, this.folderOf(), this.added, (f) => this.plain.has(f));
+    return workspacesOf(
+      [...this.host.sessions.keys()],
+      seats,
+      this.names,
+      this.folderOf(),
+      this.added,
+      (f) => this.plain.has(f),
+      this.modes,
+    );
   }
 
   /** The folder agent key works in: its own, else its workspace's default. */
   folderFor(key: string): string | null {
     const ws = this.list().find((w) => w.key === identOf(key).workspace);
     return this.works.get(key) ?? ws?.folder ?? null;
+  }
+
+  /** The session_mode of the workspace agent key belongs to. */
+  modeOf(key: string): Workspace['session_mode'] {
+    return this.modes.get(segment(key)) ?? 'terminal';
   }
 
   /** The name agent.create gives an agent of workspace (key or name) when none is typed: the first plain name free there, else ada-2, ada-3 and so on. */
@@ -228,15 +242,19 @@ export class FakeWorkspaces {
     return ok(`Creating workspace ${name}.`, { operation: id });
   }
 
-  /** workspace.set: a new name (its agents' sessions run on), a folder added or one taken away. Every part is checked before any is
-   * made. */
+  /** workspace.set: a new name (its agents' sessions run on), a folder added or one taken away, or its session_mode. Every part is
+   * checked before any is made. */
   private set(p: Record<string, unknown>, ok: Ok) {
     const { seg, ws } = this.find(p.workspace);
-    for (const k of ['add_folder', 'remove_folder'] as const)
+    for (const k of ['add_folder', 'remove_folder', 'session_mode'] as const)
       if (p[k] !== undefined && (typeof p[k] !== 'string' || !p[k])) throw invalidParams(`${k} is a non-empty string`, k);
     const add = p.add_folder as string | undefined;
     const gone = p.remove_folder as string | undefined;
-    if (p.name === undefined && !add && !gone) throw invalidParams('name, add_folder or remove_folder says what changes', 'name');
+    const mode = p.session_mode as Workspace['session_mode'] | undefined;
+    if (p.name === undefined && !add && !gone && !mode)
+      throw invalidParams('name, add_folder, remove_folder or session_mode says what changes', 'name');
+    if (mode !== undefined && mode !== 'terminal' && mode !== 'chat')
+      throw invalidParams('session_mode is one of terminal, chat', 'session_mode');
     const name = p.name === undefined ? ws.name : this.checkName(p.name, ws.name);
     const paths = ws.folders.map((f) => f.path);
     const adding = add !== undefined && !paths.includes(add);
@@ -264,12 +282,17 @@ export class FakeWorkspaces {
       next = next.filter((f) => f !== gone);
       said.push(`Took ${gone} away.`);
     }
+    const moding = mode !== undefined && mode !== this.modeOf(seg);
+    if (moding) {
+      this.modes.set(seg, mode);
+      said.push(`Its sessions run in ${mode} mode unless an agent says.`);
+    }
     if (next !== paths) {
       this.folders.set(seg, next[0] ?? '');
       this.added.set(seg, next.slice(1));
     }
-    if (name !== ws.name || next !== paths) this.host.emit('workspaces', 'workspaces.changed', { data: {} });
-    return ok(said.join(' ') || `${add} is a folder of ${ws.name} already.`);
+    if (name !== ws.name || next !== paths || moding) this.host.emit('workspaces', 'workspaces.changed', { data: {} });
+    return ok(said.join(' ') || (add ? `${add} is a folder of ${ws.name} already.` : `${ws.name} runs in ${mode} mode already.`));
   }
 
   /** workspace.delete: every agent retired, the lead last, or nothing at all. */
@@ -290,6 +313,7 @@ export class FakeWorkspaces {
     this.names.delete(seg);
     this.folders.delete(seg);
     this.added.delete(seg);
+    this.modes.delete(seg);
     for (const a of agents) this.works.delete(a);
     this.starting.delete(seg);
     this.host.emit('workspaces', 'workspaces.changed', { data: {} });

@@ -182,6 +182,28 @@ const BASE: Record<string, (h: Call) => unknown> = {
     script.interruptTurn(s, actor);
     return script.accepted('Interrupted.');
   },
+  /** As the daemon: a structured session between turns goes on in a terminal at once, one mid-turn when its turn ends, and an agent
+   * with no session starts in its terminal; that session stays a terminal one until it ends. */
+  'agent.open_terminal': (h) => {
+    const { actor, script, agent } = h;
+    const s = agent();
+    if (s.open && !s.structured) return script.accepted(`${s.fx.name}: runs in its terminal already`);
+    if (!s.open) {
+      if (s.structured) s.terminalHold = 'on';
+      s.structured = false;
+      script.startSession(s, false, actor);
+      return script.accepted(`${s.fx.name}: started in its terminal`);
+    }
+    if (s.state === 'running' || s.state === 'waiting') {
+      s.terminalHold = 'asked';
+      return script.accepted(`${s.fx.name}: opens in its terminal when its turn ends, and any background work with it`);
+    }
+    s.terminalHold = 'on';
+    s.structured = false;
+    s.hasTerminal = true;
+    script.setState(s, s.state, actor);
+    return script.accepted(`${s.fx.name}: opened in its terminal, in the same conversation`);
+  },
   'prompt.answer': (h) => {
     const { c, p, actor, script, agent } = h;
     const s = agent();

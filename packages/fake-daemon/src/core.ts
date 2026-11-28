@@ -21,7 +21,7 @@ export interface CoreHost {
   readonly admin: FakeAdmin;
   readonly script: Script;
   readonly accounts: FakeAccounts;
-  readonly spaces: { folderFor(key: string): string | null };
+  readonly spaces: { folderFor(key: string): string | null; modeOf(key: string): 'terminal' | 'chat' };
   readonly replyItems: boolean;
   readonly pairing: FakePairing;
   readonly log: EventLog;
@@ -143,8 +143,10 @@ export function coreCall(
         placement: { mode: manual ? 'manual' : 'auto', agents },
       };
     }
-    case 'agent.get':
-      return detail(agent(), d.tasks);
+    case 'agent.get': {
+      const s = agent();
+      return detail(s, d.tasks, d.spaces.modeOf(s.fx.name));
+    }
     case 'subscribe': {
       c.topics = new Set(subscribeTopics(p, d.unservedTopics));
       return { cursor: d.log.head };

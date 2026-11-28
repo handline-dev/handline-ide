@@ -47,6 +47,7 @@ export interface Session {
   unheld?: [number, number]; // the size before the viewers' first resize while nobody held the input
   prompt: Prompt | null;
   structured?: boolean; // played as a structured session by the transcript
+  terminalHold?: 'asked' | 'on'; // agent.open_terminal's: asked mid-turn, or this session runs in a terminal until it ends
   queue: (() => void)[]; // the scripted turn, one step per tick
   counter: number;
   settings: Record<string, string>; // agent.set's values
@@ -143,7 +144,8 @@ export function view(s: Session, tasks: TaskCounter): AgentView {
   };
 }
 
-export function detail(s: Session, tasks: TaskCounter): AgentDetail {
+/** agent.get; its session_mode in force is its own, else its workspace's (wsMode). */
+export function detail(s: Session, tasks: TaskCounter, wsMode: 'terminal' | 'chat' = 'terminal'): AgentDetail {
   return {
     ...view(s, tasks),
     worktree: { path: s.fx.worktree, branch: s.fx.branch, repo: s.fx.repo ?? null },
@@ -157,7 +159,7 @@ export function detail(s: Session, tasks: TaskCounter): AgentDetail {
     input_holders: s.structured ? [] : [s.holder],
     account_pick: { account: s.fx.account, reason: 'fixture' },
     prompt: s.prompt,
-    settings: { ...s.settings, session_mode_in_force: s.settings.session_mode || 'terminal' } as AgentDetail['settings'],
+    settings: { ...s.settings, session_mode_in_force: s.settings.session_mode || wsMode } as AgentDetail['settings'],
   };
 }
 
