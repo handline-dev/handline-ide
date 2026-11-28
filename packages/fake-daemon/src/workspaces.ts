@@ -1,6 +1,7 @@
 // The fake daemon's workspaces: workspaces.list, and the owner's workspace.create, workspace.set and workspace.delete. A workspace is the
 // first segment of its agents' keys (names.ts); a rename or a folder is kept here by segment, so keys never change.
 import type { Actor, Repo, Topic, Workspace } from '@handline/contract';
+import { textRefusal } from '#src/agentcontext.ts';
 import { AGENTS } from '#src/fixtures.ts';
 import { Failure, invalidParams, refused } from '#src/errors.ts';
 import { identOf, PEOPLE, segment, workspacesOf } from '#src/names.ts';
@@ -13,6 +14,7 @@ interface Host {
   work: FakeWork;
   held: Map<string, unknown[]>;
   admin: { worktrees: FakeWorktrees };
+  context: { keep(agent: string, texts: Record<string, string>, by: string): unknown; texts: Map<string, unknown> };
   emit(topic: Topic, type: string, f?: { agent?: string; actor?: Actor; data?: Record<string, unknown> }): void;
 }
 type Ok = (said: string, extra?: object) => object;
@@ -138,7 +140,7 @@ export class FakeWorkspaces {
       case 'workspaces.list':
         return { workspaces: this.list() };
       case 'workspace.create':
-        return this.create(p, ok);
+        return this.create(p, ok, actor);
       case 'workspace.set':
         return this.set(p, ok);
       default:
@@ -177,10 +179,19 @@ export class FakeWorkspaces {
   }
 
   /** workspace.create: the checkout the folder is in, then agent.create's operation for its lead. Another workspace's folder fails it.
-   * No name: the folder's, else "workspace", the first free; no folder: a new one ~/Handline/<name>. */
-  private create(p: Record<string, unknown>, ok: Ok) {
+   * No name: the folder's, else "workspace", the first free; no folder: a new one ~/Handline/<name>. A role and base given are the
+   * lead's first versions, by the caller. */
+  private create(p: Record<string, unknown>, ok: Ok, actor: Actor) {
     const blank = (v: unknown) => v === undefined || (typeof v === 'string' && !v.trim());
     if (!blank(p.folder) && typeof p.folder !== 'string') throw invalidParams('folder is an absolute path', 'folder');
+    const texts: Record<string, string> = {};
+    for (const k of ['role', 'base'] as const) {
+      const v = p[k];
+      if (v === undefined || v === null) continue;
+      const why = typeof v === 'string' ? textRefusal(k, v) : `${k} is text`;
+      if (why) throw invalidParams(why, k);
+      texts[k] = v as string;
+    }
     let at: string | undefined;
     if (!blank(p.folder)) {
       const folder = (p.folder as string).replace(/^~(?=\/|$)/, HOME);
@@ -200,6 +211,7 @@ export class FakeWorkspaces {
     this.names.delete(name);
     if (!other) this.starting.add(name);
     if (!other) this.folders.set(name, repo.path);
+    if (!other) this.host.context.keep(name, texts, actor.name);
     const fx = {
       ...AGENTS[0]!,
       name,
@@ -216,8 +228,8 @@ export class FakeWorkspaces {
     return ok(`Creating workspace ${name}.`, { operation: id });
   }
 
-  /** workspace.set: a new name (refused while one of its agents has a session running), a folder added or one taken away. Every part
-   * is checked before any is made. */
+  /** workspace.set: a new name (its agents' sessions run on), a folder added or one taken away. Every part is checked before any is
+   * made. */
   private set(p: Record<string, unknown>, ok: Ok) {
     const { seg, ws } = this.find(p.workspace);
     for (const k of ['add_folder', 'remove_folder'] as const)
@@ -226,7 +238,6 @@ export class FakeWorkspaces {
     const gone = p.remove_folder as string | undefined;
     if (p.name === undefined && !add && !gone) throw invalidParams('name, add_folder or remove_folder says what changes', 'name');
     const name = p.name === undefined ? ws.name : this.checkName(p.name, ws.name);
-    if (name !== ws.name) this.busy(seg);
     const paths = ws.folders.map((f) => f.path);
     const adding = add !== undefined && !paths.includes(add);
     if (adding) {
@@ -273,6 +284,7 @@ export class FakeWorkspaces {
     for (const a of agents.sort((x, y) => Number(x === seg) - Number(y === seg))) {
       this.host.sessions.delete(a);
       this.host.held.delete(a);
+      this.host.context.texts.delete(a);
       this.host.emit('agents', 'agent.removed', { agent: a, actor, data: { key: a } });
     }
     this.names.delete(seg);

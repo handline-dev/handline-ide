@@ -31,6 +31,9 @@ const agentOf = (p: Record<string, unknown>): string => {
 };
 // eslint-disable-next-line no-control-regex -- the daemon refuses a control character other than tab and newline
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u2028\u2029]/;
+/** Why s cannot be a new version of part, '' when it can (the daemon's db.InstructionRefusal). */
+export const textRefusal = (part: string, s: string): string =>
+  !s.trim() ? `${part} is the whole new text, not empty` : CONTROL.test(s) ? `${part} carries a control character` : '';
 
 export class FakeAgentContext {
   /** Each agent's versions in force, by key; a test seeds them. */
@@ -66,15 +69,21 @@ export class FakeAgentContext {
     if (!given.length) throw invalidParams('name role, base or both, with the whole new text', 'role');
     for (const k of given) {
       const s = p[k];
-      if (typeof s !== 'string' || !s.trim()) throw invalidParams(`${k} is the whole new text, not empty`, k);
-      if (CONTROL.test(s)) throw invalidParams(`${k} carries a control character`, k);
+      const why = typeof s === 'string' ? textRefusal(k, s) : `${k} is the whole new text, not empty`;
+      if (why) throw invalidParams(why, k);
     }
-    const t = this.texts.get(agent) ?? {};
-    const changed = given.filter((k) => t[k]?.text !== (p[k] as string).trim());
+    const changed = this.keep(agent, Object.fromEntries(given.map((k) => [k, p[k] as string])), actor.name);
     if (!changed.length) return ok(`${agent}'s text is that already`);
-    for (const k of changed) t[k] = { text: (p[k] as string).trim(), by: actor.name, at: this.now().toISOString().slice(0, 19) + 'Z' };
-    this.texts.set(agent, t);
     return ok(`${agent}: ${changed.join(' and ')} replaced; applies when it next starts fresh`);
+  }
+
+  /** Keeps texts as agent's versions in force, by by; the parts that changed. */
+  keep(agent: string, texts: Partial<Record<Part, string>>, by: string): Part[] {
+    const t = this.texts.get(agent) ?? {};
+    const changed = PARTS.filter((k) => texts[k] !== undefined && t[k]?.text !== texts[k]!.trim());
+    for (const k of changed) t[k] = { text: texts[k]!.trim(), by, at: this.now().toISOString().slice(0, 19) + 'Z' };
+    this.texts.set(agent, t);
+    return changed;
   }
 
   private remove(agent: string, p: Record<string, unknown>, ok: Ok): unknown {

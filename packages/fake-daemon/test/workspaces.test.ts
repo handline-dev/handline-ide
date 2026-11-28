@@ -57,6 +57,24 @@ test('workspace.create refuses a bad name, a taken one and a missing folder, bef
   client.close();
 });
 
+test('workspace.create keeps a role and base as the lead’s first versions, and refuses an empty one or a control character', async () => {
+  const { client, daemon } = setup();
+  await client.start();
+  const make = (p: Record<string, unknown>, id: string) =>
+    client.call('workspace.create', { name: 'garden', folder: '/Users/me/code/garden', request_id: id, ...p } as never);
+  for (const [p, field] of [
+    [{ role: ' ' }, 'role'],
+    [{ base: 'a\u0007b' }, 'base'],
+    [{ role: 7 }, 'role'],
+  ] as const)
+    await assert.rejects(make(p, `wc-${field}`), (e: RpcError) => e.code === 'bad_request' && e.data?.field === field);
+  assert.equal(daemon.sessions.has('garden'), false);
+  await make({ role: '# garden lead\n\tplans', base: 'tidy' }, 'wc-ok');
+  const ctx = await client.call('agent.context', { agent: 'garden' });
+  assert.deepEqual([ctx.role?.text, ctx.base?.text], ['# garden lead\n\tplans', 'tidy']);
+  client.close();
+});
+
 test('a folder another workspace has fails the operation, and the name stays free', async () => {
   const { client, daemon } = setup();
   await client.start();
@@ -82,20 +100,14 @@ test('a folder another workspace has fails the operation, and the name stays fre
   client.close();
 });
 
-test('workspace.set renames by key or name, keeps the keys, and is refused while an agent runs', async () => {
+test('workspace.set renames by key or name while its agents run, and keeps the keys', async () => {
   const { client, daemon } = setup();
   await client.start();
   const events: Event[] = [];
   client.onEvent((e) => e.topic === 'workspaces' && events.push(e));
   await client.subscribe(['workspaces']);
   const ws = await named(client, 'handline');
-  for (const s of daemon.sessions.values()) s.open = false;
   daemon.sessions.get('handline.auditor')!.open = true;
-  await assert.rejects(
-    client.call('workspace.set', { workspace: 'handline', name: 'hl', request_id: 'ws-1' }),
-    refusedWith('refused', 'state'),
-  );
-  daemon.sessions.get('handline.auditor')!.open = false;
   await client.call('workspace.set', { workspace: ws.key, name: 'hl', request_id: 'ws-2' });
   assert.ok((await names(client)).includes('hl'));
   assert.equal((await named(client, 'hl')).key, ws.key);
