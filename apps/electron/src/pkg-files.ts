@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { rmBundle } from '#src/swap.ts';
 
 /** Saves `url` into `dir`, calling `progress` with 0 to 1 as it arrives; returns the file. Rejects on a status that is not 200. */
 export async function downloadTo(dir: string, url: string, progress: (fraction: number) => void): Promise<string> {
@@ -34,7 +35,7 @@ export function sha512Of(file: string): Promise<string> {
 
 /** Unpacks the zip (made by ditto, as electron-builder does) into `staging`, and returns `<staging>/<app name>`; rejects when the app is not in it. */
 export async function unpackApp(zip: string, staging: string, appName: string): Promise<string> {
-  fs.rmSync(staging, { recursive: true, force: true });
+  rmBundle(staging);
   await new Promise<void>((resolve, reject) =>
     execFile('ditto', ['-xk', zip, staging], (err, _o, errOut) =>
       err ? reject(new Error(`ditto: ${(errOut || err.message).trim().split('\n').pop()}`)) : resolve(),

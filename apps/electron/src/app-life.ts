@@ -72,7 +72,11 @@ export const saveUpdateChannel =
   };
 
 /** What the tray reads of the update flow. */
-export const trayUpdate = (flow: UpdateFlow): TrayUpdate => ({ phase: flow.view.phase, restart: () => flow.act('restart') });
+export const trayUpdate = (flow: UpdateFlow): TrayUpdate => ({
+  phase: flow.view.phase,
+  restart: () => flow.act('restart'),
+  retry: () => flow.act('retry'),
+});
 
 /** Follow-main mode as the tray shows it. */
 export const trayFollow = (f: Follower): TrayFollow => ({

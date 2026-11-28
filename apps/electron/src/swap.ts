@@ -2,9 +2,21 @@
 // A rename inside one folder is atomic, and a running app keeps working through the files it has open, so the app can swap itself.
 import fs from 'node:fs';
 
+/** Removes a folder that holds an app bundle. Electron's fs reads an .asar file as a folder, so a plain recursive rm calls rmdir on it
+ *  and fails with ENOTDIR; with asar off it is a file like any other. */
+export function rmBundle(p: string): void {
+  const was = process.noAsar;
+  process.noAsar = true;
+  try {
+    fs.rmSync(p, { recursive: true, force: true });
+  } finally {
+    process.noAsar = was;
+  }
+}
+
 /** Returns the path the old app was moved to; the caller removes it (now, or at the next start: the running process may still need it). */
 export function swapBundle(installed: string, staged: string, aside = `${installed}.old-${process.pid}`): string {
-  fs.rmSync(aside, { recursive: true, force: true });
+  rmBundle(aside);
   fs.renameSync(installed, aside);
   try {
     fs.renameSync(staged, installed);

@@ -247,13 +247,13 @@ test('the menu says an update only once it is ready (Restart to update); a faile
       working: 0,
       openAtLogin: true,
       details,
-      update: { phase, restart: () => undefined },
+      update: { phase, restart: () => undefined, retry: () => undefined },
       follow: { ...base, state: 'current' },
     }).map((i) => i.label ?? '-');
   for (const p of ['idle', 'preparing'] as const) assert.ok(!menu(p).some((l) => /main|update|restart|try again/i.test(l)));
   for (const p of ['ready', 'later'] as const) assert.ok(menu(p).includes('Restart to update'));
   assert.ok(menu('idle', true).includes('Handline is on main aaa1111'));
-  assert.equal(menu('failed')[0], 'Handline needs attention');
+  assert.equal(menu('failed')[0], 'Update failed · Try again');
 });
 
 // fs.watch can start and then deliver nothing (macOS with an overloaded fseventsd); a bare watch on the same folder tells that from a bug in watchMain.

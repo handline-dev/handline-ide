@@ -19,7 +19,11 @@ const view = (over: Partial<TrayView> = {}): TrayView => ({
   ...over,
 });
 const labels = (s: State, v = view(), a = actions) => trayMenu(s, a, v).map((i) => i.label ?? '-');
-const upd = (phase: NonNullable<TrayView['update']>['phase']) => ({ phase, restart: () => calls.push('update-restart') });
+const upd = (phase: NonNullable<TrayView['update']>['phase']) => ({
+  phase,
+  restart: () => calls.push('update-restart'),
+  retry: () => calls.push('update-retry'),
+});
 const follow = (over: Partial<TrayFollow> = {}): TrayFollow => ({
   sha: 'aaa1111ffff',
   state: 'current',
@@ -54,18 +58,18 @@ test('Open at login is a checkbox that turns the setting the other way', () => {
   assert.deepEqual(calls.splice(0), ['login false', 'login true']);
 });
 
-test('a stopped daemon or a failed update: "Handline needs attention" first, which opens the app, and the yellow icon', () => {
-  for (const [s, v] of [
-    ['stopped', view()],
-    ['failed', view()],
-    ['running', view({ update: upd('failed') })],
+test('trouble names itself first, with the yellow icon: a down daemon opens the app, a failed update tries again', () => {
+  for (const [s, v, label, call] of [
+    ['stopped', view(), 'Handline is stopped', 'open'],
+    ['failed', view(), 'Handline failed to start', 'open'],
+    ['failed', view({ update: upd('failed') }), 'Handline failed to start', 'open'],
+    ['running', view({ update: upd('failed') }), 'Update failed · Try again', 'update-retry'],
   ] as const) {
     const items = trayMenu(s, actions, v);
-    assert.equal(items[0]!.label, 'Handline needs attention');
+    assert.equal(items[0]!.label, label);
     items[0]!.click!();
-    assert.equal(calls.pop(), 'open');
+    assert.equal(calls.pop(), call);
     assert.equal(trayIcon(s, { ...v, unread: 5 }), 'trouble'); // trouble outranks the rest
-    assert.ok(!labels(s, v).some((x) => /daemon|Try again|not updated/i.test(x)));
   }
 });
 

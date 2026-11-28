@@ -5,7 +5,7 @@ import { app, ipcMain } from 'electron';
 import { CHANNELS, UpdateChannelCalls } from '#src/bridge.ts';
 import { downloadTo, sha512Of, unpackApp } from '#src/pkg-files.ts';
 import { SelfUpdater, type PkgPorts } from '#src/pkg-update.ts';
-import { leftovers, STAGING, swapBundle } from '#src/swap.ts';
+import { leftovers, rmBundle, STAGING, swapBundle } from '#src/swap.ts';
 import type { UpdateFlow } from '#src/update-flow.ts';
 import { quitQuietly } from '#src/ask.ts';
 import { channelOf, withChannel, type UpdateChannel } from '#src/update-channel.ts';
@@ -28,8 +28,7 @@ export function packagedUpdateUrl(appPath: string): string | null {
 export function sweepSwap(): void {
   const parent = path.dirname(installedApp());
   try {
-    for (const p of leftovers(parent, fs.readdirSync(parent), path.basename(installedApp())))
-      fs.rmSync(p, { recursive: true, force: true });
+    for (const p of leftovers(parent, fs.readdirSync(parent), path.basename(installedApp()))) rmBundle(p);
   } catch {
     /* the folder cannot be listed: nothing to remove */
   }

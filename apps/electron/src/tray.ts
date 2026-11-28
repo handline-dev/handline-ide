@@ -31,6 +31,7 @@ export type TrayIcon = 'plain' | 'turn' | 'update' | 'trouble';
 export interface TrayUpdate {
   phase: UpdatePhase;
   restart(): void;
+  retry(): void;
 }
 
 /** Follow-main mode: the commit the app runs, whether main has moved, and what the tray offers. */
@@ -62,13 +63,16 @@ const ready = (u: TrayUpdate) => u.phase === 'ready' || u.phase === 'later';
 
 const agents = (n: number) => `${n} agent${n === 1 ? '' : 's'}`;
 
-/** Something the person should know about: this Mac's daemon is not running, or an update failed. The app says what and why. */
-const trouble = (state: DaemonState, v: Pick<TrayView, 'update'>) =>
-  (state !== 'running' && state !== 'starting') || v.update?.phase === 'failed';
+const daemonDown = (state: DaemonState) => state !== 'running' && state !== 'starting';
 
-/** The first line: what runs, or that the app has something to say. */
+/** Something the person should know about: this Mac's daemon is not running, or an update failed. */
+const trouble = (state: DaemonState, v: Pick<TrayView, 'update'>) => daemonDown(state) || v.update?.phase === 'failed';
+
+/** The first line: what runs, or what is wrong, named. */
 export function statusLine(state: DaemonState, v: Pick<TrayView, 'working' | 'update'>): string {
-  if (trouble(state, v)) return 'Handline needs attention';
+  if (state === 'failed') return 'Handline failed to start';
+  if (state === 'stopped') return 'Handline is stopped';
+  if (v.update?.phase === 'failed') return 'Update failed · Try again';
   if (state === 'starting') return 'Handline is starting…';
   return v.working ? `Handline · ${agents(v.working)} working` : 'Handline';
 }
@@ -91,10 +95,13 @@ function detailItems(a: TrayActions, v: TrayView): TrayItem[] {
   return items;
 }
 
+/** What the trouble line's click does: a failed update tries again; a daemon that is down opens the app, which says why. */
+const fix = (state: DaemonState, a: TrayActions, v: TrayView) => (!daemonDown(state) && v.update ? v.update.retry : a.open);
+
 /** The menu, top to bottom: what runs (or that the app needs attention, which opens it), Open, what needs the person, Open at login, Quit. */
 export function trayMenu(state: DaemonState, a: TrayActions, v: TrayView): TrayItem[] {
   const items: TrayItem[] = [
-    trouble(state, v) ? { label: statusLine(state, v), click: a.open } : { label: statusLine(state, v), enabled: false },
+    trouble(state, v) ? { label: statusLine(state, v), click: fix(state, a, v) } : { label: statusLine(state, v), enabled: false },
     { type: 'separator' },
   ];
   items.push({ label: 'Open Handline', click: a.open });
