@@ -397,32 +397,68 @@ func TestASourceIsInUseUntilItsTimeAfterTheLastActionAndClosingIt(t *testing.T) 
 	}
 	w := newWorld(t)
 	var mu sync.Mutex
-	n := 0
+	now := time.Unix(1000, 0)
+	type arm struct {
+		end     func()
+		stopped bool
+	}
+	var arms []*arm // each end of the use armed, in order
+	advance := func(d time.Duration) { mu.Lock(); now = now.Add(d); mu.Unlock() }
 	w.hub.InUse = 200 * time.Millisecond
-	w.hub.Changed = func(agent string) { mu.Lock(); n++; mu.Unlock() }
+	w.hub.Now = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	w.hub.After = func(d time.Duration, f func()) func() {
+		if d != 200*time.Millisecond {
+			t.Errorf("the end armed after %s", d)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		a := &arm{end: f}
+		arms = append(arms, a)
+		return func() { mu.Lock(); a.stopped = true; mu.Unlock() }
+	}
+	changes := make(chan string, 10)
+	w.hub.Changed = func(agent string) { changes <- agent }
+	told := func(why string) {
+		t.Helper()
+		select {
+		case <-changes:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("the view was not told: %s", why)
+		}
+	}
 	a := dial(t, w.agent, "")
 	if got := w.hub.Sources("a1"); len(got) != 0 {
 		t.Fatalf("sources before any use: %v", got)
 	}
 	result(t, a.call("screen.act", `"source":"browser","kind":"open"`))
+	told("opened")
+	told("in use")
 	if got := fmt.Sprint(w.hub.Sources("a1")); got != "[map[in_use:true source:browser]]" {
 		t.Errorf("after open: %s", got)
 	}
-	time.Sleep(100 * time.Millisecond)
+	advance(100 * time.Millisecond)
 	result(t, a.call("screen.act", `"source":"browser","kind":"read"`)) // the time runs from the last action
-	time.Sleep(150 * time.Millisecond)
+	mu.Lock()
+	if len(arms) != 2 || !arms[0].stopped || arms[1].stopped {
+		t.Fatalf("arms after the second action: %d, the first stopped %v: the end runs from the last action", len(arms), len(arms) > 0 && arms[0].stopped)
+	}
+	end := arms[1].end
+	mu.Unlock()
+	advance(150 * time.Millisecond)
 	if got := fmt.Sprint(w.hub.Sources("a1")); got != "[map[in_use:true source:browser]]" {
 		t.Errorf("150 ms after the last action: %s", got)
 	}
-	time.Sleep(150 * time.Millisecond)
+	advance(150 * time.Millisecond)
 	if got := fmt.Sprint(w.hub.Sources("a1")); got != "[map[in_use:false source:browser]]" {
 		t.Errorf("past its time: %s", got)
 	}
-	mu.Lock()
-	if n != 3 { // opened, in use, then no longer in use
-		t.Errorf("the view was told %d times", n)
+	end()
+	told("no longer in use")
+	select {
+	case <-changes:
+		t.Error("the view was told more than opened, in use and no longer in use")
+	default:
 	}
-	mu.Unlock()
 	result(t, a.call("screen.act", `"source":"browser","kind":"close"`))
 	if got := w.hub.Sources("a1"); len(got) != 0 {
 		t.Errorf("after close: %v", got)
@@ -523,7 +559,10 @@ func TestAnAttachToNoSourceLeavesNothingRunning(t *testing.T) {
 	for range 20 {
 		c.call("screen.attach", `"agent":"a2","source":"browser"`)
 	}
-	time.Sleep(100 * time.Millisecond)
+	deadline := time.Now().Add(5 * time.Second)
+	for runtime.NumGoroutine() > before+2 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	if after := runtime.NumGoroutine(); after > before+2 {
 		t.Errorf("20 attaches to no source left %d goroutines more", after-before)
 	}

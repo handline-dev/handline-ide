@@ -28,14 +28,16 @@ type Hub struct {
 	Log func(format string, args ...any)
 	// InUse is how long a source is in use after an agent's action; 0 is DefaultInUse.
 	InUse time.Duration
+	// Now and After are the clock: After runs f once d has passed, and gives back what stops it. nil is the real one.
 	Now   func() time.Time
+	After func(d time.Duration, f func()) (stop func())
 
 	mu     sync.Mutex
 	chans  map[key]*channel
 	holds  map[key]*hold
 	used   map[key]time.Time
 	open   map[key]bool
-	timers map[key]*time.Timer
+	timers map[key]func()
 	conns  map[*rpc.Conn]map[key]bool
 }
 
@@ -55,6 +57,14 @@ func (h *Hub) now() time.Time {
 	return time.Now()
 }
 
+func (h *Hub) after(d time.Duration, f func()) func() {
+	if h.After != nil {
+		return h.After(d, f)
+	}
+	t := time.AfterFunc(d, f)
+	return func() { t.Stop() }
+}
+
 func (h *Hub) inUse() time.Duration {
 	if h.InUse > 0 {
 		return h.InUse
@@ -65,7 +75,7 @@ func (h *Hub) inUse() time.Duration {
 func (h *Hub) init() {
 	if h.chans == nil {
 		h.chans, h.holds, h.used, h.open = map[key]*channel{}, map[key]*hold{}, map[key]time.Time{}, map[key]bool{}
-		h.timers, h.conns = map[key]*time.Timer{}, map[*rpc.Conn]map[key]bool{}
+		h.timers, h.conns = map[key]func(){}, map[*rpc.Conn]map[key]bool{}
 	}
 }
 
@@ -127,12 +137,10 @@ func (h *Hub) use(k key) {
 	h.init()
 	wasInUse := h.inUseLocked(k)
 	h.used[k] = h.now()
-	if t := h.timers[k]; t != nil {
-		t.Stop()
+	if stop := h.timers[k]; stop != nil {
+		stop()
 	}
-	h.timers[k] = time.AfterFunc(h.inUse(), func() {
-		h.changed(k.agent)
-	})
+	h.timers[k] = h.after(h.inUse(), func() { h.changed(k.agent) })
 	h.mu.Unlock()
 	if !wasInUse {
 		h.changed(k.agent)
