@@ -16,6 +16,7 @@ import { ModelChip } from '#src/chat/agent/ModelChip.tsx';
 import { AgentSettingsButton } from '#src/chat/agent/AgentSettingsButton.tsx';
 import { StatusLine } from '#src/chat/agent/StatusLine.tsx';
 import { FootRow, HoldCard, useHoldLine } from '#src/chat/agent/HoldBar.tsx';
+import { HeldCard } from '#src/chat/agent/HeldCard.tsx';
 import { PauseCard } from '#src/chat/PauseCard.tsx';
 import { PromptCard } from '#src/chat/PromptCard.tsx';
 import { ProposalCards } from '#src/chat/ProposalCard.tsx';
@@ -186,6 +187,7 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
   const lines = useChatRows(chat, agent, useTaskActivity(agent));
   const { entries, rows } = lines;
   const view = useAgents().data?.agents.find((a) => a.key === agent);
+  const heldOff = !!view?.held_on?.restart_here && view.held_on.silent_since !== null;
   const doing = view?.doing?.text;
   const held = view?.task;
   // A compaction, a move or a restart under way takes the turn's row, in place of the box being locked.
@@ -252,6 +254,8 @@ function Stream({ agent, onReply, ref }: { agent: string; onReply: (r: Reply) =>
             {/* A move kept for the turn's end takes the row, at its height: the move or the dots, never both. */}
             {view?.pending_move ? (
               <PendingMove agent={agent} />
+            ) : heldOff ? (
+              <HeldCard agent={agent} />
             ) : (
               <FootRow
                 busy={busy}

@@ -5,6 +5,12 @@ import type { FakeDaemon } from '#src/daemon.ts';
 const ARCH = 'handline.architect';
 
 export const STEP_SEEDS: Record<string, (d: FakeDaemon) => void> = {
+  /** The architect's session is on a machine silent for 12 minutes: its chat foot offers to start it elsewhere. */
+  'held-offline': (d) => {
+    const s = d.sessions.get(ARCH)!;
+    const silent_since = Math.floor(Date.now() / 1000) - 12 * 60;
+    s.fx.view = { ...s.fx.view, held_on: { node: 'n2', machine: 'mac-mini', silent_since, restart_here: true } };
+  },
   /** Tasks given to the architect, one assigned and one handed on, and a turn running 4 minutes on the one it holds (T8705). */
   'start-card': (d) => {
     const iso = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
