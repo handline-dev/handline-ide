@@ -56,3 +56,13 @@ export interface KV {
   getItem(k: string): string | null;
   setItem(k: string, v: string): void;
 }
+
+type SeatFacts = Pick<AgentView, 'state' | 'has_dialog' | 'handoff' | 'status'> & { task?: { id: number } | null };
+
+/** An agent with its seats as one row: it keeps its own mark, so its rest still shows, unless a seat waits on the person (`lead` is
+ *  then that seat, which lifts the row into Needs you); `beside` is the seats at work on a task now. */
+export function withSeats<A extends SeatFacts>(own: A, seats: readonly A[]): { lead: A; beside: A[] } {
+  const asks = dotOf(own) === 'waiting' ? undefined : seats.find((s) => dotOf(s) === 'waiting');
+  const beside = seats.filter((s) => s.task && ['waiting', 'blocked', 'running', 'waking'].includes(dotOf(s)));
+  return { lead: asks ?? own, beside };
+}

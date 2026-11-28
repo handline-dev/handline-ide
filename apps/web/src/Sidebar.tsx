@@ -7,6 +7,7 @@ import { newWorkspace } from '#src/NewWorkspace.tsx';
 import type { AgentView, Workspace } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
+import { BesideCount, BesideList, useWithSeats, type Merged } from '#src/sidebar/Beside.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
@@ -58,10 +59,11 @@ function unreadNote(a: AgentView): string | undefined {
 }
 
 /** Resting on an agent's row shows its device (when there are several) and what runs behind its prompt; with neither, no card. */
-function AgentRowCard({ agent, jobs, children }: { agent: string; jobs: Job[]; children: ReactNode }) {
+function AgentRowCard({ agent, jobs, beside = [], children }: { agent: string; jobs: Job[]; beside?: AgentView[]; children: ReactNode }) {
   const device = useAgentDevice(agent);
   return (
-    <HoverCard side="right" off={jobs.length === 0 && !device} trigger={<div>{children}</div>}>
+    <HoverCard side="right" off={jobs.length === 0 && !device && !beside.length} trigger={<div>{children}</div>}>
+      {beside.length > 0 && <BesideList seats={beside} />}
       {device && <DeviceLine device={device} />}
       {jobs.length > 0 && <JobList jobs={jobs} />}
     </HoverCard>
@@ -78,7 +80,7 @@ type Pick = {
 let dragged: { name: string; group: string } | null = null;
 
 /** The rows of one section. `onMove(names)` hears the section's new order after a drag within it. */
-function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: Pick; onMove: (names: string[]) => void; here?: string }) {
+function AgentRows({ agents, pick, onMove, here }: { agents: Merged[]; pick: Pick; onMove: (names: string[]) => void; here?: string }) {
   const now = useNow();
   // A workspace's section (`here`) names its agents as that workspace does; Pinned, which mixes workspaces, as from outside.
   const nameOf = useNameOf(here);
@@ -124,7 +126,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
             />
           )}
           <AgentMenu agent={agent} opens={opens} onShow={() => pick.onSelect(agent.key)}>
-            <AgentRowCard agent={agent.key} jobs={agent.background ?? []}>
+            <AgentRowCard agent={agent.key} jobs={agent.background ?? []} beside={agent.beside}>
               <Row
                 opens={opens}
                 menu={false}
@@ -141,6 +143,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: AgentView[]; pick: 
                         {queuedBehind(agent)}
                       </span>
                     )}
+                    {!!agent.beside?.length && <BesideCount n={agent.beside.length} />}
                     {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
                   </span>
                 }
@@ -239,7 +242,7 @@ function Agents({ pick, onNew, joined }: { pick: Pick; onNew: (ws: Workspace) =>
   const word = joined && <ClusterWord cluster={joined} />;
   // A section's new order goes first in nav.order; the rest of the order stays as it was.
   const reorder = (names: string[]) => change({ order: [...names, ...nav.order.filter((n) => !names.includes(n))] });
-  const all = ordered(list.data?.agents ?? [], nav.order);
+  const all = useWithSeats(ordered(list.data?.agents ?? [], nav.order));
   // An agent waiting on the person rises to Needs you at the top while it waits, and goes back to its place after.
   const needs = joined ? [] : all.filter((a) => activityOf(a) === 'you');
   const calm = all.filter((a) => !needs.includes(a));

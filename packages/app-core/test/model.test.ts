@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AgentView, Prompt } from '@handline/client';
-import { promptChoices, whyOf, dotOf, offered, splitCancel, checkedKeys, queuedBehind } from '#src/index.ts';
+import { promptChoices, whyOf, dotOf, offered, splitCancel, checkedKeys, queuedBehind, withSeats } from '#src/index.ts';
 
 const agent = (name: string, over: Partial<AgentView> = {}): AgentView =>
   ({
@@ -119,4 +119,21 @@ test('a question keeps Cancel out of its options, and a multi-select submits the
   assert.equal(splitCancel(card('dialog'), choices).cancel, undefined);
   assert.deepEqual(checkedKeys(opts, ['3', '1']), ['1', '3']);
   assert.deepEqual(checkedKeys(opts, []), []);
+});
+
+test('withSeats: an agent keeps its own mark unless a seat waits on the person; the seats at work on a task are beside it', () => {
+  const own = agent('ui', { state: 'idle' });
+  const work = agent('ui-2', { state: 'running', task: { id: 7, title: 'a' } });
+  const ask = agent('ui-3', { state: 'waiting', task: { id: 8, title: 'b' } });
+  const rest = agent('ui-4', { state: 'idle', task: { id: 9, title: 'c' } });
+  const free = agent('ui-5', { state: 'running', task: null });
+  let r = withSeats(own, [work, rest]);
+  assert.equal(r.lead, own); // its rest still shows
+  assert.deepEqual(r.beside, [work]);
+  r = withSeats(own, [work, ask, rest, free]);
+  assert.equal(r.lead, ask);
+  assert.deepEqual(r.beside, [work, ask]);
+  assert.equal(withSeats(own, []).lead, own);
+  const asking = agent('ui', { state: 'waiting' });
+  assert.equal(withSeats(asking, [ask]).lead, asking);
 });

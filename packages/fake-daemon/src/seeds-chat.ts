@@ -5,6 +5,7 @@ import type { FakeDaemon } from '#src/daemon.ts';
 import { task } from '#src/seedkit.ts';
 import { newSession } from '#src/session.ts';
 import { STEP_SEEDS } from '#src/seeds-steps.ts';
+import { SEAT_SEEDS } from '#src/seeds-seats.ts';
 
 type Seed = (d: FakeDaemon) => void;
 
@@ -47,6 +48,7 @@ const sampleHandoff = [
 
 export const CHAT_SEEDS: Record<string, Seed> = {
   ...STEP_SEEDS,
+  ...SEAT_SEEDS,
   /** handline.architect works with two tasks beside its own, done by its seats a7 (T9460, running) and a8 (T9458, done): a line at
    * each start and end in its chat; a7's record of T9460 reads as chat.transcript with agent a7. */
   alongside: (d) => {
