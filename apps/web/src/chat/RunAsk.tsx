@@ -2,6 +2,8 @@
 // under it; once answered, one line saying how it ended. The task page and the agent's chat draw it the same.
 import { commandSteps, runCommand, runOutcome, type RunOutcome } from '@handline/app-core';
 import type { Proposal } from '@handline/client';
+import { useRead } from '@handline/app-data';
+import { useStore } from '@handline/app-react';
 import { Ban, CircleCheck, CircleX, LoaderCircle, Minus } from 'lucide-react';
 import { CopyButton } from '#src/chat/MessageActions.tsx';
 import { clock } from '#src/format/time.ts';
@@ -59,7 +61,16 @@ function Ended({ end, command }: { end: RunOutcome; command: string }) {
   );
 }
 
+/** The machine a run starts on, the daemon's own, named only when this app is not on it. */
+function useRunsOn(): string | null {
+  const t = useStore().client.hello?.transport;
+  const remote = !!t && t !== 'local'; // a paired device comes in over the network
+  const mdns = useRead('connection.addresses', {}).data?.addresses.find((a) => a.kind === 'mdns')?.host;
+  return remote && mdns ? mdns.replace(/\.local$/, '') : null;
+}
+
 function Waiting({ p, command }: { p: Proposal; command: string }) {
+  const on = useRunsOn();
   return (
     <>
       <div className="relative min-w-0 rounded-md border border-border bg-surface">
@@ -72,7 +83,9 @@ function Waiting({ p, command }: { p: Proposal; command: string }) {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <ProposalAnswers id={p.id} runFirst />
-        {p.run?.cwd && <span className="min-w-0 font-mono text-xs break-all text-muted">in {p.run.cwd}</span>}
+        {p.run?.cwd && (
+          <span className="min-w-0 font-mono text-xs break-all text-muted">{on ? `on ${on} · ${p.run.cwd}` : `in ${p.run.cwd}`}</span>
+        )}
       </div>
     </>
   );
