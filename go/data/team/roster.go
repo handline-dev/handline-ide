@@ -51,6 +51,7 @@ var settingKinds = map[string]byte{
 	"session_mode":           's',
 	"move_background_wait_s": 'i',
 	"compact_at_task_end":    'b', "compact_now_stops_turn": 'b', "no_silence_reminder": 'b',
+	"restart_reclaimed": 'b',
 }
 
 // settingKeys is settingKinds' keys in order, for the SELECT.

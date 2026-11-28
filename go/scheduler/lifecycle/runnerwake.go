@@ -76,3 +76,46 @@ func (m *Manager) startedElsewhere(agent string, left leftRunner) {
 	must(db.AddEvent(m.Q, agent, db.MachineMovedKind, db.KV{K: "from", V: from}, db.KV{K: "to", V: to}, db.KV{K: "reason", V: reason}))
 	m.refreshView(agent)
 }
+
+// StartElsewhere starts agent now where placement puts it, its session left on the runner Mac it was on: that machine has gone silent.
+// release also drops the runner's rows for it (a person's press, person); a reclaim has dropped them already. It starts fresh from its
+// handoff, as a lost session does: its conversation stays on that machine. The answer says where it started, or why it did not.
+func (m *Manager) StartElsewhere(agent, why string, release, person bool) (ok bool, said string, err error) {
+	defer catch(&err)
+	if m.Runners == nil {
+		return false, "its session is not on another machine", nil
+	}
+	unlock, mine := m.Typing.TakeTerminal(agent)
+	if !mine {
+		return false, TypingElsewhere + "; not starting twice", nil
+	}
+	defer unlock()
+	handle := must(db.Terminal(m.Q, agent)) // read under the lock: a wake that held it may have moved the agent already
+	node, _, onRunner := term.OnRunner(handle)
+	if !onRunner {
+		return false, "its session is not on another machine", nil
+	}
+	if release {
+		if err := m.Runners.Release(agent, node, why); err != nil {
+			return false, "", err
+		}
+	}
+	row := must(db.GetAgentState(m.Q, agent))
+	wt := ""
+	if row != nil {
+		wt = m.keptWorktree(row)
+	}
+	check(db.SetTerminal(m.Q, agent, "", wt))
+	check(db.CloseAgentTerminal(m.Q, handle))
+	check(db.ClearNode(m.Q, agent))
+	must(db.AddEvent(m.Q, agent, "terminal_gone", db.KV{K: "handle", V: handle}, db.KV{K: "why", V: why}))
+	if !isClosed(row) {
+		m.recordClosed(agent, "", SessionStatus{}) // its conversation is on that machine: nothing to resume here
+	}
+	ok, said = m.wakeAgent(agent, WakeOpts{Person: person, HeldWork: true, Cause: "machine_offline"})
+	if !ok {
+		return false, said, nil
+	}
+	m.startedElsewhere(agent, leftRunner{node: node, why: why})
+	return true, "started on " + m.Runners.NodeName(must(db.AgentNode(m.Q, agent))), nil
+}

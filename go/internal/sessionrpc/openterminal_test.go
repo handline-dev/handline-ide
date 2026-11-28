@@ -46,3 +46,18 @@ func TestOpenTerminalMovesAChatSessionToItsTerminal(t *testing.T) {
 		t.Fatalf("closed: %q %v", said, r.ctl.calls)
 	}
 }
+
+// agent.restart_here answers with where the agent started, or refuses (gate state) with the reason.
+func TestRestartHereAnswersOnceWithWhereOrTheRefusal(t *testing.T) {
+	r := newRig(t)
+	ok, said := false, "MacBook Air is online and linked: it runs there"
+	r.e.RestartHere = func(_ Call, agent string) (bool, string, error) { return ok, said, nil }
+	c := r.dial(false)
+	if g := refused(c.call("agent.restart_here", map[string]any{"agent": "ann", "request_id": rid("h1")})); g != "state" {
+		t.Fatalf("gate %q", g)
+	}
+	ok, said = true, "started on Mac mini"
+	if got := result(t, c.call("agent.restart_here", map[string]any{"agent": "ann", "request_id": rid("h2")})); got["said"] != said {
+		t.Fatalf("%v", got)
+	}
+}

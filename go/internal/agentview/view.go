@@ -108,6 +108,8 @@ type Env struct {
 	Screens func(agent string) []any
 	// SwitchOffer is the card offering a waiting agent the closest account, nil for none. It stands only when no other need does. Nil is never.
 	SwitchOffer func(agent string) *NeedsYou
+	// HeldOn is AgentView.held_on: the other machine agent's session is on, nil on this one. Nil is never.
+	HeldOn func(agent string) any
 	// LimitDialogOwned is whether the dialog on agent's screen is the usage-limit one and the daemon is handling that wall, so it is no
 	// person's to answer. Nil is never.
 	LimitDialogOwned func(agent string) bool
@@ -163,6 +165,13 @@ func (e *Env) servers(agent string) []any {
 		return []any{}
 	}
 	return serversView(e.Servers(agent))
+}
+
+func (e *Env) heldOn(agent string) any {
+	if e.HeldOn == nil {
+		return nil
+	}
+	return e.HeldOn(agent)
 }
 
 func (e *Env) screens(agent string) []any {
@@ -526,7 +535,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"account":               account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
 		"account_switch": must(e.switchView(row, now)), "pending_move": must(e.pendingMove(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
-		"screens": e.screens(agent),
+		"screens": e.screens(agent), "held_on": e.heldOn(agent),
 	}, nil
 }
 

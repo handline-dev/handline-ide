@@ -17,10 +17,10 @@ import (
 
 // SessionRPC is the env of the session methods over the lifecycle: session.start, wake, stop, restart, park and interrupt.
 func (p *Parts) SessionRPC(cfg Config) *sessionrpc.Env {
-	c := controls{p: p, lc: p.LC}
+	c := controls{p: p, lc: p.LC, nodes: cfg.Nodes}
 	return &sessionrpc.Env{DB: p.db, Home: cfg.Home, Controls: c, Move: c.viaMover((*lifecycle.Mover).ForceMove), SwitchNow: c.viaMover((*lifecycle.Mover).SwitchNow),
 		MoveNow: c.moveNow, CancelMove: c.cancelMove, Now: cfg.Now, Roster: p.LC.roster,
-		ForceStart: c.ForceStart, Unpass: c.Unpass, StartOwed: c.StartOwed, StartFailed: p.LC.Env.FailedSince, Launch: p.LC.prepareLaunch, RefreshView: p.RefreshView}
+		RestartHere: c.restartHere, ForceStart: c.ForceStart, Unpass: c.Unpass, StartOwed: c.StartOwed, StartFailed: p.LC.Env.FailedSince, Launch: p.LC.prepareLaunch, RefreshView: p.RefreshView}
 }
 
 // prepareLaunch is session.launch_prepare: lifecycle.Launcher.Prepare for the terminal that asked.
@@ -119,8 +119,9 @@ func (c controls) Unpass(agent string) { c.lc.Gate.Unpass(agent) }
 
 // controls is sessionrpc.Controls over the lifecycle manager.
 type controls struct {
-	p  *Parts
-	lc *Lifecycle
+	p     *Parts
+	lc    *Lifecycle
+	nodes *nodes.Registry // the runners, for agent.restart_here; nil runs every agent here
 }
 
 var _ sessionrpc.Controls = controls{}

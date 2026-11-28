@@ -95,6 +95,8 @@ type Env struct {
 	StartOwed func(agent string) bool
 	// StartFailed is why the tick could not start or wake the agent, noted since since (unix seconds); "" for none. nil notes none.
 	StartFailed func(agent string, since int64) string
+	// RestartHere starts agent now where placement puts it, its silent machine's rows dropped; nil serves no agent.restart_here.
+	RestartHere func(c Call, agent string) (ok bool, said string, err error)
 	// Launch is the launch hl launch execs, built and recorded here; nil serves no session.launch_prepare. A launch that must not go ahead
 	// is a *LaunchRefusal.
 	Launch func(LaunchRequest) (LaunchResult, error)
@@ -134,6 +136,9 @@ func Register(s *rpc.Server, e *Env) {
 	}
 	if e.DB != nil {
 		s.Register("agent.unstall", rpc.Method{Waits: true, Handler: e.unstall})
+	}
+	if e.RestartHere != nil {
+		s.Register("agent.restart_here", rpc.Method{Waits: true, Handler: e.verb("agent.restart_here", e.RestartHere)})
 	}
 	if e.ForceStart != nil {
 		s.Register("agent.force_start", rpc.Method{Waits: true, Handler: e.forceStart})

@@ -43,6 +43,10 @@ const CompactNowStopsKey = "compact_now_stops_turn"
 // next start. Global and per agent; off by default.
 const NoSilenceReminderKey = "no_silence_reminder"
 
+// RestartReclaimedKey: an agent the reclaim takes back from a machine gone offline, still holding a task or with requests waiting, is
+// started again at once on a machine that can take it. Global and per agent; off by default.
+const RestartReclaimedKey = "restart_reclaimed"
+
 // ClusterNameKey is the cluster's name, kept on the board (meta): two random words given at the first start without one, changed by
 // the owner.
 const ClusterNameKey = "cluster_name"

@@ -170,6 +170,17 @@ export type AgentView = {
   review_work?: ("contract" | "screen" | "daemon" | "docs") | null;
   /** The screen sources the agent has open (screen.attach watches one), each with whether it is in use: an agent action on it in the last 20 s. A change is an agent.changed. Absent from a daemon that does not send it. */
   screens?: AgentScreen[];
+  /** The other machine (a runner) the agent's session is held on, null when it is on this one. Absent from a daemon that does not send it. */
+  held_on?: {
+    /** The node id of the machine its session is on. */
+    node: string;
+    /** That machine's name. */
+    machine: string;
+    /** Epoch seconds since that machine is silent (offline, or no link to it): its last heartbeat, or the master's start when it has heard none since. null while it is online and linked. */
+    silent_since: number | null;
+    /** Whether agent.restart_here is open now: the machine is silent. */
+    restart_here: boolean;
+  } | null;
 };
 
 export type AgentDetail = AgentView & {
@@ -447,6 +458,10 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "agent.unstall": { params: {
+  agent: Who;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.restart_here": { params: {
   agent: Who;
   request_id: RequestId;
 }; result: Accepted };
@@ -816,6 +831,7 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.move_now": { role: "owner", callers: null, write: true, since: 1 },
   "agent.switch_now": { role: "owner", callers: null, write: true, since: 1 },
   "agent.unstall": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.restart_here": { role: "owner", callers: null, write: true, since: 1 },
   "agent.force_start": { role: "owner", callers: null, write: true, since: 1 },
   "agent.retire": { role: "owner", callers: null, write: true, since: 1 },
   "agent.rename": { role: "owner", callers: null, write: true, since: 1 },
@@ -875,13 +891,14 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "agent.open_terminal" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "access.rule_remove" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.restart_here" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "agent.open_terminal" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "access.rule_remove" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
   "agent.move_now": {"kind": "decided", "label": "move now"},
   "agent.switch_now": {"kind": "decided", "label": "switch"},
   "agent.unstall": {"kind": "decided", "label": "clear stall"},
+  "agent.restart_here": {"kind": "decided", "label": "restart here"},
   "agent.force_start": {"kind": "decided", "label": "force start"},
   "agent.retire": {"kind": "decided", "label": "retire"},
   "agent.rename": {"kind": "decided", "label": "rename an agent"},

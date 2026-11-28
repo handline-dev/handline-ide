@@ -288,5 +288,10 @@
   "version": 157,
   "name": "session_mode_defaults",
   "additive": true
+ },
+ {
+  "version": 158,
+  "name": "agent_restart_reclaimed",
+  "additive": true
  }
 ]

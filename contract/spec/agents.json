@@ -656,6 +656,48 @@
        "$ref": "#/components/schemas/AgentScreen"
       },
       "description": "The screen sources the agent has open (screen.attach watches one), each with whether it is in use: an agent action on it in the last 20 s. A change is an agent.changed. Absent from a daemon that does not send it."
+     },
+     "held_on": {
+      "oneOf": [
+       {
+        "type": "object",
+        "properties": {
+         "node": {
+          "type": "string",
+          "description": "The node id of the machine its session is on."
+         },
+         "machine": {
+          "type": "string",
+          "description": "That machine's name."
+         },
+         "silent_since": {
+          "oneOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "Epoch seconds since that machine is silent (offline, or no link to it): its last heartbeat, or the master's start when it has heard none since. null while it is online and linked."
+         },
+         "restart_here": {
+          "type": "boolean",
+          "description": "Whether agent.restart_here is open now: the machine is silent."
+         }
+        },
+        "required": [
+         "node",
+         "machine",
+         "silent_since",
+         "restart_here"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "The other machine (a runner) the agent's session is held on, null when it is on this one. Absent from a daemon that does not send it."
      }
     },
     "required": [
@@ -2058,6 +2100,51 @@
    ],
    "x-gates": [
     "terminal_lock",
+    "state"
+   ]
+  },
+  {
+   "name": "agent.restart_here",
+   "summary": "Start an agent whose session is held on a silent machine (offline, or no link to it) now where placement puts it: that machine's rows for it are dropped, its task gets a comment naming the last commit pushed from there, and it starts fresh from its handoff, its conversation staying on that machine. Refused (gate state) while that machine is online and linked, or when its session is on this machine. Answers once, with where it started, or the refusal. Owner only.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "restart here"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ],
+   "x-gates": [
     "state"
    ]
   },

@@ -15,6 +15,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.move_now` | owner | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: move now |
 | `agent.switch_now` | owner | yes | `agent`, `account?`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: switch |
 | `agent.unstall` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | terminal_lock, state | decided: clear stall |
+| `agent.restart_here` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: restart here |
 | `agent.force_start` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | state | decided: force start |
 | `agent.retire` | owner | yes | `agent`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found` | state, dirty, worktree | decided: retire |
 | `agent.rename` | owner | yes | `agent`, `to`, `request_id` | `Accepted` | `not_found`, `refused`, `bad_request` | state | decided: rename an agent |
@@ -92,6 +93,10 @@ Start an agent waiting at its usage limit on the account a person chose, or the 
 ### `agent.unstall`
 
 Clear a STALLED agent: it goes to queued with its failure counters reset, as hl unstall does. When a start is then owed, the call answers once it has begun, or is refused (gate state) with why it failed or is held back, the stall still cleared; other calls on the connection are answered meanwhile. Refused (gate state) when the agent is not stalled.
+
+### `agent.restart_here`
+
+Start an agent whose session is held on a silent machine (offline, or no link to it) now where placement puts it: that machine's rows for it are dropped, its task gets a comment naming the last commit pushed from there, and it starts fresh from its handoff, its conversation staying on that machine. Refused (gate state) while that machine is online and linked, or when its session is on this machine. Answers once, with where it started, or the refusal. Owner only.
 
 ### `agent.force_start`
 

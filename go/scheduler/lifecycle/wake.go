@@ -302,6 +302,8 @@ type WakeOpts struct {
 	Applying    []string
 	MovedTo     string
 	Stopped     string // WakePromptIn.Stopped
+	// HeldWork wakes an agent for the task it holds though nothing waits for it: one started elsewhere after its machine went silent.
+	HeldWork bool
 }
 
 // WakeAgent hands a cleared agent back its own handoff so it can carry on. The agent kept its account across the park, and the handoff is
@@ -508,7 +510,7 @@ func (m *Manager) wakeClosed(agent string, row *db.AgentState, wt string, o Wake
 	must(m.Delivery.EnforceEdges(m.Q, agent))
 	// A closed agent is brought back for a message. With none, there is nothing to tell it and no reason to spend a session on it; the
 	// message that arrives is what wakes it. A move is the exception: the agent was mid-work and its handoff is what it is started with.
-	if movedTo == "" && !force && !m.waitingFor(agent) {
+	if movedTo == "" && !force && !o.HeldWork && !m.waitingFor(agent) {
 		return false, NothingWaiting
 	}
 	if w := m.Launch.WorkspaceWait(m.Q, agent); w != nil {

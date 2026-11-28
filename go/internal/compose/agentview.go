@@ -63,6 +63,7 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 	lc, q, home := p.LC, p.db, cfg.Home
 	return &agentview.Env{
 		PaneRuns: p.paneRuns,
+		HeldOn:   func(agent string) any { return p.heldOn(cfg.Nodes, agent) },
 		Q:        q, Home: home,
 		Sessions:    rowSessions{p, terminals, cfg.Turns},
 		Background:  lc.Env,

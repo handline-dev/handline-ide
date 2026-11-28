@@ -209,3 +209,34 @@ func TestAWakeLeavesARunnerForLastingReasonsAndAnUnlinkedOneOnlyPastTheWait(t *t
 		t.Fatal(r.NodeName("n1"))
 	}
 }
+
+// A machine is silent once it has been offline, or the master has held no link to it, for LeaveAfter, since its last heartbeat; online and
+// linked, or this machine, it is not.
+func TestAMachineIsSilentWhenOfflineOrNotLinked(t *testing.T) {
+	r := registry(t)
+	r.Self = "m0"
+	now := time.Now()
+	r.SetClock(func() time.Time { return now })
+	r.Hear("n1", runner.Beat{Version: "v1"}, now)
+	if _, silent := r.Silent("m0"); silent {
+		t.Fatal("this machine is never silent")
+	}
+	if _, silent := r.Silent("n1"); silent {
+		t.Fatal("not linked a moment: not silent yet")
+	}
+	r.SetClock(func() time.Time { return now.Add(LeaveAfter) })
+	if since, silent := r.Silent("n1"); !silent || !since.Equal(now) {
+		t.Fatalf("not linked past the wait: %v %v", since, silent)
+	}
+	r.SetClock(func() time.Time { return now })
+	r.mu.Lock()
+	r.links = map[string]*rpc.Conn{"n1": nil}
+	r.mu.Unlock()
+	if _, silent := r.Silent("n1"); silent {
+		t.Fatal("online and linked is not silent")
+	}
+	r.SetClock(func() time.Time { return now.Add(OfflineAfter + LeaveAfter) })
+	if since, silent := r.Silent("n1"); !silent || !since.Equal(now) {
+		t.Fatalf("linked but offline: %v %v", since, silent)
+	}
+}

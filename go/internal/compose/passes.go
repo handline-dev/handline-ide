@@ -91,7 +91,10 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 			if cfg.Nodes == nil {
 				return nil
 			}
-			_, err := cfg.Nodes.Sweep(lc.Manager.Settings.ConfigSeconds(nodes.ReclaimKey, nodes.ReclaimS))
+			got, err := cfg.Nodes.Sweep(lc.Manager.Settings.ConfigSeconds(nodes.ReclaimKey, nodes.ReclaimS))
+			p.reclaimed(cfg.Nodes, got, func(agent, why string) (bool, string, error) {
+				return lc.Manager.StartElsewhere(agent, why, false, false)
+			}, cfg.Log)
 			return err
 		}},
 	}

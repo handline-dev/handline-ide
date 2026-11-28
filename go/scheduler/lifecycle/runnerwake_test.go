@@ -153,3 +153,38 @@ func TestAnOpenSessionOnASilentRunnerIsNotLeft(t *testing.T) {
 		t.Fatalf("left: %q %v", h, r.released)
 	}
 }
+
+// A running agent whose runner went silent starts here at once, fresh, its terminal there forgotten: a person's press drops the runner's
+// rows, a reclaim has dropped them already; one whose session is on this machine is refused.
+func TestStartElsewhereStartsAnAgentHeldOnASilentRunnerHere(t *testing.T) {
+	for _, release := range []bool{true, false} {
+		m, r, _, sp := closedOnRunner(t)
+		db.ClearClosed(m.Q, "a")
+		db.SetAgentState(m.Q, "a", states.Running, 0, "")
+		ok, said, err := m.StartElsewhere("a", "it is silent since 11-28 10:00", release, release)
+		if err != nil || !ok || said != "started on Mac mini" {
+			t.Fatalf("release %v: %v %q %v", release, ok, said, err)
+		}
+		if len(sp.startedIn) != 1 || strings.Contains(sp.cmds[0], "--resume") {
+			t.Fatalf("started fresh here: %v %v", sp.startedIn, sp.cmds)
+		}
+		if want := map[bool]int{true: 1, false: 0}[release]; len(r.released) != want {
+			t.Fatalf("release %v: the runner's rows dropped %v", release, r.released)
+		}
+		if h, _ := db.Terminal(m.Q, "a"); strings.HasPrefix(h, "box:") {
+			t.Fatalf("the runner's terminal is still its own: %q", h)
+		}
+		if _, p, ok, _ := db.LastEvent(m.Q, "a", db.MachineMovedKind); !ok || p["from"] != "MacBook Air" || p["to"] != "Mac mini" ||
+			p["reason"] != "MacBook Air is silent since 11-28 10:00" {
+			t.Fatalf("its chat says where it started: %v", p)
+		}
+		if row, _ := db.GetAgentState(m.Q, "a"); row.State == states.Running && row.Terminal.String == "" {
+			t.Fatalf("left running with no session: %+v", row)
+		}
+	}
+	m, _, _, _ := closedOnRunner(t)
+	db.SetTerminal(m.Q, "a", "%3", "/wt")
+	if ok, said, err := m.StartElsewhere("a", "x", true, true); ok || err != nil || said != "its session is not on another machine" {
+		t.Fatalf("on this machine: %v %q %v", ok, said, err)
+	}
+}

@@ -528,6 +528,20 @@ func (r *Registry) LeaveFor(agent, node string) (why string, wait bool) {
 	return "", false
 }
 
+// Silent is whether node has been silent, not online or not linked, for LeaveAfter at least, and since when (its last heartbeat, or this
+// master's start when it has heard none since): a master that just started, or a runner asleep a moment, comes back first. This machine
+// never is.
+func (r *Registry) Silent(node string) (since time.Time, silent bool) {
+	if node == "" || node == r.Self || (r.Online(node) && r.IsLinked(node)) {
+		return time.Time{}, false
+	}
+	_, at, ok := r.Heard(node)
+	if !ok || at.Before(r.started) {
+		at = r.started
+	}
+	return at, r.Now().Sub(at) >= LeaveAfter
+}
+
 // Release drops agent's session on node from the master's records, as a reclaim does, why it was: the agent starts again where placement
 // puts it, not resumed (its conversation is on that machine).
 func (r *Registry) Release(agent, node, why string) error {
