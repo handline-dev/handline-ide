@@ -729,6 +729,117 @@
     ]
    },
    "note": "The doc was let go for every connection, when the daemon found it so before a write or while watching the file: gone, the file was deleted or moved away; unreadable, it is no longer UTF-8 text of at most 1 MiB. Open it again to see what is there."
+  },
+  "screen_frame": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ScreenSource"
+     },
+     "seq": {
+      "type": "integer"
+     },
+     "data": {
+      "type": "string"
+     },
+     "width": {
+      "type": "integer"
+     },
+     "height": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "agent",
+     "source",
+     "seq",
+     "data",
+     "width",
+     "height"
+    ]
+   },
+   "note": "A screen.attach's new frame, as ScreenFrame, numbered one past the last."
+  },
+  "screen_action": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ScreenSource"
+     },
+     "kind": {
+      "type": "string"
+     },
+     "box": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ScreenBox"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "at": {
+      "$ref": "#/components/schemas/Timestamp"
+     }
+    },
+    "required": [
+     "agent",
+     "source",
+     "kind",
+     "box",
+     "at"
+    ]
+   },
+   "note": "What the agent does on a watched source (screen.act's acting kinds), with its target's box when it has one, so a watcher can show it. Never what it types."
+  },
+  "screen_holder": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ScreenSource"
+     },
+     "holder": {
+      "$ref": "#/components/schemas/ScreenHolder"
+     }
+    },
+    "required": [
+     "agent",
+     "source",
+     "holder"
+    ]
+   },
+   "note": "Who drives a watched source changed (screen.take, give_back, or its holder stopped watching)."
+  },
+  "screen_ended": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    },
+    "required": [
+     "agent",
+     "source"
+    ]
+   },
+   "note": "The source went away (the agent closed its browser): the attach is over."
   }
  },
  "x-terminal": "Format `text` sends plain text rows (frame notices). Format `styled` sends the same rows and frames with each row's style runs (Row.spans), for a host that has no byte stream or a client that cannot run a terminal emulator (below). Format `bytes` (below) sends the pane's own escape-coded output, which carries the colour. One poller per terminal, at most ~5 reads a second however many clients; it stops when the last client leaves. The input holders are a list (TerminalSnapshot.holders, AgentView.input_holders) with a `holder` notice on change; a holder that has not typed for the input_hold_idle_s setting loses the hold.",

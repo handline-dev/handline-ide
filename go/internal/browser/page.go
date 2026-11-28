@@ -153,23 +153,28 @@ func (p *Page) object(target string) (string, error) {
 	return r.Result.ID, nil // a null result has none
 }
 
-// centre scrolls target into view and says the middle of its box.
-func (p *Page) centre(target string) (x, y float64, err error) {
+// Box is a target's place on the page, in the page's CSS pixels: its top left corner and its size.
+type Box struct{ X, Y, W, H float64 }
+
+func (b Box) centre() (x, y float64) { return b.X + b.W/2, b.Y + b.H/2 }
+
+// Box scrolls target into view and says its box.
+func (p *Page) Box(target string) (Box, error) {
 	id, err := p.object(target)
 	if err != nil {
-		return 0, 0, err
+		return Box{}, err
 	}
 	if id == "" {
-		return 0, 0, fmt.Errorf("nothing on the page matches %s", target)
+		return Box{}, fmt.Errorf("nothing on the page matches %s", target)
 	}
 	raw, err := p.c.call("Runtime.callFunctionOn", map[string]any{"objectId": id, "returnByValue": true, "functionDeclaration": `function() {
 		const el = this.nodeType === 1 ? this : this.parentElement;
 		el.scrollIntoView({block: "center", inline: "center"});
 		const r = el.getBoundingClientRect();
-		return [r.x + r.width / 2, r.y + r.height / 2, r.width, r.height];
+		return [r.x, r.y, r.width, r.height];
 	}`})
 	if err != nil {
-		return 0, 0, err
+		return Box{}, err
 	}
 	var r struct {
 		Result struct {
@@ -177,21 +182,27 @@ func (p *Page) centre(target string) (x, y float64, err error) {
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(raw, &r); err != nil || len(r.Result.Value) != 4 {
-		return 0, 0, fmt.Errorf("%s has no box", target)
+		return Box{}, fmt.Errorf("%s has no box", target)
 	}
 	v := r.Result.Value
 	if v[2] == 0 && v[3] == 0 {
-		return 0, 0, fmt.Errorf("%s is not shown", target)
+		return Box{}, fmt.Errorf("%s is not shown", target)
 	}
-	return v[0], v[1], nil
+	return Box{v[0], v[1], v[2], v[3]}, nil
 }
 
 // Click clicks the middle of target.
 func (p *Page) Click(target string) error {
-	x, y, err := p.centre(target)
+	b, err := p.Box(target)
 	if err != nil {
 		return err
 	}
+	return p.ClickAt(b)
+}
+
+// ClickAt clicks the middle of box.
+func (p *Page) ClickAt(b Box) error {
+	x, y := b.centre()
 	for _, kind := range []string{"mouseMoved", "mousePressed", "mouseReleased"} {
 		ev := map[string]any{"type": kind, "x": x, "y": y}
 		if kind != "mouseMoved" {
@@ -206,7 +217,16 @@ func (p *Page) Click(target string) error {
 
 // Type clicks target and types text into it, then presses Enter when enter.
 func (p *Page) Type(target, text string, enter bool) error {
-	if err := p.Click(target); err != nil {
+	b, err := p.Box(target)
+	if err != nil {
+		return err
+	}
+	return p.TypeAt(b, text, enter)
+}
+
+// TypeAt clicks the middle of box and types text there, then presses Enter when enter.
+func (p *Page) TypeAt(b Box, text string, enter bool) error {
+	if err := p.ClickAt(b); err != nil {
 		return err
 	}
 	if _, err := p.c.call("Input.insertText", map[string]any{"text": text}); err != nil {

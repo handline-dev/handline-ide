@@ -1,6 +1,7 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
 import type { DocUpdate } from './repos.ts';
+import type { ScreenBox, ScreenHolder, ScreenSource } from './screen.ts';
 import type { Proposal } from './team.ts';
 
 /** UTC, RFC 3339. */
@@ -1485,6 +1486,30 @@ export interface Notifications {
   path: string;
   doc: string;
   reason: "gone" | "unreadable";
+};
+  screen_frame: {
+  agent: string;
+  source: ScreenSource;
+  seq: number;
+  data: string;
+  width: number;
+  height: number;
+};
+  screen_action: {
+  agent: string;
+  source: ScreenSource;
+  kind: string;
+  box: ScreenBox | null;
+  at: Timestamp;
+};
+  screen_holder: {
+  agent: string;
+  source: ScreenSource;
+  holder: ScreenHolder;
+};
+  screen_ended: {
+  agent: string;
+  source: ScreenSource;
 };
 }
 

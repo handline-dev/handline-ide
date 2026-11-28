@@ -37,7 +37,7 @@ var layer = map[string]int{
 	"fixtureplay":            0,
 	"layers":                 0,
 	"homefiles":              0,
-	"browser":                0,
+	"screenpipe":             0,
 	"sim":                    0,
 	"outcome":                0,
 	"status":                 0,
@@ -46,6 +46,7 @@ var layer = map[string]int{
 	"chatterm":               0,
 	"scheduler/worktreelock": 0,
 	// L1 wire and infra
+	"browser":            1,
 	"data/agenthost":     1,
 	"data/homeinit":      1,
 	"accounts/claudecli": 1,

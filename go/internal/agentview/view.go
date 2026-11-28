@@ -104,6 +104,8 @@ type Env struct {
 	Jobs func(agent string, now int64) []Job
 	// Servers is the TCP servers agent's processes listen on, lowest port first (AgentView.servers). Nil is none.
 	Servers func(agent string) []procload.Server
+	// Screens is the agent's open screen sources and whether each is in use (AgentView.screens). Nil is none.
+	Screens func(agent string) []any
 	// SwitchOffer is the card offering a waiting agent the closest account, nil for none. It stands only when no other need does. Nil is never.
 	SwitchOffer func(agent string) *NeedsYou
 	// LimitDialogOwned is whether the dialog on agent's screen is the usage-limit one and the daemon is handling that wall, so it is no
@@ -161,6 +163,13 @@ func (e *Env) servers(agent string) []any {
 		return []any{}
 	}
 	return serversView(e.Servers(agent))
+}
+
+func (e *Env) screens(agent string) []any {
+	if e.Screens == nil {
+		return []any{}
+	}
+	return e.Screens(agent)
 }
 
 func (e *Env) now() int64 {
@@ -517,6 +526,7 @@ func (e *Env) Compute(agent string) (view map[string]any, err error) {
 		"account":               account, "task": task, "cache_until": cache, "ctx_pct": ctx,
 		"has_dialog": word == "DIALOG", "needs_you": needsView(needs), "handoff": handoff, "doing": doing,
 		"account_switch": must(e.switchView(row, now)), "pending_move": must(e.pendingMove(row, now)), "status": st.Map(), "background": jobsView(jobs), "servers": e.servers(agent),
+		"screens": e.screens(agent),
 	}, nil
 }
 

@@ -44,6 +44,7 @@ import (
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/runner"
 	"github.com/handline/handline/go/internal/screen"
+	"github.com/handline/handline/go/internal/screenpipe"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/internal/sim"
 	"github.com/handline/handline/go/internal/termchan"
@@ -130,6 +131,9 @@ type Config struct {
 	Resources *sysres.Sampler
 	// Load, when set, is the process tracker shared with the agent views (its servers); the daemon gives it the database and the panes. Nil makes one for Watch.
 	Load *procload.Tracker
+	// Screens, when set, is the screen pipeline shared with the agent views (their open sources); the daemon gives it the sources, the
+	// runners and the telling. Nil makes one.
+	Screens *screenpipe.Hub
 	// Context is the model id and context figures of an agent on an account (agent.strip). Nil leaves them null.
 	Context func(agent, account string) (string, *int, *int64, int)
 	// Delivery is what the supervisor knows of why a queued line waits (a chat line's sending_reason). Nil leaves out the reasons that need it.
@@ -175,6 +179,7 @@ type Daemon struct {
 	prompts   *prompts.Env
 	usageSeen map[string]string // the usage loop's own: each account's row as last told the accounts topic (usageKey); nil before the first look
 	tchan     *termchan.Env     // the terminal channel and the input hold
+	screens   *screenpipe.Hub   // the agents' screen sources, watched and held
 	res       *sysres.Sampler   // what the machine and each agent use; nil when the daemon does not watch
 	placer    *placement.Placer // the machine each session opens on
 	load      *procload.Tracker // every process and whose it is; nil when the daemon does not watch
@@ -434,6 +439,7 @@ func Start(cfg Config) (*Daemon, error) {
 		return (&settings.Settings{Home: cfg.Home}).ConfigSeconds("input_hold_idle_s", inputhold.DefaultIdleS)
 	}}
 	d.tchan.Holds = d.holds
+	d.screens = d.screenHub()
 	d.single, held = single, true
 	// The stored leases come back before the spool, so a turn that ended while no daemon ran frees its holds.
 	if err := d.leases.Adopt(); err != nil {
@@ -789,6 +795,7 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 		func(s *rpc.Server) { d.hooks.Register(s) },
 		func(s *rpc.Server) { pausewrites.Register(s, nil, d.pauseChanged) },
 		func(s *rpc.Server) { (&screen.Env{DB: d.db, Home: d.cfg.Home}).Register(s) },
+		func(s *rpc.Server) { d.screens.Register(s) },
 		func(s *rpc.Server) { proposalwrites.Register(s, d.proposalEnv()) },
 		func(s *rpc.Server) { prompts.Register(s, d.prompts) },
 		func(s *rpc.Server) {

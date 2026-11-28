@@ -1,0 +1,553 @@
+{
+ "components": {
+  "schemas": {
+   "ScreenSource": {
+    "type": "string",
+    "enum": [
+     "browser"
+    ],
+    "description": "A kind of screen an agent can have open: its browser (hl browser). Later kinds arrive on the same methods."
+   },
+   "ScreenFrame": {
+    "type": "object",
+    "properties": {
+     "data": {
+      "type": "string",
+      "description": "Base64 of a JPEG."
+     },
+     "width": {
+      "type": "integer"
+     },
+     "height": {
+      "type": "integer",
+      "description": "With width, the size of what the frame shows in the units screen.input and ScreenBox use; the picture may be smaller."
+     }
+    },
+    "required": [
+     "data",
+     "width",
+     "height"
+    ]
+   },
+   "ScreenHolder": {
+    "type": "object",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "agent",
+       "person",
+       "device"
+      ]
+     },
+     "name": {
+      "type": "string"
+     },
+     "since": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "When the person or device took it; null for the agent."
+     }
+    },
+    "required": [
+     "kind",
+     "name",
+     "since"
+    ],
+    "description": "Who drives the source: the agent unless a person or device took it."
+   },
+   "ScreenSnapshot": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string"
+     },
+     "source": {
+      "$ref": "#/components/schemas/ScreenSource"
+     },
+     "seq": {
+      "type": "integer",
+      "description": "The frame's number; each screen_frame after it is one more."
+     },
+     "frame": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/ScreenFrame"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "holder": {
+      "$ref": "#/components/schemas/ScreenHolder"
+     },
+     "in_use": {
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "agent",
+     "source",
+     "seq",
+     "frame",
+     "holder",
+     "in_use"
+    ]
+   },
+   "ScreenBox": {
+    "type": "object",
+    "properties": {
+     "x": {
+      "type": "number"
+     },
+     "y": {
+      "type": "number"
+     },
+     "width": {
+      "type": "number"
+     },
+     "height": {
+      "type": "number"
+     }
+    },
+    "required": [
+     "x",
+     "y",
+     "width",
+     "height"
+    ],
+    "description": "A box on the source from its top left, in the frame's units."
+   },
+   "ScreenInput": {
+    "type": "object",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "enum": [
+       "mouse",
+       "wheel",
+       "key",
+       "text"
+      ]
+     },
+     "action": {
+      "type": "string",
+      "enum": [
+       "move",
+       "down",
+       "up"
+      ],
+      "description": "mouse: move, down or up; key: down or up."
+     },
+     "x": {
+      "type": "number"
+     },
+     "y": {
+      "type": "number"
+     },
+     "button": {
+      "type": "string",
+      "enum": [
+       "left",
+       "middle",
+       "right"
+      ],
+      "description": "A mouse down or up's."
+     },
+     "clicks": {
+      "type": "integer",
+      "description": "A mouse down or up's click count; default 1."
+     },
+     "dx": {
+      "type": "number"
+     },
+     "dy": {
+      "type": "number"
+     },
+     "key": {
+      "type": "string",
+      "description": "The DOM key value (Enter, a, ArrowUp)."
+     },
+     "code": {
+      "type": "string",
+      "description": "The DOM code (KeyA)."
+     },
+     "text": {
+      "type": "string",
+      "description": "key down: the text it types (\\r for Enter), absent for a key that types nothing; text: 1 to 16384 bytes, pasted as it is."
+     },
+     "modifiers": {
+      "type": "integer",
+      "description": "Alt 1, Ctrl 2, Meta 4, Shift 8, summed."
+     }
+    },
+    "required": [
+     "kind"
+    ]
+   }
+  }
+ },
+ "methods": [
+  {
+   "name": "screen.attach",
+   "summary": "Watch one of an agent's screen sources: replies with its current frame, then pushes screen_frame, screen_action, screen_holder and screen_ended notices.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/ScreenSnapshot"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/not_found"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    },
+    {
+     "$ref": "#/components/errors/refused"
+    }
+   ],
+   "x-gates": [
+    "state"
+   ],
+   "description": "A source runs on the agent's own machine (a runner's agent's through the master, as its terminal is) and sends only while at least one connection watches it: the first attach starts it, the last detach or hang-up stops it. The reply waits up to 3 s for the source's first frame; `frame` is null when none came. A source sends a frame only when what it shows changes, and the next only once the daemon has passed the last one on, so a slow watcher slows the source and nothing queues. A connection has one attach per agent and source: attaching again answers afresh. An agent with no such source open is not_found (what: source). A source that could not be started is refused, gate state."
+  },
+  {
+   "name": "screen.detach",
+   "summary": "Stop watching a source.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "type": "object"
+    }
+   },
+   "x-role": "member",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [],
+   "description": "Nothing to end is not an error. The holder's last watch ending gives the source back (screen.give_back)."
+  },
+  {
+   "name": "screen.take",
+   "summary": "Become the one who drives the source; while you hold it the agent's own use of it is refused.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    },
+    {
+     "name": "force",
+     "required": false,
+     "schema": {
+      "type": "boolean",
+      "description": "Take it from the person or device holding it instead of being refused; the screen_holder notice tells them."
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "holder": {
+         "$ref": "#/components/schemas/ScreenHolder"
+        }
+       },
+       "required": [
+        "holder"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "take over"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "input_holder",
+    "state"
+   ],
+   "description": "Only a connection that watches the source takes it (else refused, gate state). Taking one you hold already is accepted. The hold is kept in the daemon's memory: a daemon that starts again holds nothing. It ends with screen.give_back, or when its holder no longer watches the source, or when the source goes away."
+  },
+  {
+   "name": "screen.give_back",
+   "summary": "Return the source to the agent.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "allOf": [
+      {
+       "$ref": "#/components/schemas/Accepted"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "holder": {
+         "$ref": "#/components/schemas/ScreenHolder"
+        }
+       },
+       "required": [
+        "holder"
+       ]
+      }
+     ]
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "return control"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "input_holder"
+   ],
+   "description": "From the holder only; with no holder it is accepted and changes nothing. Before the agent may use the source again the daemon empties each password field the holder typed into and did not submit, since the agent can read the page. An agent whose use was refused while it was held is told one line: `<holder> gave the page back`."
+  },
+  {
+   "name": "screen.input",
+   "summary": "A mouse, wheel, key or text event into the source, from its holder only.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    },
+    {
+     "name": "event",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenInput"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "uncached",
+    "label": "key"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "input_holder",
+    "state"
+   ],
+   "description": "Refused, gate input_holder, unless the caller holds the source (screen.take), and gate state unless it watches it. Coordinates are in the units of the frame's width and height (the page's CSS pixels for a browser), from its top left. Its reply is never kept for a retry."
+  },
+  {
+   "name": "screen.act",
+   "summary": "An agent's own call before it uses its source (hl browser runs it before each verb): refused while a person holds it, otherwise shown to watchers.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "source",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenSource"
+     }
+    },
+    {
+     "name": "kind",
+     "required": true,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "open",
+       "click",
+       "type",
+       "key",
+       "scroll",
+       "eval",
+       "close",
+       "read",
+       "wait",
+       "shot"
+      ],
+      "description": "open, click, type, key, scroll, eval and close act on the source and are sent to watchers as screen_action; read, wait and shot only read it."
+     }
+    },
+    {
+     "name": "box",
+     "required": false,
+     "schema": {
+      "$ref": "#/components/schemas/ScreenBox",
+      "description": "The target's box on the page. click and type are called once before the target is found, which only checks the hold, and once with its box, which is shown."
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "agent",
+   "x-write": false,
+   "x-app-cache": false,
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/bad_request"
+    }
+   ],
+   "x-gates": [
+    "role",
+    "input_holder"
+   ],
+   "description": "The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page`. Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box."
+  }
+ ]
+}

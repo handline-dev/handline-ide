@@ -7,6 +7,7 @@ import { AGENTS_METHODS, AGENTS_APP_CACHE, AGENTS_APP_WRITES, type AgentsMethods
 import { CHAT_METHODS, CHAT_APP_CACHE, CHAT_APP_WRITES, type ChatMethods } from './gen/chat.ts';
 import { DEVICES_METHODS, DEVICES_APP_CACHE, DEVICES_APP_WRITES, type DevicesMethods } from './gen/devices.ts';
 import { REPOS_METHODS, REPOS_APP_CACHE, REPOS_APP_WRITES, type ReposMethods } from './gen/repos.ts';
+import { SCREEN_METHODS, SCREEN_APP_CACHE, SCREEN_APP_WRITES, type ScreenMethods } from './gen/screen.ts';
 import { TASKS_METHODS, TASKS_APP_CACHE, TASKS_APP_WRITES, type TasksMethods } from './gen/tasks.ts';
 import { TEAM_METHODS, TEAM_APP_CACHE, TEAM_APP_WRITES, type TeamMethods } from './gen/team.ts';
 import { TERMINAL_METHODS, TERMINAL_APP_CACHE, TERMINAL_APP_WRITES, type TerminalMethods } from './gen/terminal.ts';
@@ -17,11 +18,12 @@ export * from './gen/agents.ts';
 export * from './gen/chat.ts';
 export * from './gen/devices.ts';
 export * from './gen/repos.ts';
+export * from './gen/screen.ts';
 export * from './gen/tasks.ts';
 export * from './gen/team.ts';
 export * from './gen/terminal.ts';
 
-export interface Methods extends CoreMethods, AccountsMethods, AgentsMethods, ChatMethods, DevicesMethods, ReposMethods, TasksMethods, TeamMethods, TerminalMethods {}
+export interface Methods extends CoreMethods, AccountsMethods, AgentsMethods, ChatMethods, DevicesMethods, ReposMethods, ScreenMethods, TasksMethods, TeamMethods, TerminalMethods {}
 
 export type MethodName = keyof Methods;
 
@@ -32,6 +34,7 @@ export const METHODS: { [K in MethodName]: { role: Role; callers: Role[] | null;
   ...CHAT_METHODS,
   ...DEVICES_METHODS,
   ...REPOS_METHODS,
+  ...SCREEN_METHODS,
   ...TASKS_METHODS,
   ...TEAM_METHODS,
   ...TERMINAL_METHODS,
@@ -45,6 +48,7 @@ export const APP_CACHE = {
   ...CHAT_APP_CACHE,
   ...DEVICES_APP_CACHE,
   ...REPOS_APP_CACHE,
+  ...SCREEN_APP_CACHE,
   ...TASKS_APP_CACHE,
   ...TEAM_APP_CACHE,
   ...TERMINAL_APP_CACHE,
@@ -57,6 +61,7 @@ export const APP_WRITES = {
   ...CHAT_APP_WRITES,
   ...DEVICES_APP_WRITES,
   ...REPOS_APP_WRITES,
+  ...SCREEN_APP_WRITES,
   ...TASKS_APP_WRITES,
   ...TEAM_APP_WRITES,
   ...TERMINAL_APP_WRITES,

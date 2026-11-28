@@ -1,6 +1,7 @@
 // Generated from contract/spec/ by contract/generate.py; do not edit.
 /* eslint-disable */
 import type { Accepted, Actor, InputHolder, Prompt, ReadCursor, Repo, RequestId, RequestName, RequestRef, Role, Status, Timestamp, Topic, Who, WriteKind } from './core.ts';
+import type { ScreenSource } from './screen.ts';
 
 /** The stored per-agent view; the daemon decided every field. */
 export type AgentView = {
@@ -165,6 +166,8 @@ export type AgentView = {
   review_level?: "every" | "one_in_two" | "one_in_three" | "one_in_five" | "never";
   /** agents.list only: the kind of work review_level is at; null at every. Absent from a daemon that does not send it. */
   review_work?: ("contract" | "screen" | "daemon" | "docs") | null;
+  /** The screen sources the agent has open (screen.attach watches one), each with whether it is in use: an agent action on it in the last 20 s. A change is an agent.changed. Absent from a daemon that does not send it. */
+  screens?: AgentScreen[];
 };
 
 export type AgentDetail = AgentView & {
@@ -381,6 +384,11 @@ export type ScheduleFire = {
   /** The message's request id (ChatMessage.id). */
   request: number;
   ref: RequestRef;
+};
+
+export type AgentScreen = {
+  source: ScreenSource;
+  in_use: boolean;
 };
 
 export interface AgentsMethods {

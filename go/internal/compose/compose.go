@@ -53,6 +53,8 @@ type Config struct {
 	AgentsMemory func() (at int64, rss map[string]int64)
 	// Servers is the TCP servers an agent's processes listen on (procload.Tracker.ServersOf); nil is none.
 	Servers func(agent string) []procload.Server
+	// Screens is an agent's open screen sources (screenpipe.Hub.Sources); nil is none.
+	Screens func(agent string) []any
 	// NotifiedNeedsYou has an unanswered prompt that Claude Code's Notification hook reports raise the needs-you card.
 	NotifiedNeedsYou bool
 	// FounderTyped has the founder's own messages typed at a terminal agent as its person's prompt (supervisor.Env.FounderTyped); needs
