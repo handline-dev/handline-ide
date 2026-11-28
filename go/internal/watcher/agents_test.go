@@ -203,3 +203,32 @@ func TestAnOfferToSwitchAccountIsNoStall(t *testing.T) {
 		t.Fatal("a daemon's own card still does")
 	}
 }
+
+// Open terminal's restart moves a Chat session to its terminal with the stored view as it was: the row's session_mode_now is what changes,
+// so agent.changed tells the app, whose cached agent.get then shows the screen.
+func TestASessionMovedFromChatToItsTerminalIsAgentChanged(t *testing.T) {
+	d, l := rig(t)
+	hire(t, d, "bob")
+	exec(t, d, "INSERT INTO agent_view(agent, view, updated) VALUES('a1', ?, 0)", view("idle"))
+	exec(t, d, "INSERT INTO agent_state(agent, state, updated, terminal) VALUES('a1', 'idle', 1, 'w1')")
+	a := agentsOn(t, d)
+	chat := true
+	a.Reads.Headless = func(agent, handle string) bool { return chat && agent == "a1" && handle == "w1" }
+	emit := func(e stream.Entry) (*stream.Event, error) { return l.Append(e) }
+	if err := a.Scan(d, emit); err != nil {
+		t.Fatal(err)
+	}
+	chat = false // the holder ended; the same conversation goes on in the terminal
+	exec(t, d, "UPDATE agent_state SET resume_session = 's2', updated = 2 WHERE agent = 'a1'")
+	if err := a.Scan(d, emit); err != nil {
+		t.Fatal(err)
+	}
+	got, err := l.Since(0, []string{"agents"}, "", 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row map[string]any
+	if len(got) != 1 || got[0].Type != "agent.changed" || json.Unmarshal(got[0].Data, &row) != nil || row["session_mode_now"] != "terminal" {
+		t.Fatalf("%+v", got)
+	}
+}

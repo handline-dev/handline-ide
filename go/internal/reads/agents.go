@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/settings"
+	"github.com/handline/handline/go/scheduler/worktreepaths"
 )
 
 // roleLine is the first line of the agent's role that is not blank and not a heading, as one line.
@@ -277,9 +279,18 @@ func (e *Env) agentGet(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		out["worktree"] = map[string]any{"path": path, "branch": branchOf(path), "repo": repo}
 	}
+	cwd := worktreepaths.WorktreePath(st.str("worktree"))
+	if cwd == "" {
+		cwd, _ = os.UserHomeDir() // "" only on a machine with no home folder
+	}
+	out["cwd"] = cwd
 	out["terminal"] = st.strOrNil("terminal")
 	out["session_id"] = st.strOrNil("resume_session")
-	out["session_open"] = st.set("terminal") && st.str("terminal") != "" && st.i("closed_at") == 0
+	row, err := db.GetAgentState(e.DB, name)
+	if err != nil {
+		return nil, err
+	}
+	out["session_open"] = team.SessionModeNow(row, func(string) bool { return false }) != ""
 	if out["input_holders"], err = e.inputHolders(name); err != nil {
 		return nil, err
 	}
@@ -293,16 +304,17 @@ func (e *Env) agentGet(c *rpc.Conn, params map[string]any) (any, error) {
 	return out, nil
 }
 
-// agentSettings is AgentDetail.settings: the keys the settings page edits, as the agent file holds them.
+// agentSettings is AgentDetail.settings: the keys the settings page edits, as the agent file holds them, and the session mode in force.
 func (e *Env) agentSettings(name string) (map[string]string, error) {
 	all, err := team.NewRoster(e.Home).SettingsOf(e.DB, name, "", func(s int64) string { return strconv.FormatInt((s+59)/60, 10) })
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]string, len(team.Editable))
+	out := make(map[string]string, len(team.Editable)+1)
 	for _, k := range team.Editable {
 		out[k] = all[k]
 	}
+	out["session_mode_in_force"] = all["session_mode_in_force"]
 	return out, nil
 }
 

@@ -174,7 +174,9 @@ type Daemon struct {
 	pause  pauseClock         // the founder's pause of new work: its until tells the status topic
 	health healthWatch        // the health the status topic was last told
 	hclock *reads.HealthClock // since when health has had its level, for every server
-	logins *weblogin.Manager  // the web logins
+	// headless is whether a terminal runs a Chat session now, as agent.open_terminal tells it: for the agent rows' session_mode_now.
+	headless func(agent, handle string) bool
+	logins   *weblogin.Manager // the web logins
 
 	acctMu    sync.Mutex        // one account.changed is made and published at a time, so the topic gets a login's moves in order
 	acctSeq   map[string]uint64 // the number of the last move published for each account
@@ -532,6 +534,9 @@ func Start(cfg Config) (*Daemon, error) {
 		}
 	}
 	d.hclock = &reads.HealthClock{}
+	t := d.typing().Term
+	// No holder of the agent's here, no Chat session: that file check spares the terminal host a call per row.
+	d.headless = func(agent, handle string) bool { return chatterm.Running(cfg.Home, agent) && t.Headless(handle) }
 	d.local = d.newServer("local")
 	d.seedHealth()
 	d.armPause() // a pause kept across a restart still ends at its until
@@ -547,7 +552,7 @@ func Start(cfg Config) (*Daemon, error) {
 			emit = d.push.Tee(emit, notes)
 		}
 		w = &watcher.Watcher{DB: db, Emit: emit, Log: cfg.Log, Signature: func() string { return proposalSignature() + "/" + watcher.ForYouSignature(db) },
-			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
+			Detectors: []watcher.Detector{&watcher.Tasks{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Agents{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery, Headless: d.headless}}, watcher.People(), watcher.Workspaces(), watcher.Nodes(), &watcher.Notifications{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Inbox{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Proposals{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.ForYou{Reads: &reads.Env{DB: db, Home: cfg.Home}}, &watcher.Prefs{}, &watcher.Requests{Reads: &reads.Env{DB: db, Home: cfg.Home}},
 				&watcher.Chat{Reads: &reads.Env{DB: db, Home: cfg.Home, Delivery: cfg.Delivery}, Panes: d.paneRuns, Tail: d.paneTail, Log: cfg.Log}}}
@@ -874,7 +879,7 @@ func (d *Daemon) operationEvent(topic, typ string, data any, agent string) {
 // readsEnv is the env of the reads every server serves, and of the status the daemon tells the status topic.
 func (d *Daemon) readsEnv() reads.Env {
 	renv := reads.Env{DB: d.db, Home: d.cfg.Home, Started: d.started, Sha: version.Sha, Schema: store.LatestVersion(), Delivery: d.cfg.Delivery,
-		Context: d.cfg.Context, Claude: d.cfg.Claude, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake}
+		Context: d.cfg.Context, Claude: d.cfg.Claude, HealthClock: d.hclock, KeepAwake: d.cfg.KeepAwake, Headless: d.headless}
 	if d.projects != nil {
 		renv.NodeProjects = d.projects.Of
 	}

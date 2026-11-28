@@ -215,6 +215,21 @@
       "type": "boolean",
       "description": "Only with agents.list `status: true` (what `hl team` draws): whether a terminal is recorded for it."
      },
+     "session_mode_now": {
+      "oneOf": [
+       {
+        "type": "string",
+        "enum": [
+         "terminal",
+         "chat"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "How the running session runs now, in session_mode's words: chat while it runs under a Chat holder (no screen or key reaches it), else terminal; null exactly when no session is open (agent.get's session_open false). It is not settings.session_mode_in_force: after agent.open_terminal the session runs in a terminal until it ends, and a changed mode waits for the turn to end. agents.list, agent.changed and agent.get carry it: a switch shows in the next agent.changed, which the restart's own writes send."
+     },
      "screen_word": {
       "oneOf": [
        {
@@ -825,152 +840,6 @@
        "cwd": {
         "type": "string",
         "description": "The directory a shell command for this agent runs in: its worktree when that is on disk, else the daemon's home directory. worktree.path is what the agent's record holds and may name a directory that is gone; cwd is always usable."
-       },
-       "can": {
-        "type": "object",
-        "description": "Whether each action of the chat page's menu is worth offering now, by the daemon's own rules: ok, and why not when it is not.",
-        "properties": {
-         "terminal": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         },
-         "wake": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         },
-         "close": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         },
-         "restart": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         },
-         "park": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         },
-         "move": {
-          "type": "object",
-          "properties": {
-           "ok": {
-            "type": "boolean"
-           },
-           "why": {
-            "oneOf": [
-             {
-              "type": "string"
-             },
-             {
-              "type": "null"
-             }
-            ]
-           }
-          },
-          "required": [
-           "ok",
-           "why"
-          ]
-         }
-        },
-        "required": [
-         "terminal",
-         "wake",
-         "close",
-         "restart",
-         "park",
-         "move"
-        ]
        }
       },
       "required": [
@@ -981,8 +850,7 @@
        "input_holders",
        "account_pick",
        "prompt",
-       "cwd",
-       "can"
+       "cwd"
       ]
      }
     ]

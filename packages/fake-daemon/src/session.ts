@@ -147,20 +147,19 @@ export function view(s: Session, tasks: TaskCounter): AgentView {
 
 /** agent.get; its session_mode in force is its own, else its workspace's (wsMode). */
 export function detail(s: Session, tasks: TaskCounter, wsMode: 'terminal' | 'chat' = 'terminal'): AgentDetail {
+  const inForce = s.settings.session_mode || wsMode;
   return {
     ...view(s, tasks),
     worktree: { path: s.fx.worktree, branch: s.fx.branch, repo: s.fx.repo ?? null },
     cwd: s.fx.worktree,
-    can: Object.fromEntries(
-      ['terminal', 'wake', 'close', 'restart', 'park', 'move'].map((k) => [k, { ok: true, why: null }]),
-    ) as AgentDetail['can'],
     terminal: s.hasTerminal ? tid(s) : null,
     session_id: s.sessionId,
     session_open: s.open,
+    session_mode_now: s.open ? (inForce === 'chat' && s.terminalHold !== 'on' ? 'chat' : 'terminal') : null,
     input_holders: s.structured ? [] : [s.holder],
     account_pick: { account: s.fx.account, reason: 'fixture' },
     prompt: s.prompt,
-    settings: { ...s.settings, session_mode_in_force: s.settings.session_mode || wsMode } as AgentDetail['settings'],
+    settings: { ...s.settings, session_mode_in_force: inForce } as AgentDetail['settings'],
   };
 }
 

@@ -61,6 +61,8 @@ export type AgentView = {
   has_repo?: boolean;
   /** Only with agents.list `status: true` (what `hl team` draws): whether a terminal is recorded for it. */
   has_terminal?: boolean;
+  /** How the running session runs now, in session_mode's words: chat while it runs under a Chat holder (no screen or key reaches it), else terminal; null exactly when no session is open (agent.get's session_open false). It is not settings.session_mode_in_force: after agent.open_terminal the session runs in a terminal until it ends, and a changed mode waits for the turn to end. agents.list, agent.changed and agent.get carry it: a switch shows in the next agent.changed, which the restart's own writes send. */
+  session_mode_now?: ("terminal" | "chat") | null;
   /** Only with agents.list `status: true` (what `hl team` draws): the word the screens draw for its state (RUNNING, IDLE, PENDING, MOVING, DIALOG, FATAL), `tui.screen_state`'s and not the wire `state`; null when it never started. */
   screen_word?: string | null;
   /** Only with agents.list `status: true` (what `hl team` draws): the text drawn beside screen_word. */
@@ -204,33 +206,6 @@ export type AgentDetail = AgentView & {
   settings?: AgentSettingValues;
   /** The directory a shell command for this agent runs in: its worktree when that is on disk, else the daemon's home directory. worktree.path is what the agent's record holds and may name a directory that is gone; cwd is always usable. */
   cwd: string;
-  /** Whether each action of the chat page's menu is worth offering now, by the daemon's own rules: ok, and why not when it is not. */
-  can: {
-    terminal: {
-      ok: boolean;
-      why: string | null;
-    };
-    wake: {
-      ok: boolean;
-      why: string | null;
-    };
-    close: {
-      ok: boolean;
-      why: string | null;
-    };
-    restart: {
-      ok: boolean;
-      why: string | null;
-    };
-    park: {
-      ok: boolean;
-      why: string | null;
-    };
-    move: {
-      ok: boolean;
-      why: string | null;
-    };
-  };
 };
 
 export type TimelineEntry = {

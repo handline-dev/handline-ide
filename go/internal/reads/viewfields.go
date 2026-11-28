@@ -164,6 +164,16 @@ func (e *Env) addFields(name string, view map[string]any, x *viewCtx) error {
 			}
 		}
 	}
+	row, err := db.GetAgentState(e.DB, name)
+	if err != nil {
+		return err
+	}
+	if e.Headless != nil {
+		view["session_mode_now"] = nil
+		if mode := team.SessionModeNow(row, func(h string) bool { return e.Headless(name, h) }); mode != "" {
+			view["session_mode_now"] = mode
+		}
+	}
 	if e.Delivery == nil {
 		// No lifecycle here to say: the wall and fire the stored view holds stand.
 		for _, k := range []string{"wall", "fire"} {
@@ -174,10 +184,6 @@ func (e *Env) addFields(name string, view map[string]any, x *viewCtx) error {
 		return nil
 	}
 	view["wall"], view["fire"] = nil, nil
-	row, err := db.GetAgentState(e.DB, name)
-	if err != nil {
-		return err
-	}
 	if row != nil {
 		if err := e.addWall(name, view, row); err != nil {
 			return err

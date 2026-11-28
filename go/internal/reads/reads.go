@@ -80,6 +80,9 @@ type Env struct {
 	// NodePlacement is where an agent's next session starts and why (placement.Placer.Status); NodeManual whether placement is Manual.
 	NodePlacement func(agent string) (any, error)
 	NodeManual    func() bool
+	// Headless is whether agent's terminal runs its session under a Chat holder now (term.Term.Headless), for AgentView.session_mode_now;
+	// nil leaves that field out.
+	Headless func(agent, handle string) bool
 	// Claude is the claude binary agents are run with, for DaemonStatus.missing_tools; empty when the daemon runs no agent side.
 	Claude string
 	// Installs is each tool's install window tools.install keeps, by its tool (termchan.Env.Installs); nil shows none.

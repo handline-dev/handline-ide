@@ -2,6 +2,7 @@ package sessionrpc
 
 import (
 	"github.com/handline/handline/go/data/db"
+	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/protocol/rpc"
 	"github.com/handline/handline/go/scheduler/tick"
 )
@@ -11,17 +12,13 @@ import (
 // agent with no session is started in its terminal.
 func (e *Env) openTerminal(c *rpc.Conn, params map[string]any) (any, error) {
 	return e.run(c, "agent.open_terminal", params, func(call Call, agent string) (map[string]any, error) {
-		handle, err := db.Terminal(e.DB, agent)
-		if err != nil {
-			return nil, err
-		}
 		row, err := db.GetAgentState(e.DB, agent)
 		if err != nil {
 			return nil, err
 		}
-		live := handle != "" && row != nil && !(row.ClosedAt.Valid && row.ClosedAt.Int64 != 0)
-		headless := live && e.Term.Headless(handle)
-		if live && !headless {
+		mode := team.SessionModeNow(row, e.Term.Headless)
+		headless := mode == "chat"
+		if mode == "terminal" {
 			return done(true, agent+": runs in its terminal already", nil)
 		}
 		if err := db.SetTerminalHold(e.DB, agent, db.TerminalHoldAsked); err != nil {
@@ -34,7 +31,7 @@ func (e *Env) openTerminal(c *rpc.Conn, params map[string]any) (any, error) {
 			}
 			return done(true, agent+": started in its terminal", nil)
 		}
-		if !e.Term.IdleNow(handle) || e.Term.IdleWithBackground(handle) {
+		if handle := row.Terminal.String; !e.Term.IdleNow(handle) || e.Term.IdleWithBackground(handle) {
 			return done(true, agent+": opens in its terminal when its turn ends, and any background work with it", nil)
 		}
 		// Kept as the session-mode pass keeps its own move, so the pass does not restart this session again.
