@@ -529,3 +529,35 @@ func TestARunThatEndsIsToldToItsAgentWithItsExitAndLastRows(t *testing.T) {
 		t.Fatalf("a run with no agent told %d", n)
 	}
 }
+
+// A tool call is said again once it stops running, here when its result lands, and is not said while it runs or on the first look.
+func TestAToolCallIsSaidAgainWhenItStopsRunning(t *testing.T) {
+	r := newChatRig(t)
+	exec(t, r.d, "INSERT INTO agent_view(agent, view, updated) VALUES('bob', ?, 0)", `{"name":"bob","state":"running"}`)
+	exec(t, r.d, "INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', 1, 's', NULL, 1000, 'tool_use', NULL, ?)",
+		`{"tool_use":{"id":"u1","tool":"Bash","input":{"command":"make"}}}`)
+	c := r.chat()
+	look := func() { c.toolsAt = time.Time{}; r.scan(c) } // past the tools pass's spacing
+	look()
+	if !c.Pending() {
+		t.Fatal("a running call's result reaches no table: the watcher looks again")
+	}
+	r.scan(c) // within the spacing: not read
+	look()
+	wantTypes(t, r.types())
+	exec(t, r.d, "INSERT INTO transcript_events(agent, seq, session, turn, at, kind, item, body) VALUES('bob', 2, 's', NULL, 1001, 'tool_result', NULL, ?)",
+		`{"tool_result":{"tool_use_id":"u1","ok":true,"text":"built"}}`)
+	r.scan(c)
+	wantTypes(t, r.types())
+	look()
+	look()
+	wantTypes(t, r.types(), "chat.transcript:bob")
+	var item map[string]any
+	json.Unmarshal(r.rows()[0].Data, &item)
+	if item["kind"] != "tool" || item["output"] != "built" || item["running"] != nil {
+		t.Fatalf("%v", item)
+	}
+	if c.Pending() {
+		t.Fatal("nothing runs: no look is pending")
+	}
+}

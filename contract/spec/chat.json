@@ -331,7 +331,7 @@
     "properties": {
      "id": {
       "type": "integer",
-      "description": "Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript)."
+      "description": "Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call or thinking block (its number is its place in the agent's transcript rows), 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript)."
      },
      "at": {
       "$ref": "#/components/schemas/Timestamp"
@@ -341,6 +341,7 @@
       "enum": [
        "reply",
        "tool",
+       "thinking",
        "prompt",
        "task_event",
        "session",
@@ -354,7 +355,8 @@
       ]
      },
      "text": {
-      "type": "string"
+      "type": "string",
+      "description": "For kind thinking: the summary of the agent's thinking, as the agent's session kept it."
      },
      "tool": {
       "type": "string"
@@ -366,6 +368,66 @@
      "dropped_lines": {
       "type": "integer",
       "description": "For kind tool or bash: how many lines the store cut from the end of the output (it keeps the start). 0 or absent when nothing was cut."
+     },
+     "parent": {
+      "type": "integer",
+      "description": "For kind tool or thinking: the id of the tool item whose call started the subagent that made this step. Absent for the agent's own steps. A subagent's own text is no item: the calling item's `output` is its final word."
+     },
+     "diff": {
+      "type": "object",
+      "description": "For kind tool, once its result came: the file change an edit or a write over an existing file made, as hunks from the start, cut like `output`. Absent for a call that changed no file.",
+      "properties": {
+       "hunks": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "properties": {
+          "old_start": {
+           "type": "integer",
+           "description": "The hunk's first line in the file before."
+          },
+          "new_start": {
+           "type": "integer",
+           "description": "The hunk's first line in the file after."
+          },
+          "lines": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "description": "The hunk's lines, each starting with \"+\" (added), \"-\" (removed) or \" \" (unchanged)."
+          }
+         },
+         "required": [
+          "old_start",
+          "new_start",
+          "lines"
+         ],
+         "additionalProperties": false
+        }
+       },
+       "dropped_lines": {
+        "type": "integer",
+        "description": "How many lines were cut from the end of the change. 0 when nothing was."
+       }
+      },
+      "required": [
+       "hunks",
+       "dropped_lines"
+      ],
+      "additionalProperties": false
+     },
+     "added": {
+      "type": "integer",
+      "description": "With diff: the lines the whole change added, the cut ones included."
+     },
+     "removed": {
+      "type": "integer",
+      "description": "With diff: the lines the whole change removed, the cut ones included."
+     },
+     "running": {
+      "type": "boolean",
+      "description": "For kind tool: true while the call runs: it has no result and the agent's turn is still going, or it was started in the background and its job is in the agent's background list (AgentView.background). Absent once it stops; a live chat.transcript event sends the item again then."
      },
      "runs": {
       "type": "array",

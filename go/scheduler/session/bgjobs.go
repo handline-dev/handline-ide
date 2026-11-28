@@ -107,6 +107,7 @@ type BgJob struct {
 	Description string // the Bash call's own, "" when it gave none
 	Started     int64
 	Job         string // "" when the call named none
+	ToolUseID   string // the Bash call's, "" for one recorded before it was kept
 }
 
 // RunningJobs is the recorded jobs still going, oldest first; with count above zero, only the last count of them.
@@ -137,12 +138,26 @@ func (e *Env) RunningJobs(agent string, count int) ([]BgJob, error) {
 		cmd, _ := p["command"].(string)
 		desc, _ := p["description"].(string)
 		job, _ := p["job"].(string)
-		jobs = append(jobs, BgJob{Command: cmd, Description: desc, Started: ts, Job: job})
+		use, _ := p["tool_use_id"].(string)
+		jobs = append(jobs, BgJob{Command: cmd, Description: desc, Started: ts, Job: job, ToolUseID: use})
 	}
 	if count > 0 && len(jobs) > count {
 		jobs = jobs[len(jobs)-count:]
 	}
 	return jobs, rows.Err()
+}
+
+// BackgroundShells are agent's background shells while has (its footer reports work): the last as many of the recorded jobs as the
+// footer counts.
+func (e *Env) BackgroundShells(agent string, has bool) ([]BgJob, error) {
+	if !has {
+		return nil, nil
+	}
+	count, err := db.Cursor(e.DB, "bgcount:"+agent)
+	if err != nil {
+		return nil, err
+	}
+	return e.RunningJobs(agent, int(count))
 }
 
 // Label is what the job is in one line, cut to CommandWidth: its description, else its command.

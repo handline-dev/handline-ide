@@ -149,9 +149,8 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 // as the footer counts), and its subagents still running.
 func (p *Parts) backgroundJobs(home, agent string, now int64) []agentview.Job {
 	var jobs []agentview.Job
-	if has, err := p.LC.Env.HasBackgroundWork(p.db, agent); err == nil && has {
-		count, _ := db.Cursor(p.db, "bgcount:"+agent)
-		shells, _ := (&session.Env{DB: p.db, Home: home}).RunningJobs(agent, int(count))
+	if has, err := p.LC.Env.HasBackgroundWork(p.db, agent); err == nil {
+		shells, _ := (&session.Env{DB: p.db, Home: home}).BackgroundShells(agent, has)
 		for _, j := range shells {
 			jobs = append(jobs, agentview.Job{Kind: "shell", Label: j.Label(), Since: j.Started})
 		}

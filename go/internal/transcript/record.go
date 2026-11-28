@@ -48,6 +48,7 @@ func RowsUnder(line []byte, parent string) (at int64, rows []Row) {
 		Message   struct {
 			Content json.RawMessage `json:"content"`
 		} `json:"message"`
+		Result json.RawMessage `json:"toolUseResult"` // an object for most tools; a string or a list for an error or an MCP tool
 	}
 	if json.Unmarshal(line, &e) != nil || e.Sidechain != (parent != "") || (e.Type != "assistant" && e.Type != "user") {
 		return 0, nil
@@ -66,6 +67,12 @@ func RowsUnder(line []byte, parent string) (at int64, rows []Row) {
 	if json.Unmarshal(e.Message.Content, &parts) != nil { // a plain-string content is a person's prompt, which chat has already
 		return 0, nil
 	}
+	results := 0 // a line's file change belongs to its result only when it holds one
+	for _, p := range parts {
+		if p.Type == "tool_result" {
+			results++
+		}
+	}
 	for _, p := range parts {
 		switch {
 		case e.Type == "assistant" && p.Type == "text" && strings.TrimSpace(p.Text) != "":
@@ -76,8 +83,14 @@ func RowsUnder(line []byte, parent string) (at int64, rows []Row) {
 			rows = append(rows, Row{"tool_use", map[string]any{"tool_use": map[string]any{"id": p.ID, "tool": p.Name, "input": p.Input}}})
 		case e.Type == "user" && p.Type == "tool_result" && p.ToolUseID != "":
 			text, dropped := FitOutput(resultText(p.Content), ResultMax)
-			rows = append(rows, Row{"tool_result", map[string]any{"tool_result": map[string]any{
-				"tool_use_id": p.ToolUseID, "ok": !p.IsError, "text": text, "truncated": dropped > 0, "dropped_lines": dropped}}})
+			result := map[string]any{"tool_use_id": p.ToolUseID, "ok": !p.IsError, "text": text, "truncated": dropped > 0, "dropped_lines": dropped}
+			var change struct {
+				Patch []patchHunk `json:"structuredPatch"`
+			}
+			if json.Unmarshal(e.Result, &change) == nil && len(change.Patch) > 0 && results == 1 {
+				result["diff"], result["added"], result["removed"] = diffOf(change.Patch)
+			}
+			rows = append(rows, Row{"tool_result", map[string]any{"tool_result": result}})
 		}
 	}
 	if parent != "" {
@@ -90,6 +103,41 @@ func RowsUnder(line []byte, parent string) (at int64, rows []Row) {
 		at = ts.Unix()
 	}
 	return at, rows
+}
+
+// patchHunk is a hunk of a file change as Claude Code writes it on an Edit, MultiEdit or Write result line (toolUseResult.structuredPatch).
+type patchHunk struct {
+	OldStart int      `json:"oldStart"`
+	NewStart int      `json:"newStart"`
+	Lines    []string `json:"lines"`
+}
+
+// diffOf is a file change as stored: its hunks (old_start, new_start, lines that start with "+", "-" or " ") cut to ResultMax bytes of
+// lines from the start, with the lines left out, and how many lines it adds and removes in all.
+func diffOf(patch []patchHunk) (diff map[string]any, added, removed int64) {
+	left, dropped := ResultMax, int64(0)
+	hunks := []any{}
+	for _, h := range patch {
+		var kept []string
+		for _, l := range h.Lines {
+			switch {
+			case strings.HasPrefix(l, "+"):
+				added++
+			case strings.HasPrefix(l, "-"):
+				removed++
+			}
+			if dropped > 0 || len(l) > left { // the start is kept: past the first line that does not fit, none is
+				dropped++
+				continue
+			}
+			left -= len(l)
+			kept = append(kept, l)
+		}
+		if len(kept) > 0 {
+			hunks = append(hunks, map[string]any{"old_start": h.OldStart, "new_start": h.NewStart, "lines": kept})
+		}
+	}
+	return map[string]any{"hunks": hunks, "dropped_lines": dropped}, added, removed
 }
 
 // resultText is a tool result's content as text: a string as it is, a list of blocks as their text parts joined by newlines.
