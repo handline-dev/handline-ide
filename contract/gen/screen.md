@@ -30,9 +30,9 @@ Return the source to the agent. From the holder only; with no holder it is accep
 
 ### `screen.input`
 
-A mouse, wheel, key or text event into the source, from its holder only. Refused, gate input_holder, unless the caller holds the source (screen.take), and gate state unless it watches it. Coordinates are in the units of the frame's width and height (the page's CSS pixels for a browser), from its top left. Its reply is never kept for a retry.
+A mouse, wheel, key or text event into the source, from its holder only. Refused, gate input_holder, unless the caller holds the source (screen.take), and gate state unless it watches it. Coordinates are in the units of the frame's width and height (the page's CSS pixels for a browser, the screen's points for a device), from its top left. Its reply is never kept for a retry.
 
 ### `screen.act`
 
-An agent's own call before it uses its source (hl browser runs it before each verb): refused while a person holds it, otherwise shown to watchers. The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page`. Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box.
+An agent's own call before it uses its source (hl browser runs it before each verb, hl sim before each verb that acts): refused while a person holds it, otherwise shown to watchers. The caller is the agent itself. While a person or device holds the source every kind is refused, gate input_holder, with `<holder> has the page` (a device: `has the device`). Otherwise the source counts as open (close: no longer open) and as in use until 20 s after the agent's last call, which AgentView.screens carries. What the agent types is never sent, only the kind and the box.
 

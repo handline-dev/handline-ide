@@ -82,13 +82,20 @@ func browserCmd(c *hlclient.Client, args []string) (int, bool) {
 	return 0, true
 }
 
-// act tells the daemon. A person may take the page between the answer and the verb; the verb then lands once, as one already under way.
 // act tells the daemon the agent is about to do kind on its page, at box when it has one: an error only when a person holds the page. A
-// daemon that cannot be asked holds nothing.
+// person may take the page between the answer and the verb; the verb then lands once, as one already under way.
 func act(c *hlclient.Client, kind string, box *browser.Box) error {
-	params := map[string]any{"source": "browser", "kind": kind}
+	if box == nil {
+		return screenAct(c, "browser", kind, nil)
+	}
+	return screenAct(c, "browser", kind, &[4]float64{box.X, box.Y, box.W, box.H})
+}
+
+// screenAct is screen.act on the agent's source: an error only when a person holds it. A daemon that cannot be asked holds nothing.
+func screenAct(c *hlclient.Client, source, kind string, box *[4]float64) error {
+	params := map[string]any{"source": source, "kind": kind}
 	if box != nil {
-		params["box"] = map[string]any{"x": box.X, "y": box.Y, "width": box.W, "height": box.H}
+		params["box"] = map[string]any{"x": box[0], "y": box[1], "width": box[2], "height": box[3]}
 	}
 	_, err := c.Call("screen.act", params)
 	var refused *hlclient.RPCError

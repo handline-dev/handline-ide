@@ -2,8 +2,8 @@
 /* eslint-disable */
 import type { Accepted, RequestId, Role, Topic, Who, WriteKind } from './core.ts';
 
-/** A kind of screen an agent can have open: its browser (hl browser). Later kinds arrive on the same methods. */
-export type ScreenSource = "browser";
+/** A kind of screen an agent can have open: its browser (hl browser), or the iOS Simulator it booted last (hl sim), which takes a press and release as a tap or a swipe and typed keys and text as typing. Later kinds arrive on the same methods. */
+export type ScreenSource = "browser" | "sim";
 
 export type ScreenFrame = {
   /** Base64 of a JPEG. */
@@ -94,9 +94,9 @@ export interface ScreenMethods {
 }; result: Accepted };
   "screen.act": { params: {
   source: ScreenSource;
-  /** open, click, type, key, scroll, eval and close act on the source and are sent to watchers as screen_action; read, wait and shot only read it. */
-  kind: "open" | "click" | "type" | "key" | "scroll" | "eval" | "close" | "read" | "wait" | "shot";
-  /** The target's box on the page. click and type are called once before the target is found, which only checks the hold, and once with its box, which is shown. */
+  /** open, click, type, key, scroll, eval, close, tap, swipe, button, rotate, launch and install act on the source and are sent to watchers as screen_action; read, wait and shot only read it. */
+  kind: "open" | "click" | "type" | "key" | "scroll" | "eval" | "close" | "tap" | "swipe" | "button" | "rotate" | "launch" | "install" | "read" | "wait" | "shot";
+  /** The target's box on the source. A browser's click and type, and a device's tap, are called once before the target is found, which only checks the hold, and once with its box, which is shown. */
   box?: ScreenBox;
 }; result: Accepted };
 }
