@@ -155,6 +155,8 @@ export type Workspace = {
   next_lead: string | null;
   /** Every folder of the workspace, the default first. Each agent works in one of them (agents.list folder) and reads the others. */
   folders: WorkspaceFolder[];
+  /** How its agents' sessions run unless an agent's own session_mode says: terminal or chat. */
+  session_mode: "terminal" | "chat";
 };
 
 /** A kept rule in force for a workspace (docs/design/people-workspaces.md "Workspace rules"): its value, and whether the workspace or the machine default sets it. */
@@ -246,6 +248,8 @@ export interface TeamMethods {
   add_folder?: string;
   /** A folder to take away, as workspaces.list gives its path. */
   remove_folder?: string;
+  /** How its agents' sessions run unless an agent says. A running session that then runs the other way is moved between turns: closed at its prompt and resumed in the same conversation. The same mode is no change. */
+  session_mode?: "terminal" | "chat";
   request_id: RequestId;
 }; result: Accepted };
   "workspace.delete": { params: {

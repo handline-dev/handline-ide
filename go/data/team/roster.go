@@ -305,7 +305,7 @@ type RegisterOpts struct {
 	SandboxAllow *string
 	// Device pins the agent to a device (a node id) for Manual placement; "" clears it.
 	Device *string
-	// SessionMode is how its sessions run (SessionModes); "" is Terminal.
+	// SessionMode is how its sessions run (SessionModes); "" follows its workspace.
 	SessionMode *string
 }
 

@@ -16,7 +16,7 @@ export const defaultSettings = (model: string, effort: string): Record<string, s
   sandbox_allow: '',
   mode: 'default',
   device: '',
-  session_mode: 'terminal',
+  session_mode: '',
 });
 
 /** The keys an agent may change on itself; the rest are the founder's. */
@@ -42,7 +42,7 @@ function check(key: string, v: unknown): string {
   if (!(key in defaultSettings('', ''))) throw badRequest(`${key} is not an agent setting`, key);
   if (key === 'session_mode') {
     if (v && !SESSION_MODES.includes(v)) throw badRequest(`session_mode must be one of ${SESSION_MODES.join(', ')}`, key);
-    return v || 'terminal';
+    return v;
   }
   if (ONE_OF[key] && !ONE_OF[key].includes(v)) throw badRequest(`${key} is one of ${ONE_OF[key].join(', ')}`, key);
   if (WHOLE.has(key) && !/^[0-9]*$/.test(v)) throw badRequest(`${key} is a whole number`, key);

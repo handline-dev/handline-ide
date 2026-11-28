@@ -9,6 +9,7 @@ import (
 
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/data/team"
 	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -99,5 +100,58 @@ func TestAChatLaunchAddsTheGrantedFolders(t *testing.T) {
 	site.Node = "box"
 	if got := r.l.addDirs(site, "ann", granted); slices.Contains(got, dir) {
 		t.Fatalf("a runner's launch: %v", got)
+	}
+}
+
+// An agent that says nothing runs as its workspace says; its own setting wins. Open terminal gives the next launch a terminal, which the
+// running session keeps until the launch after it, which follows the setting again.
+func TestAWorkspaceSetsTheModeAndOpenTerminalHoldsOneSession(t *testing.T) {
+	r := newLaunchRig(t)
+	r.l.Ports.Vendors = chatVendors{fakeVendors{"claude"}}
+	wants := func() bool {
+		t.Helper()
+		w, err := r.l.WantsChat("ann")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return w
+	}
+	launch := func() bool {
+		t.Helper()
+		got, err := r.l.Prepare(r.site(), "ann", nil, false, "", "main", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.Hold != nil
+	}
+	if _, err := r.l.Q.Exec("UPDATE workspaces SET session_mode = 'chat'"); err != nil {
+		t.Fatal(err)
+	}
+	if !launch() || !wants() {
+		t.Fatal("the workspace says chat")
+	}
+	if err := db.SetTerminalHold(r.l.Q, "ann", db.TerminalHoldAsked); err != nil {
+		t.Fatal(err)
+	}
+	if wants() || r.l.ChatMode("ann") {
+		t.Fatal("Open terminal asked for a terminal")
+	}
+	if launch() {
+		t.Fatal("the launch after Open terminal is a terminal one")
+	}
+	if h, _ := db.TerminalHold(r.l.Q, "ann"); h != db.TerminalHoldOn || wants() || !r.l.ChatMode("ann") {
+		t.Fatalf("the terminal session keeps its terminal, the next follows the setting: hold %d", h)
+	}
+	if !launch() {
+		t.Fatal("the launch after the terminal session follows the setting")
+	}
+	if h, _ := db.TerminalHold(r.l.Q, "ann"); h != db.TerminalHoldNone {
+		t.Fatalf("hold %d", h)
+	}
+	if err := r.l.Roster.SetKeys("ann", []yamlcompat.Pair{{Key: "session_mode", Val: "terminal"}}); err != nil {
+		t.Fatal(err)
+	}
+	if launch() || wants() {
+		t.Fatal("the agent's own setting wins over its workspace's")
 	}
 }

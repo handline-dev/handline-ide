@@ -50,6 +50,7 @@ export function workspacesOf(
         folders: all.map((path, i) => ({ path, name: path.split('/').pop()!, git: !plain(path), default: i === 0 })),
         lead,
         next_lead: leads.find((a) => a !== lead) ?? null,
+        session_mode: 'terminal' as const,
       };
     })
     .sort((a, b) => Number(a.key.slice(1)) - Number(b.key.slice(1)));

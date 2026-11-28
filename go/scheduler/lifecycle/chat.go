@@ -8,18 +8,56 @@ import (
 
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/delivery"
-	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/paths"
 )
 
-// ChatMode is whether agent's next session runs headless (Chat mode): its setting says chat and its CLI has a Chat mode.
+// ChatMode is whether agent's next session runs headless (Chat mode): its setting, or its workspace's, says chat, its CLI has a Chat
+// mode, and no Open terminal asked for a terminal session.
 func (l *Launcher) ChatMode(agent string) bool {
-	cfg, err := l.Roster.Read(agent)
-	if err != nil || team.SessionMode(cfg) != "chat" {
+	if hold, err := db.TerminalHold(l.Q, agent); err != nil || hold == db.TerminalHoldAsked {
 		return false
 	}
+	chat, err := l.chatSetting(agent)
+	return err == nil && chat
+}
+
+// WantsChat is whether agent's running session should be a Chat one: as its next would be, and not the terminal session Open terminal
+// gave it, which stays one until it ends. err when that cannot be read.
+func (l *Launcher) WantsChat(agent string) (bool, error) {
+	hold, err := db.TerminalHold(l.Q, agent)
+	if err != nil || hold != db.TerminalHoldNone {
+		return false, err
+	}
+	return l.chatSetting(agent)
+}
+
+func (l *Launcher) chatSetting(agent string) (bool, error) {
+	cfg, err := l.Roster.Read(agent)
+	if err != nil {
+		return false, err
+	}
+	mode, err := l.Roster.SessionModeOf(agent, cfg)
+	if err != nil || mode != "chat" {
+		return false, err
+	}
 	drv, err := l.Ports.Vendors.ForAgent(agent)
-	return err == nil && cli.ChatOf(drv) != nil
+	return err == nil && cli.ChatOf(drv) != nil, nil
+}
+
+// settleTerminalHold moves Open terminal's hold as a launch starts (begin) and once it is made: the terminal session it gave has ended
+// when another launch begins; the one asked for is the session this launch makes.
+func (l *Launcher) settleTerminalHold(agent string, begin bool) error {
+	hold, err := db.TerminalHold(l.Q, agent)
+	switch {
+	case err != nil:
+		return err
+	case begin && hold == db.TerminalHoldOn:
+		return db.SetTerminalHold(l.Q, agent, db.TerminalHoldNone)
+	case !begin && hold == db.TerminalHoldAsked:
+		return db.SetTerminalHold(l.Q, agent, db.TerminalHoldOn)
+	}
+	return nil
 }
 
 // chatHold is the holder's part of a Chat launch, nil for a terminal one. The first prompt goes in as the first message, after the line

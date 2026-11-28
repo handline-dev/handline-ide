@@ -157,7 +157,7 @@ export function detail(s: Session, tasks: TaskCounter): AgentDetail {
     input_holders: s.structured ? [] : [s.holder],
     account_pick: { account: s.fx.account, reason: 'fixture' },
     prompt: s.prompt,
-    settings: s.settings as AgentDetail['settings'],
+    settings: { ...s.settings, session_mode_in_force: s.settings.session_mode || 'terminal' } as AgentDetail['settings'],
   };
 }
 

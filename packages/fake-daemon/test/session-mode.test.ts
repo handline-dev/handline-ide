@@ -5,11 +5,12 @@ import { setup } from '#src/helpers.ts';
 
 const AUD = 'handline.auditor';
 
-test('agent.get reads session_mode as terminal, agent.set takes chat and terminal, and refuses any other mode', async () => {
+test('agent.get reads session_mode as following its workspace, agent.set takes chat and terminal, and refuses any other mode', async () => {
   const { client } = setup();
   await client.start();
   const mode = async () => (await client.call('agent.get', { agent: AUD })).settings?.session_mode;
-  assert.equal(await mode(), 'terminal');
+  assert.equal(await mode(), '');
+  assert.equal((await client.call('agent.get', { agent: AUD })).settings?.session_mode_in_force, 'terminal');
   await client.call('agent.set', { agent: AUD, values: { session_mode: 'chat' }, request_id: 'm1' });
   assert.equal(await mode(), 'chat');
   await client.call('agent.set', { agent: AUD, values: { session_mode: 'terminal' }, request_id: 'm2' });

@@ -83,7 +83,7 @@ func (e *Env) peopleList(c *rpc.Conn, params map[string]any) (any, error) {
 // workspacesList is workspaces.list: every workspace, by key, with its lead's key, the key of the agent that would lead it once the lead
 // goes (team.NextLead), and its folders, the default first.
 func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
-	rs, err := e.DB.Query(`SELECT w.id, w.name, w.folder, w.added_folders, w.lead,
+	rs, err := e.DB.Query(`SELECT w.id, w.name, w.folder, w.added_folders, w.lead, w.session_mode,
 		(SELECT MIN(a.id) FROM agents a WHERE a.workspace = w.id AND a.hired_from IS NULL AND (w.lead IS NULL OR a.id != w.lead))
 		FROM workspaces w ORDER BY w.id`)
 	if err != nil {
@@ -93,9 +93,9 @@ func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
 	out := []any{}
 	for rs.Next() {
 		var id int64
-		var name, folder, added string
+		var name, folder, added, mode string
 		var lead, next sql.NullInt64
-		if err := rs.Scan(&id, &name, &folder, &added, &lead, &next); err != nil {
+		if err := rs.Scan(&id, &name, &folder, &added, &lead, &mode, &next); err != nil {
 			return nil, err
 		}
 		folders := []string{}
@@ -116,7 +116,7 @@ func (e *Env) workspacesList(c *rpc.Conn, params map[string]any) (any, error) {
 			}
 		}
 		out = append(out, map[string]any{"key": actor.Key(actor.Workspace, id), "name": name, "folder": folder, "added_folders": folders,
-			"folders": each, "lead": l, "next_lead": n})
+			"folders": each, "lead": l, "next_lead": n, "session_mode": mode})
 	}
 	return map[string]any{"workspaces": out}, rs.Err()
 }

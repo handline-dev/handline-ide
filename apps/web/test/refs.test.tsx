@@ -10,7 +10,9 @@ vi.mock('@handline/app-data', () => ({
       { key: 'a6', name: 'daemon-tasks', workspace: 'w1' },
     ],
     people: [],
-    workspaces: [{ key: 'w1', name: 'handline', folder: '/h', added_folders: [], folders: [], lead: 'a1', next_lead: null }],
+    workspaces: [
+      { key: 'w1', name: 'handline', folder: '/h', added_folders: [], folders: [], lead: 'a1', next_lead: null, session_mode: 'terminal' },
+    ],
   }),
 }));
 

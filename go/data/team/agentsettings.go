@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/handline/handline/go/data/db"
 	"github.com/handline/handline/go/kit/addr"
 	"github.com/handline/handline/go/kit/textsafe"
 	"github.com/handline/handline/go/kit/yamlcompat"
@@ -72,11 +73,15 @@ func (r *Roster) SettingsOf(db *sql.DB, agent, modelID string, idleMinutes func(
 		enabled = truthy(v)
 	}
 	vendor, model, effort := Parts(cfg)
+	inForce, err := r.SessionModeOf(agent, cfg)
+	if err != nil {
+		return nil, err
+	}
 	return Settings{"model_id": modelID, "session_account": account,
 		"vendor": vendor, "enabled": strconv.FormatBool(enabled), "model": model, "effort": effort,
 		"weight": orDefault(cfg, "weight", "light"), "repo": orDefault(cfg, "repo", ""),
 		"sandbox": onOff(r.SandboxOn(agent, cfg)), "sandbox_allow": SandboxAllowText(SandboxEntries(cfg)),
-		"device": orDefault(cfg, "device", ""), "session_mode": SessionMode(cfg), "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg),
+		"device": orDefault(cfg, "device", ""), "session_mode": SessionMode(cfg), "session_mode_in_force": inForce, "mode": r.ModeOf(agent, cfg), "browser": BrowserMode(cfg),
 		"context_k": strconv.FormatInt(ContextTokensOf(cfg)/1000, 10), "handoff_note": note, "idle_close": idle}, nil
 }
 
@@ -363,10 +368,35 @@ func (r *Roster) SetByAgent(db *sql.DB, agent string, values map[string]string, 
 	return r.SetValues(db, agent, values, modelID, idleMinutes, idle)
 }
 
-// SessionMode is how the agent's sessions run, terminal unless it says chat.
+// SessionMode is how the agent says its sessions run, "" when it follows its workspace.
 func SessionMode(cfg Config) string {
-	if orDefault(cfg, "session_mode", "") == "chat" {
-		return "chat"
+	if v := orDefault(cfg, "session_mode", ""); contains(SessionModes, v) {
+		return v
 	}
-	return "terminal"
+	return ""
+}
+
+// SessionModeOf is how the agent's sessions run: as it says, else as its workspace says, else in a terminal; err when it cannot be read.
+func (r *Roster) SessionModeOf(agent string, cfg Config) (string, error) {
+	if v := SessionMode(cfg); v != "" {
+		return v, nil
+	}
+	if r.err != nil {
+		return "", r.err
+	}
+	at, err := find(r.DB, agent)
+	if err != nil || at.ws == 0 {
+		return "terminal", err
+	}
+	return WorkspaceSessionMode(r.DB, at.ws)
+}
+
+// WorkspaceSessionMode is how the sessions of workspace ws (its id) run unless an agent says.
+func WorkspaceSessionMode(q db.Q, ws int64) (string, error) {
+	var v string
+	err := q.QueryRow("SELECT session_mode FROM workspaces WHERE id = ?", ws).Scan(&v)
+	if err == nil && !contains(SessionModes, v) {
+		v = "terminal"
+	}
+	return v, err
 }

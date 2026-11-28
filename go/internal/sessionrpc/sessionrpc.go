@@ -144,6 +144,9 @@ func Register(s *rpc.Server, e *Env) {
 	if e.InterruptTerminal != nil {
 		s.Register("session.interrupt", rpc.Method{Handler: e.interrupt})
 	}
+	if e.DB != nil && e.Term != nil && e.Controls != nil {
+		s.Register("agent.open_terminal", rpc.Method{Waits: true, Handler: e.openTerminal})
+	}
 }
 
 func bad(msg, field string) error { return rpc.BadRequestError(msg, field, rpc.InvalidParams) }
