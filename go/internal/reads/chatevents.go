@@ -102,6 +102,12 @@ func (e *Env) SessionItem(id int64) (item map[string]any, agent string, ok bool,
 // WorkingOf is a stored agent view (the agent_view row's JSON) as the spec's Working.
 func WorkingOf(view string) map[string]any { return workingFrom(decodeObject(view)) }
 
+// HasBackground is whether a stored agent view lists work running behind the agent's prompt (AgentView.background).
+func HasBackground(view string) bool {
+	jobs, _ := decodeObject(view)["background"].([]any)
+	return len(jobs) > 0
+}
+
 // ChatTaskKinds are the kinds of event the chat shows: the task events, a batch discard's, a task_comment item's and ownKinds, sorted.
 func ChatTaskKinds() []string {
 	kinds := append(append(taskCardKinds(), commentCardKinds...), ownKinds...)

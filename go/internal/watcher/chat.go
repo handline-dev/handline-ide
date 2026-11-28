@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"slices"
+	"time"
 
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/db"
@@ -40,11 +41,15 @@ type Chat struct {
 	done        map[int64]string  // request -> the message as last said, for the ones touched in the second the cursor is at
 	open        map[int64]bool    // the prompts told open and not yet told closed
 	working     map[string]string
-	running     bool             // a command run was still running at the last look
-	unbound     map[int64]bool   // the fresh session starts whose session id was not known at the last look
-	bashSaid    map[int64]string // the bash items of recent ! lines, as last said
-	bashSettled map[int64]bool   // the recent ! lines that have landed with their output in
-	bashOpen    bool             // one of them was still waiting for its output at the last look
+	running     bool                      // a command run was still running at the last look
+	unbound     map[int64]bool            // the fresh session starts whose session id was not known at the last look
+	bashSaid    map[int64]string          // the bash items of recent ! lines, as last said
+	bashSettled map[int64]bool            // the recent ! lines that have landed with their output in
+	bashOpen    bool                      // one of them was still waiting for its output at the last look
+	toolsOn     map[string]map[int64]bool // agent -> its tool items running at the last look
+	turning     map[string]bool           // the agents whose turn runs or that run work in the background, at the last look
+	turnRuns    map[string]bool           // the agents whose turn runs, at the last look
+	toolsAt     time.Time                 // when the tools pass last read
 }
 
 func (*Chat) Name() string { return "chat" }
@@ -54,8 +59,10 @@ func (*Chat) Tables() []string {
 }
 
 // Pending is whether a command run was still running at the last look and the terminal host is asked: its window ends without a write. So
-// is a ! line waiting for its output, which reaches the transcript and no table.
-func (c *Chat) Pending() bool { return (c.running && c.Panes != nil) || c.bashOpen }
+// is a ! line waiting for its output, which reaches the transcript and no table, and a running tool call, whose result does too.
+func (c *Chat) Pending() bool {
+	return (c.running && c.Panes != nil) || c.bashOpen || len(c.toolsOn) > 0
+}
 
 func encoded(v any) string {
 	b, _ := json.Marshal(v)
@@ -88,7 +95,67 @@ func (c *Chat) Scan(q *sql.DB, emit Emit) error {
 	if err := c.bash(q, emit); err != nil {
 		return err
 	}
-	return c.workingStates(q, emit)
+	if err := c.workingStates(q, emit); err != nil {
+		return err
+	}
+	return c.tools(emit)
+}
+
+// toolsEvery is how often the tools pass reads: while a call runs, the watcher looks every tick and a result reaches no table.
+const toolsEvery = time.Second
+
+// tools says each tool item that stopped running since the last look, of the agents whose turn runs or that run work in the background,
+// and of those that had one running then. The first look says nothing.
+func (c *Chat) tools(emit Emit) error {
+	if time.Since(c.toolsAt) < toolsEvery {
+		return nil
+	}
+	c.toolsAt = time.Now()
+	first := c.toolsOn == nil
+	on := map[string]map[int64]bool{}
+	for agent := range c.turning {
+		if err := c.toolsOf(emit, agent, on, first); err != nil {
+			return err
+		}
+	}
+	for agent := range c.toolsOn {
+		if !c.turning[agent] {
+			if err := c.toolsOf(emit, agent, on, first); err != nil {
+				return err
+			}
+		}
+	}
+	c.toolsOn = on
+	return nil
+}
+
+// toolsOf reads agent's tool items, says those told running at the last look that stopped, and keeps those running now in on.
+func (c *Chat) toolsOf(emit Emit, agent string, on map[string]map[int64]bool, first bool) error {
+	was := c.toolsOn[agent]
+	from := int64(0)
+	for id := range was {
+		if from == 0 || id < from {
+			from = id
+		}
+	}
+	items, err := c.Reads.RecentTools(agent, c.turnRuns[agent], from)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		id := item["id"].(int64)
+		if item["running"] == true {
+			if on[agent] == nil {
+				on[agent] = map[int64]bool{}
+			}
+			on[agent][id] = true
+		} else if was[id] && !first {
+			if err := c.say(emit, "chat.transcript", agent, item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // bashWatch is how long after a ! line was sent its bash item is watched for; a read finds a later output.
@@ -422,7 +489,7 @@ func (c *Chat) workingStates(q *sql.DB, emit Emit) error {
 	}
 	defer rows.Close()
 	var names []string
-	now := map[string]map[string]any{}
+	now, busy := map[string]map[string]any{}, map[string]bool{}
 	for rows.Next() {
 		var name, view string
 		if err := rows.Scan(&name, &view); err != nil {
@@ -430,14 +497,19 @@ func (c *Chat) workingStates(q *sql.DB, emit Emit) error {
 		}
 		names = append(names, name)
 		now[name] = reads.WorkingOf(view)
+		busy[name] = reads.HasBackground(view)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	before := c.working
-	c.working = map[string]string{}
+	c.working, c.turning, c.turnRuns = map[string]string{}, map[string]bool{}, map[string]bool{}
 	for _, name := range names {
 		c.working[name] = encoded(now[name])
+		c.turnRuns[name] = now[name]["turn_running"] == true
+		if c.turnRuns[name] || busy[name] {
+			c.turning[name] = true
+		}
 	}
 	if before == nil {
 		return nil

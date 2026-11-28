@@ -77,16 +77,38 @@ export type ChatMessage = {
 };
 
 export type TranscriptItem = {
-  /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call, 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript). */
+  /** Its time and its source's row, so it never changes. An item that arrives in a second a client has read up to can sort before the last one it has: `since` reads from that second and a client drops the ids it already holds. For kind reply it is also what chat.send takes as parent_item. A reply has one of two sources, told apart by the last digit of its number within the second: a structured session's text block (even; the same id on every read and in the live event's `item`) and the answer to a request (odd); each is the same on every read, and chat.transcript lists both. Source numbers within the second: 0 reply, 1 prompt, 2 task event, 3 tool call or thinking block (its number is its place in the agent's transcript rows), 4 session start (its number is the session_starts row), 5 bash command (its number is its place in the session's transcript). */
   id: number;
   at: Timestamp;
-  kind: "reply" | "tool" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment" | "account_moved" | "move_failed" | "machine_moved" | "concurrent_work";
+  kind: "reply" | "tool" | "thinking" | "prompt" | "task_event" | "session" | "task_batch" | "bash" | "task_comment" | "account_moved" | "move_failed" | "machine_moved" | "concurrent_work";
+  /** For kind thinking: the summary of the agent's thinking, as the agent's session kept it. */
   text?: string;
   tool?: string;
   /** For kind tool: the text the tool printed, as the store holds it. Absent when the store holds none. */
   output?: string;
   /** For kind tool or bash: how many lines the store cut from the end of the output (it keeps the start). 0 or absent when nothing was cut. */
   dropped_lines?: number;
+  /** For kind tool or thinking: the id of the tool item whose call started the subagent that made this step. Absent for the agent's own steps. A subagent's own text is no item: the calling item's `output` is its final word. */
+  parent?: number;
+  /** For kind tool, once its result came: the file change an edit or a write over an existing file made, as hunks from the start, cut like `output`. Absent for a call that changed no file. */
+  diff?: {
+    hunks: {
+      /** The hunk's first line in the file before. */
+      old_start: number;
+      /** The hunk's first line in the file after. */
+      new_start: number;
+      /** The hunk's lines, each starting with "+" (added), "-" (removed) or " " (unchanged). */
+      lines: string[];
+    }[];
+    /** How many lines were cut from the end of the change. 0 when nothing was. */
+    dropped_lines: number;
+  };
+  /** With diff: the lines the whole change added, the cut ones included. */
+  added?: number;
+  /** With diff: the lines the whole change removed, the cut ones included. */
+  removed?: number;
+  /** For kind tool: true while the call runs: it has no result and the agent's turn is still going, or it was started in the background and its job is in the agent's background list (AgentView.background). Absent once it stops; a live chat.transcript event sends the item again then. */
+  running?: boolean;
   /** Kind reply only: the runs of this reply's command blocks (shell.open block "r<id>:<n>"), one per block, oldest start first, as ChatMessage.runs. Absent when none was started. A start and an end send the item again as a chat.transcript event. */
   runs?: CommandRun[];
   /** Prompt card; `open` says whether it can still be answered. */

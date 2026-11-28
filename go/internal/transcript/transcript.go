@@ -76,14 +76,22 @@ type Reply struct {
 	Text   string
 }
 
-// Tool is a tool call as chat.transcript's tool item: the call with its result when one came. Output is nil with no result;
-// Dropped is the lines the store cut from the end of the output.
+// Tool is a tool call as chat.transcript's tool item, the call with its result when one came, or a thinking block (Thinking, its text in
+// Text). Output is nil with no result; Dropped is the lines the store cut from the end of the output. Parent is the item id of the call
+// that started the subagent that made it, 0 for the session's own. Diff, Added and Removed are the file change its result made.
 type Tool struct {
-	ID, At  int64
-	Name    string
-	Text    string
-	Output  *string
-	Dropped int64
+	ID, At     int64
+	Thinking   bool
+	Name       string
+	Text       string
+	Output     *string
+	Dropped    int64
+	UseID      string
+	Background bool // the call asked to run in the background
+	Parent     int64
+	Diff       map[string]any
+	Added      int64
+	Removed    int64
 }
 
 // ToolWindow is which of an agent's tool calls a page needs: at most Limit of them, the newest with an item id below Before, or with
@@ -97,10 +105,11 @@ type ToolWindow struct {
 // toolItemSQL is a tool_use row's item id (ItemID of its second, ItemTool and seq), as SQL.
 var toolItemSQL = "(at * 1000000 + " + strconv.Itoa(ItemTool*100000) + " + seq % 100000)"
 
-// Tools are agent's tool_use events in the window paired by tool_use_id with their tool_result, oldest first. A call with no result yet
-// is an item with no output. Only the results of the calls read are read.
+// Tools are agent's tool_use and thinking events in the window, a call paired by tool_use_id with its tool_result, oldest first. A call
+// with no result yet is an item with no output. Only the results of the calls read are read. A thinking block takes the tool items'
+// numbers: its seq is its own.
 func Tools(db *sql.DB, agent string, w ToolWindow) ([]Tool, error) {
-	query, args := "SELECT seq, at, body FROM transcript_events WHERE agent = ? AND kind = 'tool_use'", []any{agent}
+	query, args := "SELECT seq, at, kind, body FROM transcript_events WHERE agent = ? AND kind IN ('tool_use', 'thinking')", []any{agent}
 	order := "DESC"
 	if w.Since > 0 {
 		query, args, order = query+" AND at >= ?", append(args, w.Since/1_000_000), "ASC"
@@ -115,30 +124,47 @@ func Tools(db *sql.DB, agent string, w ToolWindow) ([]Tool, error) {
 	var out []Tool
 	byUse := map[string]int{}
 	var ids []any
+	parents := map[string][]child{} // the tool_use id of the call that started a subagent -> the items that subagent made
 	oldest := int64(0)
 	for rows.Next() {
 		var seq, at int64
-		var body string
-		if err := rows.Scan(&seq, &at, &body); err != nil {
+		var kind, body string
+		if err := rows.Scan(&seq, &at, &kind, &body); err != nil {
 			return nil, err
 		}
 		var b struct {
-			Use struct {
+			Text   string `json:"text"`
+			Parent string `json:"parent"`
+			Use    struct {
 				ID    string         `json:"id"`
 				Tool  string         `json:"tool"`
 				Input map[string]any `json:"input"`
 			} `json:"tool_use"`
 		}
 		json.Unmarshal([]byte(body), &b)
-		byUse[b.Use.ID] = len(out)
-		ids = append(ids, b.Use.ID)
-		out = append(out, Tool{ID: ItemID(at, ItemTool, seq), At: at, Name: b.Use.Tool, Text: turns.ToolText(b.Use.Input)})
+		if b.Parent != "" {
+			parents[b.Parent] = append(parents[b.Parent], child{len(out), seq})
+		}
 		if oldest == 0 || seq < oldest {
 			oldest = seq
 		}
+		if kind == "thinking" {
+			out = append(out, Tool{ID: ItemID(at, ItemTool, seq), At: at, Thinking: true, Text: b.Text})
+			continue
+		}
+		byUse[b.Use.ID] = len(out)
+		ids = append(ids, b.Use.ID)
+		out = append(out, Tool{ID: ItemID(at, ItemTool, seq), At: at, Name: b.Use.Tool, Text: turns.ToolText(b.Use.Input), UseID: b.Use.ID,
+			Background: b.Use.Tool == "Bash" && b.Use.Input["run_in_background"] == true})
 	}
 	if err := rows.Err(); err != nil || len(out) == 0 {
 		return out, err
+	}
+	if err := parentItems(db, agent, parents, byUse, out); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return ordered(out, w), nil
 	}
 	res, err := db.Query("SELECT body FROM transcript_events WHERE agent = ? AND kind = 'tool_result' AND seq > ? AND json_extract(body, '$.tool_result.tool_use_id') IN ("+
 		strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+") ORDER BY seq", append([]any{agent, oldest}, ids...)...)
@@ -153,16 +179,20 @@ func Tools(db *sql.DB, agent string, w ToolWindow) ([]Tool, error) {
 		}
 		var b struct {
 			Result struct {
-				ID      string `json:"tool_use_id"`
-				Text    string `json:"text"`
-				Cut     bool   `json:"truncated"`
-				Dropped int64  `json:"dropped_lines"`
+				ID      string         `json:"tool_use_id"`
+				Text    string         `json:"text"`
+				Cut     bool           `json:"truncated"`
+				Dropped int64          `json:"dropped_lines"`
+				Diff    map[string]any `json:"diff"`
+				Added   int64          `json:"added"`
+				Removed int64          `json:"removed"`
 			} `json:"tool_result"`
 		}
 		json.Unmarshal([]byte(body), &b)
 		if i, ok := byUse[b.Result.ID]; ok && out[i].Output == nil {
 			text := b.Result.Text
 			out[i].Output, out[i].Dropped = &text, b.Result.Dropped
+			out[i].Diff, out[i].Added, out[i].Removed = b.Result.Diff, b.Result.Added, b.Result.Removed
 			if b.Result.Cut && out[i].Dropped < 1 {
 				out[i].Dropped = 1 // a row written before the count was kept: a cut output never reads as whole
 			}
@@ -171,12 +201,53 @@ func Tools(db *sql.DB, agent string, w ToolWindow) ([]Tool, error) {
 	if err := res.Err(); err != nil {
 		return nil, err
 	}
-	if w.Since == 0 { // read newest first: oldest first, as every other source
+	return ordered(out, w), nil
+}
+
+// ordered is out oldest first, as every other source: a page that is not a since page was read newest first.
+func ordered(out []Tool, w ToolWindow) []Tool {
+	if w.Since == 0 {
 		for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 			out[i], out[j] = out[j], out[i]
 		}
 	}
-	return out, nil
+	return out
+}
+
+// child is an item a subagent made: its place in the items read and its row's seq.
+type child struct {
+	i   int
+	seq int64
+}
+
+// parentItems sets each subagent item's Parent: the item id of the call, by its tool_use id in parents, that started the subagent. A call
+// among the items read is taken from them; another is the newest tool_use row with that id before its first child, read back from there.
+func parentItems(db *sql.DB, agent string, parents map[string][]child, byUse map[string]int, out []Tool) error {
+	for use, children := range parents {
+		item := int64(0)
+		if i, ok := byUse[use]; ok {
+			item = out[i].ID
+		} else {
+			first := children[0].seq
+			for _, c := range children {
+				first = min(first, c.seq)
+			}
+			var seq, at int64
+			err := db.QueryRow("SELECT seq, at FROM transcript_events WHERE agent = ? AND seq < ? AND kind = 'tool_use' AND "+
+				"json_extract(body, '$.tool_use.id') = ? ORDER BY seq DESC LIMIT 1", agent, first, use).Scan(&seq, &at)
+			if err == sql.ErrNoRows {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			item = ItemID(at, ItemTool, seq)
+		}
+		for _, c := range children {
+			out[c.i].Parent = item
+		}
+	}
+	return nil
 }
 
 // FitOutput is text cut to at most max bytes at a character boundary, and the lines the cut left out (0 when nothing was).
