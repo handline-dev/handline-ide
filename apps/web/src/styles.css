@@ -312,3 +312,24 @@ body[data-layer='still'] .layer-drag {
 .bar-stale {
   background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--color-bg) 3px 5px);
 }
+
+/* A screen view's press ring: where the agent clicked, once. */
+@keyframes screen-ring {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+.screen-ring {
+  animation: screen-ring 600ms ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen-ring {
+    animation: none;
+    opacity: 0;
+  }
+}

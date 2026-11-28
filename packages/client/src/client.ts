@@ -19,6 +19,7 @@ import { applyNotice, TerminalView } from '#src/terminal-view.ts';
 import { Listeners } from '#src/listeners.ts';
 import { belowFloor } from '#src/master.ts';
 import type { CallParams, ClientOptions, ConnectionState, DocNotice, Handler, HelloResult, Pending } from '#src/client-options.ts';
+import type { ScreenNotice } from '#src/client-options.ts';
 
 export type { CallParams, ClientOptions, ConnectionState, HelloResult } from '#src/client-options.ts';
 
@@ -40,6 +41,8 @@ export class DaemonClient {
   private cursor: number | undefined;
   private eventHandlers = new Listeners<WireEvent>();
   private docHandlers = new Listeners<DocNotice>();
+  /** Notices of the screen sources this connection watches (screen.attach). */
+  readonly screen = new Listeners<ScreenNotice>();
   private gapHandlers = new Listeners<Notifications['gap']>();
   private resumeHandlers = new Listeners<Resumed>();
   private wasOpen = false; // the next connection is a reconnect
@@ -337,14 +340,12 @@ export class DaemonClient {
         if ((method === 'marker' || method === 'holder') && this.bytes.notice(method, params)) return; // the bytes attach owns this terminal, not the text one
         const n = params as { terminal: string; seq: number };
         const v = [...this.views.values()].find((x) => x.terminal === n.terminal);
-        if (!v) return;
-        if (!v.fits(n.seq)) {
-          void this.attach(v).catch(() => {});
-          return;
-        } // missed one: take a fresh frame
-        applyNotice(v, method, params);
+        if (v?.fits(n.seq)) applyNotice(v, method, params);
+        else if (v) void this.attach(v).catch(() => {}); // missed one: take a fresh frame
         break;
       }
+      default:
+        if (method.startsWith('screen_')) this.screen.emit({ kind: method, ...(params as object) } as ScreenNotice);
     }
   }
 

@@ -15,6 +15,7 @@ export * from '#src/writes.ts';
 export * from '#src/write-lists.ts';
 export * from '#src/attachments.ts';
 export * from '#src/screen-picture.ts';
+export * from '#src/screen-live.ts';
 export * from '#src/image-drafts.ts';
 export * from '#src/kept.ts';
 export * from '#src/doc-calls.ts';

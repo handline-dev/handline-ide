@@ -26,6 +26,13 @@ export interface ClientOptions {
 /** A doc notice, its method in `kind`. */
 export type DocNotice = ({ kind: 'doc_changed' } & Notifications['doc_changed']) | ({ kind: 'doc_closed' } & Notifications['doc_closed']);
 
+/** A watched screen source's notice, its method in `kind`. */
+export type ScreenNotice =
+  | ({ kind: 'screen_frame' } & Notifications['screen_frame'])
+  | ({ kind: 'screen_action' } & Notifications['screen_action'])
+  | ({ kind: 'screen_holder' } & Notifications['screen_holder'])
+  | ({ kind: 'screen_ended' } & Notifications['screen_ended']);
+
 export type Handler<T> = (value: T) => void;
 
 /** A call sent and not yet answered. */

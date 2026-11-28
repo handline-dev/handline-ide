@@ -16,6 +16,7 @@ import { TaskTab } from '#src/tools/TaskTab.tsx';
 import { CodeTab } from '#src/tools/TaskCode.tsx';
 import { TasksTab } from '#src/tools/TasksTab.tsx';
 import { AnyShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
+import { ScreenTab } from '#src/tools/ScreenTab.tsx';
 import { TextTab } from '#src/tools/TextTab.tsx';
 import { WebTab } from '#src/tools/WebTab.tsx';
 import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
@@ -45,6 +46,7 @@ export function TabBody({
           {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
           {shown === 'diff' && who && <Changes key={who} agent={who} />}
           {shown === 'shell' && who && <TerminalTab key={who} agent={who} />}
+          {shown === 'screen' && who && <ScreenTab key={who} agent={who} />}
           {shellHandle(shown ?? '') && <AnyShellTab key={current!.id} agent={own ? who : null} handle={shellHandle(shown!)!} />}
           {shown === 'markdown' && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} />}
           {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={who} />}

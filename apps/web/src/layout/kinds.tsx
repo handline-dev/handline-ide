@@ -12,6 +12,7 @@ import {
   ListTodo,
   Workflow,
   MessageSquare,
+  Monitor,
   Plus,
   SquareTerminal,
   type LucideIcon,
@@ -25,6 +26,7 @@ const kinds: Record<string, { label: string; icon: ReactNode }> = {
   chat: tab('Chat', MessageSquare),
   workspace: { label: 'Workspace', icon: workspaceIcon },
   shell: tab('Agent terminal', SquareTerminal),
+  screen: tab('Agent screen', Monitor),
   newshell: tab('Terminal', SquareTerminal),
   diff: tab('Changes', FileDiff),
   tasks: tab('Tasks', ListTodo),
@@ -44,7 +46,8 @@ export const chatOf = (name: string) => `chat:${name}`;
 
 /** Kinds that show one agent's thing (its terminal, a shell of its, its changes, its files). Their tabs carry the agent:
  * `<kind>|<agent>`, as a chat carries it in `chat:<agent>`. */
-export const agentKind = (kind: string) => ['shell', 'newshell', 'diff', 'markdown'].includes(kind) || /^(shell|file):/.test(kind);
+export const agentKind = (kind: string) =>
+  ['shell', 'screen', 'newshell', 'diff', 'markdown'].includes(kind) || /^(shell|file):/.test(kind);
 export const withAgent = (kind: string, agent: string) => `${kind}|${agent}`;
 /** Tasks may name an agent too, `tasks|<agent>` (opened from its desk in the town), though opening Tasks never carries one. */
 const namesAgent = (kind: string) => agentKind(kind) || kind === 'tasks';

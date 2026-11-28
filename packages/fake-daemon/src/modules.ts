@@ -14,6 +14,7 @@ import type { FakeRequests } from '#src/requests.ts';
 import type { FakeSchedules } from '#src/schedules.ts';
 import { restartHere } from '#src/heldon.ts';
 import { screenCall } from '#src/screen.ts';
+import type { FakeScreens } from '#src/screens.ts';
 import type { Script } from '#src/script.ts';
 import { accountsReply, view, type Session } from '#src/session.ts';
 import type { FakeTasks } from '#src/tasks.ts';
@@ -34,6 +35,7 @@ export interface ModuleHost {
   readonly rules: FakeRules;
   readonly context: FakeAgentContext;
   readonly schedules: FakeSchedules;
+  readonly screens: FakeScreens;
   readonly requests: FakeRequests;
   readonly uploads: FakeAttachments;
   readonly inbox: FakeInbox;
@@ -84,6 +86,7 @@ const AREAS: Area[] = [
   (d, c, method, p, ok) => (d.rules.owns(method) ? { value: d.rules.call(method, p, ok, d.actor(c)) } : null),
   (d, c, method, p, ok) => (d.context.owns(method) ? { value: d.context.call(method, p, ok, d.actor(c)) } : null),
   (d, c, method, p, ok) => (method === 'agent.restart_here' ? { value: restartHere(d, d.session(p.agent), d.actor(c), ok) } : null),
+  (d, c, method, p, ok) => (d.screens.owns(method) ? { value: d.screens.call(method, p, c, c.caller.name, ok) } : null),
   (d, _c, method) => screenCall(method, d.iso()),
   (d, _c, method, p) => (d.schedules.owns(method) ? { value: d.schedules.call(p) } : null),
   (d, _c, method, p, ok) => (d.requests.owns(method) ? { value: d.requests.call(method, p, ok) } : null),

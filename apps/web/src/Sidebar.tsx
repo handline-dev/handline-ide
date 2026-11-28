@@ -7,7 +7,7 @@ import { newWorkspace } from '#src/NewWorkspace.tsx';
 import type { AgentView, Workspace } from '@handline/client';
 import { JobList, type Job } from '#src/chat/agent/BackgroundItem.tsx';
 import { HoverCard } from '#src/ui/HoverCard.tsx';
-import { BesideCount, BesideList, useWithSeats, type Merged } from '#src/sidebar/Beside.tsx';
+import { BesideCount, BesideList, ScreenMark, useWithSeats, type Merged } from '#src/sidebar/Beside.tsx';
 import { DeviceLine } from '#src/settings/DeviceControls.tsx';
 import { useAgentDevice } from '#src/settings/data/devices.ts';
 import { ActivityIcon } from '#src/ui/activityIcon.tsx';
@@ -146,6 +146,7 @@ function AgentRows({ agents, pick, onMove, here }: { agents: Merged[]; pick: Pic
                       </span>
                     )}
                     {!!agent.beside?.length && <BesideCount n={agent.beside.length} />}
+                    <ScreenMark agent={agent} />
                     {dotOf(agent) === 'running' ? 'now' : ago(agent.state_since, now)}
                   </span>
                 }
