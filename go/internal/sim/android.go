@@ -171,8 +171,21 @@ func (a *android) install(b *Booted, p string) error {
 	return err
 }
 
+// launch starts app's launcher activity with am start: monkey, the usual way, exits 251 on an emulator with no hardware keys though it starts the app.
 func (a *android) launch(b *Booted, app string) error {
-	_, err := a.adb(b.Serial, "shell", "monkey", "-p", app, "-c", "android.intent.category.LAUNCHER", "1")
+	out, err := a.adb(b.Serial, "shell", "cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.LAUNCHER", app)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(out, "\n")
+	comp := strings.TrimSpace(lines[len(lines)-1])
+	if !strings.Contains(comp, "/") {
+		return fmt.Errorf("%s has no launcher activity: %s", app, out)
+	}
+	out, err = a.adb(b.Serial, "shell", "am", "start", "-W", "-n", comp)
+	if err == nil && strings.Contains(out, "Error") {
+		err = fmt.Errorf("am start %s: %s", comp, out)
+	}
 	return err
 }
 
@@ -278,6 +291,11 @@ func (a *android) rotate(b *Booted, to string) error {
 	n, ok := map[string]string{"portrait": "0", "left": "1", "upsidedown": "2", "right": "3"}[to]
 	if !ok {
 		return fmt.Errorf("to is portrait, upsidedown, left or right, not %q", to)
+	}
+	// Android 14 no longer turns the display on a user_rotation setting alone; wm does, where it has user-rotation.
+	// An old wm may print its error and still exit 0.
+	if out, err := a.adb(b.Serial, "shell", "wm", "user-rotation", "lock", n); err == nil && !strings.Contains(out, "rror") && !strings.Contains(out, "nknown") {
+		return nil
 	}
 	if _, err := a.adb(b.Serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"); err != nil {
 		return err
