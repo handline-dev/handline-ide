@@ -69,7 +69,6 @@
   "apps/web/src/tools/TaskCode.tsx": ["The changes did not load.", "No commits on this task yet."],
   "apps/web/src/tools/TaskComment.tsx": ["your answer and the turn back · Send it empty to give it back with no answer"],
   "apps/web/src/tools/TaskDiff.tsx": ["Pick two different versions."],
-  "apps/web/src/tools/TaskFields.tsx": ["No one matches."],
   "apps/web/src/tools/TaskPull.tsx": ["This task closes when it merges."],
   "apps/web/src/tools/TaskSpend.tsx": [
     "What the model calls of this task and its sub-tasks cost at list price. A subscription is not billed for them."

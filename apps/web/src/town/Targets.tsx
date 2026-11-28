@@ -10,9 +10,10 @@ import type { AgentView } from '@handline/client';
 import { Plus } from 'lucide-react';
 import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { AgentMenu } from '#src/AgentMenu.tsx';
-import { newAgent, newAgentIn } from '#src/NewAgent.tsx';
+import { newAgent } from '#src/NewAgent.tsx';
 import { chatOf, withAgent } from '#src/layout/kinds.tsx';
 import { SetGoingButton, useSetGoing } from '#src/chat/agent/SetGoing.tsx';
+import { NamePicker } from '#src/ui/NamePicker.tsx';
 import { floatingSurface } from '#src/ui/Popover.tsx';
 import { useFounder, type Founder } from '#src/town/founder.tsx';
 import { usePapersTip } from '#src/town/Marks.tsx';
@@ -137,7 +138,16 @@ export function Targets({
   const agents = useAgents().data?.agents;
   const workspaces = useRead('workspaces.list', {}).data?.workspaces ?? [];
   const workspace = workspaces.find((w) => w.key === house.key);
-  const { addPin } = useNav();
+  const { nav, addPin } = useNav();
+  // Who the HQ's dotted person can bring in: every agent not pinned yet, the last to change first.
+  const unpinned = (agents ?? [])
+    .filter((a) => !nav.pins.includes(a.key))
+    .sort((a, b) => Date.parse(b.state_since) - Date.parse(a.state_since));
+  const teamOf = (key: string) => {
+    const ws = unpinned.find((a) => a.key === key)?.workspace;
+    return workspaces.find((w) => w.key === ws)?.name ?? '';
+  };
+  const nameOf = (key: string) => unpinned.find((a) => a.key === key)?.name ?? key;
   const rows = figuresOf(drawn.stage.people);
   const { mine, hire, join, desks, papers, spots } = drawn.cast;
   const door = drawn.front.door;
@@ -215,20 +225,28 @@ export function Targets({
           }}
         />
       )}
-      {/* The HQ's dotted person: one hired here also stands in the HQ, pinned. */}
-      {join && workspaces.length > 0 && (
-        <button
-          type="button"
-          title="Hire an agent"
-          style={at(join)}
-          className="group pointer-events-auto absolute grid cursor-pointer place-items-center rounded-sm outline-accent focus-visible:outline"
-          onClick={() => {
-            founder.go(join.at, () => founder.turn('right'));
-            void newAgentIn(workspaces).then((key) => key && addPin(key));
-          }}
-        >
-          <Plus size={20} strokeWidth={3} className="text-accent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
-        </button>
+      {/* The HQ's dotted person: an agent picked here is pinned, so it stands in the HQ. */}
+      {join && unpinned.length > 0 && (
+        <NamePicker
+          everyone={unpinned.map((a) => a.key)}
+          likely={unpinned.slice(0, 6).map((a) => a.key)}
+          label={nameOf}
+          words={(key) => `${nameOf(key)} ${teamOf(key)}`}
+          note={teamOf}
+          placeholder="Pin an agent"
+          onOpen={() => founder.go(join.at, () => founder.turn('right'))}
+          onPick={addPin}
+          trigger={
+            <button
+              type="button"
+              title="Pin an agent"
+              style={at(join)}
+              className="group pointer-events-auto absolute grid cursor-pointer place-items-center rounded-sm outline-accent focus-visible:outline"
+            >
+              <Plus size={20} strokeWidth={3} className="text-accent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+            </button>
+          }
+        />
       )}
       {door && (
         <button

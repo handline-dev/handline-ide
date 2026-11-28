@@ -9,6 +9,7 @@ import { Input } from '#src/ui/Field.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { ClockBar, LeftWords, WholeTime, useLeft } from '#src/tools/TaskClock.tsx';
 import { TaskSpend } from '#src/tools/TaskSpend.tsx';
+import { NamePicker } from '#src/ui/NamePicker.tsx';
 import { Popover } from '#src/ui/Popover.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { Who } from '#src/ui/Who.tsx';
@@ -82,69 +83,18 @@ export function AssignPicker({ t, trigger, onPick }: { t: TaskDetail; trigger: R
   const me = useMe();
   const nameOf = useNameOf();
   const agents = useAgents().data?.agents ?? [];
-  const [shown, setShown] = useState(false);
-  const [find, setFind] = useState('');
-  const [at, setAt] = useState(0);
   const groups = assignGroups(t, agents, me);
   const likely = groups.filter((g) => g.key !== 'rest').flatMap((g) => g.names);
-  const everyone = [...new Set([...groups.flatMap((g) => g.names), me, t.to])];
-  const q = find.trim().toLowerCase();
-  const names = q
-    ? everyone.filter((n) => nameOf(n).toLowerCase().includes(q) || (n === me && 'me'.includes(q))).slice(0, 8)
-    : [...new Set([...likely.slice(0, LIKELY - 2), me, t.to])];
-  const pick = names[Math.min(at, names.length - 1)];
-  const choose = (to = pick) => {
-    setShown(false);
-    if (to) onPick(to);
-  };
   return (
-    <Popover
-      open={shown}
-      onOpenChange={(o) => {
-        setShown(o);
-        setFind('');
-        setAt(0);
-      }}
+    <NamePicker
       trigger={trigger}
-    >
-      <div className="flex w-64 flex-col gap-1">
-        <Input
-          autoFocus
-          placeholder="Find someone"
-          value={find}
-          onChange={(e) => {
-            setFind(e.target.value);
-            setAt(0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              choose();
-            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              setAt((i) => (i + (e.key === 'ArrowDown' ? 1 : names.length - 1)) % Math.max(names.length, 1));
-            }
-          }}
-        />
-        <ul role="listbox" aria-label={q ? 'Matches' : 'Likely'} className="flex flex-col">
-          {names.map((n) => (
-            <li key={n} role="option" aria-selected={n === pick}>
-              <button
-                type="button"
-                onMouseEnter={() => setAt(names.indexOf(n))}
-                onClick={() => choose(n)}
-                className={`flex h-7 w-full items-center justify-between gap-2 rounded-sm px-2 text-left ${n === pick ? 'bg-hover' : ''}`}
-              >
-                <span className="truncate">{n === me ? 'Me' : nameOf(n)}</span>
-                {n === t.to && <span className="text-xs text-muted">Now</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {!names.length && <p className="px-2 text-xs text-muted">No one matches.</p>}
-        {!q && everyone.length > names.length && <p className="px-2 text-xs text-muted">Type to find more · {everyone.length} in all</p>}
-      </div>
-    </Popover>
+      everyone={[...new Set([...groups.flatMap((g) => g.names), me, t.to])]}
+      likely={[...new Set([...likely.slice(0, LIKELY - 2), me, t.to])]}
+      label={(n) => (n === me ? 'Me' : nameOf(n))}
+      words={(n) => (n === me ? `${nameOf(n)} me` : nameOf(n))}
+      note={(n) => (n === t.to ? 'Now' : undefined)}
+      onPick={onPick}
+    />
   );
 }
 
