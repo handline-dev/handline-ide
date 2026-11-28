@@ -3,19 +3,19 @@
 // chat (Windows.tsx), on its papers its tasks, on the founder's desk the decisions, on the empty desk hires; Targets.tsx lays these over
 // the picture. Marks say who is on hold, stopped or dozing (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
 // founder walks into it or it is clicked; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { House } from '#src/town/model.ts';
 import { Marks } from '#src/town/Marks.tsx';
 import { DESK, Targets } from '#src/town/Targets.tsx';
 import { useTownShown } from '#src/town/Windows.tsx';
 import { THROUGH } from '#src/town/palette.ts';
 import { DoorSwing, type Way } from '#src/town/door.tsx';
-import { useWalker } from '#src/town/founder.tsx';
+import { useWalker, type Founder } from '#src/town/founder.tsx';
 import type { Spot as FloorSpot } from '#src/town/walk.ts';
 import { useDrawn } from '#src/town/office.ts';
 import { Monitors, MotionsOf } from '#src/town/monitors.tsx';
 import { useCrowd, usePlaced, useToDesks } from '#src/town/crowd.ts';
-import { fadeOf, useMore } from '#src/town/pan.ts';
+import { fadeOf, useFollow } from '#src/town/pan.ts';
 import { useGivenWork } from '#src/town/errands.ts';
 import { useCheers } from '#src/town/cheers.ts';
 import { Bubbles, JoinOutline, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
@@ -51,8 +51,8 @@ export function Inside({
   const { show } = useTownShown();
   const [pane, [pw, ph]] = useSize();
   const crowd = useCrowd();
-  // The same room whatever the space: a smaller pane shows it smaller, but never so small that names shrink; a bigger room scrolls. One
-  // walking to its desk sits before its screen lights.
+  // The same room whatever the space: a smaller pane shows it smaller, but never so small that names shrink; a bigger room follows the
+  // founder. One walking to its desk sits before its screen lights.
   const drawn = useDrawn(house, useToDesks(crowd));
   usePlaced(crowd, drawn?.stage ?? null);
   const scale = drawn ? Math.max(READABLE, Math.min(pw / drawn.w, ph / drawn.h)) : 1;
@@ -80,7 +80,6 @@ export function Inside({
     setSwing({ way: 'open', from: leaving, out: true });
   } else if (through && (!swing || (swing.crowd && swing.way === 'shut'))) setSwing({ way: 'open', out: through === 'out', crowd: true });
   else if (!through && swing?.crowd && swing.way === 'open') setSwing({ way: 'shut', out: swing.out, crowd: true });
-  const more = useMore(pane, drawn && `${pw}x${ph}x${drawn.w * scale}x${drawn.h * scale}`);
   // How each moves and what its screen shows, from the newest people: the drawing is not made again for it.
   const motions = new Map(house.people.map((p) => [p.key, p.motion ?? null]));
   const decisions = house.decisions.length;
@@ -112,9 +111,15 @@ export function Inside({
         </button>
       </div>
       <div className="relative flex min-h-0 flex-1 p-4">
-        <div ref={pane} className="flex min-h-0 min-w-0 flex-1 overflow-auto" style={fadeOf(more)}>
+        <Followed
+          pane={pane}
+          founder={founder}
+          room={drawn && { w: drawn.w, h: drawn.h, toPixel: drawn.ground.toPixel }}
+          size={[pw, ph]}
+          scale={scale}
+        >
           {drawn && pw > 0 && (
-            <div className="relative m-auto shrink-0" style={{ width: drawn.w * scale, height: drawn.h * scale }}>
+            <>
               <MotionsOf value={motions}>
                 <svg
                   width={drawn.w * scale}
@@ -162,10 +167,46 @@ export function Inside({
                 </svg>
               </MotionsOf>
               <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} />
-            </div>
+            </>
           )}
-        </div>
+        </Followed>
       </div>
+    </div>
+  );
+}
+
+type Room = { w: number; h: number; toPixel: (x: number, y: number, z: number) => [number, number] };
+
+/** The pane, with the room placed where the founder's walk has it and the cut edges faded; only this draws again at each step. */
+function Followed(props: {
+  pane: React.RefObject<HTMLDivElement | null>;
+  founder: Founder;
+  room: Room | null;
+  size: [number, number];
+  scale: number;
+  children: ReactNode;
+}) {
+  const { pane, founder, room, size, scale } = props;
+  const view = useFollow(founder, room?.toPixel ?? null, room ? [room.w, room.h] : [0, 0], size, scale);
+  return (
+    <div
+      ref={pane}
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      style={fadeOf(view.more)}
+      // Focus going to something out of view scrolls even a pane that hides its overflow; only the walk moves the view.
+      onScroll={(e) => {
+        e.currentTarget.scrollLeft = 0;
+        e.currentTarget.scrollTop = 0;
+      }}
+    >
+      {room && (
+        <div
+          className="absolute top-0 left-0"
+          style={{ width: room.w * scale, height: room.h * scale, transform: `translate(${view.at[0]}px, ${view.at[1]}px)` }}
+        >
+          {props.children}
+        </div>
+      )}
     </div>
   );
 }

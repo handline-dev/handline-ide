@@ -217,7 +217,7 @@ function walkerOf() {
     const down = (e: KeyboardEvent) => {
       s.running = e.shiftKey;
       if (!KEYS[e.code] || !s.ground || notMine(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
-      // A repeat walks nobody on, but it must not scroll a big office either.
+      // A repeat walks nobody on, but it must not scroll the page either.
       e.preventDefault();
       if (e.repeat) return;
       s.held.add(e.code);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fadeOf, moreOf } from '#src/town/pan.ts';
+import { fadeOf, followOf, moreOf } from '#src/town/pan.ts';
 
 describe('moreOf', () => {
   it('names the edges with more of the room beyond them', () => {
@@ -15,5 +15,16 @@ describe('fadeOf', () => {
     const mask = String(fadeOf([false, true, false, true]).maskImage);
     expect(mask).toContain('to left, transparent, black 40px');
     expect(mask).toContain('to right, transparent, black 0px');
+  });
+});
+
+describe('followOf', () => {
+  it('puts the founder in the middle, never shows past the room, and centres a room that fits', () => {
+    expect(followOf([300, 200], [600, 400], [200, 100], 1)).toEqual([-200, -150]);
+    expect(followOf([10, 10], [600, 400], [200, 100], 1)).toEqual([0, 0]);
+    expect(followOf([590, 390], [600, 400], [200, 100], 1)).toEqual([-400, -300]);
+    expect(followOf([300, 200], [600, 400], [200, 100], 2)).toEqual([-500, -350]);
+    expect(followOf([10, 10], [100, 50], [200, 100], 1)).toEqual([50, 25]);
+    expect(followOf(null, [600, 400], [200, 100], 1)).toEqual([0, 0]);
   });
 });
