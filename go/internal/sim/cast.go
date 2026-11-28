@@ -18,10 +18,13 @@ const Source = "sim"
 // The longest side of a frame in pixels and its JPEG quality: the driver takes about 175 ms a frame at this size, so about 5 a second.
 const castMax, castQuality = 800, 0.7
 
-// framer is a platform that can picture its screen for the pipeline; Android cannot yet.
+// framer is a platform that can picture its screen for the pipeline.
 type framer interface {
+	pictures(b *Booted) bool
 	frame(b *Booted, max int, quality float64) (screenpipe.Frame, error)
 }
+
+func (i *ios) pictures(*Booted) bool { return true }
 
 func (i *ios) frame(b *Booted, max int, quality float64) (screenpipe.Frame, error) {
 	got, err := i.call(b, map[string]any{"op": "frame", "max": max, "quality": quality})
@@ -72,7 +75,7 @@ func (e *Env) OpenCast(agent string) (*Cast, error) {
 	var mine []*Booted
 	for _, b := range e.All() {
 		if b.Agent == agent {
-			if _, ok := e.backend(b.Platform).(framer); ok {
+			if f, ok := e.backend(b.Platform).(framer); ok && f.pictures(b) {
 				mine = append(mine, b)
 			}
 		}
