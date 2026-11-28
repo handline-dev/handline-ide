@@ -23,9 +23,9 @@ func (l *Launcher) ChatMode(agent string) bool {
 }
 
 // chatHold is the holder's part of a Chat launch, nil for a terminal one. The first prompt goes in as the first message, after the line
-// that opens the session. A runner's session stays a terminal one until runners hold Chat sessions.
+// that opens the session. On a runner the socket is the master's path, which the runner's registry makes the runner's.
 func (l *Launcher) chatHold(site *Site, agent, prompt string) (*Hold, error) {
-	if site.Node != "" || !l.ChatMode(agent) {
+	if !l.ChatMode(agent) {
 		return nil, nil
 	}
 	drv, err := l.Ports.Vendors.ForAgent(agent)
@@ -34,8 +34,10 @@ func (l *Launcher) chatHold(site *Site, agent, prompt string) (*Hold, error) {
 	}
 	chat := cli.ChatOf(drv)
 	sock := paths.ChatSocket(l.Home, agent)
-	if err := os.MkdirAll(filepath.Dir(sock), 0o700); err != nil {
-		return nil, err
+	if site.Node == "" {
+		if err := os.MkdirAll(filepath.Dir(sock), 0o700); err != nil {
+			return nil, err
+		}
 	}
 	first, secret := chat.Init()
 	init := []string{string(first)}

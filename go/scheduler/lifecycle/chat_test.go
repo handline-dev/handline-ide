@@ -10,6 +10,7 @@ import (
 	cli "github.com/handline/handline/go/agentctl/agent"
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
 	"github.com/handline/handline/go/data/team"
+	"github.com/handline/handline/go/kit/paths"
 	"github.com/handline/handline/go/kit/yamlcompat"
 )
 
@@ -72,8 +73,9 @@ func TestAChatAgentsLaunchRunsUnderTheHolderWithItsPromptAsTheFirstMessage(t *te
 	site := r.site()
 	site.Node, site.Handle = "box", "box:%3"
 	r.l.Ports.Devices = fakeDevices{"box": {"main": "/runner/accounts/k1/.claude"}}
-	if got, err := r.l.Prepare(site, "ann", nil, false, prompt(), "main", "", ""); err != nil || got.Hold != nil {
-		t.Fatalf("a runner's session stays a terminal one for now: %+v %v", got, err)
+	got, err = r.l.Prepare(site, "ann", nil, false, prompt(), "main", "", "")
+	if err != nil || got.Hold == nil || got.Hold.Socket != paths.ChatSocket(r.l.Home, "ann") {
+		t.Fatalf("a runner's session holds at the master's path, which the registry makes the runner's: %+v %v", got, err)
 	}
 }
 

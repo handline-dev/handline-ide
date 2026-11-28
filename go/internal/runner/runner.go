@@ -102,6 +102,7 @@ type Runner struct {
 	repos    map[string]*sync.Mutex // a clone's lock, held while it is synced
 	pushers  map[string]*pusher     // a worktree's push running now
 	streams  *termchan.Streams      // the master's bytes attaches, ended with the link they go up
+	chat     chats                  // the master's reads of the Chat holders here, ended with the link they go up
 	// rescuing is the agents whose session's rescue runs now; rescueFails how many times each one's push failed.
 	rescuing    map[string]bool
 	rescueFails map[string]int
@@ -324,8 +325,11 @@ func (r *Runner) linkOnce() (up bool, err error) {
 		r.wg.Add(1)
 		r.mu.Unlock()
 		defer r.wg.Done()
-		if method == "runner.attach" { // its stream's notices go up this link, and end with it
+		switch method { // a stream's notices go up this link, and end with it
+		case "runner.attach":
 			return r.attach(p, l.Notify)
+		case "runner.chat.read":
+			return r.chatRead(p, l.Notify)
 		}
 		return r.serve(method, p)
 	})
@@ -364,12 +368,19 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	r.link = nil
 	r.mu.Unlock()
 	r.streams.DetachAll()
+	r.chatDetachAll()
 	return true, err
 }
 
 // serve is a call the master sends on the link.
 func (r *Runner) serve(method string, p map[string]any) (any, error) {
 	str := func(k string) string { s, _ := p[k].(string); return s }
+	switch method {
+	case "runner.keys", "runner.screen", "runner.input":
+		if r.chatHeadless(str("handle")) {
+			return nil, rpc.Refused(str("handle")+" runs in Chat mode: no key or screen read reaches it", "headless", "")
+		}
+	}
 	switch method {
 	case "runner.terminal.open":
 		return r.open(str("agent"), str("folder"), str("command"))
@@ -436,6 +447,7 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 		return map[string]any{"accepted": true}, nil
 	case "runner.detach":
 		r.streams.Detach(str("stream"))
+		r.chatDetach(str("stream"))
 		return map[string]any{"accepted": true}, nil
 	case "runner.resync":
 		if err := r.streams.Resync(str("stream"), str("reason")); err != nil {
@@ -463,6 +475,14 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 			handles = append(handles, h)
 		}
 		return map[string]any{"handles": handles}, nil
+	case "runner.chat.list":
+		return r.chatList()
+	case "runner.chat.ack":
+		return r.chatAck(p)
+	case "runner.chat.write":
+		return r.chatWrite(p)
+	case "runner.chat.close":
+		return r.chatClose(p)
 	case "runner.home":
 		return map[string]any{"home": r.cfg.Home}, nil
 	case "runner.files":
@@ -662,7 +682,18 @@ func (r *Runner) launch(l *rpc.Link, agent string, params map[string]any) (any, 
 	r.sendMu.Lock()
 	r.sent[agent] = homefiles.Stamps(r.cfg.Home, r.agentFiles(dir)...) // what came down is what the master has
 	r.sendMu.Unlock()
-	return map[string]any{"argv": got["argv"], "env": got["env"], "warnings": got["warnings"]}, nil
+	out := map[string]any{"argv": got["argv"], "env": got["env"], "warnings": got["warnings"]}
+	if h, ok := got["hold"].(map[string]any); ok { // a Chat session: its holder serves under this home's chat folder
+		sock, _ := h["socket"].(string)
+		if sock != paths.ChatSocket(r.cfg.Home, agent) {
+			return nil, fmt.Errorf("the master named %q as %s's holder", sock, agent)
+		}
+		if err := os.MkdirAll(filepath.Dir(sock), 0o700); err != nil {
+			return nil, err
+		}
+		out["hold"] = h
+	}
+	return out, nil
 }
 
 // SendEvery is how often the runner looks for an agent's memory and handoff note having changed.

@@ -44,6 +44,7 @@ var layer = map[string]int{
 	"scheduler/staymove":     0,
 	"transcript":             0,
 	"chatterm":               0,
+	"chatrelay":              0,
 	"scheduler/worktreelock": 0,
 	// L1 wire and infra
 	"data/agenthost":     1,

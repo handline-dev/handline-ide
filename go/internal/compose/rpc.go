@@ -64,7 +64,11 @@ func (lc *Lifecycle) runnerLaunch(node, agent string, params map[string]any) (*n
 	if err != nil {
 		return nil, err
 	}
-	return &nodes.Launched{Argv: got.Argv, Env: got.Env, Warnings: warnings}, nil
+	out := &nodes.Launched{Argv: got.Argv, Env: got.Env, Warnings: warnings}
+	if h := got.Hold; h != nil {
+		out.Hold = &nodes.Hold{Socket: h.Socket, Init: h.Init, Secret: h.Secret}
+	}
+	return out, nil
 }
 
 // ForceStart is agent.force_start: work the machine's load, its account's pace or its 5-hour limit holds for the agent goes past them for its next start,

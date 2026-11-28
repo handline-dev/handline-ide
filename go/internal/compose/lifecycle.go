@@ -144,7 +144,7 @@ func (p *Parts) Lifecycle(cfg Config, lc LifecycleConfig) *Lifecycle {
 	if cfg.Turns != nil {
 		tm.Turns = cfg.Turns
 	}
-	tm.Chat = chatterm.New(home, tm, p.ChatPort)
+	tm.Chat = chatterm.New(home, tm, p.ChatPort, func(h string) string { a, _ := db.AgentOfTerminal(q, h); return a })
 	var onLaunch func(string) // the view is told through the turns tracker, which the tick hands it
 	if cfg.Turns != nil {
 		onLaunch = cfg.Turns.Launched

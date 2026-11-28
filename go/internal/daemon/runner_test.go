@@ -17,6 +17,7 @@ import (
 
 	"github.com/handline/handline/go/accounts/usage"
 	"github.com/handline/handline/go/agentctl/agent/claudecode"
+	"github.com/handline/handline/go/agentctl/chatport/chatfake"
 	"github.com/handline/handline/go/agentctl/agent/claudecode/turns"
 	"github.com/handline/handline/go/agentctl/term"
 	"github.com/handline/handline/go/data/agenthost"
@@ -337,9 +338,14 @@ func masterWithRunnerAs(t *testing.T, tracker *turns.Tracker, edit func(*runner.
 	t.Setenv("HANDLINE_AGENT", "")
 	t.Setenv("HANDLINE_TMUX_SOCKET", "")
 	hl = filepath.Join(clustertest.Build(t), "hl")
-	cfg := tlsConfig(t, t.TempDir())
+	mhome, err := os.MkdirTemp("", "hlm") // short: a Chat holder's socket is under it
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(mhome) })
+	cfg := tlsConfig(t, mhome)
 	cfg.Auth, cfg.Turns = fakeAuth{key: "k", agent: "a"}, tracker
-	master, err := Start(cfg)
+	master, err = Start(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,6 +439,10 @@ func linkedRunner(t *testing.T, master *Daemon, node string) *nodes.Runner {
 }
 
 func TestMain(m *testing.M) {
+	if os.Getenv(chatFakeEnv) == "1" { // a Chat session's CLI, started under its holder by a test
+		chatfake.Run()
+		return
+	}
 	// No test reads this machine's own interfaces or Tailscale: a test that wants addresses serves its own (serveOn).
 	machineHosts = func(Config) []netAddress { return nil }
 	machineHTTPS = func() bool { return false }
