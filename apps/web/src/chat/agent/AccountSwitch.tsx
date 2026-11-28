@@ -1,6 +1,6 @@
 import { Spinner } from '#src/ui/Loading.tsx';
 import { Refs } from '#src/ui/refs.tsx';
-import { clockTime, moveSteps, roomRows, stepWaited, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
+import { clockTime, labelSwitch, moveSteps, roomRows, stepWaited, switchWords, waitLine, VERBS, type RoomRow } from '@handline/app-core';
 import { useAccounts, useAgents, useVerbRun, useWrite } from '@handline/app-data';
 import type { TranscriptItem } from '@handline/client';
 import { ArrowRight, ArrowRightLeft, Check, ChevronDown, Circle, Clock, TriangleAlert } from 'lucide-react';
@@ -15,13 +15,15 @@ import { Button } from '#src/ui/Button.tsx';
 import { Menu, MenuItem } from '#src/ui/Menu.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { uuid } from '#src/ui/uuid.ts';
+import { AccountName, useAccountLabel } from '#src/usage/AccountName.tsx';
 
 const useSwitch = (agent: string) => useAgents().data?.agents.find((a) => a.key === agent);
 
 /** The message box's words while the agent saves, switches or starts on a new account; null when it takes messages. */
 export function useSwitchLock(agent: string): string | null {
   const s = useSwitch(agent)?.account_switch;
-  return s ? switchWords(s) : null;
+  const label = useAccountLabel();
+  return s ? switchWords(labelSwitch(s, label)) : null;
 }
 
 /** A move under way as its three steps, the current one with how long it has waited; narrow, the title and the current step alone.
@@ -30,7 +32,8 @@ export function MoveSteps({ agent }: { agent: string }) {
   const s = useSwitch(agent)?.account_switch;
   const tick = useNow(1000);
   const moveNow = useWrite('agent.move_now', agent);
-  const m = s ? moveSteps(s) : null;
+  const label = useAccountLabel();
+  const m = s ? moveSteps(labelSwitch(s, label)) : null;
   if (!s || !m) return null;
   const took = <span className="shrink-0 tabular-nums">· {stepWaited(s.since, tick)}</span>;
   const now = m.steps[m.at];
@@ -81,6 +84,7 @@ export function MoveSteps({ agent }: { agent: string }) {
 /** While the agent waits at its limit: a card with the wait and the account with the most room to switch to now, the others in a list by
  * the room left in their tighter window; with no other account, the wait alone in one line. */
 export function SwitchWait({ agent }: { agent: string }) {
+  const label = useAccountLabel();
   const a = useSwitch(agent);
   const accounts = useAccounts().data?.accounts ?? [];
   const switchNow = useWrite('agent.switch_now', agent);
@@ -95,8 +99,8 @@ export function SwitchWait({ agent }: { agent: string }) {
       { onError: (e) => toast(`The switch did not start: ${e instanceof Error ? e.message : String(e)}`, { tone: 'warning' }) },
     );
   const best = rows.find((r) => !r.current);
-  const wait = waitLine(s.from, s.until, now);
-  const until = s.until ? `${s.from} resets at ${clockTime(s.until)}` : undefined;
+  const wait = waitLine(label(s.from), s.until, now);
+  const until = s.until ? `${label(s.from)} resets at ${clockTime(s.until)}` : undefined;
   return (
     <div className="mb-2 flex min-w-0 flex-col gap-2 text-sm">
       {!best && (
@@ -125,13 +129,14 @@ export function SwitchWait({ agent }: { agent: string }) {
 /** The account with the most room as a button, the others in its menu by the room left in their tighter window. */
 export function SwitchPick({ rows, pending, go }: { rows: RoomRow[]; pending: boolean; go: (account: string) => void }) {
   const split = useRef<HTMLSpanElement>(null);
+  const label = useAccountLabel();
   const best = rows.find((r) => !r.current);
   if (!best) return null;
   return (
     <div className="flex items-center gap-2">
       <span ref={split} className="inline-flex">
         <Button variant="primary" className="rounded-r-none" disabled={pending} onClick={() => go(best.name)}>
-          Switch to {best.name}
+          Switch to {label(best.name)}
           {best.room !== null && ` · ${best.room}% left`}
         </Button>
         <Menu
@@ -159,7 +164,7 @@ export function SwitchPick({ rows, pending, go }: { rows: RoomRow[]; pending: bo
             >
               <span className="flex items-center gap-3">
                 <span className={`w-24 truncate ${r.name === best.name ? 'font-semibold' : ''}`}>
-                  {r.name}
+                  {label(r.name)}
                   {r.current && ' · now'}
                 </span>
                 <span className="text-xs whitespace-nowrap text-muted">
@@ -177,6 +182,7 @@ export function SwitchPick({ rows, pending, go }: { rows: RoomRow[]; pending: bo
 /** A person's move waiting to run, in the turn's row at the chat's foot: to which account and when, with Move now and Cancel while it
  * waits for the turn to end; once Move now stopped the turn, that it waits for the handoff note. */
 export function PendingMove({ agent }: { agent: string }) {
+  const label = useAccountLabel();
   const m = useSwitch(agent)?.pending_move;
   const now = useWrite('agent.move_now', agent);
   const cancel = useWrite('agent.move_cancel', agent);
@@ -189,7 +195,9 @@ export function PendingMove({ agent }: { agent: string }) {
     <div role="status" className="flex h-5 min-w-0 items-center gap-2 text-xs text-muted">
       <ArrowRightLeft size={12} className="shrink-0" />
       <span className="min-w-0 truncate">
-        {stopping ? `Moving to ${m.to}: waiting for the handoff note…` : `Moves to ${m.to} when this turn ends, after its handoff note`}
+        {stopping
+          ? `Moving to ${label(m.to)}: waiting for the handoff note…`
+          : `Moves to ${label(m.to)} when this turn ends, after its handoff note`}
       </span>
       {!stopping && (
         <>
@@ -242,19 +250,20 @@ export function MoveLine({
   note?: string | null;
 }) {
   const [shown, setShown] = useState(false);
+  const label = useAccountLabel();
   // A move that did not run is something to see to: a card, as the chat's other holds are; a move that ran is a line between rules.
   if (!moved) return <MoveFailed agent={agent} at={at} failed={failed} />;
   const m = moved;
   const open = () =>
     void openModal((close) => (
-      <ModalFrame title={`Moved to ${m.to}`} onClose={() => close()}>
+      <ModalFrame title={`Moved to ${label(m.to)}`} onClose={() => close()}>
         <div className="flex flex-col gap-6 pb-1">
           <Facts
             rows={[
               ['By', m.cause === 'manual' ? 'You' : 'Handline'],
               ['Why', m.reason || 'Not recorded'],
-              ['From', m.from],
-              ['To', m.to],
+              ['From', m.from ? <AccountName name={m.from} /> : '—'],
+              ['To', <AccountName name={m.to} />],
               ['When', new Date(at).toLocaleString()],
             ]}
           />
@@ -276,7 +285,7 @@ export function MoveLine({
       >
         <span className="flex items-center gap-1.5">
           <ArrowRightLeft size={14} />
-          {`Moved to ${m.to}${m.note_written ? '' : ' · no handoff note'}`}
+          {`Moved to ${label(m.to)}${m.note_written ? '' : ' · no handoff note'}`}
         </span>
         <motion.time
           dateTime={at}
@@ -297,6 +306,7 @@ export function MoveLine({
 function MoveFailed({ agent, at, failed }: { agent: string; at: string; failed?: TranscriptItem['move_failed'] }) {
   const a = useSwitch(agent);
   const accounts = useAccounts().data?.accounts ?? [];
+  const label = useAccountLabel();
   const run = useVerbRun(agent);
   const rows = roomRows(accounts, a?.account ?? '');
   const go = (account: string) =>
@@ -308,7 +318,7 @@ function MoveFailed({ agent, at, failed }: { agent: string; at: string; failed?:
       <TriangleAlert size={16} className="mt-0.5 shrink-0 text-warning" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div>
-          <div className="font-medium">{`Did not move to ${failed?.to}`}</div>
+          <div className="font-medium">{`Did not move to ${failed?.to ? label(failed.to) : ''}`}</div>
           {failed?.reason && (
             <div className="text-muted">
               <Refs text={failed.reason} />

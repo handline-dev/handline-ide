@@ -12,6 +12,8 @@ import { HoverCard } from '#src/ui/HoverCard.tsx';
 import { useAction } from '#src/ui/Button.tsx';
 import { FIVE_HOURS, UsageBar, WEEK } from '#src/usage/UsageBar.tsx';
 import { Refs } from '#src/ui/refs.tsx';
+import { AccountName } from '#src/usage/AccountName.tsx';
+import { openSettings } from '#src/settings/open.ts';
 
 /** The account the agent runs on: its name, with a mark when its 5-hour window runs high, the login is gone, or the daemon is
  * about to move the agent off it. Resting on it shows the account's windows, who shares it, and this agent's last moves, with a
@@ -58,8 +60,7 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
           <MenuHeading>Last moves</MenuHeading>
           {moves.map((m) => (
             <MenuFact key={m.at} name={since(m.at)}>
-              {`${m.from ?? '—'} → ${m.to}, `}
-              <Refs text={m.reason} />
+              {m.from ? <AccountName name={m.from} /> : '—'} → <AccountName name={m.to} />, <Refs text={m.reason} />
             </MenuFact>
           ))}
         </>
@@ -69,6 +70,9 @@ export function AccountItem({ agent, account, fire }: { agent: string; account: 
       <MoveTo agent={agent} account={account} />
       <CardAction icon={<Gauge size={14} />} {...usage}>
         Open usage
+      </CardAction>
+      <CardAction icon={<UserRound size={14} />} onClick={() => openSettings({ section: 'accounts', account })}>
+        Account details
       </CardAction>
     </HoverCard>
   );

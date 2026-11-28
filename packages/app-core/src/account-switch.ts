@@ -94,3 +94,14 @@ export const roomRows = (accounts: Acct[], current: string, first?: string): Roo
     .map((a) => roomRow(a, current))
     .sort((x, y) => rank(x) - rank(y) || (y.room ?? 0) - (x.room ?? 0) || x.name.localeCompare(y.name));
 };
+
+/** An account's screen name by its key: its label, the key itself when the list lacks it or it has none. */
+export const accountLabel = (accounts: readonly { name: string; label?: string }[] | undefined, name: string): string =>
+  accounts?.find((a) => a.name === name)?.label || name;
+
+/** A switch with its accounts named as screens show them, for the words built from it. */
+export const labelSwitch = <S extends { from: string; to: string | null }>(s: S, label: (name: string) => string): S => ({
+  ...s,
+  from: label(s.from),
+  to: s.to && label(s.to),
+});

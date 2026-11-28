@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { moveSteps, roomRows, stepWaited, switchWords, waitLine } from '#src/index.ts';
+import { accountLabel, labelSwitch, moveSteps, roomRows, stepWaited, switchWords, waitLine } from '#src/index.ts';
 
 const w = (used_pct: number, resets_at: string | null = '2026-11-10T21:30:00Z') => ({ used_pct, resets_at, source: 'measured' });
 
@@ -92,4 +92,28 @@ test('the wait line counts down to the reset, a minute at least', () => {
   assert.equal(waitLine('alpha', '2026-11-25T13:59:00Z', now), 'Waiting for alpha to reset · 5m left');
   assert.equal(waitLine('alpha', '2026-11-25T13:54:10Z', now), 'Waiting for alpha to reset · 1m left');
   assert.equal(waitLine('alpha', null, now), 'Waiting for alpha to reset');
+});
+
+test('accountLabel names an account by its label, by its key when it has none or is not listed', () => {
+  const list = [{ name: 'account1', label: 'eha' }, { name: 'alpha', label: '' }, { name: 'beta' }];
+  assert.equal(accountLabel(list, 'account1'), 'eha');
+  assert.equal(accountLabel(list, 'alpha'), 'alpha');
+  assert.equal(accountLabel(list, 'beta'), 'beta');
+  assert.equal(accountLabel(list, 'gone'), 'gone');
+  assert.equal(accountLabel(undefined, 'account1'), 'account1');
+});
+
+test('labelSwitch names both ends of a switch, and keeps a missing target missing', () => {
+  const label = (n: string) =>
+    accountLabel(
+      [
+        { name: 'account1', label: 'eha' },
+        { name: 'account-2', label: 'piotee' },
+      ],
+      n,
+    );
+  const s = labelSwitch({ phase: 'switching' as const, from: 'account1', to: 'account-2' }, label);
+  assert.deepEqual([s.from, s.to, s.phase], ['eha', 'piotee', 'switching']);
+  assert.equal(labelSwitch({ from: 'account1', to: null }, label).to, null);
+  assert.equal(switchWords(s), 'Switching to piotee…');
 });

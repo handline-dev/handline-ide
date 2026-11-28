@@ -296,7 +296,7 @@ function HandoffNote({ text, folded }: { text: string; folded: boolean }) {
   );
 }
 
-export function Facts({ rows }: { rows: [string, string][] }) {
+export function Facts({ rows }: { rows: [string, ReactNode][] }) {
   return (
     <dl className="flex flex-col gap-1 text-sm">
       {rows.map(([k, v]) => (

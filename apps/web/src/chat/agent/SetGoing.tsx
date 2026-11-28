@@ -5,6 +5,7 @@ import { AlarmClock, ArrowRightLeft, RotateCw } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { activityOf } from '#src/layout/agentList.ts';
 import { openSettings } from '#src/settings/open.ts';
+import { useAccountLabel } from '#src/usage/AccountName.tsx';
 import { Button, useAction } from '#src/ui/Button.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { uuid } from '#src/ui/uuid.ts';
@@ -36,6 +37,7 @@ export function SetGoingButton({
   going: Going;
   terminal: ComponentProps<typeof Button>;
 }) {
+  const label = useAccountLabel();
   const a = useAgents().data?.agents.find((x) => x.key === agent);
   const unstall = useUnstall(agent);
   // A closed agent's session resumes; one with none is started anew.
@@ -63,7 +65,7 @@ export function SetGoingButton({
   return (
     <Button busy={switchNow.isPending} onClick={() => account && call(() => switchNow.mutateAsync({ agent, account, request_id: uuid() }))}>
       <ArrowRightLeft size={14} />
-      Switch to {account}
+      Switch to {account && label(account)}
       {room !== null && ` · ${room}% left`}
     </Button>
   );
