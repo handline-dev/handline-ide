@@ -223,10 +223,11 @@ func (h *Hub) giveBackCall(c *rpc.Conn, params map[string]any) (any, error) {
 
 // Kinds is what an agent does with a source (screen.act): the acting ones are shown to watchers, the reading ones only checked.
 var (
-	acting  = []string{"open", "click", "type", "key", "scroll", "eval", "close"}
-	reading = []string{"read", "wait", "shot"}
+	acting = []string{"open", "click", "type", "press", "hover", "drag", "select", "scroll", "back", "forward", "reload", "tab",
+		"viewport", "upload", "download", "dialog", "eval", "close"}
+	reading = []string{"read", "wait", "console", "network", "shot"}
 	// boxed are the kinds whose target has a box: the call before it is known only checks the hold, and the one with it is shown.
-	boxed = []string{"click", "type"}
+	boxed = []string{"click", "type", "hover", "drag", "select", "scroll", "download"}
 )
 
 // act is the agent about to use its source: refused while a person holds it, else marked in use and, when it acts, shown to watchers.

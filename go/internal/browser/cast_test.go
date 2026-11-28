@@ -9,12 +9,8 @@ import (
 	"github.com/handline/handline/go/internal/screenpipe"
 )
 
-// TestCastSendsFramesTakesInputAndEmptiesWhatAPersonTyped runs the machine's Chrome, so it is skipped on one without.
 func TestCastSendsFramesTakesInputAndEmptiesWhatAPersonTyped(t *testing.T) {
-	engine := machineChrome()
-	if engine == "" {
-		t.Skip("no Chrome on this machine")
-	}
+	engine := testEngine(t)
 	tmp, err := os.MkdirTemp("/tmp", "hlc")
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +32,7 @@ func TestCastSendsFramesTakesInputAndEmptiesWhatAPersonTyped(t *testing.T) {
 	}
 	defer p.Close()
 	if _, err := p.Open(`data:text/html,<form onsubmit="return false"><input type=password id=mine><input type=password id=agents></form>` +
-		`<input id=n>`); err != nil {
+		`<input id=n><button id=ask onclick="const f = document.createElement('iframe'); f.srcdoc = '<script>parent.r = confirm(1)</sc'+'ript>'; document.body.append(f)">ask</button>`); err != nil {
 		t.Fatal(err)
 	}
 	box, err := p.Box("#agents")
@@ -85,5 +81,25 @@ func TestCastSendsFramesTakesInputAndEmptiesWhatAPersonTyped(t *testing.T) {
 	}
 	if v, _ := p.Eval("[document.querySelector('#mine').value, document.querySelector('#agents').value].join('|')"); v != "|agent-typed" {
 		t.Errorf("after the release: %q; want the person's field empty and the agent's kept", v)
+	}
+	ask, err := p.Box("#ask")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Close() // what the commands gave the page answers no dialog of a frame made after
+	x, y = ask.centre()
+	for _, a := range []string{"down", "up"} {
+		if err := cast.Input(screenpipe.Input{Kind: "mouse", Action: a, X: x, Y: y, Button: "left"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(200 * time.Millisecond)
+	again, err := b.Page()
+	if err != nil {
+		t.Fatalf("the dialog a person's click opened holds the page: %v", err)
+	}
+	defer again.Close()
+	if v, err := again.Eval("String(window.r)"); err != nil || v != "false" {
+		t.Errorf("the dialog was answered %q, %v; want dismissed", v, err)
 	}
 }

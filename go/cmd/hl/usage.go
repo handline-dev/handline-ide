@@ -12,7 +12,28 @@ var usages = map[string][2]string{
 	"lesson":   {`hl lesson add "<what to do differently>" --task T<n> [--about founder --said <comment|msg>]   |   hl lesson merge <id> <id>... "<one lesson for them>" [--about founder --said <comment|msg>]   |   hl lesson list [<agent>|founder]`, `hl lesson add "show the screen in both themes" --task T12`}, // local-ref-ok: the usage example
 	"prefs":    {`hl prefs [agent]`, `hl prefs ui`},
 	"team":     {`hl team [--agent <name>]`, `hl team`},
-	"browser": {`hl browser open <url> [--show]   |   read [--tree]   |   click <ref|selector>   |   type <ref|selector> "<text>" [--enter]   |   wait (<ref|selector> | --text "<text>") [--timeout <span>]   |   eval "<script>"   |   shot <file.png> [--full]   |   close`,
+	"browser": {`hl browser <verb>, a target being a ref from read --tree (e12) or a CSS selector:
+  open <url> [--show]                  load a page; --show shows the window
+  read [--tree]                        the visible text, or the elements with their refs
+  click <target>                       click it
+  type <target> "<text>" [--enter]     type into it
+  press <key>                          a key or combination in the focused element: Enter, Tab, Escape, ArrowDown, Shift+Tab, Meta+a
+  hover <target>                       move the mouse over it
+  drag <target> <onto>                 drag it onto another
+  select <target> <value|label>        pick an option of a select
+  scroll up|down|left|right [<px>] [--in <target>]   most of a screen unless px; --in scrolls that element
+  wait (<target> | --text "<text>") [--timeout <span>]
+  back | forward | reload              move in the page's history, or load it again
+  tab [new [<url>] | <n> | close <n>]  list the tabs, open one, work in tab n, close it
+  viewport <width> <height>            size the page's window
+  upload <target> <file>...            files from the worktree into a file input
+  download <target> [<dir>] [--timeout <span>]   click it and save the file in the worktree
+  dialog accept [<reply>] | dismiss    how the page's alerts, confirms and prompts are answered (dismissed at first)
+  console                              the page's console messages and errors
+  network                              what the page loaded: status, kind, time, address
+  eval "<script>"                      run a script in the page
+  shot <file.png> [--full]             save a screenshot
+  close`,
 		`hl browser click e12`},
 	"use":        {`hl use <run|port>... -- <command...>   |   hl use <run|port> --hold   |   hl use --release [<run|port>]   |   hl use --extend [<run|port>]   |   hl use add|remove|list`, `hl use xcode port -- npm run e2e`},
 	"use add":    {`hl use add <name> --cmd <command> [--cmd <command>]... [--at-once N] [--mac | --workspace <w>] --why "<why>" (a command: a program, a program and its first words, a script path, or @build-test, @simulator, @browser)`, `hl use add xcode --cmd xcodebuild --mac --why "one build at a time keeps the fans down"`},

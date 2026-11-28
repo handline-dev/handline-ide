@@ -12,16 +12,50 @@ import (
 	"time"
 )
 
-// Page is the agent's page in its browser, for one command.
-type Page struct{ c *conn }
+// Page is the agent's page in its browser, for one command: Asked is each dialog the page opened, and how it was answered.
+type Page struct {
+	c     *conn
+	b     *Browser
+	Asked []string
+}
 
-// Page connects to the browser's page.
+// Page connects to the browser's page. A dialog the page opens is answered as the browser says (hl browser dialog), so nothing waits on it.
 func (b *Browser) Page() (*Page, error) {
 	c, err := b.dialPage()
 	if err != nil {
 		return nil, err
 	}
-	return &Page{c: c}, nil
+	p := &Page{c: c, b: b}
+	c.on = p.event
+	c.within = answerWithin
+	if _, err := c.call("Page.enable", nil); err != nil {
+		c.close()
+		return nil, fmt.Errorf("the page does not answer (%v); a dialog it opened while no command ran may hold it: hl browser tab close, "+
+			"or close, then open it again", err)
+	}
+	c.within = callWithin
+	script := dialogScript(b.Accept, b.Reply)
+	if _, err := c.call("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": script}); err != nil {
+		c.close()
+		return nil, err
+	}
+	if err := p.Settle(); err != nil {
+		c.close()
+		return nil, err
+	}
+	return p, nil
+}
+
+// Settle adds to Asked the dialogs the page answered by itself since the last command, or the last Settle.
+func (p *Page) Settle() error {
+	var earlier []dialogSeen
+	if err := p.eval(dialogScript(p.b.Accept, p.b.Reply), &earlier); err != nil {
+		return err
+	}
+	for _, d := range earlier {
+		p.asked(d.Type, d.Message, d.Accept)
+	}
+	return nil
 }
 
 func (p *Page) Close() { p.c.close() }
@@ -159,17 +193,26 @@ type Box struct{ X, Y, W, H float64 }
 func (b Box) centre() (x, y float64) { return b.X + b.W/2, b.Y + b.H/2 }
 
 // Box scrolls target into view and says its box.
-func (p *Page) Box(target string) (Box, error) {
+func (p *Page) Box(target string) (Box, error) { return p.box(target, true) }
+
+// found is target's remote object; an error when nothing matches.
+func (p *Page) found(target string) (string, error) {
 	id, err := p.object(target)
+	if err == nil && id == "" {
+		err = fmt.Errorf("nothing on the page matches %s", target)
+	}
+	return id, err
+}
+
+func (p *Page) box(target string, scroll bool) (Box, error) {
+	id, err := p.found(target)
 	if err != nil {
 		return Box{}, err
 	}
-	if id == "" {
-		return Box{}, fmt.Errorf("nothing on the page matches %s", target)
-	}
-	raw, err := p.c.call("Runtime.callFunctionOn", map[string]any{"objectId": id, "returnByValue": true, "functionDeclaration": `function() {
+	raw, err := p.c.call("Runtime.callFunctionOn", map[string]any{"objectId": id, "returnByValue": true, "arguments": []any{map[string]any{
+		"value": scroll}}, "functionDeclaration": `function(scroll) {
 		const el = this.nodeType === 1 ? this : this.parentElement;
-		el.scrollIntoView({block: "center", inline: "center"});
+		if (scroll) el.scrollIntoView({block: "center", inline: "center"});
 		const r = el.getBoundingClientRect();
 		return [r.x, r.y, r.width, r.height];
 	}`})
@@ -235,20 +278,7 @@ func (p *Page) TypeAt(b Box, text string, enter bool) error {
 	if !enter {
 		return nil
 	}
-	key := map[string]any{"key": "Enter", "code": "Enter", "windowsVirtualKeyCode": 13}
-	down := map[string]any{"type": "keyDown", "text": "\r"}
-	for k, v := range key {
-		down[k] = v
-	}
-	if _, err := p.c.call("Input.dispatchKeyEvent", down); err != nil {
-		return err
-	}
-	up := map[string]any{"type": "keyUp"}
-	for k, v := range key {
-		up[k] = v
-	}
-	_, err := p.c.call("Input.dispatchKeyEvent", up)
-	return err
+	return p.Press("Enter")
 }
 
 // Wait waits until target is on the page, or, when text is set, until the page's text holds it: the page watches its own changes.
