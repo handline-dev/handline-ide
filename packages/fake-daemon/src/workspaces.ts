@@ -88,15 +88,15 @@ export class FakeWorkspaces {
 
   list(): Workspace[] {
     const seats = new Set([...this.host.sessions].filter(([, s]) => s.fx.view?.hired_from).map(([k]) => k));
-    return workspacesOf(
-      [...this.host.sessions.keys()],
-      seats,
-      this.names,
-      this.folderOf(),
-      this.added,
-      (f) => this.plain.has(f),
-      this.modes,
-    );
+    // A workspace being made is listed at once, as the daemon's row is written before its lead starts.
+    const keys = [...this.host.sessions.keys(), ...this.unborn()];
+    return workspacesOf(keys, seats, this.names, this.folderOf(), this.added, (f) => this.plain.has(f), this.modes);
+  }
+
+  /** The segments still starting: one whose lead is registered is no longer, so its lead can go as any lead does. */
+  private unborn(): string[] {
+    for (const seg of this.starting) if (this.host.sessions.has(seg)) this.starting.delete(seg);
+    return [...this.starting];
   }
 
   /** The folder agent key works in: its own, else its workspace's default. */
@@ -147,7 +147,7 @@ export class FakeWorkspaces {
     return new Map([...this.host.admin.worktrees.repos.map((r): [string, string] => [r.name, r.path]), ...this.folders]);
   }
 
-  private segments = () => new Set([...this.host.sessions.keys()].map(segment).concat(...this.starting));
+  private segments = () => new Set([...this.host.sessions.keys()].map(segment).concat(...this.unborn()));
 
   call(method: string, p: Record<string, unknown>, ok: Ok, actor: Actor): unknown {
     switch (method) {
@@ -239,6 +239,8 @@ export class FakeWorkspaces {
     };
     const fails = other && `${repo.path} is the folder of workspace ${this.names.get(other) ?? other}`;
     const id = this.host.work.launch('workspace.create', fx, repo.default_branch, repo, fails);
+    // The daemon's workspaces table has the new row at once, and its watcher says so.
+    if (!other) this.host.emit('workspaces', 'workspaces.changed', { data: {} });
     return ok(`Creating workspace ${name}.`, { operation: id });
   }
 

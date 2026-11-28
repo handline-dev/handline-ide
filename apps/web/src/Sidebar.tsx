@@ -372,7 +372,7 @@ export function Sidebar({
         <div className="-mx-2 mt-1 border-t border-border">
           <button
             type="button"
-            onClick={newWorkspace}
+            onClick={() => void newWorkspace()}
             className="flex h-9 w-full items-center gap-1.5 px-4 text-left text-sm text-muted outline-none hover:text-fg focus-visible:text-fg"
           >
             <Plus size={14} />

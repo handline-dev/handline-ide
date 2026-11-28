@@ -6,6 +6,7 @@
 // door, which shuts behind it. The building site is gone to as a building is; arriving there opens the form that adds a workspace.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { newWorkspace } from '#src/NewWorkspace.tsx';
+import { afterModals } from '#src/ui/backCloses.ts';
 import { Placed, useCamera, useCityKeys, useWheelZoom } from '#src/town/camera.tsx';
 import { HQ, SITE, type City } from '#src/town/city.ts';
 import { CityControls } from '#src/town/CityControls.tsx';
@@ -48,6 +49,7 @@ export function CityView({
   houses,
   left,
   onEnter,
+  onMade,
 }: {
   city: City;
   cars: number;
@@ -58,6 +60,8 @@ export function CityView({
   left: string | null;
   /** The founder goes into a building; `person` is who was looked for there, when it was found by a person. */
   onEnter: (key: string, person?: string) => void;
+  /** A new team was made at the building site: its name. */
+  onMade: (name: string) => void;
 }) {
   const drawn = useDrawn(city, cars);
   const [pane, setPane] = useState<HTMLDivElement | null>(null);
@@ -115,7 +119,10 @@ export function CityView({
   useEffect(() => () => clearTimeout(opening.current), []);
   const addTeam = () => {
     clearTimeout(opening.current);
-    opening.current = window.setTimeout(newWorkspace, FORM_MS);
+    opening.current = window.setTimeout(
+      () => void newWorkspace('New team').then((name) => name && afterModals(() => onMade(name))),
+      FORM_MS,
+    );
   };
   if (pw === 0) return <div ref={setPane} className="min-h-0 flex-1" />;
   /** What arriving before a building does: its door opens and the founder goes in; at the building site, the form that adds a team. */

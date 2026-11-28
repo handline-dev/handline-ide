@@ -16,6 +16,7 @@ import { useDrawn } from '#src/town/office.ts';
 import { Monitors, MotionsOf } from '#src/town/monitors.tsx';
 import { useCrowd, usePlaced, useToDesks } from '#src/town/crowd.ts';
 import { fadeOf, useFollow } from '#src/town/pan.ts';
+import { TeamName } from '#src/town/TeamName.tsx';
 import { useCheers } from '#src/town/cheers.ts';
 import { Bubbles, JoinOutline, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 import { NearWindow, type Sought } from '#src/town/NearWindow.tsx';
@@ -99,7 +100,7 @@ export function Inside({
         <button type="button" onClick={onBack} className="rounded-md px-1.5 py-0.5 text-muted hover:bg-hover hover:text-fg">
           ← Town
         </button>
-        <span className="truncate font-medium">{house.name}</span>
+        <TeamName team={house.key} name={house.name} fixed={house.hq} />
         <span className="truncate text-xs text-muted">
           {house.working ? `${house.working} of ${house.people.length} at work` : 'Lights off'}
         </span>

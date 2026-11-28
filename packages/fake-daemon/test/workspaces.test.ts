@@ -16,15 +16,21 @@ test('workspace.create starts its lead as agent.create does, and the workspace i
   const { client, daemon } = setup();
   await client.start();
   const seen: Event[] = [];
-  client.onEvent((e) => e.topic === 'operations' && seen.push(e));
-  await client.subscribe(['operations']);
+  client.onEvent((e) => (e.topic === 'operations' || e.type === 'workspaces.changed') && seen.push(e));
+  await client.subscribe(['operations', 'workspaces']);
   const r = await client.call('workspace.create', { name: 'garden', folder: '~/code/garden/src', request_id: 'wc-1' });
+  // As the daemon's watcher does when the row is written, so a client lists the new workspace at once.
+  await until(() => seen.some((e) => e.type === 'workspaces.changed'), 'workspaces.changed');
+  assert.ok((await names(client)).includes('garden'), 'listed before its lead has started');
   await until(() => seen.some((e) => (e.data as { state: string }).state === 'done'), 'done');
   const op = await client.call('operation.get', { operation: r.operation });
   assert.deepEqual([op.kind, op.agent, op.state], ['workspace.create', 'garden', 'done']);
   assert.equal(daemon.sessions.get('garden')?.state, 'idle');
   const ws = await named(client, 'garden');
   assert.deepEqual([ws.folder, ws.lead], ['/Users/me/code/garden', 'garden']);
+  // Once its lead is registered the workspace is listed by its agents alone: with its lead gone, it goes.
+  daemon.sessions.delete('garden');
+  assert.ok(!(await names(client)).includes('garden'), 'gone with its lead');
   client.close();
 });
 

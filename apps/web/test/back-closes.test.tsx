@@ -1,7 +1,7 @@
 import { act, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
-import { useBackCloses } from '#src/ui/backCloses.ts';
+import { afterModals, useBackCloses } from '#src/ui/backCloses.ts';
 
 // The test DOM keeps no entries of its own: a small history, as a browser's, with back firing popstate.
 const entries: unknown[] = [null];
@@ -84,5 +84,23 @@ describe('Back and modals', () => {
     await p;
     await settled();
     expect(history.length).toBe(n - 1);
+  });
+  it('a step asked for as a modal closes runs once its entry is off, and at once with none open', async () => {
+    mount(false);
+    act(() => api.setOpen(true));
+    await settled();
+    const seen: string[] = [];
+    const listen = () => seen.push('popstate');
+    addEventListener('popstate', listen);
+    afterModals(() => seen.push(`ran on ${(history.state as { modal?: boolean } | null)?.modal ? 'modal' : 'page'}`));
+    const p = popped();
+    act(() => api.setOpen(false));
+    await p;
+    await settled();
+    removeEventListener('popstate', listen);
+    expect(seen).toEqual(['popstate', 'ran on page']);
+    afterModals(() => seen.push('none open'));
+    await settled();
+    expect(seen.at(-1)).toBe('none open');
   });
 });

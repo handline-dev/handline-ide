@@ -8,6 +8,8 @@ const onModal = () => (history.state as { modal?: boolean } | null)?.modal === t
 /** A back() this file made: the popstate it causes is not the person's Back. */
 let leaving = false;
 let settling = false;
+/** Calls waiting for every modal to be closed and its entry off (afterModals). */
+let after: (() => void)[] = [];
 
 const pushEntry = () => history.pushState({ ...(history.state as object | null), modal: true }, '');
 
@@ -23,8 +25,20 @@ function settle() {
     else if (!stack.length && onModal()) {
       leaving = true;
       history.back();
+    } else if (!stack.length && after.length) {
+      const run = after;
+      after = [];
+      // Past the popstate that took the entry off, whose other listeners (the town's own history) would undo a step made inside it.
+      setTimeout(() => run.forEach((fn) => fn()));
     }
   });
+}
+
+/** Runs `fn` once no modal is open and the entry of the last one is off: a step pushed while that entry's Back is on its way would be
+ * undone by it. */
+export function afterModals(fn: () => void) {
+  after.push(fn);
+  settle();
 }
 
 addEventListener('popstate', () => {

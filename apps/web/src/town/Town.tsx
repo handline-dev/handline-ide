@@ -2,7 +2,7 @@
 // Every workspace is a building with a window per agent, lit while it works; a building nobody works in goes grey, and a car drives for
 // each agent at work, up to a few. The founder's glass HQ holds every decision and the pinned agents. Walking into a building goes inside
 // its office (Inside.tsx).
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAgents, useNav, useRead } from '@handline/app-data';
 import { useNow } from '#src/format/time.ts';
 import { usePersisted } from '#src/persist/kv.ts';
@@ -86,6 +86,15 @@ export function TownTab() {
     if (who) townGo(key, who);
     else enter(key);
   };
+  // A team just made from here: once it and its lead are listed, the founder goes into its office once, with the lead's chat up.
+  const [made, setMade] = useState<{ name: string } | null>(null);
+  const fresh = made ? town.houses.find((h) => h.name === made.name && h.lead) : undefined;
+  const went = useRef<{ name: string } | null>(null);
+  useEffect(() => {
+    if (!made || !fresh?.lead || went.current === made) return;
+    went.current = made;
+    townGo(fresh.key, fresh.lead);
+  }, [made, fresh]);
   const signs = useMemo(() => {
     const out: Record<string, Sign> = {
       [HQ]: {
@@ -128,7 +137,15 @@ export function TownTab() {
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div ref={pane} className="flex min-h-0 flex-1">
-              <CityView city={city} cars={Math.min(working, MAX_CARS)} signs={signs} houses={town.houses} left={left} onEnter={enterFor} />
+              <CityView
+                city={city}
+                cars={Math.min(working, MAX_CARS)}
+                signs={signs}
+                houses={town.houses}
+                left={left}
+                onEnter={enterFor}
+                onMade={(name) => setMade({ name })}
+              />
             </div>
             <Legend />
           </div>
