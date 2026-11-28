@@ -528,3 +528,36 @@ func TestAnAttachToNoSourceLeavesNothingRunning(t *testing.T) {
 		t.Errorf("20 attaches to no source left %d goroutines more", after-before)
 	}
 }
+
+func TestADeviceIsHeldAndShownAsThePageIsUnderItsOwnWords(t *testing.T) {
+	w := newWorld(t)
+	const dev = `"agent":"a1","source":"sim"`
+	c := dial(t, w.founder, "founder")
+	a := dial(t, w.agent, "")
+	result(t, c.call("screen.attach", dev))
+	result(t, a.call("screen.act", `"source":"sim","kind":"tap"`)) // before the target is found: a check only
+	result(t, a.call("screen.act", `"source":"sim","kind":"tap","box":{"x":100,"y":200,"width":0,"height":0}`))
+	result(t, a.call("screen.act", `"source":"sim","kind":"type"`))
+	if n := c.notice("screen_action", 0); n["kind"] != "tap" || n["source"] != "sim" || n["box"].(map[string]any)["y"] != float64(200) {
+		t.Errorf("the tap: %v", n)
+	}
+	if n := c.notice("screen_action", 1); n["kind"] != "type" || n["box"] != nil {
+		t.Errorf("a device's typing has no box and is shown: %v", n)
+	}
+	if got := c.count("screen_action"); got != 2 {
+		t.Errorf("%d actions sent, want the boxed tap and the type", got)
+	}
+	result(t, c.call("screen.take", dev+req()))
+	name := result(t, c.call("screen.take", dev+req()))["holder"].(map[string]any)["name"].(string)
+	for _, kind := range []string{"tap", "swipe", "type", "button", "rotate", "launch", "install", "close"} {
+		if got := refusal(a.call("screen.act", `"source":"sim","kind":"`+kind+`"`)); got != name+" has the device" {
+			t.Errorf("%s while held: %q", kind, got)
+		}
+	}
+	result(t, c.call("screen.input", dev+`,"event":{"kind":"text","text":"hi"}`+req()))
+	result(t, c.call("screen.give_back", dev+req()))
+	if got := w.heard(); len(got) != 1 || got[0] != "a1: "+name+" gave the device back" {
+		t.Errorf("the agent was told %v", got)
+	}
+	result(t, a.call("screen.act", `"source":"sim","kind":"tap"`))
+}

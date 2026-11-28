@@ -83,8 +83,21 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 		if len(p.pos) != 1 {
 			return 0, false
 		}
-		b, err := e.Boot(agent, p.pos[0])
+		d, err := e.Find(p.pos[0])
 		if err != nil {
+			return fail(err)
+		}
+		shown := sim.Pictured(d.Platform)
+		if shown {
+			if err := screenAct(c, sim.Source, "open", nil); err != nil { // a person may hold the device it shows now
+				return fail(err)
+			}
+		}
+		b, err := e.Boot(agent, d.ID)
+		if err != nil {
+			if shown && e.Cast(agent) == nil {
+				_ = screenAct(c, sim.Source, "close", nil)
+			}
 			return fail(err)
 		}
 		fmt.Printf("booted %s (%s); it shuts down when your session ends, or hl sim shutdown\n", b.Name, b.Platform)
@@ -99,6 +112,16 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 		}
 		return 0, false
 	}
+	// act is screen.act before a verb acts on the device the agent's source shows: refused while a person holds it, and shown to whoever
+	// watches. Another device of the agent's is not a source.
+	cast := e.Cast(agent)
+	shown := cast != nil && cast.ID == b.ID
+	act := func(kind string, box *[4]float64) error {
+		if !shown {
+			return nil
+		}
+		return screenAct(c, sim.Source, kind, box)
+	}
 	var done string
 	switch verb {
 	case "install":
@@ -106,12 +129,16 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 			return 0, false
 		}
 		abs, _ := filepath.Abs(p.pos[0])
-		err = e.Install(b, abs)
+		if err = act("install", nil); err == nil {
+			err = e.Install(b, abs)
+		}
 	case "launch":
 		if len(p.pos) != 1 {
 			return 0, false
 		}
-		err = e.Launch(b, p.pos[0])
+		if err = act("launch", nil); err == nil {
+			err = e.Launch(b, p.pos[0])
+		}
 	case "tree":
 		if len(p.pos) != 0 {
 			return 0, false
@@ -139,37 +166,55 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 		} else if len(p.pos) != 0 {
 			return 0, false
 		}
+		x, y := 0.0, 0.0
 		if len(xy) == 2 {
-			done, err = e.Tap(b, sel, xy[0], xy[1])
-		} else {
-			done, err = e.Tap(b, sel, 0, 0)
+			x, y = xy[0], xy[1]
+		}
+		var at sim.Frame
+		if err = act("tap", nil); err != nil { // before the target is found: a check only
+			break
+		}
+		if done, at, err = e.Target(b, sel, x, y); err == nil {
+			if err = act("tap", (*[4]float64)(&at)); err == nil {
+				err = e.Tap(b, at)
+			}
 		}
 		if err == nil {
 			fmt.Println("tapped", done)
 		}
 	case "swipe":
+		dir, xy := "", []float64{0, 0, 0, 0}
 		if len(p.pos) == 1 {
-			err = e.Swipe(b, p.pos[0], 0, 0, 0, 0)
-		} else if xy, ok := nums(4); ok {
-			err = e.Swipe(b, "", xy[0], xy[1], xy[2], xy[3])
+			dir = p.pos[0]
+		} else if n, ok := nums(4); ok {
+			xy = n
 		} else {
 			return 0, false
+		}
+		if err = act("swipe", nil); err == nil {
+			err = e.Swipe(b, dir, xy[0], xy[1], xy[2], xy[3])
 		}
 	case "type":
 		if len(p.pos) != 1 {
 			return 0, false
 		}
-		err = e.Type(b, p.pos[0])
+		if err = act("type", nil); err == nil {
+			err = e.Type(b, p.pos[0])
+		}
 	case "button":
 		if len(p.pos) != 1 {
 			return 0, false
 		}
-		err = e.Button(b, p.pos[0])
+		if err = act("button", nil); err == nil {
+			err = e.Button(b, p.pos[0])
+		}
 	case "rotate":
 		if len(p.pos) != 1 {
 			return 0, false
 		}
-		err = e.Rotate(b, p.pos[0])
+		if err = act("rotate", nil); err == nil {
+			err = e.Rotate(b, p.pos[0])
+		}
 	case "screenshot":
 		if len(p.pos) != 1 {
 			return 0, false
@@ -182,7 +227,13 @@ func simCmd(c *hlclient.Client, args []string) (int, bool) {
 		if len(p.pos) != 0 {
 			return 0, false
 		}
+		if err = act("close", nil); err != nil {
+			break
+		}
 		err = e.Shutdown(b)
+		if shown && e.Cast(agent) != nil { // still up, or its other device is the source now
+			_ = screenAct(c, sim.Source, "open", nil)
+		}
 	default:
 		return 0, false
 	}

@@ -103,6 +103,13 @@ func (h *Hub) opened(k key) {
 	}
 }
 
+// Closed is an agent's source that went away without its own word, as a device shut down at its session's end.
+func (h *Hub) Closed(agent, source string) {
+	if h != nil {
+		h.closed(key{agent, source})
+	}
+}
+
 func (h *Hub) closed(k key) {
 	h.mu.Lock()
 	h.init()

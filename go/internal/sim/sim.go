@@ -180,6 +180,32 @@ func (e *Env) List() (devices []Device, missing []string) {
 
 // Boot starts the device named want (a name or an id) for agent and waits until an app can be driven on it.
 func (e *Env) Boot(agent, want string) (*Booted, error) {
+	d, err := e.Find(want)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range e.All() {
+		if b.ID == d.ID {
+			if b.Agent != agent {
+				return nil, fmt.Errorf("%s is in use by %s", b.Name, b.Agent)
+			}
+			return b, nil
+		}
+	}
+	b, err := e.backend(d.Platform).boot(d, agent)
+	if err != nil {
+		return nil, err
+	}
+	b.Since = time.Now().Unix()
+	if err := e.save(b); err != nil {
+		_ = e.backend(b.Platform).shutdown(b)
+		return nil, err
+	}
+	return b, nil
+}
+
+// Find is the one device want names, by name or id or part of a name.
+func (e *Env) Find(want string) (Device, error) {
 	devices, missing := e.List()
 	var hit []Device
 	for _, d := range devices {
@@ -197,28 +223,11 @@ func (e *Env) Boot(agent, want string) (*Booted, error) {
 		if len(missing) > 0 {
 			why += "\n" + strings.Join(missing, "\n")
 		}
-		return nil, errors.New(why)
+		return Device{}, errors.New(why)
 	case len(hit) > 1:
-		return nil, fmt.Errorf("%q names %d devices: use a full name or an id (hl sim list)", want, len(hit))
+		return Device{}, fmt.Errorf("%q names %d devices: use a full name or an id (hl sim list)", want, len(hit))
 	}
-	for _, b := range e.All() {
-		if b.ID == hit[0].ID {
-			if b.Agent != agent {
-				return nil, fmt.Errorf("%s is in use by %s", b.Name, b.Agent)
-			}
-			return b, nil
-		}
-	}
-	b, err := e.backend(hit[0].Platform).boot(hit[0], agent)
-	if err != nil {
-		return nil, err
-	}
-	b.Since = time.Now().Unix()
-	if err := e.save(b); err != nil {
-		_ = e.backend(b.Platform).shutdown(b)
-		return nil, err
-	}
-	return b, nil
+	return hit[0], nil
 }
 
 // Shutdown stops the device and forgets it once it is off: a device that was running before it was booted here is only let go.
@@ -245,22 +254,27 @@ func (e *Env) Launch(b *Booted, app string) error {
 // Tree is what is on the screen now.
 func (e *Env) Tree(b *Booted) (*Node, error) { return e.backend(b.Platform).tree(b) }
 
-// Tap taps the element sel names, or the point (x, y) when sel is empty.
-func (e *Env) Tap(b *Booted, sel Selector, x, y float64) (string, error) {
-	be := e.backend(b.Platform)
-	if !sel.empty() {
-		root, err := be.tree(b)
-		if err != nil {
-			return "", err
-		}
-		n, ok := Find(root, sel)
-		if !ok {
-			return "", fmt.Errorf("nothing enabled on the screen matches %s (hl sim tree shows what is there)", sel.String())
-		}
-		x, y = n.Frame.Center()
-		return n.line(), be.tap(b, x, y)
+// Target is what a tap lands on: the element sel names, or the point (x, y) when sel is empty, as a line and its frame (a point's is
+// empty).
+func (e *Env) Target(b *Booted, sel Selector, x, y float64) (string, Frame, error) {
+	if sel.empty() {
+		return fmt.Sprintf("point %.0f,%.0f", x, y), Frame{x, y, 0, 0}, nil
 	}
-	return fmt.Sprintf("point %.0f,%.0f", x, y), be.tap(b, x, y)
+	root, err := e.backend(b.Platform).tree(b)
+	if err != nil {
+		return "", Frame{}, err
+	}
+	n, ok := Find(root, sel)
+	if !ok {
+		return "", Frame{}, fmt.Errorf("nothing enabled on the screen matches %s (hl sim tree shows what is there)", sel.String())
+	}
+	return n.line(), n.Frame, nil
+}
+
+// Tap taps the centre of f.
+func (e *Env) Tap(b *Booted, f Frame) error {
+	x, y := f.Center()
+	return e.backend(b.Platform).tap(b, x, y)
 }
 
 func (s Selector) String() string {

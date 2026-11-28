@@ -358,7 +358,7 @@ func (h *Hub) giveBack(k key) error {
 	}
 	h.holderChanged(k)
 	if hd.refused && h.Tell != nil {
-		h.Tell(k.agent, hd.name+" gave the page back")
+		h.Tell(k.agent, hd.name+" gave the "+pageWord(k.source)+" back")
 	}
 	return nil
 }
