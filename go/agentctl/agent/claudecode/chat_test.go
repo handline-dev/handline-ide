@@ -20,6 +20,9 @@ func TestChatArgvIsTheTerminalLineOnTheStreamWithoutThePrompt(t *testing.T) {
 			t.Error(want, got)
 		}
 	}
+	if i := slices.Index(got, "--thinking-display"); i < 0 || i+1 >= len(got) || got[i+1] != "summarized" {
+		t.Error("thinking is not kept as its summary", got)
+	}
 }
 
 func TestReadTakesOnlyAllowedFields(t *testing.T) {

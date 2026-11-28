@@ -13,7 +13,8 @@ var _ agent.Chat = Driver{}
 const initID = "hl_init"
 
 // ChatArgv is the stream-json launch: the same options as a terminal launch, permission asks to the host on the stream, and each
-// message echoed under its uuid. The prompt is never on the line: it goes in as the first message.
+// message echoed under its uuid, and thinking kept as its summary: a headless session reads only the flag for that, never the
+// showThinkingSummaries setting. The prompt is never on the line: it goes in as the first message.
 func (Driver) ChatArgv(argv []string) []string {
 	if len(argv) == 0 {
 		return nil
@@ -22,7 +23,7 @@ func (Driver) ChatArgv(argv []string) []string {
 		argv = argv[:i]
 	}
 	out := []string{argv[0], "--print", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-		"--permission-prompt-tool", "stdio", "--replay-user-messages"}
+		"--permission-prompt-tool", "stdio", "--replay-user-messages", "--thinking-display", "summarized"}
 	return append(out, argv[1:]...)
 }
 
