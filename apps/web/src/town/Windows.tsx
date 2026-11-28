@@ -1,5 +1,5 @@
 // The town's windows around its picture (windows.ts holds them as data): full-height tab bars floating over it, and tab bars docked on
-// its left, its right or both, at a third, a half or two thirds of the width. What is opened floats (on a phone's width, a sheet under the
+// its left, its right or both, at the share its divider was left at. What is opened floats (on a phone's width, a sheet under the
 // picture). Each tab bar is the app's own (Workspace.tsx). A tab, a link or a whole bar (its handle, layout/paneGrip.tsx) let go on open
 // space floats there; on the picture's left or right edge it docks there; on another bar it joins it. The handle's menu does the same.
 import { AnimatePresence, motion } from 'framer-motion';
@@ -19,7 +19,7 @@ import { Workspace, type Grip, type IconFor } from '#src/Workspace.tsx';
 import { labelOf } from '#src/layout/kinds.tsx';
 import { useOpensOver } from '#src/layout/openTab.tsx';
 import { PANE_PLACE, type At, type PaneDrop } from '#src/layout/paneGrip.tsx';
-import { STOPS, holds, panes, snapRatio, stepStop, type Action, type Pane } from '#src/layout/tree.ts';
+import { holds, panes, stepRatio, type Action, type Pane } from '#src/layout/tree.ts';
 import { spring } from '#src/motion.ts';
 import { DROP_AREA, isTabDrag, readTabDrag, showBox, showZone, sideAt } from '#src/ui/dnd.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
@@ -130,7 +130,7 @@ export function TownWindows({
   const narrow = useNarrow(area, () => setW(sheetOf));
   // Where the town was last pressed, as a share of its width: a window opened by that press goes to the other side.
   const pressed = useRef(0);
-  // A dock's share while its divider is dragged; it rests at the nearest stop when let go.
+  // A dock's share while its divider is dragged; it stays where it is let go.
   const [drag, setDrag] = useState<{ side: Side; share: number } | null>(null);
   const act = (a: WindowAction) => {
     const asked = a.type === 'tree' ? a.action : a;
@@ -207,7 +207,7 @@ export function TownWindows({
   });
   // On a phone's width the right dock is a sheet under the picture (sheetOf puts everything there), never under half the height.
   const raw = (side: Side) => (!w.docks[side] ? 0 : drag?.side === side ? drag.share : w.stops[side]);
-  const shareOf = (side: Side) => (narrow ? Math.max(STOPS[1], raw('right')) : sharesOf(raw('left'), raw('right'))[side]);
+  const shareOf = (side: Side) => (narrow ? Math.max(0.5, raw('right')) : sharesOf(raw('left'), raw('right'))[side]);
   const [size, across] = narrow ? ['height', 'width'] : ['width', 'height'];
   const dock = (side: Side) => {
     const root = w.docks[side];
@@ -246,10 +246,10 @@ export function TownWindows({
         container={area}
         percent={shareOf(side) * 100}
         onMove={(o, all) => setDrag({ side, share: Math.min(DOCKS_MOST - other, Math.max(0.05, side === 'left' ? o / all : 1 - o / all)) })}
-        onStep={(d) => act({ type: 'stop', side, stop: stepStop(w.stops[side], (d * toward) as -1 | 1) })}
+        onStep={(d) => act({ type: 'stop', side, stop: Math.min(DOCKS_MOST - other, stepRatio(w.stops[side], (d * toward) as -1 | 1)) })}
         onDragging={(on) => {
           if (on || drag?.side !== side) return;
-          act(drag.share < CLOSES ? { type: 'closeDock', side } : { type: 'stop', side, stop: snapRatio(drag.share) });
+          act(drag.share < CLOSES ? { type: 'closeDock', side } : { type: 'stop', side, stop: drag.share });
           setDrag(null);
         }}
         label="Resize the windows"
@@ -287,16 +287,6 @@ export function TownWindows({
         </div>
         {divider('right')}
         <AnimatePresence initial={false}>{dock('right')}</AnimatePresence>
-        {/* While a divider is dragged, where it can rest. */}
-        {drag !== null &&
-          STOPS.map((stop) => (
-            <span
-              key={stop}
-              aria-hidden
-              style={narrow ? { top: `${(1 - stop) * 100}%` } : { left: `${(drag.side === 'left' ? stop : 1 - stop) * 100}%` }}
-              className={`pointer-events-none absolute z-30 bg-accent/40 ${narrow ? 'inset-x-0 h-px' : 'inset-y-0 w-px'}`}
-            />
-          ))}
         <AnimatePresence>
           {w.floats.map((f) => (
             <FloatWindow
