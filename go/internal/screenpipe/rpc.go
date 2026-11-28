@@ -265,8 +265,9 @@ func (h *Hub) act(c *rpc.Conn, params map[string]any) (any, error) {
 		h.use(k)
 	}
 	if slices.Contains(acting, kind) && (box != nil || !slices.Contains(boxed[k.source], kind)) {
-		go notify(h.watchers(k), "screen_action", map[string]any{"agent": k.agent, "source": k.source, "kind": kind, "box": box,
-			"at": h.now().UTC().Format("2006-01-02T15:04:05Z")})
+		to, params := h.watchers(k), map[string]any{"agent": k.agent, "source": k.source, "kind": kind, "box": box,
+			"at": h.now().UTC().Format("2006-01-02T15:04:05Z")}
+		h.inOrder(k, func() { notify(to, "screen_action", params) })
 	}
 	return map[string]any{"accepted": true, "said": "go on"}, nil
 }

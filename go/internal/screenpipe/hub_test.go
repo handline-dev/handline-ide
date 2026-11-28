@@ -600,3 +600,35 @@ func TestADeviceIsHeldAndShownAsThePageIsUnderItsOwnWords(t *testing.T) {
 	}
 	result(t, a.call("screen.act", `"source":"sim","kind":"tap"`))
 }
+
+// A page's notices go out in the order they were given, off the caller, while one held up does not hold up another page's.
+func TestNoticesGoOutInOrderPerPageAndASlowOneHoldsUpNoOther(t *testing.T) {
+	var h Hub
+	a, b := key{"a1", "sim"}, key{"a2", "browser"}
+	hold := make(chan struct{})
+	got := make(chan string, 10)
+	h.inOrder(a, func() { <-hold; got <- "a0" })
+	for _, n := range []string{"a1", "a2"} {
+		h.inOrder(a, func() { got <- n })
+	}
+	h.inOrder(b, func() { got <- "b0" })
+	select {
+	case n := <-got:
+		if n != "b0" {
+			t.Fatalf("first out: %s, want the other page's", n)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a held-up page held up another page")
+	}
+	close(hold)
+	for _, want := range []string{"a0", "a1", "a2"} {
+		select {
+		case n := <-got:
+			if n != want {
+				t.Fatalf("got %s, want %s", n, want)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("no %s", want)
+		}
+	}
+}

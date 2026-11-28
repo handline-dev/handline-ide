@@ -39,6 +39,55 @@ type Hub struct {
 	open   map[key]bool
 	timers map[key]func()
 	conns  map[*rpc.Conn]map[key]bool
+
+	// sends is each page's action notices not yet sent, in the order its actions came; one goroutine a page sends them while any wait.
+	sendMu sync.Mutex
+	sends  map[key]*sendQueue
+}
+
+type sendQueue struct {
+	waiting []func()
+}
+
+// maxWaiting is how many of a page's notices wait for a watcher that is slow to read: past it the oldest is dropped.
+const maxWaiting = 256
+
+// inOrder runs send off the caller, after every send given before it for the same page k: a slow watcher holds no action back, none
+// overtakes another, and one page's slow watcher delays no other page's notices.
+func (h *Hub) inOrder(k key, send func()) {
+	h.sendMu.Lock()
+	if h.sends == nil {
+		h.sends = map[key]*sendQueue{}
+	}
+	q, running := h.sends[k]
+	if !running {
+		q = &sendQueue{}
+		h.sends[k] = q
+	}
+	if len(q.waiting) == maxWaiting {
+		q.waiting[0] = nil
+		q.waiting = q.waiting[1:]
+	}
+	q.waiting = append(q.waiting, send)
+	h.sendMu.Unlock()
+	if running {
+		return
+	}
+	go func() {
+		for {
+			h.sendMu.Lock()
+			if len(q.waiting) == 0 {
+				delete(h.sends, k)
+				h.sendMu.Unlock()
+				return
+			}
+			next := q.waiting[0]
+			q.waiting[0] = nil
+			q.waiting = q.waiting[1:]
+			h.sendMu.Unlock()
+			next()
+		}
+	}()
 }
 
 type key struct{ agent, source string }
