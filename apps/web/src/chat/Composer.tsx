@@ -8,6 +8,7 @@ import { MarkedChip, useBakeMarked, useSendOnAsk } from '#src/chat/marked.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { FolderChip, UploadChip, type Attachments } from '#src/chat/attachments.tsx';
 import { readDropped } from '#src/ui/fileDrop.tsx';
+import { useFitHeight } from '#src/ui/useFitHeight.ts';
 import { useNameOf } from '@handline/app-data';
 
 /** The box a message is written in: it grows with the text up to a cap, then scrolls; Enter sends, Shift+Enter breaks a line.
@@ -71,13 +72,8 @@ export function Composer({
   const [baking, setBaking] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
-  // Height follows the text: read it at no height, so it can shrink as well as grow; the cap is max-h-60.
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    el.style.height = '0';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [draft]);
+  // Height follows the text, and the box's width; the cap is max-h-60.
+  useFitHeight(box, draft);
   useEffect(() => {
     if (focusOn) box.current?.focus();
   }, [focusOn]);
