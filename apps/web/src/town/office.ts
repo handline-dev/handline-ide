@@ -109,7 +109,6 @@ function drawOffice({ room, sig }: { room: Room; sig: string }): Drawn {
     screens,
     stage: {
       seats: seatsOf(room, ground.floor),
-      desks: new Map(cast.desks.map((d) => [d.person.key, d.at])),
       door: doorOf(room),
       floor: ground.floor,
       people: room.people,

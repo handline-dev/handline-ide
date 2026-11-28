@@ -51,7 +51,7 @@ export type House = {
 export type Town = { houses: House[]; decisions: Decision[] };
 
 /** What the town shows a person doing: working too while it rests at its prompt and its subagents or background commands run; a
- *  Monitor watch is waiting, not work. One with no session or waiting for a time rests: its prompt cache alone says whether it dozes. */
+ *  Monitor watch is waiting, not work. One with no session or waiting for a time rests: its prompt cache alone says whether it stays at its desk. */
 const backgroundWork = (a: AgentView) => (a.background ?? []).some((j) => j.kind !== 'monitor');
 function townActivity(a: AgentView): Activity {
   const act = activityOf(a);

@@ -1,7 +1,7 @@
 // A workspace's office, shown when its building is clicked: a 3D room drawn as pixel art (room.ts, fit.ts, scene3d.ts, people.ts), drawn
 // to fill the pane. The founder walks in it (founder.tsx): a click on the floor walks there, on a person or desk brings up that agent's
 // chat (Windows.tsx), on its papers its tasks, on the founder's desk the decisions, on the empty desk hires; Targets.tsx lays these over
-// the picture. Marks say who is on hold, stopped or dozing (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
+// the picture. Marks say who is on hold or stopped (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
 // founder walks into it or it is clicked; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { House } from '#src/town/model.ts';
@@ -16,7 +16,6 @@ import { useDrawn } from '#src/town/office.ts';
 import { Monitors, MotionsOf } from '#src/town/monitors.tsx';
 import { useCrowd, usePlaced, useToDesks } from '#src/town/crowd.ts';
 import { fadeOf, useFollow } from '#src/town/pan.ts';
-import { useGivenWork } from '#src/town/errands.ts';
 import { useCheers } from '#src/town/cheers.ts';
 import { Bubbles, JoinOutline, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
 
@@ -65,8 +64,6 @@ export function Inside({
     const entry = drawn?.ground.entry;
     if (!swing && entry && dz > 0 && Math.abs(x - entry[0]) < 0.35 && z > entry[1]) setSwing({ way: 'open', from: [x, z], out: true });
   });
-  // One teammate giving another work walks over to it, talks and walks back.
-  useGivenWork((from, to) => crowd.errand(from, to));
   // One whose task is finished celebrates a few seconds.
   const cheers = useCheers();
   // The front wall goes see-through while a person reaches into it.

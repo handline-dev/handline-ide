@@ -1,7 +1,7 @@
 // The people in the 3D room, as stacked pixel-art layers: public/town/people.png holds a row per person and a column per pose, each
 // figure bottom-centred in its cell, composed from a body and a head layer on one dot grid (3 sheet pixels a dot). They are drawn over the room's
-// pixels at the screen's own resolution, never snapped to the room's grid. One at its desk sits with its back to us; an idle one sits on
-// a sofa with a mug; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
+// pixels at the screen's own resolution, never snapped to the room's grid. One at its desk sits with its back to us; an idle one with its
+// prompt cache still live turns its chair to us with a mug, and once the cache runs out sits on a sofa; one starting walks in at the door on a small shadow. Whatever of the room stands nearer than a person (its chair,
 // a sofa's arm) is laid back over it. Each person is one of the sheet's people, teammates different ones while there are enough.
 import type { Person } from '#src/town/model.ts';
 import { CHAIR_MID, HIRE_DESK, MY_CHAIR, MY_DESK, papersOf, type Room } from '#src/town/room.ts';
@@ -34,6 +34,8 @@ type Pose = (typeof POSES)[number];
 
 /** How far a seated person's head stands over its chair's top, in picture pixels: low enough to leave the screen in view. */
 export const OVER_CHAIR = 17;
+/** How high a desk chair's seat is, in metres, where one turned to the camera sits. */
+const CHAIR_SEAT = 0.2;
 /** A box in picture pixels. */
 export type Box = { x: number; y: number; w: number; h: number };
 /** What a click opens an agent's chat from, in picture pixels: its figure, or its desk with its chair; `at` is the floor spot (metres)
@@ -179,6 +181,14 @@ export function castOf(pic: Picture, frame: Frame, room: Room): Cast {
       cast.heads.push({ key: p.key, x: cx, y: bottom - tall });
       return { x: cx - box.w / 2, y: bottom - tall, w: box.w, h: tall };
     };
+    if (place.how === 'desk' && place.chair && place.turned) {
+      // Turned to the camera on its chair, the desk behind it: only what stands well in front hides it.
+      const [fx, fy] = frame.toPixel(place.x, CHAIR_SEAT, place.z + 0.1);
+      const seen = draw('sit_mug', fx, fy, (i) => pic.depth[i] < depthAt(place.x, place.z + 0.1) - 0.6);
+      cast.spots.push({ person: p, ...seen, at: beside(`desk:${p.key}`) });
+      cast.names.push({ person: p, x: seen.x + seen.w / 2, y: seen.y + seen.h + 1 });
+      continue;
+    }
     if (place.how === 'desk' && place.chair) {
       const chair = boxOf(pic, frame, place.chair);
       if (!chair) continue;

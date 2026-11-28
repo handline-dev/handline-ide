@@ -46,7 +46,7 @@ export type Block = {
 };
 /** Where a person is: on a desk chair (its tag), on a sofa, or standing (`door`, as one starting does inside the door, and the HQ's
  *  people do); (x, z) on the floor. */
-export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string };
+export type Place = { person: Person; x: number; z: number; how: 'desk' | 'sofa' | 'door'; chair?: string; turned?: boolean };
 /** A place's name, different once the desk or sofa stands elsewhere. */
 export const seatName = (p: Place) => `${p.how}:${p.x.toFixed(2)},${p.z.toFixed(2)}`;
 /** `entry`: where the founder comes in, inside the door. */
@@ -132,10 +132,11 @@ export function roomOf(
   const hq = house.hq === true;
   // A team's benches hold one desk more than it has agents, and the HQ one spot more: the empty one, where the founder hires.
   const rows = Math.max(1, Math.ceil((people.length + 1) / cols));
-  // Resting while its prompt cache lives, an agent stays at its desk; after, it goes to a sofa.
-  const seated = (p: Person) => AT_DESK.includes(p.activity) || (p.activity === 'resting' && p.cached);
-  const idle = hq ? [] : people.filter((p) => p.activity === 'resting' && !p.cached);
-  const sofaRows = Math.max(1, Math.ceil(idle.length / 4));
+  // Resting while its prompt cache lives, an agent stays at its desk with its chair turned to the camera; after, it goes to a sofa.
+  const turned = (p: Person) => p.activity === 'resting' && p.cached;
+  const seated = (p: Person) => AT_DESK.includes(p.activity) || turned(p);
+  // Each has its own sofa seat, in team order, so one getting up moves nobody else; there are sofas for the whole team.
+  const sofaRows = hq ? 1 : Math.max(1, Math.ceil(people.length / 4));
   const x0 = 0.6;
   const benches = x0 + cols * PITCH;
   // Right of the benches a column of two rooms: the rest room at the back, and the way in under it with the door in the middle.
@@ -177,8 +178,8 @@ export function roomOf(
       F.screen(put, x + 0.17, z - 0.2, F.DESK_TOP, lit, lit && p.activity === 'working' ? screenOf(p.key) : undefined);
       F.keyboard(put, x + 0.22, z - 0.08, F.DESK_TOP, 0.34);
       if (i % 2 === 0) F.plant(put, x + 0.07, z - 0.3, F.DESK_TOP, 0.24);
-      F.chair(put, x + 0.225, z + 0.3, chair);
-      if (seated(p)) places.push({ person: p, x: x + CHAIR_MID, z: z + 0.2, how: 'desk', chair });
+      F.chair(put, x + 0.225, z + 0.3, chair, turned(p));
+      if (seated(p)) places.push({ person: p, x: x + CHAIR_MID, z: z + 0.2, how: 'desk', chair, turned: turned(p) });
     });
     // The desk after the last agent's, where the next agent's would stand: an empty chair at a dark screen. The agents' desks are laid
     // out as if it were not there, so nobody's moves for it; only the room grows a row when the last bench is full.
@@ -205,7 +206,8 @@ export function roomOf(
     F.sofa(put, lounge + SOFA, z);
     F.coffeeTable(put, lounge + 0.65, z + 0.74);
   }
-  idle.forEach((p, i) => {
+  (hq ? [] : people).forEach((p, i) => {
+    if (p.activity !== 'resting' || p.cached) return;
     const r = Math.floor(i / 4);
     places.push({ person: p, x: lounge + 0.27 + (i % 4) * 0.48, z: LOUNGE + r * SOFA_ROW - 0.13, how: 'sofa' });
   });

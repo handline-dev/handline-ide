@@ -1,5 +1,5 @@
 // What an office shows over and under its people so it reads at a glance (marks.ts and pops.ts decide what; Inside.tsx and Cast.tsx place
-// it): an hourglass over one on hold, a red warning over one stopped on a fault, Zzz over one resting whose prompt cache ran out; over one at work the
+// it): an hourglass over one on hold, a red warning over one stopped on a fault; over one at work the
 // steps done of its task as a bar; and a thought bubble that pops with the new work when it changes. All vector, in picture pixels, so it stays crisp however large the room is drawn, and none of it takes
 // a click. Whoever is walking gets nothing until it sits, as with the bubbles of those waiting for the founder.
 import { useTasks } from '@handline/app-data';
@@ -12,9 +12,6 @@ import { POP_MS, usePops, type Pop } from '#src/town/pops.ts';
 import { useElapsed, type Cheering } from '#src/town/cheers.ts';
 import { Cheer, CHEER_CSS } from '#src/town/Cheer.tsx';
 
-/** A halo's width for text `size` tall: thinner than the names', whose letters are bolder. */
-const HALO = 2 / 11;
-
 let pen: CanvasRenderingContext2D | null | undefined;
 let family = '';
 /** How wide `text` is drawn `size` picture pixels tall at `weight`, in the page's own font; a guess where nothing can measure. Measured
@@ -26,8 +23,6 @@ function widthOf(text: string, size: number, weight: number): number {
   pen.font = `${weight} ${size}px ${family}`;
   return pen.measureText(text).width;
 }
-
-const haloed = (size: number) => ({ stroke: NAME_HALO, strokeWidth: size * HALO, paintOrder: 'stroke' as const });
 
 /** A pause sign in a round badge, in a quiet colour: waiting by design. */
 function Paused() {
@@ -52,27 +47,11 @@ function Warning() {
   );
 }
 
-/** Zzz rising over a head: its prompt cache ran out. */
-function Asleep() {
-  const letters: [string, number, number, number][] = [
-    ['z', -4.6, 0, 4.6],
-    ['z', -0.8, -3.2, 5.8],
-    ['Z', 3.8, -7.4, 7.4],
-  ];
-  return letters.map(([letter, x, y, size]) => (
-    <text key={x} x={x} y={y} textAnchor="middle" fontSize={size} fontWeight={800} fill={NAME_MUTED} {...haloed(size * 1.2)}>
-      {letter}
-    </text>
-  ));
-}
-
-/** A person's mark by the head whose top's middle is `head`: beside it, where the bubble of one waiting for the founder goes; Zzz over
- *  it. */
+/** A person's mark beside the head whose top's middle is `head`, where the bubble of one waiting for the founder goes. */
 function StateMark({ mark, head }: { mark: Mark; head: At }) {
-  const [dx, dy] = mark === 'asleep' ? [0, -2] : [9, 0];
   return (
-    <g className="pointer-events-none" transform={`translate(${head.x + dx} ${head.y + dy})`}>
-      {mark === 'held' ? <Paused /> : mark === 'error' ? <Warning /> : <Asleep />}
+    <g className="pointer-events-none" transform={`translate(${head.x + 9} ${head.y})`}>
+      {mark === 'held' ? <Paused /> : <Warning />}
     </g>
   );
 }
@@ -118,7 +97,7 @@ function Thought({ pop, head, w, scale }: { pop: Pop; head: At; w: number; scale
   );
 }
 
-/** Over the people of an office, once they sit: the mark of each one on hold, stopped or dozing, the steps of the task of each one at
+/** Over the people of an office, once they sit: the mark of each one on hold or stopped, the steps of the task of each one at
  *  work, a thought bubble where work just changed (in place of the steps while it shows), and a cheer over each one that just finished
  *  a task (in place of everything else). `people` is the newest. */
 export function Marks({

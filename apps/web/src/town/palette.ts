@@ -9,7 +9,7 @@ type RGB = [number, number, number];
 const css = ([r, g, b]: RGB) => `rgb(${r} ${g} ${b})`;
 export const NAME_INK = css([74, 64, 56]);
 export const NAME_HALO = css([255, 250, 240]);
-/** The marks of one on hold or dozing: the names' ink, quieter. */
+/** The mark of one on hold: the names' ink, quieter. */
 export const NAME_MUTED = css([100, 87, 77]);
 /** The steps done of a task, on the bar over its agent's head, and the steps left. */
 export const STEP_LEFT = css([222, 210, 194]);

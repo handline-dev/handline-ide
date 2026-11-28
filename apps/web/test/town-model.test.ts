@@ -46,7 +46,7 @@ describe('townOf', () => {
       ['a', 'working', 'Plan the notes', 7, { done: 3, total: 7 }, null],
       ['b', 'held', null, null, null, 'Usage limit, back at 14:00'],
       ['c', 'error', null, null, null, 'Start failed'],
-      // With no session it rests; its prompt cache alone says whether it dozes.
+      // With no session it rests; its prompt cache alone says whether it stays at its desk.
       ['d', 'resting', null, null, null, null],
     ]);
   });
