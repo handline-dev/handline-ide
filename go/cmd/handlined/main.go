@@ -29,6 +29,7 @@ import (
 	"github.com/handline/handline/go/internal/nodes"
 	"github.com/handline/handline/go/internal/reads"
 	"github.com/handline/handline/go/internal/runner"
+	"github.com/handline/handline/go/internal/screenpipe"
 	"github.com/handline/handline/go/internal/sessionrpc"
 	"github.com/handline/handline/go/kit/joined"
 	"github.com/handline/handline/go/kit/lock"
@@ -99,6 +100,9 @@ func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
 	cfg.Context = parts.Context
 	cfg.ChatPort = parts.ChatPort
 	cfg.PromptChanged = parts.RefreshView
+	if cfg.Screens != nil {
+		cfg.Screens.Changed = parts.RefreshView
+	}
 	cfg.OnPrompts = parts.SetPrompts
 }
 
@@ -106,6 +110,8 @@ func fromParts(cfg *daemon.Config, parts *compose.Parts, ccfg *compose.Config) {
 func shareLoad(cfg *daemon.Config, ccfg *compose.Config) {
 	cfg.Load = &procload.Tracker{Home: ccfg.Home, Log: func(s string) { log.Print(s) }}
 	ccfg.Servers = cfg.Load.ServersOf
+	cfg.Screens = &screenpipe.Hub{}
+	ccfg.Screens = cfg.Screens.Sources
 }
 
 func main() {

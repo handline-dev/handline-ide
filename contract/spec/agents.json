@@ -649,6 +649,13 @@
        }
       ],
       "description": "agents.list only: the kind of work review_level is at; null at every. Absent from a daemon that does not send it."
+     },
+     "screens": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/AgentScreen"
+      },
+      "description": "The screen sources the agent has open (screen.attach watches one), each with whether it is in use: an agent action on it in the last 20 s. A change is an agent.changed. Absent from a daemon that does not send it."
      }
     },
     "required": [
@@ -1506,6 +1513,21 @@
      "at",
      "request",
      "ref"
+    ]
+   },
+   "AgentScreen": {
+    "type": "object",
+    "properties": {
+     "source": {
+      "$ref": "#/components/schemas/ScreenSource"
+     },
+     "in_use": {
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "source",
+     "in_use"
     ]
    }
   }

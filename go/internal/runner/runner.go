@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/handline/handline/go/internal/browser"
+	"github.com/handline/handline/go/internal/screenpipe"
 	"net"
 	"os"
 	"path/filepath"
@@ -59,10 +61,12 @@ type Config struct {
 	Master            joined.Master
 	Term              Terminals
 	Control           func() (termchan.Proc, error)
-	Auth              authority.Authority
-	Tokens            Tokens
-	HL                string // the hl its hooks call; paths.HlExe when empty
-	Log               func(format string, args ...any)
+	// Screens is this machine's agents' screen sources; nil is their browsers under Home.
+	Screens screenpipe.Opener
+	Auth    authority.Authority
+	Tokens  Tokens
+	HL      string // the hl its hooks call; paths.HlExe when empty
+	Log     func(format string, args ...any)
 	// Accounts is this machine's Claude accounts, whose transcripts' calls the master counts (node.tokens); nil is the home's account
 	// folders logged in to one (a runner keeps no accounts table).
 	Accounts func() []string
@@ -103,6 +107,7 @@ type Runner struct {
 	pushers  map[string]*pusher     // a worktree's push running now
 	streams  *termchan.Streams      // the master's bytes attaches, ended with the link they go up
 	chat     chats                  // the master's reads of the Chat holders here, ended with the link they go up
+	screens  *screenpipe.Streams    // the master's watches of its agents' screens, ended the same way
 	// rescuing is the agents whose session's rescue runs now; rescueFails how many times each one's push failed.
 	rescuing    map[string]bool
 	rescueFails map[string]int
@@ -176,6 +181,11 @@ func Start(cfg Config) (*Runner, error) {
 		refusedBuild: map[string]string{}, again: make(chan struct{})}
 	control := termchan.NewControlLink(cfg.Control, true)
 	r.streams = termchan.NewStreams(func() *termchan.ControlLink { return control })
+	screens := cfg.Screens
+	if screens == nil {
+		screens = browser.Opener(cfg.Home)
+	}
+	r.screens = &screenpipe.Streams{Open: screens}
 	if b, err := os.ReadFile(StateFile(cfg.Home)); err == nil {
 		if err := json.Unmarshal(b, &r.sessions); err != nil {
 			return nil, fmt.Errorf("%s: %w", StateFile(cfg.Home), err)
@@ -331,6 +341,12 @@ func (r *Runner) linkOnce() (up bool, err error) {
 		case "runner.chat.read":
 			return r.chatRead(p, l.Notify)
 		}
+		if method == "runner.screen.attach" {
+			id, _ := p["stream"].(string)
+			agent, _ := p["agent"].(string)
+			source, _ := p["source"].(string)
+			return r.screens.Attach(id, agent, source, l.Notify)
+		}
 		return r.serve(method, p)
 	})
 	ended := make(chan error, 1)
@@ -369,6 +385,7 @@ func (r *Runner) linkOnce() (up bool, err error) {
 	r.mu.Unlock()
 	r.streams.DetachAll()
 	r.chatDetachAll()
+	r.screens.DetachAll()
 	return true, err
 }
 
@@ -448,6 +465,17 @@ func (r *Runner) serve(method string, p map[string]any) (any, error) {
 	case "runner.detach":
 		r.streams.Detach(str("stream"))
 		r.chatDetach(str("stream"))
+		r.screens.Detach(str("stream"))
+		return map[string]any{"accepted": true}, nil
+	case "runner.screen.input":
+		if err := r.screens.Input(str("stream"), p["event"]); err != nil {
+			return nil, err
+		}
+		return map[string]any{"accepted": true}, nil
+	case "runner.screen.release":
+		if err := r.screens.Release(str("agent"), str("source")); err != nil {
+			return nil, err
+		}
 		return map[string]any{"accepted": true}, nil
 	case "runner.resync":
 		if err := r.streams.Resync(str("stream"), str("reason")); err != nil {

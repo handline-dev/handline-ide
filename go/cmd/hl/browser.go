@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,13 +9,7 @@ import (
 
 	"github.com/handline/handline/go/internal/browser"
 	"github.com/handline/handline/go/internal/hlclient"
-	"github.com/handline/handline/go/kit/paths"
 )
-
-// browserDir is the agent's own browser: its profile and what runs, so two agents never share one.
-func browserDir(home, agent string) string {
-	return filepath.Join(paths.AgentDir(home, agent), "browser")
-}
 
 // browserCmd is hl browser: the agent's own Chrome, headless unless --show, its one page driven by each command.
 func browserCmd(c *hlclient.Client, args []string) (int, bool) {
@@ -26,11 +21,17 @@ func browserCmd(c *hlclient.Client, args []string) (int, bool) {
 		fmt.Fprintln(os.Stderr, "hl browser runs in an agent's session: $HANDLINE_AGENT names whose browser it is")
 		return 1, true
 	}
-	dir := browserDir(c.Home, agent)
+	dir := browser.AgentDir(c.Home, agent)
 	verb, rest := args[0], args[1:]
 	if verb == "close" {
 		if len(rest) != 0 {
 			return wrongArgs("close takes nothing")
+		}
+		if browser.Running(dir) != nil {
+			if err := act(c, "close", nil); err != nil {
+				fmt.Fprintln(os.Stderr, "hl browser close: "+err.Error())
+				return 1, true
+			}
 		}
 		if !browser.Close(dir) {
 			fmt.Println("no browser was open")
@@ -74,26 +75,47 @@ func browserCmd(c *hlclient.Client, args []string) (int, bool) {
 	} else if set {
 		within = time.Duration(secs) * time.Second
 	}
-	if err := browse(c.Home, dir, verb, p, within); err != nil {
+	if err := browse(c, dir, verb, p, within); err != nil {
 		fmt.Fprintln(os.Stderr, "hl browser "+verb+": "+err.Error())
 		return 1, true
 	}
 	return 0, true
 }
 
-func browse(home, dir, verb string, p parsed, within time.Duration) error {
+// act tells the daemon. A person may take the page between the answer and the verb; the verb then lands once, as one already under way.
+// act tells the daemon the agent is about to do kind on its page, at box when it has one: an error only when a person holds the page. A
+// daemon that cannot be asked holds nothing.
+func act(c *hlclient.Client, kind string, box *browser.Box) error {
+	params := map[string]any{"source": "browser", "kind": kind}
+	if box != nil {
+		params["box"] = map[string]any{"x": box.X, "y": box.Y, "width": box.W, "height": box.H}
+	}
+	_, err := c.Call("screen.act", params)
+	var refused *hlclient.RPCError
+	if errors.As(err, &refused) && refused.Code == "refused" {
+		return refused
+	}
+	return nil
+}
+
+func browse(c *hlclient.Client, dir, verb string, p parsed, within time.Duration) error {
 	var b *browser.Browser
 	var err error
 	if verb == "open" {
-		engine, eerr := browser.Engine(home)
-		if eerr != nil {
-			return eerr
+		if b = browser.Running(dir); b == nil || b.Show != p.flags["--show"] { // the engine is looked up, or fetched, only to start one
+			engine, eerr := browser.Engine(c.Home)
+			if eerr != nil {
+				return eerr
+			}
+			b, err = browser.Ensure(dir, engine, p.flags["--show"])
 		}
-		b, err = browser.Ensure(dir, engine, p.flags["--show"])
 	} else {
 		b, err = browser.Opened(dir)
 	}
 	if err != nil {
+		return err
+	}
+	if err := act(c, verb, nil); err != nil {
 		return err
 	}
 	page, err := b.Page()
@@ -111,10 +133,19 @@ func browse(home, dir, verb string, p parsed, within time.Duration) error {
 		} else {
 			out, err = page.Text()
 		}
-	case "click":
-		err = page.Click(p.pos[0])
-	case "type":
-		err = page.Type(p.pos[0], p.pos[1], p.flags["--enter"])
+	case "click", "type":
+		var box browser.Box
+		if box, err = page.Box(p.pos[0]); err != nil {
+			break
+		}
+		if err = act(c, verb, &box); err != nil {
+			break
+		}
+		if verb == "click" {
+			err = page.ClickAt(box)
+		} else {
+			err = page.TypeAt(box, p.pos[1], p.flags["--enter"])
+		}
 	case "wait":
 		target := ""
 		if len(p.pos) == 1 {

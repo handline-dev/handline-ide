@@ -124,6 +124,7 @@ func (p *Parts) agentView(cfg Config, terminals bool, tu tickUsage) *agentview.E
 			return d.Text, d.At, true
 		},
 		Servers: cfg.Servers,
+		Screens: cfg.Screens,
 		LimitDialogOwned: func(agent string) bool {
 			return p.limitDialogOwned(agent, tu, nowOf(cfg.Now)().Unix())
 		},

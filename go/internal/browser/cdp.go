@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/handline/handline/go/internal/screenpipe"
 )
 
 // conn is one DevTools connection: calls are answered in turn, and the loads seen meanwhile are kept for waitLoad.
@@ -138,7 +140,10 @@ func (b *Browser) dialBrowser() (*conn, error) {
 
 // dialPage is a connection to the agent's page: the one it worked in, else the first, else a new one. A page a click opened beside it
 // does not take its place.
-func (b *Browser) dialPage() (*conn, error) {
+func (b *Browser) dialPage() (*conn, error) { return b.dialPageOr(true) }
+
+// dialPageOr is dialPage; with open false, a browser with no page is not open, and none is opened for it.
+func (b *Browser) dialPageOr(open bool) (*conn, error) {
 	resp, err := b.endpoint("/json/list", http.MethodGet)
 	if err != nil {
 		return nil, err
@@ -161,6 +166,9 @@ func (b *Browser) dialPage() (*conn, error) {
 		if pick == nil {
 			pick = &list[i]
 		}
+	}
+	if pick == nil && !open {
+		return nil, screenpipe.ErrNotOpen
 	}
 	if pick == nil {
 		resp, err := b.endpoint("/json/new?about:blank", http.MethodPut)

@@ -693,6 +693,27 @@ func TestAnAgentsViewListsTheServersItsProcessesListenOn(t *testing.T) {
 	}
 }
 
+func TestAnAgentsViewListsItsOpenScreensAndWhetherEachIsInUse(t *testing.T) {
+	r := newRig(t, "web", "none")
+	r.state(t, "web", states.Idle, "")
+	r.state(t, "none", states.Idle, "")
+	r.env.Screens = func(agent string) []any {
+		if agent != "web" {
+			return []any{}
+		}
+		return []any{map[string]any{"source": "browser", "in_use": true}}
+	}
+	if err := r.env.Refresh(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := json.Marshal(r.stored(t, "web")["screens"]); string(got) != `[{"in_use":true,"source":"browser"}]` {
+		t.Fatalf("screens %s", got)
+	}
+	if b, _ := json.Marshal(r.stored(t, "none")["screens"]); string(b) != "[]" {
+		t.Fatalf("no screen is an empty list: %s", b)
+	}
+}
+
 func TestTheLimitDialogTheDaemonHandlesIsNobodysToAnswer(t *testing.T) {
 	session := &NeedsYou{Kind: "usage", Source: "session", Since: 4000, Title: "Usage limit: choose what to do"}
 	daemon := &NeedsYou{Kind: "stuck", Source: "daemon", Since: 4000, Title: "Stuck after restarts"}

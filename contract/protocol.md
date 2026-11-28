@@ -92,6 +92,7 @@ One file per group, generated from `spec/<group>.json`; field types are in `prot
 - [chat](gen/chat.md): 20 methods
 - [devices](gen/devices.md): 21 methods
 - [repos](gen/repos.md): 17 methods
+- [screen](gen/screen.md): 6 methods
 - [tasks](gen/tasks.md): 41 methods
 - [team](gen/team.md): 17 methods
 - [terminal](gen/terminal.md): 9 methods
@@ -266,6 +267,10 @@ Every agent (AgentView.status) and every task (Task.status) carries one status: 
 - `snapshot`: Bytes attaches only: the screen again, to be repainted as after an attach (reset, resize to cols by rows, write data), because the terminal changed size or the client fell behind. Everything the stream would have said before it is dropped; output follows with the next seq. Params: `{   terminal: string;   seq: number;   reason: "resize" | "slow_client";   cols: number;   rows: number;   /** Base64, as in the attach snapshot. */   data: string;   alt_screen: boolean;   cursor: {     x: number;     y: number;   };   cursor_visible: boolean; }`
 - `doc_changed`: To each connection that has the doc open, after doc.push and after a change made to the file outside the doc, in version order. A reply (doc.pull, or behind) may come before a doc_changed it already covers: a client drops a doc_changed whose version it already has. Params: `{   agent: string;   path: string;   doc: string;   /** The doc's version after these updates. */   version: number;   updates: DocUpdate[]; }`
 - `doc_closed`: The doc was let go for every connection, when the daemon found it so before a write or while watching the file: gone, the file was deleted or moved away; unreadable, it is no longer UTF-8 text of at most 1 MiB. Open it again to see what is there. Params: `{   agent: string;   path: string;   doc: string;   reason: "gone" | "unreadable"; }`
+- `screen_frame`: A screen.attach's new frame, as ScreenFrame, numbered one past the last. Params: `{   agent: string;   source: ScreenSource;   seq: number;   data: string;   width: number;   height: number; }`
+- `screen_action`: What the agent does on a watched source (screen.act's acting kinds), with its target's box when it has one, so a watcher can show it. Never what it types. Params: `{   agent: string;   source: ScreenSource;   kind: string;   box: ScreenBox | null;   at: Timestamp; }`
+- `screen_holder`: Who drives a watched source changed (screen.take, give_back, or its holder stopped watching). Params: `{   agent: string;   source: ScreenSource;   holder: ScreenHolder; }`
+- `screen_ended`: The source went away (the agent closed its browser): the attach is over. Params: `{   agent: string;   source: ScreenSource; }`
 
 ## Terminal channel
 
