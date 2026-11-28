@@ -311,6 +311,24 @@ func (r *Roster) Create(name, folder string) (string, error) {
 	return key, seedWorkspace(r.DB, key, time.Now().Unix())
 }
 
+// SetWorkspaceSessionMode is how the sessions of workspace ws (its key) run unless an agent says: one of SessionModes. changed is false
+// when it ran so already.
+func (r *Roster) SetWorkspaceSessionMode(ws, mode string) (changed bool, err error) {
+	if !contains(SessionModes, mode) {
+		return false, refuse("session_mode must be one of %s", strings.Join(SessionModes, ", "))
+	}
+	id, err := r.workspaceID(ws)
+	if err != nil {
+		return false, err
+	}
+	res, err := r.DB.Exec("UPDATE workspaces SET session_mode = ? WHERE id = ? AND session_mode != ?", mode, id, mode)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 // RenameWorkspace gives workspace ws (its key) the name name. Its agents' keys, names, folders and rows stay.
 func (r *Roster) RenameWorkspace(ws, name string) error {
 	id, err := r.workspaceID(ws)

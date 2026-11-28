@@ -623,6 +623,77 @@ def chat_life(r: Run, home: Path, root: Path, move_to: str) -> None:
               "seconds": round(time.time() - t, 2), "note": f"sessions {before[-1:]} -> {after[-1:]}"})
 
 
+def holder_is(home: Path, agent: str, chat: bool, until: float) -> bool:
+    """Waits until agent's Chat holder is there (chat) or gone."""
+    while time.time() < until:
+        if chat_socket(home, agent).exists() == chat:
+            return True
+        time.sleep(1)
+    return False
+
+
+def chat_mode(r: Run, home: Path) -> None:
+    """Chat or Terminal: Open terminal on an idle Chat agent resumes its conversation in its terminal, a turn there, a handoff back to
+    Chat, a setting change between turns each way, and Open terminal during a turn moving it once the turn ends."""
+    d, a = r.d, r.agent
+    d.write("agent.set", {"agent": a, "values": {"session_mode": "chat", "mode": "auto"}})
+    t = time.time()
+    try:
+        d.write("session.start", {"agent": a})
+    except Refused as e:
+        if "no session is running in it after" not in str(e):
+            raise
+    if not r.step("ready (idle)", t, agent_changed(a, "idle"), model=True):
+        return
+    pong(r, a, "Remember the code word MELON. Reply with the single word NOTED.", "NOTED", "first Chat turn")
+    r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(2)
+
+    def moved(name: str, before: list[str], chat: bool, t: float, note: str = "") -> None:
+        there = holder_is(home, a, chat, time.time() + MODEL_S)
+        after = session_ids(home, a)
+        r.record({"step": name, "paced_by": "daemon", "result": "pass" if there and before and after and after[-1] == before[-1] else "FAIL",
+                  "seconds": round(time.time() - t, 2), "note": f"{note}sessions {before[-1:]} -> {after[-1:]}"})
+
+    before, t = session_ids(home, a), time.time()
+    got = d.write("agent.open_terminal", {"agent": a})
+    moved("Open terminal while idle: the same conversation in its terminal", before, False, t, f"said {got.get('said')!r}; ")
+    pong(r, a, "What was the code word? Reply with it alone.", "MELON", "a turn in the terminal")
+    r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+
+    before, t = session_ids(home, a), time.time()
+    d.write("session.compact", {"agent": a})
+    new_session(home, a, before, time.time() + MODEL_S + SLOW_S)
+    pong(r, a, "Reply with the single word FRESH.", "FRESH", "handoff")
+    r.record({"step": "handoff: the next session is back in Chat", "paced_by": "daemon",
+              "result": "pass" if holder_is(home, a, True, time.time() + 10) and session_ids(home, a)[-1:] != before[-1:] else "FAIL",
+              "seconds": round(time.time() - t, 2)})
+    r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+    time.sleep(2)
+
+    for mode, chat in (("terminal", False), ("chat", True)):
+        before, t = session_ids(home, a), time.time()
+        d.write("agent.set", {"agent": a, "values": {"session_mode": mode}})
+        moved(f"setting {mode} between turns: moved, same conversation", before, chat, t)
+        pong(r, a, f"Reply with the single word {mode.upper()}.", mode.upper(), f"a turn after the move to {mode}")
+        r.s.wait(time.time() - 1, agent_changed(a, "idle"), time.time() + MODEL_S)
+        time.sleep(2)
+
+    before, t = session_ids(home, a), time.time()
+    d.write("chat.send", {"agent": a, "body": "Run the Bash command `sleep 15`, then reply with the single word SLEPT."})
+    if not r.s.wait(t, agent_changed(a, "running"), t + MODEL_S):
+        r.fail("Open terminal during a turn", "the turn never ran")
+        return
+    time.sleep(3)
+    got = d.write("agent.open_terminal", {"agent": a})
+    still = chat_socket(home, a).exists()
+    slept = r.s.wait(t, said(a, "SLEPT"), t + MODEL_S)
+    r.record({"step": "Open terminal during a turn: answered at once, the turn left to end", "paced_by": "daemon",
+              "result": "pass" if "when its turn ends" in (got.get("said") or "") and still and slept else "FAIL", "seconds": None,
+              "note": f"said {got.get('said')!r}"})
+    moved("Open terminal during a turn: moved once it ended", before, False, t)
+
+
 def prompts_for(r: Run, since: float, until: float) -> list[dict]:
     """The prompts the agent's asks raised from since to until, as prompt_asked carried them."""
     return [ev["data"] for at, ev in list(r.s.events) if since <= at <= until and ev["type"] == "prompt_asked"
@@ -850,11 +921,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--daemon", help="the handlined binary to test; by default this checkout's is built")
     ap.add_argument("--json", action="store_true", help="print the table as JSON at the end")
-    ap.add_argument("--scenario", choices=["turns", "wake", "chat", "chatlife", "chatasks"], default="turns",
+    ap.add_argument("--scenario", choices=["turns", "wake", "chat", "chatlife", "chatasks", "chatmode"], default="turns",
                     help="turns: a terminal agent's turns timed; wake: a closed agent's message after another agent woke in between; "
                          "chat: a Chat mode agent's task, messages, interrupt and a daemon restart mid-turn; "
                          "chatlife: a Chat mode agent's close and wake, background work, a folder, a handoff and (HANDLINE_LIVE_MOVE_TO) an account move; "
-                         "chatasks: a Chat mode agent's permission asks and questions answered from the app")
+                         "chatasks: a Chat mode agent's permission asks and questions answered from the app; "
+                         "chatmode: Open terminal on a Chat agent, idle and mid-turn, a handoff back to Chat, and the setting changed between turns")
     ap.add_argument("--keep", action="store_true", help="keep the test root (home, daemon log, worktree) for a look afterwards")
     args = ap.parse_args()
     if os.environ.get("HANDLINE_LIVE") != "1":
@@ -883,6 +955,8 @@ def main() -> int:
             closed_wake(r, home, pool_agents(home, agent))
         elif args.scenario == "chatasks":
             chat_asks(r, root)
+        elif args.scenario == "chatmode":
+            chat_mode(r, home)
         elif args.scenario == "chatlife":
             chat_life(r, home, root, os.environ.get("HANDLINE_LIVE_MOVE_TO", ""))
         elif args.scenario == "chat":

@@ -283,5 +283,10 @@
   "version": 156,
   "name": "drop_sweep_cursors",
   "additive": false
+ },
+ {
+  "version": 157,
+  "name": "session_mode_defaults",
+  "additive": true
  }
 ]

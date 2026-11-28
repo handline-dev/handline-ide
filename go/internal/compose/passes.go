@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"github.com/handline/handline/go/internal/chatterm"
 	"sort"
 
 	"github.com/handline/handline/go/accounts/subscriptions"
@@ -30,6 +31,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 	timebox := &tick.Timebox{Ports: timeboxPorts{p: p, env: lc.Env, set: lc.Manager.Settings, home: cfg.Home}}
 	wait := &tick.WaitFor{Decide: waitDecider{lc: lc}, Log: func(s string) { cfg.Log("%s", s) }}
 	apply := &tick.ApplySettings{Ports: settingsPorts{launcher: lc.Launch, env: lc.Env}}
+	modes := &tick.SessionMode{Ports: modePorts{lc: lc}}
 	subs := &subscriptions.Env{DB: lc.Env.DB, Home: cfg.Home, Asker: founderAsker{lc.Env}, Tasks: founderCloser{lc.Env, cfg.Home},
 		Plans: vendorPlans{home: cfg.Home, cli: cfg.CLI}, Now: cfg.Now, Log: cfg.Log}
 	p.plans = append(p.plans, subs)
@@ -78,6 +80,7 @@ func (p *Parts) passes(cfg Config, tk *tick.Tick) []tick.NamedSweep {
 		{Name: "wait-for", Run: func(q db.Q, now int64) error { return wait.Sweep(q, now) }},
 		{Name: "schedules", Run: func(q db.Q, now int64) error { return sched.Sweep(now) }},
 		{Name: "apply-settings", Run: func(q db.Q, now int64) error { return apply.Sweep(tk, now) }},
+		{Name: "session-mode", Run: func(q db.Q, now int64) error { return modes.Sweep(tk, now) }},
 		{Name: "heal", Run: healer.Sweep},
 		{Name: "repos", Run: func(q db.Q, _ int64) error { return RecheckRepos(q, cfg.Home, lc.Env, cfg.Log) }},
 		{Name: "proposal-held", Run: func(q db.Q, now int64) error {
@@ -117,6 +120,23 @@ func (w waitDecider) RaiseDecision(q db.Q, who, text, source string) error {
 }
 
 // settingsPorts is tick.SettingsPorts: what the next launch would read, named, in the order a person reads them.
+// modePorts are the session-mode sweep's calls: a running session's mode from its terminal, the one it should run in from the launcher.
+type modePorts struct{ lc *Lifecycle }
+
+func (m modePorts) RunsChat(agent string) (bool, bool) {
+	handle, err := db.Terminal(m.lc.Env.DB, agent)
+	if err != nil || handle == "" || m.lc.term == nil {
+		return false, false
+	}
+	// A holder alive here is a Chat session even when its pane cannot be told.
+	return m.lc.term.Headless(handle) || chatterm.Running(m.lc.Env.Home, agent), true
+}
+func (m modePorts) WantsChat(agent string) (bool, error) { return m.lc.Launch.WantsChat(agent) }
+func (m modePorts) CurrentAccount(q db.Q, agent string) string {
+	acct, _ := team.CurrentAccount(q, agent)
+	return acct
+}
+
 type settingsPorts struct {
 	launcher interface {
 		PartsSince(agent string) (map[string]string, error)

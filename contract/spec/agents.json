@@ -1163,10 +1163,19 @@
      "session_mode": {
       "type": "string",
       "enum": [
+       "",
        "terminal",
        "chat"
       ],
-      "description": "How the agent's sessions run: terminal (Claude Code's screen in a terminal) or chat (headless, its work shown in the chat). Read at each session start."
+      "description": "How the agent says its sessions run: terminal (Claude Code's screen in a terminal) or chat (headless, its work shown in the chat); \"\" follows its workspace's session_mode. A change moves a running session between turns: it is closed at its prompt and resumed in the same conversation the other way."
+     },
+     "session_mode_in_force": {
+      "type": "string",
+      "enum": [
+       "terminal",
+       "chat"
+      ],
+      "description": "Read only: how its sessions run, its own session_mode or else its workspace's. A session Open terminal gave (agent.open_terminal) runs in a terminal whatever this says, until it ends."
      }
     }
    },
@@ -2945,6 +2954,48 @@
     "input_holder"
    ],
    "description": "Presses Ctrl+X Ctrl+K twice in the agent's terminal: Claude Code stops its background work on the second, its confirm. A Chat agent is asked on its stream to stop each piece of work its session lists, and nothing is typed. Refused, gate state, while nothing runs (unclaimed, Ctrl+K would cut the person's draft) or the pane is a plain shell; gate screen_blocker with a dialog open; gate wall at the usage wall; terminal_lock and input_holder as session.input."
+  },
+  {
+   "name": "agent.open_terminal",
+   "summary": "Open a Chat agent's conversation in its terminal: between turns its headless session is closed and the same conversation resumed in the terminal, at once; during a turn that happens when the turn ends, and the answer says so (session.interrupt still stops the turn now). That session stays a terminal one until it ends (a handoff, an idle close, an account move); the next one follows session_mode. An agent with no session is started in its terminal; one already in a terminal is no change. The call answers once that is done, or with what waits. Owner only.",
+   "paramStructure": "by-name",
+   "params": [
+    {
+     "name": "agent",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/Who"
+     }
+    },
+    {
+     "name": "request_id",
+     "required": true,
+     "schema": {
+      "$ref": "#/components/schemas/RequestId"
+     }
+    }
+   ],
+   "result": {
+    "name": "result",
+    "schema": {
+     "$ref": "#/components/schemas/Accepted"
+    }
+   },
+   "x-role": "owner",
+   "x-write": true,
+   "x-app-write": {
+    "kind": "decided",
+    "label": "open terminal"
+   },
+   "x-since": 1,
+   "errors": [
+    {
+     "$ref": "#/components/errors/refused"
+    },
+    {
+     "$ref": "#/components/errors/not_found"
+    }
+   ]
   },
   {
    "name": "session.interrupt",

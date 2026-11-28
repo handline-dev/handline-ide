@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,11 +65,11 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var name, add, remove string
+	var name, add, remove, mode string
 	for _, f := range []struct {
 		k string
 		v *string
-	}{{"name", &name}, {"add_folder", &add}, {"remove_folder", &remove}} {
+	}{{"name", &name}, {"add_folder", &add}, {"remove_folder", &remove}, {"session_mode", &mode}} {
 		if params[f.k] == nil {
 			continue
 		}
@@ -78,8 +79,11 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 		}
 		*f.v = s
 	}
-	if name == "" && add == "" && remove == "" {
-		return nil, rpc.BadRequestError("name, add_folder or remove_folder says what changes", "name", rpc.InvalidParams)
+	if name == "" && add == "" && remove == "" && mode == "" {
+		return nil, rpc.BadRequestError("name, add_folder, remove_folder or session_mode says what changes", "name", rpc.InvalidParams)
+	}
+	if mode != "" && !slices.Contains(team.SessionModes, mode) {
+		return nil, rpc.BadRequestError("session_mode is one of "+strings.Join(team.SessionModes, ", "), "session_mode", rpc.InvalidParams)
 	}
 	if add != "" { // git is asked here, outside the write's transaction
 		kept, _, err := team.Folder(add)
@@ -116,6 +120,15 @@ func (e *Env) workspaceSet(c *rpc.Conn, params map[string]any) (any, error) {
 					return err
 				}
 				said = append(said, "took "+remove+" away")
+			}
+			if mode != "" {
+				changed, err := r.SetWorkspaceSessionMode(w.key, mode)
+				if err != nil {
+					return err
+				}
+				if changed {
+					said = append(said, "its sessions run in "+mode+" mode unless an agent says")
+				}
 			}
 			return nil
 		}()

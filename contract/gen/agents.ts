@@ -278,8 +278,10 @@ export type AgentSettingValues = {
   sandbox_allow?: string;
   /** The device the agent is pinned to, a node id as node.status lists it; "" for none. Read only while agent_placement is manual: its sessions then start on that device whatever their load, or here, with the reason, while the device cannot take one. A device that lacks something the agent needs may be pinned. */
   device?: string;
-  /** How the agent's sessions run: terminal (Claude Code's screen in a terminal) or chat (headless, its work shown in the chat). Read at each session start. */
-  session_mode?: "terminal" | "chat";
+  /** How the agent says its sessions run: terminal (Claude Code's screen in a terminal) or chat (headless, its work shown in the chat); "" follows its workspace's session_mode. A change moves a running session between turns: it is closed at its prompt and resumed in the same conversation the other way. */
+  session_mode?: "" | "terminal" | "chat";
+  /** Read only: how its sessions run, its own session_mode or else its workspace's. A session Open terminal gave (agent.open_terminal) runs in a terminal whatever this says, until it ends. */
+  session_mode_in_force?: "terminal" | "chat";
 };
 
 export type NeedsYou = {
@@ -538,6 +540,10 @@ export interface AgentsMethods {
   request_id: RequestId;
 }; result: Accepted };
   "agent.jobs.stop": { params: {
+  agent: Who;
+  request_id: RequestId;
+}; result: Accepted };
+  "agent.open_terminal": { params: {
   agent: Who;
   request_id: RequestId;
 }; result: Accepted };
@@ -825,6 +831,7 @@ export const AGENTS_METHODS: { [K in keyof AgentsMethods]: { role: Role; callers
   "agent.jobs": { role: "owner", callers: null, write: false, since: 1 },
   "agent.job.stop": { role: "owner", callers: null, write: true, since: 1 },
   "agent.jobs.stop": { role: "owner", callers: null, write: true, since: 1 },
+  "agent.open_terminal": { role: "owner", callers: null, write: true, since: 1 },
   "session.interrupt": { role: "owner", callers: null, write: true, since: 1 },
   "session.launch_prepare": { role: "anonymous", callers: null, write: false, since: 1 },
   "prompt.list": { role: "member", callers: null, write: false, since: 1 },
@@ -868,7 +875,7 @@ export const AGENTS_APP_CACHE: { [K in "agents.list" | "agent.get" | "agent.time
 };
 
 /** x-app-write of each write (x-app in core.json). */
-export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "access.rule_remove" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
+export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move_cancel" | "agent.move_now" | "agent.switch_now" | "agent.unstall" | "agent.force_start" | "agent.retire" | "agent.rename" | "agent.create" | "session.start" | "session.wake" | "session.stop" | "session.restart" | "session.compact" | "session.park" | "session.input" | "session.keys" | "agent.job.stop" | "agent.jobs.stop" | "agent.open_terminal" | "session.interrupt" | "prompt.answer" | "input.take" | "input.release" | "say" | "access.grant" | "access.revoke" | "access.rule_remove" | "agent.review_set" | "agent.context.set" | "agent.memory.remove"]: { kind: WriteKind; label: string } | false } = {
   "agent.set": {"kind": "authored", "label": "set"},
   "agent.move": {"kind": "decided", "label": "move"},
   "agent.move_cancel": {"kind": "decided", "label": "cancel move"},
@@ -889,6 +896,7 @@ export const AGENTS_APP_WRITES: { [K in "agent.set" | "agent.move" | "agent.move
   "session.keys": {"kind": "uncached", "label": "key"},
   "agent.job.stop": {"kind": "uncached", "label": "stop job"},
   "agent.jobs.stop": {"kind": "uncached", "label": "stop all jobs"},
+  "agent.open_terminal": {"kind": "decided", "label": "open terminal"},
   "session.interrupt": {"kind": "decided", "label": "interrupt"},
   "prompt.answer": {"kind": "decided", "label": "answer"},
   "input.take": {"kind": "decided", "label": "take control"},

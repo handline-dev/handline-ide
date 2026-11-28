@@ -30,6 +30,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `agent.jobs` | owner |  | `agent` | `{jobs}` | `not_found` |  | `agent_jobs`, fed by agents |
 | `agent.job.stop` | owner | yes | `agent`, `job`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, type, state, terminal_lock, input_holder | uncached: stop job |
 | `agent.jobs.stop` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | role, state, screen_blocker, wall, terminal_lock, input_holder | uncached: stop all jobs |
+| `agent.open_terminal` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` |  | decided: open terminal |
 | `session.interrupt` | owner | yes | `agent`, `request_id` | `Accepted` | `refused`, `not_found` | role, terminal_lock, input_holder | decided: interrupt |
 | `session.launch_prepare` | anonymous |  | `agent`, `cwd`, `extra?`, `force?`, `prompt_file?`, `account?`, `why?`, `by?`, `env?`, `binary?`, `hl_exe?`, `handle?`, `worktree_id?` | `{argv, env, warnings, hold}` | `refused`, `not_found` | role, state | not cached |
 | `prompt.list` | member |  | `agent` | `{prompts} & ReadCursor` | `not_found` |  | `prompts` by agent, fed by notifications |
@@ -151,6 +152,10 @@ Stop one background shell of the agent's. Sends SIGTERM to the background shell'
 ### `agent.jobs.stop`
 
 Stop all of the agent's background work. Presses Ctrl+X Ctrl+K twice in the agent's terminal: Claude Code stops its background work on the second, its confirm. A Chat agent is asked on its stream to stop each piece of work its session lists, and nothing is typed. Refused, gate state, while nothing runs (unclaimed, Ctrl+K would cut the person's draft) or the pane is a plain shell; gate screen_blocker with a dialog open; gate wall at the usage wall; terminal_lock and input_holder as session.input.
+
+### `agent.open_terminal`
+
+Open a Chat agent's conversation in its terminal: between turns its headless session is closed and the same conversation resumed in the terminal, at once; during a turn that happens when the turn ends, and the answer says so (session.interrupt still stops the turn now). That session stays a terminal one until it ends (a handoff, an idle close, an account move); the next one follows session_mode. An agent with no session is started in its terminal; one already in a terminal is no change. The call answers once that is done, or with what waits. Owner only.
 
 ### `session.interrupt`
 

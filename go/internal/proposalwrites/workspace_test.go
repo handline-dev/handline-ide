@@ -238,3 +238,23 @@ func TestWorkspaceSetRenamesUnderARunningSessionButNotWhileAProposalNamesOne(t *
 		t.Fatal("renamed while a proposal names one of its agents")
 	}
 }
+
+// workspace.set sets how a workspace's sessions run unless an agent says; a mode it does not have is refused.
+func TestWorkspaceSetSetsItsSessionMode(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	bobWithKid(t, r)
+	mode := func() (v string) {
+		r.db.QueryRow("SELECT session_mode FROM workspaces WHERE name = 'bob'").Scan(&v)
+		return v
+	}
+	if mode() != "terminal" {
+		t.Fatalf("the default: %q", mode())
+	}
+	if m := r.call("workspace.set", `{"workspace":"bob","session_mode":"chat","request_id":"m1"}`); m["result"] == nil || mode() != "chat" {
+		t.Fatalf("%v %q", m, mode())
+	}
+	if m := r.call("workspace.set", `{"workspace":"bob","session_mode":"tty","request_id":"m2"}`); m["error"] == nil || mode() != "chat" {
+		t.Fatalf("%v %q", m, mode())
+	}
+}

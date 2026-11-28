@@ -13,7 +13,7 @@ A method marked write takes a required `request_id`. Framing, roles, errors and 
 | `person.remove` | owner | yes | `person`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` |  | decided: remove |
 | `workspaces.list` | agent |  | none | `{workspaces}` | `bad_request` |  | `workspaces`, fed by workspaces |
 | `workspace.create` | owner | yes | `name?`, `folder?`, `account?`, `role?`, `base?`, `request_id` | `OperationStarted` | `refused`, `not_found`, `bad_request` | state | decided: create workspace |
-| `workspace.set` | owner | yes | `workspace`, `name?`, `add_folder?`, `remove_folder?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
+| `workspace.set` | owner | yes | `workspace`, `name?`, `add_folder?`, `remove_folder?`, `session_mode?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state | decided: rename workspace |
 | `workspace.delete` | owner | yes | `workspace`, `worktree?`, `request_id` | `Accepted` | `refused`, `not_found`, `bad_request` | state, dirty, worktree | decided: delete workspace |
 | `workspace.rules` | agent |  | `workspace?`, `agent?` | `{rules, text_bytes, limit_bytes}` | `not_found`, `bad_request` |  | not cached |
 | `workspace.rule.set` | owner | yes | `workspace?`, `key`, `value`, `request_id` | `Accepted` | `not_found`, `bad_request` |  | decided: set workspace rule |

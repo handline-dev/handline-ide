@@ -28,7 +28,7 @@ func TestPeopleAndWorkspacesAreListedByKey(t *testing.T) {
 	ws := got(func() (any, error) { return e.workspacesList(nil, nil) })
 	// next_lead: the oldest agent there but the lead, who leads it once the lead is retired
 	if want := `{"key":"w5","lead":"a7","next_lead":"a9","name":"shop","folder":"/p","added_folders":["/q"],` +
-		`"folders":[{"path":"/p","name":"p","git":false,"default":true},{"path":"/q","name":"q","git":false,"default":false}]}`; !sameJSON(ws, `{"workspaces":[`+want+`]}`) {
+		`"folders":[{"path":"/p","name":"p","git":false,"default":true},{"path":"/q","name":"q","git":false,"default":false}],"session_mode":"terminal"}`; !sameJSON(ws, `{"workspaces":[`+want+`]}`) {
 		t.Errorf("workspaces.list %s", ws)
 	}
 	people := got(func() (any, error) { return e.peopleList(nil, nil) })

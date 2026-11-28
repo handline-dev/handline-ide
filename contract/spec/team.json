@@ -437,6 +437,14 @@
        "$ref": "#/components/schemas/WorkspaceFolder"
       },
       "description": "Every folder of the workspace, the default first. Each agent works in one of them (agents.list folder) and reads the others."
+     },
+     "session_mode": {
+      "type": "string",
+      "enum": [
+       "terminal",
+       "chat"
+      ],
+      "description": "How its agents' sessions run unless an agent's own session_mode says: terminal or chat."
      }
     },
     "required": [
@@ -446,7 +454,8 @@
      "added_folders",
      "folders",
      "lead",
-     "next_lead"
+     "next_lead",
+     "session_mode"
     ]
    },
    "WorkspaceRule": {
@@ -1018,6 +1027,18 @@
      "schema": {
       "type": "string",
       "description": "A folder to take away, as workspaces.list gives its path."
+     }
+    },
+    {
+     "name": "session_mode",
+     "required": false,
+     "schema": {
+      "type": "string",
+      "enum": [
+       "terminal",
+       "chat"
+      ],
+      "description": "How its agents' sessions run unless an agent says. A running session that then runs the other way is moved between turns: closed at its prompt and resumed in the same conversation. The same mode is no change."
      }
     },
     {

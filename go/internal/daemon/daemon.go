@@ -816,7 +816,8 @@ func (d *Daemon) writeRegistrars() []func(*rpc.Server) {
 				env := d.cfg.Session()
 				env.Emit = d.operationEvent
 				env.WorkspaceAdded = d.projects.Workspace
-				env.InterruptTerminal = d.typing().PressEsc
+				typing := d.typing()
+				env.InterruptTerminal, env.Term = typing.PressEsc, typing.Term // Term: agent.open_terminal tells a Chat session by it
 				sessionrpc.Register(s, env)
 			}
 		},

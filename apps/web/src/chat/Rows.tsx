@@ -45,7 +45,7 @@ export function ChatRows({
 }) {
   const { rows, bash, words, me } = lines;
   // A Chat agent has no terminal: its chat shows every step, not one folded line.
-  const steps = useAgentDetail(agent).data?.settings?.session_mode === 'chat';
+  const steps = useAgentDetail(agent).data?.settings?.session_mode_in_force === 'chat';
   return (
     <AnimatePresence initial={false}>
       {rows.map((r, i, all) =>

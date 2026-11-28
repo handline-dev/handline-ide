@@ -12,8 +12,8 @@ const dir: Directory = {
   ],
   people: [{ key: 'p1', display_name: 'Sam', handle: null, role: 'owner', removed: false }],
   workspaces: [
-    { key: 'w1', name: 'shop', folder: '/s', added_folders: [], folders: [], lead: 'a1', next_lead: 'a2' },
-    { key: 'w2', name: 'site', folder: '/t', added_folders: [], folders: [], lead: 'a3', next_lead: 'a4' },
+    { key: 'w1', name: 'shop', folder: '/s', added_folders: [], folders: [], lead: 'a1', next_lead: 'a2', session_mode: 'terminal' },
+    { key: 'w2', name: 'site', folder: '/t', added_folders: [], folders: [], lead: 'a3', next_lead: 'a4', session_mode: 'terminal' },
   ],
 };
 

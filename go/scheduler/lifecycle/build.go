@@ -410,6 +410,9 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 			}
 		}
 	}()
+	if err := l.settleTerminalHold(agent, true); err != nil { // past Build: a refused launch leaves the terminal session's hold
+		return nil, err
+	}
 	if site.Node == "" && !l.Tokens.Record(agent, site.PID) { // the proof this session is the agent's; before anything is used up
 		return nil, l.refused(agent, refuse("the session of %s could not be recorded, so it is not started", agent))
 	}
@@ -440,6 +443,11 @@ func (l *Launcher) Prepare(site *Site, agent string, extra []string, force bool,
 		// A launch nobody is waiting on consumed the handoff Build put in the system prompt. The daemon's own wake passes a prompt file and
 		// clears the row itself once the session has started, because a launch that dies must leave it for the fallback launch.
 		if err := db.SetHandoff(l.Q, agent, ""); err != nil {
+			return nil, err
+		}
+	}
+	if hold == nil {
+		if err := l.settleTerminalHold(agent, false); err != nil {
 			return nil, err
 		}
 	}
