@@ -37,6 +37,12 @@ func TestStatusReadsTheHolderAndTheWatchersAndActsOnNothing(t *testing.T) {
 	if s := fmt.Sprint(w.hub.Sources("a1")); s != before {
 		t.Errorf("the read opened or used the page: %v, before %v", s, before)
 	}
+	w.hub.mu.Lock()
+	_, used := w.hub.used[key{"a1", "browser"}]
+	w.hub.mu.Unlock()
+	if used {
+		t.Error("the read marked the page in use")
+	}
 	w.hub.Node = func(string) string { return "n1" }
 	w.hub.NodeName = func(string) string { return "Mac mini" }
 	if got := result(t, a.call("screen.status", `"source":"browser"`)); got["machine"] != "Mac mini" {
