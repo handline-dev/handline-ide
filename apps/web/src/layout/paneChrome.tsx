@@ -1,9 +1,9 @@
 // The parts of a pane's frame around its tabs: what its handle does by default, its split button, and the divider between two panes,
-// which follows the pointer and comes to rest at a third, a half or two thirds.
+// which follows the pointer and stays where it is let go.
 import { ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, Columns2, LayoutGrid, X } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 import type { Dispatch, Grip } from '#src/Workspace.tsx';
-import { snapRatio, stepStop, type Edge, type Split, type Target } from '#src/layout/tree.ts';
+import { stepRatio, type Edge, type Split, type Target } from '#src/layout/tree.ts';
 import { IconButton } from '#src/ui/IconButton.tsx';
 import { ContextMenu, MenuItem, MenuSeparator } from '#src/ui/Menu.tsx';
 import { Splitter } from '#src/ui/Splitter.tsx';
@@ -60,7 +60,7 @@ export function SplitView({ node, dispatch, children }: { node: Split; dispatch:
   const box = useRef<HTMLDivElement>(null);
   const x = node.axis === 'x';
   const resize = (ratio: number) => dispatch({ type: 'resize', split: node.id, ratio });
-  // It follows the pointer, and comes to rest at the nearest stop when let go.
+  // It follows the pointer and stays where it is let go.
   const [dragging, setDragging] = useState(false);
   const glide = dragging ? undefined : 'flex-grow 200ms ease-out';
   return (
@@ -73,11 +73,8 @@ export function SplitView({ node, dispatch, children }: { node: Split; dispatch:
         container={box}
         percent={node.ratio * 100}
         onMove={(o, size) => resize(o / size)}
-        onStep={(d) => resize(stepStop(node.ratio, d))}
-        onDragging={(on) => {
-          setDragging(on);
-          if (!on) resize(snapRatio(node.ratio));
-        }}
+        onStep={(d) => resize(stepRatio(node.ratio, d))}
+        onDragging={setDragging}
         label={x ? 'Resize columns' : 'Resize rows'}
       />
       <div className="flex min-h-0 min-w-0" style={{ flex: `${1 - node.ratio} 1 0`, transition: glide }}>

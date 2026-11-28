@@ -48,14 +48,8 @@ export const initial = (opens?: string, title = ''): Node => (opens ? pane([{ id
 const split = (axis: 'x' | 'y', a: Node, b: Node): Split => ({ kind: 'split', id: newId(), axis, ratio: 0.5, a, b });
 export const clampRatio = (r: number) => Math.min(0.85, Math.max(0.15, r));
 
-/** Where a divider rests once let go, as a tablet's split view: a third, a half or two thirds. */
-export const STOPS = [1 / 3, 1 / 2, 2 / 3] as const;
-export const snapRatio = (r: number) => STOPS.reduce((best, s) => (Math.abs(s - r) < Math.abs(best - r) ? s : best), STOPS[1]);
-/** The next stop from `r` toward `dir`, or the last one that way. */
-export function stepStop(r: number, dir: -1 | 1): number {
-  const next = dir > 0 ? STOPS.find((s) => s > r + 1e-6) : [...STOPS].reverse().find((s) => s < r - 1e-6);
-  return next ?? (dir > 0 ? STOPS[STOPS.length - 1] : STOPS[0]);
-}
+/** A divider moved by a key: one step of the whole toward `dir`. */
+export const stepRatio = (r: number, dir: -1 | 1) => clampRatio(r + dir * 0.05);
 
 /** Whether node `id` (a pane or a split) is in `root`. */
 export const holds = (root: Node, id: string): boolean =>

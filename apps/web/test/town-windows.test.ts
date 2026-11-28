@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { panes, snapRatio, stepStop, type Node } from '#src/layout/tree.ts';
+import { panes, stepRatio, type Node } from '#src/layout/tree.ts';
 import {
   DOCKS_MOST,
   FLOAT_W,
@@ -21,14 +21,11 @@ const show = (opens: string): WindowAction => ({ type: 'show', opens, title: ope
 const opens = (n: Node | null | undefined) => (n ? panes(n).map((p) => p.tabs.map((t) => t.opens)) : null);
 const first = (n: Node) => panes(n)[0];
 
-describe('divider stops', () => {
-  it('snaps to the nearest third or half, and steps from stop to stop', () => {
-    expect(snapRatio(0.3)).toBeCloseTo(1 / 3);
-    expect(snapRatio(0.45)).toBe(0.5);
-    expect(snapRatio(0.95)).toBeCloseTo(2 / 3);
-    expect(stepStop(0.5, 1)).toBeCloseTo(2 / 3);
-    expect(stepStop(0.4, -1)).toBeCloseTo(1 / 3);
-    expect(stepStop(2 / 3, 1)).toBeCloseTo(2 / 3);
+describe('divider keys', () => {
+  it('step a twentieth of the whole, within the bounds', () => {
+    expect(stepRatio(0.5, 1)).toBeCloseTo(0.55);
+    expect(stepRatio(0.42, -1)).toBeCloseTo(0.37);
+    expect(stepRatio(0.84, 1)).toBeCloseTo(0.85);
   });
 });
 

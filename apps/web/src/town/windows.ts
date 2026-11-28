@@ -1,8 +1,7 @@
-// The town's windows as data: tab bars docked down the town's left side, its right side or both, each at a third, a half or two thirds
-// of its width, and tab bars floating over it, each the town's full height. Each is a layout tree of the app's own (layout/tree.ts), so a tab bar here takes tabs, links and splits as one on the
+// The town's windows as data: tab bars docked down the town's left side, its right side or both, each at the share of its width
+// its divider was left at, and tab bars floating over it, each the town's full height. Each is a layout tree of the app's own (layout/tree.ts), so a tab bar here takes tabs, links and splits as one on the
 // main screen does; this file only moves tabs between the trees and drops a tree that has nothing open left. Pure, for the tests.
 import {
-  STOPS,
   dropTabs,
   findPane,
   holds,
@@ -55,7 +54,7 @@ export type WindowAction =
   /** A floating tab bar moved or resized: its left edge and its width. */
   | { type: 'placeFloat'; float: string; x: number; w?: number };
 
-export const NONE: Windows = { docks: { left: null, right: null }, stops: { left: STOPS[0], right: STOPS[0] }, floats: [] };
+export const NONE: Windows = { docks: { left: null, right: null }, stops: { left: 1 / 3, right: 1 / 3 }, floats: [] };
 
 const docked = (w: Windows): Node[] => SIDES.flatMap((s) => w.docks[s] ?? []);
 const trees = (w: Windows): Node[] => [...docked(w), ...w.floats.map((f) => f.root)];
