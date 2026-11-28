@@ -57,16 +57,17 @@ func (s OpenSubagent) Label() string {
 	return l
 }
 
-// openSubagents walks the subagent events from from on: every start, and those of agents with a live row that nothing has ended. A start
+// openSubagents walks agent's subagent events from from on: its starts that nothing has ended, while its row is live. A start
 // runs until a SubagentStop of the same session (the oldest open one ends first), or until that session ends: its SessionEnd, a
 // SessionStart of another session of the agent, or the agent's row closed.
-func openSubagents(q Q, from int64) (starts, open []OpenSubagent, err error) {
+func openSubagents(q Q, agent string, from int64) (open []OpenSubagent, err error) {
 	rows, err := q.Query("SELECT agent, COALESCE(account, ''), kind, ts, COALESCE(json_extract(payload, '$.session_id'), ''), "+
 		"COALESCE(json_extract(payload, '$.description'), ''), COALESCE(json_extract(payload, '$.subagent_type'), ''), "+
 		"COALESCE(json_extract(payload, '$.background'), 0) FROM events "+
-		"WHERE kind IN (?, 'SubagentStop', 'SessionStart', 'SessionEnd') AND ts >= ? AND json_valid(payload) ORDER BY id", SubagentStart, from)
+		"WHERE +agent = ? AND kind IN (?, 'SubagentStop', 'SessionStart', 'SessionEnd') AND ts >= ? AND json_valid(payload) ORDER BY id",
+		agent, SubagentStart, from)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer rows.Close()
 	live := map[string]map[string][]OpenSubagent{} // agent -> session -> its starts not yet stopped
@@ -74,14 +75,13 @@ func openSubagents(q Q, from int64) (starts, open []OpenSubagent, err error) {
 		var s OpenSubagent
 		var kind, session string
 		if err := rows.Scan(&s.Agent, &s.Account, &kind, &s.At, &session, &s.Description, &s.Type, &s.Background); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if live[s.Agent] == nil {
 			live[s.Agent] = map[string][]OpenSubagent{}
 		}
 		switch kind {
 		case SubagentStart:
-			starts = append(starts, s)
 			live[s.Agent][session] = append(live[s.Agent][session], s)
 		case "SubagentStop":
 			if l := live[s.Agent][session]; len(l) > 0 {
@@ -98,12 +98,12 @@ func openSubagents(q Q, from int64) (starts, open []OpenSubagent, err error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	for agent, sessions := range live {
 		var closed sql.NullInt64
 		if err := q.QueryRow("SELECT closed_at FROM agent_state WHERE agent = ?", agent).Scan(&closed); err != nil && err != sql.ErrNoRows {
-			return nil, nil, err
+			return nil, err
 		}
 		if closed.Int64 != 0 {
 			continue
@@ -113,17 +113,10 @@ func openSubagents(q Q, from int64) (starts, open []OpenSubagent, err error) {
 		}
 	}
 	sort.Slice(open, func(i, j int) bool { return open[i].At < open[j].At })
-	return starts, open, nil
+	return open, nil
 }
 
 // RunningSubagents are agent's subagents running at now, oldest first, read over the last day.
 func RunningSubagents(q Q, agent string, now time.Time) ([]OpenSubagent, error) {
-	_, open, err := openSubagents(q, now.Unix()-86400)
-	var out []OpenSubagent
-	for _, s := range open {
-		if s.Agent == agent {
-			out = append(out, s)
-		}
-	}
-	return out, err
+	return openSubagents(q, agent, now.Unix()-86400) // its own rows only: one agent's read of every agent's is paid per agent
 }
