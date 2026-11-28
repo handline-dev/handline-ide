@@ -1,43 +1,14 @@
 import { letterOf } from '@handline/app-core';
 import { MAC, primaryMod } from '#src/ui/keys.ts';
-import { Chat } from '#src/chat/Chat.tsx';
-import { LocatedTab } from '#src/chat/Located.tsx';
-import { Changes } from '#src/changes/Changes.tsx';
-import { MarkdownTab } from '#src/tools/MarkdownTab.tsx';
-import { TaskTab } from '#src/tools/TaskTab.tsx';
-import { InCluster, SpaceCluster, TabScope, spaceOf, splitSpace, tabIn } from '#src/connection/clusters.tsx';
-import { PlanTab } from '#src/tools/Story.tsx';
-import { CodeTab } from '#src/tools/TaskCode.tsx';
+import { InCluster, SpaceCluster, spaceOf, splitSpace, tabIn } from '#src/connection/clusters.tsx';
 import { useTabKeys } from '#src/layout/tabKeys.ts';
-import { DocTab } from '#src/tools/DocTab.tsx';
-import { ProposalView } from '#src/requests/ProposalView.tsx';
-import { AgentPage } from '#src/settings/AgentPage.tsx';
-import { TextTab } from '#src/tools/TextTab.tsx';
-import { TasksTab } from '#src/tools/TasksTab.tsx';
-import { AnyShellTab, TerminalTab } from '#src/tools/TerminalTab.tsx';
 import { useAgents, useNameOf, useWrite } from '@handline/app-data';
-import { WebTab } from '#src/tools/WebTab.tsx';
-import { WorkspacePage } from '#src/workspace/WorkspacePage.tsx';
-import { PageTab } from '#src/layout/pageTab.tsx';
-import { PaneOpen, TabRoute, goPage, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
+import { goPage, setShownWorkspace, type How } from '#src/layout/openTab.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
 import { useCallback, useContext, useEffect, useRef, type DragEvent, type ReactNode } from 'react';
-import { Boundary, brokenView } from '#src/ui/Boundary.tsx';
+import { TabBody } from '#src/layout/TabBody.tsx';
 import { newTabKinds } from '#src/layout/newTabKinds.ts';
-import {
-  agentKind,
-  choices,
-  iconOf,
-  pages,
-  labelOf,
-  mountKey,
-  opened,
-  ownedBy,
-  planRoute,
-  shellHandle,
-  shellOf,
-  withAgent,
-} from '#src/layout/kinds.tsx';
+import { agentKind, choices, iconOf, pages, labelOf, ownedBy, shellHandle, shellOf, withAgent } from '#src/layout/kinds.tsx';
 import { toast } from '#src/ui/toast.tsx';
 import { isOpen, panes, whereTo, type Action, type Node, type Pane, type Target } from '#src/layout/tree.ts';
 import { Button } from '#src/ui/Button.tsx';
@@ -158,8 +129,6 @@ function PaneView({
   const body = useRef<HTMLDivElement>(null);
   const { tab: current, cluster: there } = tabIn(pane.tabs.find((t) => t.id === pane.active));
   // An agent's tab (its chat, terminal, changes) names it; another tab draws with the agent of the focused one.
-  const own = ownedBy(current?.opens ?? '');
-  const shown = own?.kind ?? current?.opens;
   const who = agentOf(current?.opens) ?? agent;
   // `who` with its cluster: this tab's own when it names the agent, else the workspace's (the focused tab's).
   const workspaceCluster = useContext(SpaceCluster);
@@ -260,41 +229,13 @@ function PaneView({
         />
       </div>
       <div ref={body} {...{ [PANE_BODY]: pane.id }} className="relative flex min-h-0 min-w-0 flex-1 bg-bg" {...onBody.handlers}>
-        <Boundary key={`${current?.id}:${mountKey(current?.opens)}`} loading={null} failed={brokenView('This tab')}>
-          <TabScope id={current?.id ?? null} cluster={there}>
-            <PaneOpen.Provider
-              value={(opens, how) => openFrom({ root, agent: whoKey, dispatch, nameOf, focus: onFocus }, pane.id, opens, how)}
-            >
-              {current?.opens?.startsWith('chat:') && <Chat key={current.opens} agent={current.opens.slice(5)} />}
-              {shown === 'diff' && who && <Changes key={who} agent={who} />}
-              {shown === 'shell' && who && <TerminalTab key={who} agent={who} />}
-              {shellHandle(shown ?? '') && <AnyShellTab key={current!.id} agent={own ? who : null} handle={shellHandle(shown!)!} />}
-              {shown === 'markdown' && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} />}
-              {current?.opens === 'web' && <WebTab key={current.id} tab={current.id} agent={who} />}
-              {current?.opens?.startsWith('web:') && (
-                <WebTab key={current.id} tab={current.id} agent={who} start={current.opens.slice(4)} />
-              )}
-              {current?.opens?.startsWith('task:') && <TaskTab key={current.opens} id={Number(current.opens.slice(5))} />}
-              {current?.opens?.startsWith('msg:') && <LocatedTab key={current.opens} request={Number(current.opens.slice(4))} />}
-              {current?.opens?.startsWith('plan:') && (
-                <TabRoute.Provider
-                  value={(opens) => dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens, title: labelOf(opens) })}
-                >
-                  <PlanTab key={mountKey(current.opens)} {...planRoute(current.opens)} />
-                </TabRoute.Provider>
-              )}
-              {current?.opens?.startsWith('code:') && <CodeTab key={current.opens} id={Number(current.opens.slice(5))} />}
-              {shown?.startsWith('file:') && who && <MarkdownTab key={current!.id} agent={who} tab={current!.id} start={shown.slice(5)} />}
-              {current?.opens?.startsWith('text:') && <TextTab key={current.opens} id={current.opens.slice(5)} />}
-              {current?.opens?.startsWith('proposal:') && <ProposalView key={current.opens} id={Number(current.opens.slice(9))} />}
-              {current?.opens?.startsWith('doc:') && <DocTab key={current.opens} at={current.opens.slice(4)} />}
-              <PageTab opens={current?.opens} />
-              {opened(current?.opens ?? '', 'agent') && <AgentPage key={current!.opens} agent={opened(current!.opens!, 'agent')!} />}
-              {opened(current?.opens ?? '', 'ws') && <WorkspacePage key={current!.opens} ws={opened(current!.opens!, 'ws')!} />}
-              {shown === 'tasks' && <TasksTab key={own ? who : undefined} agent={who ?? null} named={!!own} />}
-            </PaneOpen.Provider>
-          </TabScope>
-        </Boundary>
+        <TabBody
+          tab={current}
+          cluster={there}
+          who={who}
+          onOpen={(opens, how) => openFrom({ root, agent: whoKey, dispatch, nameOf, focus: onFocus }, pane.id, opens, how)}
+          onChoose={(opens, title) => current && dispatch({ type: 'choose', pane: pane.id, tab: current.id, opens, title })}
+        />
         {current && !current.opens && (
           <EmptyTab
             onPick={(kind) =>

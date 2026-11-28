@@ -19,7 +19,7 @@ import { Workspace, type Grip, type IconFor } from '#src/Workspace.tsx';
 import { labelOf } from '#src/layout/kinds.tsx';
 import { useOpensOver } from '#src/layout/openTab.tsx';
 import { PANE_PLACE, type At, type PaneDrop } from '#src/layout/paneGrip.tsx';
-import { STOPS, holds, snapRatio, stepStop, type Action, type Pane } from '#src/layout/tree.ts';
+import { STOPS, holds, panes, snapRatio, stepStop, type Action, type Pane } from '#src/layout/tree.ts';
 import { spring } from '#src/motion.ts';
 import { DROP_AREA, isTabDrag, readTabDrag, showBox, showZone, sideAt } from '#src/ui/dnd.tsx';
 import { useDropTarget } from '#src/ui/dropTarget.tsx';
@@ -32,6 +32,7 @@ import {
   DOCKS_MOST,
   FLOAT_W,
   focusIn,
+  holdsOpen,
   paneShowing,
   reduceWindows,
   sharesOf,
@@ -48,9 +49,16 @@ import {
 const CLOSES = 0.18;
 const SCENE = 'scene';
 
-/** `narrow`: the town is as narrow as a phone. */
-type Shown = { show: (opens: string, title: string) => void; shows: (opens: string) => boolean; narrow: boolean };
-const TownShown = createContext<Shown>({ show: () => {}, shows: () => false, narrow: false });
+/** `pin` keeps something in a tab bar docked on the left, beside the picture; `shows` says whether a tab bar has it on top, `keeps`
+ *  whether one holds it at all; `narrow`: the town is as narrow as a phone. */
+type Shown = {
+  show: (opens: string, title: string) => void;
+  pin: (opens: string, title: string) => void;
+  shows: (opens: string) => boolean;
+  keeps: (opens: string) => boolean;
+  narrow: boolean;
+};
+const TownShown = createContext<Shown>({ show: () => {}, pin: () => {}, shows: () => false, keeps: () => false, narrow: false });
 /** Opens a tab in the town's windows (a person clicked, the founder's desk), says what a tab bar shows now and whether it is a phone's. */
 export const useTownShown = () => useContext(TownShown);
 
@@ -248,9 +256,17 @@ export function TownWindows({
       />
     );
   };
+  const pin = (opens: string, title: string) => {
+    const left = w.docks.left && panes(w.docks.left)[0];
+    if (narrow || paneShowing(w, opens)) return open(opens, title);
+    if (left) return act({ type: 'show', opens, title, pane: left.id });
+    act({ type: 'dock', what: { opens, title }, side: 'left' });
+  };
   const shown: Shown = {
     show: open,
+    pin,
     shows: (opens) => !!paneShowing(w, opens),
+    keeps: (opens) => holdsOpen(w, opens),
     narrow,
   };
   return (

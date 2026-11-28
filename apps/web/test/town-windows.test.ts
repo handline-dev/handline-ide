@@ -7,6 +7,8 @@ import {
   chatsShown,
   sharesOf,
   focusIn,
+  holdsOpen,
+  paneShowing,
   reduceWindows,
   sheetOf,
   spotAway,
@@ -195,5 +197,13 @@ describe('where a window opens', () => {
     // A town narrower than the window: it starts at the left edge.
     expect(spotAway(0.2, 1.4, 0)).toBe(0);
     expect(spotAway(0.8, 1.4, 3)).toBe(0);
+  });
+});
+
+describe('a tab bar holding something', () => {
+  it('holds it behind another tab too, where it no longer shows', () => {
+    const one = run(NONE, { type: 'dock', what: { opens: 'chat:a', title: 'a' }, side: 'left' });
+    const two = run(one, { type: 'show', opens: 'chat:b', title: 'b', pane: first(one.docks.left!).id });
+    expect([holdsOpen(two, 'chat:a'), !!paneShowing(two, 'chat:a'), holdsOpen(two, 'chat:c')]).toEqual([true, false, false]);
   });
 });

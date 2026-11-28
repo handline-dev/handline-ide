@@ -1,13 +1,14 @@
 // What takes a click or a hover in an office's picture (Inside.tsx), laid over it as page elements at the same boxes, in picture pixels
 // times the picture's scale: the founder's desk (the decisions), each person and its desk (a card on hover, its chat on a click, the
 // app's own agent menu on a right-click), the papers on a desk (its tasks), the empty desk and the HQ's dotted person (each hires an
-// agent), the door (out) and the founder itself (its look). Page elements, not shapes in the picture, so a card and the app's menu can hang on them. A click first
-// walks the founder there; what a tab bar shows stays outlined. Clicks between the targets fall through to the floor.
+// agent), the door (out) and the founder itself (its look). Page elements, not shapes in the picture, so a card and the app's menu can hang on them. A click
+// walks the founder there, and the nearby window opens on arrival (NearWindow.tsx); Cmd-click opens it in a tab bar at once. What a tab
+// bar shows stays outlined. Clicks between the targets fall through to the floor.
 import { PreviewCard as P } from '@base-ui/react/preview-card';
 import { useAgents, useNav, useRead } from '@handline/app-data';
 import type { AgentView } from '@handline/client';
 import { Plus } from 'lucide-react';
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { AgentMenu } from '#src/AgentMenu.tsx';
 import { newAgent, newAgentIn } from '#src/NewAgent.tsx';
 import { chatOf, withAgent } from '#src/layout/kinds.tsx';
@@ -24,6 +25,9 @@ import { PersonCard } from '#src/town/PersonCard.tsx';
 import { useTownShown } from '#src/town/Windows.tsx';
 import { MyLook } from '#src/town/MyLook.tsx';
 
+/** Cmd-click (Ctrl-click off a Mac): open in a tab bar at once, not on arrival in the nearby window. */
+const pinChord = (e: MouseEvent) => e.metaKey || e.ctrlKey;
+
 /** What the founder's own desk opens: the decisions waiting for them. */
 export const DESK = { opens: 'requests', title: 'Requests' };
 
@@ -31,8 +35,8 @@ export const DESK = { opens: 'requests', title: 'Requests' };
 const look = (on: boolean) =>
   `pointer-events-auto absolute cursor-pointer rounded-sm outline-accent ${on ? 'outline' : 'hover:outline focus-visible:outline'}`;
 
-/** A person or its desk: its card while the pointer rests on it, `onShow` on a click, the agent menu on a right-click. `agent` is
- *  missing only until the list is read. */
+/** A person or its desk: its card while the pointer rests on it, `onShow` on a click (`pin` with Cmd, or from the menu), the agent menu
+ *  on a right-click. `agent` is missing only until the list is read. */
 function PersonTarget({
   person,
   agent,
@@ -50,7 +54,7 @@ function PersonTarget({
   shown: boolean;
   /** No card opens: the founder is walking, to this person too; its card opens once the walk ends here. */
   quiet: boolean;
-  onShow: () => void;
+  onShow: (pin: boolean) => void;
   /** Opens its terminal in the town's windows. */
   onTerminal: () => void;
 }) {
@@ -66,7 +70,7 @@ function PersonTarget({
       aria-label={tipOf(person)}
       style={style}
       className={look(shown)}
-      onClick={onShow}
+      onClick={(e) => onShow(pinChord(e))}
       onContextMenu={() => setUsed(true)}
       onPointerLeave={() => {
         // A card that shows with a button is closed by its own leave, so the pointer can cross to it; any other rest ends here.
@@ -102,7 +106,7 @@ function PersonTarget({
   );
   if (!agent) return card;
   return (
-    <AgentMenu agent={agent} opens={chatOf(person.key)} onShow={onShow}>
+    <AgentMenu agent={agent} opens={chatOf(person.key)} onShow={() => onShow(true)}>
       {card}
     </AgentMenu>
   );
@@ -114,6 +118,7 @@ export function Targets({
   house,
   founder,
   onOut,
+  onSeek,
 }: {
   drawn: Drawn;
   scale: number;
@@ -122,8 +127,10 @@ export function Targets({
   founder: Founder;
   /** The door was clicked. */
   onOut: () => void;
+  /** A click sent the founder to the thing with this key (near.ts thingsOf). */
+  onSeek: (key: string) => void;
 }) {
-  const { show, shows } = useTownShown();
+  const { show, pin: keep, shows } = useTownShown();
   const papersTip = usePapersTip();
   // While the founder walks, by the keys or to where a click sent it, the pointer is not looking at anyone.
   const walking = useFounder(founder, (me) => !!me?.moving);
@@ -142,7 +149,7 @@ export function Targets({
     width: (b.w + 2 * pad) * scale,
     height: (b.h + 2 * pad) * scale,
   });
-  const personAt = (s: Box & { person: Person; at: [number, number]; face?: 'up' }, id: string) => {
+  const personAt = (s: Box & { person: Person; at: [number, number]; face?: 'up' }, id: string, kind: 'desk' | 'spot') => {
     const person = house.people.find((p) => p.key === s.person.key) ?? s.person;
     const opens = chatOf(person.key);
     return (
@@ -154,9 +161,10 @@ export function Targets({
         style={at(s)}
         shown={shows(opens)}
         quiet={walking}
-        onShow={() => {
+        onShow={(pin) => {
+          onSeek(`${kind}:${person.key}`);
           founder.go(s.at, () => founder.turn(s.face ?? 'right'));
-          show(opens, person.name);
+          if (pin) keep(opens, person.name);
         }}
         onTerminal={() => show(withAgent('shell', person.key), `Terminal · ${person.name}`)}
       />
@@ -172,13 +180,14 @@ export function Targets({
           title={`Your desk · ${decisions} ${decisions === 1 ? 'decision' : 'decisions'}`}
           style={at(mine)}
           className={look(shows(DESK.opens))}
-          onClick={() => {
+          onClick={(e) => {
+            onSeek('mine');
             founder.sit(mine.seat, mine.at);
-            show(DESK.opens, DESK.title);
+            if (pinChord(e)) keep(DESK.opens, DESK.title);
           }}
         />
       )}
-      {desks.map((d) => personAt(d, `desk-${d.person.key}`))}
+      {desks.map((d) => personAt(d, `desk-${d.person.key}`, 'desk'))}
       {papers.map((p) => (
         <button
           key={`papers-${p.person.key}`}
@@ -186,13 +195,14 @@ export function Targets({
           title={papersTip(p.person)}
           style={at(p)}
           className={look(shows(`tasks|${p.person.key}`))}
-          onClick={() => {
+          onClick={(e) => {
+            onSeek(`papers:${p.person.key}`);
             founder.go(p.at, () => founder.turn('up'));
-            show(`tasks|${p.person.key}`, `Tasks · ${p.person.name}`);
+            if (pinChord(e)) keep(`tasks|${p.person.key}`, `Tasks · ${p.person.name}`);
           }}
         />
       ))}
-      {spots.map((s) => personAt(s, `at-${s.person.key}`))}
+      {spots.map((s) => personAt(s, `at-${s.person.key}`, 'spot'))}
       {hire && workspace && (
         <button
           type="button"

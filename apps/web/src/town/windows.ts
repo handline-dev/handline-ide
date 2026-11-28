@@ -228,6 +228,12 @@ export function focusIn(w: Windows, focus: string): string {
 /** The side whose dock holds node `id`, if one does. */
 export const sideOf = (w: Windows, id: string): Side | undefined => SIDES.find((s) => w.docks[s] && holds(w.docks[s], id));
 
+/** Whether a tab bar holds `opens`, on top or behind another tab. */
+export const holdsOpen = (w: Windows, opens: string) =>
+  trees(w)
+    .flatMap(panes)
+    .some((p) => p.tabs.some((t) => t.opens === opens));
+
 /** The pane showing `opens`, if any. */
 export const paneShowing = (w: Windows, opens: string) =>
   trees(w)

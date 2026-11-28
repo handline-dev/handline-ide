@@ -1,7 +1,7 @@
 // A workspace's office, shown when its building is clicked: a 3D room drawn as pixel art (room.ts, fit.ts, scene3d.ts, people.ts), drawn
-// to fill the pane. The founder walks in it (founder.tsx): a click on the floor walks there, on a person or desk brings up that agent's
-// chat (Windows.tsx), on its papers its tasks, on the founder's desk the decisions, on the empty desk hires; Targets.tsx lays these over
-// the picture. Marks say who is on hold or stopped (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
+// to fill the pane. The founder walks in it (founder.tsx): a click on the floor walks there, on a person, desk, its papers or the founder's
+// desk walks there, and standing beside it opens its chat, its tasks or the decisions in the nearby window (NearWindow.tsx); on the
+// empty desk hires; Targets.tsx lays these over the picture. Marks say who is on hold or stopped (Marks.tsx); a working screen moves (monitors.tsx). The door opens when the
 // founder walks into it or it is clicked; Escape never leaves. A person whose place changes walks to the new one (crowd.ts, Cast.tsx).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { House } from '#src/town/model.ts';
@@ -18,6 +18,9 @@ import { useCrowd, usePlaced, useToDesks } from '#src/town/crowd.ts';
 import { fadeOf, useFollow } from '#src/town/pan.ts';
 import { useCheers } from '#src/town/cheers.ts';
 import { Bubbles, JoinOutline, People, READABLE, useSeeThrough, useThroughDoor } from '#src/town/Cast.tsx';
+import { NearWindow, type Sought } from '#src/town/NearWindow.tsx';
+import { thingsOf } from '#src/town/near.ts';
+import { figuresOf } from '#src/town/sheet.ts';
 
 const PIXEL = { imageRendering: 'pixelated' } as const;
 /** How much of the front wall shows while a person reaches into it. */
@@ -70,6 +73,9 @@ export function Inside({
   const seeThrough = useSeeThrough(drawn, founder, crowd);
   // The door opens for whoever comes near it once it is free, and shuts when nobody is near.
   const through = useThroughDoor(crowd, drawn?.stage.door);
+  // What a click last sent the founder to: on a spot two things share, the nearby window shows that one.
+  const [sought, setSought] = useState<Sought | null>(null);
+  const seek = (key: string) => setSought((was) => ({ key, click: (was?.click ?? 0) + 1 }));
   // Where the founder stands to go out once the door is free, after a click on it.
   const [leaving, setLeaving] = useState<FloorSpot | null>(null);
   if (leaving && (!swing || (swing.crowd && swing.way === 'shut'))) {
@@ -133,6 +139,7 @@ export function Inside({
                     style={PIXEL}
                     onClick={(e) => {
                       const r = e.currentTarget.getBoundingClientRect();
+                      setSought(null);
                       founder.go(drawn.ground.toFloor((e.clientX - r.left) / scale, (e.clientY - r.top) / scale));
                     }}
                   />
@@ -163,10 +170,18 @@ export function Inside({
                   <Marks drawn={drawn} crowd={crowd} people={house.people} scale={scale} cheers={cheers} />
                 </svg>
               </MotionsOf>
-              <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} />
+              <Targets drawn={drawn} scale={scale} house={house} founder={founder} onOut={goOut} onSeek={seek} />
             </>
           )}
         </Followed>
+        {drawn && (
+          <NearWindow
+            founder={founder}
+            things={thingsOf(drawn.cast, house.people, DESK)}
+            rows={figuresOf(drawn.stage.people)}
+            sought={sought}
+          />
+        )}
       </div>
     </div>
   );
